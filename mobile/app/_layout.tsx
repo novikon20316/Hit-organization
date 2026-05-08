@@ -28,6 +28,15 @@ export default function RootLayout() {
       if (role === "student") {
         console.log("➡️ navigating to student");
         router.replace("/student/home");
+      }else if (role === "supervisor") {
+        console.log("➡️ navigating to supervisor");
+        router.replace("/supervisor/dashboard");
+      }else if (role === "admin") {
+        console.log("➡️ navigating to admin");
+        router.replace("/admin/panel");
+      }else {
+        console.log("➡️ navigating to auth");
+        router.replace("/(auth)/login");
       }
 
       setLoading(false);
