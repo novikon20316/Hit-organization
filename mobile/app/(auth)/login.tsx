@@ -6,15 +6,16 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
-  Button,
+  Pressable,
 } from "react-native";
 
-import { db } from "../../src/firebase/firebase";
-import { collection, addDoc, setDoc, doc, getDoc } from "firebase/firestore";
 import { loginUser } from "../../firebase/authService";
 import { useState } from "react";
+import { useRouter } from 'expo-router';
+
 
 export default function Home() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,15 +30,6 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const testFirebase = async () => {
-    await addDoc(collection(db, "mobileTest"), {
-      message: "Firebase works from Android!",
-      time: new Date().toISOString(),
-    });
-
-    console.log("✅ sent to Firebase");
   };
 
   return (
@@ -80,14 +72,17 @@ export default function Home() {
             <Text style={styles.buttonText}>Login</Text>
           )}
         </TouchableOpacity>
-
+          <Pressable onPress={() => router.push('/(auth)/signup')}>
+            <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
+              Don&#39;t have an account? Sign Up.
+            </Text>
+          </Pressable>
+      </View>
         {/* OPTIONAL TEST BUTTON 
         <View style={{ marginTop: 20 }}>
           <Button title="Test Firebase" onPress={testFirebase} />
         </View>*/}
       </View>
-
-    </View>
   );
 }
 

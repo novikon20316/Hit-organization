@@ -302,7 +302,7 @@ export default function SupervisorHome() {
         isRtl={isRtl}
         unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/notifications')}
+        onBell={() => router.push('/(tabs)/Notificationsscreen')}
       />
 
       {/* Stats row */}
@@ -579,8 +579,8 @@ export default function SupervisorHome() {
                 onPress={() => setNewDegree(d)}
               >
                 <Text style={[styles.toggleText, newDegree === d && styles.toggleTextActive]}>
-                  {d === 'bachelors' ? (lang === 'he' ? "ב.א." : "B.Sc.")
-                   : d === 'masters' ? (lang === 'he' ? "מ.א." : "M.Sc.")
+                  {d === 'bachelors' ? (lang === 'he' ? "תואר ראשון" : "B.Sc.")
+                   : d === 'masters' ? (lang === 'he' ? "תואר שני" : "M.Sc.")
                    : (lang === 'he' ? "שניהם" : "Both")}
                 </Text>
               </Pressable>

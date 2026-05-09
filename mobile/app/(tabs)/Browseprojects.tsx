@@ -7,7 +7,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, auth } from '../../src/firebase/firebase';
+import { db, auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import type { ProjectProposal } from '../../hooks/useStudentData';
 
@@ -38,21 +38,38 @@ export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
 
   // ── Filtered proposals ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    return proposals.filter((p) => {
-      const titleMatch = lang === 'he'
-        ? p.titleHe.toLowerCase().includes(search.toLowerCase())
-        : p.titleEn.toLowerCase().includes(search.toLowerCase());
-      const supervisorMatch = p.supervisorName.toLowerCase().includes(search.toLowerCase());
-      const skillMatch = p.requiredSkills.some((s) =>
-        s.toLowerCase().includes(search.toLowerCase())
-      );
-      const textOk = !search || titleMatch || supervisorMatch || skillMatch;
-      const degreeOk = degreeFilter === 'all' ||
-        p.degreeType === degreeFilter || p.degreeType === 'both';
-      const typeOk = typeFilter === 'all' || p.projectType === typeFilter;
-      return textOk && degreeOk && typeOk;
-    });
-  }, [proposals, search, degreeFilter, typeFilter, lang]);
+  const searchLower = (search || '').toLowerCase();
+
+  return proposals.filter((p) => {
+    const title =
+      lang === 'he'
+        ? (p.titleHe || '')
+        : (p.titleEn || '');
+
+    const titleMatch = title.toLowerCase().includes(searchLower);
+
+    const supervisorMatch = (p.supervisorName || '')
+      .toLowerCase()
+      .includes(searchLower);
+
+    const skillMatch = (p.requiredSkills || []).some((s) =>
+      (s || '').toLowerCase().includes(searchLower)
+    );
+
+    const textOk =
+      !search || titleMatch || supervisorMatch || skillMatch;
+
+    const degreeOk =
+      degreeFilter === 'all' ||
+      p.degreeType === degreeFilter ||
+      p.degreeType === 'both';
+
+    const typeOk =
+      typeFilter === 'all' || p.projectType === typeFilter;
+
+    return textOk && degreeOk && typeOk;
+  });
+}, [proposals, search, degreeFilter, typeFilter, lang]);
 
   // ── File picker ────────────────────────────────────────────────────────────
   const pickFile = async (type: 'transcript' | 'cv') => {
@@ -69,13 +86,51 @@ export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
   };
 
   // ── Upload file to Firebase Storage ───────────────────────────────────────
-  const uploadFile = async (uri: string, path: string): Promise<string> => {
-    const response = await fetch(uri);
-    const blob = await response.blob();
+  const uploadFile = async (uri: string): Promise<string> => { /** ERROR UPLOADING THE REQUEST -- NEED TO FIX IT **/
+    try {
+    const formData = new FormData();
+
+    formData.append('file', {
+      uri,
+      type: 'application/pdf',
+      name: 'document.pdf',
+    } as any);
+
+    formData.append('upload_preset', 'student_uploads');
+
+    const response = await fetch(
+      'https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload',
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
+
+    const data = await response.json();
+
+    console.log('UPLOAD RESULT:', data);
+
+    return data.secure_url;
+
+  } catch (error) {
+    console.error('UPLOAD ERROR:', error);
+    throw error;
+  }
+    /*const blob: Blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => resolve(xhr.response);
+        xhr.onerror = () => reject(new Error("File upload failed"));
+        xhr.responseType = 'blob';
+        xhr.open('GET', uri, true);
+        xhr.send(null);
+    });
+
     const storageRef = ref(storage, path);
+    console.log("CURRENT USER:", auth.currentUser);
     await uploadBytes(storageRef, blob);
-    return getDownloadURL(storageRef);
-  };
+
+    return await getDownloadURL(storageRef);*/
+};
 
   // ── Submit application ─────────────────────────────────────────────────────
   const handleApply = async () => {
@@ -93,8 +148,8 @@ export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
     try {
       const base = `applications/${uid}/${selected.id}`;
       const [transcriptUrl, cvUrl] = await Promise.all([
-        uploadFile(transcriptUri,  `${base}/transcript.pdf`),
-        uploadFile(cvUri,          `${base}/cv.pdf`),
+        uploadFile(transcriptUri),
+        uploadFile(cvUri),
       ]);
 
       await addDoc(collection(db, 'applications'), {

@@ -9,7 +9,7 @@ import {
   doc, updateDoc, addDoc, collection, serverTimestamp,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, auth } from '../../src/firebase/firebase';
+import { db, auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import type { ActiveProject, Milestone, MilestoneType, MilestoneStatus } from '../../hooks/useStudentData';
 

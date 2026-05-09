@@ -247,7 +247,7 @@ export default function AdminHome() {
         isRtl={isRtl}
         unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/notifications')}
+        onBell={() => router.push('/(tabs)/Notificationsscreen')}
       />
 
       {/* Tabs */}
@@ -472,7 +472,7 @@ export default function AdminHome() {
                     👨‍🏫 {p.supervisorName}
                     {' · '}
                     {lang === 'he'
-                      ? p.degreeType === 'bachelors' ? 'ב.א.' : p.degreeType === 'masters' ? 'מ.א.' : 'שניהם'
+                      ? p.degreeType === 'bachelors' ? 'תואר ראשון' : p.degreeType === 'masters' ? 'תואר שני' : 'שניהם'
                       : p.degreeType === 'bachelors' ? "B.Sc." : p.degreeType === 'masters' ? "M.Sc." : 'Both'}
                     {' · '}
                     {p.academicYear}
