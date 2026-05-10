@@ -15,6 +15,8 @@ import {
   TopBar, StatCard, FacultyBadge, StatusBadge,
   getFacultyColor, FACULTY_COLORS,
 } from '../../components/shared';
+import { sendPushNotification } from '../../components/pushNotifications';
+import { Picker } from '@react-native-picker/picker';
 
 interface SystemStats {
   totalUsers: number; totalProjects: number;
@@ -76,6 +78,59 @@ export default function AdminHome() {
   const [saving,     setSaving]     = useState(false);
 
   const uid = auth.currentUser?.uid;
+
+  // MAINTINANCE MODE
+  const [maintenanceModal, setMaintenanceModal] = useState(false);
+  const [maintenanceTitle, setMaintenanceTitle] = useState('');
+  const [maintenanceDays, setMaintenanceDays] = useState(0);
+  const [maintenanceHours, setMaintenanceHours] = useState(0);
+  const [maintenanceMinutes, setMaintenanceMinutes] = useState(0);
+  const [maintenanceSaving, setMaintenanceSaving] = useState(false);
+
+  const saveMaintenance = async () => {
+    try {
+      setMaintenanceSaving(true);
+
+      if (!maintenanceTitle) {
+        Alert.alert('Error', 'Missing maintenance title');
+        return;
+      }
+
+      const shutdownTime =
+        Date.now() +
+        maintenanceDays * 24 * 60 * 60 * 1000 +
+        maintenanceHours * 60 * 60 * 1000 +
+        maintenanceMinutes * 60 * 1000;
+
+      await addDoc(collection(db, 'system'), {
+        type: 'maintenance',
+        title: maintenanceTitle,
+        shutdownAt: shutdownTime,
+        messageEn: 'Sorry for the inconvenience',
+        messageHe: 'מצטערים על אי הנוחות',
+        createdAt: serverTimestamp(),
+        active: true,
+      });
+
+      Alert.alert(
+        'Success',
+        lang === 'he'
+          ? 'מצב תחזוקה הופעל ונשלח לכל המשתמשים'
+          : 'Maintenance mode activated'
+      );
+
+      setMaintenanceModal(false);
+      setMaintenanceTitle('');
+      setMaintenanceDays(0);
+      setMaintenanceHours(0);
+      setMaintenanceMinutes(0);
+    } catch (e) {
+      console.log('Maintenance error:', e);
+      Alert.alert('Error', 'Failed to save maintenance mode');
+    } finally {
+      setMaintenanceSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!uid) return;
@@ -238,6 +293,26 @@ export default function AdminHome() {
     );
   }
 
+  const deleteProject = async (projectId: string) => {
+    Alert.alert(
+      'Delete Project',
+      'Are you sure you want to delete this project?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await updateDoc(doc(db, 'projects', projectId), {
+              isArchived: true,
+              deletedAt: serverTimestamp(),
+            });
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={a.root}>
       <TopBar
@@ -248,6 +323,7 @@ export default function AdminHome() {
         unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
         onBell={() => router.push('/(tabs)/Notificationsscreen')}
+        onMaintenance = {() => setMaintenanceModal(true)}
       />
 
       {/* Tabs */}
@@ -608,6 +684,100 @@ export default function AdminHome() {
           </ScrollView>
         </View>
       </Modal>
+      <Modal visible={maintenanceModal} animationType="slide">
+        <View style={a.modal}>
+          <ScrollView contentContainerStyle={a.modalContent}>
+
+            <Text style={a.modalTitle}>
+              🛠️ {lang === 'he' ? 'מצב תחזוקה' : 'Maintenance Mode'}
+            </Text>
+
+            <TextInput
+              placeholder={lang === 'he' ? 'כותרת תחזוקה' : 'Maintenance Title'}
+              value={maintenanceTitle}
+              onChangeText={setMaintenanceTitle}
+              style={a.input}
+            />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              {/* Days */}
+              <View style={{ flex: 1 }}>
+                <Text style={a.fieldLabel}>
+                  {lang === 'he' ? 'ימים' : 'Days'}
+                </Text>
+                <Picker
+                  selectedValue={maintenanceDays}
+                  onValueChange={(v) => setMaintenanceDays(v)}
+                >
+                  {[...Array(8).keys()].map((d) => (
+                    <Picker.Item key={d} label={`${d}`} value={d} />
+                  ))}
+                </Picker>
+              </View>
+
+              {/* Hours */}
+              <View style={{ flex: 1 }}>
+                <Text style={a.fieldLabel}>
+                  {lang === 'he' ? 'שעות' : 'Hours'}
+                </Text>
+                <Picker
+                  selectedValue={maintenanceHours}
+                  onValueChange={(v) => setMaintenanceHours(v)}
+                >
+                  {[...Array(24).keys()].map((h) => (
+                    <Picker.Item key={h} label={`${h}`} value={h} />
+                  ))}
+                </Picker>
+              </View>
+
+              {/* Minutes */}
+              <View style={{ flex: 1 }}>
+                <Text style={a.fieldLabel}>
+                  {lang === 'he' ? 'דקות' : 'Minutes'}
+                </Text>
+                <Picker
+                  selectedValue={maintenanceMinutes}
+                  onValueChange={(v) => setMaintenanceMinutes(v)}
+                >
+                  {[0, 5, 10, 15, 30, 45, 50, 55].map((m) => (
+                    <Picker.Item key={m} label={`${m}`} value={m} />
+                  ))}
+                </Picker>
+              </View>
+
+            </View>
+
+            <View style={a.infoBox}>
+              <Text style={a.infoText}>
+                {lang === 'he'
+                  ? 'הודעה קבועה: מצטערים על אי הנוחות'
+                  : 'Fixed message: Sorry for the inconvenience'}
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={saveMaintenance}
+              style={a.submitBtn}
+              disabled={maintenanceSaving}
+            >
+              <Text style={a.submitBtnText}>
+                {maintenanceSaving
+                  ? '...'
+                  : lang === 'he'
+                    ? 'שמור ושלח'
+                    : 'Save & Send'}
+              </Text>
+            </Pressable>
+
+            <Pressable onPress={() => setMaintenanceModal(false)}>
+              <Text style={{ textAlign: 'center', marginTop: 20 }}>
+                {lang === 'he' ? 'סגור' : 'Close'}
+              </Text>
+            </Pressable>
+
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -767,4 +937,52 @@ const a = StyleSheet.create({
     shadowColor: '#EF4444', shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
   },
   submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  // Maintenance modal
+  maintenanceBtn: {
+    backgroundColor: '#111827',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+
+  maintenanceBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+
+  deleteBtn: {
+    marginTop: 10,
+    backgroundColor: '#FEE2E2',
+    padding: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+
+  deleteBtnText: {
+    color: '#EF4444',
+    fontWeight: '700',
+  },
+
+  input: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 10,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E0E8FF',
+  },
+
+  infoBox: {
+    backgroundColor: '#EFF6FF',
+    padding: 10,
+    borderRadius: 10,
+    marginVertical: 10,
+  },
+
+  infoText: {
+    fontSize: 12,
+    color: '#2E86FF',
+    fontWeight: '600',
+  },
 });

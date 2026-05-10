@@ -74,7 +74,7 @@ export default function StudentHome() {
           </Pressable>
 
           {/* Notifications bell */}
-          <Pressable style={styles.bellBtn} onPress={() => router.push('/student/notifications')}>
+          <Pressable style={styles.bellBtn} onPress={() => router.push('/(tabs)/Notificationsscreen')}>
             <Text style={styles.bellIcon}>🔔</Text>
             {unreadCount > 0 && (
               <View style={styles.badge}>

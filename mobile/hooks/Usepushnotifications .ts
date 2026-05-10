@@ -64,7 +64,7 @@ function handleNotificationTap(
 
   switch (type) {
     case 'project_published':
-      if (relatedProjectId) router.push(`/student/project/${relatedProjectId}`);
+      if (relatedProjectId) router.push({ pathname: '/student/projects/[id]', params: { id: relatedProjectId } });
       else router.push('/student/home');
       break;
     case 'application_approved':

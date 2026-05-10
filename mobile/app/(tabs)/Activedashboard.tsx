@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import {
-  doc, updateDoc, addDoc, collection, serverTimestamp,
+  doc, updateDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../../src/firebase/firebase';
@@ -75,18 +75,29 @@ export default function ActiveDashboard({
     setSubmitting(true);
     setSubmitMessage(null);
     try {
-      // Upload files
       const fileUrls: string[] = [];
       for (const f of files) {
-        const response = await fetch(f.uri);
-        const blob = await response.blob();
-        const storageRef = ref(
-          storage,
-          `milestones/${targetMilestone.id}/${uid}/${f.name}`
+        const formData = new FormData();
+
+        formData.append('file', {
+          uri: f.uri,
+          type: 'application/octet-stream',
+          name: f.name,
+        } as any);
+
+        formData.append('upload_preset', 'YOUR_UPLOAD_PRESET');
+
+        const res = await fetch(
+          'https://api.cloudinary.com/v1_1/dp7stlfas/auto/upload',
+          {
+            method: 'POST',
+            body: formData,
+          }
         );
-        await uploadBytes(storageRef, blob);
-        const url = await getDownloadURL(storageRef);
-        fileUrls.push(url);
+
+        const data = await res.json();
+
+        fileUrls.push(data.secure_url);
       }
 
       // Update milestone doc

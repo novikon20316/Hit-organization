@@ -126,7 +126,7 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notif[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [filter,        setFilter]        = useState<'all' | 'unread'>('all');
-
+  const [userRole, setUserRole] = useState<string | null>(null);
   const isRtl      = lang === 'he';
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -156,6 +156,57 @@ export default function NotificationsScreen() {
       setLoading(false);
     });
   }, [uid]);
+
+  useEffect(() => {
+    const loadRole = async () => {
+      if (!uid) return;
+
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+
+        const snap = await getDoc(doc(db, 'users', uid));
+
+        if (snap.exists()) {
+          setUserRole(snap.data().role);
+        }
+      } catch (err) {
+        console.log('Failed loading role:', err);
+      }
+    };
+
+    loadRole();
+  }, [uid]);
+
+  const goHomeByRole = () => {
+    switch (userRole) {
+      case 'student':
+        router.replace('/student/home');
+        break;
+
+      case 'supervisor':
+        router.replace('/supervisor/dashboard');
+        break;
+
+      /*case 'examiner':
+        router.replace('/examiner/home');
+        break;
+
+      case 'coordinator':
+        router.replace('/coordinator/dashboard');
+        break;
+
+      case 'faculty_admin':
+        router.replace('/faculty_admin/dashboard');
+        break;*/
+
+      case 'system_admin':
+        router.replace('/admin/panel');
+        break;
+
+      default:
+        router.replace('/(auth)/login');
+    }
+  };
 
   const handleTap = async (notif: Notif) => {
     if (!notif.isRead) await markNotificationRead(notif.id);
@@ -216,7 +267,7 @@ export default function NotificationsScreen() {
 
       {/* Header */}
       <View style={[s.header, isRtl && s.rowReverse]}>
-        <Pressable style={s.backBtn} onPress={() => router.back()}>
+        <Pressable style={s.backBtn} onPress={goHomeByRole}>
           <Text style={s.backText}>{isRtl ? '→' : '←'}</Text>
         </Pressable>
 

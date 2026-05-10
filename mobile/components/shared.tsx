@@ -77,10 +77,11 @@ interface TopBarProps {
   unreadCount: number;
   onToggleLang: () => void;
   onBell:    () => void;
+  onMaintenance?: () => void;
 }
 
 export function TopBar({
-  name, role, lang, isRtl, unreadCount, onToggleLang, onBell,
+  name, role, lang, isRtl, unreadCount, onToggleLang, onBell, onMaintenance,
 }: TopBarProps) {
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
@@ -112,7 +113,14 @@ export function TopBar({
         <Pressable style={tb.langBtn} onPress={onToggleLang}>
           <Text style={tb.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
         </Pressable>
-
+        {role === 'system_admin' && (
+                  <Pressable
+                    style={{ paddingHorizontal: 6 }}
+                    onPress={onMaintenance}
+                  >
+                    <Text style={{ fontSize: 18 }}>🛠️</Text>
+                  </Pressable>
+                )}
         <Pressable style={tb.bellBtn} onPress={onBell}>
           <Text style={tb.bellIcon}>🔔</Text>
           {unreadCount > 0 && (

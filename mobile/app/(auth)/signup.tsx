@@ -57,8 +57,14 @@ export default function ProfileSetup() {
     yearOfStudy;
 
   const handleSave = async () => {
+    console.log("Attempting to save profile with data:", {
+      displayName, phoneNumber, email, degreeType, major, yearOfStudy
+    });
     if (!canSave || !email || !password) {
       Alert.alert("Error", "Please fill all fields, including email and password.");
+      return;
+    }else if((degreeType === 'bachelors' && yearOfStudy < 3 && selectedMajorData?.years === 4) || (degreeType === 'bachelors' && yearOfStudy < 2 && selectedMajorData?.years === 3) || (degreeType === 'masters' && yearOfStudy === 2)){
+      Alert.alert("Error", "NEED TO BE AT YOUR LAST YEAR OF THE DEGREE."); // need to be in final year to register, otherwise we get too many irrelevant users who just want to check the app without real intention to use it for project matching
       return;
     }
     setSaving(true);

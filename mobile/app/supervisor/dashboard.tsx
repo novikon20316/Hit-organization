@@ -12,6 +12,7 @@ import { db, auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, SectionHeader, FacultyBadge, StatusBadge, getFacultyColor } from '../../components/shared';
+import { sendPushNotification } from '../../components/pushNotifications';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MyProject {
@@ -196,7 +197,7 @@ export default function SupervisorHome() {
     }
     setCreating(true);
     try {
-      await addDoc(collection(db, 'projects'), {
+      const projectRef = await addDoc(collection(db, 'projects'), {
         supervisorId:       uid,
         facultyId,
         titleHe:            newTitleHe.trim(),
@@ -221,6 +222,19 @@ export default function SupervisorHome() {
       setNewDescHe('');  setNewDescEn('');
       setNewSkills('');
       Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
+      const supervisorSnap = await getDoc(doc(db, 'users', uid!));
+      const expoPushToken = supervisorSnap.data()?.expoPushToken;
+      if (expoPushToken) {
+        await sendPushNotification(
+          expoPushToken,
+          '📢 New Project Published!',
+          'A new project is available. Check it now!',
+          {
+            projectId: projectRef.id,
+            type: 'project_published',
+          }
+        );
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -230,22 +244,122 @@ export default function SupervisorHome() {
 
   // ── Application decision ───────────────────────────────────────────────────
   const handleDecision = async (
-    appId: string, projectId: string,
+    appId: string, 
+    projectId: string,
     decision: 'approved' | 'rejected' | 'meeting_requested',
     studentId: string
   ) => {
-    await updateDoc(doc(db, 'applications', appId), {
-      status: decision, reviewedAt: serverTimestamp(),
-    });
-    if (decision === 'approved') {
-      await updateDoc(doc(db, 'projects', projectId), {
-        enrolledStudentIds: [studentId],
-        status: 'in_progress',
-        updatedAt: serverTimestamp(),
+    try {
+      // Update application status
+      await updateDoc(doc(db, 'applications', appId), {
+        status: decision,
+        reviewedAt: serverTimestamp(),
       });
+
+      // If approved -> enroll student
+      if (decision === 'approved') {
+        await updateDoc(doc(db, 'projects', projectId), {
+          enrolledStudentIds: [studentId],
+          status: 'in_progress',
+          updatedAt: serverTimestamp(),
+        });
+      }
+      // ─────────────────────────────────────────────
+      // GET STUDENT TOKEN (FIX FOR YOUR ERROR)
+      // ─────────────────────────────────────────────
+      const studentSnap = await getDoc(doc(db, 'users', studentId));
+
+      const studentData = studentSnap.exists()
+        ? (studentSnap.data() as { expoPushToken?: string })
+        : null;
+
+      const token = studentData?.expoPushToken;
+      // ─────────────────────────────────────────────
+      // CREATE NOTIFICATION FOR THE STUDENT
+      // ─────────────────────────────────────────────
+
+      let titleHe = '';
+      let titleEn = '';
+      let bodyHe = '';
+      let bodyEn = '';
+
+      if (decision === 'approved') {
+        titleHe = 'המועמדות אושרה';
+        titleEn = 'Application Approved';
+
+        bodyHe = 'המנחה אישר את המועמדות שלך לפרויקט.';
+        bodyEn = 'Your application for the project was approved.';
+      }
+
+      if (decision === 'rejected') {
+        titleHe = 'המועמדות נדחתה';
+        titleEn = 'Application Rejected';
+
+        bodyHe = 'המנחה דחה את המועמדות שלך לפרויקט.';
+        bodyEn = 'Your application for the project was rejected.';
+      }
+
+      if (decision === 'meeting_requested') {
+        titleHe = 'נקבעה פגישה';
+        titleEn = 'Meeting Requested';
+
+        bodyHe = 'המנחה ביקש לקבוע פגישה לגבי המועמדות שלך.';
+        bodyEn = 'The supervisor requested a meeting regarding your application.';
+      }
+
+      await addDoc(collection(db, 'notifications'), {
+        recipientId: studentId,
+
+        type: decision, // application_approved / rejected / meeting_requested
+
+        titleHe,
+        titleEn,
+
+        bodyHe,
+        bodyEn,
+
+        isRead: false,
+
+        createdAt: serverTimestamp(),
+
+        relatedProjectId: projectId,
+        relatedMilestoneId: null,
+      });
+
+      // ─────────────────────────────────────────────
+      // SEND PUSH NOTIFICATION (FIXED)
+      // ─────────────────────────────────────────────
+
+      if (token) {
+        await sendPushNotification(
+          token,
+          titleEn,
+          bodyEn,
+          {
+            type: decision,
+            relatedProjectId: projectId,
+          }
+        );
+      }
+
+      Alert.alert(
+        '✅',
+        lang === 'he'
+          ? 'הפעולה בוצעה בהצלחה'
+          : 'Action completed successfully'
+      );
+
+    } catch (e) {
+      console.error('Decision error:', e);
+
+      Alert.alert(
+        'Error',
+        lang === 'he'
+          ? 'אירעה שגיאה'
+          : 'Something went wrong'
+      );
     }
   };
-
   // ── Grade submission ───────────────────────────────────────────────────────
   const handleGrade = async () => {
     if (!gradeMilestone || !gradeScore) return;
