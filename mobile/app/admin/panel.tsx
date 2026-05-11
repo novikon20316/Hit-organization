@@ -1,101 +1,661 @@
-// app/admin/home.tsx
-import React, { useState, useEffect } from 'react';
+// app/admin/panel.tsx
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, Switch,
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  SafeAreaView,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  Alert,
+  Switch,
+  Dimensions,
 } from 'react-native';
+
 import {
-  collection, query, where, onSnapshot, getDocs,
-  doc, updateDoc, addDoc, serverTimestamp, getDoc, orderBy,
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  updateDoc,
+  addDoc,
+  serverTimestamp,
+  getDoc,
+  getDocs,
+  setDoc,
+  orderBy,
 } from 'firebase/firestore';
+import { User } from 'firebase/auth';
 import { db, auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
+import { createMilestonesOnApproval } from '../../components/Milestoneservice';
 import {
-  TopBar, StatCard, FacultyBadge, StatusBadge,
-  getFacultyColor, FACULTY_COLORS,
+  TopBar,
+  StatCard,
+  FacultyBadge,
+  StatusBadge,
+  getFacultyColor,
+  FACULTY_COLORS,
 } from '../../components/shared';
-import { sendPushNotification } from '../../components/pushNotifications';
+
 import { Picker } from '@react-native-picker/picker';
+import { sendPushNotification } from '@/components/pushNotifications';
+
+const { width } = Dimensions.get('window');
+
+interface AppUser {
+  id: string;
+  displayName?: string;
+  email?: string;
+  role?: string;
+  facultyId?: string;
+  expoPushToken?: string;
+}
 
 interface SystemStats {
-  totalUsers: number; totalProjects: number;
-  activeProjects: number; totalMilestones: number;
-  pendingMilestones: number; totalApplications: number;
+  totalUsers: number;
+  totalProjects: number;
+  activeProjects: number;
+  totalMilestones: number;
+  pendingMilestones: number;
+  totalApplications: number;
 }
 
 interface UserRecord {
-  id: string; displayName: string; email: string;
-  role: string; facultyId: string; isActive: boolean;
+  id: string;
+  displayName: string;
+  email: string;
+  role: string;
+  facultyId: string;
+  isActive: boolean;
 }
 
 interface ProjectRecord {
-  id: string; titleHe: string; titleEn: string;
-  facultyId: string; status: string; supervisorName: string;
-  degreeType: string; projectType: string; academicYear: string;
+  id: string;
+  titleHe: string;
+  titleEn: string;
+  facultyId: string;
+  status: string;
+  supervisorName: string;
+  degreeType: string;
+  projectType: string;
+  academicYear: string;
   enrolledStudentIds: string[];
 }
 
 interface MilestoneRecord {
-  id: string; type: string; status: string;
-  projectTitleHe: string; projectTitleEn: string;
-  facultyId: string; dueDate: any; studentNames: string[];
+  id: string;
+  type: string;
+  status: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string;
+  dueDate: any;
+  studentNames: string[];
 }
 
 const ROLE_LABELS: Record<string, { he: string; en: string }> = {
-  student:       { he: 'סטודנט',        en: 'Student' },
-  supervisor:    { he: 'מנחה',           en: 'Supervisor' },
-  examiner:      { he: 'בוחן',           en: 'Examiner' },
-  coordinator:   { he: 'רכז פרויקטים',  en: 'Coordinator' },
-  faculty_admin: { he: 'מנהל פקולטה',   en: 'Faculty Admin' },
-  system_admin:  { he: 'מנהל מערכת',    en: 'System Admin' },
+  student: { he: 'סטודנט', en: 'Student' },
+  supervisor: { he: 'מנחה', en: 'Supervisor' },
+  examiner: { he: 'בוחן', en: 'Examiner' },
+  coordinator: { he: 'רכז', en: 'Coordinator' },
+  faculty_admin: { he: 'מנהל פקולטה', en: 'Faculty Admin' },
+  system_admin: { he: 'מנהל מערכת', en: 'System Admin' },
 };
 
-export default function AdminHome() {
+const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
+  research_proposal: { he: 'הצעת מחקר', en: 'Research Proposal' },
+  progress_report: { he: 'דו״ח התקדמות', en: 'Progress Report' },
+  final_report: { he: 'דו״ח סופי', en: 'Final Report' },
+  defense: { he: 'הגנה', en: 'Defense' },
+};
+
+export default function PanelScreen() {
   const router = useRouter();
+
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
 
-  const [stats,      setStats]      = useState<SystemStats | null>(null);
-  const [users,      setUsers]      = useState<UserRecord[]>([]);
-  const [projects,   setProjects]   = useState<ProjectRecord[]>([]);
-  const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
-  const [adminName,  setAdminName]  = useState('');
-  const [loading,    setLoading]    = useState(true);
-  const [activeTab,  setActiveTab]  = useState<'overview' | 'users' | 'projects' | 'milestones'>('overview');
-  const [unreadCount,setUnreadCount]= useState(0);
+  const [loading, setLoading] = useState(true);
+  const [adminName, setAdminName] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNewUser, setShowNewUser] = useState(false);
 
-  // Filters
-  const [userSearch,    setUserSearch]    = useState('');
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
+
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'users' | 'projects' | 'milestones'
+  >('overview');
+
+  const [userSearch, setUserSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState('all');
   const [facultyFilter, setFacultyFilter] = useState('all');
 
-  // User edit modal
-  const [userModal,  setUserModal]  = useState(false);
-  const [editUser,   setEditUser]   = useState<UserRecord | null>(null);
-  const [editRole,   setEditRole]   = useState('');
-  const [editFaculty,setEditFaculty]= useState('');
-  const [saving,     setSaving]     = useState(false);
+  const [userModal, setUserModal] = useState(false);
+  const [editUser, setEditUser] = useState<UserRecord | null>(null);
+  const [editRole, setEditRole] = useState('');
+  const [editFaculty, setEditFaculty] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const uid = auth.currentUser?.uid;
-
-  // MAINTINANCE MODE
   const [maintenanceModal, setMaintenanceModal] = useState(false);
   const [maintenanceTitle, setMaintenanceTitle] = useState('');
   const [maintenanceDays, setMaintenanceDays] = useState(0);
   const [maintenanceHours, setMaintenanceHours] = useState(0);
   const [maintenanceMinutes, setMaintenanceMinutes] = useState(0);
-  const [maintenanceSaving, setMaintenanceSaving] = useState(false);
+  // ── New project modal state ───────────────────────────────────────────────
+  const [newProjectFaculty, setNewProjectFaculty] = useState('');
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newTitleHe,  setNewTitleHe]  = useState('');
+  const [newTitleEn,  setNewTitleEn]  = useState('');
+  const [newDescHe,   setNewDescHe]   = useState('');
+  const [newDescEn,   setNewDescEn]   = useState('');
+  const [newDegree,   setNewDegree]   = useState<'bachelors' | 'masters' | 'both'>('bachelors');
+  const [newType,     setNewType]     = useState<'project' | 'thesis'>('project');
+  const [newSkills,   setNewSkills]   = useState('');
+  const [creating,    setCreating]    = useState(false);
+  const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
+  const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  // ── Add student to project state ──────────────────────────────────────────────
+  const [addStudentModal, setAddStudentModal] = useState(false);
+  const [addStudentProject, setAddStudentProject] = useState<ProjectRecord | null>(null);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [addingStudent, setAddingStudent] = useState(false);
+  const uid = auth.currentUser?.uid;
+
+  useEffect(() => {
+    const fetchSupervisors = async () => {
+      // If the admin hasn't picked a faculty, you might show all or none
+      let q = query(collection(db, 'users'), where('role', '==', 'supervisor'));
+      
+      // If faculty is selected, filter by it
+      if (newProjectFaculty && newProjectFaculty !== 'multi-faculty') {
+        q = query(
+          collection(db, 'users'), 
+          where('role', '==', 'supervisor'),
+          where('facultyId', '==', newProjectFaculty)
+        );
+      }
+
+      const snap = await getDocs(q);
+      setAllSupervisors(
+        snap.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data() 
+        } as AppUser)) // Use AppUser here
+      );    };
+    fetchSupervisors();
+  }, [newProjectFaculty]);
+
+  useEffect(() => {
+    if (showConfirm && selectedSupervisor) {
+      Alert.alert(
+        lang === 'he' ? 'אישור מנחה' : 'Confirm Supervisor',
+        lang === 'he' 
+          ? `האם אתה בטוח שברצונך ש-${selectedSupervisor.displayName} ינהל את הפרויקט ${newTitleHe}?`
+          : `Are you sure you want to have ${selectedSupervisor.displayName} control for the project ${newTitleEn}?`,
+        [
+          {
+            text: lang === 'he' ? 'לא' : 'No',
+            style: 'cancel',
+            onPress: () => {
+              setSelectedSupervisor(null);
+              setShowConfirm(false);
+            }
+          },
+          {
+            text: lang === 'he' ? 'כן' : 'Yes',
+            onPress: () => setShowConfirm(false) // Keep the selection
+          }
+        ]
+      );
+    }
+  }, [showConfirm]);
+
+
+  useEffect(() => {
+    if (!uid) return;
+
+    getDoc(doc(db, 'users', uid)).then((snap) => {
+      if (snap.exists()) {
+        setAdminName(snap.data().displayName || 'Admin');
+      }
+    });
+  }, [uid]);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, 'users'), (snap) => {
+      setUsers(snap.docs.map((d) => ({
+        id: d.id,
+        displayName: d.data().displayName || '',
+        email: d.data().email || '',
+        role: d.data().role || 'student',
+        facultyId: d.data().facultyId || '',
+        isActive: d.data().isActive ?? true,
+      })));
+    }, (error) => {
+      console.error('Users listener error:', error);
+    });
+  }, []);
+
+  useEffect(() => {
+  const q = query(
+    collection(db, 'projects'),
+    where('isArchived', '==', false),
+    orderBy('createdAt', 'desc')
+  );
+
+  return onSnapshot(q, async (snap) => {
+    const items: ProjectRecord[] = [];
+
+    for (const d of snap.docs) {
+      const data = d.data();
+
+      // ✅ Guard: only fetch supervisor if ID exists
+      let supervisorName = '';
+      if (data.supervisorId) {
+        const supervisorSnap = await getDoc(doc(db, 'users', data.supervisorId));
+        supervisorName = supervisorSnap.data()?.displayName || '';
+      }
+
+      items.push({
+        id: d.id,
+        titleHe: data.titleHe || '',
+        titleEn: data.titleEn || '',
+        facultyId: data.facultyId || '',
+        status: data.status || 'published',
+        supervisorName,
+        degreeType: data.degreeType || '',
+        projectType: data.projectType || '',
+        academicYear: data.academicYear || '',
+        enrolledStudentIds: data.enrolledStudentIds || [],
+      });
+    }
+
+    setProjects(items);
+  }, (error) => {
+    console.error('Projects listener error:', error);
+  });
+}, []);
+
+  useEffect(() => {
+    const statuses = ['pending', 'submitted', 'supervisor_graded'];
+    const q = query(
+      collection(db, 'milestones'),
+      where('status', 'in', statuses)
+    );
+
+    return onSnapshot(q, async (snap) => {
+      const items: MilestoneRecord[] = [];
+
+      for (const d of snap.docs) {
+        const data = d.data();
+        const projectSnap = await getDoc(doc(db, 'projects', data.projectId));
+        const studentNames: string[] = [];
+        for (const sid of data.studentIds || []) {
+          const sSnap = await getDoc(doc(db, 'users', sid));
+          if (sSnap.exists()) studentNames.push(sSnap.data().displayName);
+        }
+        items.push({
+          id: d.id,
+          type: data.type,
+          status: data.status,
+          projectTitleHe: projectSnap.data()?.titleHe || '',
+          projectTitleEn: projectSnap.data()?.titleEn || '',
+          facultyId: projectSnap.data()?.facultyId || '',
+          dueDate: data.dueDate,
+          studentNames,
+        });
+      }
+
+      setMilestones(items);
+      setLoading(false);
+    }, (error) => {
+      console.error('Milestones listener error:', error);
+      setLoading(false); // ← unblocks spinner even on failure
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!uid) return;
+
+    const q = query(
+      collection(db, 'notifications'),
+      where('recipientId', '==', uid),
+      where('isRead', '==', false)
+    );
+
+    return onSnapshot(q, (snap) => {
+      setUnreadCount(snap.size);
+    });
+  }, [uid]);
+
+
+  const handleAddStudentToProject = async (user: UserRecord) => {
+    if (!addStudentProject) return;
+
+    Alert.alert(
+      lang === 'he' ? 'אישור הוספה' : 'Confirm Addition',
+      lang === 'he'
+        ? `האם להוסיף את ${user.displayName} לפרויקט "${addStudentProject.titleHe}"?`
+        : `Add ${user.displayName} to project "${addStudentProject.titleEn}"?`,
+      [
+        { text: lang === 'he' ? 'לא' : 'No', style: 'cancel' },
+        {
+          text: lang === 'he' ? 'כן' : 'Yes',
+          onPress: async () => {
+            setAddingStudent(true);
+            try {
+              // Add student to project
+              await updateDoc(doc(db, 'projects', addStudentProject.id), {
+                enrolledStudentIds: [user.id],
+                status: 'in_progress',
+                updatedAt: serverTimestamp(),
+              });
+
+              // Update student's user doc
+              await updateDoc(doc(db, 'users', user.id), {
+                hasActiveProject: true,
+                activeProjectId: addStudentProject.id,
+                updatedAt: serverTimestamp(),
+              });
+
+              // Create milestones for the student
+              await createMilestonesOnApproval({
+                projectId: addStudentProject.id,
+                studentIds: [user.id],
+                facultyId: addStudentProject.facultyId,
+                supervisorId: uid!,
+              });
+
+              // Notify the student
+              await addDoc(collection(db, 'notifications'), {
+                recipientId: user.id,
+                type: 'application_approved',
+                titleHe: '✅ נוספת לפרויקט',
+                titleEn: '✅ Added to Project',
+                bodyHe: `מנהל המערכת הוסיף אותך לפרויקט "${addStudentProject.titleHe}"`,
+                bodyEn: `System admin added you to project "${addStudentProject.titleEn}"`,
+                relatedProjectId: addStudentProject.id,
+                relatedMilestoneId: null,
+                isRead: false,
+                createdAt: serverTimestamp(),
+              });
+
+              setAddStudentModal(false);
+              setAddStudentProject(null);
+              setStudentSearch('');
+
+              Alert.alert(
+                '✅',
+                lang === 'he'
+                  ? `${user.displayName} נוסף לפרויקט בהצלחה`
+                  : `${user.displayName} added to project successfully`
+              );
+            } catch (e) {
+              console.error(e);
+              Alert.alert('Error', String(e));
+            } finally {
+              setAddingStudent(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+  const createUser = async (
+    uid: string,
+    role: 'student' | 'supervisor' | 'coordinator',
+    email: string
+  ) => {
+    try {
+      const baseUser = {
+        uid,
+        email,
+
+        displayName:
+          role === 'student'
+            ? 'דוד כהן'
+            : role === 'supervisor'
+            ? 'ד"ר ישראל ישראלי'
+            : 'רכז הפרויקטים',
+
+        displayNameHe:
+          role === 'student'
+            ? 'דוד כהן'
+            : role === 'supervisor'
+            ? 'ד"ר ישראל ישראלי'
+            : 'רכז הפרויקטים',
+
+        displayNameEn:
+          role === 'student'
+            ? 'David Cohen'
+            : role === 'supervisor'
+            ? 'Dr. Israel Israeli'
+            : 'Project Coordinator',
+
+        role,
+        facultyId: 'computer_science',
+        additionalRoles: [],
+
+        isActive: true,
+        profileComplete: true,
+        hasActiveProject: false,
+        language: 'he',
+        expoPushToken: null,
+      };
+
+      let userData: any = baseUser;
+
+      if (role === 'student') {
+        userData = {
+          ...baseUser,
+          degreeType: 'bachelors',
+          yearOfStudy: 3,
+          major: 'computer_science',
+          studentId: null,
+        };
+      }
+
+      if (role === 'supervisor') {
+        userData = {
+          ...baseUser,
+          degreeType: null,
+          yearOfStudy: null,
+          major: null,
+          studentId: null,
+        };
+      }
+
+      if (role === 'coordinator') {
+        userData = {
+          ...baseUser,
+          degreeType: null,
+          yearOfStudy: null,
+          major: null,
+          studentId: null,
+        };
+      }
+
+      await setDoc(doc(db, 'users', uid), userData);
+
+      Alert.alert('✅ Success', `${role} created successfully`);
+    } catch (e) {
+      console.log('Create user error:', e);
+    }
+  };
+
+  // ── Create project ─────────────────────────────────────────────────────────
+  const handleCreateProject = async () => {
+    if (!selectedSupervisor) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש לבחור מנחה' : 'Please select a supervisor');
+      return;
+    }
+    if (!newTitleHe.trim() || !newTitleEn.trim()) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש למלא כותרת בעברית ואנגלית' : 'Title in both languages is required');
+      return;
+    }
+    // ✅ Faculty is now required
+    if (!newProjectFaculty) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty');
+      return;
+    }
+    setCreating(true);
+    try {
+      const adminSnap = await getDoc(doc(db, 'users', uid!));
+      const adminData = adminSnap.data();
+
+      const projectRef = await addDoc(collection(db, 'projects'), {
+        supervisorId:       selectedSupervisor?.id || uid,
+        facultyId:          newProjectFaculty, // ✅ use selected faculty, not admin's faculty
+        titleHe:            newTitleHe.trim(),
+        titleEn:            newTitleEn.trim(),
+        descriptionHe:      newDescHe.trim(),
+        descriptionEn:      newDescEn.trim(),
+        degreeType:         newDegree,
+        projectType:        newType,
+        maxStudents:        1,
+        requiredSkills:     newSkills.split(',').map((s) => s.trim()).filter(Boolean),
+        status:             'published',
+        enrolledStudentIds: [],
+        applicationIds:     [],
+        semesterStart:      null,
+        academicYear:       new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
+        isArchived:         false,
+        createdAt:          serverTimestamp(),
+        updatedAt:          serverTimestamp(),
+      });
+
+      setShowNewProject(false);
+      setNewTitleHe(''); setNewTitleEn('');
+      setNewDescHe('');  setNewDescEn('');
+      setNewSkills('');
+      setNewProjectFaculty(''); // ✅ reset faculty
+
+      Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
+      await createMilestonesOnApproval({
+        projectId: projectRef.id,
+        studentIds: [], // No students yet at this stage
+        facultyId: newProjectFaculty, // ✅ use selected faculty
+        supervisorId: uid!, // ✅ uid IS the supervisor ID
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const deleteProject = async (projectId: string) => {
+    Alert.alert(
+      'Delete Project',
+      'Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateDoc(doc(db, 'projects', projectId), {
+                isArchived: true,
+                deletedAt: serverTimestamp(),
+              });
+            } catch (e) {
+              console.log(e);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const stats: SystemStats = useMemo(() => {
+    return {
+      totalUsers: users.length,
+      totalProjects: projects.length,
+      activeProjects: projects.filter((p) => p.status === 'in_progress')
+        .length,
+      totalMilestones: milestones.length,
+      pendingMilestones: milestones.filter(
+        (m) => m.status === 'submitted'
+      ).length,
+      totalApplications: 0,
+    };
+  }, [users, projects, milestones]);
+
+  const filteredUsers = users.filter((u) => {
+    const q = userSearch.toLowerCase();
+
+    return (
+      u.displayName.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.role.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredProjects = projects.filter((p) => {
+    const statusOk = projectFilter === 'all' || p.status === projectFilter;
+    const facultyOk =
+      facultyFilter === 'all' || p.facultyId === facultyFilter;
+
+    return statusOk && facultyOk;
+  });
+
+  const openEditUser = (user: UserRecord) => {
+    setEditUser(user);
+    setEditRole(user.role);
+    setEditFaculty(user.facultyId);
+    setUserModal(true);
+  };
+
+  const handleSaveUser = async () => {
+    if (!editUser) return;
+
+    try {
+      setSaving(true);
+
+      await updateDoc(doc(db, 'users', editUser.id), {
+        role: editRole,
+        facultyId: editFaculty,
+      });
+
+      Alert.alert(
+        'Success',
+        lang === 'he'
+          ? 'המשתמש עודכן בהצלחה'
+          : 'User updated successfully'
+      );
+
+      setUserModal(false);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleUserActive = async (
+    userId: string,
+    current: boolean
+  ) => {
+    await updateDoc(doc(db, 'users', userId), {
+      isActive: !current,
+    });
+  };
 
   const saveMaintenance = async () => {
     try {
-      setMaintenanceSaving(true);
-
-      if (!maintenanceTitle) {
-        Alert.alert('Error', 'Missing maintenance title');
-        return;
-      }
-
       const shutdownTime =
         Date.now() +
         maintenanceDays * 24 * 60 * 60 * 1000 +
@@ -108,213 +668,33 @@ export default function AdminHome() {
         shutdownAt: shutdownTime,
         messageEn: 'Sorry for the inconvenience',
         messageHe: 'מצטערים על אי הנוחות',
-        createdAt: serverTimestamp(),
         active: true,
+        createdAt: serverTimestamp(),
       });
 
       Alert.alert(
         'Success',
         lang === 'he'
-          ? 'מצב תחזוקה הופעל ונשלח לכל המשתמשים'
+          ? 'מצב תחזוקה הופעל'
           : 'Maintenance mode activated'
       );
 
       setMaintenanceModal(false);
-      setMaintenanceTitle('');
-      setMaintenanceDays(0);
-      setMaintenanceHours(0);
-      setMaintenanceMinutes(0);
     } catch (e) {
-      console.log('Maintenance error:', e);
-      Alert.alert('Error', 'Failed to save maintenance mode');
-    } finally {
-      setMaintenanceSaving(false);
+      console.log(e);
     }
-  };
-
-  useEffect(() => {
-    if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      if (snap.exists()) setAdminName(snap.data().displayName ?? '');
-    });
-  }, [uid]);
-
-  // Load all users
-  useEffect(() => {
-    return onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map((d) => ({
-        id: d.id,
-        displayName: d.data().displayName ?? '',
-        email:       d.data().email ?? '',
-        role:        d.data().role ?? 'student',
-        facultyId:   d.data().facultyId ?? '',
-        isActive:    d.data().isActive ?? true,
-      })));
-    });
-  }, []);
-
-  // Load all projects
-  useEffect(() => {
-    const q = query(collection(db, 'projects'), where('isArchived', '==', false), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, async (snap) => {
-      const items: ProjectRecord[] = [];
-      for (const d of snap.docs) {
-        const data = d.data();
-        const supervisorSnap = await getDoc(doc(db, 'users', data.supervisorId ?? ''));
-        items.push({
-          id:                 d.id,
-          titleHe:            data.titleHe,
-          titleEn:            data.titleEn,
-          facultyId:          data.facultyId,
-          status:             data.status,
-          supervisorName:     supervisorSnap.data()?.displayName ?? '',
-          degreeType:         data.degreeType,
-          projectType:        data.projectType,
-          academicYear:       data.academicYear,
-          enrolledStudentIds: data.enrolledStudentIds ?? [],
-        });
-      }
-      setProjects(items);
-    });
-  }, []);
-
-  // Load all milestones
-  useEffect(() => {
-    const q = query(
-      collection(db, 'milestones'),
-      where('status', 'in', ['pending', 'submitted', 'supervisor_graded'])
-    );
-    return onSnapshot(q, async (snap) => {
-      const items: MilestoneRecord[] = [];
-      for (const d of snap.docs) {
-        const data = d.data();
-        const projSnap = await getDoc(doc(db, 'projects', data.projectId));
-        const studentNames: string[] = [];
-        for (const sid of (data.studentIds ?? [])) {
-          const sSnap = await getDoc(doc(db, 'users', sid));
-          if (sSnap.exists()) studentNames.push(sSnap.data().displayName);
-        }
-        items.push({
-          id:             d.id,
-          type:           data.type,
-          status:         data.status,
-          projectTitleHe: projSnap.data()?.titleHe ?? '',
-          projectTitleEn: projSnap.data()?.titleEn ?? '',
-          facultyId:      projSnap.data()?.facultyId ?? '',
-          dueDate:        data.dueDate,
-          studentNames,
-        });
-      }
-      setMilestones(items);
-      setLoading(false);
-    });
-  }, []);
-
-  // Compute stats from loaded data
-  useEffect(() => {
-    if (!users.length && !projects.length) return;
-    setStats({
-      totalUsers:        users.length,
-      totalProjects:     projects.length,
-      activeProjects:    projects.filter((p) => p.status === 'in_progress').length,
-      totalMilestones:   milestones.length,
-      pendingMilestones: milestones.filter((m) => m.status === 'submitted').length,
-      totalApplications: 0,
-    });
-  }, [users, projects, milestones]);
-
-  // Notifications
-  useEffect(() => {
-    if (!uid) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', uid),
-      where('isRead', '==', false)
-    );
-    return onSnapshot(q, (snap) => setUnreadCount(snap.size));
-  }, [uid]);
-
-  const handleSaveUser = async () => {
-    if (!editUser) return;
-    setSaving(true);
-    try {
-      await updateDoc(doc(db, 'users', editUser.id), {
-        role:      editRole,
-        facultyId: editFaculty,
-      });
-      setUserModal(false);
-      Alert.alert('✅', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleUserActive = async (userId: string, current: boolean) => {
-    await updateDoc(doc(db, 'users', userId), { isActive: !current });
-  };
-
-  const openEditUser = (user: UserRecord) => {
-    setEditUser(user);
-    setEditRole(user.role);
-    setEditFaculty(user.facultyId);
-    setUserModal(true);
-  };
-
-  // Filtered data
-  const filteredUsers = users.filter((u) => {
-    const q = userSearch.toLowerCase();
-    return (
-      u.displayName.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q)
-    );
-  });
-
-  const filteredProjects = projects.filter((p) => {
-    const statusOk  = projectFilter === 'all' || p.status === projectFilter;
-    const facultyOk = facultyFilter === 'all' || p.facultyId === facultyFilter;
-    return statusOk && facultyOk;
-  });
-
-  const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
-    research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
-    progress_report:   { he: 'דו"ח התקדמות', en: 'Progress Report' },
-    final_report:      { he: 'דו"ח מסכם',    en: 'Final Report' },
-    defense:           { he: 'הגנה',          en: 'Defense' },
   };
 
   if (loading) {
     return (
-      <View style={a.centered}>
+      <View style={styles.loader}>
         <ActivityIndicator size="large" color="#EF4444" />
       </View>
     );
   }
 
-  const deleteProject = async (projectId: string) => {
-    Alert.alert(
-      'Delete Project',
-      'Are you sure you want to delete this project?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await updateDoc(doc(db, 'projects', projectId), {
-              isArchived: true,
-              deletedAt: serverTimestamp(),
-            });
-          },
-        },
-      ]
-    );
-  };
-
   return (
-    <SafeAreaView style={a.root}>
+    <SafeAreaView style={styles.root}>
       <TopBar
         name={adminName}
         role="system_admin"
@@ -323,161 +703,213 @@ export default function AdminHome() {
         unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
         onBell={() => router.push('/(tabs)/Notificationsscreen')}
-        onMaintenance = {() => setMaintenanceModal(true)}
+        onMaintenance={() => setMaintenanceModal(true)}
       />
 
-      {/* Tabs */}
-      <View style={a.tabBar}>
-        {([
-          { key: 'overview',   he: 'סקירה',       en: 'Overview' },
-          { key: 'users',      he: 'משתמשים',     en: 'Users',       badge: users.length },
-          { key: 'projects',   he: 'פרויקטים',    en: 'Projects',    badge: projects.length },
-          { key: 'milestones', he: 'אבני דרך',    en: 'Milestones',  badge: milestones.filter(m => m.status === 'submitted').length },
-        ] as const).map((tab) => (
+      <View style={styles.hero}>
+        <Text style={[styles.heroTitle, isRtl && styles.textRight]}>
+          🚀 {lang === 'he' ? 'פאנל ניהול מערכת' : 'System Control Panel'}
+        </Text>
+
+        <Text style={[styles.heroSub, isRtl && styles.textRight]}>
+          {lang === 'he'
+            ? 'ניהול משתמשים, פרויקטים ואבני דרך במקום אחד'
+            : 'Manage users, projects and milestones in one place'}
+        </Text>
+      </View>
+
+      <View style={styles.tabsContainer}>
+        {[
+          {
+            key: 'overview',
+            label: lang === 'he' ? 'סקירה' : 'Overview',
+          },
+          {
+            key: 'users',
+            label: lang === 'he' ? 'משתמשים' : 'Users',
+          },
+          {
+            key: 'projects',
+            label: lang === 'he' ? 'פרויקטים' : 'Projects',
+          },
+          {
+            key: 'milestones',
+            label: lang === 'he' ? 'אבני דרך' : 'Milestones',
+          },
+        ].map((tab) => (
           <Pressable
             key={tab.key}
-            style={[a.tab, activeTab === tab.key && a.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
+            style={[
+              styles.tab,
+              activeTab === tab.key && styles.tabActive,
+            ]}
+            onPress={() => setActiveTab(tab.key as any)}
           >
-            <Text style={[a.tabText, activeTab === tab.key && a.tabTextActive]}>
-              {lang === 'he' ? tab.he : tab.en}
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab.key && styles.tabTextActive,
+              ]}
+            >
+              {tab.label}
             </Text>
-            {(tab as any).badge > 0 && (
-              <View style={[a.tabBadge, activeTab === tab.key && a.tabBadgeActive]}>
-                <Text style={[a.tabBadgeText, activeTab === tab.key && { color: '#fff' }]}>
-                  {(tab as any).badge}
-                </Text>
-              </View>
-            )}
           </Pressable>
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={a.content} showsVerticalScrollIndicator={false}>
-
-        {/* ════ OVERVIEW ════ */}
-        {activeTab === 'overview' && stats && (
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {activeTab === 'overview' && (
           <>
-            <Text style={[a.sectionTitle, isRtl && a.textRight]}>
-              🏛️ {lang === 'he' ? 'סקירת מערכת' : 'System Overview'}
-            </Text>
+            <View style={styles.statsGrid}>
+              <StatCard
+                emoji="👥"
+                value={stats.totalUsers}
+                label={lang === 'he' ? 'משתמשים' : 'Users'}
+                color="#EF4444"
+              />
 
-            <View style={a.statsGrid}>
-              <View style={[a.statsRow]}>
-                <StatCard emoji="👥" value={stats.totalUsers}
-                  label={lang === 'he' ? 'משתמשים' : 'Total Users'} color="#EF4444" />
-                <View style={{ width: 10 }} />
-                <StatCard emoji="📁" value={stats.totalProjects}
-                  label={lang === 'he' ? 'פרויקטים' : 'Projects'} color="#2E86FF" />
-              </View>
-              <View style={{ height: 10 }} />
-              <View style={[a.statsRow]}>
-                <StatCard emoji="🔥" value={stats.activeProjects}
-                  label={lang === 'he' ? 'פרויקטים פעילים' : 'Active Projects'} color="#F59E0B" />
-                <View style={{ width: 10 }} />
-                <StatCard emoji="⏳" value={stats.pendingMilestones}
-                  label={lang === 'he' ? 'ממתינות לציון' : 'Awaiting Grading'} color="#8B5CF6" />
-              </View>
+              <StatCard
+                emoji="📁"
+                value={stats.totalProjects}
+                label={lang === 'he' ? 'פרויקטים' : 'Projects'}
+                color="#3B82F6"
+              />
+
+              <StatCard
+                emoji="🔥"
+                value={stats.activeProjects}
+                label={lang === 'he' ? 'פעילים' : 'Active'}
+                color="#F59E0B"
+              />
+
+              <StatCard
+                emoji="⏳"
+                value={stats.pendingMilestones}
+                label={lang === 'he' ? 'ממתינים' : 'Pending'}
+                color="#8B5CF6"
+              />
             </View>
 
-            {/* Faculty breakdown */}
-            <Text style={[a.sectionTitle, isRtl && a.textRight, { marginTop: 16 }]}>
-              🎨 {lang === 'he' ? 'פרויקטים לפי פקולטה' : 'Projects by Faculty'}
-            </Text>
-            {Object.entries(FACULTY_COLORS).filter(([k]) => k !== 'default').map(([id, fc]) => {
-              const count = projects.filter((p) => p.facultyId === id).length;
-              if (count === 0) return null;
-              return (
-                <View key={id} style={[a.facultyRow, isRtl && a.rowReverse]}>
-                  <View style={[a.facultyDot, { backgroundColor: fc.primary }]} />
-                  <Text style={[a.facultyName, { color: fc.primary }]}>{fc.label[lang]}</Text>
-                  <View style={a.facultyBar}>
-                    <View style={[a.facultyBarFill, {
-                      width: `${Math.min(100, (count / Math.max(projects.length, 1)) * 100)}%`,
-                      backgroundColor: fc.primary,
-                    }]} />
-                  </View>
-                  <Text style={a.facultyCount}>{count}</Text>
-                </View>
-              );
-            })}
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>
+                🎨 {lang === 'he'
+                  ? 'פרויקטים לפי פקולטה'
+                  : 'Projects by Faculty'}
+              </Text>
 
-            {/* Role distribution */}
-            <Text style={[a.sectionTitle, isRtl && a.textRight, { marginTop: 16 }]}>
-              👤 {lang === 'he' ? 'משתמשים לפי תפקיד' : 'Users by Role'}
-            </Text>
-            {Object.entries(ROLE_LABELS).map(([role, label]) => {
-              const count = users.filter((u) => u.role === role).length;
-              if (count === 0) return null;
-              return (
-                <View key={role} style={[a.roleRow, isRtl && a.rowReverse]}>
-                  <Text style={[a.roleLabel, isRtl && a.textRight]}>{label[lang]}</Text>
-                  <View style={a.roleGap} />
-                  <View style={a.rolePill}>
-                    <Text style={a.rolePillText}>{count}</Text>
-                  </View>
-                </View>
-              );
-            })}
+              {Object.entries(FACULTY_COLORS)
+                .filter(([k]) => k !== 'default')
+                .map(([id, fc]) => {
+                  const count = projects.filter(
+                    (p) => p.facultyId === id
+                  ).length;
+
+                  if (!count) return null;
+
+                  return (
+                    <View key={id} style={styles.facultyRow}>
+                      <View
+                        style={[
+                          styles.facultyDot,
+                          { backgroundColor: fc.primary },
+                        ]}
+                      />
+
+                      <Text style={styles.facultyText}>
+                        {fc.label[lang]}
+                      </Text>
+
+                      <View style={styles.facultyBar}>
+                        <View
+                          style={[
+                            styles.facultyFill,
+                            {
+                              width: `${(count / projects.length) * 100}%`,
+                              backgroundColor: fc.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <Text style={styles.facultyCount}>{count}</Text>
+                    </View>
+                  );
+                })}
+            </View>
           </>
         )}
 
-        {/* ════ USERS ════ */}
         {activeTab === 'users' && (
           <>
-            <View style={a.searchBar}>
+            <Pressable
+                style={[styles.submitBtn, { marginBottom: 14 }]}
+                onPress={() => setShowNewUser(true)}
+              >
+              <Text style={styles.submitBtnText}>
+                ➕ {lang === 'he' ? 'הוסף משתמש' : 'Add User'}
+              </Text>
+            </Pressable>
+            <View style={styles.searchBox}>
               <TextInput
-                style={[a.searchInput, isRtl && a.textRight]}
-                placeholder={lang === 'he' ? 'חפש משתמש...' : 'Search user...'}
-                placeholderTextColor="#9BA8C0"
+                placeholder={
+                  lang === 'he' ? 'חפש משתמש...' : 'Search user...'
+                }
                 value={userSearch}
                 onChangeText={setUserSearch}
-                textAlign={isRtl ? 'right' : 'left'}
+                style={styles.searchInput}
               />
-              <Text style={a.searchIcon}>🔍</Text>
             </View>
-
-            <Text style={[a.resultCount, isRtl && a.textRight]}>
-              {filteredUsers.length} {lang === 'he' ? 'משתמשים' : 'users'}
-            </Text>
 
             {filteredUsers.map((u) => {
               const fc = getFacultyColor(u.facultyId);
+
               return (
-                <View key={u.id} style={[a.userCard, !u.isActive && a.userCardInactive]}>
-                  <View style={[a.row, isRtl && a.rowReverse]}>
-                    <View style={[a.userAvatar, { backgroundColor: u.isActive ? fc.primary : '#CBD5E1' }]}>
-                      <Text style={a.userAvatarText}>{u.displayName?.charAt(0)?.toUpperCase()}</Text>
+                <View key={u.id} style={styles.userCard}>
+                  <View style={styles.userTop}>
+                    <View
+                      style={[
+                        styles.avatar,
+                        { backgroundColor: fc.primary },
+                      ]}
+                    >
+                      <Text style={styles.avatarText}>
+                        {u.displayName.charAt(0).toUpperCase()}
+                      </Text>
                     </View>
-                    <View style={{ marginLeft: isRtl ? 0 : 10, marginRight: isRtl ? 10 : 0, flex: 1 }}>
-                      <Text style={[a.userName, isRtl && a.textRight]}>{u.displayName}</Text>
-                      <Text style={[a.userEmail, isRtl && a.textRight]}>{u.email}</Text>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.userName}>
+                        {u.displayName}
+                      </Text>
+
+                      <Text style={styles.userEmail}>{u.email}</Text>
                     </View>
+
                     <Switch
                       value={u.isActive}
-                      onValueChange={() => toggleUserActive(u.id, u.isActive)}
-                      trackColor={{ false: '#F1F5F9', true: '#BBF7D0' }}
-                      thumbColor={u.isActive ? '#10B981' : '#94A3B8'}
+                      onValueChange={() =>
+                        toggleUserActive(u.id, u.isActive)
+                      }
                     />
                   </View>
 
-                  <View style={[a.row, isRtl && a.rowReverse, { marginTop: 8 }]}>
-                    <View style={[a.userRoleBadge, { backgroundColor: fc.light }]}>
-                      <View style={[a.dot, { backgroundColor: fc.primary }]} />
-                      <Text style={[a.userRoleText, { color: fc.primary }]}>
-                        {ROLE_LABELS[u.role]?.[lang] ?? u.role}
+                  <View style={styles.userBottom}>
+                    <View style={styles.roleBadge}>
+                      <Text style={styles.roleBadgeText}>
+                        {ROLE_LABELS[u.role]?.[lang]}
                       </Text>
                     </View>
-                    {u.facultyId && (
-                      <View style={[a.userRoleBadge, { backgroundColor: fc.light, marginLeft: 6 }]}>
-                        <Text style={[a.userRoleText, { color: fc.primary }]}>
-                          {getFacultyColor(u.facultyId).label[lang]}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={a.rowGap} />
-                    <Pressable style={a.editBtn} onPress={() => openEditUser(u)}>
-                      <Text style={a.editBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
+
+                    <Pressable
+                      style={styles.editBtn}
+                      onPress={() => openEditUser(u)}
+                    >
+                      <Text style={styles.editBtnText}>
+                        ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
+                      </Text>
                     </Pressable>
                   </View>
                 </View>
@@ -486,503 +918,967 @@ export default function AdminHome() {
           </>
         )}
 
-        {/* ════ PROJECTS ════ */}
         {activeTab === 'projects' && (
           <>
-            {/* Filters */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={[a.row, { gap: 8, paddingRight: 8 }]}>
-                {['all', 'published', 'in_progress', 'completed'].map((f) => (
-                  <Pressable
-                    key={f}
-                    style={[a.filterChip, projectFilter === f && a.filterChipActive]}
-                    onPress={() => setProjectFilter(f)}
-                  >
-                    <Text style={[a.filterChipText, projectFilter === f && a.filterChipTextActive]}>
-                      {f === 'all'         ? (lang === 'he' ? 'הכל'    : 'All')
-                       : f === 'published'  ? (lang === 'he' ? 'פורסם'  : 'Published')
-                       : f === 'in_progress'? (lang === 'he' ? 'פעיל'   : 'Active')
-                       :                     (lang === 'he' ? 'הושלם'  : 'Completed')}
-                    </Text>
-                  </Pressable>
-                ))}
-                <View style={a.filterDivider} />
-                {['all', ...Object.keys(FACULTY_COLORS).filter(k => k !== 'default')].map((fid) => (
-                  <Pressable
-                    key={fid}
-                    style={[
-                      a.filterChip,
-                      facultyFilter === fid && [a.filterChipActive, { backgroundColor: getFacultyColor(fid).primary }],
-                    ]}
-                    onPress={() => setFacultyFilter(fid)}
-                  >
-                    <Text style={[
-                      a.filterChipText,
-                      facultyFilter === fid && { color: '#fff' },
-                    ]}>
-                      {fid === 'all' ? (lang === 'he' ? 'כל הפקולטות' : 'All Faculties')
-                        : getFacultyColor(fid).label[lang]}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-
-            <Text style={[a.resultCount, isRtl && a.textRight]}>
-              {filteredProjects.length} {lang === 'he' ? 'פרויקטים' : 'projects'}
-            </Text>
-
-            {filteredProjects.map((p) => {
-              const fc = getFacultyColor(p.facultyId);
-              return (
-                <View key={p.id} style={[a.projectCard, { borderLeftColor: fc.primary }]}>
-                  <View style={[a.row, isRtl && a.rowReverse, { marginBottom: 6 }]}>
-                    <FacultyBadge facultyId={p.facultyId} lang={lang} />
-                    <View style={a.rowGap} />
-                    <StatusBadge status={p.status} lang={lang} />
-                  </View>
-                  <Text style={[a.projectTitle, isRtl && a.textRight]}>
-                    {lang === 'he' ? p.titleHe : p.titleEn}
-                  </Text>
-                  <Text style={[a.projectMeta, isRtl && a.textRight]}>
-                    👨‍🏫 {p.supervisorName}
-                    {' · '}
-                    {lang === 'he'
-                      ? p.degreeType === 'bachelors' ? 'תואר ראשון' : p.degreeType === 'masters' ? 'תואר שני' : 'שניהם'
-                      : p.degreeType === 'bachelors' ? "B.Sc." : p.degreeType === 'masters' ? "M.Sc." : 'Both'}
-                    {' · '}
-                    {p.academicYear}
-                    {' · '}
-                    👥 {p.enrolledStudentIds.length}
-                  </Text>
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        {/* ════ MILESTONES ════ */}
-        {activeTab === 'milestones' && (
-          <>
-            <Text style={[a.sectionTitle, isRtl && a.textRight]}>
-              {lang === 'he' ? 'אבני דרך הדורשות טיפול' : 'Milestones Requiring Attention'}
-            </Text>
-
-            {milestones.length === 0 ? (
-              <View style={a.empty}>
-                <Text style={a.emptyEmoji}>🎉</Text>
-                <Text style={a.emptyText}>
-                  {lang === 'he' ? 'כל אבני הדרך בסדר!' : 'All milestones are on track!'}
-                </Text>
-              </View>
-            ) : (
-              milestones.map((m) => {
-                const fc      = getFacultyColor(m.facultyId);
-                const label   = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
-                const dueDate = m.dueDate?.toDate?.();
-                const isOverdue = dueDate && dueDate < new Date() && m.status === 'pending';
-                return (
-                  <View key={m.id} style={[a.milestoneCard, { borderLeftColor: fc.primary }, isOverdue && a.milestoneOverdue]}>
-                    <View style={[a.row, isRtl && a.rowReverse, { marginBottom: 6 }]}>
-                      <Text style={[a.milestoneType, { color: fc.primary }]}>{label}</Text>
-                      <View style={a.rowGap} />
-                      <StatusBadge status={m.status} lang={lang} />
-                    </View>
-                    <Text style={[a.milestoneProject, isRtl && a.textRight]}>
-                      📁 {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
-                    </Text>
-                    <Text style={[a.milestoneMeta, isRtl && a.textRight]}>
-                      👤 {m.studentNames.join(', ')}
-                    </Text>
-                    {dueDate && (
-                      <Text style={[a.milestoneMeta, isRtl && a.textRight, isOverdue && { color: '#EF4444', fontWeight: '700' }]}>
-                        📅 {dueDate.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', {
-                          day: 'numeric', month: 'short', year: 'numeric',
-                        })}
-                        {isOverdue && (lang === 'he' ? ' — באיחור!' : ' — Overdue!')}
-                      </Text>
-                    )}
-                    <FacultyBadge facultyId={m.facultyId} lang={lang} />
-                  </View>
-                );
-              })
-            )}
-          </>
-        )}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      {/* ── User Edit Modal ── */}
-      <Modal visible={userModal} animationType="slide" presentationStyle="formSheet">
-        <View style={a.modal}>
-          <ScrollView contentContainerStyle={a.modalContent}>
-            <View style={[a.modalHeader, isRtl && a.rowReverse]}>
-              <Text style={a.modalTitle}>
-                {lang === 'he' ? 'עריכת משתמש' : 'Edit User'}
+            <Pressable
+              style={[styles.submitBtn, { marginBottom: 14 }]}
+              onPress={() => setShowNewProject(true)}
+            >
+              <Text style={styles.submitBtnText}>
+                ➕ {lang === 'he' ? 'הוסף פרויקט' : 'Add Project'}
               </Text>
-              <Pressable onPress={() => setUserModal(false)}>
-                <Text style={a.modalClose}>✕</Text>
-              </Pressable>
-            </View>
+            </Pressable>
 
-            {editUser && (
-              <View style={a.editUserInfo}>
-                <Text style={[a.editUserName, isRtl && a.textRight]}>{editUser.displayName}</Text>
-                <Text style={[a.editUserEmail, isRtl && a.textRight]}>{editUser.email}</Text>
-              </View>
-            )}
+            {filteredProjects.map((p) => (
+              <View key={p.id} style={styles.projectCard}>
+                <View style={styles.projectHeader}>
+                  <FacultyBadge facultyId={p.facultyId} lang={lang} />
+                  <StatusBadge status={p.status} lang={lang} />
+                </View>
 
-            <Text style={[a.fieldLabel, isRtl && a.textRight]}>
-              {lang === 'he' ? 'תפקיד' : 'Role'}
-            </Text>
-            <View style={a.roleGrid}>
-              {Object.entries(ROLE_LABELS).map(([role, label]) => (
+                <Text style={styles.projectTitle}>
+                  {lang === 'he' ? p.titleHe : p.titleEn}
+                </Text>
+
+                <Text style={styles.projectMeta}>
+                  👨‍🏫 {p.supervisorName || 'No Supervisor'}
+                </Text>
+
+                <Text style={styles.projectMeta}>
+                  👥 {p.enrolledStudentIds?.length || 0}{' '}
+                  {lang === 'he' ? 'סטודנטים' : 'students'}
+                </Text>
+
+                {/* ── Add Student Button ── */}
                 <Pressable
-                  key={role}
-                  style={[a.roleOption, editRole === role && a.roleOptionActive]}
-                  onPress={() => setEditRole(role)}
+                  style={styles.addStudentBtn}
+                  onPress={() => {
+                    setAddStudentProject(p);
+                    setStudentSearch('');
+                    setAddStudentModal(true);
+                  }}
                 >
-                  <Text style={[a.roleOptionText, editRole === role && a.roleOptionTextActive]}>
-                    {label[lang]}
+                  <Text style={styles.addStudentBtnText}>
+                    👤➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}
                   </Text>
                 </Pressable>
-              ))}
-            </View>
 
-            <Text style={[a.fieldLabel, isRtl && a.textRight]}>
-              {lang === 'he' ? 'פקולטה' : 'Faculty'}
+                <Pressable
+                  style={styles.deleteBtn}
+                  onPress={() => deleteProject(p.id)}
+                >
+                  <Text style={styles.deleteBtnText}>
+                    🗑️ {lang === 'he' ? 'מחק' : 'Delete'}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+          </>
+        )}
+
+        {activeTab === 'milestones' && (
+          <>
+            {milestones.map((m) => (
+              <View key={m.id} style={styles.milestoneCard}>
+                <View style={styles.projectHeader}>
+                  <Text style={styles.milestoneType}>
+                    {MILESTONE_LABEL[m.type]?.[lang]}
+                  </Text>
+
+                  <StatusBadge status={m.status} lang={lang} />
+                </View>
+
+                <Text style={styles.projectTitle}>
+                  {lang === 'he'
+                    ? m.projectTitleHe
+                    : m.projectTitleEn}
+                </Text>
+
+                <Text style={styles.projectMeta}>
+                  👤 {m.studentNames.join(', ')}
+                </Text>
+              </View>
+            ))}
+          </>
+        )}
+
+        <View style={{ height: 80 }} />
+      </ScrollView>
+
+      <Modal visible={showNewProject} animationType="slide" presentationStyle="pageSheet">
+        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
+            <Text style={styles.modalTitle}>
+              {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}
             </Text>
-            <View style={a.facultyGrid}>
-              {Object.entries(FACULTY_COLORS).filter(([k]) => k !== 'default').map(([fid, fc]) => (
+            <Pressable onPress={() => setShowNewProject(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+
+          {/* Text fields */}
+          {[
+            { label: lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *', value: newTitleHe, set: setNewTitleHe, dir: 'rtl' },
+            { label: lang === 'he' ? 'כותרת באנגלית *' : 'English Title *', value: newTitleEn, set: setNewTitleEn, dir: 'ltr' },
+            { label: lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description', value: newDescHe, set: setNewDescHe, dir: 'rtl', multi: true },
+            { label: lang === 'he' ? 'תיאור באנגלית' : 'English Description', value: newDescEn, set: setNewDescEn, dir: 'ltr', multi: true },
+            { label: lang === 'he' ? 'טכנולוגיות (מופרדות בפסיק)' : 'Technologies (comma separated)', value: newSkills, set: setNewSkills, dir: 'ltr' },
+          ].map((field) => (
+            <View key={field.label}>
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{field.label}</Text>
+              <TextInput
+                style={[styles.input, field.multi && styles.textarea, { textAlign: field.dir === 'rtl' ? 'right' : 'left' }]}
+                value={field.value}
+                onChangeText={field.set}
+                multiline={field.multi}
+                numberOfLines={field.multi ? 4 : 1}
+              />
+            </View>
+          ))}
+
+          {/* ── Faculty selector ── */}
+          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+            {lang === 'he' ? 'פקולטה *' : 'Faculty *'}
+          </Text>
+          <View style={styles.facultyGrid}>
+            {Object.entries(FACULTY_COLORS)
+              .filter(([k]) => k !== 'default')
+              .map(([fid, fc]) => (
                 <Pressable
                   key={fid}
                   style={[
-                    a.facultyOption,
-                    editFaculty === fid && [a.facultyOptionActive, { borderColor: fc.primary, backgroundColor: fc.light }],
+                    styles.facultyPickerBtn,
+                    newProjectFaculty === fid && { backgroundColor: fc.primary, borderColor: fc.primary },
                   ]}
-                  onPress={() => setEditFaculty(fid)}
+                  onPress={() => setNewProjectFaculty(fid)}
                 >
-                  <View style={[a.dot, { backgroundColor: fc.primary }]} />
-                  <Text style={[a.facultyOptionText, { color: editFaculty === fid ? fc.primary : '#8899BB' }]}>
+                  <View style={[styles.facultyPickerDot, { backgroundColor: fc.primary }]} />
+                  <Text style={[
+                    styles.facultyPickerText,
+                    newProjectFaculty === fid && { color: '#fff' },
+                  ]}>
                     {fc.label[lang]}
                   </Text>
                 </Pressable>
               ))}
+          </View>
+
+          {/* Degree type */}
+          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+            {lang === 'he' ? 'סוג תואר' : 'Degree Type'}
+          </Text>
+          <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
+            {(['bachelors', 'masters', 'both'] as const).map((d) => (
+              <Pressable
+                key={d}
+                style={[styles.toggleBtn, newDegree === d && styles.toggleBtnActive]}
+                onPress={() => setNewDegree(d)}
+              >
+                <Text style={[styles.toggleText, newDegree === d && styles.toggleTextActive]}>
+                  {d === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : 'B.Sc.')
+                  : d === 'masters'  ? (lang === 'he' ? 'תואר שני'   : 'M.Sc.')
+                  :                    (lang === 'he' ? 'שניהם'       : 'Both')}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Project type */}
+          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+            {lang === 'he' ? 'סוג פרויקט' : 'Project Type'}
+          </Text>
+          <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
+            {(['project', 'thesis'] as const).map((tp) => (
+              <Pressable
+                key={tp}
+                style={[styles.toggleBtn, newType === tp && styles.toggleBtnActive]}
+                onPress={() => setNewType(tp)}
+              >
+                <Text style={[styles.toggleText, newType === tp && styles.toggleTextActive]}>
+                  {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project')
+                                    : (lang === 'he' ? 'תזה'     : 'Thesis')}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.fieldLabel}>
+            {lang === 'he' ? 'בחר מנחה' : 'Select Supervisor'}
+          </Text>
+
+          {/* 2. The Supervisor List */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {allSupervisors.map((sup) => (
+              <Pressable
+                key={sup.id}
+                style={[
+                  styles.supOption,
+                  selectedSupervisor?.id === sup.id && styles.supOptionActive
+                ]}
+                onPress={() => {
+                  setSelectedSupervisor(sup);
+                  setShowConfirm(true); // Open the confirmation alert/modal
+                }}
+              >
+                <Text>{sup.displayName}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <Pressable
+            style={[styles.submitBtn, creating && { opacity: 0.6 }]}
+            onPress={handleCreateProject}
+            disabled={creating}
+          >
+            {creating
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.submitBtnText}>
+                  {lang === 'he' ? 'פרסם פרויקט' : 'Publish Project'}
+                </Text>
+            }
+          </Pressable>
+        </ScrollView>
+      </Modal>
+
+      <Modal visible={userModal} animationType="slide">
+        <View style={styles.modalRoot}>
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {lang === 'he' ? 'עריכת משתמש' : 'Edit User'}
+              </Text>
+
+              <Pressable onPress={() => setUserModal(false)}>
+                <Text style={styles.close}>✕</Text>
+              </Pressable>
             </View>
 
-            <Pressable
-              style={[a.submitBtn, saving && { opacity: 0.6 }]}
-              onPress={handleSaveUser}
-              disabled={saving}
-            >
-              {saving
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={a.submitBtnText}>{lang === 'he' ? 'שמור שינויים' : 'Save Changes'}</Text>
-              }
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'תפקיד' : 'Role'}
+            </Text>
+
+            {Object.entries(ROLE_LABELS).map(([role, label]) => (
+              <Pressable
+                key={role}
+                style={[
+                  styles.roleOption,
+                  editRole === role && styles.roleOptionActive,
+                ]}
+                onPress={() => setEditRole(role)}
+              >
+                <Text
+                  style={[
+                    styles.roleOptionText,
+                    editRole === role && styles.roleOptionTextActive,
+                  ]}
+                >
+                  {label[lang]}
+                </Text>
+              </Pressable>
+            ))}
+
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'פקולטה' : 'Faculty'}
+            </Text>
+
+            {Object.entries(FACULTY_COLORS)
+              .filter(([k]) => k !== 'default')
+              .map(([fid, fc]) => (
+                <Pressable
+                  key={fid}
+                  style={[styles.facultyOption,
+                    editFaculty === fid && styles.facultyOptionActive]}
+                  onPress={() => setEditFaculty(fid)}
+                >
+                  <View
+                    style={[
+                      styles.facultyDot,
+                      { backgroundColor: fc.primary },
+                    ]}
+                  />
+
+                  <Text>{fc.label[lang]}</Text>
+                </Pressable>
+              ))}
+
+            <Pressable style={styles.submitBtn} onPress={handleSaveUser}>
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitBtnText}>
+                  {lang === 'he' ? 'שמור' : 'Save'}
+                </Text>
+              )}
             </Pressable>
           </ScrollView>
         </View>
       </Modal>
-      <Modal visible={maintenanceModal} animationType="slide">
-        <View style={a.modal}>
-          <ScrollView contentContainerStyle={a.modalContent}>
 
-            <Text style={a.modalTitle}>
-              🛠️ {lang === 'he' ? 'מצב תחזוקה' : 'Maintenance Mode'}
+      <Modal visible={maintenanceModal} animationType="slide">
+        <View style={styles.modalRoot}>
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              🛠️ {lang === 'he' ? 'מצב תחזוקה' : 'Maintenance'}
             </Text>
 
             <TextInput
-              placeholder={lang === 'he' ? 'כותרת תחזוקה' : 'Maintenance Title'}
+              placeholder={lang === 'he' ? 'כותרת' : 'Title'}
               value={maintenanceTitle}
               onChangeText={setMaintenanceTitle}
-              style={a.input}
+              style={styles.input}
             />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {/* Days */}
-              <View style={{ flex: 1 }}>
-                <Text style={a.fieldLabel}>
-                  {lang === 'he' ? 'ימים' : 'Days'}
-                </Text>
-                <Picker
-                  selectedValue={maintenanceDays}
-                  onValueChange={(v) => setMaintenanceDays(v)}
-                >
-                  {[...Array(8).keys()].map((d) => (
-                    <Picker.Item key={d} label={`${d}`} value={d} />
-                  ))}
-                </Picker>
-              </View>
-
-              {/* Hours */}
-              <View style={{ flex: 1 }}>
-                <Text style={a.fieldLabel}>
-                  {lang === 'he' ? 'שעות' : 'Hours'}
-                </Text>
-                <Picker
-                  selectedValue={maintenanceHours}
-                  onValueChange={(v) => setMaintenanceHours(v)}
-                >
-                  {[...Array(24).keys()].map((h) => (
-                    <Picker.Item key={h} label={`${h}`} value={h} />
-                  ))}
-                </Picker>
-              </View>
-
-              {/* Minutes */}
-              <View style={{ flex: 1 }}>
-                <Text style={a.fieldLabel}>
-                  {lang === 'he' ? 'דקות' : 'Minutes'}
-                </Text>
-                <Picker
-                  selectedValue={maintenanceMinutes}
-                  onValueChange={(v) => setMaintenanceMinutes(v)}
-                >
-                  {[0, 5, 10, 15, 30, 45, 50, 55].map((m) => (
-                    <Picker.Item key={m} label={`${m}`} value={m} />
-                  ))}
-                </Picker>
-              </View>
-
-            </View>
-
-            <View style={a.infoBox}>
-              <Text style={a.infoText}>
-                {lang === 'he'
-                  ? 'הודעה קבועה: מצטערים על אי הנוחות'
-                  : 'Fixed message: Sorry for the inconvenience'}
-              </Text>
-            </View>
-
-            <Pressable
-              onPress={saveMaintenance}
-              style={a.submitBtn}
-              disabled={maintenanceSaving}
+            <Text style={styles.fieldLabel}>Days</Text>
+            <Picker
+              selectedValue={maintenanceDays}
+              onValueChange={(v) => setMaintenanceDays(v)}
             >
-              <Text style={a.submitBtnText}>
-                {maintenanceSaving
-                  ? '...'
-                  : lang === 'he'
-                    ? 'שמור ושלח'
-                    : 'Save & Send'}
+              {[...Array(8).keys()].map((d) => (
+                <Picker.Item key={d} label={`${d}`} value={d} />
+              ))}
+            </Picker>
+
+            <Text style={styles.fieldLabel}>Hours</Text>
+            <Picker
+              selectedValue={maintenanceHours}
+              onValueChange={(v) => setMaintenanceHours(v)}
+            >
+              {[...Array(24).keys()].map((h) => (
+                <Picker.Item key={h} label={`${h}`} value={h} />
+              ))}
+            </Picker>
+
+            <Text style={styles.fieldLabel}>Minutes</Text>
+            <Picker
+              selectedValue={maintenanceMinutes}
+              onValueChange={(v) => setMaintenanceMinutes(v)}
+            >
+              {[0, 5, 10, 15, 30, 45, 50, 55].map((m) => (
+                <Picker.Item key={m} label={`${m}`} value={m} />
+              ))}
+            </Picker>
+
+            <Pressable style={styles.submitBtn} onPress={saveMaintenance}>
+              <Text style={styles.submitBtnText}>
+                {lang === 'he' ? 'שמור ושלח' : 'Save & Send'}
               </Text>
             </Pressable>
-
-            <Pressable onPress={() => setMaintenanceModal(false)}>
-              <Text style={{ textAlign: 'center', marginTop: 20 }}>
-                {lang === 'he' ? 'סגור' : 'Close'}
-              </Text>
-            </Pressable>
-
           </ScrollView>
         </View>
+      </Modal>
+      {/* ── Add Student to Project Modal ── */}
+      <Modal visible={addStudentModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalRoot}>
+
+          {/* Header */}
+          <View style={styles.addStudentHeader}>
+            <View>
+              <Text style={styles.addStudentTitle}>
+                👤 {lang === 'he' ? 'הוסף סטודנט לפרויקט' : 'Add Student to Project'}
+              </Text>
+              {addStudentProject && (
+                <Text style={styles.addStudentSubtitle} numberOfLines={1}>
+                  📁 {lang === 'he' ? addStudentProject.titleHe : addStudentProject.titleEn}
+                </Text>
+              )}
+            </View>
+            <Pressable
+              onPress={() => {
+                setAddStudentModal(false);
+                setAddStudentProject(null);
+                setStudentSearch('');
+              }}
+            >
+              <Text style={styles.close}>✕</Text>
+            </Pressable>
+          </View>
+
+          {/* Search */}
+          <View style={styles.addStudentSearchBox}>
+            <Text style={styles.addStudentSearchIcon}>🔍</Text>
+            <TextInput
+              style={styles.addStudentSearchInput}
+              placeholder={lang === 'he' ? 'חיפוש לפי שם או אימייל...' : 'Search by name or email...'}
+              placeholderTextColor="#9BA8C0"
+              value={studentSearch}
+              onChangeText={setStudentSearch}
+              textAlign={isRtl ? 'right' : 'left'}
+              autoFocus
+            />
+            {studentSearch.length > 0 && (
+              <Pressable onPress={() => setStudentSearch('')}>
+                <Text style={{ color: '#9BA8C0', fontSize: 16, paddingHorizontal: 8 }}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Student list */}
+          <ScrollView contentContainerStyle={{ padding: 16 }}>
+            {users
+              .filter((u) => {
+                // Only show students
+                if (u.role !== 'student') return false;
+                // Already in this project
+                if (addStudentProject?.enrolledStudentIds?.includes(u.id)) return false;
+                // Search filter — works for both Hebrew and English
+                if (!studentSearch.trim()) return true;
+                const q = studentSearch.toLowerCase();
+                return (
+                  u.displayName.toLowerCase().includes(q) ||
+                  u.email.toLowerCase().includes(q)
+                );
+              })
+              .map((u) => {
+                const fc = getFacultyColor(u.facultyId);
+                return (
+                  <Pressable
+                    key={u.id}
+                    style={styles.studentPickerCard}
+                    onPress={() => handleAddStudentToProject(u)}
+                    disabled={addingStudent}
+                  >
+                    <View style={[styles.avatar, { backgroundColor: fc.primary, marginRight: 12 }]}>
+                      <Text style={styles.avatarText}>
+                        {u.displayName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.studentPickerName}>{u.displayName}</Text>
+                      <Text style={styles.studentPickerEmail}>{u.email}</Text>
+                    </View>
+
+                    <Text style={styles.studentPickerArrow}>›</Text>
+                  </Pressable>
+                );
+              })}
+
+            {/* Empty state */}
+            {users.filter((u) => {
+              if (u.role !== 'student') return false;
+              if (addStudentProject?.enrolledStudentIds?.includes(u.id)) return false;
+              if (!studentSearch.trim()) return true;
+              const q = studentSearch.toLowerCase();
+              return u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+            }).length === 0 && (
+              <View style={{ alignItems: 'center', paddingTop: 40 }}>
+                <Text style={{ fontSize: 36, marginBottom: 10 }}>🔍</Text>
+                <Text style={{ color: '#9BA8C0', fontSize: 14 }}>
+                  {lang === 'he' ? 'לא נמצאו סטודנטים' : 'No students found'}
+                </Text>
+              </View>
+            )}
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
 }
 
-const a = StyleSheet.create({
-  root:      { flex: 1, backgroundColor: '#F0F4FF' },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content:   { padding: 16 },
-  row:       { flexDirection: 'row', alignItems: 'center' },
-  rowReverse:{ flexDirection: 'row-reverse' },
-  rowGap:    { flex: 1 },
-  textRight: { textAlign: 'right' },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#111', marginBottom: 12 },
-
-  // Tabs
-  tabBar: {
-    flexDirection: 'row', backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E0E8FF',
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#F3F6FF',
   },
-  tab: {
-    flex: 1, paddingVertical: 11, alignItems: 'center',
-    flexDirection: 'row', justifyContent: 'center', gap: 4,
-    borderBottomWidth: 2, borderBottomColor: 'transparent',
-  },
-  tabActive:      { borderBottomColor: '#EF4444' },
-  tabText:        { fontSize: 11, fontWeight: '600', color: '#8899BB' },
-  tabTextActive:  { color: '#EF4444' },
-  tabBadge: {
-    backgroundColor: '#FEE2E2', borderRadius: 8,
-    minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4,
-  },
-  tabBadgeActive: { backgroundColor: '#EF4444' },
-  tabBadgeText:   { fontSize: 10, fontWeight: '800', color: '#EF4444' },
 
-  // Stats grid
-  statsGrid: { marginBottom: 4 },
-  statsRow:  { flexDirection: 'row' },
-
-  // Faculty bar chart
-  facultyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  facultyDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
-  facultyName:{ fontSize: 12, fontWeight: '600', width: 100 },
-  facultyBar: { flex: 1, height: 8, backgroundColor: '#E0E8FF', borderRadius: 4, overflow: 'hidden', marginHorizontal: 8 },
-  facultyBarFill: { height: '100%', borderRadius: 4 },
-  facultyCount: { fontSize: 12, fontWeight: '800', color: '#111', width: 24, textAlign: 'right' },
-
-  // Role rows
-  roleRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F4FF' },
-  roleLabel: { fontSize: 13, fontWeight: '600', color: '#445' },
-  roleGap:   { flex: 1 },
-  rolePill:  { backgroundColor: '#EFF6FF', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
-  rolePillText: { fontSize: 13, fontWeight: '800', color: '#2E86FF' },
-
-  // Search
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: '#E0E8FF', marginBottom: 10,
-  },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: '#111' },
-  searchIcon:  { fontSize: 18 },
-  resultCount: { fontSize: 12, color: '#8899BB', marginBottom: 10, fontWeight: '500' },
-
-  // User card
-  userCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
-  },
-  userCardInactive: { opacity: 0.6 },
-  userAvatar: {
-    width: 36, height: 36, borderRadius: 18,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  userAvatarText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  userName:       { fontSize: 14, fontWeight: '700', color: '#111' },
-  userEmail:      { fontSize: 12, color: '#8899BB' },
-  userRoleBadge: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
-  },
-  dot:          { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
-  userRoleText: { fontSize: 11, fontWeight: '600' },
-  editBtn: {
-    backgroundColor: '#EFF6FF', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: '#BFDBFE',
-  },
-  editBtnText: { fontSize: 12, color: '#2E86FF', fontWeight: '600' },
-
-  // Filter chips
-  filterChip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#D0DEFF',
-  },
-  filterChipActive:    { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  filterChipText:      { fontSize: 12, fontWeight: '600', color: '#555' },
-  filterChipTextActive:{ color: '#fff' },
-  filterDivider:       { width: 1, height: 28, backgroundColor: '#E0E8FF', marginHorizontal: 4, alignSelf: 'center' },
-
-  // Project card
-  projectCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
-    borderLeftWidth: 4, borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
-  },
-  projectTitle: { fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 4 },
-  projectMeta:  { fontSize: 12, color: '#8899BB' },
-
-  // Milestone card
-  milestoneCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
-    borderLeftWidth: 4, borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  milestoneOverdue: { backgroundColor: '#FEF2F2' },
-  milestoneType:    { fontSize: 13, fontWeight: '800', letterSpacing: 0.3 },
-  milestoneProject: { fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 4 },
-  milestoneMeta:    { fontSize: 12, color: '#8899BB', marginBottom: 4 },
-
-  // Empty
-  empty:     { alignItems: 'center', paddingVertical: 50 },
-  emptyEmoji:{ fontSize: 40, marginBottom: 10 },
-  emptyText: { fontSize: 15, color: '#8899BB' },
-
-  // Modal
-  modal:       { flex: 1, backgroundColor: '#F0F4FF' },
-  modalContent:{ padding: 20, paddingBottom: 60 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle:  { fontSize: 18, fontWeight: '800', color: '#111' },
-  modalClose:  { fontSize: 22, color: '#888', padding: 4 },
-  editUserInfo:{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#E0E8FF' },
-  editUserName:{ fontSize: 16, fontWeight: '700', color: '#111', marginBottom: 2 },
-  editUserEmail:{ fontSize: 13, color: '#8899BB' },
-  fieldLabel:  { fontSize: 13, fontWeight: '600', color: '#445', marginBottom: 8, marginTop: 14 },
-
-  roleGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  roleOption: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  roleOptionActive:    { backgroundColor: '#EF4444', borderColor: '#EF4444' },
-  roleOptionText:      { fontSize: 13, fontWeight: '600', color: '#8899BB' },
-  roleOptionTextActive:{ color: '#fff' },
-
-  facultyGrid: { gap: 8 },
-  facultyOption: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  facultyOptionActive: {},
-  facultyOptionText:   { fontSize: 13, fontWeight: '600', marginLeft: 8 },
-
-  submitBtn: {
-    backgroundColor: '#EF4444', borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center', marginTop: 20,
-    shadowColor: '#EF4444', shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
-  },
-  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  // Maintenance modal
-  maintenanceBtn: {
-    backgroundColor: '#111827',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 10,
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
 
-  maintenanceBtnText: {
+  hero: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 18,
+    backgroundColor: '#fff',
+  },
+
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#111827',
+  },
+
+  heroSub: {
+    marginTop: 6,
+    fontSize: 13,
+    color: '#6B7280',
+  },
+
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 8,
+  },
+
+  tab: {
+    flex: 1,
+    backgroundColor: '#F1F5FF',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+
+  tabActive: {
+    backgroundColor: '#EF4444',
+  },
+
+  tabText: {
+    color: '#64748B',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+
+  tabTextActive: {
+    color: '#fff',
+  },
+
+  content: {
+    padding: 16,
+  },
+
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  sectionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    marginTop: 18,
+  },
+
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 16,
+  },
+
+  facultyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  facultyDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+
+  facultyText: {
+    width: 90,
+    fontWeight: '700',
+    color: '#111827',
+    fontSize: 12,
+  },
+
+  facultyBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+
+  facultyFill: {
+    height: '100%',
+    borderRadius: 20,
+  },
+
+  facultyCount: {
+    width: 40,
+    textAlign: 'right',
+    fontWeight: '800',
+    color: '#111827',
+  },
+
+  searchBox: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+
+  searchInput: {
+    height: 52,
+    fontSize: 14,
+  },
+
+  userCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  userTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+
+  avatarText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 18,
+  },
+
+  userName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+  },
+
+  userEmail: {
+    marginTop: 2,
+    color: '#64748B',
+    fontSize: 12,
+  },
+
+  userBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 14,
+  },
+
+  roleBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+
+  roleBadgeText: {
+    color: '#2563EB',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+
+  editBtn: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+
+  editBtnText: {
     color: '#fff',
     fontWeight: '700',
   },
 
-  deleteBtn: {
-    marginTop: 10,
-    backgroundColor: '#FEE2E2',
-    padding: 8,
-    borderRadius: 10,
+  projectCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  projectHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  projectTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 8,
+  },
+
+  projectMeta: {
+    color: '#64748B',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+
+  milestoneCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+    borderLeftWidth: 5,
+    borderLeftColor: '#F59E0B',
+  },
+
+  milestoneType: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#F59E0B',
+  },
+
+  modalRoot: {
+    flex: 1,
+    backgroundColor: '#F3F6FF',
+  },
+
+  modalContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#111827',
+  },
+
+  close: {
+    fontSize: 24,
+    color: '#64748B',
+  },
+
+  fieldLabel: {
+    marginTop: 16,
+    marginBottom: 8,
+    fontWeight: '700',
+    color: '#111827',
+  },
+
+  roleOption: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+
+  roleOptionActive: {
+    backgroundColor: '#EF4444',
+  },
+
+  roleOptionText: {
+    color: '#111827',
+    fontWeight: '700',
+  },
+
+  roleOptionTextActive: {
+    color: '#fff',
+  },
+
+  facultyOption: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  facultyOptionActive: {
+    backgroundColor: '#EF4444',
+  },
+
+  submitBtn: {
+    marginTop: 20,
+    backgroundColor: '#EF4444',
+    paddingVertical: 16,
+    borderRadius: 16,
     alignItems: 'center',
   },
 
-  deleteBtnText: {
-    color: '#EF4444',
-    fontWeight: '700',
+  submitBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 15,
   },
 
   input: {
     backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 10,
-    marginVertical: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 54,
+    marginTop: 10,
+  },
+
+  textRight: {
+    textAlign: 'right',
+  },
+  deleteBtn: {
+    marginTop: 12,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+
+  deleteBtnText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  // Modal
+  modal:        { flex: 1, backgroundColor: '#F0F4FF' },
+  modalClose:   { fontSize: 22, color: '#888', padding: 4 },
+  textarea:    { textAlignVertical: 'top', minHeight: 90 },
+  toggleRow:   { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  rowReverse:  { flexDirection: 'row-reverse' },
+  toggleBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0E8FF',
+  },
+  toggleBtnActive:  { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
+  toggleText:       { fontSize: 13, fontWeight: '600', color: '#8899BB' },
+  toggleTextActive: { color: '#fff' },
+  // ── Add student styles ─────────────────────────────────────────────────────
+  addStudentBtn: {
+    marginTop: 10,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  addStudentBtnText: {
+    color: '#2563EB',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  addStudentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  addStudentTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  addStudentSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    maxWidth: 260,
+  },
+  addStudentSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: '#E0E8FF',
+    height: 52,
   },
-
-  infoBox: {
-    backgroundColor: '#EFF6FF',
-    padding: 10,
-    borderRadius: 10,
-    marginVertical: 10,
+  addStudentSearchIcon: {
+    fontSize: 16,
+    marginRight: 8,
   },
-
-  infoText: {
+  addStudentSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#111',
+  },
+  studentPickerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  studentPickerName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  studentPickerEmail: {
     fontSize: 12,
-    color: '#2E86FF',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  studentPickerArrow: {
+    fontSize: 22,
+    color: '#D1D5DB',
+    fontWeight: '300',
+  },
+  facultyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  facultyPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E0E8FF',
+    marginBottom: 4,
+  },
+  facultyPickerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  facultyPickerText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: '#374151',
+  },
+  supOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    minWidth: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  supOptionActive: {
+    backgroundColor: '#fff',
+    borderColor: '#ff4444', // Using a red marker as you requested
+    borderWidth: 2,
+    // Optional: add a slight shadow for the active state
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
 });

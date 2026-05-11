@@ -59,7 +59,7 @@ export default function RootLayout() {
       }else if (role === "supervisor") {
         console.log("➡️ navigating to supervisor");
         router.replace("/supervisor/dashboard");
-      }else if (role === "admin") {
+      }else if (role === "system_admin") {
         console.log("➡️ navigating to admin");
         router.replace("/admin/panel");
       }else {

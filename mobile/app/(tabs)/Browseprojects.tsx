@@ -254,27 +254,30 @@ export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
               onPress={() => setSelected(selected?.id === p.id ? null : p)}
             >
               {/* Header row */}
-              <View style={[styles.cardHeader, isRtl && styles.rowReverse]}>
+              <View style={[styles.cardHeader]}>
                 <View style={styles.badges}>
-                  <View style={[
-                    styles.badge,
-                    p.degreeType === 'masters' ? styles.badgeMasters : styles.badgeBachelors,
-                  ]}>
+                  {/* Row 1: Degree Badge */}
+                  <View
+                    style={[
+                      styles.badge,
+                      p.degreeType === 'masters' ? styles.badgeMasters : styles.badgeBachelors,
+                    ]}
+                  >
                     <Text style={styles.badgeText}>
                       {p.degreeType === 'both'
                         ? `${tx('bachelors', lang)} / ${tx('masters', lang)}`
                         : tx(p.degreeType === 'bachelors' ? 'bachelors' : 'masters', lang)}
                     </Text>
                   </View>
+
+                  {/* Row 2: Project Type Badge */}
                   <View style={[styles.badge, styles.badgeType]}>
                     <Text style={styles.badgeText}>
                       {tx(p.projectType === 'project' ? 'projectType' : 'thesisType', lang)}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.chevron}>{selected?.id === p.id ? '▲' : '▼'}</Text>
               </View>
-
               {/* Title */}
               <Text style={[styles.cardTitle, isRtl && styles.textRight]}>
                 {lang === 'he' ? p.titleHe : p.titleEn}
@@ -460,8 +463,14 @@ const styles = StyleSheet.create({
     shadowColor: '#2E86FF', shadowOpacity: 0.06,
     shadowRadius: 8, elevation: 2,
   },
-  cardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  badges:         { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  cardHeader:{
+    marginBottom: 10,  // ← remove the row direction entirely
+  },
+  badges: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
   badge:          { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   badgeBachelors: { backgroundColor: '#E3F2FD' },
   badgeMasters:   { backgroundColor: '#F3E5F5' },

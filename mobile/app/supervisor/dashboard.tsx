@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, SectionHeader, FacultyBadge, StatusBadge, getFacultyColor } from '../../components/shared';
 import { sendPushNotification } from '../../components/pushNotifications';
+import { createMilestonesOnApproval } from '@/components/Milestoneservice';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MyProject {
@@ -92,9 +93,10 @@ export default function SupervisorHome() {
 
   // Live: my projects
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || !facultyId) return;
     const q = query(
       collection(db, 'projects'),
+      where('facultyId', '==', facultyId),
       where('supervisorId', '==', uid),
       where('isArchived', '==', false),
       orderBy('createdAt', 'desc')
@@ -102,12 +104,14 @@ export default function SupervisorHome() {
     return onSnapshot(q, (snap) => {
       setMyProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MyProject)));
       setLoading(false);
-    });
-  }, [uid]);
+    }, (err) => {
+      console.error("Projects listener error:", err);
+    });;
+  }, [uid, facultyId]);
 
   // Live: applications pending my review
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || !facultyId) return;
     const q = query(
       collection(db, 'applications'),
       where('supervisorId', '==', uid),
@@ -117,34 +121,43 @@ export default function SupervisorHome() {
       const items: Application[] = [];
       for (const d of snap.docs) {
         const data = d.data();
-        const [projSnap, studentSnap] = await Promise.all([
-          getDoc(doc(db, 'projects', data.projectId)),
-          getDoc(doc(db, 'users', data.studentId)),
-        ]);
-        items.push({
-          id:              d.id,
-          projectId:       data.projectId,
-          projectTitleHe:  projSnap.data()?.titleHe ?? '',
-          projectTitleEn:  projSnap.data()?.titleEn ?? '',
-          studentId:       data.studentId,
-          studentName:     studentSnap.data()?.displayName ?? '',
-          studentEmail:    studentSnap.data()?.email ?? '',
-          transcriptUrl:   data.transcriptUrl,
-          cvUrl:           data.cvUrl,
-          coverNote:       data.coverNote,
-          status:          data.status,
-          submittedAt:     data.submittedAt,
-        });
+        
+        // Wrap these in try-catch because if one project is in a different faculty, 
+        // the rule will block the getDoc call.
+        try {
+          const [projSnap, studentSnap] = await Promise.all([
+            getDoc(doc(db, 'projects', data.projectId)),
+            getDoc(doc(db, 'users', data.studentId)),
+          ]);
+
+          items.push({
+            id: d.id,
+            projectId: data.projectId,
+            projectTitleHe: projSnap.data()?.titleHe ?? '',
+            projectTitleEn: projSnap.data()?.titleEn ?? '',
+            studentId: data.studentId,
+            studentName: studentSnap.data()?.displayName ?? '',
+            studentEmail: studentSnap.data()?.email ?? '',
+            transcriptUrl: data.transcriptUrl,
+            cvUrl: data.cvUrl,
+            coverNote: data.coverNote,
+            status: data.status,
+            submittedAt: data.submittedAt,
+          });
+        } catch (e) {
+          console.warn("Could not fetch details for application:", d.id, e);
+        }
       }
       setApplications(items);
     });
-  }, [uid]);
+  }, [uid, facultyId]);
 
   // Live: milestones I need to grade (submitted, awaiting supervisor)
   useEffect(() => {
     if (!uid) return;
     const q = query(
       collection(db, 'milestones'),
+      where('supervisorId', '==', uid),
       where('status', '==', 'submitted'),
     );
     return onSnapshot(q, async (snap) => {
@@ -197,9 +210,10 @@ export default function SupervisorHome() {
     }
     setCreating(true);
     try {
+      // ✅ facultyId already loaded in state from the init useEffect — use it directly
       const projectRef = await addDoc(collection(db, 'projects'), {
-        supervisorId:       uid,
-        facultyId,
+        supervisorId:       uid,        // ✅ uid is already the supervisor's UID
+        facultyId,                      // ✅ already in state
         titleHe:            newTitleHe.trim(),
         titleEn:            newTitleEn.trim(),
         descriptionHe:      newDescHe.trim(),
@@ -217,24 +231,30 @@ export default function SupervisorHome() {
         createdAt:          serverTimestamp(),
         updatedAt:          serverTimestamp(),
       });
+
       setShowNewProject(false);
       setNewTitleHe(''); setNewTitleEn('');
       setNewDescHe('');  setNewDescEn('');
       setNewSkills('');
-      Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
+
+      // ✅ Push notification using already-loaded supervisor data (no extra fetch needed)
       const supervisorSnap = await getDoc(doc(db, 'users', uid!));
       const expoPushToken = supervisorSnap.data()?.expoPushToken;
       if (expoPushToken) {
-        await sendPushNotification(
-          expoPushToken,
-          '📢 New Project Published!',
+        await sendPushNotification(expoPushToken, '📢 New Project Published!',
           'A new project is available. Check it now!',
-          {
-            projectId: projectRef.id,
-            type: 'project_published',
-          }
+          { projectId: projectRef.id, type: 'project_published' }
         );
       }
+
+      // ✅ Don't create milestones on publish — only on student approval
+      Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
+      await createMilestonesOnApproval({
+          projectId: projectRef.id,
+          studentIds: [], // No students yet at this stage
+          facultyId,      // ✅ already in state
+          supervisorId: uid!, // ✅ uid IS the supervisor ID
+        });
     } catch (e) {
       console.error(e);
     } finally {
@@ -262,6 +282,17 @@ export default function SupervisorHome() {
           enrolledStudentIds: [studentId],
           status: 'in_progress',
           updatedAt: serverTimestamp(),
+        });
+        await updateDoc(doc(db, 'users', studentId), {
+          hasActiveProject: true,
+          activeProjectId: projectId,
+          updatedAt: serverTimestamp(),
+        });
+        await createMilestonesOnApproval({
+          projectId,
+          studentIds: [studentId],
+          facultyId,      // ✅ already in state
+          supervisorId: uid!, // ✅ uid IS the supervisor ID
         });
       }
       // ─────────────────────────────────────────────
