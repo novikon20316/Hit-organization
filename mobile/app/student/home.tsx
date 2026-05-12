@@ -4,13 +4,14 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput,
-  StyleSheet, ActivityIndicator, Platform, SafeAreaView,
+  ActivityIndicator, Platform, SafeAreaView,
 } from 'react-native';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import { useStudentData } from '../../hooks/useStudentData';
 import { t, tx, type Lang } from '../../components/i18n';
+import { studentHomeStyles } from '@/constants';
 
 // ─── Sub-screens ──────────────────────────────────────────────────────────────
 import BrowseProjects  from '../(tabs)/Browseprojects';
@@ -116,68 +117,4 @@ export default function StudentHome() {
   );
 }
 
-const styles = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: '#F0F4FF' },
-  rtl:          { direction: 'rtl' },
-  centered:     { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F4FF' },
-  loadingText:  { marginTop: 12, color: '#666', fontSize: 15 },
-  row:          { flexDirection: 'row', alignItems: 'center' },
-  rowReverse:   { flexDirection: 'row-reverse', alignItems: 'center' },
-  textRight:    { textAlign: 'right' },
-
-  // Top bar
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8EDF5',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-  },
-
-  // Avatar
-  avatar: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#2E86FF',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  avatarText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-
-  welcomeText: { fontSize: 14, fontWeight: '600', color: '#111' },
-  roleTag:     { fontSize: 11, color: '#2E86FF', fontWeight: '500', marginTop: 1 },
-
-  // Lang toggle
-  langToggle: {
-    backgroundColor: '#F0F4FF', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    marginRight: 8, borderWidth: 1, borderColor: '#D0DEFF',
-  },
-  langText: { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
-
-  // Bell
-  bellBtn:    { marginRight: 8, position: 'relative' },
-  bellIcon:   { fontSize: 22 },
-  badge: {
-    position: 'absolute', top: -4, right: -4,
-    backgroundColor: '#FF3B30', borderRadius: 8,
-    minWidth: 16, height: 16,
-    justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 3,
-  },
-  badgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-
-  // Sign out
-  signOutBtn: {
-    backgroundColor: '#FFF0F0', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: '#FFCDD2',
-  },
-  signOutText: { fontSize: 12, fontWeight: '600', color: '#D32F2F' },
-});
+const styles = studentHomeStyles;

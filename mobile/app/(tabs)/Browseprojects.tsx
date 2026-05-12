@@ -2,13 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput,
-  StyleSheet, Modal, ActivityIndicator,
+  Modal, ActivityIndicator,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
+import { browseProjectsStyles } from '../../constants/styles';
 import type { ProjectProposal } from '../../hooks/useStudentData';
 
 interface Props {
@@ -415,126 +415,4 @@ export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: '#F0F4FF' },
-  textRight:   { textAlign: 'right' },
-  rowReverse:  { flexDirection: 'row-reverse' },
-
-  // Search
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', margin: 14,
-    borderRadius: 14, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#2E86FF', shadowOpacity: 0.07,
-    shadowRadius: 8, elevation: 2,
-  },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: '#111' },
-  searchIcon:  { fontSize: 18 },
-
-  // Filters
-  filters:     { paddingHorizontal: 14, marginBottom: 6 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20, backgroundColor: '#fff',
-    borderWidth: 1, borderColor: '#D0DEFF',
-    marginRight: 8,
-  },
-  chipActive:    { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  chipActiveAlt: { backgroundColor: '#6C5CE7', borderColor: '#6C5CE7' },
-  chipText:      { fontSize: 12, fontWeight: '600', color: '#555' },
-  chipTextActive:{ color: '#fff' },
-  chipDivider:   { width: 1, height: 28, backgroundColor: '#E0E8FF', marginRight: 8, alignSelf: 'center' },
-
-  // Results
-  resultsCount: { paddingHorizontal: 16, paddingBottom: 6, fontSize: 12, color: '#8899BB', fontWeight: '500' },
-
-  // List
-  list: { paddingHorizontal: 14 },
-  empty: { alignItems: 'center', paddingTop: 60 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: '#8899BB' },
-
-  // Cards
-  card: {
-    backgroundColor: '#fff', borderRadius: 16,
-    padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#2E86FF', shadowOpacity: 0.06,
-    shadowRadius: 8, elevation: 2,
-  },
-  cardHeader:{
-    marginBottom: 10,  // ← remove the row direction entirely
-  },
-  badges: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 6,
-  },
-  badge:          { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeBachelors: { backgroundColor: '#E3F2FD' },
-  badgeMasters:   { backgroundColor: '#F3E5F5' },
-  badgeType:      { backgroundColor: '#E8F5E9' },
-  badgeText:      { fontSize: 11, fontWeight: '600', color: '#555' },
-  chevron:        { fontSize: 12, color: '#9BA8C0' },
-  cardTitle:      { fontSize: 15, fontWeight: '700', color: '#111', marginBottom: 6 },
-  cardSupervisor: { fontSize: 13, color: '#5577AA', marginBottom: 8 },
-  skillsRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
-  skillChip:      { backgroundColor: '#F0F4FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  skillText:      { fontSize: 11, color: '#2E86FF', fontWeight: '500' },
-  moreSkills:     { fontSize: 11, color: '#9BA8C0', alignSelf: 'center' },
-
-  // Expanded
-  expanded:   { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F0F4FF' },
-  descText:   { fontSize: 13, color: '#445', lineHeight: 20, marginBottom: 16 },
-  applyBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 12,
-    paddingVertical: 13, alignItems: 'center',
-    shadowColor: '#2E86FF', shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
-  },
-  applyBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-
-  // Modal
-  modal:        { flex: 1, backgroundColor: '#F0F4FF' },
-  modalContent: { padding: 20, paddingBottom: 60 },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 20,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: '#111' },
-  modalClose: { fontSize: 22, color: '#888', padding: 4 },
-
-  applyProjectInfo: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    marginBottom: 20, borderLeftWidth: 4, borderLeftColor: '#2E86FF',
-  },
-  applyForLabel:    { fontSize: 12, color: '#888', marginBottom: 4 },
-  applyProjectTitle:{ fontSize: 14, fontWeight: '700', color: '#111' },
-
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#445', marginBottom: 6, marginTop: 16 },
-  textarea: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    fontSize: 14, color: '#111', textAlignVertical: 'top',
-    borderWidth: 1, borderColor: '#E0E8FF', minHeight: 100,
-  },
-  uploadBtn: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 16,
-    borderWidth: 2, borderColor: '#D0DEFF', borderStyle: 'dashed',
-    alignItems: 'center',
-  },
-  uploadBtnDone:  { borderColor: '#4CAF50', borderStyle: 'solid', backgroundColor: '#F1FFF3' },
-  uploadBtnText:  { fontSize: 14, color: '#5577AA', fontWeight: '500' },
-
-  applyMessage:        { marginTop: 14, padding: 12, borderRadius: 10, textAlign: 'center', fontSize: 14 },
-  applyMessageSuccess: { backgroundColor: '#E8F5E9', color: '#2E7D32' },
-  applyMessageError:   { backgroundColor: '#FFEBEE', color: '#C62828' },
-
-  submitBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center', marginTop: 24,
-    shadowColor: '#2E86FF', shadowOpacity: 0.35, shadowRadius: 10, elevation: 4,
-  },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },
-  rowReverse2:       { flexDirection: 'row-reverse' },
-});
+const styles = browseProjectsStyles;

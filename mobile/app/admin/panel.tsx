@@ -5,7 +5,6 @@ import {
   Text,
   ScrollView,
   Pressable,
-  StyleSheet,
   SafeAreaView,
   ActivityIndicator,
   Modal,
@@ -45,6 +44,7 @@ import {
 
 import { Picker } from '@react-native-picker/picker';
 import { sendPushNotification } from '@/components/pushNotifications';
+import { adminPanelStyles } from '../../constants/styles';
 
 const { width } = Dimensions.get('window');
 
@@ -143,7 +143,18 @@ export default function PanelScreen() {
   const [editRole, setEditRole] = useState('');
   const [editFaculty, setEditFaculty] = useState('');
   const [saving, setSaving] = useState(false);
-
+  // ── New user modal state ───────────────────────────────────────────────────
+  const [newUserName,    setNewUserName]    = useState('');
+  const [newUserEmail,   setNewUserEmail]   = useState('');
+  const [newUserRole,    setNewUserRole]    = useState('student');
+  const [newUserFaculty, setNewUserFaculty] = useState('');
+  const [creatingUser,   setCreatingUser]   = useState(false);
+  const [newUserPhone,      setNewUserPhone]      = useState('');
+  const [newUserDegree,     setNewUserDegree]     = useState<'bachelors' | 'masters' | ''>('');
+  const [newUserYear,       setNewUserYear]       = useState('1');
+  const [newUserMajor,      setNewUserMajor]      = useState('');
+  const [newUserStudentId,  setNewUserStudentId]  = useState('');
+// -----------------------------------------------------------------------------
   const [maintenanceModal, setMaintenanceModal] = useState(false);
   const [maintenanceTitle, setMaintenanceTitle] = useState('');
   const [maintenanceDays, setMaintenanceDays] = useState(0);
@@ -246,44 +257,44 @@ export default function PanelScreen() {
   }, []);
 
   useEffect(() => {
-  const q = query(
-    collection(db, 'projects'),
-    where('isArchived', '==', false),
-    orderBy('createdAt', 'desc')
-  );
+    const q = query(
+      collection(db, 'projects'),
+      where('isArchived', '==', false),
+      orderBy('createdAt', 'desc')
+    );
 
-  return onSnapshot(q, async (snap) => {
-    const items: ProjectRecord[] = [];
+    return onSnapshot(q, async (snap) => {
+      const items: ProjectRecord[] = [];
 
-    for (const d of snap.docs) {
-      const data = d.data();
+      for (const d of snap.docs) {
+        const data = d.data();
 
-      // ✅ Guard: only fetch supervisor if ID exists
-      let supervisorName = '';
-      if (data.supervisorId) {
-        const supervisorSnap = await getDoc(doc(db, 'users', data.supervisorId));
-        supervisorName = supervisorSnap.data()?.displayName || '';
+        // ✅ Guard: only fetch supervisor if ID exists
+        let supervisorName = '';
+        if (data.supervisorId) {
+          const supervisorSnap = await getDoc(doc(db, 'users', data.supervisorId));
+          supervisorName = supervisorSnap.data()?.displayName || '';
+        }
+
+        items.push({
+          id: d.id,
+          titleHe: data.titleHe || '',
+          titleEn: data.titleEn || '',
+          facultyId: data.facultyId || '',
+          status: data.status || 'published',
+          supervisorName,
+          degreeType: data.degreeType || '',
+          projectType: data.projectType || '',
+          academicYear: data.academicYear || '',
+          enrolledStudentIds: data.enrolledStudentIds || [],
+        });
       }
 
-      items.push({
-        id: d.id,
-        titleHe: data.titleHe || '',
-        titleEn: data.titleEn || '',
-        facultyId: data.facultyId || '',
-        status: data.status || 'published',
-        supervisorName,
-        degreeType: data.degreeType || '',
-        projectType: data.projectType || '',
-        academicYear: data.academicYear || '',
-        enrolledStudentIds: data.enrolledStudentIds || [],
-      });
-    }
-
-    setProjects(items);
-  }, (error) => {
-    console.error('Projects listener error:', error);
-  });
-}, []);
+      setProjects(items);
+    }, (error) => {
+      console.error('Projects listener error:', error);
+    });
+  }, []);
 
   useEffect(() => {
     const statuses = ['pending', 'submitted', 'supervisor_graded'];
@@ -410,91 +421,100 @@ export default function PanelScreen() {
       ]
     );
   };
-  const createUser = async (
-    uid: string,
-    role: 'student' | 'supervisor' | 'coordinator',
-    email: string
-  ) => {
+
+  const handleCreateUser = async () => {
+    if (!newUserName.trim()) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש למלא שם' : 'Name is required');
+      return;
+    }
+    if (!newUserEmail.trim()) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש למלא אימייל' : 'Email is required');
+      return;
+    }
+    if (!newUserFaculty) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty');
+      return;
+    }
+
+    setCreatingUser(true);
     try {
-      const baseUser = {
-        uid,
-        email,
+      const tempDocRef = doc(collection(db, 'users'));
+      const isStudent = newUserRole === 'student';
 
-        displayName:
-          role === 'student'
-            ? 'דוד כהן'
-            : role === 'supervisor'
-            ? 'ד"ר ישראל ישראלי'
-            : 'רכז הפרויקטים',
-
-        displayNameHe:
-          role === 'student'
-            ? 'דוד כהן'
-            : role === 'supervisor'
-            ? 'ד"ר ישראל ישראלי'
-            : 'רכז הפרויקטים',
-
-        displayNameEn:
-          role === 'student'
-            ? 'David Cohen'
-            : role === 'supervisor'
-            ? 'Dr. Israel Israeli'
-            : 'Project Coordinator',
-
-        role,
-        facultyId: 'computer_science',
+      await setDoc(tempDocRef, {
+        uid:             tempDocRef.id,
+        displayName:     newUserName.trim(),
+        displayNameHe:   newUserName.trim(),
+        displayNameEn:   newUserName.trim(),
+        email:           newUserEmail.trim().toLowerCase(),
+        phoneNumber:     newUserPhone.trim() || null,
+        role:            newUserRole,
+        facultyId:       newUserFaculty,
         additionalRoles: [],
-
-        isActive: true,
-        profileComplete: true,
+        isActive:        true,
+        profileComplete: false,
         hasActiveProject: false,
-        language: 'he',
-        expoPushToken: null,
-      };
+        language:        'he',
+        expoPushToken:   null,
+        createdAt:       serverTimestamp(),
 
-      let userData: any = baseUser;
+        // Student-specific
+        degreeType:  isStudent ? newUserDegree : null,
+        yearOfStudy: isStudent ? parseInt(newUserYear) || 1 : null,
+        major:       isStudent ? (newUserMajor.trim() || newUserFaculty) : null,
+        studentId:   isStudent ? (newUserStudentId.trim() || null) : null,
+      });
 
-      if (role === 'student') {
-        userData = {
-          ...baseUser,
-          degreeType: 'bachelors',
-          yearOfStudy: 3,
-          major: 'computer_science',
-          studentId: null,
-        };
-      }
+      await addDoc(collection(db, 'notifications'), {
+        recipientId: tempDocRef.id,
+        type:        'account_created',
+        titleHe:     '👋 ברוך הבא למערכת',
+        titleEn:     '👋 Welcome to the System',
+        bodyHe:      'חשבונך נוצר על ידי מנהל המערכת',
+        bodyEn:      'Your account was created by the system admin',
+        isRead:      false,
+        createdAt:   serverTimestamp(),
+      });
 
-      if (role === 'supervisor') {
-        userData = {
-          ...baseUser,
-          degreeType: null,
-          yearOfStudy: null,
-          major: null,
-          studentId: null,
-        };
-      }
+      // Reset all fields
+      setShowNewUser(false);
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserRole('student');
+      setNewUserFaculty('');
+      setNewUserPhone('');
+      setNewUserDegree('bachelors');
+      setNewUserYear('1');
+      setNewUserMajor('');
+      setNewUserStudentId('');
 
-      if (role === 'coordinator') {
-        userData = {
-          ...baseUser,
-          degreeType: null,
-          yearOfStudy: null,
-          major: null,
-          studentId: null,
-        };
-      }
-
-      await setDoc(doc(db, 'users', uid), userData);
-
-      Alert.alert('✅ Success', `${role} created successfully`);
+      Alert.alert('✅', lang === 'he'
+        ? `המשתמש ${newUserName} נוצר בהצלחה`
+        : `User ${newUserName} created successfully`);
     } catch (e) {
-      console.log('Create user error:', e);
+      console.error('Create user error:', e);
+      Alert.alert('Error', String(e));
+    } finally {
+      setCreatingUser(false);
     }
   };
 
   // ── Create project ─────────────────────────────────────────────────────────
   const handleCreateProject = async () => {
-    if (!selectedSupervisor) {
+    if((newUserPhone.trim() && !/^\+?\d{10,15}$/.test(newUserPhone.trim())) || newUserPhone.length > 10){
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'מספר טלפון לא תקין' : 'Invalid phone number');
+      return;
+    }
+    else if(newUserStudentId && !/^\d{5,}$/.test(newUserStudentId.trim()) && newUserStudentId.length >= 5){
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'מספר סטודנט לא תקין' : 'Invalid student ID');
+      return;
+    }
+    else if (!selectedSupervisor) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'יש לבחור מנחה' : 'Please select a supervisor');
       return;
@@ -1216,10 +1236,14 @@ export default function PanelScreen() {
       <Modal visible={maintenanceModal} animationType="slide">
         <View style={styles.modalRoot}>
           <ScrollView contentContainerStyle={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              🛠️ {lang === 'he' ? 'מצב תחזוקה' : 'Maintenance'}
-            </Text>
-
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                🛠️ {lang === 'he' ? 'מצב תחזוקה' : 'Maintenance'}
+              </Text>
+              <Pressable onPress={() => setMaintenanceModal(false)}>
+                <Text style={styles.close}>✕</Text>
+              </Pressable>
+            </View>
             <TextInput
               placeholder={lang === 'he' ? 'כותרת' : 'Title'}
               value={maintenanceTitle}
@@ -1372,513 +1396,293 @@ export default function PanelScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+      <Modal visible={showNewUser} animationType="slide" presentationStyle="pageSheet">
+        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+
+          {/* Header */}
+          <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
+            <Text style={styles.modalTitle}>
+              👤 {lang === 'he' ? 'הוספת משתמש חדש' : 'Add New User'}
+            </Text>
+            <Pressable onPress={() => {
+              setShowNewUser(false);
+              setNewUserName(''); setNewUserEmail(''); setNewUserPhone('');
+              setNewUserRole('student'); setNewUserFaculty('');
+              setNewUserDegree('bachelors'); setNewUserYear('1');
+              setNewUserMajor(''); setNewUserStudentId('');
+            }}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+
+          {/* ── Basic info ── */}
+          <Text style={styles.sectionDivider}>
+            {lang === 'he' ? '📋 פרטים בסיסיים' : '📋 Basic Info'}
+          </Text>
+
+          {[
+            {
+              label:       lang === 'he' ? 'שם מלא *'   : 'Full Name *',
+              value:       newUserName,
+              set:         setNewUserName,
+              placeholder: lang === 'he' ? 'ישראל ישראלי' : 'John Doe',
+              keyboard:    'default' as const,
+              dir:         'auto',
+            },
+            {
+              label:       lang === 'he' ? 'אימייל *'   : 'Email *',
+              value:       newUserEmail,
+              set:         setNewUserEmail,
+              placeholder: 'user@university.ac.il',
+              keyboard:    'email-address' as const,
+              dir:         'ltr',
+            },
+            {
+              label:       lang === 'he' ? 'מספר טלפון' : 'Phone Number',
+              value:       newUserPhone,
+              set:         setNewUserPhone,
+              placeholder: lang === 'he' ? '050-0000000' : '050-0000000',
+              keyboard:    'phone-pad' as const,
+              dir:         'ltr',
+            },
+          ].map((field) => (
+            <View key={field.label}>
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {field.label}
+              </Text>
+              <TextInput
+                style={[styles.input, { textAlign: field.dir === 'ltr' ? 'left' : (isRtl ? 'right' : 'left') }]}
+                value={field.value}
+                onChangeText={field.set}
+                placeholder={field.placeholder}
+                placeholderTextColor="#9BA8C0"
+                keyboardType={field.keyboard}
+                autoCapitalize="none"
+              />
+            </View>
+          ))}
+
+          {/* ── Role ── */}
+          <Text style={styles.sectionDivider}>
+            {lang === 'he' ? '🎭 תפקיד ופקולטה' : '🎭 Role & Faculty'}
+          </Text>
+
+          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+            {lang === 'he' ? 'תפקיד *' : 'Role *'}
+          </Text>
+          <View style={{ gap: 8 }}>
+            {Object.entries(ROLE_LABELS)
+              .filter(([r]) => r !== 'system_admin')
+              .map(([role, label]) => (
+                <Pressable
+                  key={role}
+                  style={[styles.roleOption, newUserRole === role && styles.roleOptionActive]}
+                  onPress={() => setNewUserRole(role)}
+                >
+                  <Text style={[styles.roleOptionText, newUserRole === role && styles.roleOptionTextActive]}>
+                    {label[lang]}
+                  </Text>
+                </Pressable>
+              ))}
+          </View>
+
+          {/* ── Faculty ── */}
+          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+            {lang === 'he' ? 'פקולטה *' : 'Faculty *'}
+          </Text>
+          <View style={styles.facultyGrid}>
+            {Object.entries(FACULTY_COLORS)
+              .filter(([k]) => k !== 'default')
+              .map(([fid, fc]) => (
+                <Pressable
+                  key={fid}
+                  style={[
+                    styles.facultyPickerBtn,
+                    newUserFaculty === fid && { backgroundColor: fc.primary, borderColor: fc.primary },
+                  ]}
+                  onPress={() => setNewUserFaculty(fid)}
+                >
+                  <View style={[styles.facultyPickerDot, { backgroundColor: fc.primary }]} />
+                  <Text style={[
+                    styles.facultyPickerText,
+                    newUserFaculty === fid && { color: '#fff' },
+                  ]}>
+                    {fc.label[lang]}
+                  </Text>
+                </Pressable>
+              ))}
+          </View>
+
+          {/* ── Student-only fields ── */}
+          {newUserRole === 'student' && (
+            <>
+              <Text style={styles.sectionDivider}>
+                {lang === 'he' ? '🎓 פרטי סטודנט' : '🎓 Student Details'}
+              </Text>
+
+              {/* Student ID */}
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'מספר סטודנט' : 'Student ID'}
+              </Text>
+              <TextInput
+                style={[styles.input, { textAlign: 'left' }]}
+                value={newUserStudentId}
+                onChangeText={setNewUserStudentId}
+                placeholder="123456789"
+                placeholderTextColor="#9BA8C0"
+                keyboardType="number-pad"
+              />
+
+              {/* Degree type */}
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'סוג תואר *' : 'Degree Type *'}
+              </Text>
+              <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
+                {(['bachelors', 'masters'] as const).map((d) => (
+                  <Pressable
+                    key={d}
+                    style={[styles.toggleBtn, newUserDegree === d && styles.toggleBtnActive]}
+                    onPress={() => {
+                      setNewUserDegree(d);
+                      // If switching to masters, reset year to 1 or 2 only
+                      if (d === 'masters' && (newUserYear === '3' || newUserYear === '4')) {
+                        setNewUserYear('1');
+                      }
+                    }}
+                  >
+                    <Text style={[styles.toggleText, newUserDegree === d && styles.toggleTextActive]}>
+                      {d === 'bachelors'
+                        ? (lang === 'he' ? 'תואר ראשון' : 'B.Sc.')
+                        : (lang === 'he' ? 'תואר שני'   : 'M.Sc.')}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Year of study */}
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'שנת לימוד' : 'Year of Study'}
+              </Text>
+              <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
+                {(['1', '2', '3', '4'] as const).map((y) => {
+                  const isMastersOnly = newUserDegree === 'masters';
+                  const engineeringFaculties = ['הנדסת חשמל ואלקטרוניקה', 'הנדסת תעשייה וניהול טכנולוגיה'];
+                  const isDisabled = ((isMastersOnly && (y === '3' || y === '4'))||(y === '4' && !engineeringFaculties.includes(newUserFaculty))); // Year 4 is only for bachelors, Year 3 and 4 are only for masters
+                  return (
+                    <Pressable
+                      key={y}
+                      style={[
+                        styles.toggleBtn,
+                        newUserYear === y && styles.toggleBtnActive,
+                        isDisabled && styles.toggleBtnDisabled,
+                      ]}
+                      onPress={() => {
+                        if (!isDisabled) setNewUserYear(y);
+                      }}
+                      disabled={isDisabled}
+                    >
+                      <Text style={[
+                        styles.toggleText,
+                        newUserYear === y && styles.toggleTextActive,
+                        isDisabled && styles.toggleTextDisabled,
+                      ]}>
+                        {lang === 'he' ? `שנה ${y}` : `Year ${y}`}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Major */}
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'מגמה / התמחות *' : 'Major / Specialization *'}
+              </Text>
+              <View style={{ gap: 8 }}>
+                {[
+                  { id: 'science',              he: 'מדעים',                                      en: 'Science'                                     },
+                  { id: 'electrical',           he: 'הנדסת חשמל ואלקטרוניקה',                    en: 'Electrical & Electronics Engineering'        },
+                  { id: 'learning_technology',  he: 'טכנולוגיות למידה',                           en: 'Learning Technologies'                       },
+                  { id: 'design',               he: 'עיצוב',                                      en: 'Design'                                      },
+                  { id: 'industrial',           he: 'הנדסת תעשייה וניהול טכנולוגיה',              en: 'Industrial Engineering & Technology Management'},
+                  { id: 'medical_technologies', he: 'טכנולוגיות רפואיות',                         en: 'Medical Technologies'                        },
+                ].map((major) => (
+                  <Pressable
+                    key={major.id}
+                    style={[
+                      styles.majorOption,
+                      newUserMajor === major.id && styles.majorOptionActive,
+                    ]}
+                    onPress={() => setNewUserMajor(major.id)}
+                  >
+                    <View style={styles.majorOptionInner}>
+                      <Text style={[
+                        styles.majorOptionText,
+                        newUserMajor === major.id && styles.majorOptionTextActive,
+                      ]}>
+                        {lang === 'he' ? major.he : major.en}
+                      </Text>
+                      {newUserMajor === major.id && (
+                        <Text style={styles.majorCheckmark}>✓</Text>
+                      )}
+                    </View>
+                    {/* Always show both languages as subtitle */}
+                    <Text style={[
+                      styles.majorOptionSub,
+                      newUserMajor === major.id && styles.majorOptionSubActive,
+                    ]}>
+                      {lang === 'he' ? major.en : major.he}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* ── Preview ── */}
+          {newUserName.trim() && newUserFaculty && (
+            <View style={styles.userPreview}>
+              <Text style={styles.userPreviewTitle}>
+                {lang === 'he' ? 'תצוגה מקדימה' : 'Preview'}
+              </Text>
+              <Text style={styles.userPreviewRow}>👤 {newUserName}</Text>
+              <Text style={styles.userPreviewRow}>📧 {newUserEmail || '—'}</Text>
+              {newUserPhone ? <Text style={styles.userPreviewRow}>📞 {newUserPhone}</Text> : null}
+              <Text style={styles.userPreviewRow}>🎭 {ROLE_LABELS[newUserRole]?.[lang]}</Text>
+              <Text style={styles.userPreviewRow}>🏛️ {FACULTY_COLORS[newUserFaculty]?.label[lang]}</Text>
+              {newUserRole === 'student' && (
+                <>
+                  {newUserStudentId ? <Text style={styles.userPreviewRow}>🪪 {newUserStudentId}</Text> : null}
+                  <Text style={styles.userPreviewRow}>
+                    🎓 {newUserDegree === 'bachelors'
+                      ? (lang === 'he' ? 'תואר ראשון' : "B.Sc.")
+                      : (lang === 'he' ? 'תואר שני'   : "M.Sc.")}
+                    {' · '}
+                    {lang === 'he' ? `שנה ${newUserYear}` : `Year ${newUserYear}`}
+                  </Text>
+                  {newUserMajor ? <Text style={styles.userPreviewRow}>📚 {newUserMajor}</Text> : null}
+                </>
+              )}
+            </View>
+          )}
+
+          <Pressable
+            style={[styles.submitBtn, creatingUser && { opacity: 0.6 }]}
+            onPress={handleCreateUser}
+            disabled={creatingUser}
+          >
+            {creatingUser
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.submitBtnText}>
+                  ➕ {lang === 'he' ? 'צור משתמש' : 'Create User'}
+                </Text>
+            }
+          </Pressable>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#F3F6FF',
-  },
-
-  loader: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  hero: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 18,
-    backgroundColor: '#fff',
-  },
-
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#111827',
-  },
-
-  heroSub: {
-    marginTop: 6,
-    fontSize: 13,
-    color: '#6B7280',
-  },
-
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    gap: 8,
-  },
-
-  tab: {
-    flex: 1,
-    backgroundColor: '#F1F5FF',
-    paddingVertical: 12,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-
-  tabActive: {
-    backgroundColor: '#EF4444',
-  },
-
-  tabText: {
-    color: '#64748B',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-
-  tabTextActive: {
-    color: '#fff',
-  },
-
-  content: {
-    padding: 16,
-  },
-
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-
-  sectionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 16,
-    marginTop: 18,
-  },
-
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 16,
-  },
-
-  facultyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  facultyDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-
-  facultyText: {
-    width: 90,
-    fontWeight: '700',
-    color: '#111827',
-    fontSize: 12,
-  },
-
-  facultyBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-
-  facultyFill: {
-    height: '100%',
-    borderRadius: 20,
-  },
-
-  facultyCount: {
-    width: 40,
-    textAlign: 'right',
-    fontWeight: '800',
-    color: '#111827',
-  },
-
-  searchBox: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    marginBottom: 14,
-  },
-
-  searchInput: {
-    height: 52,
-    fontSize: 14,
-  },
-
-  userCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 14,
-  },
-
-  userTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-
-  avatarText: {
-    color: '#fff',
-    fontWeight: '900',
-    fontSize: 18,
-  },
-
-  userName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#111827',
-  },
-
-  userEmail: {
-    marginTop: 2,
-    color: '#64748B',
-    fontSize: 12,
-  },
-
-  userBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 14,
-  },
-
-  roleBadge: {
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
-
-  roleBadgeText: {
-    color: '#2563EB',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-
-  editBtn: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 12,
-  },
-
-  editBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-
-  projectCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 14,
-  },
-
-  projectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  projectTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 8,
-  },
-
-  projectMeta: {
-    color: '#64748B',
-    fontSize: 12,
-    marginBottom: 4,
-  },
-
-  milestoneCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 14,
-    borderLeftWidth: 5,
-    borderLeftColor: '#F59E0B',
-  },
-
-  milestoneType: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#F59E0B',
-  },
-
-  modalRoot: {
-    flex: 1,
-    backgroundColor: '#F3F6FF',
-  },
-
-  modalContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#111827',
-  },
-
-  close: {
-    fontSize: 24,
-    color: '#64748B',
-  },
-
-  fieldLabel: {
-    marginTop: 16,
-    marginBottom: 8,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  roleOption: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-
-  roleOptionActive: {
-    backgroundColor: '#EF4444',
-  },
-
-  roleOptionText: {
-    color: '#111827',
-    fontWeight: '700',
-  },
-
-  roleOptionTextActive: {
-    color: '#fff',
-  },
-
-  facultyOption: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  facultyOptionActive: {
-    backgroundColor: '#EF4444',
-  },
-
-  submitBtn: {
-    marginTop: 20,
-    backgroundColor: '#EF4444',
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-
-  submitBtnText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 15,
-  },
-
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 54,
-    marginTop: 10,
-  },
-
-  textRight: {
-    textAlign: 'right',
-  },
-  deleteBtn: {
-    marginTop: 12,
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-
-  deleteBtnText: {
-    color: '#DC2626',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  // Modal
-  modal:        { flex: 1, backgroundColor: '#F0F4FF' },
-  modalClose:   { fontSize: 22, color: '#888', padding: 4 },
-  textarea:    { textAlignVertical: 'top', minHeight: 90 },
-  toggleRow:   { flexDirection: 'row', gap: 8, marginBottom: 4 },
-  rowReverse:  { flexDirection: 'row-reverse' },
-  toggleBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  toggleBtnActive:  { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  toggleText:       { fontSize: 13, fontWeight: '600', color: '#8899BB' },
-  toggleTextActive: { color: '#fff' },
-  // ── Add student styles ─────────────────────────────────────────────────────
-  addStudentBtn: {
-    marginTop: 10,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  addStudentBtnText: {
-    color: '#2563EB',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  addStudentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  addStudentTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#111827',
-  },
-  addStudentSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 4,
-    maxWidth: 260,
-  },
-  addStudentSearchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginVertical: 12,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: '#E0E8FF',
-    height: 52,
-  },
-  addStudentSearchIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  addStudentSearchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#111',
-  },
-  studentPickerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  studentPickerName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  studentPickerEmail: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  studentPickerArrow: {
-    fontSize: 22,
-    color: '#D1D5DB',
-    fontWeight: '300',
-  },
-  facultyGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
-  },
-  facultyPickerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#E0E8FF',
-    marginBottom: 4,
-  },
-  facultyPickerDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-  facultyPickerText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  supOption: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    minWidth: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  supOptionActive: {
-    backgroundColor: '#fff',
-    borderColor: '#ff4444', // Using a red marker as you requested
-    borderWidth: 2,
-    // Optional: add a slight shadow for the active state
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-});
+const styles = adminPanelStyles;

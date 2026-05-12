@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import type { Lang } from './i18n';
 import { tx } from './i18n';
 
+
 // ─── Faculty / Department color palette ───────────────────────────────────────
 // Each faculty gets a unique accent color used on project cards, badges, borders
 export const FACULTY_COLORS: Record<string, {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
+  View, Text, ScrollView, Pressable,
   SafeAreaView, ActivityIndicator, Modal, TextInput, Alert,
 } from 'react-native';
 import {
@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, getFacultyColor } from '../../components/shared';
 import { calculateFinalGrade, type GradeWeights } from '../../components/Milestoneservice';
+import { examinerHomeStyles } from '../../constants/styles';
 
 interface AssignedMilestone {
   id: string;
@@ -46,6 +47,7 @@ export default function ExaminerHome() {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
+  const styles = examinerHomeStyles;
 
   const [examinerName, setExaminerName] = useState('');
   const [loading,      setLoading]      = useState(true);
@@ -392,82 +394,3 @@ export default function ExaminerHome() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: '#F0FDF9' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content:  { padding: 16 },
-
-  pageTitle: { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 16 },
-
-  card: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    marginBottom: 12, borderLeftWidth: 4,
-    borderWidth: 1, borderColor: '#D1FAE5',
-  },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#111', marginBottom: 6 },
-  cardMeta:  { fontSize: 12, color: '#6B7280', marginBottom: 4 },
-
-  dateChip: {
-    backgroundColor: '#ECFDF5', borderRadius: 8, padding: 8,
-    marginTop: 8, alignSelf: 'flex-start',
-    borderWidth: 1, borderColor: '#A7F3D0',
-  },
-  dateChipText: { color: '#065F46', fontSize: 12, fontWeight: '600' },
-
-  gradedBadge: {
-    marginTop: 12, backgroundColor: '#F0FDF4', borderRadius: 10,
-    paddingVertical: 10, alignItems: 'center',
-    borderWidth: 1, borderColor: '#A7F3D0',
-  },
-  gradedBadgeText: { color: '#10B981', fontWeight: '700' },
-
-  gradeBtn: {
-    marginTop: 12, borderRadius: 12, paddingVertical: 12, alignItems: 'center',
-  },
-  gradeBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-
-  empty:      { alignItems: 'center', paddingTop: 80 },
-  emptyEmoji: { fontSize: 44, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: '#9CA3AF' },
-
-  modal:        { flex: 1, backgroundColor: '#F0FDF9' },
-  modalContent: { padding: 20, paddingBottom: 60 },
-  modalTitle:   { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 16 },
-
-  context: {
-    backgroundColor: '#ECFDF5', borderRadius: 12, padding: 14,
-    marginBottom: 20, borderLeftWidth: 3, borderLeftColor: '#10B981',
-  },
-  contextTitle: { fontSize: 15, fontWeight: '700', color: '#111', marginBottom: 4 },
-  contextSub:   { fontSize: 13, color: '#065F46', marginBottom: 2 },
-
-  criterionRow:   { marginBottom: 16 },
-  criterionHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  criterionLabel: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  criterionMax:   { fontSize: 12, color: '#9CA3AF' },
-  scoreInput: {
-    backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 14,
-    height: 48, fontSize: 20, fontWeight: '800', color: '#10B981',
-    borderWidth: 1, borderColor: '#D1FAE5', textAlign: 'center',
-  },
-
-  totalRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 16, paddingVertical: 14, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16 },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: '#374151' },
-  totalScore: { fontSize: 28, fontWeight: '900' },
-
-  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8 },
-  textarea: {
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14,
-    paddingVertical: 12, fontSize: 14, color: '#111',
-    borderWidth: 1, borderColor: '#D1FAE5', textAlignVertical: 'top', minHeight: 100,
-  },
-
-  submitBtn: {
-    backgroundColor: '#10B981', borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center', marginTop: 20,
-  },
-  submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  cancelBtn:     { borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  cancelBtnText: { color: '#10B981', fontSize: 14, fontWeight: '600' },
-});

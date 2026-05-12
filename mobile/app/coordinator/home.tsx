@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
+  View, Text, ScrollView, Pressable,
   SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, Switch,
 } from 'react-native';
 import {
@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, FacultyBadge, StatusBadge, getFacultyColor } from '../../components/shared';
 import { calculateFinalGrade, type GradeWeights } from '../../components/Milestoneservice';
+import { coordinatorHomeStyles } from '../../constants/styles';
 
 interface PendingMilestone {
   id: string;
@@ -651,114 +652,4 @@ export default function CoordinatorHome() {
   );
 }
 
-const styles = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#F5F0FF' },
-  centered:    { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content:     { padding: 16 },
-
-  tabBar: {
-    flexDirection: 'row', backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E8E0FF',
-  },
-  tab: {
-    flex: 1, paddingVertical: 14, alignItems: 'center',
-    flexDirection: 'row', justifyContent: 'center', gap: 6,
-    borderBottomWidth: 2, borderBottomColor: 'transparent',
-  },
-  tabActive:      { borderBottomColor: '#8B5CF6' },
-  tabText:        { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
-  tabTextActive:  { color: '#8B5CF6' },
-  badge: {
-    backgroundColor: '#8B5CF6', borderRadius: 8, minWidth: 18, height: 18,
-    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4,
-  },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-
-  card: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    marginBottom: 12, borderWidth: 1, borderColor: '#EDE9FE',
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  milestoneType: { fontSize: 12, fontWeight: '800', color: '#8B5CF6' },
-  cardTitle:  { fontSize: 15, fontWeight: '700', color: '#111', marginBottom: 6 },
-  cardMeta:   { fontSize: 12, color: '#6B7280', marginBottom: 4 },
-
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  approveBtn: {
-    flex: 1, backgroundColor: '#8B5CF6', borderRadius: 12,
-    paddingVertical: 12, alignItems: 'center',
-  },
-  approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-
-  scheduleBtn: {
-    backgroundColor: '#EDE9FE', borderRadius: 12, paddingVertical: 12,
-    alignItems: 'center', marginTop: 12, borderWidth: 1, borderColor: '#C4B5FD',
-  },
-  scheduleBtnText: { color: '#7C3AED', fontWeight: '700' },
-
-  defenseDateBadge: {
-    backgroundColor: '#F0FDF4', borderRadius: 8, padding: 8,
-    marginTop: 8, borderWidth: 1, borderColor: '#A7F3D0',
-  },
-  defenseDateText: { color: '#065F46', fontSize: 13, fontWeight: '600' },
-
-  empty:      { alignItems: 'center', paddingTop: 60 },
-  emptyEmoji: { fontSize: 44, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: '#9CA3AF' },
-
-  overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  dialog: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 24,
-    width: '80%',
-  },
-  dialogTitle: { fontSize: 17, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
-  dialogBtns:  { flexDirection: 'row', gap: 12 },
-  dialogCancel: {
-    flex: 1, backgroundColor: '#F3F4F6', borderRadius: 12,
-    paddingVertical: 12, alignItems: 'center',
-  },
-  dialogConfirm: {
-    flex: 1, backgroundColor: '#8B5CF6', borderRadius: 12,
-    paddingVertical: 12, alignItems: 'center',
-  },
-
-  modal:        { flex: 1, backgroundColor: '#F5F0FF' },
-  modalContent: { padding: 20, paddingBottom: 60 },
-  modalTitle:   { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 20 },
-  fieldLabel:   { fontSize: 13, fontWeight: '700', color: '#374151', marginTop: 16, marginBottom: 8 },
-
-  examinerOption: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    marginBottom: 8, borderWidth: 1, borderColor: '#E0E7FF',
-  },
-  examinerOptionActive: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
-  examinerOptionText:   { fontSize: 13, fontWeight: '600', color: '#374151' },
-
-  weightLabel: { fontSize: 12, color: '#6B7280', marginTop: 10, marginBottom: 4 },
-  weightInput: {
-    backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 14,
-    height: 48, fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#E0E7FF',
-  },
-  weightSum: {
-    marginTop: 12, fontSize: 14, fontWeight: '800', color: '#8B5CF6', textAlign: 'center',
-  },
-
-  input: {
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14,
-    height: 52, fontSize: 14, borderWidth: 1, borderColor: '#E0E7FF', marginTop: 4,
-  },
-
-  submitBtn: {
-    backgroundColor: '#8B5CF6', borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center', marginTop: 24,
-  },
-  submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  cancelBtn: {
-    borderRadius: 14, paddingVertical: 14,
-    alignItems: 'center', marginTop: 10,
-  },
-  cancelBtnText: { color: '#8B5CF6', fontSize: 14, fontWeight: '600' },
-});
+const styles = coordinatorHomeStyles;

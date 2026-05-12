@@ -10,17 +10,20 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
-import { tx, type Lang } from '../../components/i18n';
-import { TopBar, StatCard, SectionHeader, FacultyBadge, StatusBadge, getFacultyColor } from '../../components/shared';
+import { type Lang } from '../../components/i18n';
+import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor } from '../../components/shared';
 import { sendPushNotification } from '../../components/pushNotifications';
 import { createMilestonesOnApproval } from '@/components/Milestoneservice';
+import { sharedStyles } from '@/constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
 interface MyProject {
   id: string; titleHe: string; titleEn: string;
   facultyId: string; status: string; degreeType: string;
   enrolledStudentIds: string[]; applicationIds: string[];
   academicYear: string; projectType: string;
+  descriptionHe: string; descriptionEn: string;
 }
 
 interface Application {
@@ -75,8 +78,25 @@ export default function SupervisorHome() {
   const [gradeScore,  setGradeScore]  = useState('');
   const [gradeComment,setGradeComment]= useState('');
   const [submittingGrade, setSubmittingGrade] = useState(false);
-
+// ── project editing modal state ─────────────────────────────────────────────────────
+  const [projectModal, setProjectModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editFaculty, setEditFaculty] = useState('');
+  const [editProject, setEditProject] = useState<MyProject | null>(null);
+  const [editDegree, setEditDegree] = useState<'bachelors' | 'masters' | ''>('');
+  const [editProjectType, setEditProjectType] = useState<'project' | 'thesis'>('project');
+  const [editTitleHe, setEditTitleHe] = useState('');
+  const [editTitleEn, setEditTitleEn] = useState('');
+  const [editDescHe, setEditDescHe] = useState('');
+  const [editDescEn, setEditDescEn] = useState('');
+  const [editSkills, setEditSkills] = useState('');
   const uid = auth.currentUser?.uid;
+  const isHebrew = (text: string) => {
+    return /^[\u0590-\u05FF\s.,!?'"()-]*$/.test(text);
+  };
+  const isEnglish = (text: string) => {
+    return /^[A-Za-z\s.,!?'"()-]*$/.test(text);
+  };
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -206,6 +226,19 @@ export default function SupervisorHome() {
     if (!newTitleHe.trim() || !newTitleEn.trim()) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'יש למלא כותרת בעברית ואנגלית' : 'Title in both languages is required');
+      return;
+    }
+    else if(!isHebrew(newTitleHe) || !isHebrew(newDescHe)){
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'אתה יכול לכתוב רק בעברית בשדה זה' : 'You can only write in Hebrew in this field'
+      );
+      return;          
+    }else if(!isEnglish(newTitleEn) || !isEnglish(newDescEn)){
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'אתה יכול לכתוב רק באנגלית בשדה זה' : 'You can only write in English in this field'
+      );
       return;
     }
     setCreating(true);
@@ -429,6 +462,93 @@ export default function SupervisorHome() {
     }
   };
 
+  const handleOpenEditModal = (project: MyProject | null) => {
+    if (!project) return;
+    setEditProject(project);
+    setEditTitleHe(project.titleHe);
+    setEditTitleEn(project.titleEn);
+    setEditDegree(project.degreeType as 'bachelors' | 'masters' | '');
+    setEditProjectType(project.projectType as 'project' | 'thesis');
+    setEditFaculty(project.facultyId);
+    setEditDescHe(project.descriptionHe);
+    setEditDescEn(project.descriptionEn);
+    setProjectModal(true);
+  };
+
+  const handleEditProject = async (project: MyProject | null) => {
+    if (!project) return;
+    else if(!isHebrew(editTitleHe) || !isHebrew(editDescHe)){
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'אתה יכול לכתוב רק בעברית בשדה זה' : 'You can only write in Hebrew in this field'
+      );
+      return;          
+    }else if(!isEnglish(editTitleEn) || !isEnglish(editDescEn)){
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'אתה יכול לכתוב רק באנגלית בשדה זה' : 'You can only write in English in this field'
+      );
+      return;
+    }
+      try {
+        setSaving(true);
+    
+        await updateDoc(doc(db, 'projects', project.id), {
+          titleHe: editTitleHe.trim(),
+          titleEn: editTitleEn.trim(),
+          descriptionHe: editDescHe.trim(),
+          descriptionEn: editDescEn.trim(),
+          degreeType: editDegree,
+          projectType: editProjectType,
+          facultyId: editFaculty,
+          requiredSkills: editSkills
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
+          updatedAt: serverTimestamp(),
+        });
+    
+        Alert.alert(
+          lang === 'he' ? 'הצלחה' : 'Success',
+          lang === 'he'
+            ? 'הפרויקט עודכן בהצלחה'
+            : 'Project updated successfully'
+        );
+    
+        setProjectModal(false);
+
+      } catch (e) {
+        console.log(e);
+      } finally {
+        setSaving(false);
+      }
+    };
+
+
+  const handleDeleteProject = async (projectId: string) => {
+    Alert.alert(
+          lang === 'he' ? 'מחק פרויקט' : 'Delete Project',
+          lang === 'he' ? 'האם אתה בטוח?' : 'Are you sure?',
+          [
+            { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
+            {
+              text: lang === 'he' ? 'מחק' : 'Delete',
+              style: 'destructive',
+              onPress: async () => {
+                try {
+                  await updateDoc(doc(db, 'projects', projectId), {
+                    isArchived: true,
+                    deletedAt: serverTimestamp(),
+                  });
+                } catch (e) {
+                  console.log(e);
+                }
+              },
+            },
+          ]
+        );
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -515,8 +635,8 @@ export default function SupervisorHome() {
                     <View style={[styles.row, isRtl && styles.rowReverse, { marginTop: 6 }]}>
                       <Text style={styles.cardMeta}>
                         {lang === 'he'
-                          ? p.degreeType === 'bachelors' ? 'תואר ראשון' : p.degreeType === 'masters' ? 'תואר שני' : 'שני התארים'
-                          : p.degreeType === 'bachelors' ? "Bachelor's" : p.degreeType === 'masters' ? "Master's" : 'Both degrees'}
+                          ? p.degreeType === 'bachelors' ? 'תואר ראשון' : 'תואר שני' 
+                          : p.degreeType === 'bachelors' ? "Bachelor's" : "Master's" }
                         {' · '}
                         {lang === 'he'
                           ? p.projectType === 'project' ? 'פרויקט' : 'תזה'
@@ -525,13 +645,32 @@ export default function SupervisorHome() {
                         {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds.length}/{1}
                       </Text>
                     </View>
-                    {p.applicationIds.length > 0 && (
+                    {(p.applicationIds?.length ?? 0) > 0 && (
                       <View style={styles.appCount}>
                         <Text style={styles.appCountText}>
-                          📨 {p.applicationIds.length} {lang === 'he' ? 'מועמדויות' : 'applications'}
+                          📨 {p.applicationIds?.length ?? 0} {lang === 'he' ? 'מועמדויות' : 'applications'}
                         </Text>
                       </View>
                     )}
+                    <View style={[styles.actionRow, isRtl && styles.rowReverse]}>
+                      <Pressable
+                        style={[styles.actionBtn, styles.editBtn]}
+                        onPress={() => handleOpenEditModal(p)}
+                      >
+                        <Text style={styles.actionBtnText}>
+                          {lang === 'he' ? 'עריכה' : 'Edit'}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={[styles.actionBtn, styles.deleteBtn]}
+                        onPress={() => handleDeleteProject(p.id)}
+                      >
+                        <Text style={styles.actionBtnText}>
+                          {lang === 'he' ? 'מחיקה' : 'Delete'}
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
                 );
               })
@@ -705,10 +844,38 @@ export default function SupervisorHome() {
               <TextInput
                 style={[styles.input, field.multi && styles.textarea, { textAlign: field.dir === 'rtl' ? 'right' : 'left' }]}
                 value={field.value}
-                onChangeText={field.set}
+                onChangeText={(text) => {
+                  if (field.dir === 'rtl') {
+                    if (!isHebrew(text)) {
+                      Alert.alert(
+                        lang === 'he' ? 'שגיאה' : 'Error',
+                        lang === 'he' ? 'You can only write in Hebrew in this field' : 'You can only write in Hebrew in this field'
+                      );
+                      return;
+                    }
+                  } else {
+                    if (!isEnglish(text)) {
+                      Alert.alert(
+                        lang === 'he' ? 'שגיאה' : 'Error',
+                        lang === 'he' ? 'You must write in English in this field' : 'You must write in English in this field'
+                      );
+                      return;
+                    }
+                  }
+
+                  field.set(text);
+                }}
                 multiline={field.multi}
                 numberOfLines={field.multi ? 4 : 1}
               />
+              <Pressable
+                style={styles.editBtn}
+                onPress={() => handleOpenEditModal(null)}
+              >
+                <Text style={styles.editBtnText}>
+                  {lang === 'he' ? 'ערוך' : 'Edit'}
+                </Text>
+              </Pressable>
             </View>
           ))}
 
@@ -717,16 +884,17 @@ export default function SupervisorHome() {
             {lang === 'he' ? 'סוג תואר' : 'Degree Type'}
           </Text>
           <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-            {(['bachelors', 'masters', 'both'] as const).map((d) => (
+            {(['bachelors', 'masters'] as const).map((d) => (
               <Pressable
                 key={d}
                 style={[styles.toggleBtn, newDegree === d && styles.toggleBtnActive]}
                 onPress={() => setNewDegree(d)}
               >
                 <Text style={[styles.toggleText, newDegree === d && styles.toggleTextActive]}>
-                  {d === 'bachelors' ? (lang === 'he' ? "תואר ראשון" : "B.Sc.")
-                   : d === 'masters' ? (lang === 'he' ? "תואר שני" : "M.Sc.")
-                   : (lang === 'he' ? "שניהם" : "Both")}
+                  {d === 'bachelors'
+                    ? (lang === 'he' ? "תואר ראשון" : "B.Sc.")
+                    : (lang === 'he' ? "תואר שני" : "M.Sc.")
+                  }
                 </Text>
               </Pressable>
             ))}
@@ -737,17 +905,26 @@ export default function SupervisorHome() {
             {lang === 'he' ? 'סוג פרויקט' : 'Project Type'}
           </Text>
           <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-            {(['project', 'thesis'] as const).map((tp) => (
-              <Pressable
-                key={tp}
-                style={[styles.toggleBtn, newType === tp && styles.toggleBtnActive]}
-                onPress={() => setNewType(tp)}
-              >
+            {(['project', 'thesis'] as const).map((tp) => {
+              const isDisabled = tp === 'thesis' && newDegree === 'bachelors';
+              return (
+                <Pressable
+                  key={tp}
+                  style={[styles.toggleBtn, newType === tp && styles.toggleBtnActive, isDisabled && styles.toggleBtnDisabled]}
+                  onPress={() => {
+                    if (newDegree === 'bachelors') {
+                      setNewType('project');
+                    }
+                    setNewType(tp)
+                  }}
+                  
+                >
                 <Text style={[styles.toggleText, newType === tp && styles.toggleTextActive]}>
                   {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : (lang === 'he' ? 'תזה' : 'Thesis')}
                 </Text>
               </Pressable>
-            ))}
+              )
+            })}
           </View>
 
           <Pressable
@@ -832,6 +1009,131 @@ export default function SupervisorHome() {
           </ScrollView>
         </View>
       </Modal>
+      <Modal visible={projectModal} animationType="slide">
+        <View style={styles.modalRoot}>
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {lang === 'he' ? 'עריכת פרויקט' : 'Edit Project'}
+              </Text>
+
+              <Pressable onPress={() => setProjectModal(false)}>
+                <Text style={styles.close}>✕</Text>
+              </Pressable>
+            </View>
+
+            {[
+              { label: lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *', value: editTitleHe, set: setEditTitleHe, dir: 'rtl' },
+              { label: lang === 'he' ? 'כותרת באנגלית *' : 'English Title *', value: editTitleEn, set: setEditTitleEn, dir: 'ltr' },
+              { label: lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description', value: editDescHe, set: setEditDescHe, dir: 'rtl', multi: true },
+              { label: lang === 'he' ? 'תיאור באנגלית' : 'English Description', value: editDescEn, set: setEditDescEn, dir: 'ltr', multi: true },
+              { label: lang === 'he' ? 'טכנולוגיות (מופרדות בפסיק)' : 'Technologies (comma separated)', value: editSkills, set: setEditSkills, dir: 'ltr' },
+              ].map((field) => (
+                <View key={field.label}>
+                  <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{field.label}</Text>
+                    <TextInput
+                       style={[styles.input, field.multi && styles.textarea, { textAlign: field.dir === 'rtl' ? 'right' : 'left' }]}
+                       value={field.value}
+                       onChangeText={field.set}
+                       multiline={field.multi}
+                       numberOfLines={field.multi ? 4 : 1}
+                  />
+                </View>
+                ))}
+
+            {/* Degree */}
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'תואר' : 'Degree'}
+            </Text>
+
+            <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
+              {(['bachelors', 'masters'] as const).map((d) => (
+                <Pressable
+                  key={d}
+                  style={[
+                    styles.toggleBtn,
+                    editDegree === d && styles.toggleBtnActive,
+                  ]}
+                  onPress={() => {
+                    setEditDegree(d);
+
+                    if (d === 'bachelors') {
+                      setEditProjectType('project');
+                    }
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      editDegree === d && styles.toggleTextActive,
+                    ]}
+                  >
+                    {d === 'bachelors'
+                      ? (lang === 'he' ? 'תואר ראשון' : 'B.Sc.')
+                      : (lang === 'he' ? 'תואר שני' : 'M.Sc.')}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Project Type */}
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'סוג' : 'Type'}
+            </Text>
+
+            <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
+              {(['project', 'thesis'] as const).map((tp) => {
+                const isDisabled =
+                  tp === 'thesis' && editDegree === 'bachelors';
+
+                return (
+                  <Pressable
+                    key={tp}
+                    style={[
+                      styles.toggleBtn,
+                      editProjectType === tp && styles.toggleBtnActive,
+                      isDisabled && styles.toggleBtnDisabled,
+                    ]}
+                    onPress={() => {
+                      if (!isDisabled) {
+                        setEditProjectType(tp);
+                      }
+                    }}
+                    disabled={isDisabled}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleText,
+                        editProjectType === tp &&
+                          styles.toggleTextActive,
+                      ]}
+                    >
+                      {tp === 'project'
+                        ? (lang === 'he' ? 'פרויקט' : 'Project')
+                        : (lang === 'he' ? 'תזה' : 'Thesis')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {/* Save */}
+            <Pressable
+              style={styles.submitBtn}
+              onPress={() => {
+                handleEditProject(editProject)
+              }}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitBtnText}>
+                  {lang === 'he' ? 'שמור שינויים' : 'Save Changes'}
+                </Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -853,153 +1155,4 @@ const es = StyleSheet.create({
 });
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#F0F4FF' },
-  centered:    { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content:     { padding: 16 },
-  row:         { flexDirection: 'row', alignItems: 'center' },
-  rowReverse:  { flexDirection: 'row-reverse' },
-  rowGap:      { flex: 1 },
-  textRight:   { textAlign: 'right' },
-
-  statsRow:    { flexDirection: 'row', padding: 14, gap: 8 },
-  statGap:     { width: 0 },
-
-  // Tabs
-  tabBar: {
-    flexDirection: 'row', backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E0E8FF',
-  },
-  tab: {
-    flex: 1, paddingVertical: 12, alignItems: 'center',
-    flexDirection: 'row', justifyContent: 'center', gap: 5,
-    borderBottomWidth: 2, borderBottomColor: 'transparent',
-  },
-  tabActive:      { borderBottomColor: '#2E86FF' },
-  tabText:        { fontSize: 12, fontWeight: '600', color: '#8899BB' },
-  tabTextActive:  { color: '#2E86FF' },
-  tabBadge: {
-    backgroundColor: '#E0E8FF', borderRadius: 8,
-    minWidth: 18, height: 18,
-    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4,
-  },
-  tabBadgeActive: { backgroundColor: '#2E86FF' },
-  tabBadgeText:   { fontSize: 10, fontWeight: '800', color: '#2E86FF' },
-
-  // Add project button
-  addBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 14, paddingVertical: 14,
-    alignItems: 'center', marginBottom: 16,
-    shadowColor: '#2E86FF', shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
-  },
-  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-
-  // Project card
-  projectCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 12,
-    borderLeftWidth: 4, borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
-  },
-  cardTitle:  { fontSize: 15, fontWeight: '700', color: '#111' },
-  cardMeta:   { fontSize: 11, color: '#8899BB' },
-  appCount: {
-    marginTop: 8, backgroundColor: '#FFFBEB', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start',
-  },
-  appCountText: { fontSize: 12, color: '#F59E0B', fontWeight: '600' },
-
-  // Application card
-  appCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
-  },
-  appProjectLabel: { fontSize: 12, color: '#8899BB', marginBottom: 4 },
-  studentAvatar: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#E0E8FF', justifyContent: 'center', alignItems: 'center',
-  },
-  studentAvatarText: { fontWeight: '700', color: '#2E86FF', fontSize: 16 },
-  studentName:       { fontSize: 14, fontWeight: '700', color: '#111' },
-  studentEmail:      { fontSize: 12, color: '#8899BB' },
-  coverNote: {
-    backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10, marginVertical: 8,
-    borderLeftWidth: 3, borderLeftColor: '#D0DEFF',
-  },
-  coverNoteText: { fontSize: 13, color: '#445', fontStyle: 'italic', lineHeight: 18 },
-  docsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  docChip: {
-    backgroundColor: '#EFF6FF', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: '#BFDBFE',
-  },
-  docChipText: { fontSize: 12, color: '#2E86FF', fontWeight: '500' },
-
-  decisionRow: { flexDirection: 'row', gap: 8 },
-  approveBtn: {
-    flex: 1, backgroundColor: '#ECFDF5', borderRadius: 10, paddingVertical: 10,
-    alignItems: 'center', borderWidth: 1, borderColor: '#A7F3D0',
-  },
-  approveBtnText: { color: '#10B981', fontWeight: '700', fontSize: 13 },
-  meetingBtn: {
-    flex: 1, backgroundColor: '#FFF7ED', borderRadius: 10, paddingVertical: 10,
-    alignItems: 'center', borderWidth: 1, borderColor: '#FED7AA',
-  },
-  meetingBtnText: { color: '#F97316', fontWeight: '700', fontSize: 13 },
-  rejectBtn: {
-    flex: 1, backgroundColor: '#FEF2F2', borderRadius: 10, paddingVertical: 10,
-    alignItems: 'center', borderWidth: 1, borderColor: '#FECACA',
-  },
-  rejectBtnText: { color: '#EF4444', fontWeight: '700', fontSize: 13 },
-
-  // Grade card
-  gradeCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 12,
-    borderLeftWidth: 4, borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  gradeMilestoneType: { fontSize: 13, fontWeight: '800', marginBottom: 4, letterSpacing: 0.3 },
-  gradeProjectTitle:  { fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 4 },
-  gradeStudents:      { fontSize: 12, color: '#8899BB', marginBottom: 4 },
-  gradeDate:          { fontSize: 12, color: '#8899BB', marginBottom: 4 },
-  filesNote:          { fontSize: 12, color: '#5577AA', marginBottom: 4 },
-  submissionNote:     { fontSize: 12, color: '#445', fontStyle: 'italic', marginBottom: 10 },
-  gradeBtn: {
-    borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 4,
-  },
-  gradeBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-
-  // Modal
-  modal:        { flex: 1, backgroundColor: '#F0F4FF' },
-  modalContent: { padding: 20, paddingBottom: 60 },
-  modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle:   { fontSize: 18, fontWeight: '800', color: '#111' },
-  modalClose:   { fontSize: 22, color: '#888', padding: 4 },
-  fieldLabel:   { fontSize: 13, fontWeight: '600', color: '#445', marginBottom: 6, marginTop: 14 },
-  input: {
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14,
-    paddingVertical: 12, fontSize: 14, color: '#111',
-    borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  textarea:    { textAlignVertical: 'top', minHeight: 90 },
-  scoreInput:  { fontSize: 28, fontWeight: '900', height: 70, color: '#2E86FF' },
-  toggleRow:   { flexDirection: 'row', gap: 8, marginBottom: 4 },
-  toggleBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  toggleBtnActive:  { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  toggleText:       { fontSize: 13, fontWeight: '600', color: '#8899BB' },
-  toggleTextActive: { color: '#fff' },
-  gradeContext: {
-    backgroundColor: '#EFF6FF', borderRadius: 12, padding: 14, marginBottom: 16,
-    borderLeftWidth: 3, borderLeftColor: '#2E86FF',
-  },
-  gradeContextTitle: { fontSize: 15, fontWeight: '800', color: '#111', marginBottom: 4 },
-  gradeContextSub:   { fontSize: 13, color: '#5577AA', marginBottom: 2 },
-  submitBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center', marginTop: 20,
-    shadowColor: '#2E86FF', shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
-  },
-  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-});
+const styles = sharedStyles;
