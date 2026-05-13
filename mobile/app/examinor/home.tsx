@@ -253,7 +253,7 @@ export default function ExaminerHome() {
         isRtl={isRtl}
         unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/Notificationsscreen')}
+        onBell={() => router.push('/(tabs)/notifications')}
       />
 
       <ScrollView contentContainerStyle={styles.content}>

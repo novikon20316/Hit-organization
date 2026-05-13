@@ -378,7 +378,7 @@ export default function CoordinatorHome() {
         isRtl={isRtl}
         unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/Notificationsscreen')}
+        onBell={() => router.push('/(tabs)/notifications')}
       />
 
       <View style={styles.tabBar}>

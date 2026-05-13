@@ -67,6 +67,7 @@ export const ROLE_ACCENT = {
   examiner:    { bg: '#F5F3FF', text: '#8B5CF6', label: { he: 'בוחן',          en: 'Examiner'    } },
   system_admin:{ bg: '#FEF2F2', text: '#EF4444', label: { he: 'מנהל מערכת',   en: 'System Admin'} },
   coordinator: { bg: '#ECFDF5', text: '#10B981', label: { he: 'רכז פרויקטים', en: 'Coordinator' } },
+  faculty_admin:{ bg: '#ECFEFF', text: '#06B6D4', label: { he: 'מנהל פקולטה', en: 'Faculty Admin'} },
 };
 
 // ─── Shared TopBar component ──────────────────────────────────────────────────
@@ -79,17 +80,19 @@ interface TopBarProps {
   onToggleLang: () => void;
   onBell:    () => void;
   onMaintenance?: () => void;
+  onBeforeSignOut?: () => void;
 }
 
 export function TopBar({
-  name, role, lang, isRtl, unreadCount, onToggleLang, onBell, onMaintenance,
+  name, role, lang, isRtl, unreadCount, onToggleLang, onBell, onMaintenance, onBeforeSignOut,
 }: TopBarProps) {
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
 
   const handleSignOut = async () => {
+    onBeforeSignOut?.();           // ← call it before signing out
     await signOut(auth);
-    router.replace('/');
+    setTimeout(() => router.replace('/'), 100); // slight delay to ensure state updates before redirect
   };
 
   return (

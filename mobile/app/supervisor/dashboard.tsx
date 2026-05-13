@@ -1,5 +1,5 @@
 // app/supervisor/home.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
   SafeAreaView, ActivityIndicator, Modal, TextInput, Alert,
@@ -11,11 +11,11 @@ import {
 import { db, auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import { type Lang } from '../../components/i18n';
-import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor } from '../../components/shared';
+import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sendPushNotification } from '../../components/pushNotifications';
 import { createMilestonesOnApproval } from '@/components/Milestoneservice';
 import { sharedStyles } from '@/constants';
-
+import {NewProjectModal } from '@/components/modals';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MyProject {
@@ -90,6 +90,11 @@ export default function SupervisorHome() {
   const [editDescHe, setEditDescHe] = useState('');
   const [editDescEn, setEditDescEn] = useState('');
   const [editSkills, setEditSkills] = useState('');
+  //-----------------------------------------------------
+  const unsubProjectsRef     = useRef<(() => void) | null>(null);
+  const unsubApplicationsRef = useRef<(() => void) | null>(null);
+  const unsubGradesRef       = useRef<(() => void) | null>(null);
+  const unsubNotifsRef       = useRef<(() => void) | null>(null);
   const uid = auth.currentUser?.uid;
   const isHebrew = (text: string) => {
     return /^[\u0590-\u05FF\s.,!?'"()-]*$/.test(text);
@@ -121,12 +126,13 @@ export default function SupervisorHome() {
       where('isArchived', '==', false),
       orderBy('createdAt', 'desc')
     );
-    return onSnapshot(q, (snap) => {
+    unsubProjectsRef.current = onSnapshot(q, (snap) => {
       setMyProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MyProject)));
       setLoading(false);
     }, (err) => {
       console.error("Projects listener error:", err);
     });;
+    return () => unsubProjectsRef.current?.();
   }, [uid, facultyId]);
 
   // Live: applications pending my review
@@ -137,7 +143,7 @@ export default function SupervisorHome() {
       where('supervisorId', '==', uid),
       where('status', 'in', ['pending', 'meeting_requested'])
     );
-    return onSnapshot(q, async (snap) => {
+    unsubApplicationsRef.current = onSnapshot(q, async (snap) => {
       const items: Application[] = [];
       for (const d of snap.docs) {
         const data = d.data();
@@ -170,6 +176,7 @@ export default function SupervisorHome() {
       }
       setApplications(items);
     });
+    return () => unsubApplicationsRef.current?.();
   }, [uid, facultyId]);
 
   // Live: milestones I need to grade (submitted, awaiting supervisor)
@@ -180,7 +187,7 @@ export default function SupervisorHome() {
       where('supervisorId', '==', uid),
       where('status', '==', 'submitted'),
     );
-    return onSnapshot(q, async (snap) => {
+    unsubGradesRef.current = onSnapshot(q, async (snap) => {
       const items: PendingMilestone[] = [];
       for (const d of snap.docs) {
         const data = d.data();
@@ -208,6 +215,7 @@ export default function SupervisorHome() {
       }
       setPendingGrades(items);
     });
+    return () => unsubGradesRef.current?.();
   }, [uid]);
 
   // Notifications unread count
@@ -218,7 +226,8 @@ export default function SupervisorHome() {
       where('recipientId', '==', uid),
       where('isRead', '==', false)
     );
-    return onSnapshot(q, (snap) => setUnreadCount(snap.size));
+    unsubNotifsRef.current = onSnapshot(q, (snap) => setUnreadCount(snap.size));
+    return () => unsubNotifsRef.current?.();
   }, [uid]);
 
   // ── Create project ─────────────────────────────────────────────────────────
@@ -319,6 +328,7 @@ export default function SupervisorHome() {
         await updateDoc(doc(db, 'users', studentId), {
           hasActiveProject: true,
           activeProjectId: projectId,
+          supervisorId: uid,
           updatedAt: serverTimestamp(),
         });
         await createMilestonesOnApproval({
@@ -567,7 +577,13 @@ export default function SupervisorHome() {
         isRtl={isRtl}
         unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/Notificationsscreen')}
+        onBell={() => router.push('/(tabs)/notifications')}
+        onBeforeSignOut={() => {         // ← add this
+          unsubProjectsRef.current?.();
+          unsubApplicationsRef.current?.();
+          unsubGradesRef.current?.();
+          unsubNotifsRef.current?.();
+        }}
       />
 
       {/* Stats row */}
@@ -821,124 +837,41 @@ export default function SupervisorHome() {
       </ScrollView>
 
       {/* ── New Project Modal ── */}
-      <Modal visible={showNewProject} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
-          <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
-            <Text style={styles.modalTitle}>
-              {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}
-            </Text>
-            <Pressable onPress={() => setShowNewProject(false)}>
-              <Text style={styles.modalClose}>✕</Text>
-            </Pressable>
-          </View>
+      <NewProjectModal
+        visible={showNewProject}
+        setVisible={setShowNewProject}
+        mode="supervisor"
+        lang={lang}
+        isRtl={isRtl}
 
-          {[
-            { label: lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *', value: newTitleHe, set: setNewTitleHe, dir: 'rtl' },
-            { label: lang === 'he' ? 'כותרת באנגלית *' : 'English Title *', value: newTitleEn, set: setNewTitleEn, dir: 'ltr' },
-            { label: lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description', value: newDescHe, set: setNewDescHe, dir: 'rtl', multi: true },
-            { label: lang === 'he' ? 'תיאור באנגלית' : 'English Description', value: newDescEn, set: setNewDescEn, dir: 'ltr', multi: true },
-            { label: lang === 'he' ? 'טכנולוגיות (מופרדות בפסיק)' : 'Technologies (comma separated)', value: newSkills, set: setNewSkills, dir: 'ltr' },
-          ].map((field) => (
-            <View key={field.label}>
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{field.label}</Text>
-              <TextInput
-                style={[styles.input, field.multi && styles.textarea, { textAlign: field.dir === 'rtl' ? 'right' : 'left' }]}
-                value={field.value}
-                onChangeText={(text) => {
-                  if (field.dir === 'rtl') {
-                    if (!isHebrew(text)) {
-                      Alert.alert(
-                        lang === 'he' ? 'שגיאה' : 'Error',
-                        lang === 'he' ? 'You can only write in Hebrew in this field' : 'You can only write in Hebrew in this field'
-                      );
-                      return;
-                    }
-                  } else {
-                    if (!isEnglish(text)) {
-                      Alert.alert(
-                        lang === 'he' ? 'שגיאה' : 'Error',
-                        lang === 'he' ? 'You must write in English in this field' : 'You must write in English in this field'
-                      );
-                      return;
-                    }
-                  }
+        titleHe={newTitleHe}
+        setTitleHe={setNewTitleHe}
+        titleEn={newTitleEn}
+        setTitleEn={setNewTitleEn}
 
-                  field.set(text);
-                }}
-                multiline={field.multi}
-                numberOfLines={field.multi ? 4 : 1}
-              />
-              <Pressable
-                style={styles.editBtn}
-                onPress={() => handleOpenEditModal(null)}
-              >
-                <Text style={styles.editBtnText}>
-                  {lang === 'he' ? 'ערוך' : 'Edit'}
-                </Text>
-              </Pressable>
-            </View>
-          ))}
+        descHe={newDescHe}
+        setDescHe={setNewDescHe}
+        descEn={newDescEn}
+        setDescEn={setNewDescEn}
 
-          {/* Degree type */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {lang === 'he' ? 'סוג תואר' : 'Degree Type'}
-          </Text>
-          <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-            {(['bachelors', 'masters'] as const).map((d) => (
-              <Pressable
-                key={d}
-                style={[styles.toggleBtn, newDegree === d && styles.toggleBtnActive]}
-                onPress={() => setNewDegree(d)}
-              >
-                <Text style={[styles.toggleText, newDegree === d && styles.toggleTextActive]}>
-                  {d === 'bachelors'
-                    ? (lang === 'he' ? "תואר ראשון" : "B.Sc.")
-                    : (lang === 'he' ? "תואר שני" : "M.Sc.")
-                  }
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+        skills={newSkills}
+        setSkills={setNewSkills}
 
-          {/* Project type */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {lang === 'he' ? 'סוג פרויקט' : 'Project Type'}
-          </Text>
-          <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-            {(['project', 'thesis'] as const).map((tp) => {
-              const isDisabled = tp === 'thesis' && newDegree === 'bachelors';
-              return (
-                <Pressable
-                  key={tp}
-                  style={[styles.toggleBtn, newType === tp && styles.toggleBtnActive, isDisabled && styles.toggleBtnDisabled]}
-                  onPress={() => {
-                    if (newDegree === 'bachelors') {
-                      setNewType('project');
-                    }
-                    setNewType(tp)
-                  }}
-                  
-                >
-                <Text style={[styles.toggleText, newType === tp && styles.toggleTextActive]}>
-                  {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : (lang === 'he' ? 'תזה' : 'Thesis')}
-                </Text>
-              </Pressable>
-              )
-            })}
-          </View>
+        faculty={facultyId}
+        setFaculty={setFacultyId}
 
-          <Pressable
-            style={[styles.submitBtn, creating && { opacity: 0.6 }]}
-            onPress={handleCreateProject}
-            disabled={creating}
-          >
-            {creating
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.submitBtnText}>{lang === 'he' ? 'פרסם פרויקט' : 'Publish Project'}</Text>
-            }
-          </Pressable>
-        </ScrollView>
-      </Modal>
+        degree={newDegree}
+        setDegree={setNewDegree}
+
+        type={newType}
+        setType={setNewType}
+
+        onCreate={handleCreateProject}
+        creating={creating}
+
+        facultyColors={FACULTY_COLORS}
+        styles={styles}
+      />
 
       {/* ── Grade Modal ── */}
       <Modal visible={gradeModal} animationType="slide" presentationStyle="formSheet">

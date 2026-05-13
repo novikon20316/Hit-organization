@@ -1,5 +1,5 @@
 // app/admin/panel.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -45,7 +45,8 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { sendPushNotification } from '@/components/pushNotifications';
 import { adminPanelStyles } from '../../constants/styles';
-
+import {ROLE_LABELS} from '../../constants';
+import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal} from '@/components/modals';
 const { width } = Dimensions.get('window');
 
 interface AppUser {
@@ -90,6 +91,7 @@ interface ProjectRecord {
 
 interface MilestoneRecord {
   id: string;
+  projectId: string;
   type: string;
   status: string;
   projectTitleHe: string;
@@ -99,21 +101,7 @@ interface MilestoneRecord {
   studentNames: string[];
 }
 
-const ROLE_LABELS: Record<string, { he: string; en: string }> = {
-  student: { he: 'סטודנט', en: 'Student' },
-  supervisor: { he: 'מנחה', en: 'Supervisor' },
-  examiner: { he: 'בוחן', en: 'Examiner' },
-  coordinator: { he: 'רכז', en: 'Coordinator' },
-  faculty_admin: { he: 'מנהל פקולטה', en: 'Faculty Admin' },
-  system_admin: { he: 'מנהל מערכת', en: 'System Admin' },
-};
 
-const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
-  research_proposal: { he: 'הצעת מחקר', en: 'Research Proposal' },
-  progress_report: { he: 'דו״ח התקדמות', en: 'Progress Report' },
-  final_report: { he: 'דו״ח סופי', en: 'Final Report' },
-  defense: { he: 'הגנה', en: 'Defense' },
-};
 
 export default function PanelScreen() {
   const router = useRouter();
@@ -167,7 +155,7 @@ export default function PanelScreen() {
   const [newTitleEn,  setNewTitleEn]  = useState('');
   const [newDescHe,   setNewDescHe]   = useState('');
   const [newDescEn,   setNewDescEn]   = useState('');
-  const [newDegree,   setNewDegree]   = useState<'bachelors' | 'masters' | 'both'>('bachelors');
+  const [newDegree,   setNewDegree]   = useState<'bachelors' | 'masters'>('bachelors');
   const [newType,     setNewType]     = useState<'project' | 'thesis'>('project');
   const [newSkills,   setNewSkills]   = useState('');
   const [creating,    setCreating]    = useState(false);
@@ -179,7 +167,16 @@ export default function PanelScreen() {
   const [addStudentProject, setAddStudentProject] = useState<ProjectRecord | null>(null);
   const [studentSearch, setStudentSearch] = useState('');
   const [addingStudent, setAddingStudent] = useState(false);
+  //-----------------------------------------------------------------------------------
+  const unsubUsersRef      = useRef<(() => void) | null>(null);
+  const unsubProjectsRef   = useRef<(() => void) | null>(null);
+  const unsubMilestonesRef = useRef<(() => void) | null>(null);
+  const unsubNotifsRef     = useRef<(() => void) | null>(null);
   const uid = auth.currentUser?.uid;
+
+  const activeProjectIds = useMemo(() => {
+    return new Set(projects.map((p) => p.id));
+  }, [projects]);
 
   useEffect(() => {
     const fetchSupervisors = async () => {
@@ -242,7 +239,7 @@ export default function PanelScreen() {
   }, [uid]);
 
   useEffect(() => {
-    return onSnapshot(collection(db, 'users'), (snap) => {
+    unsubUsersRef.current = onSnapshot(collection(db, 'users'), (snap) => {
       setUsers(snap.docs.map((d) => ({
         id: d.id,
         displayName: d.data().displayName || '',
@@ -254,6 +251,7 @@ export default function PanelScreen() {
     }, (error) => {
       console.error('Users listener error:', error);
     });
+    return () => unsubUsersRef.current?.();
   }, []);
 
   useEffect(() => {
@@ -263,7 +261,7 @@ export default function PanelScreen() {
       orderBy('createdAt', 'desc')
     );
 
-    return onSnapshot(q, async (snap) => {
+    unsubProjectsRef.current = onSnapshot(q, async (snap) => {
       const items: ProjectRecord[] = [];
 
       for (const d of snap.docs) {
@@ -294,6 +292,7 @@ export default function PanelScreen() {
     }, (error) => {
       console.error('Projects listener error:', error);
     });
+    return () => unsubProjectsRef.current?.();
   }, []);
 
   useEffect(() => {
@@ -303,8 +302,8 @@ export default function PanelScreen() {
       where('status', 'in', statuses)
     );
 
-    return onSnapshot(q, async (snap) => {
-      const items: MilestoneRecord[] = [];
+    unsubMilestonesRef.current = onSnapshot(q, async (snap) => {
+    const items: MilestoneRecord[] = [];
 
       for (const d of snap.docs) {
         const data = d.data();
@@ -316,6 +315,7 @@ export default function PanelScreen() {
         }
         items.push({
           id: d.id,
+          projectId: data.projectId,
           type: data.type,
           status: data.status,
           projectTitleHe: projectSnap.data()?.titleHe || '',
@@ -332,6 +332,7 @@ export default function PanelScreen() {
       console.error('Milestones listener error:', error);
       setLoading(false); // ← unblocks spinner even on failure
     });
+    return () => unsubMilestonesRef.current?.();
   }, []);
 
   useEffect(() => {
@@ -343,9 +344,10 @@ export default function PanelScreen() {
       where('isRead', '==', false)
     );
 
-    return onSnapshot(q, (snap) => {
+    unsubNotifsRef.current = onSnapshot(q, (snap) => {
       setUnreadCount(snap.size);
     });
+    return () => unsubNotifsRef.current?.();
   }, [uid]);
 
 
@@ -614,6 +616,27 @@ export default function PanelScreen() {
     };
   }, [users, projects, milestones]);
 
+  const groupedMilestones = Object.values(
+    milestones.reduce((acc: any, milestone) => {
+      const key = milestone.projectId;
+
+      if (!acc[key]) {
+        acc[key] = {
+          projectId: milestone.projectId,
+          projectTitleHe: milestone.projectTitleHe,
+          projectTitleEn: milestone.projectTitleEn,
+          facultyId: milestone.facultyId,
+          studentNames: milestone.studentNames || [],
+          milestones: [],
+        };
+      }
+
+      acc[key].milestones.push(milestone);
+
+      return acc;
+    }, {})
+  );
+
   const filteredUsers = users.filter((u) => {
     const q = userSearch.toLowerCase();
 
@@ -691,7 +714,15 @@ export default function PanelScreen() {
         active: true,
         createdAt: serverTimestamp(),
       });
-
+      const expoPushToken = (await getDoc(doc(db, 'users', uid!))).data()?.expoPushToken;
+      if (expoPushToken) {
+        await sendPushNotification(expoPushToken, lang === 'he' ? '📢 תחזוקה קרוב' : '📢 Maintenance Incoming!',
+          lang === 'he'
+            ? 'תוחזוקה מערכת מתוכננת. שימו לב עדכון בקרוב.'
+            : 'System maintenance is scheduled. Stay tuned for updates.',
+            { type: 'maintenance' }
+        );
+      }
       Alert.alert(
         'Success',
         lang === 'he'
@@ -722,8 +753,14 @@ export default function PanelScreen() {
         isRtl={isRtl}
         unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/Notificationsscreen')}
+        onBell={() => router.push('/(tabs)/notifications')}
         onMaintenance={() => setMaintenanceModal(true)}
+        onBeforeSignOut={() => {
+          unsubUsersRef.current?.();
+          unsubProjectsRef.current?.();
+          unsubMilestonesRef.current?.();
+          unsubNotifsRef.current?.();
+        }}
       />
 
       <View style={styles.hero}>
@@ -998,689 +1035,238 @@ export default function PanelScreen() {
 
         {activeTab === 'milestones' && (
           <>
-            {milestones.map((m) => (
-              <View key={m.id} style={styles.milestoneCard}>
-                <View style={styles.projectHeader}>
-                  <Text style={styles.milestoneType}>
-                    {MILESTONE_LABEL[m.type]?.[lang]}
+            {groupedMilestones
+            .filter((g: any) => activeProjectIds.has(g.projectId))
+            .map((project: any) => {
+
+              const submittedCount = project.milestones.filter(
+                (m: any) => m.status === 'submitted'
+              ).length;
+
+              const pendingCount = project.milestones.filter(
+                (m: any) => m.status === 'pending'
+              ).length;
+
+              return (
+                <Pressable
+                  key={project.projectId}
+                  style={styles.projectMilestoneCard}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/admin/projectMilestones',
+                      params: {
+                        projectId: project.projectId,
+                        lang: lang,
+                      },
+                    })
+                  }
+                >
+                  {/* Header */}
+                  <View style={styles.projectHeader}>
+                    <FacultyBadge
+                      facultyId={project.facultyId}
+                      lang={lang}
+                    />
+
+                    <View style={styles.milestoneCounter}>
+                      <Text style={styles.milestoneCounterText}>
+                        📋 {project.milestones.length}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Project title */}
+                  <Text style={styles.projectTitle}>
+                    {lang === 'he'
+                      ? project.projectTitleHe
+                      : project.projectTitleEn}
                   </Text>
 
-                  <StatusBadge status={m.status} lang={lang} />
-                </View>
+                  {/* Students */}
+                  <Text style={styles.projectMeta}>
+                    👤 {project.studentNames.join(', ')}
+                  </Text>
 
-                <Text style={styles.projectTitle}>
-                  {lang === 'he'
-                    ? m.projectTitleHe
-                    : m.projectTitleEn}
-                </Text>
+                  {/* Stats */}
+                  <View style={styles.milestoneStatsRow}>
 
-                <Text style={styles.projectMeta}>
-                  👤 {m.studentNames.join(', ')}
-                </Text>
-              </View>
-            ))}
+                    <View style={styles.milestoneStatBox}>
+                      <Text style={styles.milestoneStatEmoji}>⏳</Text>
+                      <Text style={styles.milestoneStatValue}>
+                        {pendingCount}
+                      </Text>
+                    </View>
+
+                    <View style={styles.milestoneStatBox}>
+                      <Text style={styles.milestoneStatEmoji}>📨</Text>
+                      <Text style={styles.milestoneStatValue}>
+                        {submittedCount}
+                      </Text>
+                    </View>
+
+                    <View style={styles.milestoneStatBox}>
+                      <Text style={styles.milestoneStatEmoji}>✅</Text>
+                      <Text style={styles.milestoneStatValue}>
+                        {
+                          project.milestones.filter(
+                            (m: any) => m.status === 'approved'
+                          ).length
+                        }
+                      </Text>
+                    </View>
+
+                  </View>
+
+                  {/* Footer */}
+                  <Text style={styles.openProjectText}>
+                    👉 {lang === 'he'
+                      ? 'לחץ לצפייה בכל אבני הדרך'
+                      : 'Tap to view all milestones'}
+                  </Text>
+
+                </Pressable>
+              );
+            })}
           </>
         )}
 
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      <Modal visible={showNewProject} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
-          <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
-            <Text style={styles.modalTitle}>
-              {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}
-            </Text>
-            <Pressable onPress={() => setShowNewProject(false)}>
-              <Text style={styles.modalClose}>✕</Text>
-            </Pressable>
-          </View>
+      <NewProjectModal
+        visible={showNewProject}
+        setVisible={setShowNewProject}
+        mode="admin"
+        lang={lang}
+        isRtl={isRtl}
 
-          {/* Text fields */}
-          {[
-            { label: lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *', value: newTitleHe, set: setNewTitleHe, dir: 'rtl' },
-            { label: lang === 'he' ? 'כותרת באנגלית *' : 'English Title *', value: newTitleEn, set: setNewTitleEn, dir: 'ltr' },
-            { label: lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description', value: newDescHe, set: setNewDescHe, dir: 'rtl', multi: true },
-            { label: lang === 'he' ? 'תיאור באנגלית' : 'English Description', value: newDescEn, set: setNewDescEn, dir: 'ltr', multi: true },
-            { label: lang === 'he' ? 'טכנולוגיות (מופרדות בפסיק)' : 'Technologies (comma separated)', value: newSkills, set: setNewSkills, dir: 'ltr' },
-          ].map((field) => (
-            <View key={field.label}>
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{field.label}</Text>
-              <TextInput
-                style={[styles.input, field.multi && styles.textarea, { textAlign: field.dir === 'rtl' ? 'right' : 'left' }]}
-                value={field.value}
-                onChangeText={field.set}
-                multiline={field.multi}
-                numberOfLines={field.multi ? 4 : 1}
-              />
-            </View>
-          ))}
+        titleHe={newTitleHe}
+        setTitleHe={setNewTitleHe}
+        titleEn={newTitleEn}
+        setTitleEn={setNewTitleEn}
 
-          {/* ── Faculty selector ── */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {lang === 'he' ? 'פקולטה *' : 'Faculty *'}
-          </Text>
-          <View style={styles.facultyGrid}>
-            {Object.entries(FACULTY_COLORS)
-              .filter(([k]) => k !== 'default')
-              .map(([fid, fc]) => (
-                <Pressable
-                  key={fid}
-                  style={[
-                    styles.facultyPickerBtn,
-                    newProjectFaculty === fid && { backgroundColor: fc.primary, borderColor: fc.primary },
-                  ]}
-                  onPress={() => setNewProjectFaculty(fid)}
-                >
-                  <View style={[styles.facultyPickerDot, { backgroundColor: fc.primary }]} />
-                  <Text style={[
-                    styles.facultyPickerText,
-                    newProjectFaculty === fid && { color: '#fff' },
-                  ]}>
-                    {fc.label[lang]}
-                  </Text>
-                </Pressable>
-              ))}
-          </View>
+        descHe={newDescHe}
+        setDescHe={setNewDescHe}
+        descEn={newDescEn}
+        setDescEn={setNewDescEn}
 
-          {/* Degree type */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {lang === 'he' ? 'סוג תואר' : 'Degree Type'}
-          </Text>
-          <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-            {(['bachelors', 'masters', 'both'] as const).map((d) => (
-              <Pressable
-                key={d}
-                style={[styles.toggleBtn, newDegree === d && styles.toggleBtnActive]}
-                onPress={() => setNewDegree(d)}
-              >
-                <Text style={[styles.toggleText, newDegree === d && styles.toggleTextActive]}>
-                  {d === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : 'B.Sc.')
-                  : d === 'masters'  ? (lang === 'he' ? 'תואר שני'   : 'M.Sc.')
-                  :                    (lang === 'he' ? 'שניהם'       : 'Both')}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+        skills={newSkills}
+        setSkills={setNewSkills}
 
-          {/* Project type */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {lang === 'he' ? 'סוג פרויקט' : 'Project Type'}
-          </Text>
-          <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-            {(['project', 'thesis'] as const).map((tp) => (
-              <Pressable
-                key={tp}
-                style={[styles.toggleBtn, newType === tp && styles.toggleBtnActive]}
-                onPress={() => setNewType(tp)}
-              >
-                <Text style={[styles.toggleText, newType === tp && styles.toggleTextActive]}>
-                  {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project')
-                                    : (lang === 'he' ? 'תזה'     : 'Thesis')}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'בחר מנחה' : 'Select Supervisor'}
-          </Text>
+        faculty={newProjectFaculty}
+        setFaculty={setNewProjectFaculty}
 
-          {/* 2. The Supervisor List */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {allSupervisors.map((sup) => (
-              <Pressable
-                key={sup.id}
-                style={[
-                  styles.supOption,
-                  selectedSupervisor?.id === sup.id && styles.supOptionActive
-                ]}
-                onPress={() => {
-                  setSelectedSupervisor(sup);
-                  setShowConfirm(true); // Open the confirmation alert/modal
-                }}
-              >
-                <Text>{sup.displayName}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+        degree={newDegree}
+        setDegree={setNewDegree}
 
-          <Pressable
-            style={[styles.submitBtn, creating && { opacity: 0.6 }]}
-            onPress={handleCreateProject}
-            disabled={creating}
-          >
-            {creating
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.submitBtnText}>
-                  {lang === 'he' ? 'פרסם פרויקט' : 'Publish Project'}
-                </Text>
-            }
-          </Pressable>
-        </ScrollView>
-      </Modal>
+        type={newType}
+        setType={setNewType}
 
-      <Modal visible={userModal} animationType="slide">
-        <View style={styles.modalRoot}>
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {lang === 'he' ? 'עריכת משתמש' : 'Edit User'}
-              </Text>
+        supervisors={allSupervisors}
+        selectedSupervisor={selectedSupervisor}
+        setSelectedSupervisor={setSelectedSupervisor}
 
-              <Pressable onPress={() => setUserModal(false)}>
-                <Text style={styles.close}>✕</Text>
-              </Pressable>
-            </View>
+        onCreate={handleCreateProject}
+        creating={creating}
 
-            <Text style={styles.fieldLabel}>
-              {lang === 'he' ? 'תפקיד' : 'Role'}
-            </Text>
+        setShowConfirm={setShowConfirm}
 
-            {Object.entries(ROLE_LABELS).map(([role, label]) => (
-              <Pressable
-                key={role}
-                style={[
-                  styles.roleOption,
-                  editRole === role && styles.roleOptionActive,
-                ]}
-                onPress={() => setEditRole(role)}
-              >
-                <Text
-                  style={[
-                    styles.roleOptionText,
-                    editRole === role && styles.roleOptionTextActive,
-                  ]}
-                >
-                  {label[lang]}
-                </Text>
-              </Pressable>
-            ))}
+        facultyColors={FACULTY_COLORS}
+        styles={styles}
+      />
 
-            <Text style={styles.fieldLabel}>
-              {lang === 'he' ? 'פקולטה' : 'Faculty'}
-            </Text>
+      <EditUserModal
+        visible={userModal}
+        setVisible={setUserModal}
 
-            {Object.entries(FACULTY_COLORS)
-              .filter(([k]) => k !== 'default')
-              .map(([fid, fc]) => (
-                <Pressable
-                  key={fid}
-                  style={[styles.facultyOption,
-                    editFaculty === fid && styles.facultyOptionActive]}
-                  onPress={() => setEditFaculty(fid)}
-                >
-                  <View
-                    style={[
-                      styles.facultyDot,
-                      { backgroundColor: fc.primary },
-                    ]}
-                  />
+        lang={lang}
 
-                  <Text>{fc.label[lang]}</Text>
-                </Pressable>
-              ))}
+        role={editRole}
+        setRole={setEditRole}
 
-            <Pressable style={styles.submitBtn} onPress={handleSaveUser}>
-              {saving ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitBtnText}>
-                  {lang === 'he' ? 'שמור' : 'Save'}
-                </Text>
-              )}
-            </Pressable>
-          </ScrollView>
-        </View>
-      </Modal>
+        faculty={editFaculty}
+        setFaculty={setEditFaculty}
 
-      <Modal visible={maintenanceModal} animationType="slide">
-        <View style={styles.modalRoot}>
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                🛠️ {lang === 'he' ? 'מצב תחזוקה' : 'Maintenance'}
-              </Text>
-              <Pressable onPress={() => setMaintenanceModal(false)}>
-                <Text style={styles.close}>✕</Text>
-              </Pressable>
-            </View>
-            <TextInput
-              placeholder={lang === 'he' ? 'כותרת' : 'Title'}
-              value={maintenanceTitle}
-              onChangeText={setMaintenanceTitle}
-              style={styles.input}
-            />
+        roleLabels={ROLE_LABELS}
+        facultyColors={FACULTY_COLORS}
 
-            <Text style={styles.fieldLabel}>Days</Text>
-            <Picker
-              selectedValue={maintenanceDays}
-              onValueChange={(v) => setMaintenanceDays(v)}
-            >
-              {[...Array(8).keys()].map((d) => (
-                <Picker.Item key={d} label={`${d}`} value={d} />
-              ))}
-            </Picker>
+        onSave={handleSaveUser}
+        saving={saving}
 
-            <Text style={styles.fieldLabel}>Hours</Text>
-            <Picker
-              selectedValue={maintenanceHours}
-              onValueChange={(v) => setMaintenanceHours(v)}
-            >
-              {[...Array(24).keys()].map((h) => (
-                <Picker.Item key={h} label={`${h}`} value={h} />
-              ))}
-            </Picker>
+        styles={styles}
+      />
 
-            <Text style={styles.fieldLabel}>Minutes</Text>
-            <Picker
-              selectedValue={maintenanceMinutes}
-              onValueChange={(v) => setMaintenanceMinutes(v)}
-            >
-              {[0, 5, 10, 15, 30, 45, 50, 55].map((m) => (
-                <Picker.Item key={m} label={`${m}`} value={m} />
-              ))}
-            </Picker>
+      <MaintenanceModal
+        visible={maintenanceModal}
+        setVisible={setMaintenanceModal}
+        lang={lang}
 
-            <Pressable style={styles.submitBtn} onPress={saveMaintenance}>
-              <Text style={styles.submitBtnText}>
-                {lang === 'he' ? 'שמור ושלח' : 'Save & Send'}
-              </Text>
-            </Pressable>
-          </ScrollView>
-        </View>
-      </Modal>
+        title={maintenanceTitle}
+        setTitle={setMaintenanceTitle}
+
+        days={maintenanceDays}
+        setDays={setMaintenanceDays}
+
+        hours={maintenanceHours}
+        setHours={setMaintenanceHours}
+
+        minutes={maintenanceMinutes}
+        setMinutes={setMaintenanceMinutes}
+
+        onSave={saveMaintenance}
+
+        styles={styles}
+      />
       {/* ── Add Student to Project Modal ── */}
-      <Modal visible={addStudentModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalRoot}>
+      <AddStudentToProjectModal
+        visible={addStudentModal}
+        lang={lang}
+        isRtl={isRtl}
+        styles={styles}
 
-          {/* Header */}
-          <View style={styles.addStudentHeader}>
-            <View>
-              <Text style={styles.addStudentTitle}>
-                👤 {lang === 'he' ? 'הוסף סטודנט לפרויקט' : 'Add Student to Project'}
-              </Text>
-              {addStudentProject && (
-                <Text style={styles.addStudentSubtitle} numberOfLines={1}>
-                  📁 {lang === 'he' ? addStudentProject.titleHe : addStudentProject.titleEn}
-                </Text>
-              )}
-            </View>
-            <Pressable
-              onPress={() => {
-                setAddStudentModal(false);
-                setAddStudentProject(null);
-                setStudentSearch('');
-              }}
-            >
-              <Text style={styles.close}>✕</Text>
-            </Pressable>
-          </View>
+        users={users}
+        project={addStudentProject}
+        studentSearch={studentSearch}
+        setStudentSearch={setStudentSearch}
 
-          {/* Search */}
-          <View style={styles.addStudentSearchBox}>
-            <Text style={styles.addStudentSearchIcon}>🔍</Text>
-            <TextInput
-              style={styles.addStudentSearchInput}
-              placeholder={lang === 'he' ? 'חיפוש לפי שם או אימייל...' : 'Search by name or email...'}
-              placeholderTextColor="#9BA8C0"
-              value={studentSearch}
-              onChangeText={setStudentSearch}
-              textAlign={isRtl ? 'right' : 'left'}
-              autoFocus
-            />
-            {studentSearch.length > 0 && (
-              <Pressable onPress={() => setStudentSearch('')}>
-                <Text style={{ color: '#9BA8C0', fontSize: 16, paddingHorizontal: 8 }}>✕</Text>
-              </Pressable>
-            )}
-          </View>
+        setVisible={setAddStudentModal}
+        setProject={setAddStudentProject}
 
-          {/* Student list */}
-          <ScrollView contentContainerStyle={{ padding: 16 }}>
-            {users
-              .filter((u) => {
-                // Only show students
-                if (u.role !== 'student') return false;
-                // Already in this project
-                if (addStudentProject?.enrolledStudentIds?.includes(u.id)) return false;
-                // Search filter — works for both Hebrew and English
-                if (!studentSearch.trim()) return true;
-                const q = studentSearch.toLowerCase();
-                return (
-                  u.displayName.toLowerCase().includes(q) ||
-                  u.email.toLowerCase().includes(q)
-                );
-              })
-              .map((u) => {
-                const fc = getFacultyColor(u.facultyId);
-                return (
-                  <Pressable
-                    key={u.id}
-                    style={styles.studentPickerCard}
-                    onPress={() => handleAddStudentToProject(u)}
-                    disabled={addingStudent}
-                  >
-                    <View style={[styles.avatar, { backgroundColor: fc.primary, marginRight: 12 }]}>
-                      <Text style={styles.avatarText}>
-                        {u.displayName.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
+        addingStudent={addingStudent}
 
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.studentPickerName}>{u.displayName}</Text>
-                      <Text style={styles.studentPickerEmail}>{u.email}</Text>
-                    </View>
+        onAddStudent={handleAddStudentToProject}
+        getFacultyColor={getFacultyColor}
+      />
+      <NewUserModal
+        visible={showNewUser}
+        lang={lang}
+        isRtl={isRtl}
+        styles={styles}
 
-                    <Text style={styles.studentPickerArrow}>›</Text>
-                  </Pressable>
-                );
-              })}
+        newUserName={newUserName}
+        newUserEmail={newUserEmail}
+        newUserPhone={newUserPhone}
+        newUserRole={newUserRole}
+        newUserFaculty={newUserFaculty}
+        newUserDegree={newUserDegree}
+        newUserYear={newUserYear}
+        newUserMajor={newUserMajor}
+        newUserStudentId={newUserStudentId}
 
-            {/* Empty state */}
-            {users.filter((u) => {
-              if (u.role !== 'student') return false;
-              if (addStudentProject?.enrolledStudentIds?.includes(u.id)) return false;
-              if (!studentSearch.trim()) return true;
-              const q = studentSearch.toLowerCase();
-              return u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-            }).length === 0 && (
-              <View style={{ alignItems: 'center', paddingTop: 40 }}>
-                <Text style={{ fontSize: 36, marginBottom: 10 }}>🔍</Text>
-                <Text style={{ color: '#9BA8C0', fontSize: 14 }}>
-                  {lang === 'he' ? 'לא נמצאו סטודנטים' : 'No students found'}
-                </Text>
-              </View>
-            )}
+        setVisible={setShowNewUser}
+        setNewUserName={setNewUserName}
+        setNewUserEmail={setNewUserEmail}
+        setNewUserPhone={setNewUserPhone}
+        setNewUserRole={setNewUserRole}
+        setNewUserFaculty={setNewUserFaculty}
+        setNewUserDegree={setNewUserDegree}
+        setNewUserYear={setNewUserYear}
+        setNewUserMajor={setNewUserMajor}
+        setNewUserStudentId={setNewUserStudentId}
 
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-      <Modal visible={showNewUser} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
-
-          {/* Header */}
-          <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
-            <Text style={styles.modalTitle}>
-              👤 {lang === 'he' ? 'הוספת משתמש חדש' : 'Add New User'}
-            </Text>
-            <Pressable onPress={() => {
-              setShowNewUser(false);
-              setNewUserName(''); setNewUserEmail(''); setNewUserPhone('');
-              setNewUserRole('student'); setNewUserFaculty('');
-              setNewUserDegree('bachelors'); setNewUserYear('1');
-              setNewUserMajor(''); setNewUserStudentId('');
-            }}>
-              <Text style={styles.modalClose}>✕</Text>
-            </Pressable>
-          </View>
-
-          {/* ── Basic info ── */}
-          <Text style={styles.sectionDivider}>
-            {lang === 'he' ? '📋 פרטים בסיסיים' : '📋 Basic Info'}
-          </Text>
-
-          {[
-            {
-              label:       lang === 'he' ? 'שם מלא *'   : 'Full Name *',
-              value:       newUserName,
-              set:         setNewUserName,
-              placeholder: lang === 'he' ? 'ישראל ישראלי' : 'John Doe',
-              keyboard:    'default' as const,
-              dir:         'auto',
-            },
-            {
-              label:       lang === 'he' ? 'אימייל *'   : 'Email *',
-              value:       newUserEmail,
-              set:         setNewUserEmail,
-              placeholder: 'user@university.ac.il',
-              keyboard:    'email-address' as const,
-              dir:         'ltr',
-            },
-            {
-              label:       lang === 'he' ? 'מספר טלפון' : 'Phone Number',
-              value:       newUserPhone,
-              set:         setNewUserPhone,
-              placeholder: lang === 'he' ? '050-0000000' : '050-0000000',
-              keyboard:    'phone-pad' as const,
-              dir:         'ltr',
-            },
-          ].map((field) => (
-            <View key={field.label}>
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                {field.label}
-              </Text>
-              <TextInput
-                style={[styles.input, { textAlign: field.dir === 'ltr' ? 'left' : (isRtl ? 'right' : 'left') }]}
-                value={field.value}
-                onChangeText={field.set}
-                placeholder={field.placeholder}
-                placeholderTextColor="#9BA8C0"
-                keyboardType={field.keyboard}
-                autoCapitalize="none"
-              />
-            </View>
-          ))}
-
-          {/* ── Role ── */}
-          <Text style={styles.sectionDivider}>
-            {lang === 'he' ? '🎭 תפקיד ופקולטה' : '🎭 Role & Faculty'}
-          </Text>
-
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {lang === 'he' ? 'תפקיד *' : 'Role *'}
-          </Text>
-          <View style={{ gap: 8 }}>
-            {Object.entries(ROLE_LABELS)
-              .filter(([r]) => r !== 'system_admin')
-              .map(([role, label]) => (
-                <Pressable
-                  key={role}
-                  style={[styles.roleOption, newUserRole === role && styles.roleOptionActive]}
-                  onPress={() => setNewUserRole(role)}
-                >
-                  <Text style={[styles.roleOptionText, newUserRole === role && styles.roleOptionTextActive]}>
-                    {label[lang]}
-                  </Text>
-                </Pressable>
-              ))}
-          </View>
-
-          {/* ── Faculty ── */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {lang === 'he' ? 'פקולטה *' : 'Faculty *'}
-          </Text>
-          <View style={styles.facultyGrid}>
-            {Object.entries(FACULTY_COLORS)
-              .filter(([k]) => k !== 'default')
-              .map(([fid, fc]) => (
-                <Pressable
-                  key={fid}
-                  style={[
-                    styles.facultyPickerBtn,
-                    newUserFaculty === fid && { backgroundColor: fc.primary, borderColor: fc.primary },
-                  ]}
-                  onPress={() => setNewUserFaculty(fid)}
-                >
-                  <View style={[styles.facultyPickerDot, { backgroundColor: fc.primary }]} />
-                  <Text style={[
-                    styles.facultyPickerText,
-                    newUserFaculty === fid && { color: '#fff' },
-                  ]}>
-                    {fc.label[lang]}
-                  </Text>
-                </Pressable>
-              ))}
-          </View>
-
-          {/* ── Student-only fields ── */}
-          {newUserRole === 'student' && (
-            <>
-              <Text style={styles.sectionDivider}>
-                {lang === 'he' ? '🎓 פרטי סטודנט' : '🎓 Student Details'}
-              </Text>
-
-              {/* Student ID */}
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                {lang === 'he' ? 'מספר סטודנט' : 'Student ID'}
-              </Text>
-              <TextInput
-                style={[styles.input, { textAlign: 'left' }]}
-                value={newUserStudentId}
-                onChangeText={setNewUserStudentId}
-                placeholder="123456789"
-                placeholderTextColor="#9BA8C0"
-                keyboardType="number-pad"
-              />
-
-              {/* Degree type */}
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                {lang === 'he' ? 'סוג תואר *' : 'Degree Type *'}
-              </Text>
-              <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-                {(['bachelors', 'masters'] as const).map((d) => (
-                  <Pressable
-                    key={d}
-                    style={[styles.toggleBtn, newUserDegree === d && styles.toggleBtnActive]}
-                    onPress={() => {
-                      setNewUserDegree(d);
-                      // If switching to masters, reset year to 1 or 2 only
-                      if (d === 'masters' && (newUserYear === '3' || newUserYear === '4')) {
-                        setNewUserYear('1');
-                      }
-                    }}
-                  >
-                    <Text style={[styles.toggleText, newUserDegree === d && styles.toggleTextActive]}>
-                      {d === 'bachelors'
-                        ? (lang === 'he' ? 'תואר ראשון' : 'B.Sc.')
-                        : (lang === 'he' ? 'תואר שני'   : 'M.Sc.')}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* Year of study */}
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                {lang === 'he' ? 'שנת לימוד' : 'Year of Study'}
-              </Text>
-              <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-                {(['1', '2', '3', '4'] as const).map((y) => {
-                  const isMastersOnly = newUserDegree === 'masters';
-                  const engineeringFaculties = ['הנדסת חשמל ואלקטרוניקה', 'הנדסת תעשייה וניהול טכנולוגיה'];
-                  const isDisabled = ((isMastersOnly && (y === '3' || y === '4'))||(y === '4' && !engineeringFaculties.includes(newUserFaculty))); // Year 4 is only for bachelors, Year 3 and 4 are only for masters
-                  return (
-                    <Pressable
-                      key={y}
-                      style={[
-                        styles.toggleBtn,
-                        newUserYear === y && styles.toggleBtnActive,
-                        isDisabled && styles.toggleBtnDisabled,
-                      ]}
-                      onPress={() => {
-                        if (!isDisabled) setNewUserYear(y);
-                      }}
-                      disabled={isDisabled}
-                    >
-                      <Text style={[
-                        styles.toggleText,
-                        newUserYear === y && styles.toggleTextActive,
-                        isDisabled && styles.toggleTextDisabled,
-                      ]}>
-                        {lang === 'he' ? `שנה ${y}` : `Year ${y}`}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {/* Major */}
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                {lang === 'he' ? 'מגמה / התמחות *' : 'Major / Specialization *'}
-              </Text>
-              <View style={{ gap: 8 }}>
-                {[
-                  { id: 'science',              he: 'מדעים',                                      en: 'Science'                                     },
-                  { id: 'electrical',           he: 'הנדסת חשמל ואלקטרוניקה',                    en: 'Electrical & Electronics Engineering'        },
-                  { id: 'learning_technology',  he: 'טכנולוגיות למידה',                           en: 'Learning Technologies'                       },
-                  { id: 'design',               he: 'עיצוב',                                      en: 'Design'                                      },
-                  { id: 'industrial',           he: 'הנדסת תעשייה וניהול טכנולוגיה',              en: 'Industrial Engineering & Technology Management'},
-                  { id: 'medical_technologies', he: 'טכנולוגיות רפואיות',                         en: 'Medical Technologies'                        },
-                ].map((major) => (
-                  <Pressable
-                    key={major.id}
-                    style={[
-                      styles.majorOption,
-                      newUserMajor === major.id && styles.majorOptionActive,
-                    ]}
-                    onPress={() => setNewUserMajor(major.id)}
-                  >
-                    <View style={styles.majorOptionInner}>
-                      <Text style={[
-                        styles.majorOptionText,
-                        newUserMajor === major.id && styles.majorOptionTextActive,
-                      ]}>
-                        {lang === 'he' ? major.he : major.en}
-                      </Text>
-                      {newUserMajor === major.id && (
-                        <Text style={styles.majorCheckmark}>✓</Text>
-                      )}
-                    </View>
-                    {/* Always show both languages as subtitle */}
-                    <Text style={[
-                      styles.majorOptionSub,
-                      newUserMajor === major.id && styles.majorOptionSubActive,
-                    ]}>
-                      {lang === 'he' ? major.en : major.he}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          )}
-
-          {/* ── Preview ── */}
-          {newUserName.trim() && newUserFaculty && (
-            <View style={styles.userPreview}>
-              <Text style={styles.userPreviewTitle}>
-                {lang === 'he' ? 'תצוגה מקדימה' : 'Preview'}
-              </Text>
-              <Text style={styles.userPreviewRow}>👤 {newUserName}</Text>
-              <Text style={styles.userPreviewRow}>📧 {newUserEmail || '—'}</Text>
-              {newUserPhone ? <Text style={styles.userPreviewRow}>📞 {newUserPhone}</Text> : null}
-              <Text style={styles.userPreviewRow}>🎭 {ROLE_LABELS[newUserRole]?.[lang]}</Text>
-              <Text style={styles.userPreviewRow}>🏛️ {FACULTY_COLORS[newUserFaculty]?.label[lang]}</Text>
-              {newUserRole === 'student' && (
-                <>
-                  {newUserStudentId ? <Text style={styles.userPreviewRow}>🪪 {newUserStudentId}</Text> : null}
-                  <Text style={styles.userPreviewRow}>
-                    🎓 {newUserDegree === 'bachelors'
-                      ? (lang === 'he' ? 'תואר ראשון' : "B.Sc.")
-                      : (lang === 'he' ? 'תואר שני'   : "M.Sc.")}
-                    {' · '}
-                    {lang === 'he' ? `שנה ${newUserYear}` : `Year ${newUserYear}`}
-                  </Text>
-                  {newUserMajor ? <Text style={styles.userPreviewRow}>📚 {newUserMajor}</Text> : null}
-                </>
-              )}
-            </View>
-          )}
-
-          <Pressable
-            style={[styles.submitBtn, creatingUser && { opacity: 0.6 }]}
-            onPress={handleCreateUser}
-            disabled={creatingUser}
-          >
-            {creatingUser
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.submitBtnText}>
-                  ➕ {lang === 'he' ? 'צור משתמש' : 'Create User'}
-                </Text>
-            }
-          </Pressable>
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </Modal>
+        onCreate={handleCreateUser}
+        creating={creatingUser}
+      />
     </SafeAreaView>
   );
 }

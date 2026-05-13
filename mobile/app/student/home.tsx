@@ -1,7 +1,7 @@
 // app/student/home.tsx  — React Native (Expo) version
 // The Next.js version is app/[locale]/(student)/home/page.tsx (see bottom of file)
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput,
   ActivityIndicator, Platform, SafeAreaView,
@@ -22,6 +22,7 @@ export default function StudentHome() {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
+  const unsubNotifsRef = useRef<(() => void) | null>(null);
 
   const {
     studentState, studentName,
@@ -30,6 +31,7 @@ export default function StudentHome() {
   } = useStudentData();
 
   const handleSignOut = async () => {
+    unsubNotifsRef.current?.();           // ← call it before signing out
     await signOut(auth);
     router.replace('/');
   };
@@ -75,7 +77,7 @@ export default function StudentHome() {
           </Pressable>
 
           {/* Notifications bell */}
-          <Pressable style={styles.bellBtn} onPress={() => router.push('/(tabs)/Notificationsscreen')}>
+          <Pressable style={styles.bellBtn} onPress={() => router.push('/(tabs)/notifications')}>
             <Text style={styles.bellIcon}>🔔</Text>
             {unreadCount > 0 && (
               <View style={styles.badge}>

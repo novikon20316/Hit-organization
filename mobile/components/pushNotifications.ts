@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 
 export async function registerForPushNotificationsAsync() {
   if (!Device.isDevice) {
+    console.log('Must use physical device for Push Notifications');
     alert('Must use physical device');
     return null;
   }

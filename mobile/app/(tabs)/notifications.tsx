@@ -12,6 +12,7 @@ import { db, auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import { markNotificationRead, markAllNotificationsRead } from '../../components/Notificationservice';
 import type { Lang } from '../../components/i18n';
+import NewChatSheet from '../message/new';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface Notif {
@@ -25,6 +26,8 @@ interface Notif {
   createdAt:          Timestamp;
   relatedProjectId:   string | null;
   relatedMilestoneId: string | null;
+  chatId?:     string;
+  senderName?: string;
 }
 
 // ─── Notification type → icon + color ──────────────────────────────────────
@@ -36,6 +39,7 @@ const TYPE_STYLE: Record<string, { icon: string; color: string; bg: string }> = 
   milestone_graded:       { icon: '✏️', color: '#8B5CF6', bg: '#F5F3FF' },
   milestone_deadline_7d:  { icon: '⏰', color: '#F59E0B', bg: '#FFFBEB' },
   milestone_deadline_1d:  { icon: '🚨', color: '#EF4444', bg: '#FEF2F2' },
+  broadcast:              { icon: '📢', color: '#EF4444', bg: '#FEF2F2' },
 };
 
 // ─── Format relative time ──────────────────────────────────────────────────
@@ -121,12 +125,13 @@ function NotifRow({ notif, lang, isRtl, onPress }: {
 export default function NotificationsScreen() {
   const router = useRouter();
   const uid    = auth.currentUser?.uid;
-
+  const [unsubNotifs, setUnsubNotifs] = useState<(() => void) | null>(null);
   const [lang,          setLang]          = useState<Lang>('he');
   const [notifications, setNotifications] = useState<Notif[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [filter,        setFilter]        = useState<'all' | 'unread'>('all');
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [chatSheetVisible, setChatSheetVisible] = useState(false);
   const isRtl      = lang === 'he';
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -138,7 +143,7 @@ export default function NotificationsScreen() {
       where('recipientId', '==', uid),
       orderBy('createdAt', 'desc'),
     );
-    return onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
       setNotifications(
         snap.docs.map((d) => ({
           id:                 d.id,
@@ -151,16 +156,23 @@ export default function NotificationsScreen() {
           createdAt:          d.data().createdAt,
           relatedProjectId:   d.data().relatedProjectId   ?? null,
           relatedMilestoneId: d.data().relatedMilestoneId ?? null,
+          chatId:             d.data().chatId             ?? null,
+          senderName:         d.data().senderName         ?? null,
         }))
       );
       setLoading(false);
     });
+    setUnsubNotifs(() => unsub);
+    return unsub;
   }, [uid]);
 
   useEffect(() => {
     const loadRole = async () => {
-      if (!uid) return;
-
+      if (!uid) 
+        {
+          console.log('No UID, cannot load role');
+          return;
+        }
       try {
         const { doc, getDoc } = await import('firebase/firestore');
 
@@ -178,6 +190,7 @@ export default function NotificationsScreen() {
   }, [uid]);
 
   const goHomeByRole = () => {
+    unsubNotifs?.();
     switch (userRole) {
       case 'student':
         router.replace('/student/home');
@@ -187,17 +200,17 @@ export default function NotificationsScreen() {
         router.replace('/supervisor/dashboard');
         break;
 
-      /*case 'examiner':
-        router.replace('/examiner/home');
+      case 'examiner':
+        router.replace('/examinor/home');
         break;
 
       case 'coordinator':
-        router.replace('/coordinator/dashboard');
+        router.replace('/coordinator/home');
         break;
 
       case 'faculty_admin':
         router.replace('/faculty_admin/dashboard');
-        break;*/
+        break;
 
       case 'system_admin':
         router.replace('/admin/panel');
@@ -213,6 +226,18 @@ export default function NotificationsScreen() {
 
     // Navigate based on type + role
     switch (notif.type) {
+      case 'new_message':
+        if (notif.chatId) {
+          router.push({
+            pathname: '/message/[chatId]',
+            params: {
+              chatId:    notif.chatId,
+              otherName: notif.senderName ?? '',
+              otherRole: '',
+            },
+          });
+        }
+        break;
       case 'project_published':
         router.push('/student/home');
         break;
@@ -357,8 +382,27 @@ export default function NotificationsScreen() {
             </View>
           ))}
           <View style={{ height: 40 }} />
+          
         </ScrollView>
       )}
+      <Pressable
+        style={s.fab}
+        onPress={() => setChatSheetVisible(true)}
+      >
+        <Text style={s.fabText}>+</Text>
+      </Pressable>
+
+      <NewChatSheet
+        visible={chatSheetVisible}
+        onClose={() => setChatSheetVisible(false)}
+        onChatCreated={(chatId, otherName, otherRole) => {
+          setChatSheetVisible(false);
+          router.push({
+            pathname: '/message/[chatId]',
+            params: { chatId, otherName, otherRole },
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -426,6 +470,24 @@ const s = StyleSheet.create({
   emptyEmoji:  { fontSize: 56, marginBottom: 16 },
   emptyTitle:  { fontSize: 18, fontWeight: '800', color: '#111', marginBottom: 8, textAlign: 'center' },
   emptyBody:   { fontSize: 14, color: '#8899BB', textAlign: 'center', lineHeight: 20 },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#2E86FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+  },
+
+  fabText: {
+    color: '#fff',
+    fontSize: 30,
+    fontWeight: '700',
+  },
 });
 
 // ─── Notification row styles ────────────────────────────────────────────────
@@ -458,4 +520,5 @@ const nr = StyleSheet.create({
   titleBold:   { fontWeight: '700', color: '#111' },
   time:        { fontSize: 11, color: '#9BA8C0', flexShrink: 0 },
   body:        { fontSize: 12, color: '#8899BB', lineHeight: 17 },
+  
 });

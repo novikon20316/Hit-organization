@@ -24,7 +24,7 @@ const KNOWN_PREFIXES = [
   '/supervisor/',
   '/examiner/',
   '/coordinator/',
-  '/faculty-admin/',
+  '/faculty_admin/',
   '/admin/',
   '/notifications',
 ];
@@ -34,7 +34,7 @@ const ROLE_ROUTES: Record<string, string> = {
   supervisor:    '/supervisor/home',
   coordinator:   '/coordinator/home',
   examiner:      '/examiner/home',
-  faculty_admin: '/admin/panel',
+  faculty_admin: '/faculty_admin/dashboard',
   system_admin:  '/admin/panel',
 };
 
@@ -68,7 +68,7 @@ const ROLE_TABS: Record<string, Array<{
     { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   faculty_admin: [
-    { name: 'faculty-admin/home', iconActive: '⚙️', iconInactive: '⚙️', labelHe: 'ניהול',  labelEn: 'Admin'     },
+    { name: 'faculty_admin/home', iconActive: '⚙️', iconInactive: '⚙️', labelHe: 'ניהול',  labelEn: 'Admin'     },
     { name: 'notifications',      iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות', labelEn: 'Alerts'    },
   ],
   system_admin: [
@@ -169,6 +169,7 @@ export default function TabLayout() {
     !loaded ||
     !role ||
     HIDDEN_TAB_ROUTES.includes(pathname) ||
+    pathname.startsWith('/notifications') ||
     !isKnownRoute(pathname);
 
   const tabs = role ? (ROLE_TABS[role] ?? []) : [];
@@ -179,7 +180,7 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,          // ← your existing haptic press kept
         tabBarShowLabel: false,           // we draw our own label inside TabIcon
-        tabBarStyle: shouldHideTabs
+        tabBarStyle: shouldHideTabs 
           ? styles.hidden
           : styles.tabBar,
       }}
@@ -202,14 +203,8 @@ export default function TabLayout() {
         />
       ))}
 
-      {/* Hide all auth/setup screens from the tab bar */}
-      <Tabs.Screen name="index"                 options={{ href: null }} />
-      <Tabs.Screen name="login"                 options={{ href: null }} />
-      <Tabs.Screen name="register"              options={{ href: null }} />
-      <Tabs.Screen name="student/profile-setup" options={{ href: null }} />
 
-      {/* Hide the old Expo template screens that no longer exist */}
-      <Tabs.Screen name="explore"               options={{ href: null }} />
+
     </Tabs>
   );
 }

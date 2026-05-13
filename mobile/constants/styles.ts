@@ -1403,6 +1403,63 @@ export const adminPanelStyles = StyleSheet.create({
     fontWeight: '800',
     fontSize:   16,
   },
+  projectMilestoneCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 18,
+
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+
+    elevation: 3,
+    },
+
+    milestoneCounter: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    },
+
+    milestoneCounterText: {
+    fontWeight: '700',
+    color: '#4338CA',
+    },
+
+    milestoneStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    },
+
+    milestoneStatBox: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    marginHorizontal: 4,
+    paddingVertical: 12,
+    borderRadius: 16,
+    },
+
+    milestoneStatEmoji: {
+    fontSize: 20,
+    marginBottom: 4,
+    },
+
+    milestoneStatValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    },
+
+    openProjectText: {
+    marginTop: 16,
+    textAlign: 'center',
+    color: '#64748B',
+    fontWeight: '600',
+    },
 });
 
 export const browseProjectsStyles = StyleSheet.create({

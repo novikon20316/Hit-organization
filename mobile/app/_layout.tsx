@@ -11,20 +11,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      console.log("🔥 AUTH STATE:", user?.uid);
-      console.log("AUTH UID:", user?.uid);
       if (!user) {
-        console.log("➡️ No user, redirecting to login");
-        router.replace("/(auth)/login");
         setLoading(false);
         return;
       }
       const snap = await getDoc(doc(db, "users", user.uid));
-      
-      console.log("SNAP EXISTS:", snap.exists());
-      console.log("SNAP DATA:", snap.data());
-      console.log("🔥 USER DOC EXISTS:", snap.exists());
-      console.log("🔥 USER DATA:", snap.data());
       if (!snap.exists()) {
         console.log("❌ User doc missing");
         router.replace("/(auth)/login");
@@ -35,24 +26,16 @@ export default function RootLayout() {
       if(!data.expoPushToken){
         try {
           const pushToken = await registerForPushNotificationsAsync();
-
-          console.log("📱 PUSH TOKEN:", pushToken);
-
           if (pushToken) {
             await updateDoc(doc(db, "users", user.uid), {
               expoPushToken: pushToken,
             });
-
-            console.log("✅ Push token saved to Firestore");
           }
         } catch (err) {
           console.log("❌ Push notification setup error:", err);
         }
       }
       const role = data.role;
-
-      console.log("🔥 ROLE:", role);
-
       if (role === "student") {
         console.log("➡️ navigating to student");
         router.replace("/student/home");
