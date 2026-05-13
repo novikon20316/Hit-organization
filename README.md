@@ -1,4 +1,4 @@
-git clone https://github.com/your-username/hit-organization.git
+git clone https://github.com/novikon20316/hit-organization.git
     cd hit-organization
     ```
 
