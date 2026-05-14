@@ -9,7 +9,7 @@ import { db, auth } from '../src/firebase/firebase';
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type StudentState = 'loading' | 'no_project' | 'pending' | 'active';
 
-export type DegreeType  = 'bachelors' | 'masters' | 'both';
+export type DegreeType  = 'bachelors' | 'masters' ;
 export type ProjectType = 'project' | 'thesis';
 
 export type MilestoneStatus =
@@ -98,6 +98,7 @@ export function useStudentData() {
   const [notifications,      setNotifications]      = useState<AppNotification[]>([]);
   const [unreadCount,        setUnreadCount]        = useState(0);
   const [studentName,        setStudentName]        = useState('');
+  const [studentDegree,      setStudentDegree]      = useState<DegreeType>('bachelors');
   const [error,              setError]              = useState<string | null>(null);
   const [facultyId, setFacultyId] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
@@ -114,65 +115,59 @@ export function useStudentData() {
   useEffect(() => {
     if (!uid) return;
 
-    const init = async () => {
-      try {
-        // 1. Fetch profile first to get the facultyId
-        const userSnap = await getDoc(doc(db, 'users', uid));
-        if (!userSnap.exists()) {
-          console.error("User doc missing");
-          setStudentState('no_project');
-          return;
-        }
-        
-        const userData = userSnap.data();
-        const userFacultyId = userData.facultyId; // Get this from the doc
-        setStudentName(userData.displayName || '');
-        setFacultyId(userFacultyId); // Update state
-
-        // 2. Check for active project - ADD THE FACULTY FILTER
-        const projectsQ = query(
-          collection(db, 'projects'),
-          where('facultyId', '==', userFacultyId), // REQUIRED BY RULES
-          where('enrolledStudentIds', 'array-contains', uid),
-          where('isArchived', '==', false)
-        );
-        const projectsSnap = await getDocs(projectsQ);
-
-        if (!projectsSnap.empty) {
-          // ... set active project logic
-          setStudentState('active');
-          return;
-        }
-
-        // 3. Check for pending application
-        const appsQ = query(
-          collection(db, 'applications'),
-          where('studentId', '==', uid),
-          where('status', 'in', ['pending', 'meeting_requested'])
-        );
-        const appsSnap = await getDocs(appsQ);
-
-        if (!appsSnap.empty) {
-          const appData = appsSnap.docs[0].data();
-          // This getDoc will only work if appData.projectId's faculty matches yours
-          const projSnap = await getDoc(doc(db, 'projects', appData.projectId));
-          
-          if (projSnap.exists()) {
-            // ... set pending application logic
-            setStudentState('pending');
-            return;
-          }
-        }
-
+    // Listen to the user document for real-time changes (like being accepted)
+    const userDocRef = doc(db, 'users', uid);
+    
+    const unsubUser = onSnapshot(userDocRef, async (userSnap) => {
+      if (!userSnap.exists()) {
         setStudentState('no_project');
-
-      } catch (e) {
-        console.error('useStudentData init error:', e);
-        setError('Failed to load student data');
+        return;
       }
-    };
 
-    init();
+      const userData = userSnap.data();
+      setStudentName(userData.displayName || '');
+      setFacultyId(userData.facultyId);
+      setStudentDegree(userData.degreeType || 'bachelors');
+
+      // Case A: Student has an active project
+      if (userData.hasActiveProject && userData.activeProjectId) {
+        try {
+          const projSnap = await getDoc(doc(db, 'projects', userData.activeProjectId));
+          if (projSnap.exists()) {
+            const pData = projSnap.data();
+            setActiveProject({
+              id: projSnap.id,
+              ...pData
+            } as ActiveProject);
+            setStudentState('active');
+            return; // Exit early, we found our state
+          }
+        } catch (e) {
+          console.error("Error fetching active project:", e);
+        }
+      }
+
+      // Case B: No active project, check for pending applications
+      const appsQ = query(
+        collection(db, 'applications'),
+        where('studentId', '==', uid),
+        where('status', 'in', ['pending', 'meeting_requested'])
+      );
+      
+      const appsSnap = await getDocs(appsQ);
+      if (!appsSnap.empty) {
+        const appData = appsSnap.docs[0].data();
+        setPendingApplication({
+          id: appsSnap.docs[0].id,
+          ...appData
+        } as PendingApplication);
+        setStudentState('pending');
+      } else {
+        setStudentState('no_project');
+      }
+    });
+
+    return () => unsubUser();
   }, [uid]);
 
   // ── 2. Load milestones when active ────────────────────────────────────────
@@ -187,9 +182,6 @@ export function useStudentData() {
 
     const unsub = onSnapshot(milestonesQ, async (snap) => {
       console.log("🔥 MILSTONE SNAP SIZE:", snap.size);
-      snap.forEach(doc => {
-        console.log("📄 DOC:", doc.id, doc.data());
-      });
       const items: Milestone[] = [];
       for (const d of snap.docs) {
         const data = d.data();
@@ -236,6 +228,11 @@ export function useStudentData() {
       const items: ProjectProposal[] = [];
       for (const d of snap.docs) {
         const data = d.data();
+        if (
+          data.degreeType !== studentDegree
+        ) {
+          continue;
+        }
         const supervisorSnap = await getDoc(doc(db, 'users', data.supervisorId));
         const supervisorName = supervisorSnap.exists()
           ? supervisorSnap.data().displayName
@@ -312,6 +309,7 @@ export function useStudentData() {
     pendingApplication,
     notifications,
     unreadCount,
+    studentDegree,
     error,
     // Allow external refresh
     refresh: () => setStudentState('loading'),

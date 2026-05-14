@@ -85,7 +85,7 @@ export default function ActiveDashboard({
           name: f.name,
         } as any);
 
-        formData.append('upload_preset', 'YOUR_UPLOAD_PRESET');
+        formData.append('upload_preset', 'MileStones');
 
         const res = await fetch(
           'https://api.cloudinary.com/v1_1/dp7stlfas/auto/upload',
@@ -99,12 +99,13 @@ export default function ActiveDashboard({
 
         fileUrls.push(data.secure_url);
       }
-
+      console.log("FINAL fileUrls:", fileUrls);
+      console.log("HAS INVALID:", fileUrls.some(x => typeof x !== 'string'));
       // Update milestone doc
       await updateDoc(doc(db, 'milestones', targetMilestone.id), {
         status:         'submitted',
         submittedAt:    serverTimestamp(),
-        fileUrls,
+        fileUrls:       fileUrls ,
         submissionNote: note,
       });
 

@@ -751,7 +751,11 @@ export const coordinatorHomeStyles = StyleSheet.create({
     paddingVertical: 12, alignItems: 'center',
   },
   approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-
+  rejectBtn: {
+    flex: 1, backgroundColor: '#8B5CF6', borderRadius: 12,
+    paddingVertical: 12, alignItems: 'center',
+  },
+  rejectBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   scheduleBtn: {
     backgroundColor: '#EDE9FE', borderRadius: 12, paddingVertical: 12,
     alignItems: 'center', marginTop: 12, borderWidth: 1, borderColor: '#C4B5FD',
@@ -823,6 +827,47 @@ export const coordinatorHomeStyles = StyleSheet.create({
     alignItems: 'center', marginTop: 10,
   },
   cancelBtnText: { color: '#8B5CF6', fontSize: 14, fontWeight: '600' },
+  cardExpanded: {
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+    },
+
+    expandedSection: {
+    marginTop: 14,
+    gap: 12,
+    },
+
+    expandedBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    },
+
+    expandedTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 6,
+    },
+
+    expandedText: {
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 20,
+    },
+
+    fileBtn: {
+    backgroundColor: '#EDE9FE',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginTop: 8,
+    },
+
+    fileBtnText: {
+    color: '#6D28D9',
+    fontWeight: '700',
+    },
 });
 
 export const adminPanelStyles = StyleSheet.create({
@@ -1485,6 +1530,18 @@ export const browseProjectsStyles = StyleSheet.create({
   searchIcon: { fontSize: 18 },
 
   filters: { paddingHorizontal: 14, marginBottom: 6 },
+  filtersWrapper: {
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -1531,13 +1588,23 @@ export const browseProjectsStyles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  cardHeader: { marginBottom: 10 },
+  cardHeader: {
+    marginBottom: 10,
+    width: '100%',
+  },
   badges: {
     flexDirection: 'column',
     alignItems: 'flex-start',
     gap: 6,
+    width: '100%',
   },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  badge: { 
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    maxWidth: '100%',
+  },
   badgeBachelors: { backgroundColor: '#E3F2FD' },
   badgeMasters: { backgroundColor: '#F3E5F5' },
   badgeType: { backgroundColor: '#E8F5E9' },

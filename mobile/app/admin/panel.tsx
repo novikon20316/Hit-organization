@@ -47,7 +47,6 @@ import { sendPushNotification } from '@/components/pushNotifications';
 import { adminPanelStyles } from '../../constants/styles';
 import {ROLE_LABELS} from '../../constants';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal} from '@/components/modals';
-const { width } = Dimensions.get('window');
 
 interface AppUser {
   id: string;
@@ -162,6 +161,8 @@ export default function PanelScreen() {
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [maxStudents, setMaxStudents] = useState<number>(1);
+  
   // ── Add student to project state ──────────────────────────────────────────────
   const [addStudentModal, setAddStudentModal] = useState(false);
   const [addStudentProject, setAddStudentProject] = useState<ProjectRecord | null>(null);
@@ -239,6 +240,7 @@ export default function PanelScreen() {
   }, [uid]);
 
   useEffect(() => {
+    if (!auth.currentUser) return;
     unsubUsersRef.current = onSnapshot(collection(db, 'users'), (snap) => {
       setUsers(snap.docs.map((d) => ({
         id: d.id,
@@ -255,6 +257,7 @@ export default function PanelScreen() {
   }, []);
 
   useEffect(() => {
+    if (!auth.currentUser) return;
     const q = query(
       collection(db, 'projects'),
       where('isArchived', '==', false),
@@ -296,6 +299,7 @@ export default function PanelScreen() {
   }, []);
 
   useEffect(() => {
+    if (!auth.currentUser) return;
     const statuses = ['pending', 'submitted', 'supervisor_graded'];
     const q = query(
       collection(db, 'milestones'),
@@ -336,8 +340,7 @@ export default function PanelScreen() {
   }, []);
 
   useEffect(() => {
-    if (!uid) return;
-
+    if (!auth.currentUser) return;
     const q = query(
       collection(db, 'notifications'),
       where('recipientId', '==', uid),
@@ -546,7 +549,7 @@ export default function PanelScreen() {
         descriptionEn:      newDescEn.trim(),
         degreeType:         newDegree,
         projectType:        newType,
-        maxStudents:        1,
+        maxStudents:        maxStudents,
         requiredSkills:     newSkills.split(',').map((s) => s.trim()).filter(Boolean),
         status:             'published',
         enrolledStudentIds: [],
@@ -1168,6 +1171,9 @@ export default function PanelScreen() {
 
         onCreate={handleCreateProject}
         creating={creating}
+
+        maxStudents={maxStudents}
+        setMaxStudents={setMaxStudents}
 
         setShowConfirm={setShowConfirm}
 

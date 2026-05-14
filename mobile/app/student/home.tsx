@@ -1,7 +1,7 @@
 // app/student/home.tsx  — React Native (Expo) version
 // The Next.js version is app/[locale]/(student)/home/page.tsx (see bottom of file)
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput,
   ActivityIndicator, Platform, SafeAreaView,
@@ -27,7 +27,7 @@ export default function StudentHome() {
   const {
     studentState, studentName,
     proposals, activeProject, milestones, nextMilestone, progress,
-    pendingApplication, notifications, unreadCount,
+    pendingApplication, notifications, unreadCount, studentDegree,
   } = useStudentData();
 
   const handleSignOut = async () => {
@@ -97,7 +97,7 @@ export default function StudentHome() {
 
       {/* ── Main Content — smart routing ── */}
       {studentState === 'no_project' && (
-        <BrowseProjects proposals={proposals} lang={lang} isRtl={isRtl} />
+        <BrowseProjects proposals={proposals} lang={lang} isRtl={isRtl} studentDegree={studentDegree} />
       )}
 
       {studentState === 'pending' && pendingApplication && (

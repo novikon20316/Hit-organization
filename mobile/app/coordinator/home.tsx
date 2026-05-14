@@ -25,6 +25,10 @@ interface PendingMilestone {
   studentIds: string[];
   supervisorId: string;
   supervisorScore: number | null;
+  supervisorComment?: string;
+  fileUrls?: string[];
+  submissionNote?: string;
+  
   examinerIds: string[];
   examiner1Score: number | null;
   examiner2Score: number | null;
@@ -81,8 +85,14 @@ export default function CoordinatorHome() {
   const [defenseRoom,      setDefenseRoom]      = useState('');
 
   const [saving, setSaving] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const uid = auth.currentUser?.uid;
-
+  const toggleCardExpansion = (milestoneId: string) => {
+    setExpandedCards((prev) => ({
+      ...prev,
+      [milestoneId]: !prev[milestoneId],
+    }));
+  };
   useEffect(() => {
     if (!uid) return;
     getDoc(doc(db, 'users', uid)).then((snap) => {
@@ -132,6 +142,9 @@ export default function CoordinatorHome() {
           studentIds:      data.studentIds ?? [],
           supervisorId:    data.supervisorId ?? '',
           supervisorScore: data.supervisorScore ?? null,
+          supervisorComment: data.supervisorComment ?? '',
+          fileUrls: data.fileUrls ?? [],
+          submissionNote: data.submissionNote ?? '',
           examinerIds:     data.examinerIds ?? [],
           examiner1Score:  data.examiner1Score ?? null,
           examiner2Score:  data.examiner2Score ?? null,
@@ -242,7 +255,80 @@ export default function CoordinatorHome() {
       setSaving(false);
     }
   };
+  //--- Reject milestone (research_proposal or progress_report) ----------------------
+  const handleReject = async (milestone: PendingMilestone) => {
+    Alert.alert(
+      lang === 'he' ? 'דחיית אבן דרך' : 'Reject Milestone',
+      lang === 'he'
+        ? 'האם אתה בטוח שברצונך לדחות את אבן הדרך?'
+        : 'Are you sure you want to reject this milestone?',
+      [
+        {
+          text: lang === 'he' ? 'ביטול' : 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: lang === 'he' ? 'דחה' : 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            setSaving(true);
 
+            try {
+              await updateDoc(doc(db, 'milestones', milestone.id), {
+                status: 'pending',
+                coordinatorApprovedAt: null,
+                coordinatorId: null,
+              });
+
+              // notify students
+              for (const studentId of milestone.studentIds) {
+                await addDoc(collection(db, 'notifications'), {
+                  recipientId: studentId,
+
+                  type: 'milestone_rejected',
+
+                  titleHe: '❌ אבן דרך נדחתה',
+                  titleEn: '❌ Milestone Rejected',
+
+                  bodyHe: `הרכז דחה את ${
+                    MILESTONE_LABEL[milestone.type]?.he
+                  } ויש לבצע תיקונים`,
+
+                  bodyEn: `Coordinator rejected your ${
+                    MILESTONE_LABEL[milestone.type]?.en
+                  }. Please revise and resubmit.`,
+
+                  relatedProjectId: milestone.projectId,
+                  relatedMilestoneId: milestone.id,
+
+                  isRead: false,
+                  createdAt: serverTimestamp(),
+                });
+              }
+
+              Alert.alert(
+                '✅',
+                lang === 'he'
+                  ? 'אבן הדרך נדחתה בהצלחה'
+                  : 'Milestone rejected successfully'
+              );
+            } catch (e) {
+              console.error(e);
+
+              Alert.alert(
+                lang === 'he' ? 'שגיאה' : 'Error',
+                lang === 'he'
+                  ? 'אירעה שגיאה בעת דחיית אבן הדרך'
+                  : 'Failed to reject milestone'
+              );
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
   // ── Assign examiners + weights (final_report) ─────────────────────────────
   const handleAssignExaminers = async () => {
     if (!selectedMilestone) return;
@@ -416,7 +502,14 @@ export default function CoordinatorHome() {
               </View>
             ) : (
               pendingApprovals.map((m) => (
-                <View key={m.id} style={styles.card}>
+                <Pressable
+                  key={m.id}
+                  style={[
+                    styles.card,
+                    expandedCards[m.id] && styles.cardExpanded,
+                  ]}
+                  onPress={() => toggleCardExpansion(m.id)}
+                >
                   <View style={styles.cardHeader}>
                     <Text style={styles.milestoneType}>
                       {MILESTONE_LABEL[m.type]?.[lang]}
@@ -432,7 +525,62 @@ export default function CoordinatorHome() {
                       ✏️ {lang === 'he' ? 'ציון מנחה:' : 'Supervisor score:'} {m.supervisorScore}
                     </Text>
                   )}
+                  {expandedCards[m.id] && (
+                    <View style={styles.expandedSection}>
 
+                      {/* Supervisor comment */}
+                      {m.supervisorComment ? (
+                        <View style={styles.expandedBox}>
+                          <Text style={styles.expandedTitle}>
+                            {lang === 'he' ? '💬 הערת מנחה' : '💬 Supervisor Comment'}
+                          </Text>
+
+                          <Text style={styles.expandedText}>
+                            {m.supervisorComment}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {/* Student submission note */}
+                      {m.submissionNote ? (
+                        <View style={styles.expandedBox}>
+                          <Text style={styles.expandedTitle}>
+                            {lang === 'he' ? '📝 הערת סטודנט' : '📝 Student Note'}
+                          </Text>
+
+                          <Text style={styles.expandedText}>
+                            {m.submissionNote}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {/* Uploaded files */}
+                      {m.fileUrls && m.fileUrls.length > 0 && (
+                        <View style={styles.expandedBox}>
+                          <Text style={styles.expandedTitle}>
+                            {lang === 'he' ? '📎 קבצים שהועלו' : '📎 Uploaded Files'}
+                          </Text>
+
+                          {m.fileUrls.map((url, index) => (
+                            <Pressable
+                              key={index}
+                              style={styles.fileBtn}
+                              onPress={() => router.push({
+                                pathname: '/pdfViewer',
+                                params: { url },
+                              })}
+                            >
+                              <Text style={styles.fileBtnText}>
+                                📄 {lang === 'he'
+                                  ? `קובץ ${index + 1}`
+                                  : `File ${index + 1}`}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
                   <View style={styles.actionRow}>
                     <Pressable
                       style={styles.approveBtn}
@@ -444,8 +592,18 @@ export default function CoordinatorHome() {
                           : (lang === 'he' ? '✅ אשר' : '✅ Approve')}
                       </Text>
                     </Pressable>
+                    <Pressable
+                      style={styles.rejectBtn}
+                      onPress={() => handleReject(m)}
+                    >
+                      <Text style={styles.rejectBtnText}>
+                        {m.type === 'final_report'
+                          ? (lang === 'he' ? '👥 אשר + הקצה בוחנים' : '👥 Approve + Assign Examiners')
+                          : (lang === 'he' ? '❌ דחה' : '❌ Reject')}
+                      </Text>
+                    </Pressable>
                   </View>
-                </View>
+                </Pressable>
               ))
             )}
           </>

@@ -1,3 +1,6 @@
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../src/firebase/firebase';
 // ─────────────────────────────────────────────────────────────────────────────
 // HOW TO CREATE YOUR SYSTEM ADMIN USER IN FIRESTORE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -143,8 +146,7 @@ const EXAMINER_DOC = {
 // Replace the existing "Create Test User" button logic with this.
 // It creates the correct doc for whoever is currently logged in.
 
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../src/firebase/firebase';
+
 
 export async function createAdminUserDoc() {
   const user = auth.currentUser;
@@ -181,6 +183,52 @@ export async function createAdminUserDoc() {
   console.log('✅ Admin doc created for UID:', user.uid);
 }
 
+export async function createCoordinator() {
+  try {
+    // 1. Create auth account
+    const cred = await createUserWithEmailAndPassword(
+      auth,
+      'coordinator@hit.ac.il',
+      '12345678'
+    );
+
+    const uid = cred.user.uid;
+
+    // 2. Create Firestore user document
+    await setDoc(doc(db, 'users', uid), {
+      uid,
+      email: 'coord@hit.ac.il',
+
+      displayName: 'רכז הפרויקטים',
+      displayNameHe: 'רכז הפרויקטים',
+      displayNameEn: 'Project Coordinator',
+
+      role: 'coordinator',
+
+      facultyId: 'computer_science',
+
+      additionalRoles: [],
+
+      degreeType: null,
+      yearOfStudy: null,
+      studentId: null,
+      major: null,
+
+      isActive: true,
+      profileComplete: true,
+      hasActiveProject: false,
+
+      language: 'he',
+      expoPushToken: null,
+
+      createdAt: serverTimestamp(),
+    });
+
+    console.log('✅ Coordinator created');
+  } catch (e) {
+    console.error('❌ Error creating coordinator:', e);
+  }
+};
 
 // ─── Valid role values (copy exactly — case sensitive) ────────────────────────
 //

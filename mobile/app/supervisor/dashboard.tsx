@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert,
+  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, Linking,
 } from 'react-native';
 import {
   collection, query, where, onSnapshot, doc,
@@ -71,11 +71,25 @@ export default function SupervisorHome() {
   const [newType,     setNewType]     = useState<'project' | 'thesis'>('project');
   const [newSkills,   setNewSkills]   = useState('');
   const [creating,    setCreating]    = useState(false);
-
+  const [maxStudents, setMaxStudents] = useState<number>(1);
   // ── Grade modal state ─────────────────────────────────────────────────────
   const [gradeModal,  setGradeModal]  = useState(false);
   const [gradeMilestone, setGradeMilestone] = useState<PendingMilestone | null>(null);
-  const [gradeScore,  setGradeScore]  = useState('');
+  //________________________________NEED TO UPDATE BASED ON THE DEMANDS OF hit____________________________________
+  const [criteria, setCriteria] = useState({
+    clarity: '',
+    methodology: '',
+    feasibility: '',
+    innovation: '',
+    writing: '',
+  });
+  const totalScore =
+  Number(criteria.clarity || 0) +
+  Number(criteria.methodology || 0) +
+  Number(criteria.feasibility || 0) +
+  Number(criteria.innovation || 0) +
+  Number(criteria.writing || 0);
+  //_____________________________________UNTILL HERE____________________________________
   const [gradeComment,setGradeComment]= useState('');
   const [submittingGrade, setSubmittingGrade] = useState(false);
 // ── project editing modal state ─────────────────────────────────────────────────────
@@ -262,7 +276,7 @@ export default function SupervisorHome() {
         descriptionEn:      newDescEn.trim(),
         degreeType:         newDegree,
         projectType:        newType,
-        maxStudents:        1,
+        maxStudents:        maxStudents,
         requiredSkills:     newSkills.split(',').map((s) => s.trim()).filter(Boolean),
         status:             'published',
         enrolledStudentIds: [],
@@ -436,41 +450,67 @@ export default function SupervisorHome() {
   };
   // ── Grade submission ───────────────────────────────────────────────────────
   const handleGrade = async () => {
-    if (!gradeMilestone || !gradeScore) return;
-    const score = parseFloat(gradeScore);
-    if (isNaN(score) || score < 0 || score > 100) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'ציון חייב להיות בין 0 ל-100' : 'Score must be between 0 and 100');
-      return;
-    }
-    setSubmittingGrade(true);
-    try {
-      await addDoc(collection(db, 'grades'), {
-        milestoneId:          gradeMilestone.id,
-        projectId:            gradeMilestone.projectId,
-        graderId:             uid,
-        graderRole:           'supervisor',
-        totalScore:           score,
-        weightedContribution: score,
-        comments:             gradeComment,
-        formTemplate:         [],
-        responses:            {},
-        submittedAt:          serverTimestamp(),
-        isFinalized:          true,
-      });
-      await updateDoc(doc(db, 'milestones', gradeMilestone.id), {
-        status:            'supervisor_graded',
-        supervisorGradeId: uid,
-        finalGrade:        score,
-      });
-      setGradeModal(false);
-      setGradeScore(''); setGradeComment('');
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSubmittingGrade(false);
-    }
-  };
+  if (!gradeMilestone) return;
+
+  if (totalScore < 0 || totalScore > 100) {
+    Alert.alert(
+      lang === 'he' ? 'שגיאה' : 'Error',
+      lang === 'he'
+        ? 'ציון כולל חייב להיות בין 0 ל-100'
+        : 'Total score must be between 0 and 100'
+    );
+    return;
+  }
+
+  setSubmittingGrade(true);
+
+  try {
+    const gradeRef = await addDoc(collection(db, 'grades'), {
+      milestoneId: gradeMilestone.id,
+      projectId: gradeMilestone.projectId,
+      graderId: uid,
+      graderRole: 'supervisor',
+
+      // 🔥 NEW STRUCTURED DATA
+      grading: {
+        clarity: Number(criteria.clarity || 0),
+        methodology: Number(criteria.methodology || 0),
+        feasibility: Number(criteria.feasibility || 0),
+        innovation: Number(criteria.innovation || 0),
+        writing: Number(criteria.writing || 0),
+        total: totalScore,
+      },
+
+      comments: gradeComment,
+
+      submittedAt: serverTimestamp(),
+      isFinalized: true,
+    });
+
+    await updateDoc(doc(db, 'milestones', gradeMilestone.id), {
+      status: 'supervisor_graded',
+
+      // store reference to grade doc
+      supervisorGradeId: gradeRef.id,
+
+      finalGrade: totalScore,
+    });
+
+    setGradeModal(false);
+    setCriteria({
+      clarity: '',
+      methodology: '',
+      feasibility: '',
+      innovation: '',
+      writing: '',
+    });
+    setGradeComment('');
+  } catch (e) {
+    console.error(e);
+  } finally {
+    setSubmittingGrade(false);
+  }
+};
 
   const handleOpenEditModal = (project: MyProject | null) => {
     if (!project) return;
@@ -557,6 +597,25 @@ export default function SupervisorHome() {
             },
           ]
         );
+  };
+
+  const handleOpenDocument = async (url: string) => {
+    if (!url) {
+      Alert.alert(lang === 'he' ? 'לא נמצא מסמך' : 'Document not found');
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(lang === 'he' ? 'לא ניתן לפתוח את הקישור' : 'Unable to open link');
+      }
+    } catch (e) {
+      console.error('handleOpenDocument:', e);
+      Alert.alert(lang === 'he' ? 'שגיאה בפתיחת המסמך' : 'Error opening document');
+    }
   };
 
   if (loading) {
@@ -734,14 +793,20 @@ export default function SupervisorHome() {
                   {/* Document links */}
                   <View style={[styles.docsRow, isRtl && styles.rowReverse]}>
                     {app.transcriptUrl ? (
-                      <View style={styles.docChip}>
+                      <Pressable
+                        style={styles.docChip}
+                        onPress={() => handleOpenDocument(app.transcriptUrl)}
+                      >
                         <Text style={styles.docChipText}>📄 {lang === 'he' ? 'גיליון ציונים' : 'Transcript'}</Text>
-                      </View>
+                      </Pressable>
                     ) : null}
                     {app.cvUrl ? (
-                      <View style={styles.docChip}>
+                      <Pressable
+                        style={styles.docChip}
+                        onPress={() => handleOpenDocument(app.cvUrl)}
+                      >
                         <Text style={styles.docChipText}>📋 {lang === 'he' ? 'קורות חיים' : 'CV'}</Text>
-                      </View>
+                      </Pressable>
                     ) : null}
                   </View>
 
@@ -869,8 +934,12 @@ export default function SupervisorHome() {
         onCreate={handleCreateProject}
         creating={creating}
 
+        maxStudents={maxStudents}
+        setMaxStudents={setMaxStudents}
+
         facultyColors={FACULTY_COLORS}
         styles={styles}
+
       />
 
       {/* ── Grade Modal ── */}
@@ -881,7 +950,7 @@ export default function SupervisorHome() {
               <Text style={styles.modalTitle}>
                 {lang === 'he' ? 'טופס ציון' : 'Grading Form'}
               </Text>
-              <Pressable onPress={() => { setGradeModal(false); setGradeScore(''); setGradeComment(''); }}>
+              <Pressable onPress={() => { setGradeModal(false); setGradeComment(''); }}>
                 <Text style={styles.modalClose}>✕</Text>
               </Pressable>
             </View>
@@ -903,17 +972,54 @@ export default function SupervisorHome() {
             )}
 
             <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-              {lang === 'he' ? 'ציון (0–100) *' : 'Score (0–100) *'}
+              {lang === 'he' ? 'בהירות המחקר (0–20)' : 'Research Clarity (0–20)'}
             </Text>
-            <TextInput
-              style={[styles.input, styles.scoreInput]}
-              value={gradeScore}
-              onChangeText={setGradeScore}
-              keyboardType="numeric"
-              placeholder="85"
-              placeholderTextColor="#9BA8C0"
-              textAlign="center"
-            />
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={criteria.clarity}
+                onChangeText={(v) => setCriteria({ ...criteria, clarity: v })}
+              />
+
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'מתודולוגיה (0–25)' : 'Methodology (0–25)'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={criteria.methodology}
+                onChangeText={(v) => setCriteria({ ...criteria, methodology: v })}
+              />
+
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'ישימות (0–20)' : 'Feasibility (0–20)'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={criteria.feasibility}
+                onChangeText={(v) => setCriteria({ ...criteria, feasibility: v })}
+              />
+
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'חדשנות (0–15)' : 'Innovation (0–15)'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={criteria.innovation}
+                onChangeText={(v) => setCriteria({ ...criteria, innovation: v })}
+              />
+
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'כתיבה (0–20)' : 'Writing Quality (0–20)'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={criteria.writing}
+                onChangeText={(v) => setCriteria({ ...criteria, writing: v })}
+              />
 
             <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
               {lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}
@@ -929,6 +1035,9 @@ export default function SupervisorHome() {
               textAlign={isRtl ? 'right' : 'left'}
             />
 
+            <Text style={{ marginTop: 10, fontWeight: '700' }}>
+              Total: {totalScore}/100
+            </Text>
             <Pressable
               style={[styles.submitBtn, submittingGrade && { opacity: 0.6 }]}
               onPress={handleGrade}

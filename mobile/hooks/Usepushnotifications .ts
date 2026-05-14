@@ -78,7 +78,7 @@ function handleNotificationTap(
       router.push('/student/home');
       break;
     default:
-      router.push('/(tabs)/Notificationsscreen');
+      router.push('/(tabs)/notifications');
   }
 }
 

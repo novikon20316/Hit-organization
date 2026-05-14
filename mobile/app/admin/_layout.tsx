@@ -44,5 +44,9 @@ export default function AdminLayout() {
     return <NoAccessScreen />;
   }
 
-  return <Stack />;
+  return <Stack 
+    screenOptions={{
+      headerShown: false,
+    }}
+  />;
 }

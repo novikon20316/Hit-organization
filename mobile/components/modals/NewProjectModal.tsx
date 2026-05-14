@@ -66,6 +66,9 @@ type Props = {
 
   setShowConfirm?: (v: boolean) => void;
 
+  maxStudents: number;
+  setMaxStudents: (v: number) => void;
+
   facultyColors: FacultyColors;
   styles: any;
 };
@@ -108,11 +111,14 @@ export default function NewProjectModal({
   onCreate,
   creating,
 
+  maxStudents,
+  setMaxStudents,
+
   facultyColors,
   styles,
 }: Props) {
   const isAdmin = mode === "admin";
-
+  
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
@@ -189,6 +195,32 @@ export default function NewProjectModal({
             </View>
           </>
         )}
+        {/* Max students */}
+        <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+          {lang === "he" ? "מספר סטודנטים" : "Max Students"}
+        </Text>
+
+        <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
+          {[1, 2, 3, 4].map((num) => (
+            <Pressable
+              key={num}
+              style={[
+                styles.toggleBtn,
+                maxStudents === num && styles.toggleBtnActive,
+              ]}
+              onPress={() => setMaxStudents(num)}
+            >
+              <Text
+                style={[
+                  styles.toggleText,
+                  maxStudents === num && styles.toggleTextActive,
+                ]}
+              >
+                {num}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
         {/* Degree */}
         <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
@@ -196,7 +228,7 @@ export default function NewProjectModal({
         </Text>
 
         <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-          {["bachelors", "masters", "both"].map((d) => (
+          {["bachelors", "masters"].map((d) => (
             <Pressable
               key={d}
               style={[styles.toggleBtn, degree === d && styles.toggleBtnActive]}

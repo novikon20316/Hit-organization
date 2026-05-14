@@ -15,12 +15,13 @@ interface Props {
   proposals: ProjectProposal[];
   lang:      Lang;
   isRtl:    boolean;
+  studentDegree: 'bachelors' | 'masters';
 }
 
 type DegreeFilter = 'all' | 'bachelors' | 'masters';
 type TypeFilter   = 'all' | 'project' | 'thesis';
 
-export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
+export default function BrowseProjects({ proposals, lang, isRtl, studentDegree }: Props) {
   const [search,       setSearch]       = useState('');
   const [degreeFilter, setDegreeFilter] = useState<DegreeFilter>('all');
   const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all');
@@ -61,9 +62,7 @@ export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
 
     const degreeOk =
       degreeFilter === 'all' ||
-      p.degreeType === degreeFilter ||
-      p.degreeType === 'both';
-
+      p.degreeType === degreeFilter 
     const typeOk =
       typeFilter === 'all' || p.projectType === typeFilter;
 
@@ -202,38 +201,26 @@ export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
       </View>
 
       {/* Filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>
-        {/* Degree */}
-        {(['all', 'bachelors', 'masters'] as DegreeFilter[]).map((d) => (
-          <Pressable
-            key={d}
-            style={[styles.chip, degreeFilter === d && styles.chipActive]}
-            onPress={() => setDegreeFilter(d)}
-          >
-            <Text style={[styles.chipText, degreeFilter === d && styles.chipTextActive]}>
-              {d === 'all'       ? tx('all', lang) :
-               d === 'bachelors' ? tx('bachelors', lang) :
-                                   tx('masters', lang)}
-            </Text>
-          </Pressable>
-        ))}
-        <View style={styles.chipDivider} />
-        {/* Type */}
-        {(['all', 'project', 'thesis'] as TypeFilter[]).map((tp) => (
-          <Pressable
-            key={tp}
-            style={[styles.chip, typeFilter === tp && styles.chipActiveAlt]}
-            onPress={() => setTypeFilter(tp)}
-          >
-            <Text style={[styles.chipText, typeFilter === tp && styles.chipTextActive]}>
-              {tp === 'all'     ? tx('all', lang) :
-               tp === 'project' ? tx('projectType', lang) :
-                                  tx('thesisType', lang)}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
+      {studentDegree === 'masters' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>
+          <View style={styles.chipDivider} />
+          <View style={styles.filterRow}>
+            {(['all', 'project', 'thesis'] as TypeFilter[]).map((tp) => (
+              <Pressable
+                key={tp}
+                style={[styles.chip, typeFilter === tp && styles.chipActiveAlt]}
+                onPress={() => setTypeFilter(tp)}
+              >
+                <Text style={[styles.chipText, typeFilter === tp && styles.chipTextActive]}>
+                  {tp === 'all'     ? tx('all', lang) :
+                  tp === 'project' ? tx('projectType', lang) :
+                                      tx('thesisType', lang)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      )}
       {/* Results count */}
       <Text style={[styles.resultsCount, isRtl && styles.textRight]}>
         {filtered.length} {lang === 'he' ? 'פרויקטים' : 'projects'}
@@ -264,9 +251,7 @@ export default function BrowseProjects({ proposals, lang, isRtl }: Props) {
                     ]}
                   >
                     <Text style={styles.badgeText}>
-                      {p.degreeType === 'both'
-                        ? `${tx('bachelors', lang)} / ${tx('masters', lang)}`
-                        : tx(p.degreeType === 'bachelors' ? 'bachelors' : 'masters', lang)}
+                      {tx(p.degreeType === 'bachelors' ? 'bachelors' : 'masters',lang)}
                     </Text>
                   </View>
 

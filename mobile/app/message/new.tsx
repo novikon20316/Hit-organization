@@ -32,10 +32,11 @@ interface Props {
   visible:       boolean;
   onClose:       () => void;
   /** chatId, display name of the other user, their role */
+  existingChatIds: Set<string>; // to prevent duplicate chats in UI
   onChatCreated: (chatId: string, otherName: string, otherRole: string) => void;
 }
 
-export default function NewChatSheet({ visible, onClose, onChatCreated }: Props) {
+export default function NewChatSheet({ visible, onClose, onChatCreated, existingChatIds }: Props) {
   const uid       = auth.currentUser?.uid;
   const slideAnim = React.useRef(new Animated.Value(SCREEN_H)).current;
 

@@ -138,6 +138,7 @@ export default function PanelScreen() {
   const [newType, setNewType] = useState<'project' | 'thesis'>('project');
   const [newSkills, setNewSkills] = useState('');
   const [creating, setCreating] = useState(false);
+  const [maxStudents, setMaxStudents] = useState<number>(1);
 
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
@@ -391,6 +392,9 @@ export default function PanelScreen() {
 
         onCreate={handleCreateProject}
         creating={creating}
+
+        maxStudents={maxStudents}
+        setMaxStudents={setMaxStudents}
 
         facultyColors={FACULTY_COLORS}
         styles={{}}
