@@ -1,153 +1,123 @@
-// app/pdfviewer.tsx
-
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  ActivityIndicator,
-  SafeAreaView,
-  Pressable,
-  Linking,
-  Alert,
+  View, Text, ActivityIndicator,
+  SafeAreaView, Pressable, Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { WebView } from 'react-native-webview';
+import * as Sharing from 'expo-sharing';
+import { Paths, File } from 'expo-file-system';
 
 export default function PdfViewer() {
   const router = useRouter();
   const { url } = useLocalSearchParams<{ url: string }>();
+  const [status, setStatus] = useState<'downloading' | 'done' | 'error'>('downloading');
+  const [progress, setProgress] = useState(0);
 
-  const fileType = useMemo(() => {
-    if (!url) return 'unknown';
-
-    const lower = url.toLowerCase();
-
-    if (lower.includes('.pdf')) return 'pdf';
-
-    if (
-      lower.includes('.doc') ||
-      lower.includes('.docx')
-    ) {
-      return 'word';
-    }
-
-    return 'unknown';
+  useEffect(() => {
+    if (!url) return;
+    downloadAndOpen(url);
   }, [url]);
 
-  const viewerUrl = useMemo(() => {
-    if (!url) return '';
-
-    // PDF can open directly
-    if (fileType === 'pdf') {
-      return url;
-    }
-
-    // Word files via Office online viewer
-    if (fileType === 'word') {
-      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
-        url
-      )}`;
-    }
-
-    return url;
-  }, [url, fileType]);
-
-  const handleOpenExternally = async () => {
-    if (!url) return;
-
+  const downloadAndOpen = async (fileUrl: string) => {
     try {
-      await Linking.openURL(url);
+      setStatus('downloading');
+      setProgress(0);
+
+      const filename = fileUrl.split('/').pop()?.split('?')[0] ?? 'document.pdf';
+
+      // v19: use Paths.cache for temp directory
+      const tempFile = new File(Paths.cache, filename);
+
+      // Download via fetch
+      const response = await fetch(fileUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const blob = await response.blob();
+      setProgress(50);
+
+      // Convert blob to base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      setProgress(80);
+
+      // Write file using v19 API
+      await tempFile.write(base64);
+
+      setProgress(100);
+      setStatus('done');
+
+      // Share/open with native viewer
+      await Sharing.shareAsync(tempFile.uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Open PDF',
+      });
+
+      router.back();
+
     } catch (e) {
-      Alert.alert(
-        'Error',
-        'Could not open file externally'
-      );
+      console.error('Download error:', e);
+      setStatus('error');
     }
   };
 
-  if (!url) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <Text>No file URL found</Text>
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-      {/* Header */}
-      <View
-        style={{
-          height: 60,
-          paddingHorizontal: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottomWidth: 1,
-          borderBottomColor: '#E5E7EB',
-        }}
-      >
+      <View style={{
+        height: 60, paddingHorizontal: 16,
+        flexDirection: 'row', alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
+      }}>
         <Pressable onPress={() => router.back()}>
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: '600',
-              color: '#2563EB',
-            }}
-          >
-            ← Back
-          </Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: '#2563EB' }}>← Back</Text>
         </Pressable>
-
-        <Text
-          style={{
-            fontSize: 17,
-            fontWeight: '700',
-          }}
-        >
-          {fileType === 'pdf'
-            ? 'PDF Viewer'
-            : fileType === 'word'
-            ? 'Word Viewer'
-            : 'Document Viewer'}
-        </Text>
-
-        <Pressable onPress={handleOpenExternally}>
-          <Text
-            style={{
-              fontSize: 15,
-              fontWeight: '600',
-              color: '#2563EB',
-            }}
-          >
-            Open
-          </Text>
-        </Pressable>
+        <Text style={{ fontSize: 17, fontWeight: '700' }}>PDF Viewer</Text>
+        <View style={{ width: 50 }} />
       </View>
 
-      {/* Viewer */}
-      <WebView
-        source={{ uri: viewerUrl }}
-        startInLoadingState
-        renderLoading={() => (
-          <View
-            style={{
-              flex: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        {status === 'downloading' && (
+          <>
             <ActivityIndicator size="large" color="#2563EB" />
-          </View>
+            <Text style={{ marginTop: 16, fontSize: 16, color: '#374151' }}>
+              {progress > 0 ? `Downloading... ${progress}%` : 'Connecting...'}
+            </Text>
+          </>
         )}
-        style={{ flex: 1 }}
-      />
+        {status === 'done' && (
+          <>
+            <Text style={{ fontSize: 40 }}>✅</Text>
+            <Text style={{ marginTop: 12, fontSize: 16, color: '#374151' }}>
+              File ready
+            </Text>
+          </>
+        )}
+        {status === 'error' && (
+          <>
+            <Text style={{ fontSize: 40 }}>❌</Text>
+            <Text style={{ marginTop: 12, fontSize: 16, color: '#DC2626', textAlign: 'center' }}>
+              Failed to download file
+            </Text>
+            <Pressable
+              onPress={() => url && downloadAndOpen(url)}
+              style={{
+                marginTop: 20, backgroundColor: '#2563EB',
+                paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
     </SafeAreaView>
   );
 }

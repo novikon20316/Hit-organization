@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import {
   collection, query, where, onSnapshot, doc,
-  updateDoc, serverTimestamp, getDoc, addDoc,
+  updateDoc, serverTimestamp, getDoc, addDoc, getDocs
 } from 'firebase/firestore';
 import { db, auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
@@ -13,6 +13,7 @@ import type { Lang } from '../../components/i18n';
 import { TopBar, FacultyBadge, StatusBadge, getFacultyColor } from '../../components/shared';
 import { calculateFinalGrade, type GradeWeights } from '../../components/Milestoneservice';
 import { coordinatorHomeStyles } from '../../constants/styles';
+import {STATUS_LABEL, STATUS_COLORS} from '../../constants/labels'
 
 interface PendingMilestone {
   id: string;
@@ -37,6 +38,28 @@ interface PendingMilestone {
   facultyId: string;
   defenseDate: any;
   defenseRoom: string | null;
+
+  supervisorName?: string;        // ← add
+  milestoneGrades?: {             // ← add
+    type: string;
+    score: number | null;
+  }[];
+}
+
+interface InProgressProject {
+  id: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string;
+  studentNames: string[];
+  supervisorName: string;
+  progress: number;
+  status: string;
+  milestones: {
+    type: string;
+    status: string;
+    supervisorScore: number | null;
+  }[];
 }
 
 interface ExaminerUser {
@@ -53,6 +76,21 @@ const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   defense:           { he: 'הגנה',          en: 'Defense'           },
 };
 
+const MILESTONE_PROGRESS: Record<string, number> = {
+  research_proposal: 25,
+  progress_report:   50,
+  final_report:      75,
+  defense:           100,
+};
+
+const updateProjectProgress = async (projectId: string, milestoneType: string) => {
+  const newProgress = MILESTONE_PROGRESS[milestoneType] ?? 0;
+  await updateDoc(doc(db, 'projects', projectId), {
+    progress: newProgress,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
 export default function CoordinatorHome() {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>('he');
@@ -61,8 +99,9 @@ export default function CoordinatorHome() {
   const [coordinatorName, setCoordinatorName] = useState('');
   const [loading, setLoading]     = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'pending' | 'defense'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress'>('pending');
 
+  const [inProgressProjects, setInProgressProjects] = useState<InProgressProject[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<PendingMilestone[]>([]);
   const [defenseSetups,    setDefenseSetups]    = useState<PendingMilestone[]>([]);
   const [allExaminers,     setAllExaminers]     = useState<ExaminerUser[]>([]);
@@ -115,69 +154,169 @@ export default function CoordinatorHome() {
     );
   }, []);
 
-  // Milestones awaiting coordinator approval (status = supervisor_graded)
+  // ── In-progress projects ──────────────────────────────────────────────────
   useEffect(() => {
     const q = query(
-      collection(db, 'milestones'),
-      where('status', '==', 'supervisor_graded')
+      collection(db, 'projects'),
+      where('status', '==', 'in_progress')
     );
+
     return onSnapshot(q, async (snap) => {
-      const items: PendingMilestone[] = [];
-      for (const d of snap.docs) {
-        const data = d.data();
-        const projectSnap = await getDoc(doc(db, 'projects', data.projectId));
-        const studentNames: string[] = [];
-        for (const sid of (data.studentIds ?? [])) {
-          const sSnap = await getDoc(doc(db, 'users', sid));
-          if (sSnap.exists()) studentNames.push(sSnap.data().displayName);
-        }
-        items.push({
-          id:              d.id,
-          projectId:       data.projectId,
-          projectTitleHe:  projectSnap.data()?.titleHe ?? '',
-          projectTitleEn:  projectSnap.data()?.titleEn ?? '',
-          type:            data.type,
-          status:          data.status,
-          studentNames,
-          studentIds:      data.studentIds ?? [],
-          supervisorId:    data.supervisorId ?? '',
-          supervisorScore: data.supervisorScore ?? null,
-          supervisorComment: data.supervisorComment ?? '',
-          fileUrls: data.fileUrls ?? [],
-          submissionNote: data.submissionNote ?? '',
-          examinerIds:     data.examinerIds ?? [],
-          examiner1Score:  data.examiner1Score ?? null,
-          examiner2Score:  data.examiner2Score ?? null,
-          gradeWeights:    data.gradeWeights ?? null,
-          dueDate:         data.dueDate,
-          facultyId:       projectSnap.data()?.facultyId ?? '',
-          defenseDate:     data.defenseDate ?? null,
-          defenseRoom:     data.defenseRoom ?? null,
-        });
+      if (snap.empty) {
+        setInProgressProjects([]);
+        return;
       }
-      setPendingApprovals(items);
-      setLoading(false);
+
+      const items = await Promise.all(
+        snap.docs.map(async (d) => {
+          const data = d.data();
+
+          // Fetch students + supervisor + milestones in parallel
+          const [supervisorSnap, milestonesSnap, ...studentSnaps] = await Promise.all([
+            getDoc(doc(db, 'users', data.supervisorId)),
+            getDocs(query(
+              collection(db, 'milestones'),
+              where('projectId', '==', d.id)
+            )),
+            ...(data.enrolledStudentIds ?? []).map((sid: string) =>
+              getDoc(doc(db, 'users', sid))
+            ),
+          ]);
+
+          const studentNames = studentSnaps
+            .filter((s) => s.exists())
+            .map((s) => s.data().displayName as string);
+
+          const supervisorName = supervisorSnap.exists()
+            ? (supervisorSnap.data().displayName as string)
+            : '';
+
+          const milestones = milestonesSnap.docs
+            .map((md) => ({
+              type:           md.data().type as string,
+              status:         md.data().status as string,
+              supervisorScore:md.data().supervisorScore ?? null,
+            }))
+            .filter((m) => m.type !== 'defense')
+            .reduce((acc, m) => {
+              if (!acc.find((x) => x.type === m.type)) acc.push(m);
+              return acc;
+            }, [] as { type: string; status: string; supervisorScore: number | null }[])
+            .sort((a, b) => {
+              const order = ['research_proposal', 'progress_report', 'final_report'];
+              return order.indexOf(a.type) - order.indexOf(b.type);
+            });
+
+          return {
+            id:             d.id,
+            projectTitleHe: data.titleHe ?? '',
+            projectTitleEn: data.titleEn ?? '',
+            facultyId:      data.facultyId ?? '',
+            studentNames,
+            supervisorName,
+            progress:       data.progress ?? 0,
+            status:         data.status,
+            milestones,
+          } as InProgressProject;
+        })
+      );
+
+      setInProgressProjects(items);
     });
   }, []);
 
-  // Defense milestones needing setup (status = coordinator_approved + type = defense)
-  useEffect(() => {
-    const q = query(
-      collection(db, 'milestones'),
-      where('type', '==', 'defense'),
-      where('status', 'in', ['coordinator_approved', 'examiners_assigned'])
-    );
-    return onSnapshot(q, async (snap) => {
-      const items: PendingMilestone[] = [];
-      for (const d of snap.docs) {
+  // ── Milestones awaiting coordinator approval ──────────────────────────────
+useEffect(() => {
+  const q = query(
+    collection(db, 'milestones'),
+    where('status', '==', 'supervisor_graded')
+  );
+
+  return onSnapshot(q, async (snap) => {
+    if (snap.empty) {
+      setPendingApprovals([]);
+      setLoading(false);
+      return;
+    }
+
+    // ✅ Run ALL fetches in parallel
+    const items = await Promise.all(
+      snap.docs.map(async (d) => {
         const data = d.data();
-        const projectSnap = await getDoc(doc(db, 'projects', data.projectId));
-        const studentNames: string[] = [];
-        for (const sid of (data.studentIds ?? [])) {
-          const sSnap = await getDoc(doc(db, 'users', sid));
-          if (sSnap.exists()) studentNames.push(sSnap.data().displayName);
-        }
-        items.push({
+
+        // Fetch project + all students in parallel
+        const [projectSnap, ...studentSnaps] = await Promise.all([
+          getDoc(doc(db, 'projects', data.projectId)),
+          ...(data.studentIds ?? []).map((sid: string) =>
+            getDoc(doc(db, 'users', sid))
+          ),
+        ]);
+
+        const studentNames = studentSnaps
+          .filter((s) => s.exists())
+          .map((s) => s.data().displayName as string);
+
+        return {
+          id:               d.id,
+          projectId:        data.projectId,
+          projectTitleHe:   projectSnap.data()?.titleHe ?? '',
+          projectTitleEn:   projectSnap.data()?.titleEn ?? '',
+          type:             data.type,
+          status:           data.status,
+          studentNames,
+          studentIds:       data.studentIds ?? [],
+          supervisorId:     data.supervisorId ?? '',
+          supervisorScore:  data.supervisorScore ?? null,
+          supervisorComment:data.supervisorComment ?? '',
+          fileUrls:         data.fileUrls ?? [],
+          submissionNote:   data.submissionNote ?? '',
+          examinerIds:      data.examinerIds ?? [],
+          examiner1Score:   data.examiner1Score ?? null,
+          examiner2Score:   data.examiner2Score ?? null,
+          gradeWeights:     data.gradeWeights ?? null,
+          dueDate:          data.dueDate,
+          facultyId:        projectSnap.data()?.facultyId ?? '',
+          defenseDate:      data.defenseDate ?? null,
+          defenseRoom:      data.defenseRoom ?? null,
+        } as PendingMilestone;
+      })
+    );
+
+    setPendingApprovals(items);
+    setLoading(false);
+  });
+}, []);
+
+// ── Defense milestones ────────────────────────────────────────────────────
+useEffect(() => {
+  const q = query(
+    collection(db, 'milestones'),
+    where('type', '==', 'defense'),
+    where('status', 'in', ['coordinator_approved', 'examiners_assigned'])
+  );
+
+  return onSnapshot(q, async (snap) => {
+    if (snap.empty) {
+      setDefenseSetups([]);
+      return;
+    }
+
+    const items = await Promise.all(
+      snap.docs.map(async (d) => {
+        const data = d.data();
+
+        const [projectSnap, ...studentSnaps] = await Promise.all([
+          getDoc(doc(db, 'projects', data.projectId)),
+          ...(data.studentIds ?? []).map((sid: string) =>
+            getDoc(doc(db, 'users', sid))
+          ),
+        ]);
+
+        const studentNames = studentSnaps
+          .filter((s) => s.exists())
+          .map((s) => s.data().displayName as string);
+
+        return {
           id:              d.id,
           projectId:       data.projectId,
           projectTitleHe:  projectSnap.data()?.titleHe ?? '',
@@ -196,11 +335,13 @@ export default function CoordinatorHome() {
           facultyId:       projectSnap.data()?.facultyId ?? '',
           defenseDate:     data.defenseDate ?? null,
           defenseRoom:     data.defenseRoom ?? null,
-        });
-      }
-      setDefenseSetups(items);
-    });
-  }, []);
+        } as PendingMilestone;
+      })
+    );
+
+    setDefenseSetups(items);
+  });
+}, []);
 
   // Unread notifications
   useEffect(() => {
@@ -233,6 +374,7 @@ export default function CoordinatorHome() {
         coordinatorApprovedAt: serverTimestamp(),
         coordinatorId:         uid,
       });
+      await updateProjectProgress(milestone.projectId, milestone.type);
       // Notify students
       for (const studentId of milestone.studentIds) {
         await addDoc(collection(db, 'notifications'), {
@@ -364,6 +506,7 @@ export default function CoordinatorHome() {
         examinerIds:           [examiner1Id, examiner2Id],
         gradeWeights:          weights,
       });
+      await updateProjectProgress(selectedMilestone.projectId, selectedMilestone.type);
       // Notify each examiner
       for (const exId of [examiner1Id, examiner2Id]) {
         await addDoc(collection(db, 'notifications'), {
@@ -471,6 +614,7 @@ export default function CoordinatorHome() {
         {([
           { key: 'pending', heLabel: 'ממתין לאישור', enLabel: 'Pending Approval', badge: pendingApprovals.length },
           { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: defenseSetups.length },
+          { key: 'inProgress', heLabel: 'פרויקטים פעילים', enLabel: 'In Progress',       badge: inProgressProjects.length },
         ] as const).map((tab) => (
           <Pressable
             key={tab.key}
@@ -529,15 +673,19 @@ export default function CoordinatorHome() {
                     <View style={styles.expandedSection}>
 
                       {/* Supervisor comment */}
-                      {m.supervisorComment ? (
+                      {(m.supervisorScore !== null || m.supervisorComment) ? (
                         <View style={styles.expandedBox}>
                           <Text style={styles.expandedTitle}>
-                            {lang === 'he' ? '💬 הערת מנחה' : '💬 Supervisor Comment'}
+                            {lang === 'he' ? '💬 מנחה' : '💬 Supervisor'}
                           </Text>
-
-                          <Text style={styles.expandedText}>
-                            {m.supervisorComment}
-                          </Text>
+                          {m.supervisorScore !== null && (
+                            <Text style={styles.expandedText}>
+                              {lang === 'he' ? 'ציון:' : 'Score:'} {m.supervisorScore}/100
+                            </Text>
+                          )}
+                          {m.supervisorComment ? (
+                            <Text style={styles.expandedText}>{m.supervisorComment}</Text>
+                          ) : null}
                         </View>
                       ) : null}
 
@@ -565,10 +713,13 @@ export default function CoordinatorHome() {
                             <Pressable
                               key={index}
                               style={styles.fileBtn}
-                              onPress={() => router.push({
-                                pathname: '/pdfViewer',
-                                params: { url },
-                              })}
+                              onPress={() => {
+                                console.log('url:', url); // add this
+                                router.push({
+                                  pathname: '/pdfViewer',
+                                  params: { url },
+                                })}
+                              }
                             >
                               <Text style={styles.fileBtnText}>
                                 📄 {lang === 'he'
@@ -610,51 +761,240 @@ export default function CoordinatorHome() {
         )}
 
         {activeTab === 'defense' && (
-          <>
-            {defenseSetups.length === 0 ? (
-              <View style={styles.empty}>
-                <Text style={styles.emptyEmoji}>🎓</Text>
-                <Text style={styles.emptyText}>
-                  {lang === 'he' ? 'אין הגנות לתיאום' : 'No defenses to schedule'}
+  <>
+    {defenseSetups.length === 0 ? (
+      <View style={styles.empty}>
+        <Text style={styles.emptyEmoji}>🎓</Text>
+        <Text style={styles.emptyText}>
+          {lang === 'he' ? 'אין הגנות לתיאום' : 'No defenses to schedule'}
+        </Text>
+      </View>
+    ) : (
+      defenseSetups.map((m) => (
+        <Pressable
+          key={m.id}
+          style={[styles.card, expandedCards[m.id] && styles.cardExpanded]}
+          onPress={() => toggleCardExpansion(m.id)}
+        >
+          {/* ── Card header ── */}
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>
+              {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
+            </Text>
+            <FacultyBadge facultyId={m.facultyId} lang={lang} />
+          </View>
+
+          {/* ── Always visible summary ── */}
+          <Text style={styles.cardMeta}>👤 {m.studentNames.join(', ')}</Text>
+          {m.supervisorName ? (
+            <Text style={styles.cardMeta}>👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}</Text>
+          ) : null}
+          {m.examinerIds.length > 0 && (
+            <Text style={styles.cardMeta}>
+              🔬 {lang === 'he' ? 'בוחנים הוקצו' : 'Examiners assigned'}: {m.examinerIds.length}
+            </Text>
+          )}
+          {m.defenseDate ? (
+            <View style={styles.defenseDateBadge}>
+              <Text style={styles.defenseDateText}>
+                📅 {m.defenseDate}{m.defenseRoom ? ` | ${m.defenseRoom}` : ''}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* ── Expanded section ── */}
+          {expandedCards[m.id] && (
+            <View style={styles.expandedSection}>
+
+              {/* Student info */}
+              <View style={styles.expandedBox}>
+                <Text style={styles.expandedTitle}>
+                  {lang === 'he' ? '👤 סטודנטים' : '👤 Students'}
                 </Text>
+                {m.studentNames.map((name, i) => (
+                  <Text key={i} style={styles.expandedText}>• {name}</Text>
+                ))}
               </View>
-            ) : (
-              defenseSetups.map((m) => (
-                <View key={m.id} style={styles.card}>
-                  <Text style={styles.cardTitle}>
-                    {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
+
+              {/* Supervisor */}
+              {m.supervisorName ? (
+                <View style={styles.expandedBox}>
+                  <Text style={styles.expandedTitle}>
+                    {lang === 'he' ? '👨‍🏫 מנחה' : '👨‍🏫 Supervisor'}
                   </Text>
-                  <Text style={styles.cardMeta}>👤 {m.studentNames.join(', ')}</Text>
-                  {m.examinerIds.length > 0 && (
-                    <Text style={styles.cardMeta}>
-                      🔬 {lang === 'he' ? 'בוחנים הוקצו' : 'Examiners assigned'}: {m.examinerIds.length}
-                    </Text>
-                  )}
-                  {m.defenseDate ? (
-                    <View style={styles.defenseDateBadge}>
-                      <Text style={styles.defenseDateText}>
-                        📅 {m.defenseDate}{m.defenseRoom ? ` | ${m.defenseRoom}` : ''}
+                  <Text style={styles.expandedText}>{m.supervisorName}</Text>
+                </View>
+              ) : null}
+
+              {/* Milestone grades */}
+              {m.milestoneGrades && m.milestoneGrades.length > 0 && (
+                <View style={styles.expandedBox}>
+                  <Text style={styles.expandedTitle}>
+                    {lang === 'he' ? '📊 ציונים לפי אבן דרך' : '📊 Grades by Milestone'}
+                  </Text>
+                  {m.milestoneGrades.map((mg, i) => (
+                    <View key={i} style={styles.gradeRow}>
+                      <Text style={styles.expandedText}>
+                        {MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}
+                      </Text>
+                      <Text style={[
+                        styles.expandedText,
+                        { fontWeight: '700', color: mg.score !== null ? '#10B981' : '#8899BB' }
+                      ]}>
+                        {mg.score !== null ? `${mg.score}/100` : (lang === 'he' ? 'טרם נוקד' : 'Not graded')}
                       </Text>
                     </View>
-                  ) : null}
-                  <Pressable
-                    style={styles.scheduleBtn}
-                    onPress={() => {
-                      setSelectedMilestone(m);
-                      setDefenseDate(m.defenseDate ?? '');
-                      setDefenseRoom(m.defenseRoom ?? '');
-                      setDefenseModal(true);
-                    }}
-                  >
-                    <Text style={styles.scheduleBtnText}>
-                      📅 {lang === 'he' ? 'קבע מועד הגנה' : 'Schedule Defense'}
-                    </Text>
-                  </Pressable>
+                  ))}
                 </View>
-              ))
+              )}
+            </View>
+          )}
+
+          {/* ── Action buttons ── */}
+          <View style={styles.actionRow}>
+            <Pressable
+              style={styles.approveBtn}
+              onPress={() => {
+                setSelectedMilestone(m);
+                setExaminer1Id(m.examinerIds[0] ?? '');
+                setExaminer2Id(m.examinerIds[1] ?? '');
+                setAssignModal(true);
+              }}
+            >
+              <Text style={styles.approveBtnText}>
+                👥 {lang === 'he' ? 'הקצה בוחנים' : 'Assign Examiners'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.scheduleBtn}
+              onPress={() => {
+                setSelectedMilestone(m);
+                setDefenseDate(m.defenseDate ?? '');
+                setDefenseRoom(m.defenseRoom ?? '');
+                setDefenseModal(true);
+              }}
+            >
+              <Text style={styles.scheduleBtnText}>
+                📅 {lang === 'he' ? 'קבע מועד' : 'Set Date'}
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      ))
+    )}
+  </>
+)}
+  {activeTab === 'inProgress' && (
+    <>
+      {inProgressProjects.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyEmoji}>📁</Text>
+          <Text style={styles.emptyText}>
+            {lang === 'he' ? 'אין פרויקטים פעילים' : 'No projects in progress'}
+          </Text>
+        </View>
+      ) : (
+        inProgressProjects.map((p) => (
+          <Pressable
+            key={p.id}
+            style={[styles.card, expandedCards[p.id] && styles.cardExpanded]}
+            onPress={() => toggleCardExpansion(p.id)}
+          >
+            {/* ── Header ── */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.milestoneType}>
+                {lang === 'he' ? p.projectTitleHe : p.projectTitleEn}
+              </Text>
+              <FacultyBadge facultyId={p.facultyId} lang={lang} />
+            </View>
+
+            {/* ── Always visible ── */}
+            <Text style={styles.cardMeta}>
+              👤 {p.studentNames.length > 0 ? p.studentNames.join(', ') : (lang === 'he' ? 'אין סטודנטים' : 'No students')}
+            </Text>
+            <Text style={styles.cardMeta}>
+              👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {p.supervisorName}
+            </Text>
+
+            {/* ── Progress bar ── */}
+            <View style={{ marginTop: 10, marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ fontSize: 12, color: '#8899BB' }}>
+                  {lang === 'he' ? 'התקדמות' : 'Progress'}
+                </Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#2E86FF' }}>
+                  {p.progress}%
+                </Text>
+              </View>
+              <View style={{ height: 6, backgroundColor: '#E0E8FF', borderRadius: 3, overflow: 'hidden' }}>
+                <View style={{
+                  height: '100%',
+                  width: `${p.progress}%`,
+                  backgroundColor: p.progress === 100 ? '#10B981' : '#2E86FF',
+                  borderRadius: 3,
+                }} />
+              </View>
+            </View>
+
+            {/* ── Expanded: milestone breakdown ── */}
+            {expandedCards[p.id] && (
+              <View style={styles.expandedSection}>
+                <View style={styles.expandedBox}>
+                  <Text style={styles.expandedTitle}>
+                    {lang === 'he' ? '📊 אבני דרך' : '📊 Milestones'}
+                  </Text>
+                  {p.milestones.length === 0 ? (
+                    <Text style={styles.expandedText}>
+                      {lang === 'he' ? 'לא נוצרו אבני דרך' : 'No milestones created'}
+                    </Text>
+                  ) : (
+                    p.milestones.map((m, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 6,
+                          borderBottomWidth: i < p.milestones.length - 1 ? 1 : 0,
+                          borderBottomColor: '#F0F4FF',
+                        }}
+                      >
+                        {/* Milestone name + status */}
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: '#111' }}>
+                            {MILESTONE_LABEL[m.type]?.[lang] ?? m.type}
+                          </Text>
+                          <Text style={{ fontSize: 11, color: STATUS_COLORS[m.status] ?? '#8899BB', marginTop: 2 }}>
+                            {STATUS_LABEL[m.status]?.[lang] ?? m.status}
+                          </Text>
+                        </View>
+
+                        {/* Score */}
+                        <Text style={{
+                          fontSize: 14,
+                          fontWeight: '700',
+                          color: m.supervisorScore !== null ? '#10B981' : '#C0CCDD',
+                        }}>
+                          {m.supervisorScore !== null
+                            ? `${m.supervisorScore}/100`
+                            : '—'}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              </View>
             )}
-          </>
-        )}
+
+            <Text style={{ textAlign: 'center', color: '#C0CCDD', fontSize: 11, marginTop: 6 }}>
+              {expandedCards[p.id] ? '▲' : '▼'}
+            </Text>
+          </Pressable>
+        ))
+      )}
+    </>
+  )}
 
         <View style={{ height: 60 }} />
       </ScrollView>

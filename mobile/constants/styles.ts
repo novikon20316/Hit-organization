@@ -832,31 +832,31 @@ export const coordinatorHomeStyles = StyleSheet.create({
     borderColor: '#8B5CF6',
     },
 
-    expandedSection: {
+  expandedSection: {
     marginTop: 14,
     gap: 12,
     },
 
-    expandedBox: {
+  expandedBox: {
     backgroundColor: '#F8FAFC',
     borderRadius: 14,
     padding: 12,
     },
 
-    expandedTitle: {
+  expandedTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#1E293B',
     marginBottom: 6,
     },
 
-    expandedText: {
+  expandedText: {
     fontSize: 14,
     color: '#475569',
     lineHeight: 20,
     },
 
-    fileBtn: {
+  fileBtn: {
     backgroundColor: '#EDE9FE',
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -864,10 +864,18 @@ export const coordinatorHomeStyles = StyleSheet.create({
     marginTop: 8,
     },
 
-    fileBtnText: {
+  fileBtnText: {
     color: '#6D28D9',
     fontWeight: '700',
     },
+  gradeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F4FF',
+  },
 });
 
 export const adminPanelStyles = StyleSheet.create({

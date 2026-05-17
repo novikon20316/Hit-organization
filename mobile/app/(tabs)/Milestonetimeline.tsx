@@ -65,7 +65,9 @@ const STATUS_CONFIG: Record<MilestoneStatus, {
   submitted:            { icon: '📤', colorKey: '#F59E0B', labelHe: 'הוגש',                 labelEn: 'Submitted' },
   supervisor_graded:    { icon: '👨‍🏫', colorKey: '#2E86FF', labelHe: 'נוקד ע"י מנחה',       labelEn: 'Supervisor Graded' },
   coordinator_approved: { icon: '✅', colorKey: '#8B5CF6', labelHe: 'אושר ע"י רכז',         labelEn: 'Coordinator Approved' },
+  examiners_assigned:   { icon: '👥', colorKey: '#6366F1', labelHe: 'בוחנים הוקצו',         labelEn: 'Examiners Assigned' },  // ← add this
   examiner_graded:      { icon: '🎓', colorKey: '#10B981', labelHe: 'נוקד ע"י בוחנים',      labelEn: 'Examiner Graded' },
+  both_examiners_graded:{ icon: '🎓', colorKey: '#10B981', labelHe: 'שני בוחנים ניקדו',     labelEn: 'Both Examiners Graded' }, // ← add this
   completed:            { icon: '🏁', colorKey: '#10B981', labelHe: 'הושלם ✓',              labelEn: 'Completed ✓' },
 };
 
@@ -196,10 +198,13 @@ function MilestoneCard({
         {milestone.submittedAt && (
           <Text style={[mc.submittedDate, isRtl && mc.textRight]}>
             📤 {lang === 'he' ? 'הוגש:' : 'Submitted:'}{' '}
-            {milestone.submittedAt.toDate().toLocaleDateString(
-              lang === 'he' ? 'he-IL' : 'en-GB',
-              { day: 'numeric', month: 'short', year: 'numeric' }
-            )}
+            {typeof milestone.submittedAt === 'string'
+              ? milestone.submittedAt
+              : milestone.submittedAt?.toDate?.()?.toLocaleDateString(
+                  lang === 'he' ? 'he-IL' : 'en-GB',
+                  { day: 'numeric', month: 'short', year: 'numeric' }
+                ) ?? '—'
+            }
           </Text>
         )}
 
@@ -208,13 +213,14 @@ function MilestoneCard({
           <View style={mc.defenseBanner}>
             <Text style={[mc.defenseBannerText, isRtl && mc.textRight]}>
               🎓 {lang === 'he' ? 'מועד הגנה:' : 'Defense Date:'}{' '}
-              {milestone.defenseDate.toDate().toLocaleDateString(
-                lang === 'he' ? 'he-IL' : 'en-GB',
-                { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
-              )}
-              {milestone.defenseRoom
-                ? `  |  🏛️ ${milestone.defenseRoom}`
-                : ''}
+              {typeof milestone.defenseDate === 'string'
+                ? milestone.defenseDate
+                : milestone.defenseDate?.toDate?.()?.toLocaleDateString(
+                    lang === 'he' ? 'he-IL' : 'en-GB',
+                    { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
+                  ) ?? '—'
+              }
+              {milestone.defenseRoom ? `  |  🏛️ ${milestone.defenseRoom}` : ''}
             </Text>
           </View>
         )}

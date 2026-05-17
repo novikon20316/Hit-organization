@@ -88,7 +88,7 @@ export default function ActiveDashboard({
         formData.append('upload_preset', 'MileStones');
 
         const res = await fetch(
-          'https://api.cloudinary.com/v1_1/dp7stlfas/auto/upload',
+          'https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload',
           {
             method: 'POST',
             body: formData,
@@ -96,7 +96,7 @@ export default function ActiveDashboard({
         );
 
         const data = await res.json();
-
+        console.log('Cloudinary response:', JSON.stringify(data)); // add this
         fileUrls.push(data.secure_url);
       }
       console.log("FINAL fileUrls:", fileUrls);

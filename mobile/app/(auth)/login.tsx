@@ -27,6 +27,7 @@ export default function Home() {
       // ❗ NO navigation here — RootLayout handles redirect
     } catch (err) {
       console.log("Login error:", err);
+      alert("username or password are incorrect")
     } finally {
       setLoading(false);
     }

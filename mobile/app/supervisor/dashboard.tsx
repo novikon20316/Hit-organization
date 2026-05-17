@@ -75,6 +75,13 @@ export default function SupervisorHome() {
   // ── Grade modal state ─────────────────────────────────────────────────────
   const [gradeModal,  setGradeModal]  = useState(false);
   const [gradeMilestone, setGradeMilestone] = useState<PendingMilestone | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const toggleCardExpansion = (milestoneId: string) => {
+    setExpandedCards((prev) => ({
+      ...prev,
+      [milestoneId]: !prev[milestoneId],
+    }));
+  };
   //________________________________NEED TO UPDATE BASED ON THE DEMANDS OF hit____________________________________
   const [criteria, setCriteria] = useState({
     clarity: '',
