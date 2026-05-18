@@ -1,6 +1,58 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, I18nManager } from 'react-native';
 import { palette, spacing, radius, shadows, fontSize, fontWeight } from './theme';
 import { cardStyles } from './index';
+
+export const PRIMARY = "#2E86FF"; // replace with HIT logo color if needed
+export const loginStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    padding: 20,
+  },
+
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 40,
+  },
+
+  logo: {
+    width: 130,
+    height: 130,
+  },
+
+  title: {
+    fontSize: 22,
+    fontWeight: "600",
+    marginTop: 10,
+    color: "#111",
+  },
+
+  form: {
+    gap: 15,
+  },
+
+  input: {
+    backgroundColor: "#f5f5f5",
+    padding: 14,
+    borderRadius: 10,
+    fontSize: 16,
+    color: "#000",
+  },
+
+  button: {
+    backgroundColor: PRIMARY,
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});
 
 export const sharedStyles = StyleSheet.create({
   root: {
@@ -793,6 +845,16 @@ export const coordinatorHomeStyles = StyleSheet.create({
 
   modal:        { flex: 1, backgroundColor: '#F5F0FF' },
   modalContent: { padding: 20, paddingBottom: 60 },
+  modalHeader: {
+    marginBottom: 10,
+    alignItems: I18nManager.isRTL ? 'flex-end' : 'flex-start',
+  },
+
+  backButton: {
+    fontSize: 16,
+    color: '#2563eb',
+    fontWeight: '600',
+  },
   modalTitle:   { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 20 },
   fieldLabel:   { fontSize: 13, fontWeight: '700', color: '#374151', marginTop: 16, marginBottom: 8 },
 
@@ -1782,4 +1844,471 @@ export const examinerHomeStyles = StyleSheet.create({
   submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   cancelBtn:     { borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   cancelBtnText: { color: '#10B981', fontSize: 14, fontWeight: '600' },
+  tabBar:        { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5EAFF' },
+  tab:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 6 },
+  tabActive:     { borderBottomWidth: 3, borderBottomColor: '#10B981' },
+  tabText:       { fontSize: 13, color: '#8899BB', fontWeight: '500' },
+  tabTextActive: { color: '#10B981', fontWeight: '700' },
+  badge:         { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeText:     { color: '#fff', fontSize: 10, fontWeight: '700' },
+ 
+  // Card
+  cardExpanded:  { shadowOpacity: 0.14 },
+  expandHint:    { textAlign: 'center', color: '#C0CCDD', fontSize: 11, marginTop: 6, marginBottom: 2 },
+ 
+  // Defense date pill
+  defensePill:     { marginTop: 8, backgroundColor: '#ECFDF5', borderRadius: 8, paddingVertical: 5, paddingHorizontal: 10, alignSelf: 'flex-start' },
+  defensePillText: { fontSize: 12, color: '#059669', fontWeight: '600' },
+ 
+  // Weight chips
+  weightsRow:      { flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap' },
+  weightChip:      { backgroundColor: '#F3F4F6', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignItems: 'center' },
+  weightChipHL:    { backgroundColor: '#10B981' },
+  weightChipLabel: { fontSize: 10, color: '#6B7280' },
+  weightChipValue: { fontSize: 13, fontWeight: '700', color: '#111827' },
+ 
+  // Expanded milestone history
+  expandedSection: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#F0F4FF', paddingTop: 14 },
+  sectionTitle:    { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 10 },
+  milestoneBlock:  { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 },
+  milestoneName:   { fontSize: 13, fontWeight: '700', color: '#1F2937', marginBottom: 6 },
+  scoreRow:        { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  scoreLabel:      { fontSize: 12, color: '#6B7280' },
+  scoreValue:      { fontSize: 13, fontWeight: '700' },
+  commentText:     { fontSize: 12, color: '#4B5563', fontStyle: 'italic', marginTop: 4 },
+  filesLabel:      { fontSize: 12, color: '#6B7280', marginBottom: 4 },
+  fileBtn:         { backgroundColor: '#ECFDF5', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 6 },
+  fileBtnText:     { fontSize: 13, color: '#059669', fontWeight: '600' },
+  noFiles:         { fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', marginTop: 4 },
+ 
+  // Schedule cards
+  scheduleCard:      { backgroundColor: '#fff', borderRadius: 16, padding: 18, marginBottom: 14, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  countdownBadge:    { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5, marginBottom: 10 },
+  countdownText:     { color: '#fff', fontWeight: '800', fontSize: 14 },
+  scheduleTitle:     { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 6 },
+  scheduleRow:       { flexDirection: 'row', gap: 10, marginTop: 12, flexWrap: 'wrap' },
+  scheduleChip:      { backgroundColor: '#F0FDF4', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
+  scheduleChipLabel: { fontSize: 10, color: '#6B7280', marginBottom: 2 },
+  scheduleChipValue: { fontSize: 14, fontWeight: '700', color: '#065F46' },
+});
+
+export const facultyTemplateManager = StyleSheet.create({
+  root:     { flex: 1, backgroundColor: '#F5F3FF' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content:  { padding: 16 },
+
+  // Tabs
+  tabBar:        { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#EDE9FE' },
+  tab:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 6 },
+  tabActive:     { borderBottomWidth: 3, borderBottomColor: '#7C3AED' },
+  tabText:       { fontSize: 13, color: '#8899BB', fontWeight: '500' },
+  tabTextActive: { color: '#7C3AED', fontWeight: '700' },
+  badge:         { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeText:     { color: '#fff', fontSize: 10, fontWeight: '700' },
+
+  // Degree selector
+  degreeBar:      { marginBottom: 14 },
+  degreeChip:     { borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginRight: 8, backgroundColor: '#fff' },
+  degreeChipActive:     { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  degreeChipText:       { fontSize: 13, color: '#7C3AED', fontWeight: '600' },
+  degreeChipTextActive: { color: '#fff' },
+
+  // New button
+  newBtn:     { backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginBottom: 16 },
+  newBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  // Empty
+  empty:      { alignItems: 'center', paddingVertical: 48 },
+  emptyEmoji: { fontSize: 40, marginBottom: 10 },
+  emptyText:  { fontSize: 14, color: '#8899BB', textAlign: 'center', paddingHorizontal: 24 },
+
+  // Template card
+  tplCard:        { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, shadowColor: '#7C3AED', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  tplCardHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  tplName:        { fontSize: 15, fontWeight: '700', color: '#1F1235' },
+  tplSub:         { fontSize: 12, color: '#8899BB', marginTop: 2 },
+  tplActions:     { flexDirection: 'row', gap: 8 },
+  editBtn:        { backgroundColor: '#EDE9FE', borderRadius: 8, padding: 8 },
+  editBtnText:    { fontSize: 16 },
+  deleteBtn:      { backgroundColor: '#FEE2E2', borderRadius: 8, padding: 8 },
+  deleteBtnText:  { fontSize: 16 },
+
+  // Milestone preview row
+  msPreviewRow:   { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#F3F0FF', gap: 10 },
+  msOrderBadge:   { width: 24, height: 24, borderRadius: 12, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  msOrderText:    { fontSize: 11, fontWeight: '700', color: '#7C3AED' },
+  msPreviewName:  { fontSize: 13, fontWeight: '600', color: '#111' },
+  msPreviewMeta:  { fontSize: 11, color: '#8899BB', marginTop: 2 },
+
+  // Proposal card
+  proposalCard:   { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: '#F59E0B' },
+  proposalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  proposalTitle:  { fontSize: 15, fontWeight: '700', color: '#111', flex: 1 },
+  pendingBadge:   { backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  pendingBadgeText: { fontSize: 11, color: '#92400E', fontWeight: '700' },
+  proposalBy:     { fontSize: 13, color: '#4B5563', marginTop: 3 },
+  proposalDegree: { fontSize: 13, color: '#4B5563', marginTop: 3, marginBottom: 10 },
+  changesBox:     { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, marginBottom: 12 },
+  changesTitle:   { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6 },
+  changesText:    { fontSize: 12, color: '#6B7280', marginBottom: 4 },
+  changesItem:    { fontSize: 12, color: '#374151', marginTop: 2 },
+  proposalBtns:   { flexDirection: 'row', gap: 10 },
+  approveBtn:     { flex: 1, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  rejectBtn:      { flex: 1, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  rejectBtnText:  { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  // Modal
+  modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F0EBFF' },
+  modalTitle:   { fontSize: 18, fontWeight: '700', color: '#1F1235' },
+  modalClose:   { fontSize: 20, color: '#8899BB', paddingHorizontal: 4 },
+  modalContent: { padding: 20 },
+
+  infoBox:     { backgroundColor: '#EDE9FE', borderRadius: 10, padding: 12, marginBottom: 16 },
+  infoBoxText: { fontSize: 13, color: '#5B21B6', fontWeight: '600' },
+
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 14 },
+  input:      { borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, backgroundColor: '#fff', color: '#111' },
+
+  // Milestone section in editor
+  msSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 },
+  addMsBtn:        { backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  addMsBtnText:    { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+  msEditorRow:     { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#F5F3FF', borderRadius: 12, padding: 12, marginTop: 8, gap: 10 },
+  msEditorName:    { fontSize: 13, fontWeight: '700', color: '#1F1235' },
+  msEditorMeta:    { fontSize: 11, color: '#8899BB', marginTop: 2 },
+  msWeightsText:   { fontSize: 11, color: '#7C3AED', marginTop: 3 },
+  msRowActions:    { flexDirection: 'row', gap: 6 },
+  msActionBtn:     { padding: 4 },
+
+  // Weight fields
+  toggleRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
+  weightRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  weightRowLabel: { fontSize: 13, color: '#374151', flex: 1 },
+  weightInput:    { width: 72, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, textAlign: 'center', fontSize: 14 },
+  weightTotal:    { fontSize: 13, fontWeight: '700', textAlign: 'right', marginTop: 8 },
+
+  saveBtn:      { backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 },
+  saveBtnText:  { color: '#fff', fontWeight: '700', fontSize: 15 },
+  cancelBtn:    { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
+  cancelBtnText:{ color: '#8899BB', fontSize: 14 },
+});
+
+export const ActivateDashboardStyles = StyleSheet.create({
+  container:   { flex: 1, backgroundColor: '#F0F4FF' },
+  content:     { padding: 16 },
+  textRight:   { textAlign: 'right' },
+  rowReverse:  { flexDirection: 'row-reverse' },
+  sectionTitle:{ fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 14 },
+
+  // Tabs
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E8FF',
+  },
+  tab: {
+    flex: 1, paddingVertical: 13, alignItems: 'center',
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
+  },
+  tabActive:     { borderBottomColor: '#2E86FF' },
+  tabText:       { fontSize: 13, fontWeight: '600', color: '#8899BB' },
+  tabTextActive: { color: '#2E86FF' },
+
+  // Project card
+  projectCard: {
+    backgroundColor: '#fff', borderRadius: 18, padding: 18,
+    marginBottom: 16, borderWidth: 1, borderColor: '#E0E8FF',
+    shadowColor: '#2E86FF', shadowOpacity: 0.07, shadowRadius: 10, elevation: 2,
+  },
+  projectCardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
+  projectCardEmoji:  { fontSize: 32 },
+  projectTitle:      { fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 4 },
+  projectMeta:       { fontSize: 12, color: '#8899BB' },
+
+  // Progress bar
+  progressSection:   { marginTop: 4 },
+  progressLabelRow:  { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  progressLabel:     { fontSize: 13, fontWeight: '600', color: '#445' },
+  progressPct:       { fontSize: 13, fontWeight: '800', color: '#2E86FF' },
+  progressTrack: {
+    height: 8, backgroundColor: '#E0E8FF', borderRadius: 4, overflow: 'hidden', marginBottom: 6,
+  },
+  progressFill:  { height: '100%', backgroundColor: '#2E86FF', borderRadius: 4 },
+  progressSub:   { fontSize: 11, color: '#9BA8C0' },
+
+  // Next milestone banner
+  nextMilestone: {
+    backgroundColor: '#EFF6FF', borderRadius: 16, padding: 16,
+    borderLeftWidth: 4, borderLeftColor: '#2E86FF', marginBottom: 16,
+  },
+  nextHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  nextLabel:     { fontSize: 12, fontWeight: '700', color: '#2E86FF', textTransform: 'uppercase', letterSpacing: 0.5 },
+  nextTitle:     { fontSize: 17, fontWeight: '800', color: '#111', marginBottom: 4 },
+  nextDue:       { fontSize: 13, color: '#5577AA', marginBottom: 12 },
+  daysBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  daysBadgeBlue: { backgroundColor: '#DBEAFE' },
+  daysBadgeOrange:{ backgroundColor: '#FEF3C7' },
+  daysBadgeRed:  { backgroundColor: '#FEE2E2' },
+  daysBadgeText: { fontSize: 11, fontWeight: '800', color: '#1D4ED8' },
+  submitMilestoneBtn: {
+    backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 12,
+    alignItems: 'center',
+    shadowColor: '#2E86FF', shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
+  },
+  submitMilestoneBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  // Description card
+  descCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: '#E0E8FF',
+  },
+  descTitle: { fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 8 },
+  descBody:  { fontSize: 13, color: '#445', lineHeight: 20 },
+
+  // Milestones timeline
+  milestoneCard: { flexDirection: 'row', marginBottom: 8 },
+  timelineCol:   { width: 36, alignItems: 'center' },
+  timelineDot: {
+    width: 28, height: 28, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  timelineNum:     { color: '#fff', fontSize: 11, fontWeight: '800' },
+  timelineLine:    { flex: 1, width: 2, backgroundColor: '#E0E8FF', minHeight: 20, marginVertical: 2 },
+  timelineLineDone:{ backgroundColor: '#10B981' },
+  milestoneContent:      { flex: 1, marginLeft: 12, marginBottom: 8 },
+  milestoneContentRtl:   { marginLeft: 0, marginRight: 12 },
+  milestoneHeader:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  milestoneTitle:        { fontSize: 14, fontWeight: '700', color: '#111', flex: 1 },
+  statusBadge:           { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  statusBadgeText:       { fontSize: 11, fontWeight: '600' },
+  milestoneDue:          { fontSize: 12, color: '#8899BB', marginBottom: 8 },
+  daysTag:               { fontSize: 12, fontWeight: '600' },
+  gradeChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ECFDF5', paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 8, marginBottom: 8,
+  },
+  gradeChipText:   { fontSize: 13, fontWeight: '700', color: '#10B981' },
+  defenseInfo:     { backgroundColor: '#F5F3FF', borderRadius: 10, padding: 10, marginBottom: 8 },
+  defenseRow:      { fontSize: 13, color: '#5B21B6', marginBottom: 4 },
+  notScheduled:    { fontSize: 12, color: '#8899BB', fontStyle: 'italic', marginBottom: 8 },
+  milestoneSubmitBtn: {
+    backgroundColor: '#EFF6FF', borderRadius: 10, paddingVertical: 9,
+    alignItems: 'center', borderWidth: 1, borderColor: '#BFDBFE',
+  },
+  milestoneSubmitBtnText: { color: '#2E86FF', fontSize: 13, fontWeight: '700' },
+  filesRow:    { flexDirection: 'row', alignItems: 'center' },
+  filesLabel:  { fontSize: 12, color: '#8899BB' },
+
+  // Grades tab
+  gradeCard: {
+    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
+    borderWidth: 1, borderColor: '#E0E8FF',
+  },
+  gradeCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  gradeCardTitle:  { fontSize: 14, fontWeight: '700', color: '#111' },
+  gradePill: {
+    backgroundColor: '#2E86FF', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12,
+  },
+  gradePillText:   { color: '#fff', fontWeight: '800', fontSize: 16 },
+  noGrade:         { fontSize: 12, color: '#9BA8C0', fontStyle: 'italic' },
+  gradeProgress: {
+    height: 6, backgroundColor: '#E0E8FF', borderRadius: 3, overflow: 'hidden',
+  },
+  gradeProgressFill: { height: '100%', backgroundColor: '#2E86FF', borderRadius: 3 },
+
+  finalGradeCard: {
+    backgroundColor: '#2E86FF', borderRadius: 18, padding: 24,
+    alignItems: 'center', marginTop: 8,
+    shadowColor: '#2E86FF', shadowOpacity: 0.35, shadowRadius: 14, elevation: 6,
+  },
+  finalGradeLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600', marginBottom: 8 },
+  finalGradeValue: { color: '#fff', fontSize: 56, fontWeight: '900', marginBottom: 8 },
+  finalGradeNote:  { color: 'rgba(255,255,255,0.65)', fontSize: 11, textAlign: 'center' },
+
+  // Modal
+  modal:        { flex: 1, backgroundColor: '#F0F4FF' },
+  modalContent: { padding: 20, paddingBottom: 60 },
+  modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle:   { fontSize: 18, fontWeight: '800', color: '#111' },
+  modalClose:   { fontSize: 22, color: '#888', padding: 4 },
+  fieldLabel:   { fontSize: 13, fontWeight: '600', color: '#445', marginBottom: 8, marginTop: 16 },
+  textarea: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 14,
+    fontSize: 14, color: '#111', textAlignVertical: 'top',
+    borderWidth: 1, borderColor: '#E0E8FF', minHeight: 90,
+  },
+  fileRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: '#E0E8FF',
+  },
+  fileName:   { fontSize: 13, color: '#445', flex: 1 },
+  fileRemove: { fontSize: 18, color: '#D32F2F', paddingLeft: 10 },
+  uploadBtn: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 14,
+    borderWidth: 2, borderColor: '#D0DEFF', borderStyle: 'dashed',
+    alignItems: 'center', marginBottom: 4,
+  },
+  uploadBtnText: { color: '#2E86FF', fontSize: 14, fontWeight: '600' },
+  submitMsg:       { marginTop: 14, padding: 12, borderRadius: 10, textAlign: 'center', fontSize: 14 },
+  submitMsgOk:     { backgroundColor: '#E8F5E9', color: '#2E7D32' },
+  submitMsgErr:    { backgroundColor: '#FFEBEE', color: '#C62828' },
+  submitBtn: {
+    backgroundColor: '#2E86FF', borderRadius: 14, paddingVertical: 15,
+    alignItems: 'center', marginTop: 24,
+    shadowColor: '#2E86FF', shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
+  },
+  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+});
+
+export const ProjectPageStyles = StyleSheet.create({
+  container: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  desc: {
+    marginTop: 6,
+    color: '#555',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  card: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  mTitle: {
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  mDesc: {
+    color: '#555',
+    marginTop: 4,
+  },
+  deadline: {
+    marginTop: 6,
+    fontSize: 12,
+    color: 'red',
+  },
+  submitted: {
+    marginTop: 10,
+    color: 'green',
+    fontWeight: '600',
+  },
+  input: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 10,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  button: {
+    marginTop: 10,
+    backgroundColor: '#2E86FF',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+});
+
+
+export const PendingScreenStyles = StyleSheet.create({
+  container:    { padding: 20, backgroundColor: '#F0F4FF', alignItems: 'center' },
+  textCenter:   { textAlign: 'center' },
+  textRight:    { textAlign: 'right' },
+  rowReverse:   { flexDirection: 'row-reverse' },
+
+  illustrationWrap: { marginTop: 20, marginBottom: 24, alignItems: 'center' },
+  pulseOuter: {
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: '#E3EEFF', justifyContent: 'center', alignItems: 'center',
+  },
+  pulseInner: {
+    width: 70, height: 70, borderRadius: 35,
+    backgroundColor: '#C5D9FF', justifyContent: 'center', alignItems: 'center',
+  },
+  pulseEmoji: { fontSize: 32 },
+
+  title:    { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 8, textAlign: 'center' },
+  subtitle: { fontSize: 14, color: '#667', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+
+  meetingBanner: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14,
+    borderLeftWidth: 4, borderLeftColor: '#FFB300',
+    marginBottom: 16, width: '100%',
+  },
+  meetingIcon: { fontSize: 18, marginRight: 10 },
+  meetingText: { flex: 1, fontSize: 13, color: '#6D4C00', lineHeight: 19 },
+
+  infoCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 18,
+    width: '100%', marginBottom: 16,
+    borderWidth: 1, borderColor: '#E0E8FF',
+    shadowColor: '#2E86FF', shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+  },
+  row:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 4 },
+  rowLabel:  { fontSize: 13, color: '#8899BB', fontWeight: '500' },
+  rowValue:  { fontSize: 13, color: '#111', fontWeight: '600', flex: 1, textAlign: 'right', marginLeft: 8 },
+  rowValueHighlight: { color: '#2E86FF' },
+  divider:   { height: 1, backgroundColor: '#F0F4FF', marginVertical: 8 },
+
+  noteCard: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: '#E8F4FD', borderRadius: 12, padding: 12,
+    width: '100%', marginBottom: 16,
+  },
+  noteIcon: { fontSize: 16, marginRight: 8 },
+  noteText: { flex: 1, fontSize: 12, color: '#1A5276', lineHeight: 18 },
+
+  stepsCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 18,
+    width: '100%', marginBottom: 20,
+    borderWidth: 1, borderColor: '#E0E8FF',
+  },
+  stepsTitle: { fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 14 },
+  step:       { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
+  stepRtl:    { flexDirection: 'row-reverse' },
+  stepDot: {
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: '#2E86FF', justifyContent: 'center', alignItems: 'center',
+    marginRight: 10, marginLeft: 0, flexShrink: 0,
+  },
+  stepDotAlert: { backgroundColor: '#FFB300' },
+  stepNum:  { color: '#fff', fontSize: 11, fontWeight: '800' },
+  stepText: { flex: 1, fontSize: 13, color: '#445', lineHeight: 19 },
+
+  withdrawBtn: {
+    paddingVertical: 12, paddingHorizontal: 28,
+    borderRadius: 12, borderWidth: 1, borderColor: '#FFCDD2',
+    backgroundColor: '#FFF0F0',
+  },
+  withdrawText: { color: '#D32F2F', fontWeight: '600', fontSize: 14 },
 });

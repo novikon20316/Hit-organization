@@ -139,6 +139,7 @@ const EXAMINER_DOC = {
   hasActiveProject:false,
   language:        "he",
   expoPushToken:   null,
+  dates:[],
 };
 
 

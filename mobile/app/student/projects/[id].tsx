@@ -5,7 +5,6 @@ import {
   View,
   Text,
   ScrollView,
-  StyleSheet,
   Pressable,
   ActivityIndicator,
   TextInput,
@@ -14,7 +13,7 @@ import {
 import { useLocalSearchParams } from 'expo-router';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '@/src/firebase/firebase';
-
+import {ProjectPageStyles} from '@/constants'
 type Milestone = {
   id: string;
   title: string;
@@ -180,75 +179,4 @@ export default function ProjectPage() {
 // ─────────────────────────────────────
 // Styles
 // ─────────────────────────────────────
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  desc: {
-    marginTop: 6,
-    color: '#555',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  card: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    marginBottom: 12,
-  },
-  mTitle: {
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  mDesc: {
-    color: '#555',
-    marginTop: 4,
-  },
-  deadline: {
-    marginTop: 6,
-    fontSize: 12,
-    color: 'red',
-  },
-  submitted: {
-    marginTop: 10,
-    color: 'green',
-    fontWeight: '600',
-  },
-  input: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 10,
-    minHeight: 60,
-    textAlignVertical: 'top',
-  },
-  button: {
-    marginTop: 10,
-    backgroundColor: '#2E86FF',
-    padding: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-});
+const styles = ProjectPageStyles

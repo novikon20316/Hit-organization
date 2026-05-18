@@ -4,11 +4,10 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
-  StyleSheet,
   ActivityIndicator,
   Pressable,
 } from "react-native";
-
+import {PRIMARY, loginStyles} from '../../constants'
 import { loginUser } from "../../firebase/authService";
 import { useState } from "react";
 import { useRouter } from 'expo-router';
@@ -87,55 +86,4 @@ export default function Home() {
   );
 }
 
-const PRIMARY = "#2E86FF"; // replace with HIT logo color if needed
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    padding: 20,
-  },
-
-  logoContainer: {
-    alignItems: "center",
-    marginBottom: 40,
-  },
-
-  logo: {
-    width: 130,
-    height: 130,
-  },
-
-  title: {
-    fontSize: 22,
-    fontWeight: "600",
-    marginTop: 10,
-    color: "#111",
-  },
-
-  form: {
-    gap: 15,
-  },
-
-  input: {
-    backgroundColor: "#f5f5f5",
-    padding: 14,
-    borderRadius: 10,
-    fontSize: 16,
-    color: "#000",
-  },
-
-  button: {
-    backgroundColor: PRIMARY,
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+const styles = loginStyles;

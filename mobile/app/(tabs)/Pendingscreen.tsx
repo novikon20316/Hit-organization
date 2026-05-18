@@ -7,7 +7,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import type { PendingApplication } from '../../hooks/useStudentData';
-
+import {PendingScreenStyles} from '@/constants'
 interface Props {
   application: PendingApplication;
   lang:        Lang;
@@ -171,76 +171,4 @@ function Row({ label, value, isRtl, highlight }: {
   );
 }
 
-const styles = StyleSheet.create({
-  container:    { padding: 20, backgroundColor: '#F0F4FF', alignItems: 'center' },
-  textCenter:   { textAlign: 'center' },
-  textRight:    { textAlign: 'right' },
-  rowReverse:   { flexDirection: 'row-reverse' },
-
-  illustrationWrap: { marginTop: 20, marginBottom: 24, alignItems: 'center' },
-  pulseOuter: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: '#E3EEFF', justifyContent: 'center', alignItems: 'center',
-  },
-  pulseInner: {
-    width: 70, height: 70, borderRadius: 35,
-    backgroundColor: '#C5D9FF', justifyContent: 'center', alignItems: 'center',
-  },
-  pulseEmoji: { fontSize: 32 },
-
-  title:    { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: '#667', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
-
-  meetingBanner: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14,
-    borderLeftWidth: 4, borderLeftColor: '#FFB300',
-    marginBottom: 16, width: '100%',
-  },
-  meetingIcon: { fontSize: 18, marginRight: 10 },
-  meetingText: { flex: 1, fontSize: 13, color: '#6D4C00', lineHeight: 19 },
-
-  infoCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 18,
-    width: '100%', marginBottom: 16,
-    borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#2E86FF', shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
-  },
-  row:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 4 },
-  rowLabel:  { fontSize: 13, color: '#8899BB', fontWeight: '500' },
-  rowValue:  { fontSize: 13, color: '#111', fontWeight: '600', flex: 1, textAlign: 'right', marginLeft: 8 },
-  rowValueHighlight: { color: '#2E86FF' },
-  divider:   { height: 1, backgroundColor: '#F0F4FF', marginVertical: 8 },
-
-  noteCard: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    backgroundColor: '#E8F4FD', borderRadius: 12, padding: 12,
-    width: '100%', marginBottom: 16,
-  },
-  noteIcon: { fontSize: 16, marginRight: 8 },
-  noteText: { flex: 1, fontSize: 12, color: '#1A5276', lineHeight: 18 },
-
-  stepsCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 18,
-    width: '100%', marginBottom: 20,
-    borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  stepsTitle: { fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 14 },
-  step:       { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  stepRtl:    { flexDirection: 'row-reverse' },
-  stepDot: {
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: '#2E86FF', justifyContent: 'center', alignItems: 'center',
-    marginRight: 10, marginLeft: 0, flexShrink: 0,
-  },
-  stepDotAlert: { backgroundColor: '#FFB300' },
-  stepNum:  { color: '#fff', fontSize: 11, fontWeight: '800' },
-  stepText: { flex: 1, fontSize: 13, color: '#445', lineHeight: 19 },
-
-  withdrawBtn: {
-    paddingVertical: 12, paddingHorizontal: 28,
-    borderRadius: 12, borderWidth: 1, borderColor: '#FFCDD2',
-    backgroundColor: '#FFF0F0',
-  },
-  withdrawText: { color: '#D32F2F', fontWeight: '600', fontSize: 14 },
-});
+const styles = PendingScreenStyles

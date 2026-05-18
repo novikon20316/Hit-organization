@@ -4,8 +4,8 @@ import {
   SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, Switch,
 } from 'react-native';
 import {
-  collection, query, where, onSnapshot, doc,
-  updateDoc, serverTimestamp, getDoc, addDoc, getDocs
+  collection, query, where, onSnapshot, doc, Timestamp,
+  updateDoc, serverTimestamp, getDoc, addDoc, getDocs, arrayUnion
 } from 'firebase/firestore';
 import { db, auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
@@ -14,6 +14,7 @@ import { TopBar, FacultyBadge, StatusBadge, getFacultyColor } from '../../compon
 import { calculateFinalGrade, type GradeWeights } from '../../components/Milestoneservice';
 import { coordinatorHomeStyles } from '../../constants/styles';
 import {STATUS_LABEL, STATUS_COLORS} from '../../constants/labels'
+
 
 interface PendingMilestone {
   id: string;
@@ -120,12 +121,14 @@ export default function CoordinatorHome() {
 
   // Defense setup modal (milestone 4)
   const [defenseModal,     setDefenseModal]     = useState(false);
-  const [defenseDate,      setDefenseDate]      = useState('');
+  const [defenseDate,      setDefenseDate]      = useState<Date | null>(null);
+  const [defenseDateText, setDefenseDateText] = useState<string>('');
   const [defenseRoom,      setDefenseRoom]      = useState('');
 
   const [saving, setSaving] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const uid = auth.currentUser?.uid;
+  
   const toggleCardExpansion = (milestoneId: string) => {
     setExpandedCards((prev) => ({
       ...prev,
@@ -198,7 +201,7 @@ export default function CoordinatorHome() {
               supervisorScore:md.data().supervisorScore ?? null,
             }))
             .filter((m) => m.type !== 'defense')
-            .reduce((acc, m) => {
+            .reduce((acc, m) => { 
               if (!acc.find((x) => x.type === m.type)) acc.push(m);
               return acc;
             }, [] as { type: string; status: string; supervisorScore: number | null }[])
@@ -226,122 +229,122 @@ export default function CoordinatorHome() {
   }, []);
 
   // ── Milestones awaiting coordinator approval ──────────────────────────────
-useEffect(() => {
-  const q = query(
-    collection(db, 'milestones'),
-    where('status', '==', 'supervisor_graded')
-  );
+  useEffect(() => {
+    const q = query(
+      collection(db, 'milestones'),
+      where('status', '==', 'supervisor_graded')
+    );
 
-  return onSnapshot(q, async (snap) => {
-    if (snap.empty) {
-      setPendingApprovals([]);
+    return onSnapshot(q, async (snap) => {
+      if (snap.empty) {
+        setPendingApprovals([]);
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Run ALL fetches in parallel
+      const items = await Promise.all(
+        snap.docs.map(async (d) => {
+          const data = d.data();
+
+          // Fetch project + all students in parallel
+          const [projectSnap, ...studentSnaps] = await Promise.all([
+            getDoc(doc(db, 'projects', data.projectId)),
+            ...(data.studentIds ?? []).map((sid: string) =>
+              getDoc(doc(db, 'users', sid))
+            ),
+          ]);
+
+          const studentNames = studentSnaps
+            .filter((s) => s.exists())
+            .map((s) => s.data().displayName as string);
+
+          return {
+            id:               d.id,
+            projectId:        data.projectId,
+            projectTitleHe:   projectSnap.data()?.titleHe ?? '',
+            projectTitleEn:   projectSnap.data()?.titleEn ?? '',
+            type:             data.type,
+            status:           data.status,
+            studentNames,
+            studentIds:       data.studentIds ?? [],
+            supervisorId:     data.supervisorId ?? '',
+            supervisorScore:  data.supervisorScore ?? null,
+            supervisorComment:data.supervisorComment ?? '',
+            fileUrls:         data.fileUrls ?? [],
+            submissionNote:   data.submissionNote ?? '',
+            examinerIds:      data.examinerIds ?? [],
+            examiner1Score:   data.examiner1Score ?? null,
+            examiner2Score:   data.examiner2Score ?? null,
+            gradeWeights:     data.gradeWeights ?? null,
+            dueDate:          data.dueDate,
+            facultyId:        projectSnap.data()?.facultyId ?? '',
+            defenseDate:      data.defenseDate ?? null,
+            defenseRoom:      data.defenseRoom ?? null,
+          } as PendingMilestone;
+        })
+      );
+
+      setPendingApprovals(items);
       setLoading(false);
-      return;
-    }
+    });
+  }, []);
 
-    // ✅ Run ALL fetches in parallel
-    const items = await Promise.all(
-      snap.docs.map(async (d) => {
-        const data = d.data();
-
-        // Fetch project + all students in parallel
-        const [projectSnap, ...studentSnaps] = await Promise.all([
-          getDoc(doc(db, 'projects', data.projectId)),
-          ...(data.studentIds ?? []).map((sid: string) =>
-            getDoc(doc(db, 'users', sid))
-          ),
-        ]);
-
-        const studentNames = studentSnaps
-          .filter((s) => s.exists())
-          .map((s) => s.data().displayName as string);
-
-        return {
-          id:               d.id,
-          projectId:        data.projectId,
-          projectTitleHe:   projectSnap.data()?.titleHe ?? '',
-          projectTitleEn:   projectSnap.data()?.titleEn ?? '',
-          type:             data.type,
-          status:           data.status,
-          studentNames,
-          studentIds:       data.studentIds ?? [],
-          supervisorId:     data.supervisorId ?? '',
-          supervisorScore:  data.supervisorScore ?? null,
-          supervisorComment:data.supervisorComment ?? '',
-          fileUrls:         data.fileUrls ?? [],
-          submissionNote:   data.submissionNote ?? '',
-          examinerIds:      data.examinerIds ?? [],
-          examiner1Score:   data.examiner1Score ?? null,
-          examiner2Score:   data.examiner2Score ?? null,
-          gradeWeights:     data.gradeWeights ?? null,
-          dueDate:          data.dueDate,
-          facultyId:        projectSnap.data()?.facultyId ?? '',
-          defenseDate:      data.defenseDate ?? null,
-          defenseRoom:      data.defenseRoom ?? null,
-        } as PendingMilestone;
-      })
+  // ── Defense milestones ────────────────────────────────────────────────────
+  useEffect(() => {
+    const q = query(
+      collection(db, 'milestones'),
+      where('type', '==', 'defense'),
+      where('status', 'in', ['coordinator_approved', 'examiners_assigned'])
     );
 
-    setPendingApprovals(items);
-    setLoading(false);
-  });
-}, []);
+    return onSnapshot(q, async (snap) => {
+      if (snap.empty) {
+        setDefenseSetups([]);
+        return;
+      }
 
-// ── Defense milestones ────────────────────────────────────────────────────
-useEffect(() => {
-  const q = query(
-    collection(db, 'milestones'),
-    where('type', '==', 'defense'),
-    where('status', 'in', ['coordinator_approved', 'examiners_assigned'])
-  );
+      const items = await Promise.all(
+        snap.docs.map(async (d) => {
+          const data = d.data();
 
-  return onSnapshot(q, async (snap) => {
-    if (snap.empty) {
-      setDefenseSetups([]);
-      return;
-    }
+          const [projectSnap, ...studentSnaps] = await Promise.all([
+            getDoc(doc(db, 'projects', data.projectId)),
+            ...(data.studentIds ?? []).map((sid: string) =>
+              getDoc(doc(db, 'users', sid))
+            ),
+          ]);
 
-    const items = await Promise.all(
-      snap.docs.map(async (d) => {
-        const data = d.data();
+          const studentNames = studentSnaps
+            .filter((s) => s.exists())
+            .map((s) => s.data().displayName as string);
 
-        const [projectSnap, ...studentSnaps] = await Promise.all([
-          getDoc(doc(db, 'projects', data.projectId)),
-          ...(data.studentIds ?? []).map((sid: string) =>
-            getDoc(doc(db, 'users', sid))
-          ),
-        ]);
+          return {
+            id:              d.id,
+            projectId:       data.projectId,
+            projectTitleHe:  projectSnap.data()?.titleHe ?? '',
+            projectTitleEn:  projectSnap.data()?.titleEn ?? '',
+            type:            data.type,
+            status:          data.status,
+            studentNames,
+            studentIds:      data.studentIds ?? [],
+            supervisorId:    data.supervisorId ?? '',
+            supervisorScore: data.supervisorScore ?? null,
+            examinerIds:     data.examinerIds ?? [],
+            examiner1Score:  data.examiner1Score ?? null,
+            examiner2Score:  data.examiner2Score ?? null,
+            gradeWeights:    data.gradeWeights ?? null,
+            dueDate:         data.dueDate,
+            facultyId:       projectSnap.data()?.facultyId ?? '',
+            defenseDate:     data.defenseDate ?? null,
+            defenseRoom:     data.defenseRoom ?? null,
+          } as PendingMilestone;
+        })
+      );
 
-        const studentNames = studentSnaps
-          .filter((s) => s.exists())
-          .map((s) => s.data().displayName as string);
-
-        return {
-          id:              d.id,
-          projectId:       data.projectId,
-          projectTitleHe:  projectSnap.data()?.titleHe ?? '',
-          projectTitleEn:  projectSnap.data()?.titleEn ?? '',
-          type:            data.type,
-          status:          data.status,
-          studentNames,
-          studentIds:      data.studentIds ?? [],
-          supervisorId:    data.supervisorId ?? '',
-          supervisorScore: data.supervisorScore ?? null,
-          examinerIds:     data.examinerIds ?? [],
-          examiner1Score:  data.examiner1Score ?? null,
-          examiner2Score:  data.examiner2Score ?? null,
-          gradeWeights:    data.gradeWeights ?? null,
-          dueDate:         data.dueDate,
-          facultyId:       projectSnap.data()?.facultyId ?? '',
-          defenseDate:     data.defenseDate ?? null,
-          defenseRoom:     data.defenseRoom ?? null,
-        } as PendingMilestone;
-      })
-    );
-
-    setDefenseSetups(items);
-  });
-}, []);
+      setDefenseSetups(items);
+    });
+  }, []);
 
   // Unread notifications
   useEffect(() => {
@@ -494,6 +497,49 @@ useEffect(() => {
     }
     setSaving(true);
     try {
+      const configSnap = await getDoc(doc(db, 'config', 'system'));
+      const defenseWindowDays = configSnap.exists()
+        ? configSnap.data().defenseWindowDays
+        : 45;
+      const [examiner1Snap, examiner2Snap] = await Promise.all([
+        getDoc(doc(db, 'users', examiner1Id)),
+        getDoc(doc(db, 'users', examiner2Id)),
+      ]);
+      const now = new Date();
+      const maxDate = new Date();
+      maxDate.setDate(now.getDate() + defenseWindowDays);
+      if (!defenseDate) {
+        Alert.alert('Error', 'Please select a defense date');
+        return;
+      }
+      const examiner1Dates = examiner1Snap.data()?.dates || [];
+      const examiner2Dates = examiner2Snap.data()?.dates || [];
+      const selectedDateStr = new Date(defenseDate)
+        .toISOString()
+        .split('T')[0];
+      if (examiner1Dates.includes(selectedDateStr)) {
+        Alert.alert(
+          lang === 'he' ? 'שגיאה' : 'Error',
+          `${examiner1Snap.data()?.displayName} ${
+            lang === 'he'
+              ? 'לא זמין בתאריך זה'
+              : 'is not available on this date'
+          }`
+        );
+        return;
+      }
+
+      if (examiner2Dates.includes(selectedDateStr)) {
+        Alert.alert(
+          lang === 'he' ? 'שגיאה' : 'Error',
+          `${examiner2Snap.data()?.displayName} ${
+            lang === 'he'
+              ? 'לא זמין בתאריך זה'
+              : 'is not available on this date'
+          }`
+        );
+        return;
+      }
       const weights: GradeWeights = {
         supervisorWeight: w1,
         examiner1Weight:  w2,
@@ -505,6 +551,14 @@ useEffect(() => {
         coordinatorId:         uid,
         examinerIds:           [examiner1Id, examiner2Id],
         gradeWeights:          weights,
+        defenseDate:           Timestamp.fromDate(new Date(defenseDate)),
+      });
+      await updateDoc(doc(db, 'users', examiner1Id), {
+        dates: arrayUnion(selectedDateStr),
+      });
+
+      await updateDoc(doc(db, 'users', examiner2Id), {
+        dates: arrayUnion(selectedDateStr),
       });
       await updateProjectProgress(selectedMilestone.projectId, selectedMilestone.type);
       // Notify each examiner
@@ -548,16 +602,12 @@ useEffect(() => {
 
   // ── Set defense date & room ───────────────────────────────────────────────
   const handleSetDefense = async () => {
-    if (!selectedMilestone) return;
-    if (!defenseDate.trim()) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש להזין תאריך הגנה' : 'Please enter a defense date');
-      return;
-    }
+    if (!selectedMilestone || !defenseDate) return;
+
     setSaving(true);
     try {
       await updateDoc(doc(db, 'milestones', selectedMilestone.id), {
-        defenseDate: defenseDate.trim(),
+        defenseDate: Timestamp.fromDate(defenseDate),
         defenseRoom: defenseRoom.trim() || null,
       });
       // Notify all parties
@@ -581,7 +631,7 @@ useEffect(() => {
         });
       }
       setDefenseModal(false);
-      setDefenseDate(''); setDefenseRoom('');
+      setDefenseDate(null); setDefenseRoom('');
       Alert.alert('✅', lang === 'he' ? 'מועד ההגנה נשמר' : 'Defense date saved');
     } catch (e) {
       console.error(e);
@@ -749,7 +799,7 @@ useEffect(() => {
                     >
                       <Text style={styles.rejectBtnText}>
                         {m.type === 'final_report'
-                          ? (lang === 'he' ? '👥 אשר + הקצה בוחנים' : '👥 Approve + Assign Examiners')
+                          ? (lang === 'he' ? '👥 דחה + אל תקצה בוחנים' : '👥 Reject + Do Not Assign Examiners')
                           : (lang === 'he' ? '❌ דחה' : '❌ Reject')}
                       </Text>
                     </Pressable>
@@ -1026,6 +1076,13 @@ useEffect(() => {
       {/* ── Assign examiners modal ── */}
       <Modal visible={assignModal} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => setAssignModal(false)}>
+              <Text style={styles.backButton}>
+                ← {lang === 'he' ? 'חזור' : 'Back'}
+              </Text>
+            </Pressable>
+          </View>
           <Text style={styles.modalTitle}>
             {lang === 'he' ? '👥 הקצאת בוחנים ומשקלות' : '👥 Assign Examiners & Weights'}
           </Text>
@@ -1048,7 +1105,9 @@ useEffect(() => {
           <Text style={styles.fieldLabel}>
             {lang === 'he' ? 'בוחן 2' : 'Examiner 2'}
           </Text>
-          {allExaminers.map((ex) => (
+          {allExaminers
+            .filter((ex) => ex.id !== examiner1Id)
+            .map((ex) => (
             <Pressable
               key={ex.id}
               style={[styles.examinerOption, examiner2Id === ex.id && styles.examinerOptionActive]}
@@ -1115,8 +1174,18 @@ useEffect(() => {
           </Text>
           <TextInput
             style={styles.input}
-            value={defenseDate}
-            onChangeText={setDefenseDate}
+            value={defenseDateText}
+            onChangeText={(text) => {
+              setDefenseDateText(text);
+
+              // try to parse into Date
+              const parsed = new Date(text);
+              if (!isNaN(parsed.getTime())) {
+                setDefenseDate(parsed);
+              } else {
+                setDefenseDate(null);
+              }
+            }}
             placeholder="DD/MM/YYYY HH:MM"
           />
 
