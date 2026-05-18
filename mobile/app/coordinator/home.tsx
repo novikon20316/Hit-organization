@@ -505,15 +505,17 @@ export default function CoordinatorHome() {
         getDoc(doc(db, 'users', examiner1Id)),
         getDoc(doc(db, 'users', examiner2Id)),
       ]);
-      const now = new Date();
-      const maxDate = new Date();
-      maxDate.setDate(now.getDate() + defenseWindowDays);
-      if (!defenseDate) {
-        Alert.alert('Error', 'Please select a defense date');
-        return;
-      }
+      const calculatedDefenseDate = new Date();
+      calculatedDefenseDate.setDate(
+        calculatedDefenseDate.getDate() + defenseWindowDays
+      );
+      setDefenseDate(calculatedDefenseDate);
       const examiner1Dates = examiner1Snap.data()?.dates || [];
       const examiner2Dates = examiner2Snap.data()?.dates || [];
+      if(!defenseDate){
+        Alert.prompt("date never got initialized")
+        return;
+      }
       const selectedDateStr = new Date(defenseDate)
         .toISOString()
         .split('T')[0];
@@ -1090,7 +1092,9 @@ export default function CoordinatorHome() {
           <Text style={styles.fieldLabel}>
             {lang === 'he' ? 'בוחן 1' : 'Examiner 1'}
           </Text>
-          {allExaminers.map((ex) => (
+          {allExaminers
+            .filter((ex) => ex.id !== examiner2Id)
+            .map((ex) => (
             <Pressable
               key={ex.id}
               style={[styles.examinerOption, examiner1Id === ex.id && styles.examinerOptionActive]}

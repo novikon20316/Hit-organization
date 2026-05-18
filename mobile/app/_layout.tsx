@@ -53,6 +53,9 @@ export default function RootLayout() {
       }else if(role === "coordinator"){
         console.log("➡️ navigating to coordinator");
         router.replace("/coordinator/home");
+      }else if(role === "examiner"){
+        console.log("➡️ navigating to examiner");
+        router.replace("/examinor/home");
       }else {
         console.log("➡️ navigating to auth");
         router.replace("/(auth)/login");

@@ -231,6 +231,51 @@ export async function createCoordinator() {
   }
 };
 
+export async function createExaminer() {
+  try {
+    // 1. Create auth account
+    const cred = await createUserWithEmailAndPassword(
+      auth,
+      'examiner2@hit.ac.il',
+      '12345678'
+    );
+
+    const uid = cred.user.uid;
+
+    // 2. Create Firestore user document
+    await setDoc(doc(db, 'users', uid), {
+      uid : uid,
+      email: 'examiner2@hit.ac.il',
+
+      displayName: 'בוחן2',
+      displayNameHe: 'בוחן2',
+      displayNameEn: 'examiner2',
+
+      role: 'examiner',
+
+      facultyId: 'all',
+
+      additionalRoles: [],
+      degreeType:      null,
+      yearOfStudy:     null,
+      studentId:       null,
+      major:           null,
+      isActive:        true,
+      profileComplete: true,
+      hasActiveProject:false,
+      language:        "he",
+      expoPushToken:   null,
+      dates:[],
+
+      createdAt: serverTimestamp(),
+    });
+
+    console.log('✅ Coordinator created');
+  } catch (e) {
+    console.error('❌ Error creating coordinator:', e);
+  }
+};
+
 // ─── Valid role values (copy exactly — case sensitive) ────────────────────────
 //
 //   "student"
@@ -248,6 +293,6 @@ export async function createCoordinator() {
 //   "industrial"
 //   "mechanical"
 //   "learning_technology"
-//   "all"              ← system_admin only
+//   "all"              ← system_admin / Examiner only
 //
 // ─────────────────────────────────────────────────────────────────────────────

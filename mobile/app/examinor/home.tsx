@@ -4,7 +4,7 @@ import {
   SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, StyleSheet,
 } from 'react-native';
 import {
-  collection, query, where, onSnapshot, doc,
+  collection, query, where, onSnapshot, doc, Timestamp,
   updateDoc, serverTimestamp, getDoc, addDoc, getDocs,
 } from 'firebase/firestore';
 import { db, auth } from '../../src/firebase/firebase';
@@ -34,7 +34,7 @@ interface AssignedMilestone {
   examiner1GradeId: string | null;
   examiner2GradeId: string | null;
   gradeWeights: GradeWeights | null;
-  defenseDate: string | null;
+  defenseDate: Timestamp| string | null;
   defenseRoom: string | null;
   facultyId: string;
   milestoneHistory: {                    // ← new
@@ -157,7 +157,10 @@ export default function ExaminerHome() {
  
         // All milestones history for this project  ← new
         const allMilestonesSnap = await getDocs(
-          query(collection(db, 'milestones'), where('projectId', '==', data.projectId))
+          query(collection(db, 'milestones'), 
+            where('projectId', '==', data.projectId),
+            where('examinerIds', 'array-contains', uid)
+          )
         );
         const milestoneHistory = allMilestonesSnap.docs
           .filter((md) => md.data().type !== 'defense')
@@ -316,13 +319,20 @@ export default function ExaminerHome() {
  
   // Schedule: only milestones with a defenseDate, sorted soonest first
   const scheduled = [...assignments]
-    .filter((m) => m.defenseDate)
-    .sort((a, b) => {
-      const da = parseDefenseDate(a.defenseDate);
-      const db_ = parseDefenseDate(b.defenseDate);
-      if (!da || !db_) return 0;
-      return da.getTime() - db_.getTime();
-    });
+  .filter((m) => m.defenseDate)
+  .sort((a, b) => {
+    // Extract real Date objects safely whether they are Timestamps or strings
+    const da = a.defenseDate && typeof a.defenseDate === 'object' && 'toDate' in a.defenseDate
+      ? a.defenseDate.toDate()
+      : parseDefenseDate(a.defenseDate as string | null);
+
+    const db_ = b.defenseDate && typeof b.defenseDate === 'object' && 'toDate' in b.defenseDate
+      ? b.defenseDate.toDate()
+      : parseDefenseDate(b.defenseDate as string | null);
+
+    if (!da || !db_) return 0;
+    return da.getTime() - db_.getTime();
+  });
  
   return (
     <SafeAreaView style={styles.root}>
@@ -410,7 +420,10 @@ export default function ExaminerHome() {
                     {m.defenseDate && (
                       <View style={styles.defensePill}>
                         <Text style={styles.defensePillText}>
-                          📅 {m.defenseDate}{m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
+                          📅 {typeof m.defenseDate === 'string'
+                                ? m.defenseDate
+                                : m.defenseDate.toDate().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
+                              {m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
                         </Text>
                       </View>
                     )}
@@ -529,7 +542,9 @@ export default function ExaminerHome() {
               </View>
             ) : (
               scheduled.map((m) => {
-                const defDate       = parseDefenseDate(m.defenseDate);
+                const defDate       = m.defenseDate && typeof m.defenseDate === 'object' && 'toDate' in m.defenseDate
+                                      ? m.defenseDate.toDate()
+                                      : parseDefenseDate(m.defenseDate as string | null);
                 const days          = defDate ? daysUntil(defDate) : null;
                 const fc            = getFacultyColor(m.facultyId);
                 const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
@@ -555,8 +570,20 @@ export default function ExaminerHome() {
                        days === 1   ? 'Tomorrow!'   :
                        `In ${days} days`);
  
-                const datePart = m.defenseDate?.split(' ')[0] ?? '';
-                const timePart = m.defenseDate?.split(' ')[1] ?? '';
+                let datePart = '';
+                let timePart = '';
+                if (m.defenseDate) {
+                  if (typeof m.defenseDate === 'string') {
+                    datePart = m.defenseDate.split(' ')[0] ?? '';
+                    timePart = m.defenseDate.split(' ')[1] ?? '';
+                  } else if (typeof m.defenseDate === 'object' && 'toDate' in m.defenseDate) {
+                    const jsDate = m.defenseDate.toDate();
+                    // Formats to YYYY-MM-DD (matches standard split formats perfectly)
+                    datePart = jsDate.toISOString().split('T')[0]; 
+                    // Formats to HH:MM (24-hour style clock)
+                    timePart = jsDate.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                  }
+                }
  
                 return (
                   <View key={m.id} style={[styles.scheduleCard, { borderLeftColor: fc.primary }]}>
@@ -651,7 +678,10 @@ export default function ExaminerHome() {
               </Text>
               <Text style={styles.contextSub}>👤 {selected.studentNames.join(', ')}</Text>
               {selected.defenseDate && (
-                <Text style={styles.contextSub}>📅 {selected.defenseDate}</Text>
+                <Text style={styles.contextSub}>📅 {typeof selected.defenseDate === 'string'
+                  ? selected.defenseDate
+                  : selected.defenseDate.toDate().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
+                </Text>
               )}
             </View>
           )}
