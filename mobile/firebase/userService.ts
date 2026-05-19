@@ -1,4 +1,4 @@
-import { db } from "./firebaseConfig";
+import { db } from "../src/firebase/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 export const createUserProfile = async (user: any, role = "student") => {
