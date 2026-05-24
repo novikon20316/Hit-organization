@@ -5,11 +5,12 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Animated,
-  Modal, TextInput, ScrollView, ActivityIndicator,
+  View, Text, Pressable, StyleSheet,
+  Modal, TextInput, ActivityIndicator,
 } from 'react-native';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../src/firebase/firebase';
+import { apiClient } from '../../src/api/apiClient';
 import {
   daysUntil, urgencyLevel, URGENCY_COLORS,
   type MilestoneStatus,
@@ -85,7 +86,8 @@ function MilestoneCard({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [newDateText, setNewDateText] = useState('');
   const [savingDate, setSavingDate] = useState(false);
-
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+  const [selectedDateString, setSelectedDateString] = useState<string>(''); // or Date / number
   const isCompleted = milestone.status === 'completed';
   const cfg         = STATUS_CONFIG[milestone.status];
   const days        = daysUntil(milestone.dueDate);
@@ -100,14 +102,19 @@ function MilestoneCard({
     viewerRole === 'system_admin'
   ) && milestone.status === 'pending';
 
-  const handleSaveDate = async () => {
+  const handleSaveDate = async (milestoneId: string, updatedData: any) => {
     if (!newDateText.trim()) return;
     const parsed = new Date(newDateText);
     if (isNaN(parsed.getTime())) return;
-    setSavingDate(true);
     try {
-      await updateDoc(doc(db, 'milestones', milestone.id), {
+      setSavingDate(true);
+      /*await updateDoc(doc(db, 'milestones', milestone.id), {
         dueDate: Timestamp.fromDate(parsed),
+      });*/
+      await apiClient.put(`/api/milestones/${milestoneId}`, {
+        status: updatedData.status,
+        dueDate: updatedData.dueDate, // Express backend maps date changes securely
+        grades: updatedData.grades
       });
       onAdjustDate?.(milestone, parsed);
       setShowDatePicker(false);
@@ -346,7 +353,14 @@ function MilestoneCard({
               </Pressable>
               <Pressable
                 style={[mc.modalSaveBtn, savingDate && { opacity: 0.6 }]}
-                onPress={handleSaveDate}
+                onPress={() => {
+                  if (selectedMilestoneId) {
+                    handleSaveDate(selectedMilestoneId, {
+                      dueDate: selectedDateString, // Passes the new date string or timestamp
+                      status: 'pending'            // Keeps or modifies the status parameter securely
+                    });
+                  }
+                }}
                 disabled={savingDate}
               >
                 {savingDate

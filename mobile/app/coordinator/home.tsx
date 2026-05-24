@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, Switch,
+  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert,
 } from 'react-native';
-import {
-  collection, query, where, onSnapshot, doc, Timestamp,
-  updateDoc, serverTimestamp, getDoc, addDoc, getDocs, arrayUnion
-} from 'firebase/firestore';
-import { db, auth } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
-import { TopBar, FacultyBadge, StatusBadge, getFacultyColor } from '../../components/shared';
-import { calculateFinalGrade, type GradeWeights } from '../../components/Milestoneservice';
+import { TopBar, FacultyBadge } from '../../components/shared';
+import {type GradeWeights } from '../../components/Milestoneservice';
 import { coordinatorHomeStyles } from '../../constants/styles';
 import {STATUS_LABEL, STATUS_COLORS} from '../../constants/labels'
+import { apiClient } from '@/src/api/apiClient';
 
 
 interface PendingMilestone {
@@ -45,6 +42,14 @@ interface PendingMilestone {
     type: string;
     score: number | null;
   }[];
+}
+
+interface Project {
+  id: string;
+  titleHe: string;
+  titleEn: string;
+  status: string;
+  facultyId: string;
 }
 
 interface InProgressProject {
@@ -84,13 +89,7 @@ const MILESTONE_PROGRESS: Record<string, number> = {
   defense:           100,
 };
 
-const updateProjectProgress = async (projectId: string, milestoneType: string) => {
-  const newProgress = MILESTONE_PROGRESS[milestoneType] ?? 0;
-  await updateDoc(doc(db, 'projects', projectId), {
-    progress: newProgress,
-    lastUpdatedAt: serverTimestamp(),
-  });
-};
+
 
 export default function CoordinatorHome() {
   const router = useRouter();
@@ -101,7 +100,8 @@ export default function CoordinatorHome() {
   const [loading, setLoading]     = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress'>('pending');
-
+  const [pendingMilestones, setPendingMilestones] = useState<PendingMilestone[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [inProgressProjects, setInProgressProjects] = useState<InProgressProject[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<PendingMilestone[]>([]);
   const [defenseSetups,    setDefenseSetups]    = useState<PendingMilestone[]>([]);
@@ -120,242 +120,67 @@ export default function CoordinatorHome() {
   const [weightExaminer2,  setWeightExaminer2]  = useState('35');
 
   // Defense setup modal (milestone 4)
+  const [selectedProjectForDefense, setSelectedProjectForDefense] = useState<Project | null>(null);
   const [defenseModal,     setDefenseModal]     = useState(false);
   const [defenseDate,      setDefenseDate]      = useState<Date | null>(null);
   const [defenseDateText, setDefenseDateText] = useState<string>('');
   const [defenseRoom,      setDefenseRoom]      = useState('');
-
+  const [projectId, setProjectId] = useState<string>('')
   const [saving, setSaving] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const uid = auth.currentUser?.uid;
-  
+
+
+  const updateProjectProgress = async (projectId: string, milestoneType: string) => {
+    try {
+      setLoading(true);
+      // 🚀 We talk only to our API. The server handles the logic!
+      await apiClient.post(`/api/projects/${projectId}/progress`, { 
+        milestoneType 
+      });
+      
+      // Refresh the UI to show the new progress
+      fetchCoordinatorDashboard(); 
+    } catch (err) {
+      Alert.alert('Error', 'Could not update progress');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   const toggleCardExpansion = (milestoneId: string) => {
     setExpandedCards((prev) => ({
       ...prev,
       [milestoneId]: !prev[milestoneId],
     }));
   };
-  useEffect(() => {
-    if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      if (snap.exists()) setCoordinatorName(snap.data().displayName || '');
-    });
-  }, [uid]);
 
-  // Load all examiners for the picker
-  useEffect(() => {
-    return onSnapshot(
-      query(collection(db, 'users'), where('role', '==', 'examiner')),
-      (snap) => {
-        setAllExaminers(snap.docs.map((d) => ({
-          id: d.id,
-          displayName: d.data().displayName || '',
-          email: d.data().email || '',
-          facultyId: d.data().facultyId || '',
-        })));
-      }
-    );
-  }, []);
+  // ── 1. Unified Fetch Loop ───────────────────────────────────────────
+  const fetchCoordinatorDashboard = async () => {
+    try {
+      if (!auth.currentUser) return;
+      setLoading(true);
 
-  // ── In-progress projects ──────────────────────────────────────────────────
-  useEffect(() => {
-    const q = query(
-      collection(db, 'projects'),
-      where('status', '==', 'in_progress')
-    );
+      // 🚀 Replaced all multi-collection snapshots with one optimized backend matrix call
+      const [profileRes, dashboardRes] = await Promise.all([
+        apiClient.get('/api/users/profile'),
+        apiClient.get('/api/coordinator/dashboard') 
+      ]);
 
-    return onSnapshot(q, async (snap) => {
-      if (snap.empty) {
-        setInProgressProjects([]);
-        return;
-      }
+      setCoordinatorName(profileRes.data?.displayName || 'Coordinator');
+      if (profileRes.data?.language) setLang(profileRes.data.language);
 
-      const items = await Promise.all(
-        snap.docs.map(async (d) => {
-          const data = d.data();
-
-          // Fetch students + supervisor + milestones in parallel
-          const [supervisorSnap, milestonesSnap, ...studentSnaps] = await Promise.all([
-            getDoc(doc(db, 'users', data.supervisorId)),
-            getDocs(query(
-              collection(db, 'milestones'),
-              where('projectId', '==', d.id)
-            )),
-            ...(data.enrolledStudentIds ?? []).map((sid: string) =>
-              getDoc(doc(db, 'users', sid))
-            ),
-          ]);
-
-          const studentNames = studentSnaps
-            .filter((s) => s.exists())
-            .map((s) => s.data().displayName as string);
-
-          const supervisorName = supervisorSnap.exists()
-            ? (supervisorSnap.data().displayName as string)
-            : '';
-
-          const milestones = milestonesSnap.docs
-            .map((md) => ({
-              type:           md.data().type as string,
-              status:         md.data().status as string,
-              supervisorScore:md.data().supervisorScore ?? null,
-            }))
-            .filter((m) => m.type !== 'defense')
-            .reduce((acc, m) => { 
-              if (!acc.find((x) => x.type === m.type)) acc.push(m);
-              return acc;
-            }, [] as { type: string; status: string; supervisorScore: number | null }[])
-            .sort((a, b) => {
-              const order = ['research_proposal', 'progress_report', 'final_report'];
-              return order.indexOf(a.type) - order.indexOf(b.type);
-            });
-
-          return {
-            id:             d.id,
-            projectTitleHe: data.titleHe ?? '',
-            projectTitleEn: data.titleEn ?? '',
-            facultyId:      data.facultyId ?? '',
-            studentNames,
-            supervisorName,
-            progress:       data.progress ?? 0,
-            status:         data.status,
-            milestones,
-          } as InProgressProject;
-        })
-      );
-
-      setInProgressProjects(items);
-    });
-  }, []);
-
-  // ── Milestones awaiting coordinator approval ──────────────────────────────
-  useEffect(() => {
-    const q = query(
-      collection(db, 'milestones'),
-      where('status', '==', 'supervisor_graded')
-    );
-
-    return onSnapshot(q, async (snap) => {
-      if (snap.empty) {
-        setPendingApprovals([]);
-        setLoading(false);
-        return;
-      }
-
-      // ✅ Run ALL fetches in parallel
-      const items = await Promise.all(
-        snap.docs.map(async (d) => {
-          const data = d.data();
-
-          // Fetch project + all students in parallel
-          const [projectSnap, ...studentSnaps] = await Promise.all([
-            getDoc(doc(db, 'projects', data.projectId)),
-            ...(data.studentIds ?? []).map((sid: string) =>
-              getDoc(doc(db, 'users', sid))
-            ),
-          ]);
-
-          const studentNames = studentSnaps
-            .filter((s) => s.exists())
-            .map((s) => s.data().displayName as string);
-
-          return {
-            id:               d.id,
-            projectId:        data.projectId,
-            projectTitleHe:   projectSnap.data()?.titleHe ?? '',
-            projectTitleEn:   projectSnap.data()?.titleEn ?? '',
-            type:             data.type,
-            status:           data.status,
-            studentNames,
-            studentIds:       data.studentIds ?? [],
-            supervisorId:     data.supervisorId ?? '',
-            supervisorScore:  data.supervisorScore ?? null,
-            supervisorComment:data.supervisorComment ?? '',
-            fileUrls:         data.fileUrls ?? [],
-            submissionNote:   data.submissionNote ?? '',
-            examinerIds:      data.examinerIds ?? [],
-            examiner1Score:   data.examiner1Score ?? null,
-            examiner2Score:   data.examiner2Score ?? null,
-            gradeWeights:     data.gradeWeights ?? null,
-            dueDate:          data.dueDate,
-            facultyId:        projectSnap.data()?.facultyId ?? '',
-            defenseDate:      data.defenseDate ?? null,
-            defenseRoom:      data.defenseRoom ?? null,
-          } as PendingMilestone;
-        })
-      );
-
-      setPendingApprovals(items);
+      setPendingMilestones(dashboardRes.data.pendingMilestones || []);
+      setProjects(dashboardRes.data.projects || []);
+      setUnreadCount(dashboardRes.data.unreadCount || 0);
+    } catch (err) {
+      console.error("Failed fetching coordinator panel matrix:", err);
+    } finally {
       setLoading(false);
-    });
-  }, []);
+    }
+  };
 
-  // ── Defense milestones ────────────────────────────────────────────────────
-  useEffect(() => {
-    const q = query(
-      collection(db, 'milestones'),
-      where('type', '==', 'defense'),
-      where('status', 'in', ['coordinator_approved', 'examiners_assigned'])
-    );
-
-    return onSnapshot(q, async (snap) => {
-      if (snap.empty) {
-        setDefenseSetups([]);
-        return;
-      }
-
-      const items = await Promise.all(
-        snap.docs.map(async (d) => {
-          const data = d.data();
-
-          const [projectSnap, ...studentSnaps] = await Promise.all([
-            getDoc(doc(db, 'projects', data.projectId)),
-            ...(data.studentIds ?? []).map((sid: string) =>
-              getDoc(doc(db, 'users', sid))
-            ),
-          ]);
-
-          const studentNames = studentSnaps
-            .filter((s) => s.exists())
-            .map((s) => s.data().displayName as string);
-
-          return {
-            id:              d.id,
-            projectId:       data.projectId,
-            projectTitleHe:  projectSnap.data()?.titleHe ?? '',
-            projectTitleEn:  projectSnap.data()?.titleEn ?? '',
-            type:            data.type,
-            status:          data.status,
-            studentNames,
-            studentIds:      data.studentIds ?? [],
-            supervisorId:    data.supervisorId ?? '',
-            supervisorScore: data.supervisorScore ?? null,
-            examinerIds:     data.examinerIds ?? [],
-            examiner1Score:  data.examiner1Score ?? null,
-            examiner2Score:  data.examiner2Score ?? null,
-            gradeWeights:    data.gradeWeights ?? null,
-            dueDate:         data.dueDate,
-            facultyId:       projectSnap.data()?.facultyId ?? '',
-            defenseDate:     data.defenseDate ?? null,
-            defenseRoom:     data.defenseRoom ?? null,
-          } as PendingMilestone;
-        })
-      );
-
-      setDefenseSetups(items);
-    });
-  }, []);
-
-  // Unread notifications
-  useEffect(() => {
-    if (!uid) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', uid),
-      where('isRead', '==', false)
-    );
-    return onSnapshot(q, (snap) => setUnreadCount(snap.size));
-  }, [uid]);
 
   // ── Approve milestone (research_proposal or progress_report) ─────────────
   const handleApprove = async (milestone: PendingMilestone) => {
@@ -370,109 +195,40 @@ export default function CoordinatorHome() {
       setAssignModal(true);
       return;
     }
-    setSaving(true);
     try {
-      await updateDoc(doc(db, 'milestones', milestone.id), {
-        status:                'coordinator_approved',
-        coordinatorApprovedAt: serverTimestamp(),
-        coordinatorId:         uid,
-      });
-      await updateProjectProgress(milestone.projectId, milestone.type);
-      // Notify students
-      for (const studentId of milestone.studentIds) {
-        await addDoc(collection(db, 'notifications'), {
-          recipientId: studentId,
-          type:        'milestone_approved',
-          titleHe:     '✅ אבן דרך אושרה',
-          titleEn:     '✅ Milestone Approved',
-          bodyHe:      `הרכז אישר את ${MILESTONE_LABEL[milestone.type]?.he}`,
-          bodyEn:      `Coordinator approved your ${MILESTONE_LABEL[milestone.type]?.en}`,
-          relatedProjectId:   milestone.projectId,
-          relatedMilestoneId: milestone.id,
-          isRead:      false,
-          createdAt:   serverTimestamp(),
-        });
-      }
-      Alert.alert('✅', lang === 'he' ? 'אבן הדרך אושרה' : 'Milestone approved');
-    } catch (e) {
-      console.error(e);
+      setSaving(true);
+      // 🚀 Moved scoring computations & structural calculations to the server
+      await apiClient.post(`/api/coordinator/milestones/${milestone.id}/approve`);
+      
+      Alert.alert('✅', lang === 'he' ? 'אבן הדרך אושרה בהצלחה' : 'Milestone approved successfully');
+      fetchCoordinatorDashboard();
+    } catch (err) {
+      Alert.alert('Error', 'Failed to submit approval.');
     } finally {
       setSaving(false);
     }
   };
   //--- Reject milestone (research_proposal or progress_report) ----------------------
   const handleReject = async (milestone: PendingMilestone) => {
-    Alert.alert(
-      lang === 'he' ? 'דחיית אבן דרך' : 'Reject Milestone',
-      lang === 'he'
-        ? 'האם אתה בטוח שברצונך לדחות את אבן הדרך?'
-        : 'Are you sure you want to reject this milestone?',
-      [
-        {
-          text: lang === 'he' ? 'ביטול' : 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: lang === 'he' ? 'דחה' : 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            setSaving(true);
+    try {
+      setSaving(true);
+      // 🚀 We send the ID and the reason to the server. 
+      // The server handles the update AND the notification creation.
+      await apiClient.post(`/api/coordinator/milestones/${milestone.id}/reject`, {
+        id: milestone.id,
+        projectId: milestone.projectId,
+        studentNames: milestone.studentNames,
+        supervisorId: milestone.supervisorId, 
+      });
 
-            try {
-              await updateDoc(doc(db, 'milestones', milestone.id), {
-                status: 'pending',
-                coordinatorApprovedAt: null,
-                coordinatorId: null,
-              });
-
-              // notify students
-              for (const studentId of milestone.studentIds) {
-                await addDoc(collection(db, 'notifications'), {
-                  recipientId: studentId,
-
-                  type: 'milestone_rejected',
-
-                  titleHe: '❌ אבן דרך נדחתה',
-                  titleEn: '❌ Milestone Rejected',
-
-                  bodyHe: `הרכז דחה את ${
-                    MILESTONE_LABEL[milestone.type]?.he
-                  } ויש לבצע תיקונים`,
-
-                  bodyEn: `Coordinator rejected your ${
-                    MILESTONE_LABEL[milestone.type]?.en
-                  }. Please revise and resubmit.`,
-
-                  relatedProjectId: milestone.projectId,
-                  relatedMilestoneId: milestone.id,
-
-                  isRead: false,
-                  createdAt: serverTimestamp(),
-                });
-              }
-
-              Alert.alert(
-                '✅',
-                lang === 'he'
-                  ? 'אבן הדרך נדחתה בהצלחה'
-                  : 'Milestone rejected successfully'
-              );
-            } catch (e) {
-              console.error(e);
-
-              Alert.alert(
-                lang === 'he' ? 'שגיאה' : 'Error',
-                lang === 'he'
-                  ? 'אירעה שגיאה בעת דחיית אבן הדרך'
-                  : 'Failed to reject milestone'
-              );
-            } finally {
-              setSaving(false);
-            }
-          },
-        },
-      ]
-    );
+      Alert.alert('✅', lang === 'he' ? 'אבן הדרך נדחתה' : 'Milestone rejected');
+      fetchCoordinatorDashboard(); // Refresh UI
+    } catch (err) {
+      console.error("Reject error:", err);
+      Alert.alert('Error', 'Failed to reject milestone');
+    } finally {
+      setSaving(false);
+    }
   };
   // ── Assign examiners + weights (final_report) ─────────────────────────────
   const handleAssignExaminers = async () => {
@@ -495,108 +251,26 @@ export default function CoordinatorHome() {
         lang === 'he' ? 'סך המשקלות חייב להיות 100%' : 'Weights must sum to 100%');
       return;
     }
-    setSaving(true);
     try {
-      const configSnap = await getDoc(doc(db, 'config', 'system'));
-      const defenseWindowDays = configSnap.exists()
-        ? configSnap.data().defenseWindowDays
-        : 45;
-      const [examiner1Snap, examiner2Snap] = await Promise.all([
-        getDoc(doc(db, 'users', examiner1Id)),
-        getDoc(doc(db, 'users', examiner2Id)),
-      ]);
+      setSaving(true);
+      // 🚀 Clean API call: The server will validate the examiners and update the project
+      await apiClient.post(`/api/coordinator/projects/${projectId}/assign-examiners`, {
+        examinerIds: [examiner1Id,examiner2Id],
+        
+      });
+      const response = await apiClient.get('/api/config/system/defenseWindowDays')
+      const defenseWindowDays = response.data;
       const calculatedDefenseDate = new Date();
       calculatedDefenseDate.setDate(
         calculatedDefenseDate.getDate() + defenseWindowDays
       );
       setDefenseDate(calculatedDefenseDate);
-      const examiner1Dates = examiner1Snap.data()?.dates || [];
-      const examiner2Dates = examiner2Snap.data()?.dates || [];
-      if(!defenseDate){
-        Alert.prompt("date never got initialized")
-        return;
-      }
-      const selectedDateStr = new Date(defenseDate)
-        .toISOString()
-        .split('T')[0];
-      if (examiner1Dates.includes(selectedDateStr)) {
-        Alert.alert(
-          lang === 'he' ? 'שגיאה' : 'Error',
-          `${examiner1Snap.data()?.displayName} ${
-            lang === 'he'
-              ? 'לא זמין בתאריך זה'
-              : 'is not available on this date'
-          }`
-        );
-        return;
-      }
-
-      if (examiner2Dates.includes(selectedDateStr)) {
-        Alert.alert(
-          lang === 'he' ? 'שגיאה' : 'Error',
-          `${examiner2Snap.data()?.displayName} ${
-            lang === 'he'
-              ? 'לא זמין בתאריך זה'
-              : 'is not available on this date'
-          }`
-        );
-        return;
-      }
-      const weights: GradeWeights = {
-        supervisorWeight: w1,
-        examiner1Weight:  w2,
-        examiner2Weight:  w3,
-      };
-      await updateDoc(doc(db, 'milestones', selectedMilestone.id), {
-        status:                'examiners_assigned',
-        coordinatorApprovedAt: serverTimestamp(),
-        coordinatorId:         uid,
-        examinerIds:           [examiner1Id, examiner2Id],
-        gradeWeights:          weights,
-        defenseDate:           Timestamp.fromDate(new Date(defenseDate)),
-      });
-      await updateDoc(doc(db, 'users', examiner1Id), {
-        dates: arrayUnion(selectedDateStr),
-      });
-
-      await updateDoc(doc(db, 'users', examiner2Id), {
-        dates: arrayUnion(selectedDateStr),
-      });
-      await updateProjectProgress(selectedMilestone.projectId, selectedMilestone.type);
-      // Notify each examiner
-      for (const exId of [examiner1Id, examiner2Id]) {
-        await addDoc(collection(db, 'notifications'), {
-          recipientId: exId,
-          type:        'examiner_assigned',
-          titleHe:     '📋 הוקצית כבוחן',
-          titleEn:     '📋 You were assigned as examiner',
-          bodyHe:      `הוקצית לבחון את הפרויקט: ${selectedMilestone.projectTitleHe}`,
-          bodyEn:      `You were assigned to examine: ${selectedMilestone.projectTitleEn}`,
-          relatedProjectId:   selectedMilestone.projectId,
-          relatedMilestoneId: selectedMilestone.id,
-          isRead:      false,
-          createdAt:   serverTimestamp(),
-        });
-      }
-      // Notify students
-      for (const studentId of selectedMilestone.studentIds) {
-        await addDoc(collection(db, 'notifications'), {
-          recipientId: studentId,
-          type:        'examiners_assigned',
-          titleHe:     '👥 בוחנים הוקצו',
-          titleEn:     '👥 Examiners Assigned',
-          bodyHe:      'רכז הפרויקטים הקצה שני בוחנים לבחינת ההגנה שלך',
-          bodyEn:      'The coordinator assigned two examiners for your defense',
-          relatedProjectId:   selectedMilestone.projectId,
-          relatedMilestoneId: selectedMilestone.id,
-          isRead:      false,
-          createdAt:   serverTimestamp(),
-        });
-      }
-      setAssignModal(false);
-      Alert.alert('✅', lang === 'he' ? 'בוחנים הוקצו בהצלחה' : 'Examiners assigned successfully');
-    } catch (e) {
-      console.error(e);
+      Alert.alert('✅', lang === 'he' ? 'בוחנים שובצו בהצלחה' : 'Examiners assigned successfully');
+      fetchCoordinatorDashboard(); 
+    } catch (err) {
+      console.error("Assignment error:", err);
+      // The server will send a meaningful error if assignment is invalid
+      Alert.alert('Error', (err as any).response?.data?.message || 'Failed to assign examiners');
     } finally {
       setSaving(false);
     }
@@ -604,39 +278,24 @@ export default function CoordinatorHome() {
 
   // ── Set defense date & room ───────────────────────────────────────────────
   const handleSetDefense = async () => {
-    if (!selectedMilestone || !defenseDate) return;
-
-    setSaving(true);
+    if (!selectedMilestone || !defenseDate || !selectedProjectForDefense) return;
     try {
-      await updateDoc(doc(db, 'milestones', selectedMilestone.id), {
-        defenseDate: Timestamp.fromDate(defenseDate),
-        defenseRoom: defenseRoom.trim() || null,
+      setSaving(true);
+      
+      // 🚀 Pass a normal ISO string down to Express. The server handles date parsing logic cleanly.
+      await apiClient.post(`/api/coordinator/projects/${selectedProjectForDefense.id}/assign-defense`, {
+        defenseDate: new Date(defenseDateText).toISOString(),
+        room: defenseRoom.trim() || null
       });
-      // Notify all parties
-      const allRecipients = [
-        ...selectedMilestone.studentIds,
-        selectedMilestone.supervisorId,
-        ...selectedMilestone.examinerIds,
-      ].filter(Boolean);
-      for (const recipientId of allRecipients) {
-        await addDoc(collection(db, 'notifications'), {
-          recipientId,
-          type:    'defense_scheduled',
-          titleHe: '📅 מועד הגנה נקבע',
-          titleEn: '📅 Defense Date Set',
-          bodyHe:  `מועד ההגנה נקבע ל-${defenseDate}${defenseRoom ? ' | חדר: ' + defenseRoom : ''}`,
-          bodyEn:  `Defense scheduled for ${defenseDate}${defenseRoom ? ' | Room: ' + defenseRoom : ''}`,
-          relatedProjectId:   selectedMilestone.projectId,
-          relatedMilestoneId: selectedMilestone.id,
-          isRead:  false,
-          createdAt: serverTimestamp(),
-        });
-      }
+
       setDefenseModal(false);
-      setDefenseDate(null); setDefenseRoom('');
-      Alert.alert('✅', lang === 'he' ? 'מועד ההגנה נשמר' : 'Defense date saved');
-    } catch (e) {
-      console.error(e);
+      setDefenseDateText('');
+      setDefenseRoom('');
+      Alert.alert('✅', lang === 'he' ? 'מועד הגנה נקבע בהצלחה' : 'Defense session updated successfully');
+      fetchCoordinatorDashboard();
+    } catch (err) {
+      console.log("error: ", err)
+      Alert.alert('Error', 'Failed to save presentation parameters');
     } finally {
       setSaving(false);
     }
@@ -924,6 +583,7 @@ export default function CoordinatorHome() {
                 setDefenseDate(m.defenseDate ?? '');
                 setDefenseRoom(m.defenseRoom ?? '');
                 setDefenseModal(true);
+                setProjectId(m.projectId)
               }}
             >
               <Text style={styles.scheduleBtnText}>

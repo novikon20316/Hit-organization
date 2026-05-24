@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, ScrollView,
+  View, Text, Pressable, StyleSheet, ScrollView,Modal,
   SafeAreaView, ActivityIndicator, Alert, TextInput,
 } from 'react-native';
-import { doc, setDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { db, auth } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { DEGREE_LENGTHS } from '../../components/Notificationservice';
+import { apiClient } from '../../src/api/apiClient';
 
 type DegreeType = 'bachelors' | 'masters';
 type Major = keyof typeof DEGREE_LENGTHS;
@@ -24,13 +24,16 @@ const MAJORS: Array<{ id: Major; he: string; en: string; years: number }> = [
 
 export default function ProfileSetup() {
   const router = useRouter();
-  const uid    = auth.currentUser?.uid;
+  
 
   const [lang,        setLang]        = useState<Lang>('he');
   const [displayName, setDisplayName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [studentId, setStudentId] = useState('');
+  const [faculty, setFaculty] = useState<Major>('computer_science');
+  const [showFacultyModal, setShowFacultyModal] = useState(false);
   // const [studentId,   setStudentId]   = useState(''); // For future use
   const [degreeType,  setDegreeType]  = useState<DegreeType | null>(null);
   const [major,       setMajor]       = useState<Major | null>(null);
@@ -70,20 +73,16 @@ export default function ProfileSetup() {
     setSaving(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const newUid = userCredential.user.uid;
-      console.log("User created in Auth with UID:", newUid);
-      await setDoc(doc(db, 'users', newUid), {
-        uid: newUid,
-        displayName: displayName.trim(),
-        email: email.trim().toLowerCase(),
-        phoneNumber: phoneNumber.trim(),
+      const user = userCredential.user;
+      await apiClient.post('/api/users/sync', {
+        newUid: user.uid,
+        email: email,
+        role: 'student',
+        facultyId: faculty,
         degreeType: degreeType,
-        major: major,
         yearOfStudy: yearOfStudy,
-        role: 'student',           // Critical for your app's navigation logic
-        profileComplete: true,      // Tells the app not to show this setup again
-        hasActiveProject: false,
-        createdAt: new Date(),      // Good for sorting/admin purposes
+        major: faculty, // NEED TO CHANGE WHEN I GET THE JOB
+        studentId: studentId,
       });
       router.replace('/(auth)/login');
     }catch (e: any) {
@@ -160,7 +159,7 @@ export default function ProfileSetup() {
             secureTextEntry
           />
 
-          {/* 
+           
           <TextInput
             style={[s.input, isRtl && s.textRight]}
             placeholder={lang === 'he' ? 'תעודת זהות' : 'Student ID'}
@@ -168,7 +167,7 @@ export default function ProfileSetup() {
             onChangeText={setStudentId}
             keyboardType="numeric"
           /> 
-          */}
+          
         </View>
 
         {/* --- Degree type --- */}
@@ -282,6 +281,101 @@ export default function ProfileSetup() {
         </Pressable>
 
         <View style={{ height: 40 }} />
+          <Text style={[s.label, { marginTop: 15 }]}>
+            {lang === 'he' ? 'בחר פקולטה / מחלקה:' : 'Select Faculty / Department:'}
+          </Text>
+
+          <Pressable 
+            style={({ pressed }) => [
+              s.input, 
+              { 
+                justifyContent: 'center', 
+                backgroundColor: pressed ? '#F0F4FF' : '#fff',
+                borderColor: showFacultyModal ? '#2E86FF' : '#E0E8FF',
+                height: 50
+              }
+            ]} 
+            onPress={() => setShowFacultyModal(true)}
+          >
+            <Text style={{ fontSize: 16, color: '#333', textAlign: lang === 'he' ? 'right' : 'left' }}>
+              {MAJORS.find(m => m.id === faculty)?.[lang] || faculty}
+            </Text>
+          </Pressable>
+
+
+        {/* ─── POPUP LIST MODAL ─── */}
+        <Modal
+          visible={showFacultyModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowFacultyModal(false)}
+        >
+          <Pressable 
+            style={{ 
+              flex: 1, 
+              backgroundColor: 'rgba(0,0,0,0.4)', 
+              justifyContent: 'center', 
+              alignItems: 'center' 
+            }} 
+            onPress={() => setShowFacultyModal(false)}
+          >
+            <View style={{ 
+              backgroundColor: '#fff', 
+              borderRadius: 20, 
+              padding: 20, 
+              width: '85%', 
+              maxHeight: '70%',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 12,
+              elevation: 5
+            }}>
+              <Text style={{ 
+                fontSize: 18, 
+                fontWeight: '700', 
+                marginBottom: 15, 
+                color: '#111',
+                textAlign: lang === 'he' ? 'right' : 'left'
+              }}>
+                {lang === 'he' ? 'בחר פקולטה' : 'Select Faculty'}
+              </Text>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {MAJORS.map((item) => {
+                  const isSelected = item.id === faculty;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      style={{
+                        paddingVertical: 14,
+                        paddingHorizontal: 16,
+                        borderRadius: 10,
+                        backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                        borderWidth: 1,
+                        borderColor: isSelected ? '#2E86FF' : 'transparent',
+                        marginBottom: 6,
+                      }}
+                      onPress={() => {
+                        setFaculty(item.id); // 🚀 Sets the faculty state correctly!
+                        setShowFacultyModal(false); // Closes the picker list automatically
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: 15,
+                        fontWeight: isSelected ? '700' : '500',
+                        color: isSelected ? '#2E86FF' : '#444',
+                        textAlign: lang === 'he' ? 'right' : 'left'
+                      }}>
+                        {lang === 'he' ? item.he : item.en}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </Pressable>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
@@ -289,6 +383,12 @@ export default function ProfileSetup() {
 
 const s = StyleSheet.create({
   // ... existing styles ...
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#445',
+    marginBottom: 6,
+  },
   input: {
     backgroundColor: '#fff',
     borderRadius: 12,

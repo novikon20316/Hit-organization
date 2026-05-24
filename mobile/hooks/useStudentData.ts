@@ -1,11 +1,8 @@
 // student/hooks/useStudentData.ts
-import { useState, useEffect } from 'react';
-import {
-  collection, query, where, getDocs,
-  doc, getDoc, onSnapshot, orderBy, Timestamp,
-} from 'firebase/firestore';
-import { db, auth } from '../src/firebase/firebase';
-
+import { useState, useEffect, useCallback } from 'react';
+import { apiClient } from '../src/api/apiClient';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import  { db } from '../src/firebase/firebase';
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type StudentState = 'loading' | 'no_project' | 'pending' | 'active';
 
@@ -51,7 +48,7 @@ export interface ActiveProject {
   supervisorId:  string;
   supervisorName:string;
   academicYear:  string;
-  semesterStart: Timestamp | null;
+  semesterStart: string | null;
   status:        string;
 }
 
@@ -59,11 +56,11 @@ export interface Milestone {
   id:          string;
   type:        MilestoneType;
   status:      MilestoneStatus;
-  dueDate:     Timestamp;
-  submittedAt: Timestamp | null;
+  dueDate:     string;
+  submittedAt: string | null;
   fileUrls:    string[];
   finalGrade:  number | null;
-  defenseDate: Timestamp | null;
+  defenseDate: string | null;
   defenseRoom: string | null;
   examinerNames: string[];
 }
@@ -73,7 +70,7 @@ export interface PendingApplication {
   projectId:   string;
   projectTitleHe: string;
   projectTitleEn: string;
-  submittedAt: Timestamp;
+  submittedAt: string;
   status:      'pending' | 'meeting_requested';
 }
 
@@ -84,7 +81,7 @@ export interface AppNotification {
   bodyHe:    string;
   bodyEn:    string;
   isRead:    boolean;
-  createdAt: Timestamp;
+  createdAt: string;
   relatedProjectId: string | null;
 }
 
@@ -99,194 +96,105 @@ export function useStudentData() {
   const [unreadCount,        setUnreadCount]        = useState(0);
   const [studentName,        setStudentName]        = useState('');
   const [studentDegree,      setStudentDegree]      = useState<DegreeType>('bachelors');
+  
+  // NEW: Store faculty so the listener can use it
+  const [studentFaculty,     setStudentFaculty]     = useState(''); 
   const [error,              setError]              = useState<string | null>(null);
-  const [facultyId, setFacultyId] = useState<string | null>(null);
-  const [uid, setUid] = useState<string | null>(null);
 
-  useEffect(() => {
-    const unsub = auth.onAuthStateChanged(user => {
-      setUid(user?.uid ?? null);
-    });
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setStudentState('loading');
+      setError(null);
 
-    return unsub;
+      // 1. Fetch User Profile to determine state
+      const profileRes = await apiClient.get('/api/users/profile');
+      const userData = profileRes.data; 
+      
+      const uid = userData.id || userData.uid;
+      const degree = userData.degreeType || 'bachelors';
+      
+      setStudentName(userData.displayName || '');
+      setStudentDegree(degree);
+      setStudentFaculty(userData.facultyId || ''); // Save faculty to state
+
+      // 2. Route based on User Data State
+      if (userData.hasActiveProject && userData.activeProjectId) {
+        // --- CASE A: Active Project ---
+        try {
+          const projectRes = await apiClient.get(`/api/student/projects/${userData.activeProjectId}`);
+          setActiveProject(projectRes.data);
+          
+          const milestonesRes = await apiClient.getMilestones({ studentId: uid });
+          setMilestones(milestonesRes?.milestones || []);
+          
+          setStudentState('active');
+        } catch (e) {
+          console.error("Failed to load active project:", e);
+          setStudentState('no_project');
+        }
+      } else {
+        // --- CASE B: Check for Pending Applications ---
+        const appsRes = await apiClient.get('/api/applications/pending');
+        const pendingApps = appsRes.data?.applications || [];
+        
+        if (pendingApps.length > 0) {
+          setPendingApplication(pendingApps[0]);
+          setStudentState('pending');
+        } else {
+          // --- CASE C: Browsing Proposals ---
+          // OPTIMIZATION: We deleted the apiClient fetch here! 
+          // Setting state to 'no_project' will automatically trigger the onSnapshot useEffect below.
+          setStudentState('no_project');
+        }
+      }
+
+      // 3. Always fetch notifications
+      try {
+        const notifRes = await apiClient.get('/api/notifications/inbox');
+        const items: AppNotification[] = notifRes.data?.notifications || [];
+        setNotifications(items);
+        setUnreadCount(items.filter((n) => !n.isRead).length);
+      } catch (e) {
+        console.error("Failed to fetch notifications:", e);
+      }
+
+    } catch (err: any) {
+      console.error("Student Dashboard Fetch Error:", err);
+      setError(err.message || "Failed to load dashboard data.");
+      setStudentState('no_project'); 
+    }
   }, []);
 
-  // ── 1. Determine student state ─────────────────────────────────────────────
+  // EFFECT 1: Run once on mount to fetch the profile and decide where the user belongs
   useEffect(() => {
-    if (!uid) return;
+    fetchDashboardData();
+  }, [fetchDashboardData]);  
 
-    // Listen to the user document for real-time changes (like being accepted)
-    const userDocRef = doc(db, 'users', uid);
-    
-    const unsubUser = onSnapshot(userDocRef, async (userSnap) => {
-      if (!userSnap.exists()) {
-        setStudentState('no_project');
-        return;
-      }
-
-      const userData = userSnap.data();
-      setStudentName(userData.displayName || '');
-      setFacultyId(userData.facultyId);
-      setStudentDegree(userData.degreeType || 'bachelors');
-
-      // Case A: Student has an active project
-      if (userData.hasActiveProject && userData.activeProjectId) {
-        try {
-          const projSnap = await getDoc(doc(db, 'projects', userData.activeProjectId));
-          if (projSnap.exists()) {
-            const pData = projSnap.data();
-            setActiveProject({
-              id: projSnap.id,
-              ...pData
-            } as ActiveProject);
-            setStudentState('active');
-            return; // Exit early, we found our state
-          }
-        } catch (e) {
-          console.error("Error fetching active project:", e);
-        }
-      }
-
-      // Case B: No active project, check for pending applications
-      const appsQ = query(
-        collection(db, 'applications'),
-        where('studentId', '==', uid),
-        where('status', 'in', ['pending', 'meeting_requested'])
-      );
-      
-      const appsSnap = await getDocs(appsQ);
-      if (!appsSnap.empty) {
-        const appData = appsSnap.docs[0].data();
-        setPendingApplication({
-          id: appsSnap.docs[0].id,
-          ...appData
-        } as PendingApplication);
-        setStudentState('pending');
-      } else {
-        setStudentState('no_project');
-      }
-    });
-
-    return () => unsubUser();
-  }, [uid]);
-
-  // ── 2. Load milestones when active ────────────────────────────────────────
+  // EFFECT 2: The Live Listener (Only runs if they are browsing proposals)
   useEffect(() => {
-    if (studentState !== 'active' || !activeProject) return;
+    // Wait until we are sure they don't have a project AND we know their faculty/degree
+    if (studentState !== 'no_project' || !studentFaculty || !studentDegree) return;
 
-    const milestonesQ = query(
-      collection(db, 'milestones'),
-      where('studentIds', 'array-contains', uid),
-      orderBy('dueDate', 'asc')
-    );
-
-    const unsub = onSnapshot(milestonesQ, async (snap) => {
-      console.log("🔥 MILSTONE SNAP SIZE:", snap.size);
-      const items: Milestone[] = [];
-      for (const d of snap.docs) {
-        const data = d.data();
-        // Fetch examiner names for defense milestone
-        let examinerNames: string[] = [];
-        if (data.type === 'defense' && data.examinerIds?.length) {
-          for (const eid of data.examinerIds) {
-            const eSnap = await getDoc(doc(db, 'users', eid));
-            if (eSnap.exists()) examinerNames.push(eSnap.data().displayName);
-          }
-        }
-        items.push({
-          id:           d.id,
-          type:         data.type,
-          status:       data.status,
-          dueDate:      data.dueDate,
-          submittedAt:  data.submittedAt ?? null,
-          fileUrls:     data.fileUrls ?? [],
-          finalGrade:   data.finalGrade ?? null,
-          defenseDate:  data.defenseDate ?? null,
-          defenseRoom:  data.defenseRoom ?? null,
-          examinerNames,
-        });
-      }
-      setMilestones(items);
-    });
-
-    return () => unsub();
-  }, [studentState, activeProject]);
-
-  // ── 3. Load published proposals when browsing ─────────────────────────────
-  useEffect(() => {
-    if (studentState !== 'no_project') return;
-
-    const proposalsQ = query(
+    const q = query(
       collection(db, 'projects'),
       where('status', '==', 'published'),
-      where('isArchived', '==', false),
-      where('facultyId', '==', facultyId),
-      orderBy('createdAt', 'desc')
+      where('facultyId', '==', studentFaculty), // Now uses actual facultyId
+      where('degreeType', '==', studentDegree)
     );
-    
-    const unsub = onSnapshot(proposalsQ, async (snap) => {
-      const items: ProjectProposal[] = [];
-      for (const d of snap.docs) {
-        const data = d.data();
-        if (
-          data.degreeType !== studentDegree
-        ) {
-          continue;
-        }
-        const supervisorSnap = await getDoc(doc(db, 'users', data.supervisorId));
-        const supervisorName = supervisorSnap.exists()
-          ? supervisorSnap.data().displayName
-          : '';
-        items.push({
-          id:             d.id,
-          titleHe:        data.titleHe,
-          titleEn:        data.titleEn,
-          descriptionHe:  data.descriptionHe,
-          descriptionEn:  data.descriptionEn,
-          supervisorId:   data.supervisorId,
-          supervisorName,
-          facultyId:      data.facultyId,
-          degreeType:     data.degreeType,
-          projectType:    data.projectType,
-          maxStudents:    data.maxStudents,
-          requiredSkills: data.requiredSkills ?? [],
-          status:         data.status,
-          academicYear:   data.academicYear,
-        });
-      }
-      setProposals(items);
+
+    // Opens a live connection to Firestore
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const liveProjects = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ProjectProposal[];
+      
+      setProposals(liveProjects);
     });
 
-    return () => unsub();
-  }, [studentState, facultyId]);
-
-  // ── 4. Live notifications ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-
-    const notifQ = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', uid),
-      orderBy('createdAt', 'desc')
-    );
-    
-    const unsub = onSnapshot(notifQ, (snap) => {
-      const items: AppNotification[] = snap.docs.map((d) => ({
-        id:               d.id,
-        titleHe:          d.data().titleHe,
-        titleEn:          d.data().titleEn,
-        bodyHe:           d.data().bodyHe,
-        bodyEn:           d.data().bodyEn,
-        isRead:           d.data().isRead,
-        createdAt:        d.data().createdAt,
-        relatedProjectId: d.data().relatedProjectId ?? null,
-      }));
-      setNotifications(items);
-      setUnreadCount(items.filter((n) => !n.isRead).length);
-    });
-
-    return () => unsub();
-  }, [uid]);
+    // Close listener when screen unmounts or state changes
+    return () => unsubscribe(); 
+  }, [studentState, studentFaculty, studentDegree]);  
 
   // ── Derived helpers ───────────────────────────────────────────────────────
   const nextMilestone = milestones.find(
@@ -311,7 +219,6 @@ export function useStudentData() {
     unreadCount,
     studentDegree,
     error,
-    // Allow external refresh
-    refresh: () => setStudentState('loading'),
+    refresh: fetchDashboardData,
   };
 }

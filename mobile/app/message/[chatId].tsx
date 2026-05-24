@@ -6,13 +6,11 @@ import {
   TextInput, Pressable, KeyboardAvoidingView, Platform,
   ActivityIndicator,
 } from 'react-native';
-import {
-  collection, query, orderBy, onSnapshot,
-  addDoc, serverTimestamp, doc, updateDoc, getDoc,
-} from 'firebase/firestore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { auth, db } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { roleColor } from './new'; // re-uses the helper
+import { apiClient } from '@/src/api/apiClient';
+
 
 interface Message {
   id:        string;
@@ -59,37 +57,36 @@ export default function ChatScreen() {
   const [headerName,  setHeaderName]  = useState(otherName ?? '');
   const [headerRole,  setHeaderRole]  = useState(otherRole ?? '');
 
-  // ── If name wasn't passed (e.g. deep-link), fetch from Firestore ──────────
+ // ── 🆕 Look up structural chat metadata via the backend server ──────────
   useEffect(() => {
     if (headerName || !currentUser || !chatId) return;
-    const fetchOther = async () => {
-      const chatSnap = await getDoc(doc(db, 'chats', String(chatId)));
-      if (!chatSnap.exists()) return;
-      const participants: string[] = chatSnap.data().participants ?? [];
-      const otherId = participants.find((id) => id !== currentUser.uid);
-      if (!otherId) return;
-      const userSnap = await getDoc(doc(db, 'users', otherId));
-      if (!userSnap.exists()) return;
-      const d = userSnap.data();
-      setHeaderName(d.displayName ?? d.fullName ?? 'Unknown');
-      setHeaderRole(d.role ?? '');
+    
+    const fetchChatMetadata = async () => {
+      try {
+        const response = await apiClient.get(`/api/chats/${chatId}/meta`);
+        setHeaderName(response.data.displayName || 'Unknown');
+        setHeaderRole(response.data.role || '');
+      } catch (err) {
+        console.error('Failed to look up deep-linked chat profile metadata:', err);
+      }
     };
-    fetchOther();
+    fetchChatMetadata();
   }, [chatId, currentUser, headerName]);
 
-  // ── Live messages ─────────────────────────────────────────────────────────
+  // Add this effect block inside your ChatScreen component in [chatId].tsx
   useEffect(() => {
-    if (!chatId) return;
-    const q = query(
-      collection(db, 'chats', String(chatId), 'messages'),
-      orderBy('createdAt', 'asc')
-    );
-    return onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)));
-      // scroll to bottom on new message
-      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 80);
-    });
-  }, [chatId]);
+    if (!chatId || !currentUser) return;
+
+    const clearUnreadBanners = async () => {
+      try {
+        await apiClient.post(`/api/chats/${chatId}/read`);
+      } catch (err) {
+        console.warn('Silent notice: Failed to mark incoming messages as read:', err);
+      }
+    };
+
+    clearUnreadBanners();
+  }, [chatId, messages.length]);
 
   // ── Send ──────────────────────────────────────────────────────────────────
   const sendMessage = async () => {
@@ -98,38 +95,10 @@ export default function ChatScreen() {
     setSending(true);
     setText('');
     try {
-      await addDoc(collection(db, 'chats', String(chatId), 'messages'), {
-        text:      trimmed,
+      await apiClient.post(`/api/chats/${chatId}/messages`, {
+        text: trimmed,
         senderId:  currentUser.uid,
-        createdAt: serverTimestamp(),
       });
-      await updateDoc(doc(db, 'chats', String(chatId)), {
-        lastMessage: trimmed,
-        updatedAt:   serverTimestamp(),
-      });
-      const chatSnap = await getDoc(doc(db, 'chats', String(chatId)));
-      const participants: string[] = chatSnap.data()?.participants ?? [];
-      const recipientId = participants.find((id) => id !== currentUser.uid);
-      if (recipientId) {
-        // Fetch sender name for the notification body
-        const senderSnap = await getDoc(doc(db, 'users', currentUser.uid));
-        const senderName = senderSnap.data()?.displayName ?? 'Someone';
-
-        await addDoc(collection(db, 'notifications'), {
-          recipientId,
-          type:               'new_message',
-          titleHe:            `הודעה חדשה מ-${senderName}`,
-          titleEn:            `New message from ${senderName}`,
-          bodyHe:             trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed,
-          bodyEn:             trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed,
-          isRead:             false,
-          createdAt:          serverTimestamp(),
-          relatedProjectId:   null,
-          relatedMilestoneId: null,
-          chatId:             String(chatId),
-          senderId:           currentUser.uid,
-        });
-      }
     } catch (err) {
       console.error('Send message error:', err);
       setText(trimmed); // restore on failure

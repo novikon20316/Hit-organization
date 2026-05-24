@@ -4,16 +4,11 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet,
   SafeAreaView, ActivityIndicator, Animated, FlatList, Alert,
 } from 'react-native';
-import {
-  collection, query, where, onSnapshot,
-  orderBy, Timestamp, getDoc, doc, updateDoc,
-  deleteDoc, arrayUnion, getDocs,
-} from 'firebase/firestore';
-import { db, auth } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
-import { markNotificationRead, markAllNotificationsRead } from '../../components/Notificationservice';
 import type { Lang } from '../../components/i18n';
 import NewChatSheet from '../message/new';
+import { apiClient } from '../../src/api/apiClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,7 +20,7 @@ interface Notif {
   bodyHe:             string;
   bodyEn:             string;
   isRead:             boolean;
-  createdAt:          Timestamp;
+  createdAt:          string;
   relatedProjectId:   string | null;
   relatedMilestoneId: string | null;
   chatId?:            string | null;
@@ -38,7 +33,7 @@ interface ChatRow {
   otherName:     string;
   otherRole:     string;
   lastMessage:   string;
-  updatedAt:     Timestamp | null;
+  updatedAt:     string | null;
   unreadCount:   number;
   deletedBy:     string[];   // uids who soft-deleted this chat
   participants:  string[];
@@ -69,9 +64,12 @@ const ROLE_COLOR: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function relativeTime(ts: Timestamp | null | undefined, lang: Lang): string {
-  if (!ts?.toMillis) return '';
-  const diff = Date.now() - ts.toMillis();
+
+function relativeTime(ts: string | null | undefined, lang: Lang): string {
+  if (!ts) return '';
+  const timestampMillis = new Date(ts).getTime();
+  if (isNaN(timestampMillis)) return '';
+  const diff = Date.now() - timestampMillis;
   const mins = Math.floor(diff / 60000);
   const hrs  = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
@@ -80,13 +78,13 @@ function relativeTime(ts: Timestamp | null | undefined, lang: Lang): string {
     if (mins < 60) return `${mins}ד'`;
     if (hrs  < 24) return `${hrs}ש'`;
     if (days < 7)  return `${days}י'`;
-    return ts.toDate().toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+    return new Date(ts).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });  
   }
   if (mins < 1)  return 'now';
   if (mins < 60) return `${mins}m`;
   if (hrs  < 24) return `${hrs}h`;
   if (days < 7)  return `${days}d`;
-  return ts.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 function initials(name: string): string {
@@ -132,7 +130,7 @@ function NotifRow({ notif, lang, isRtl, onPress }: {
             <Text style={[nr.title, isRtl && nr.textRight, !notif.isRead && nr.titleBold]} numberOfLines={1}>
               {lang === 'he' ? notif.titleHe : notif.titleEn}
             </Text>
-            <Text style={nr.time}>{relativeTime(notif.createdAt, lang)}</Text>
+            <Text style={nr.time}>{new Date(notif.createdAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</Text>
           </View>
           <Text style={[nr.body, isRtl && nr.textRight]} numberOfLines={2}>
             {lang === 'he' ? notif.bodyHe : notif.bodyEn}
@@ -209,170 +207,104 @@ export default function NotificationsScreen() {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const unreadChats = chats.filter((c) => c.unreadCount > 0).length;
 
-  // ── Load user role ──────────────────────────────────────────────────────────
+  // ── 1. Fetch User Role ──────────────────────────────────────────────────
   useEffect(() => {
     if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      if (snap.exists()) setUserRole(snap.data().role ?? null);
-    });
-  }, [uid]);
 
-  // ── Notifications listener ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', uid),
-      orderBy('createdAt', 'desc'),
-    );
-    unsubNotifsRef.current = onSnapshot(q, (snap) => {
-      setNotifications(snap.docs.map((d) => ({
-        id:                 d.id,
-        type:               d.data().type,
-        titleHe:            d.data().titleHe,
-        titleEn:            d.data().titleEn,
-        bodyHe:             d.data().bodyHe,
-        bodyEn:             d.data().bodyEn,
-        isRead:             d.data().isRead,
-        createdAt:          d.data().createdAt,
-        relatedProjectId:   d.data().relatedProjectId   ?? null,
-        relatedMilestoneId: d.data().relatedMilestoneId ?? null,
-        chatId:             d.data().chatId             ?? null,
-        senderName:         d.data().senderName         ?? null,
-      })));
-      setLoadingNotifs(false);
-    });
-    return () => unsubNotifsRef.current?.();
-  }, [uid]);
-
-  // ── Chats listener ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-    const q = query(
-      collection(db, 'chats'),
-      where('participants', 'array-contains', uid),
-      orderBy('updatedAt', 'desc'),
-    );
-    unsubChatsRef.current = onSnapshot(q, async (snap) => {
-      const rows: ChatRow[] = [];
-
-      for (const d of snap.docs) {
-        const data         = d.data();
-        const deletedBy: string[] = data.deletedBy ?? [];
-
-        // Skip chats this user has soft-deleted
-        if (uid && deletedBy.includes(uid)) continue;
-
-        const participants: string[] = data.participants ?? [];
-        const otherUid = participants.find((p) => p !== uid) ?? '';
-
-        let otherName = 'Unknown';
-        let otherRole = '';
-        if (otherUid) {
-          try {
-            const uSnap = await getDoc(doc(db, 'users', otherUid));
-            if (uSnap.exists()) {
-              otherName = uSnap.data().displayName ?? uSnap.data().fullName ?? 'Unknown';
-              otherRole = uSnap.data().role ?? '';
-            }
-          } catch (_) {}
-        }
-
-        const unreadCount = notifications.filter(
-          (n) => n.type === 'new_message' && n.chatId === d.id && !n.isRead
-        ).length;
-
-        rows.push({
-          chatId:       d.id,
-          otherUid,
-          otherName,
-          otherRole,
-          lastMessage:  data.lastMessage ?? '',
-          updatedAt:    data.updatedAt   ?? null,
-          unreadCount,
-          deletedBy,
-          participants,
-        });
+    const fetchUserRole = async () => {
+      try {
+        // 🚀 REPLACED: Get current user profile from backend
+        const response = await apiClient.get('/api/users/profile');
+        setUserRole(response.data.role ?? null);
+      } catch (err) {
+        console.error('Failed fetching user role context:', err);
       }
+    };
 
-      setChats(rows);
-      setLoadingChats(false);
-    });
-    return () => unsubChatsRef.current?.();
-  }, [uid, notifications]);
+    fetchUserRole();
+  }, [uid]);
+
+  // ── 1. Fetch Notification Inbox & Active Chats ────────────────────────
+  useEffect(() => {
+    if (!uid) return;
+
+    const fetchInboxData = async () => {
+      try {
+        // 🚀 FIX: Changed from setLoading to setLoadingChats
+        setLoadingChats(true);
+
+        const response = await apiClient.get('/api/chats/dashboard');
+        const chats = response.data.chats || []
+        setChats(chats);
+      } catch (err) {
+        console.error("Failed compiling chat list feed items:", err);
+      } finally {
+        // 🚀 FIX: Changed from setLoading to setLoadingChats
+        setLoadingChats(false);
+      }
+    };
+
+    fetchInboxData();
+
+    // 💡 Optional background polling setup to fetch updates every 30 seconds since onSnapshot is removed
+    const inboxInterval = setInterval(fetchInboxData, 30000);
+    return () => clearInterval(inboxInterval);
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+
+    const fetchNotifications = async () => {
+      try {
+        setLoadingNotifs(true);
+        const response = await apiClient.get('/api/notifications/feed');
+        // API returns array directly (see getUserNotificationFeed controller)
+        setNotifications(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('Failed fetching notifications:', err);
+      } finally {
+        setLoadingNotifs(false);
+      }
+    };
+
+    fetchNotifications();
+
+    // Poll every 30 seconds — same pattern as your chat polling
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [uid]);
 
   // ── Delete chat (soft delete for this user) ───────────────────────────────
-  const handleDeleteChat = useCallback(async (chat: ChatRow) => {
-    if (!uid) return;
-
+  const handleDeleteChat = (chatId: string) => {
     Alert.alert(
-      lang === 'he' ? 'מחיקת שיחה' : 'Delete Chat',
-      lang === 'he'
-        ? `האם אתה בטוח שברצונך למחוק את השיחה עם ${chat.otherName}?`
-        : `Are you sure you want to delete the chat with ${chat.otherName}?`,
+      lang === 'he' ? 'מחיקת שיחה' : 'Delete Conversation',
+      lang === 'he' ? 'האם אתה בטוח שברצונך למחוק שיחה זו?' : 'Are you sure you want to delete this conversation?',
       [
+        { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
         {
-          text: lang === 'he' ? 'לא' : 'No',
-          style: 'cancel',
-        },
-        {
-          text: lang === 'he' ? 'כן, מחק' : 'Yes, delete',
+          text: lang === 'he' ? 'מחק' : 'Delete',
           style: 'destructive',
           onPress: async () => {
-            setDeletingChatId(chat.chatId);
             try {
-              const chatRef  = doc(db, 'chats', chat.chatId);
-              const chatSnap = await getDoc(chatRef);
-              if (!chatSnap.exists()) return;
+              // 🚀 REPLACED: direct deleteDoc removed. Requests the backend to archive/delete the room safely
+              await apiClient.delete(`/api/chats/${chatId}`);
 
-              const currentDeletedBy: string[] = chatSnap.data().deletedBy ?? [];
-              const newDeletedBy = [...new Set([...currentDeletedBy, uid])];
+              // 💡 OPTIMIZATION: Filter the chat item out of your local array state instantly
+              setChats((prev) => prev.filter((c) => c.chatId !== chatId));
 
-              // Check if BOTH participants have now deleted
-              const bothDeleted = chat.participants.every((p) => newDeletedBy.includes(p));
-
-              if (bothDeleted) {
-                // ── Hard delete: remove chat doc, messages subcollection,
-                //    and all related notifications ──────────────────────────
-
-                // 1. Delete messages subcollection
-                const messagesSnap = await getDocs(
-                  collection(db, 'chats', chat.chatId, 'messages')
-                );
-                await Promise.all(messagesSnap.docs.map((m) => deleteDoc(m.ref)));
-
-                // 2. Delete notifications referencing this chat (both users)
-                for (const participantUid of chat.participants) {
-                  const notifSnap = await getDocs(
-                    query(
-                      collection(db, 'notifications'),
-                      where('recipientId', '==', participantUid),
-                      where('chatId', '==', chat.chatId),
-                    )
-                  );
-                  await Promise.all(notifSnap.docs.map((n) => deleteDoc(n.ref)));
-                }
-
-                // 3. Delete the chat doc itself
-                await deleteDoc(chatRef);
-
-              } else {
-                // ── Soft delete: just mark this user as having deleted ────
-                await updateDoc(chatRef, {
-                  deletedBy: arrayUnion(uid),
-                });
-              }
-            } catch (e) {
-              console.error('Delete chat error:', e);
-              Alert.alert('Error', lang === 'he' ? 'שגיאה במחיקת השיחה' : 'Failed to delete chat');
-            } finally {
-              setDeletingChatId(null);
+              Alert.alert('✅', lang === 'he' ? 'השיחה נמחקה' : 'Conversation deleted');
+            } catch (err: any) {
+              console.error("Failed to delete conversational thread:", err);
+              Alert.alert(
+                '❌',
+                err.response?.data?.error || (lang === 'he' ? 'מחיקת השיחה נכשלה' : 'Failed to delete chat')
+              );
             }
           },
         },
-      ]
+      ],
     );
-  }, [uid, lang]);
+  };
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const goHomeByRole = useCallback(() => {
@@ -390,7 +322,7 @@ export default function NotificationsScreen() {
   }, [userRole]);
 
   const handleTapNotif = async (notif: Notif) => {
-    if (!notif.isRead) await markNotificationRead(notif.id);
+    if (!notif.isRead) await apiClient.markNotificationRead(notif.id);
     switch (notif.type) {
       case 'new_message':
         if (notif.chatId) {
@@ -422,8 +354,16 @@ export default function NotificationsScreen() {
   };
 
   const handleMarkAllRead = async () => {
-    if (!uid) return;
-    await markAllNotificationsRead(uid);
+    try {
+      // 🚀 Send a bulk update request to your Node.js backend
+      await apiClient.post('/api/notifications/mark-all-read');
+
+      // 💡 Instantly update your local UI state array to set everything to read
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      
+    } catch (err: any) {
+      console.error('Failed to mark all notifications as read:', err);
+    }
   };
 
   // ── Grouped notifications ────────────────────────────────────────────────────
@@ -434,7 +374,7 @@ export default function NotificationsScreen() {
   const grouped: Record<string, Notif[]> = {};
   displayed.forEach((n) => {
     if (!n.createdAt) return;
-    const date      = n.createdAt.toDate();
+    const date      = new Date(n.createdAt);
     const today     = new Date();
     const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
     let key: string;
@@ -594,7 +534,7 @@ export default function NotificationsScreen() {
                       lang={lang}
                       isRtl={isRtl}
                       onPress={() => handleTapChat(item)}
-                      onLongPress={() => handleDeleteChat(item)}
+                      onLongPress={() => handleDeleteChat(item.chatId)}
                     />
                   </View>
                 )}

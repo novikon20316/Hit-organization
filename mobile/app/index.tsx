@@ -1,11 +1,12 @@
+// app/index.tsx
 import { Redirect } from "expo-router";
-import { auth, db } from "../src/firebase/firebase";
+import { auth } from "../src/firebase/firebase";
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
 import { View, ActivityIndicator } from "react-native";
+import { apiClient } from "../src/api/apiClient"; // Use full-stack api wrapper
 
 export default function Index() {
-    const [redirectPath, setRedirectPath] = useState<string | null>(null);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
   useEffect(() => {
     const checkUserRole = async () => {
@@ -18,69 +19,47 @@ export default function Index() {
       }
 
       try {
-        // Get user document from Firestore
-        const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
+        // 🚀 MOVE TO BACKEND: Instead of direct firestore getDoc, fetch verified profile via API
+        const response = await apiClient.get('/api/users/me');
+        const role = response.data?.role;
 
-        if (!userSnap.exists()) {
-          setRedirectPath("/(auth)/login");
-          return;
-        }
-
-        const userData = userSnap.data();
-        const role = userData.role;
-
-        // Redirect based on role
+        // Redirect based on backend verified role
         switch (role) {
           case "student":
             setRedirectPath("/student/home");
             break;
-
           case "supervisor":
             setRedirectPath("/supervisor/dashboard");
             break;
-
+          case "system_admin":
           case "admin":
             setRedirectPath("/admin/panel");
             break;
-
+          case "coordinator":
+            setRedirectPath("/coordinator/home");
+            break;
+          case "examiner":
+            setRedirectPath("/examinor/home");
+            break;
           default:
-            setRedirectPath("/(auth)");
+            setRedirectPath("/(auth)/login");
         }
       } catch (error) {
-        console.log("Role fetch error:", error);
-        setRedirectPath("/(auth)");
+        console.log("Backend role resolution error:", error);
+        setRedirectPath("/(auth)/login");
       }
     };
 
     checkUserRole();
   }, []);
 
-  // Loading screen while checking role
   if (!redirectPath) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#2E86FF" />
       </View>
     );
   }
 
   return <Redirect href={redirectPath as any} />;
-  /*const user = auth.currentUser;
-
-  // Not logged in
-  if (!user) {
-    return <Redirect href="/(auth)/login" />;
-  }
-
-  // Logged in → temporary redirect
-  // until we fetch role properly
-  return <Redirect href="/student/home" />;
-  }*/
- }
+}

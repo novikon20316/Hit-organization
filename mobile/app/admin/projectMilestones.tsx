@@ -5,17 +5,8 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-
+import { apiClient } from '../../src/api/apiClient';
 import { useLocalSearchParams } from 'expo-router';
-
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-} from 'firebase/firestore';
-
-import { db } from '../../src/firebase/firebase';
 
 interface Milestone {
   id: string;
@@ -36,21 +27,23 @@ export default function ProjectMilestonesScreen() {
   useEffect(() => {
     if (!projectId) return;
 
-    const q = query(
-      collection(db, 'milestones'),
-      where('projectId', '==', projectId)
-    );
+    const fetchMilestones = async () => {
+      try {
+        // 🚀 REPLACED: Call your clean backend routing pipeline
+        const response = await apiClient.get(`/api/projects/${projectId}/milestones`);
+        const fetchedMilestones = response.data?.milestones || [];
+        setMilestones(fetchedMilestones);
+      } catch (err) {
+        console.error("Error fetching milestones:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return onSnapshot(q, (snap) => {
-      setMilestones(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        }))
-      );
+    fetchMilestones();
 
-      setLoading(false);
-    });
+    const interval = setInterval(fetchMilestones, 10000);
+    return () => clearInterval(interval);
   }, [projectId]);
 
   if (loading) {

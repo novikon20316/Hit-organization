@@ -3,8 +3,8 @@ import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '../../src/firebase/firebase';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { auth } from '../../src/firebase/firebase';
+import { apiClient } from '../../src/api/apiClient'; // 🚀 Added backend API client instance
 
 // Keep your existing haptic tab for the native press feel
 import { HapticTab } from '@/components/haptic-tab';
@@ -121,23 +121,34 @@ export default function TabLayout() {
   const [unread, setUnread] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
+  // ── 1. Authenticated User Profile Routing Sync ────────────────────────
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) { setRole(null); setLoaded(true); return; }
+      if (!user) { 
+        setRole(null); 
+        setLoaded(true); 
+        return; 
+      }
       try {
         await user.getIdToken(true);
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        if (snap.exists()) {
-          const userRole = snap.data().role ?? 'student';
+        
+        // 🚀 REPLACED: Changed database getDoc call to backend client profile request
+        const response = await apiClient.get('/api/users/profile');
+        const userData = response.data;
+
+        if (userData) {
+          const userRole = userData.role ?? 'student';
           setRole(userRole);
-          setLang(snap.data().language ?? 'he');
+          setLang(userData.language ?? 'he');
 
           const isAuthScreen = ['/', '/index', '/login', '/register'].includes(pathname);
           if (isAuthScreen) {
             router.replace((ROLE_ROUTES[userRole] ?? '/student/home') as any);
           }
         }
-      } catch {
+      } catch (err) {
+        console.error("Error loading user layout configurations:", err);
         setRole(null);
       } finally {
         setLoaded(true);
@@ -147,17 +158,26 @@ export default function TabLayout() {
   }, []);
 
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
+    if (!role || !auth.currentUser) return;
 
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', currentUser.uid),
-      where('isRead', '==', false)
-    );
+    const fetchUnreadCount = async () => {
+      try {
+        // 🚀 REPLACED: Pulls dashboard aggregation stats asynchronously instead of long-running snapshots
+        const response = await apiClient.get('/api/notifications/inbox');
+        
+        // Assuming your backend payload formats unread counts dynamically
+        // If your endpoint gives raw arrays, filter via: response.data.notifications.filter(n => !n.isRead).length
+        setUnread(response.data.unreadCount ?? 0);
+      } catch (err) {
+        console.error("Error polling unread navigation badges:", err);
+      }
+    };
 
-    const unsub = onSnapshot(q, (snap) => setUnread(snap.size));
-    return unsub;
+    fetchUnreadCount();
+
+    // Setup network sync baseline to fetch new alert indicators cleanly every 30 seconds
+    const badgeInterval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(badgeInterval);
   }, [role]);
 
   // Show 404 for completely unknown routes

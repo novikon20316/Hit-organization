@@ -1,13 +1,12 @@
 // app/student/home.tsx  — React Native (Expo) version
 // The Next.js version is app/[locale]/(student)/home/page.tsx (see bottom of file)
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, TextInput,
-  ActivityIndicator, Platform, SafeAreaView,
+  View, Text, Pressable,
+  ActivityIndicator, SafeAreaView,
 } from 'react-native';
-import { signOut } from 'firebase/auth';
-import { auth } from '../../src/firebase/firebase';
+import { apiClient } from '@/src/api/apiClient';
 import { useRouter } from 'expo-router';
 import { useStudentData } from '../../hooks/useStudentData';
 import { t, tx, type Lang } from '../../components/i18n';
@@ -22,18 +21,20 @@ export default function StudentHome() {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
-  const unsubNotifsRef = useRef<(() => void) | null>(null);
 
   const {
     studentState, studentName,
     proposals, activeProject, milestones, nextMilestone, progress,
-    pendingApplication, notifications, unreadCount, studentDegree,
+    pendingApplication, unreadCount, studentDegree,
   } = useStudentData();
 
   const handleSignOut = async () => {
-    unsubNotifsRef.current?.();           // ← call it before signing out
-    await signOut(auth);
-    router.replace('/');
+    try {
+      await apiClient.post('api/users/logout'); // Cleans state parameters on backend engines
+      router.replace('/');
+    } catch (e) {
+      router.replace('/');
+    }
   };
 
   // ── Loading ───────────────────────────────────────────────────────────────
@@ -97,7 +98,13 @@ export default function StudentHome() {
 
       {/* ── Main Content — smart routing ── */}
       {studentState === 'no_project' && (
-        <BrowseProjects proposals={proposals} lang={lang} isRtl={isRtl} studentDegree={studentDegree} />
+        <BrowseProjects 
+        proposals={proposals} 
+        lang={lang} 
+        isRtl={isRtl} 
+        studentDegree={studentDegree} 
+        appliedProjectIds={pendingApplication ? [pendingApplication.projectId] : []}
+        />
       )}
 
       {studentState === 'pending' && pendingApplication && (

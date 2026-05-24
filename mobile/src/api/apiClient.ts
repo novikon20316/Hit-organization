@@ -2,7 +2,7 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { auth } from '../firebase/firebase'; // Adjust this import path to point to your client-side Firebase config
 
 // Define the baseline configuration options for your Node.js backend server
-const SERVER_URL = 'http://YOUR_LOCAL_IP_ADDRESS:5000'; // Replace with your actual machine IP (e.g., 192.168.1.X), do not use 'localhost' on physical mobile devices!
+const SERVER_URL = 'http://10.100.102.22:5000'; // Replace with your actual machine IP (e.g., 192.168.1.X), do not use 'localhost' on physical mobile devices!
 
 class ApiClient {
   private api: AxiosInstance;
@@ -17,25 +17,42 @@ class ApiClient {
       timeout: 15000, // 15 seconds timeout
     });
 
+
     // Request Interceptor: Automatically attaches the fresh Firebase ID Token
     this.api.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
         try {
           const currentUser = auth.currentUser;
           if (currentUser) {
-            // Get the fresh JWT token from Firebase Client Auth
             const idToken = await currentUser.getIdToken(true);
             config.headers.Authorization = `Bearer ${idToken}`;
+            console.log(`✅ Token successfully attached for: ${config.url}`);
+          } else {
+            console.warn(`⚠️ Warning: auth.currentUser is null! No token sent for: ${config.url}`);
           }
         } catch (error) {
-          console.error('❌ Failed to retrieve Firebase ID token for request:', error);
+          console.error('❌ Failed to retrieve Firebase ID token:', error);
         }
         return config;
       },
-      (error) => {
-        return Promise.reject(error);
-      }
+      (error) => Promise.reject(error)
     );
+  }
+
+  public async get<T = any>(url: string, config?: any) {
+    return this.api.get<T>(url, config);
+  }
+
+  public async post<T = any>(url: string, data?: any, config?: any) {
+    return this.api.post<T>(url, data, config);
+  }
+
+  public async put<T = any>(url: string, data?: any, config?: any) {
+    return this.api.put<T>(url, data, config);
+  }
+
+  public async delete<T = any>(url: string, config?: any) {
+    return this.api.delete<T>(url, config);
   }
 
   // ─── 1. USER ENDPOINTS ───────────────────────────────────────────────────
@@ -59,6 +76,7 @@ class ApiClient {
     const response = await this.api.post('/api/users/sync', profileData);
     return response.data;
   }
+  
 
   // ─── 2. MILESTONE WORKFLOW ENDPOINTS ──────────────────────────────────────
 
@@ -101,6 +119,25 @@ class ApiClient {
     data?: Record<string, any>;
   }) {
     const response = await this.api.post('/api/notifications/trigger', payload);
+    return response.data;
+  }
+
+  async markNotificationRead(
+    notificationId: string
+  ) {
+    const response = await this.api.patch(`/api/notifications/${notificationId}/read`);
+    return response.data;
+  };
+
+  async getMilestones(params: {
+    projectId?: string;
+    supervisorId?: string;
+    studentId?: string;
+    facultyId?: string;
+    statusFilter?: string[];
+  }) {
+    
+    const response = await this.api.get('/api/milestones', { params });
     return response.data;
   }
 }

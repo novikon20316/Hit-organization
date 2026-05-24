@@ -14,23 +14,12 @@ import {
 } from 'react-native';
 
 import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  updateDoc,
-  addDoc,
   serverTimestamp,
-  getDoc,
-  getDocs,
-  orderBy,
 } from 'firebase/firestore';
-
-import { db, auth } from '../../src/firebase/firebase';
+import { apiClient } from '@/src/api/apiClient';
+import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
-import { createMilestonesOnApproval } from '../../components/Milestoneservice';
 
 import {
   TopBar,
@@ -147,97 +136,72 @@ export default function PanelScreen() {
 
   const [adminFacultyId, setAdminFacultyId] = useState('');
 
-  // ───────────────────────────────
-  // LOAD ADMIN
-  // ───────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setAdminName(data.displayName || 'Admin');
-        setAdminFacultyId(data.facultyId || '');
-      }
-    });
-  }, [uid]);
-
-  // ───────────────────────────────
-  // USERS (FACULTY ONLY)
-  // ───────────────────────────────
-  useEffect(() => {
-    if (!adminFacultyId) return;
-
-    const q = query(
-      collection(db, 'users'),
-      where('facultyId', '==', adminFacultyId)
-    );
-
-    return onSnapshot(q, (snap) => {
-      setUsers(
-        snap.docs.map((d) => ({
-          id: d.id,
-          displayName: d.data().displayName || '',
-          email: d.data().email || '',
-          role: d.data().role || 'student',
-          facultyId: d.data().facultyId || '',
-          isActive: d.data().isActive ?? true,
-        }))
-      );
-    });
-  }, [adminFacultyId]);
-
-  // ───────────────────────────────
-  // PROJECTS (FACULTY ONLY)
-  // ───────────────────────────────
-  useEffect(() => {
-    if (!adminFacultyId) return;
-
-    const q = query(
-      collection(db, 'projects'),
-      where('isArchived', '==', false),
-      where('facultyId', '==', adminFacultyId),
-      orderBy('createdAt', 'desc')
-    );
-
-    return onSnapshot(q, async (snap) => {
-      const items: ProjectRecord[] = [];
-
-      for (const d of snap.docs) {
-        const data = d.data();
-
-        let supervisorName = '';
-        if (data.supervisorId) {
-          const s = await getDoc(doc(db, 'users', data.supervisorId));
-          supervisorName = s.data()?.displayName || '';
-        }
-
-        items.push({
-          id: d.id,
-          titleHe: data.titleHe || '',
-          titleEn: data.titleEn || '',
-          facultyId: data.facultyId || '',
-          status: data.status || 'published',
-          supervisorName,
-          degreeType: data.degreeType || '',
-          projectType: data.projectType || '',
-          academicYear: data.academicYear || '',
-          enrolledStudentIds: data.enrolledStudentIds || [],
-        });
-      }
-
-      setProjects(items);
+  // ─── 🆕 Unified Dashboard Sync ───────────────────────────────────────────
+  const fetchAdminDashboard = async () => {
+    try {
+      setLoading(true);
+      // The backend uses the auth token context to deduce the faculty ID and gather structured items
+      const response = await apiClient.get('/api/admin/dashboard');
+      
+      setAdminName(response.data.adminName || 'Admin');
+      setAdminFacultyId(response.data.adminFacultyId || '');
+      setUnreadCount(response.data.unreadCount || 0);
+      setUsers(response.data.users || []);
+      setProjects(response.data.projects || []);
+      setMilestones(response.data.milestones || []);
+      setAllSupervisors(response.data.supervisors || []);
+    } catch (err: any) {
+      console.error('Fetch error:', err);
+      Alert.alert('Error', lang === 'he' ? 'שגיאה בטעינת הנתונים' : 'Failed to synchronize administration items');
+    } finally {
       setLoading(false);
-    });
-  }, [adminFacultyId]);
+    }
+  };
 
-  // ───────────────────────────────
-  // UPDATE USER (ONLY ACTIVE)
-  // ───────────────────────────────
-  const toggleUserActive = async (userId: string, current: boolean) => {
-    await updateDoc(doc(db, 'users', userId), {
-      isActive: !current,
-    });
+  useEffect(() => {
+    fetchAdminDashboard();
+  }, []);
+
+  // ─── 🆕 CRUD Request Actions ──────────────────────────────────────────────
+  
+  // ─── 🆕 Fix: handleSaveUser Parameters Matching () => void ──────────────
+  const handleSaveUser = async () => {
+    if (!editUser) return;
+
+    try {
+      setSaving(true);
+      // Synchronize modal changes seamlessly to the API backend
+      await apiClient.post(`/api/admin/users/${editUser.id}`, {
+        isActive: editUser.isActive,
+        role: editUser.role,
+        facultyId: editUser.facultyId
+      });
+
+      Alert.alert('Success', 'User metadata aligned successfully');
+      setUserModal(false);
+      await fetchAdminDashboard();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to execute user schema updates');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ─── 🆕 Fix: toggleUserActive Definition ───────────────────────────────
+  const toggleUserActive = async (userId: string, currentStatus: boolean) => {
+    try {
+      await apiClient.post(`/api/admin/users/${userId}/toggle-active`, {
+        isActive: !currentStatus,
+      });
+      // Perform hot reloading update directly on state items array
+      setUsers((prevUsers) =>
+        prevUsers.map((u) => (u.id === userId ? { ...u, isActive: !currentStatus } : u))
+      );
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to update user accessibility permission');
+    }
   };
 
   const openEditUser = (user: UserRecord) => {
@@ -245,7 +209,7 @@ export default function PanelScreen() {
     setUserModal(true);
   };
 
-  const handleSaveUser = async () => {
+  /*const handleSaveUser = async () => {
     if (!editUser) return;
 
     try {
@@ -262,7 +226,7 @@ export default function PanelScreen() {
     } finally {
       setSaving(false);
     }
-  };
+  };*/
 
   // ───────────────────────────────
   // CREATE PROJECT
@@ -270,9 +234,9 @@ export default function PanelScreen() {
   const handleCreateProject = async () => {
     if (!selectedSupervisor || !adminFacultyId) return;
 
-    setCreating(true);
     try {
-      const ref = await addDoc(collection(db, 'projects'), {
+      setSaving(true);
+      await apiClient.post('/api/admin/projects', {
         supervisorId: selectedSupervisor.id,
         facultyId: adminFacultyId,
         titleHe: newTitleHe,
@@ -290,12 +254,15 @@ export default function PanelScreen() {
 
       setShowNewProject(false);
 
+      /*
       await createMilestonesOnApproval({
         projectId: ref.id,
         studentIds: [],
         facultyId: adminFacultyId,
         supervisorId: selectedSupervisor.id,
-      });
+      });*/
+
+      await fetchAdminDashboard();
     } catch (e) {
       console.log(e);
     } finally {

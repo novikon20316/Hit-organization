@@ -11,12 +11,10 @@ import {
   StyleSheet, ActivityIndicator, Modal,
   Animated, Dimensions, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import {
-  collection, query, where, getDocs, addDoc,
-  serverTimestamp, getDoc, doc,
-} from 'firebase/firestore';
-import { db, auth } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { palette, spacing, fontSize, fontWeight, radius } from '../../constants/theme';
+import { apiClient } from '@/src/api/apiClient';
+
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -51,6 +49,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
   const [broadcastMsg,   setBroadcastMsg]   = useState('');
   const [broadcastTitle, setBroadcastTitle] = useState('');
 
+  
   // ── Slide animation ────────────────────────────────────────────────────────
   useEffect(() => {
     Animated.spring(slideAnim, {
@@ -65,7 +64,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
       setBroadcastMsg('');
       setBroadcastTitle('');
     }
-  }, [visible]);
+  }, [visible, slideAnim]);
 
   // ── Load candidates ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -77,58 +76,12 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
     if (!uid) return;
     setLoading(true);
     try {
-      const meSnap = await getDoc(doc(db, 'users', uid));
-      if (!meSnap.exists()) return;
-      const me = meSnap.data();
-      setMyRole(me.role ?? '');
-      setMyFaculty(me.facultyId ?? '');
+      const response = await apiClient.get('/api/chats/candidates');
+      const { myRole: serverRole, candidates: serverCandidates } = response.data;
 
-      const rows: UserRow[] = [];
-
-      if (me.role === 'system_admin') {
-        const snap = await getDocs(collection(db, 'users'));
-        snap.forEach((d) => { if (d.id !== uid) rows.push(toRow(d)); });
-
-      } else if (me.role === 'faculty_admin') {
-        const snap = await getDocs(
-          query(collection(db, 'users'), where('facultyId', '==', me.facultyId))
-        );
-        snap.forEach((d) => { if (d.id !== uid) rows.push(toRow(d)); });
-
-      } else if (me.role === 'supervisor') {
-        const appsSnap = await getDocs(
-          query(collection(db, 'applications'), where('supervisorId', '==', uid))
-        );
-        const studentIds = [...new Set(appsSnap.docs.map((d) => d.data().studentId as string))];
-        for (const sid of studentIds) {
-          const sSnap = await getDoc(doc(db, 'users', sid));
-          if (sSnap.exists()) rows.push(toRow(sSnap));
-        }
-
-      } else if (me.role === 'student') {
-        if (me.activeProjectId) {
-          const projSnap = await getDoc(doc(db, 'projects', me.activeProjectId));
-          if (projSnap.exists()) {
-            const supId = projSnap.data().supervisorId;
-            if (supId) {
-              const supSnap = await getDoc(doc(db, 'users', supId));
-              if (supSnap.exists()) rows.push(toRow(supSnap));
-            }
-          }
-        } else {
-          const appsSnap = await getDocs(
-            query(collection(db, 'applications'), where('studentId', '==', uid))
-          );
-          const supIds = [...new Set(appsSnap.docs.map((d) => d.data().supervisorId as string))];
-          for (const sid of supIds) {
-            const sSnap = await getDoc(doc(db, 'users', sid));
-            if (sSnap.exists()) rows.push(toRow(sSnap));
-          }
-        }
-      }
-
-      setCandidates(rows);
-      setFiltered(rows);
+      setMyRole(serverRole ?? '');
+      setCandidates(serverCandidates ?? []);
+      setFiltered(serverCandidates ?? []);
     } catch (e) {
       console.error('NewChatSheet loadCandidates:', e);
     } finally {
@@ -147,39 +100,27 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
   }, [search, candidates]);
 
   // ── Open / find 1-to-1 chat ────────────────────────────────────────────────
+  // 🚀 Let the server find an existing direct chat token or spin up a new structural collection row
   const handleSelectUser = useCallback(async (other: UserRow) => {
     if (!uid || creating) return;
     setCreating(true);
     try {
-      const existingSnap = await getDocs(
-        query(collection(db, 'chats'), where('participants', 'array-contains', uid))
-      );
-      const existing = existingSnap.docs.find((d) => {
-        const p: string[] = d.data().participants ?? [];
-        return p.includes(other.id) && p.length === 2;
+      const response = await apiClient.post('/api/chats', {
+        recipientId: other.id
       });
-
-      if (existing) {
-        onChatCreated(existing.id, other.name, other.role);
-      } else {
-        const ref = await addDoc(collection(db, 'chats'), {
-          participants: [uid, other.id],
-          type:         'direct',
-          createdAt:    serverTimestamp(),
-          updatedAt:    serverTimestamp(),
-          lastMessage:  '',
-        });
-        onChatCreated(ref.id, other.name, other.role);
-      }
+      
+      // Navigate using parameters sent back safely from the backend engine
+      onChatCreated(response.data.chatId, other.name, other.role);
     } catch (e) {
-      console.error('handleSelectUser:', e);
-      Alert.alert('Error', 'Could not open chat. Please try again.');
+      console.error('handleSelectUser endpoint failure:', e);
+      Alert.alert('Error', 'Could not resolve chat link context parameters.');
     } finally {
       setCreating(false);
     }
   }, [uid, creating, onChatCreated]);
 
   // ── Broadcast ──────────────────────────────────────────────────────────────
+  // 🚀 Offload thousands of potential client network writes down to a single rapid batch execution on the server
   const handleBroadcast = async () => {
     if (!broadcastTitle.trim() || !broadcastMsg.trim()) {
       Alert.alert('Missing fields', 'Please fill in both title and message.');
@@ -188,41 +129,16 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
     if (!uid) return;
     setCreating(true);
     try {
-      let recipientIds: string[] = [];
-      if (myRole === 'system_admin') {
-        const snap = await getDocs(collection(db, 'users'));
-        recipientIds = snap.docs.map((d) => d.id).filter((id) => id !== uid);
-      } else if (myRole === 'faculty_admin') {
-        const snap = await getDocs(
-          query(collection(db, 'users'), where('facultyId', '==', myFaculty))
-        );
-        recipientIds = snap.docs.map((d) => d.id).filter((id) => id !== uid);
-      }
+      await apiClient.post('/api/chats/broadcast', {
+        title: broadcastTitle.trim(),
+        message: broadcastMsg.trim()
+      });
 
-      await Promise.all(recipientIds.map((recipientId) =>
-        addDoc(collection(db, 'notifications'), {
-          recipientId,
-          type:               'broadcast',
-          titleHe:            broadcastTitle.trim(),
-          titleEn:            broadcastTitle.trim(),
-          bodyHe:             broadcastMsg.trim(),
-          bodyEn:             broadcastMsg.trim(),
-          isRead:             false,
-          createdAt:          serverTimestamp(),
-          relatedProjectId:   null,
-          relatedMilestoneId: null,
-          senderId:           uid,
-        })
-      ));
-
-      Alert.alert(
-        '✅ Broadcast sent',
-        `Message delivered to ${recipientIds.length} recipient${recipientIds.length !== 1 ? 's' : ''}.`
-      );
+      Alert.alert('✅ Broadcast sent', 'Message delivered to target recipients successfully.');
       onClose();
     } catch (e) {
-      console.error('handleBroadcast:', e);
-      Alert.alert('Error', 'Broadcast failed. Please try again.');
+      console.error('handleBroadcast endpoint failure:', e);
+      Alert.alert('Error', 'Broadcast compilation execution failed.');
     } finally {
       setCreating(false);
     }

@@ -11,9 +11,9 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db, auth } from '@/src/firebase/firebase';
 import {ProjectPageStyles} from '@/constants'
+import {apiClient} from '@/src/api/apiClient';
+
 type Milestone = {
   id: string;
   title: string;
@@ -40,27 +40,19 @@ export default function ProjectPage() {
   // ─────────────────────────────────────
   // Load project
   // ─────────────────────────────────────
+  const fetchProject = async () => {
+    try {
+      if (!id) return;
+      const response = await apiClient.get(`/api/student/projects/${id}`);
+      setProject(response.data);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to load project via gateway cloud network');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchProject = async () => {
-      try {
-        if (!id) return;
-
-        const ref = doc(db, 'projects', id as string);
-        const snap = await getDoc(ref);
-
-        if (snap.exists()) {
-          setProject(snap.data() as Project);
-        } else {
-          Alert.alert('Error', 'Project not found');
-        }
-      } catch (err) {
-        console.log(err);
-        Alert.alert('Error', 'Failed to load project');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchProject();
   }, [id]);
 
@@ -78,23 +70,12 @@ export default function ProjectPage() {
 
     try {
       setSubmitting(milestoneId);
-
-      const updatedMilestones = project.milestones.map((m) =>
-        m.id === milestoneId
-          ? { ...m, submitted: true, submissionText: text }
-          : m
-      );
-
-      await updateDoc(doc(db, 'projects', id as string), {
-        milestones: updatedMilestones,
-      });
-
-      setProject({ ...project, milestones: updatedMilestones });
-
+      const response = await apiClient.post(`/api/student/projects/${id}/milestones/${milestoneId}/submit`, { text });
+      
+      setProject({ ...project, milestones: response.data.milestones });
       Alert.alert('Success', 'Milestone submitted!');
     } catch (err) {
-      console.log(err);
-      Alert.alert('Error', 'Failed to submit milestone');
+      Alert.alert('Error', 'Failed to safely store document submission');
     } finally {
       setSubmitting(null);
     }

@@ -7,32 +7,14 @@ import {
   Pressable,
   SafeAreaView,
   ActivityIndicator,
-  Modal,
   TextInput,
   Alert,
   Switch,
-  Dimensions,
 } from 'react-native';
-
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  updateDoc,
-  addDoc,
-  serverTimestamp,
-  getDoc,
-  getDocs,
-  setDoc,
-  orderBy,
-} from 'firebase/firestore';
-import { User } from 'firebase/auth';
-import { db, auth } from '../../src/firebase/firebase';
-import { useRouter } from 'expo-router';
+import { apiClient } from '@/src/api/apiClient';
+import { auth } from '../../src/firebase/firebase';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
-import { createMilestonesOnApproval } from '../../components/Milestoneservice';
 import {
   TopBar,
   StatCard,
@@ -41,9 +23,6 @@ import {
   getFacultyColor,
   FACULTY_COLORS,
 } from '../../components/shared';
-
-import { Picker } from '@react-native-picker/picker';
-import { sendPushNotification } from '@/components/pushNotifications';
 import { adminPanelStyles } from '../../constants/styles';
 import {ROLE_LABELS} from '../../constants';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal} from '@/components/modals';
@@ -107,7 +86,7 @@ export default function PanelScreen() {
 
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
-
+  const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
@@ -179,184 +158,81 @@ export default function PanelScreen() {
     return new Set(projects.map((p) => p.id));
   }, [projects]);
 
+  // ── 1. Unified Core Dashboard Synchronization ────────────────────────
+  const fetchAllDashboardData = async () => {
+    try {
+      if (!auth.currentUser) return;
+      setLoading(true);
+
+      // 🚀 Replaced separate snapshots with clean relational endpoints
+      const [adminProfile, dataMatrix] = await Promise.all([
+        apiClient.get('/api/users/profile'),
+        apiClient.get('/api/admin/dashboard-summary') // Expected response payload format: { users: [], projects: [], milestones: [], unreadCount: 0 }
+      ]);
+
+      setAdminName(adminProfile.data?.displayName || 'Admin');
+      if (adminProfile.data?.language) setLang(adminProfile.data.language);
+
+      setUsers(dataMatrix.data.users || []);
+      setProjects(dataMatrix.data.projects || []);
+      setMilestones(dataMatrix.data.milestones || []);
+      setUnreadCount(dataMatrix.data.unreadCount || 0);
+    } catch (err) {
+      console.error("Critical Admin Matrix Sync Fault:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllDashboardData();
+  }, []);
+
+  useEffect(() => {
+    const fetchProjectMilestones = async () => {
+      try {
+        console.log("📍 Loading milestones for Project ID:", projectId);
+
+        if (!projectId) {
+          console.warn("⚠️ No projectId found in search params");
+          return;
+        }
+
+        // 2. Call your existing list endpoint passing the parameter filter
+        const responseData = await apiClient.get('/api/admin/milestones',{ 
+          params: { projectId } 
+        });
+        const milestones = responseData.data;
+        // Update your state here (e.g., setMilestones(responseData))
+        
+      } catch (error) {
+        console.error("❌ Error fetching milestones:", error);
+      }
+    };
+
+    fetchProjectMilestones();
+  }, [projectId]);
+
+  // ── 2. Supervisor Picker Sync ────────────────────────────────────────
   useEffect(() => {
     const fetchSupervisors = async () => {
-      // If the admin hasn't picked a faculty, you might show all or none
-      let q = query(collection(db, 'users'), where('role', '==', 'supervisor'));
-      
-      // If faculty is selected, filter by it
-      if (newProjectFaculty && newProjectFaculty !== 'multi-faculty') {
-        q = query(
-          collection(db, 'users'), 
-          where('role', '==', 'supervisor'),
-          where('facultyId', '==', newProjectFaculty)
-        );
-      }
-
-      const snap = await getDocs(q);
-      setAllSupervisors(
-        snap.docs.map(d => ({ 
-          id: d.id, 
-          ...d.data() 
-        } as AppUser)) // Use AppUser here
-      );    };
-    fetchSupervisors();
-  }, [newProjectFaculty]);
-
-  useEffect(() => {
-    if (showConfirm && selectedSupervisor) {
-      Alert.alert(
-        lang === 'he' ? 'אישור מנחה' : 'Confirm Supervisor',
-        lang === 'he' 
-          ? `האם אתה בטוח שברצונך ש-${selectedSupervisor.displayName} ינהל את הפרויקט ${newTitleHe}?`
-          : `Are you sure you want to have ${selectedSupervisor.displayName} control for the project ${newTitleEn}?`,
-        [
-          {
-            text: lang === 'he' ? 'לא' : 'No',
-            style: 'cancel',
-            onPress: () => {
-              setSelectedSupervisor(null);
-              setShowConfirm(false);
-            }
-          },
-          {
-            text: lang === 'he' ? 'כן' : 'Yes',
-            onPress: () => setShowConfirm(false) // Keep the selection
-          }
-        ]
-      );
-    }
-  }, [showConfirm]);
-
-
-  useEffect(() => {
-    if (!uid) return;
-
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      if (snap.exists()) {
-        setAdminName(snap.data().displayName || 'Admin');
-      }
-    });
-  }, [uid]);
-
-  useEffect(() => {
-    if (!auth.currentUser) return;
-    unsubUsersRef.current = onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map((d) => ({
-        id: d.id,
-        displayName: d.data().displayName || '',
-        email: d.data().email || '',
-        role: d.data().role || 'student',
-        facultyId: d.data().facultyId || '',
-        isActive: d.data().isActive ?? true,
-      })));
-    }, (error) => {
-      console.error('Users listener error:', error);
-    });
-    return () => unsubUsersRef.current?.();
-  }, []);
-
-  useEffect(() => {
-    if (!auth.currentUser) return;
-    const q = query(
-      collection(db, 'projects'),
-      where('isArchived', '==', false),
-      orderBy('createdAt', 'desc')
-    );
-
-    unsubProjectsRef.current = onSnapshot(q, async (snap) => {
-      const items: ProjectRecord[] = [];
-
-      for (const d of snap.docs) {
-        const data = d.data();
-
-        // ✅ Guard: only fetch supervisor if ID exists
-        let supervisorName = '';
-        if (data.supervisorId) {
-          const supervisorSnap = await getDoc(doc(db, 'users', data.supervisorId));
-          supervisorName = supervisorSnap.data()?.displayName || '';
-        }
-
-        items.push({
-          id: d.id,
-          titleHe: data.titleHe || '',
-          titleEn: data.titleEn || '',
-          facultyId: data.facultyId || '',
-          status: data.status || 'published',
-          supervisorName,
-          degreeType: data.degreeType || '',
-          projectType: data.projectType || '',
-          academicYear: data.academicYear || '',
-          enrolledStudentIds: data.enrolledStudentIds || [],
+      try {
+        // 🚀 Moved query filtering constraints parameters directly to your backend service router parameters
+        const response = await apiClient.get('/api/admin/supervisors', {
+          params: { facultyId: newProjectFaculty }
         });
+        setAllSupervisors(response.data || []);
+      } catch (err) {
+        console.error("Error loading panel supervisors:", err);
       }
-
-      setProjects(items);
-    }, (error) => {
-      console.error('Projects listener error:', error);
-    });
-    return () => unsubProjectsRef.current?.();
-  }, []);
-
-  useEffect(() => {
-    if (!auth.currentUser) return;
-    const statuses = ['pending', 'submitted', 'supervisor_graded'];
-    const q = query(
-      collection(db, 'milestones'),
-      where('status', 'in', statuses)
-    );
-
-    unsubMilestonesRef.current = onSnapshot(q, async (snap) => {
-    const items: MilestoneRecord[] = [];
-
-      for (const d of snap.docs) {
-        const data = d.data();
-        const projectSnap = await getDoc(doc(db, 'projects', data.projectId));
-        const studentNames: string[] = [];
-        for (const sid of data.studentIds || []) {
-          const sSnap = await getDoc(doc(db, 'users', sid));
-          if (sSnap.exists()) studentNames.push(sSnap.data().displayName);
-        }
-        items.push({
-          id: d.id,
-          projectId: data.projectId,
-          type: data.type,
-          status: data.status,
-          projectTitleHe: projectSnap.data()?.titleHe || '',
-          projectTitleEn: projectSnap.data()?.titleEn || '',
-          facultyId: projectSnap.data()?.facultyId || '',
-          dueDate: data.dueDate,
-          studentNames,
-        });
-      }
-
-      setMilestones(items);
-      setLoading(false);
-    }, (error) => {
-      console.error('Milestones listener error:', error);
-      setLoading(false); // ← unblocks spinner even on failure
-    });
-    return () => unsubMilestonesRef.current?.();
-  }, []);
-
-  useEffect(() => {
-    if (!auth.currentUser) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', uid),
-      where('isRead', '==', false)
-    );
-
-    unsubNotifsRef.current = onSnapshot(q, (snap) => {
-      setUnreadCount(snap.size);
-    });
-    return () => unsubNotifsRef.current?.();
-  }, [uid]);
-
+    };
+    if (showNewProject) fetchSupervisors();
+  }, [newProjectFaculty, showNewProject]);
 
   const handleAddStudentToProject = async (user: UserRecord) => {
     if (!addStudentProject) return;
 
+    // ── 1. User Confirmation Dialog (Preserved Exactly) ─────────────────
     Alert.alert(
       lang === 'he' ? 'אישור הוספה' : 'Confirm Addition',
       lang === 'he'
@@ -369,55 +245,35 @@ export default function PanelScreen() {
           onPress: async () => {
             setAddingStudent(true);
             try {
-              // Add student to project
-              await updateDoc(doc(db, 'projects', addStudentProject.id), {
-                enrolledStudentIds: [user.id],
-                status: 'in_progress',
-                updatedAt: serverTimestamp(),
+              // ── 2. Replaced Direct Firestore updateDoc / arrayUnion ───────
+              // Instead of manually pushing to enrolledStudentIds and updating 
+              // hasActiveProject in a separate table, let the server handle it safely.
+              await apiClient.post(`/api/admin/projects/${addStudentProject.id}/enroll-student`, {
+                studentId: user.id
               });
 
-              // Update student's user doc
-              await updateDoc(doc(db, 'users', user.id), {
-                hasActiveProject: true,
-                activeProjectId: addStudentProject.id,
-                updatedAt: serverTimestamp(),
-              });
-
-              // Create milestones for the student
-              await createMilestonesOnApproval({
-                projectId: addStudentProject.id,
-                studentIds: [user.id],
-                facultyId: addStudentProject.facultyId,
-                supervisorId: uid!,
-              });
-
-              // Notify the student
-              await addDoc(collection(db, 'notifications'), {
-                recipientId: user.id,
-                type: 'application_approved',
-                titleHe: '✅ נוספת לפרויקט',
-                titleEn: '✅ Added to Project',
-                bodyHe: `מנהל המערכת הוסיף אותך לפרויקט "${addStudentProject.titleHe}"`,
-                bodyEn: `System admin added you to project "${addStudentProject.titleEn}"`,
-                relatedProjectId: addStudentProject.id,
-                relatedMilestoneId: null,
-                isRead: false,
-                createdAt: serverTimestamp(),
-              });
-
+              // ── 3. Reset UI States Following Success ──────────────────────
               setAddStudentModal(false);
               setAddStudentProject(null);
               setStudentSearch('');
 
               Alert.alert(
-                '✅',
-                lang === 'he'
-                  ? `${user.displayName} נוסף לפרויקט בהצלחה`
-                  : `${user.displayName} added to project successfully`
+                '✅', 
+                lang === 'he' 
+                  ? `${user.displayName} נוסף לפרויקט בהצלחה` 
+                  : `${user.displayName} added successfully`
               );
-            } catch (e) {
-              console.error(e);
-              Alert.alert('Error', String(e));
+              
+              // ── 4. Dynamic UI Re-hydration ──────────────────────────────
+              // Re-fetches all system stats, fresh project configurations, and mapped arrays
+              fetchAllDashboardData(); 
+
+            } catch (e: any) {
+              console.error('Enroll student verification error:', e);
+              
+              // Pull backend error messages gracefully
+              const errorMsg = e.response?.data?.message || String(e);
+              Alert.alert('Error', errorMsg);
             } finally {
               setAddingStudent(false);
             }
@@ -428,63 +284,52 @@ export default function PanelScreen() {
   };
 
   const handleCreateUser = async () => {
+    // ── 1. Client-Side Input Validations (Preserved Exactly) ─────────────
     if (!newUserName.trim()) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש למלא שם' : 'Name is required');
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש למלא שם' : 'Name is required'
+      );
       return;
     }
     if (!newUserEmail.trim()) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש למלא אימייל' : 'Email is required');
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש למלא אימייל' : 'Email is required'
+      );
       return;
     }
     if (!newUserFaculty) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty');
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty'
+      );
       return;
     }
 
     setCreatingUser(true);
+    
     try {
-      const tempDocRef = doc(collection(db, 'users'));
       const isStudent = newUserRole === 'student';
 
-      await setDoc(tempDocRef, {
-        uid:             tempDocRef.id,
+      // ── 2. Send Clean Parameters to the Server ──────────────────────────
+      // Let the Node.js server handle building the Firestore defaults 
+      // (like language: 'he', additionalRoles: [], creating the initial notification, etc.)
+      await apiClient.post('/api/admin/users/create', {
         displayName:     newUserName.trim(),
-        displayNameHe:   newUserName.trim(),
-        displayNameEn:   newUserName.trim(),
         email:           newUserEmail.trim().toLowerCase(),
         phoneNumber:     newUserPhone.trim() || null,
         role:            newUserRole,
         facultyId:       newUserFaculty,
-        additionalRoles: [],
-        isActive:        true,
-        profileComplete: false,
-        hasActiveProject: false,
-        language:        'he',
-        expoPushToken:   null,
-        createdAt:       serverTimestamp(),
-
-        // Student-specific
+        
+        // Student-specific fields passed dynamically
         degreeType:  isStudent ? newUserDegree : null,
-        yearOfStudy: isStudent ? parseInt(newUserYear) || 1 : null,
+        yearOfStudy: isStudent ? (parseInt(newUserYear) || 1) : null,
         major:       isStudent ? (newUserMajor.trim() || newUserFaculty) : null,
         studentId:   isStudent ? (newUserStudentId.trim() || null) : null,
       });
 
-      await addDoc(collection(db, 'notifications'), {
-        recipientId: tempDocRef.id,
-        type:        'account_created',
-        titleHe:     '👋 ברוך הבא למערכת',
-        titleEn:     '👋 Welcome to the System',
-        bodyHe:      'חשבונך נוצר על ידי מנהל המערכת',
-        bodyEn:      'Your account was created by the system admin',
-        isRead:      false,
-        createdAt:   serverTimestamp(),
-      });
-
-      // Reset all fields
+      // ── 3. Reset All UI Fields Following Success ───────────────────────
       setShowNewUser(false);
       setNewUserName('');
       setNewUserEmail('');
@@ -496,12 +341,23 @@ export default function PanelScreen() {
       setNewUserMajor('');
       setNewUserStudentId('');
 
-      Alert.alert('✅', lang === 'he'
-        ? `המשתמש ${newUserName} נוצר בהצלחה`
-        : `User ${newUserName} created successfully`);
-    } catch (e) {
+      Alert.alert(
+        '✅',
+        lang === 'he'
+          ? `המשתמש ${newUserName} נוצר בהצלחה`
+          : `User ${newUserName} created successfully`
+      );
+
+      // 💡 Pro-tip: Trigger your parent state dashboard refresh function 
+      // here if you want the user list component to instantly show the new addition:
+      fetchAllDashboardData();
+
+    } catch (e: any) {
       console.error('Create user error:', e);
-      Alert.alert('Error', String(e));
+      
+      // Checks if your backend custom error middleware dispatched a precise error string
+      const fallbackError = e.response?.data?.message || String(e);
+      Alert.alert('Error', fallbackError);
     } finally {
       setCreatingUser(false);
     }
@@ -509,71 +365,33 @@ export default function PanelScreen() {
 
   // ── Create project ─────────────────────────────────────────────────────────
   const handleCreateProject = async () => {
-    if((newUserPhone.trim() && !/^\+?\d{10,15}$/.test(newUserPhone.trim())) || newUserPhone.length > 10){
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'מספר טלפון לא תקין' : 'Invalid phone number');
-      return;
-    }
-    else if(newUserStudentId && !/^\d{5,}$/.test(newUserStudentId.trim()) && newUserStudentId.length >= 5){
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'מספר סטודנט לא תקין' : 'Invalid student ID');
-      return;
-    }
-    else if (!selectedSupervisor) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש לבחור מנחה' : 'Please select a supervisor');
-      return;
-    }
-    if (!newTitleHe.trim() || !newTitleEn.trim()) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש למלא כותרת בעברית ואנגלית' : 'Title in both languages is required');
-      return;
-    }
-    // ✅ Faculty is now required
-    if (!newProjectFaculty) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty');
+    if (!selectedSupervisor || !newTitleHe.trim() || !newTitleEn.trim() || !newProjectFaculty) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש למלא את כל השדות' : 'Missing required arguments');
       return;
     }
     setCreating(true);
     try {
-      const adminSnap = await getDoc(doc(db, 'users', uid!));
-      const adminData = adminSnap.data();
-
-      const projectRef = await addDoc(collection(db, 'projects'), {
-        supervisorId:       selectedSupervisor?.id || uid,
-        facultyId:          newProjectFaculty, // ✅ use selected faculty, not admin's faculty
-        titleHe:            newTitleHe.trim(),
-        titleEn:            newTitleEn.trim(),
-        descriptionHe:      newDescHe.trim(),
-        descriptionEn:      newDescEn.trim(),
-        degreeType:         newDegree,
-        projectType:        newType,
-        maxStudents:        maxStudents,
-        requiredSkills:     newSkills.split(',').map((s) => s.trim()).filter(Boolean),
-        status:             'published',
-        enrolledStudentIds: [],
-        applicationIds:     [],
-        semesterStart:      null,
-        academicYear:       new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
-        isArchived:         false,
-        createdAt:          serverTimestamp(),
-        updatedAt:          serverTimestamp(),
+      // 🚀 Replaced client-side addDoc write allocation loop
+      await apiClient.post('/api/admin/projects', {
+        supervisorId: selectedSupervisor.id,
+        facultyId: newProjectFaculty,
+        titleHe: newTitleHe.trim(),
+        titleEn: newTitleEn.trim(),
+        descriptionHe: newDescHe.trim(),
+        descriptionEn: newDescEn.trim(),
+        degreeType: newDegree,
+        projectType: newType,
+        maxStudents: maxStudents,
+        requiredSkills: newSkills.split(',').map((s) => s.trim()).filter(Boolean),
       });
 
       setShowNewProject(false);
       setNewTitleHe(''); setNewTitleEn('');
-      setNewDescHe('');  setNewDescEn('');
+      setNewDescHe(''); setNewDescEn('');
       setNewSkills('');
-      setNewProjectFaculty(''); // ✅ reset faculty
 
       Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
-      await createMilestonesOnApproval({
-        projectId: projectRef.id,
-        studentIds: [], // No students yet at this stage
-        facultyId: newProjectFaculty, // ✅ use selected faculty
-        supervisorId: uid!, // ✅ uid IS the supervisor ID
-      });
+      fetchAllDashboardData();
     } catch (e) {
       console.error(e);
     } finally {
@@ -582,39 +400,31 @@ export default function PanelScreen() {
   };
 
   const deleteProject = async (projectId: string) => {
-    Alert.alert(
-      'Delete Project',
-      'Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await updateDoc(doc(db, 'projects', projectId), {
-                isArchived: true,
-                deletedAt: serverTimestamp(),
-              });
-            } catch (e) {
-              console.log(e);
-            }
-          },
+    Alert.alert('Delete Project', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // 🚀 Replaced direct updateDoc mutation flag
+            await apiClient.delete(`/api/admin/projects/${projectId}`);
+            fetchAllDashboardData();
+          } catch (e) {
+            console.log(e);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const stats: SystemStats = useMemo(() => {
     return {
       totalUsers: users.length,
       totalProjects: projects.length,
-      activeProjects: projects.filter((p) => p.status === 'in_progress')
-        .length,
+      activeProjects: projects.filter((p) => p.status === 'in_progress').length,
       totalMilestones: milestones.length,
-      pendingMilestones: milestones.filter(
-        (m) => m.status === 'submitted'
-      ).length,
+      pendingMilestones: milestones.filter((m) => m.status === 'submitted').length,
       totalApplications: 0,
     };
   }, [users, projects, milestones]);
@@ -622,7 +432,6 @@ export default function PanelScreen() {
   const groupedMilestones = Object.values(
     milestones.reduce((acc: any, milestone) => {
       const key = milestone.projectId;
-
       if (!acc[key]) {
         acc[key] = {
           projectId: milestone.projectId,
@@ -633,28 +442,23 @@ export default function PanelScreen() {
           milestones: [],
         };
       }
-
       acc[key].milestones.push(milestone);
-
       return acc;
     }, {})
   );
 
   const filteredUsers = users.filter((u) => {
     const q = userSearch.toLowerCase();
-
     return (
-      u.displayName.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q)
+      u.displayName?.toLowerCase().includes(q) ||
+      u.email?.toLowerCase().includes(q) ||
+      u.role?.toLowerCase().includes(q)
     );
   });
 
   const filteredProjects = projects.filter((p) => {
     const statusOk = projectFilter === 'all' || p.status === projectFilter;
-    const facultyOk =
-      facultyFilter === 'all' || p.facultyId === facultyFilter;
-
+    const facultyOk = facultyFilter === 'all' || p.facultyId === facultyFilter;
     return statusOk && facultyOk;
   });
 
@@ -667,23 +471,17 @@ export default function PanelScreen() {
 
   const handleSaveUser = async () => {
     if (!editUser) return;
-
     try {
       setSaving(true);
-
-      await updateDoc(doc(db, 'users', editUser.id), {
+      // 🚀 Replaced direct updateDoc statement path
+      await apiClient.post(`/api/admin/users/${editUser.id}/role-update`, {
         role: editRole,
         facultyId: editFaculty,
       });
 
-      Alert.alert(
-        'Success',
-        lang === 'he'
-          ? 'המשתמש עודכן בהצלחה'
-          : 'User updated successfully'
-      );
-
+      Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
       setUserModal(false);
+      fetchAllDashboardData();
     } catch (e) {
       console.log(e);
     } finally {
@@ -691,13 +489,16 @@ export default function PanelScreen() {
     }
   };
 
-  const toggleUserActive = async (
-    userId: string,
-    current: boolean
-  ) => {
-    await updateDoc(doc(db, 'users', userId), {
-      isActive: !current,
-    });
+  const toggleUserActive = async (userId: string, current: boolean) => {
+    try {
+      // 🚀 Replaced direct updateDoc boolean payload toggle
+      await apiClient.post(`/api/admin/users/${userId}/toggle-status`, {
+        isActive: !current
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: !current } : u));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const saveMaintenance = async () => {
@@ -708,31 +509,13 @@ export default function PanelScreen() {
         maintenanceHours * 60 * 60 * 1000 +
         maintenanceMinutes * 60 * 1000;
 
-      await addDoc(collection(db, 'system'), {
-        type: 'maintenance',
+      // 🚀 Replaced direct backend database injection with automated secure gateway routing logic
+      await apiClient.post('/api/admin/system/maintenance', {
         title: maintenanceTitle,
         shutdownAt: shutdownTime,
-        messageEn: 'Sorry for the inconvenience',
-        messageHe: 'מצטערים על אי הנוחות',
-        active: true,
-        createdAt: serverTimestamp(),
       });
-      const expoPushToken = (await getDoc(doc(db, 'users', uid!))).data()?.expoPushToken;
-      if (expoPushToken) {
-        await sendPushNotification(expoPushToken, lang === 'he' ? '📢 תחזוקה קרוב' : '📢 Maintenance Incoming!',
-          lang === 'he'
-            ? 'תוחזוקה מערכת מתוכננת. שימו לב עדכון בקרוב.'
-            : 'System maintenance is scheduled. Stay tuned for updates.',
-            { type: 'maintenance' }
-        );
-      }
-      Alert.alert(
-        'Success',
-        lang === 'he'
-          ? 'מצב תחזוקה הופעל'
-          : 'Maintenance mode activated'
-      );
 
+      Alert.alert('Success', lang === 'he' ? 'מצב תחזוקה הופעל' : 'Maintenance mode activated');
       setMaintenanceModal(false);
     } catch (e) {
       console.log(e);

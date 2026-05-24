@@ -1,9 +1,10 @@
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../../src/firebase/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { auth } from "../../src/firebase/firebase";
 import NoAccessScreen from "../../components/NoAccessScreen";
+import { apiClient } from "../../src/api/apiClient"; 
+
 
 export default function AdminLayout() {
   const router = useRouter();
@@ -19,9 +20,8 @@ export default function AdminLayout() {
       }
 
       try {
-        const snap = await getDoc(doc(db, "users", user.uid));
-
-        const role = snap.data()?.role;
+        const response = await apiClient.get('/api/users/profile');
+        const role = response.data?.role;
 
         if (role === "system_admin") {
           setIsAdmin(true);
@@ -29,6 +29,7 @@ export default function AdminLayout() {
           setIsAdmin(false);
         }
       } catch (e) {
+        console.error('AdminLayout API error:', e); // ← add this
         setIsAdmin(false);
       }
 

@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable, SafeAreaView,
-  ActivityIndicator, Modal, TextInput, Alert, StyleSheet, Switch,
+  ActivityIndicator, Modal, TextInput, Alert, Switch,
 } from 'react-native';
-import {
-  collection, query, where, onSnapshot, doc,
-  updateDoc, serverTimestamp, getDoc, addDoc, deleteDoc, getDocs,
-} from 'firebase/firestore';
+
 import { db, auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar } from '../../components/shared';
 import {facultyTemplateManager} from '../../constants'
+import { apiClient } from '../../src/api/apiClient';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type DegreeType = 'bsc_project' | 'msc_thesis' | 'msc_project';
@@ -127,53 +125,70 @@ export default function FacultyTemplateManager() {
 
   const uid = auth.currentUser?.uid;
 
-  // ── Load admin info ────────────────────────────────────────────────────
   useEffect(() => {
     if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      if (snap.exists()) {
-        setAdminName(snap.data().displayName || '');
-        setFacultyId(snap.data().facultyId || '');
+
+    const loadAdminProfile = async () => {
+      try {
+        // 🚀 REPLACED: Get user document safely from Node.js token validation payload
+        const response = await apiClient.get('/api/users/profile');
+        const userData = response.data;
+
+        setAdminName(userData.displayName || '');
+        setFacultyId(userData.facultyId || '');
+      } catch (err) {
+        console.error('Failed loading admin context metadata profile:', err);
       }
-    });
+    };
+
+    loadAdminProfile();
   }, [uid]);
 
-  // ── Load templates for this faculty ───────────────────────────────────
+
+  // ── 2. Fetch Templates & Proposals (Runs once facultyId is resolved) ────
   useEffect(() => {
     if (!facultyId) return;
-    const q = query(
-      collection(db, 'milestoneTemplates'),
-      where('facultyId', '==', facultyId),
-      where('status', '==', 'active'),
-    );
-    return onSnapshot(q, (snap) => {
-      setTemplates(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MilestoneTemplate)));
-      setLoading(false);
-    });
+
+    const loadTemplatesAndProposals = async () => {
+      try {
+        setLoading(true);
+
+        // 🚀 REPLACED: Calls centralized endpoint tracking active templates & pending submissions
+        const response = await apiClient.get(`/api/faculty-templates/dashboard?facultyId=${facultyId}`);
+        
+        // Expected backend response properties: { activeTemplates: [...], pendingApprovals: [...] }
+        setTemplates(response.data.activeTemplates || []);
+        setPendingProps(response.data.pendingApprovals || []);
+      } catch (err) {
+        console.error('Failed compiling template records:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTemplatesAndProposals();
   }, [facultyId]);
 
-  // ── Load pending supervisor proposals ─────────────────────────────────
-  useEffect(() => {
-    if (!facultyId) return;
-    const q = query(
-      collection(db, 'milestoneTemplates'),
-      where('facultyId', '==', facultyId),
-      where('status', '==', 'pending_approval'),
-    );
-    return onSnapshot(q, (snap) => {
-      setPendingProps(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MilestoneTemplate)));
-    });
-  }, [facultyId]);
 
-  // ── Unread notifications ───────────────────────────────────────────────
+  // ── 3. Unread Notifications Count Badge ─────────────────────────────────
   useEffect(() => {
     if (!uid) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', uid),
-      where('isRead', '==', false),
-    );
-    return onSnapshot(q, (snap) => setUnreadCount(snap.size));
+
+    const fetchNotificationBadges = async () => {
+      try {
+        // 🚀 REPLACED: Hits background telemetry metrics routine
+        const response = await apiClient.get('/api/notifications/badge-count');
+        setUnreadCount(response.data.unreadCount || 0);
+      } catch (err) {
+        console.log('Notification telemetry fetch failed:', err);
+      }
+    };
+
+    fetchNotificationBadges();
+    
+    // Optional background optimization poll (e.g. refreshes every 30 seconds)
+    const pollTimer = setInterval(fetchNotificationBadges, 30000);
+    return () => clearInterval(pollTimer);
   }, [uid]);
 
   // ── Open editor ────────────────────────────────────────────────────────
@@ -196,17 +211,23 @@ export default function FacultyTemplateManager() {
   // ── Save template ──────────────────────────────────────────────────────
   const handleSaveTemplate = async () => {
     if (!tplNameHe.trim() || !tplNameEn.trim()) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש להזין שם לתבנית' : 'Please enter a template name');
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש להזין שם לתבנית' : 'Please enter a template name'
+      );
       return;
     }
     if (tplMilestones.length === 0) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש להוסיף לפחות אבן דרך אחת' : 'Add at least one milestone');
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש להוסיף לפחות אבן דרך אחת' : 'Add at least one milestone'
+      );
       return;
     }
+
     setSaving(true);
     try {
+      // 🚀 Clean up payload data structure (Server automatically manages timestamps!)
       const payload = {
         facultyId,
         degreeType: activeDegree,
@@ -215,20 +236,38 @@ export default function FacultyTemplateManager() {
         milestones: tplMilestones,
         createdBy: uid,
         status: 'active',
-        updatedAt: serverTimestamp(),
       };
+
       if (editingTpl) {
-        await updateDoc(doc(db, 'milestoneTemplates', editingTpl.id), payload);
+        // 🚀 REPLACED: updateDoc turned into a secure backend PUT request
+        await apiClient.put(`/api/faculty-templates/${editingTpl.id}`, payload);
+
+        // 💡 OPTIMIZATION: Instantly update your local UI list state array with edited changes
+        setTemplates((prev) =>
+          prev.map((item) =>
+            item.id === editingTpl.id 
+              ? ({ ...item, ...payload } as MilestoneTemplate) 
+              : item
+          )
+        );
       } else {
-        await addDoc(collection(db, 'milestoneTemplates'), {
-          ...payload,
-          createdAt: serverTimestamp(),
-        });
+        // 🚀 REPLACED: addDoc turned into a secure backend POST request
+        const response = await apiClient.post('/api/faculty-templates', payload);
+        
+        // 💡 OPTIMIZATION: Prepend the new template returned by your backend (including its new generated ID) 
+        if (response.data && response.data.template) {
+          setTemplates((prev) => [response.data.template, ...prev]);
+        }
       }
+
       setEditorOpen(false);
       Alert.alert('✅', lang === 'he' ? 'התבנית נשמרה' : 'Template saved');
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('Error saving template:', e);
+      Alert.alert(
+        '❌',
+        e.response?.data?.error || (lang === 'he' ? 'שגיאה בשמירת התבנית' : 'Failed to save template')
+      );
     } finally {
       setSaving(false);
     }
@@ -245,7 +284,22 @@ export default function FacultyTemplateManager() {
           text: lang === 'he' ? 'מחק' : 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await deleteDoc(doc(db, 'milestoneTemplates', tpl.id));
+            try {
+              // 🚀 REPLACED: Direct deleteDoc turned into a secure HTTP DELETE request
+              await apiClient.delete(`/api/faculty-templates/${tpl.id}`);
+
+              // 💡 OPTIMIZATION: Update the screen state automatically 
+              // so the deleted template element vanishes from the layout view instantly!
+              setTemplates((prev) => prev.filter((item) => item.id !== tpl.id));
+
+              Alert.alert('✅', lang === 'he' ? 'התבנית נמחקה בהצלחה' : 'Template deleted successfully');
+            } catch (err: any) {
+              console.error("Delete operation failure:", err);
+              Alert.alert(
+                '❌', 
+                err.response?.data?.error || (lang === 'he' ? 'מחיקת התבנית נכשלה' : 'Failed to delete template')
+              );
+            }
           },
         },
       ],
@@ -257,55 +311,47 @@ export default function FacultyTemplateManager() {
     if (!tpl.proposedChanges) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, 'milestoneTemplates', tpl.id), {
-        ...tpl.proposedChanges,
-        status: 'active',
-        proposedBy: null,
-        proposedChanges: null,
-        updatedAt: serverTimestamp(),
+      // 🚀 REPLACED: Combined updateDoc and notification addDoc into one secure server call
+      await apiClient.post(`/api/faculty-templates/proposals/${tpl.id}/approve`, {
+        proposedChanges: tpl.proposedChanges,
+        proposedBy: tpl.proposedBy,
+        nameHe: tpl.nameHe,
+        nameEn: tpl.nameEn
       });
-      // notify supervisor
-      if (tpl.proposedBy) {
-        await addDoc(collection(db, 'notifications'), {
-          recipientId: tpl.proposedBy,
-          type:        'template_proposal_approved',
-          titleHe:     '✅ הצעת תבנית אושרה',
-          titleEn:     '✅ Template Proposal Approved',
-          bodyHe:      `השינויים שהצעת לתבנית "${tpl.nameHe}" אושרו`,
-          bodyEn:      `Your proposed changes to "${tpl.nameEn}" were approved`,
-          isRead:      false,
-          createdAt:   serverTimestamp(),
-        });
-      }
+
       Alert.alert('✅', lang === 'he' ? 'הצעה אושרה' : 'Proposal approved');
-    } catch (e) { console.error(e); }
-    finally { setSaving(false); }
+      
+      // 💡 If you have a local state refreshing function (like loadTemplates), call it here:
+      setPendingProps((prev) => prev.filter((item) => item.id !== tpl.id));
+    } catch (e: any) { 
+      console.error(e); 
+      Alert.alert('❌', e.response?.data?.error || (lang === 'he' ? 'שגיאה באישור ההצעה' : 'Error approving proposal'));
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const handleRejectProposal = async (tpl: MilestoneTemplate) => {
     setSaving(true);
     try {
-      await updateDoc(doc(db, 'milestoneTemplates', tpl.id), {
-        status: 'active',   // revert to active without changes
-        proposedBy: null,
-        proposedChanges: null,
-        updatedAt: serverTimestamp(),
+      // 🚀 REPLACED: Handled securely via a clean server-side resolution route
+      await apiClient.post(`/api/faculty-templates/proposals/${tpl.id}/reject`, {
+        proposedBy: tpl.proposedBy,
+        nameHe: tpl.nameHe,
+        nameEn: tpl.nameEn
       });
-      if (tpl.proposedBy) {
-        await addDoc(collection(db, 'notifications'), {
-          recipientId: tpl.proposedBy,
-          type:        'template_proposal_rejected',
-          titleHe:     '❌ הצעת תבנית נדחתה',
-          titleEn:     '❌ Template Proposal Rejected',
-          bodyHe:      `השינויים שהצעת לתבנית "${tpl.nameHe}" נדחו`,
-          bodyEn:      `Your proposed changes to "${tpl.nameEn}" were rejected`,
-          isRead:      false,
-          createdAt:   serverTimestamp(),
-        });
-      }
+
       Alert.alert('✅', lang === 'he' ? 'הצעה נדחתה' : 'Proposal rejected');
-    } catch (e) { console.error(e); }
-    finally { setSaving(false); }
+      
+      // 💡 If you have a local state refreshing function, call it here:
+      setPendingProps((prev) => prev.filter((item) => item.id !== tpl.id));
+
+    } catch (e: any) { 
+      console.error(e); 
+      Alert.alert('❌', e.response?.data?.error || (lang === 'he' ? 'שגיאה בדחיית ההצעה' : 'Error rejecting proposal'));
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   // ── Milestone editor ───────────────────────────────────────────────────

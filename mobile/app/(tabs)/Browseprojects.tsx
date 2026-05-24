@@ -5,23 +5,26 @@ import {
   Modal, ActivityIndicator,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import { browseProjectsStyles } from '../../constants/styles';
 import type { ProjectProposal } from '../../hooks/useStudentData';
+import { apiClient } from '../../src/api/apiClient';
 
 interface Props {
   proposals: ProjectProposal[];
   lang:      Lang;
   isRtl:    boolean;
   studentDegree: 'bachelors' | 'masters';
+  appliedProjectIds: string[];
 }
 
 type DegreeFilter = 'all' | 'bachelors' | 'masters';
 type TypeFilter   = 'all' | 'project' | 'thesis';
 
-export default function BrowseProjects({ proposals, lang, isRtl, studentDegree }: Props) {
+export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds }: Props) {
+  // Inside BrowseProjects component, add at the top:
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);  
   const [search,       setSearch]       = useState('');
   const [degreeFilter, setDegreeFilter] = useState<DegreeFilter>('all');
   const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all');
@@ -115,73 +118,60 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree }
     console.error('UPLOAD ERROR:', error);
     throw error;
   }
-    /*const blob: Blob = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.onload = () => resolve(xhr.response);
-        xhr.onerror = () => reject(new Error("File upload failed"));
-        xhr.responseType = 'blob';
-        xhr.open('GET', uri, true);
-        xhr.send(null);
-    });
-
-    const storageRef = ref(storage, path);
-    console.log("CURRENT USER:", auth.currentUser);
-    await uploadBytes(storageRef, blob);
-
-    return await getDownloadURL(storageRef);*/
 };
 
   // ── Submit application ─────────────────────────────────────────────────────
   const handleApply = async () => {
-    if (!selected || !transcriptUri || !cvUri) {
+  if (!selected || !transcriptUri || !cvUri) {
+    setApplyMessage(lang === 'he'
+      ? 'אנא העלה גיליון ציונים וקורות חיים'
+      : 'Please upload transcript and CV');
+    return;
+  }
+
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  setSubmitting(true);
+  setApplyMessage(null);
+
+  try {
+    const [transcriptUrl, cvUrl] = await Promise.all([
+      uploadFile(transcriptUri),
+      uploadFile(cvUri),
+    ]);
+
+    await apiClient.post('/api/applications/apply', {
+      projectId: selected.id,
+      transcriptUrl,
+      cvUrl,
+      notes: coverNote,
+    });
+
+    setApplyMessage('✅ ' + tx('applySuccess', lang));
+    setTimeout(() => {
+      setShowApply(false);
+      setSelected(null);
+      setApplyMessage(null);
+      setCoverNote('');
+      setTranscriptUri(null);
+      setCvUri(null);
+    }, 1500);
+
+  } catch (e: any) {
+    // ✅ Handle 409 duplicate specifically
+    if (e?.response?.status === 409) {
       setApplyMessage(lang === 'he'
-        ? 'אנא העלה גיליון ציונים וקורות חיים'
-        : 'Please upload transcript and CV');
-      return;
-    }
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    setSubmitting(true);
-    setApplyMessage(null);
-    try {
-      const base = `applications/${uid}/${selected.id}`;
-      const [transcriptUrl, cvUrl] = await Promise.all([
-        uploadFile(transcriptUri),
-        uploadFile(cvUri),
-      ]);
-
-      await addDoc(collection(db, 'applications'), {
-        projectId:      selected.id,
-        studentId:      uid,
-        supervisorId:   selected.supervisorId,
-        facultyId:      selected.facultyId,
-        status:         'pending',
-        transcriptUrl,
-        cvUrl,
-        coverNote,
-        supervisorNote: null,
-        submittedAt:    serverTimestamp(),
-        reviewedAt:     null,
-        meetingDate:    null,
-      });
-
-      setApplyMessage(tx('applySuccess', lang));
-      setTimeout(() => {
-        setShowApply(false);
-        setSelected(null);
-        setApplyMessage(null);
-        setCoverNote('');
-        setTranscriptUri(null);
-        setCvUri(null);
-      }, 1500);
-    } catch (e) {
-      console.error('Apply error:', e);
+        ? '⚠️ כבר הגשת מועמדות לפרויקט זה'
+        : '⚠️ You already applied to this project');
+    } else {
       setApplyMessage(tx('applyError', lang));
-    } finally {
-      setSubmitting(false);
     }
-  };
+    console.error('Apply error:', e);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -234,75 +224,94 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree }
             <Text style={styles.emptyText}>{tx('noProjects', lang)}</Text>
           </View>
         ) : (
-          filtered.map((p) => (
-            <Pressable
-              key={p.id}
-              style={styles.card}
-              onPress={() => setSelected(selected?.id === p.id ? null : p)}
-            >
-              {/* Header row */}
-              <View style={[styles.cardHeader]}>
-                <View style={styles.badges}>
-                  {/* Row 1: Degree Badge */}
-                  <View
-                    style={[
-                      styles.badge,
-                      p.degreeType === 'masters' ? styles.badgeMasters : styles.badgeBachelors,
-                    ]}
-                  >
-                    <Text style={styles.badgeText}>
-                      {tx(p.degreeType === 'bachelors' ? 'bachelors' : 'masters',lang)}
-                    </Text>
-                  </View>
-
-                  {/* Row 2: Project Type Badge */}
-                  <View style={[styles.badge, styles.badgeType]}>
-                    <Text style={styles.badgeText}>
-                      {tx(p.projectType === 'project' ? 'projectType' : 'thesisType', lang)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              {/* Title */}
-              <Text style={[styles.cardTitle, isRtl && styles.textRight]}>
-                {lang === 'he' ? p.titleHe : p.titleEn}
-              </Text>
-
-              {/* Supervisor */}
-              <Text style={[styles.cardSupervisor, isRtl && styles.textRight]}>
-                👨‍🏫 {tx('supervisor', lang)}: {p.supervisorName}
-              </Text>
-
-              {/* Skills */}
-              {p.requiredSkills.length > 0 && (
-                <View style={[styles.skillsRow, isRtl && styles.rowReverse]}>
-                  {p.requiredSkills.slice(0, 4).map((sk) => (
-                    <View key={sk} style={styles.skillChip}>
-                      <Text style={styles.skillText}>{sk}</Text>
+          <>
+            {filtered.map((p) => {
+              const isExpanded = expandedProjectId === p.id;
+              return (
+                <Pressable
+                  key={p.id}
+                  style={styles.card}
+                  onPress={() => setExpandedProjectId(isExpanded ? null : p.id)}
+                >
+                  {/* Header row */}
+                  <View style={styles.cardHeader}>
+                    <View style={styles.badges}>
+                      <View style={[styles.badge, p.degreeType === 'masters' ? styles.badgeMasters : styles.badgeBachelors]}>
+                        <Text style={styles.badgeText}>
+                          {tx(p.degreeType === 'bachelors' ? 'bachelors' : 'masters', lang)}
+                        </Text>
+                      </View>
+                      <View style={[styles.badge, styles.badgeType]}>
+                        <Text style={styles.badgeText}>
+                          {tx(p.projectType === 'project' ? 'projectType' : 'thesisType', lang)}
+                        </Text>
+                      </View>
                     </View>
-                  ))}
-                  {p.requiredSkills.length > 4 && (
-                    <Text style={styles.moreSkills}>+{p.requiredSkills.length - 4}</Text>
-                  )}
-                </View>
-              )}
+                    <Text style={{ fontSize: 16, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
+                  </View>
 
-              {/* Expanded description + apply */}
-              {selected?.id === p.id && (
-                <View style={styles.expanded}>
-                  <Text style={[styles.descText, isRtl && styles.textRight]}>
-                    {lang === 'he' ? p.descriptionHe : p.descriptionEn}
+                  <Text style={[styles.cardTitle, isRtl && styles.textRight]}>
+                    {lang === 'he' ? p.titleHe : p.titleEn}
                   </Text>
-                  <Pressable
-                    style={styles.applyBtn}
-                    onPress={() => setShowApply(true)}
-                  >
-                    <Text style={styles.applyBtnText}>{tx('applyBtn', lang)}</Text>
-                  </Pressable>
-                </View>
-              )}
-            </Pressable>
-          ))
+
+                  <Text style={[styles.cardSupervisor, isRtl && styles.textRight]}>
+                    👨‍🏫 {tx('supervisor', lang)}: {p.supervisorName}
+                  </Text>
+
+                  {p.requiredSkills.length > 0 && (
+                    <View style={[styles.skillsRow, isRtl && styles.rowReverse]}>
+                      {p.requiredSkills.slice(0, 4).map((sk) => (
+                        <View key={sk} style={styles.skillChip}>
+                          <Text style={styles.skillText}>{sk}</Text>
+                        </View>
+                      ))}
+                      {p.requiredSkills.length > 4 && (
+                        <Text style={styles.moreSkills}>+{p.requiredSkills.length - 4}</Text>
+                      )}
+                    </View>
+                  )}
+
+                  {isExpanded && (
+                    <View style={styles.expanded}>
+                      {/* Description */}
+                      {(lang === 'he' ? p.descriptionHe : p.descriptionEn) ? (
+                        <Text style={[styles.descText, isRtl && styles.textRight]}>
+                          {lang === 'he' ? p.descriptionHe : p.descriptionEn}
+                        </Text>
+                      ) : null}
+
+                      {/* Academic year */}
+                      {p.academicYear && (
+                        <Text style={[styles.cardSupervisor, isRtl && styles.textRight]}>
+                          📅 {lang === 'he' ? 'שנה"ל:' : 'Academic Year:'} {p.academicYear}
+                        </Text>
+                      )}
+
+                      {/* ✅ Apply button — disabled if already applied */}
+                      {appliedProjectIds.includes(p.id) ? (
+                        <View style={[styles.applyBtn, { backgroundColor: '#E2E8F0' }]}>
+                          <Text style={[styles.applyBtnText, { color: '#94A3B8' }]}>
+                            {lang === 'he' ? '✓ כבר הגשת מועמדות' : '✓ Already Applied'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Pressable
+                          style={styles.applyBtn}
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            setSelected(p);
+                            setShowApply(true);
+                          }}
+                        >
+                          <Text style={styles.applyBtnText}>{tx('applyBtn', lang)}</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </>
         )}
         <View style={{ height: 40 }} />
       </ScrollView>

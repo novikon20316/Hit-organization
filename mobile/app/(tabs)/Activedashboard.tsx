@@ -8,11 +8,12 @@ import * as DocumentPicker from 'expo-document-picker';
 import {
   doc, updateDoc, serverTimestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import type { ActiveProject, Milestone, MilestoneType, MilestoneStatus } from '../../hooks/useStudentData';
 import { ActivateDashboardStyles } from '@/constants';
+import { apiClient } from '../../src/api/apiClient';
+
 
 interface Props {
   project:       ActiveProject;
@@ -72,11 +73,33 @@ export default function ActiveDashboard({
     if (!targetMilestone) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
-
-    setSubmitting(true);
-    setSubmitMessage(null);
+    if (!nextMilestone)return;
+    
     try {
-      const fileUrls: string[] = [];
+      setSubmitting(true);
+      setSubmitMessage(null);
+    
+      // 🚀 Create ONE FormData instance scoped to the whole function
+      const formData = new FormData();
+
+      // 🚀 Append each file from your state array to the form data
+      if (files && files.length > 0) {
+        files.forEach((f: any) => {
+          const fileExtension = f.name?.split('.').pop()?.toLowerCase();
+          const fallbackType = fileExtension === 'pdf' ? 'application/pdf' : 'application/octet-stream';
+          formData.append('files', {
+            uri: f.uri,
+            name: f.name,
+            type: f.mimeType || fallbackType, // fallback safely to pdf
+          } as any);
+        });
+      }
+
+      // 🚀 Append textual metadata such as the text submission notes
+      formData.append('note', note);
+      formData.append('milestoneId', nextMilestone.id);
+
+      /* const fileUrls: string[] = [];
       for (const f of files) {
         const formData = new FormData();
 
@@ -102,15 +125,19 @@ export default function ActiveDashboard({
       }
       console.log("FINAL fileUrls:", fileUrls);
       console.log("HAS INVALID:", fileUrls.some(x => typeof x !== 'string'));
-      // Update milestone doc
+       Update milestone doc
       await updateDoc(doc(db, 'milestones', targetMilestone.id), {
         status:         'submitted',
         submittedAt:    serverTimestamp(),
         fileUrls:       fileUrls ,
         submissionNote: note,
+      });*/
+
+      await apiClient.post(`/api/milestones/${nextMilestone.id}/submit`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setSubmitMessage(tx('submitSuccess', lang));
+      setSubmitMessage('✅ ' + tx('submitSuccess', lang));
       setTimeout(() => {
         setSubmitModal(false);
         setFiles([]);

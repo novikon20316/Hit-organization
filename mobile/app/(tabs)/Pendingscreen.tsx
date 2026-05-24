@@ -1,13 +1,13 @@
 // student/screens/PendingScreen.tsx
 import React from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, Alert,
+  View, Text, ScrollView, Pressable, Alert,
 } from 'react-native';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import type { PendingApplication } from '../../hooks/useStudentData';
 import {PendingScreenStyles} from '@/constants'
+import { apiClient } from '../../src/api/apiClient';
+
 interface Props {
   application: PendingApplication;
   lang:        Lang;
@@ -15,12 +15,12 @@ interface Props {
 }
 
 export default function PendingScreen({ application, lang, isRtl }: Props) {
-  const submittedDate = application.submittedAt?.toDate
-    ? application.submittedAt.toDate().toLocaleDateString(
-        lang === 'he' ? 'he-IL' : 'en-GB',
-        { day: 'numeric', month: 'long', year: 'numeric' }
-      )
-    : '—';
+  const submittedDate = application.submittedAt
+    ? new Date(application.submittedAt).toLocaleDateString(
+      lang === 'he' ? 'he-IL' : 'en-US',
+      { day: 'numeric', month: 'long', year: 'numeric' }
+    )
+  : '—';
 
   const handleWithdraw = () => {
     Alert.alert(
@@ -34,9 +34,20 @@ export default function PendingScreen({ application, lang, isRtl }: Props) {
           text: lang === 'he' ? 'משוך' : 'Withdraw',
           style: 'destructive',
           onPress: async () => {
-            await updateDoc(doc(db, 'applications', application.id), {
-              status: 'withdrawn',
-            });
+            try {
+              // 🚀 REPLACED: Direct updateDoc turned into clean backend request execution
+              const response = await apiClient.post(`/api/applications/${application.id}/withdraw`);
+              const success = response.data
+              if(success){
+                Alert.alert(
+                  lang === 'he' ? 'הצלחה' : 'Success', 
+                  lang === 'he' ? 'המועמדות נמשכה בהצלחה' : 'Application withdrawn successfully'
+                );
+              }else{ console.log("withdrawel is not successfull")}
+            } catch (err: any) {
+              console.error(err);
+              Alert.alert('Error', err.response?.data?.error || 'Action failed');
+            }
           },
         },
       ]

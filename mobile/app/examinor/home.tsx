@@ -1,19 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, StyleSheet,
-} from 'react-native';
-import {
-  collection, query, where, onSnapshot, doc, Timestamp,
-  updateDoc, serverTimestamp, getDoc, addDoc, getDocs,
-} from 'firebase/firestore';
-import { db, auth } from '../../src/firebase/firebase';
+  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert} from 'react-native';
+import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, getFacultyColor } from '../../components/shared';
-import { calculateFinalGrade, type GradeWeights } from '../../components/Milestoneservice';
+import {type GradeWeights } from '../../components/Milestoneservice';
 import { examinerHomeStyles } from '../../constants/styles';
- 
+ import { apiClient } from '@/src/api/apiClient';
 // ─── Types ────────────────────────────────────────────────────────────────────
  
 interface AssignedMilestone {
@@ -34,7 +29,7 @@ interface AssignedMilestone {
   examiner1GradeId: string | null;
   examiner2GradeId: string | null;
   gradeWeights: GradeWeights | null;
-  defenseDate: Timestamp| string | null;
+  defenseDate: string | null;
   defenseRoom: string | null;
   facultyId: string;
   milestoneHistory: {                    // ← new
@@ -104,107 +99,31 @@ export default function ExaminerHome() {
  
   const uid = auth.currentUser?.uid;
  
-  // ── Load examiner name ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then((snap) => {
-      if (snap.exists()) setExaminerName(snap.data().displayName || '');
-    });
-  }, [uid]);
- 
-  // ── Unread notifications ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', uid),
-      where('isRead', '==', false),
-    );
-    return onSnapshot(q, (snap) => setUnreadCount(snap.size));
-  }, [uid]);
- 
-  // ── Load assigned milestones ────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-    const q = query(
-      collection(db, 'milestones'),
-      where('examinerIds', 'array-contains', uid),
-      where('status', 'in', ['examiners_assigned', 'examiner_graded']),
-    );
-    return onSnapshot(q, async (snap) => {
-      const items: AssignedMilestone[] = [];
- 
-      for (const d of snap.docs) {
-        const data = d.data();
- 
-        // Project
-        const projectSnap = await getDoc(doc(db, 'projects', data.projectId));
-        const projectData  = projectSnap.data() ?? {};
- 
-        // Students
-        const studentNames: string[] = [];
-        for (const sid of (data.studentIds ?? [])) {
-          const sSnap = await getDoc(doc(db, 'users', sid));
-          if (sSnap.exists()) studentNames.push(sSnap.data().displayName);
-        }
- 
-        // Supervisor name  ← new
-        let supervisorName = '';
-        if (data.supervisorId) {
-          const supSnap = await getDoc(doc(db, 'users', data.supervisorId));
-          if (supSnap.exists()) supervisorName = supSnap.data().displayName ?? '';
-        }
- 
-        // All milestones history for this project  ← new
-        const allMilestonesSnap = await getDocs(
-          query(collection(db, 'milestones'), 
-            where('projectId', '==', data.projectId),
-            where('examinerIds', 'array-contains', uid)
-          )
-        );
-        const milestoneHistory = allMilestonesSnap.docs
-          .filter((md) => md.data().type !== 'defense')
-          .map((md) => ({
-            type:              md.data().type as string,
-            supervisorScore:   md.data().supervisorScore ?? null,
-            supervisorComment: md.data().supervisorComment ?? '',
-            fileUrls:          md.data().fileUrls ?? [],
-            status:            md.data().status as string,
-          }))
-          .sort((a, b) => {
-            const order = ['research_proposal', 'progress_report', 'final_report'];
-            return order.indexOf(a.type) - order.indexOf(b.type);
-          });
- 
-        items.push({
-          id:               d.id,
-          projectId:        data.projectId,
-          projectTitleHe:   projectData.titleHe ?? '',
-          projectTitleEn:   projectData.titleEn ?? '',
-          type:             data.type,
-          status:           data.status,
-          studentNames,
-          studentIds:       data.studentIds ?? [],
-          supervisorId:     data.supervisorId ?? '',
-          supervisorName,
-          supervisorScore:  data.supervisorScore ?? null,
-          examinerIds:      data.examinerIds ?? [],
-          examiner1Score:   data.examiner1Score ?? null,
-          examiner2Score:   data.examiner2Score ?? null,
-          examiner1GradeId: data.examiner1GradeId ?? null,
-          examiner2GradeId: data.examiner2GradeId ?? null,
-          gradeWeights:     data.gradeWeights ?? null,
-          defenseDate:      data.defenseDate ?? null,
-          defenseRoom:      data.defenseRoom ?? null,
-          facultyId:        projectData.facultyId ?? '',
-          milestoneHistory,
-        });
-      }
- 
-      setAssignments(items);
+  // ── 🆕 Unified Backend Dashboard Fetch Function ───────────────────────────
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      // 🚀 The server handles examiner name lookup, notifications count, and milestone stitching in ONE call.
+      const response = await apiClient.get('/api/examiner/dashboard');
+      
+      setExaminerName(response.data.examinerName || '');
+      setUnreadCount(response.data.unreadCount || 0);
+      setAssignments(response.data.assignments || []);
+    } catch (err: any) {
+      console.error('Error fetching dashboard data:', err);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה בהבאת נתונים' : 'Data Fetch Error',
+        lang === 'he' ? 'נכשלה טעינת נתוני השרת' : 'Could not synchronize data with backend server.'
+      );
+    } finally {
       setLoading(false);
-    });
-  }, [uid]);
+    }
+  };
+
+  // Replace all 3 old functional useEffect loops with a single initialization effect
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
  
   // ── Helpers (unchanged) ─────────────────────────────────────────────────
   const alreadyGraded = (m: AssignedMilestone): boolean => {
@@ -243,22 +162,23 @@ export default function ExaminerHome() {
  
     const score       = totalScore();
     const isExaminer1 = selected.examinerIds[0] === uid;
-    setSubmitting(true);
- 
     try {
-      const gradeRef = await addDoc(collection(db, 'grades'), {
-        milestoneId:  selected.id,
-        projectId:    selected.projectId,
-        graderId:     uid,
-        graderRole:   'examiner',
-        totalScore:   score,
-        responses:    scores,
+      setSubmitting(true);
+      
+      // 🚀 Send the raw data to the server to handle the secure database writes
+      await apiClient.post(`/api/examiner/milestones/${selected.id}/grade`, {
+        projectId: selected.projectId,
+        Totalscores: score,
+        totalScore: totalScore(),
         comments,
-        criteria:     GRADING_CRITERIA,
-        submittedAt:  serverTimestamp(),
-        isFinalized:  true,
+        criteria: GRADING_CRITERIA
       });
- 
+
+      Alert.alert(
+        lang === 'he' ? '✅ הצלחה' : '✅ Success', 
+        lang === 'he' ? 'הציון נשמר בהצלחה' : 'Grade submitted successfully'
+      );
+      /*
       const otherScore = isExaminer1 ? selected.examiner2Score : selected.examiner1Score;
       const bothGraded = otherScore !== null;
  
@@ -298,9 +218,9 @@ export default function ExaminerHome() {
         milestoneUpdate.status = 'examiner_graded';
       }
  
-      await updateDoc(doc(db, 'milestones', selected.id), milestoneUpdate);
+      await updateDoc(doc(db, 'milestones', selected.id), milestoneUpdate);*/
       setGradeModal(false);
-      Alert.alert('✅', lang === 'he' ? 'הציון נשלח בהצלחה' : 'Grade submitted successfully');
+      await fetchDashboardData();
     } catch (e) {
       console.error(e);
       Alert.alert('Error', String(e));
@@ -319,20 +239,13 @@ export default function ExaminerHome() {
  
   // Schedule: only milestones with a defenseDate, sorted soonest first
   const scheduled = [...assignments]
-  .filter((m) => m.defenseDate)
-  .sort((a, b) => {
-    // Extract real Date objects safely whether they are Timestamps or strings
-    const da = a.defenseDate && typeof a.defenseDate === 'object' && 'toDate' in a.defenseDate
-      ? a.defenseDate.toDate()
-      : parseDefenseDate(a.defenseDate as string | null);
-
-    const db_ = b.defenseDate && typeof b.defenseDate === 'object' && 'toDate' in b.defenseDate
-      ? b.defenseDate.toDate()
-      : parseDefenseDate(b.defenseDate as string | null);
-
-    if (!da || !db_) return 0;
-    return da.getTime() - db_.getTime();
-  });
+    .filter((m) => m.defenseDate)
+    .sort((a, b) => {
+      const da = parseDefenseDate(a.defenseDate);
+      const db_ = parseDefenseDate(b.defenseDate);
+      if (!da || !db_) return 0;
+      return da.getTime() - db_.getTime();
+    });
  
   return (
     <SafeAreaView style={styles.root}>
@@ -420,10 +333,7 @@ export default function ExaminerHome() {
                     {m.defenseDate && (
                       <View style={styles.defensePill}>
                         <Text style={styles.defensePillText}>
-                          📅 {typeof m.defenseDate === 'string'
-                                ? m.defenseDate
-                                : m.defenseDate.toDate().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
-                              {m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
+                          📅 {m.defenseDate} {m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
                         </Text>
                       </View>
                     )}
@@ -542,9 +452,7 @@ export default function ExaminerHome() {
               </View>
             ) : (
               scheduled.map((m) => {
-                const defDate       = m.defenseDate && typeof m.defenseDate === 'object' && 'toDate' in m.defenseDate
-                                      ? m.defenseDate.toDate()
-                                      : parseDefenseDate(m.defenseDate as string | null);
+                const defDate = parseDefenseDate(m.defenseDate);
                 const days          = defDate ? daysUntil(defDate) : null;
                 const fc            = getFacultyColor(m.facultyId);
                 const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
@@ -570,21 +478,8 @@ export default function ExaminerHome() {
                        days === 1   ? 'Tomorrow!'   :
                        `In ${days} days`);
  
-                let datePart = '';
-                let timePart = '';
-                if (m.defenseDate) {
-                  if (typeof m.defenseDate === 'string') {
-                    datePart = m.defenseDate.split(' ')[0] ?? '';
-                    timePart = m.defenseDate.split(' ')[1] ?? '';
-                  } else if (typeof m.defenseDate === 'object' && 'toDate' in m.defenseDate) {
-                    const jsDate = m.defenseDate.toDate();
-                    // Formats to YYYY-MM-DD (matches standard split formats perfectly)
-                    datePart = jsDate.toISOString().split('T')[0]; 
-                    // Formats to HH:MM (24-hour style clock)
-                    timePart = jsDate.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
-                  }
-                }
- 
+                const datePart = m.defenseDate ? m.defenseDate.split(' ')[0] ?? '' : '';
+                const timePart = m.defenseDate ? m.defenseDate.split(' ')[1] ?? '' : '';
                 return (
                   <View key={m.id} style={[styles.scheduleCard, { borderLeftColor: fc.primary }]}>
  
@@ -677,12 +572,10 @@ export default function ExaminerHome() {
                 {lang === 'he' ? selected.projectTitleHe : selected.projectTitleEn}
               </Text>
               <Text style={styles.contextSub}>👤 {selected.studentNames.join(', ')}</Text>
-              {selected.defenseDate && (
-                <Text style={styles.contextSub}>📅 {typeof selected.defenseDate === 'string'
-                  ? selected.defenseDate
-                  : selected.defenseDate.toDate().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
-                </Text>
-              )}
+              {selected.defenseDate && 
+                <Text style={styles.contextSub}>
+                  📅 {selected.defenseDate}
+                </Text>}
             </View>
           )}
  
