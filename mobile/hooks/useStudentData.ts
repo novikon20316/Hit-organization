@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../src/api/apiClient';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import  { db } from '../src/firebase/firebase';
+import  { db, auth } from '../src/firebase/firebase';
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type StudentState = 'loading' | 'no_project' | 'pending' | 'active';
 
@@ -117,12 +117,13 @@ export function useStudentData() {
       setStudentName(userData.displayName || '');
       setStudentDegree(degree);
       setStudentFaculty(userData.facultyId || ''); // Save faculty to state
-
       // 2. Route based on User Data State
       if (userData.hasActiveProject && userData.activeProjectId) {
         // --- CASE A: Active Project ---
         try {
+          console.log('🔍 Fetching active project:', userData.activeProjectId);
           const projectRes = await apiClient.get(`/api/student/projects/${userData.activeProjectId}`);
+          console.log('✅ Project response:', JSON.stringify(projectRes.data));
           setActiveProject(projectRes.data);
           
           const milestonesRes = await apiClient.getMilestones({ studentId: uid });
@@ -221,6 +222,23 @@ export function useStudentData() {
     return () => unsubscribe();
   }, [studentState, studentFaculty, studentDegree]); 
 
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    const userRef = doc(db, 'users', uid);
+    const unsubscribe = onSnapshot(userRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+
+      // If hasActiveProject just became true, re-fetch everything
+      if (data?.hasActiveProject && data?.activeProjectId) {
+        fetchDashboardData();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [fetchDashboardData]);
   // ── Derived helpers ───────────────────────────────────────────────────────
   const nextMilestone = milestones.find(
     (m) => m.status === 'pending' || m.status === 'submitted'

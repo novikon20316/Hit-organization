@@ -52,11 +52,18 @@ export default function ActiveDashboard({
   const [activeTab,     setActiveTab]     = useState<'overview' | 'milestones' | 'grades'>('overview');
 
   // ── Days until deadline ────────────────────────────────────────────────────
-  const daysUntil = (ts: any): number | null => {
-    if (!ts?.toDate) return null;
-    const diff = ts.toDate().getTime() - Date.now();
+  const daysUntil = (ts: string | null | undefined): number | null => {
+    const date = toDate(ts);
+    if (!date) return null;
+    const diff = date.getTime() - Date.now();
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
+
+  const toDate = (val: string | null | undefined): Date | null => {
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
 
   // ── File picker ────────────────────────────────────────────────────────────
   const pickFile = async () => {
@@ -251,7 +258,7 @@ export default function ActiveDashboard({
 
                 <Text style={[styles.nextDue, isRtl && styles.textRight]}>
                   {tx('dueDate', lang)}{' '}
-                  {nextMilestone.dueDate?.toDate?.().toLocaleDateString(
+                  {toDate(nextMilestone.dueDate)?.toLocaleDateString(
                     lang === 'he' ? 'he-IL' : 'en-GB',
                     { day: 'numeric', month: 'long', year: 'numeric' }
                   )}
@@ -342,7 +349,7 @@ export default function ActiveDashboard({
                     {/* Due date */}
                     <Text style={[styles.milestoneDue, isRtl && styles.textRight]}>
                       📅 {tx('dueDate', lang)}{' '}
-                      {m.dueDate?.toDate?.().toLocaleDateString(
+                      {toDate(m.dueDate)?.toLocaleDateString(
                         lang === 'he' ? 'he-IL' : 'en-GB',
                         { day: 'numeric', month: 'short', year: 'numeric' }
                       )}
@@ -372,7 +379,7 @@ export default function ActiveDashboard({
                       <View style={styles.defenseInfo}>
                         <Text style={[styles.defenseRow, isRtl && styles.textRight]}>
                           📅 {tx('defenseDate', lang)}{' '}
-                          {m.defenseDate.toDate().toLocaleDateString(
+                          {toDate(m.defenseDate)?.toLocaleDateString(
                             lang === 'he' ? 'he-IL' : 'en-GB',
                             { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
                           )}
