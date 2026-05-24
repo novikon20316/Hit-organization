@@ -103,23 +103,104 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 // ─── POST /api/users/update-push-token ───────────────────────────────────────
 export const updatePushToken = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { expoPushToken } = req.body;
-    if (!expoPushToken) return res.status(400).json({ error: 'Missing expoPushToken.' });
+    const uid   = req.user?.uid;
+    const { token } = req.body;
 
-    await db.collection('users').doc(req.user!.uid).update({ expoPushToken });
+    if (!uid)   return res.status(401).json({ error: 'Unauthorized' });
+    if (!token) return res.status(400).json({ error: 'Missing token' });
+
+    await db.collection('users').doc(uid).update({
+      expoPushToken: token,
+      pushTokenUpdatedAt: new Date().toISOString(),
+    });
+
+    console.log(`📲 Push token updated for ${uid}`);
     return res.status(200).json({ success: true });
   } catch (error: any) {
+    console.error('updatePushToken error:', error);
     return res.status(500).json({ error: error.message });
   }
 };
 
 export const logout = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // If you are using session cookies, clear them here:
-    // res.clearCookie('__session'); 
-    
-    console.log("User logged out successfully");
+    const uid      = req.user?.uid;
+    const role     = req.user?.role;
+    const facultyId = req.user?.facultyId;
+
+    if (!uid) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userRef = db.collection('users').doc(uid);
+    const now     = new Date().toISOString();
+
+    // ─── 1. Universal — clear push token for all roles ────────────────────
+    await userRef.update({
+      expoPushToken: null,
+      lastLogoutAt:  now,
+    });
+
+    // ─── 2. Role-specific cleanup ─────────────────────────────────────────
+    switch (role) {
+
+      case 'student': {
+        // Log the logout event — useful for audit trail
+        console.log(`📚 Student ${uid} logged out`);
+        break;
+      }
+
+      case 'supervisor': {
+        // Release any "currently reviewing" locks on projects
+        const lockedProjects = await db.collection('projects')
+          .where('lockedByUid', '==', uid)
+          .get();
+
+        const batch = db.batch();
+        lockedProjects.docs.forEach(doc => {
+          batch.update(doc.ref, { lockedByUid: null, lockedAt: null });
+        });
+        await batch.commit();
+
+        console.log(`👨‍🏫 Supervisor ${uid} logged out, released ${lockedProjects.size} project locks`);
+        break;
+      }
+
+      case 'examiner': {
+        // Log audit trail
+        console.log(`🔍 Examiner ${uid} logged out`);
+        break;
+      }
+
+      case 'coordinator': {
+        // Log audit trail with faculty context
+        console.log(`📋 Coordinator ${uid} (faculty: ${facultyId}) logged out`);
+        break;
+      }
+
+      case 'faculty_admin': {
+        console.log(`🏛️ Faculty admin ${uid} (faculty: ${facultyId}) logged out`);
+        break;
+      }
+
+      case 'system_admin': {
+        // Log to a dedicated admin_audit collection
+        await db.collection('admin_audit').add({
+          uid,
+          action:    'logout',
+          timestamp: now,
+          facultyId,
+        });
+        console.log(`🔐 System admin ${uid} logged out — audit log written`);
+        break;
+      }
+
+      default:
+        console.warn(`⚠️ Unknown role "${role}" logged out`);
+    }
+
     return res.status(200).json({ message: 'Logged out successfully' });
+
   } catch (error: any) {
     console.error('Logout error:', error);
     return res.status(500).json({ error: 'Failed to logout' });

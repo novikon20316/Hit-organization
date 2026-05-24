@@ -68,3 +68,34 @@ export const verifyToken = async (
 // Alias so routes that imported authenticateUser still work
 // during migration — remove once all routes use verifyToken
 export const authenticateUser = verifyToken;
+
+export const verifyTokenOnly = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or malformed authorization token.' });
+  }
+
+  const rawToken = authHeader.split('Bearer ')[1];
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Empty Bearer token.' });
+  }
+
+  try {
+    const decodedToken = await auth.verifyIdToken(rawToken);
+    req.user = {
+      uid:       decodedToken.uid,
+      email:     decodedToken.email,
+      role:      'student',       // default, sync will set the real value
+      facultyId: 'computer_science',
+    };
+    return next();
+  } catch (error: any) {
+    console.error('Token verification error:', error);
+    return res.status(403).json({ error: 'Invalid or expired authentication token.' });
+  }
+};

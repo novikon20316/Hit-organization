@@ -52,6 +52,11 @@ app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
+app.use((req, res, next) => {
+  console.log(`[${req.method}] ${req.path}`);
+  next();
+});
+
 // ─── 0.0.0.0 lets physical devices reach the server on local network ──────────
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server listening on port ${PORT}`);

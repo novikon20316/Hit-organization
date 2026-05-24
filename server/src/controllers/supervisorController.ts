@@ -93,7 +93,7 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
   if (!applicationId || !decision) return res.status(400).json({ message: 'Missing decision parameters.' });
 
   try {
-    const applicationRef = db.collection('application').doc(applicationId);
+    const applicationRef = db.collection('applications').doc(applicationId);
     const appSnap = await applicationRef.get();
 
     if (!appSnap.exists) return res.status(404).json({ message: 'Application not found.' });
@@ -102,7 +102,7 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     if (appSnap.data()?.supervisorId !== supervisorId) {
       return res.status(403).json({ message: 'Forbidden: You do not manage this project.' });
     }
-
+    
     await applicationRef.update({
       status: decision,
       supervisorNote: notes || null,
@@ -114,6 +114,7 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
       const projectId = appSnap.data()?.projectId;
       const studentId = appSnap.data()?.studentId;
       await db.collection('projects').doc(projectId).update({ status: 'enrolled', studentId });
+      await db.collection('users').doc(studentId).update({hasActiveProject: true, activeProjectId: projectId, supervisorId: supervisorId })
     }
 
     return res.status(200).json({ success: true, message: `Application ${decision} successfully.` });
