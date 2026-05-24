@@ -635,6 +635,17 @@ export const sharedStyles = StyleSheet.create({
     fontWeight: fontWeight.heavy,
     color: palette.textPrimary,
   },
+  uploadBtn: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#D0DEFF',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+  },
+  uploadBtnDone: { borderColor: '#4CAF50', borderStyle: 'solid', backgroundColor: '#F1FFF3' },
+  uploadBtnText: { fontSize: 14, color: '#5577AA', fontWeight: '500' },
 });
 
 export const studentHomeStyles = StyleSheet.create({

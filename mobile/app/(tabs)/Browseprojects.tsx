@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput,
-  Modal, ActivityIndicator,
+  Modal, ActivityIndicator, Linking
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
@@ -42,36 +42,36 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
 
   // ── Filtered proposals ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-  const searchLower = (search || '').toLowerCase();
+    const searchLower = (search || '').toLowerCase();
 
-  return proposals.filter((p) => {
-    const title =
-      lang === 'he'
-        ? (p.titleHe || '')
-        : (p.titleEn || '');
+    return proposals.filter((p) => {
+      const title =
+        lang === 'he'
+          ? (p.titleHe || '')
+          : (p.titleEn || '');
 
-    const titleMatch = title.toLowerCase().includes(searchLower);
+      const titleMatch = title.toLowerCase().includes(searchLower);
 
-    const supervisorMatch = (p.supervisorName || '')
-      .toLowerCase()
-      .includes(searchLower);
+      const supervisorMatch = (p.supervisorName || '')
+        .toLowerCase()
+        .includes(searchLower);
 
-    const skillMatch = (p.requiredSkills || []).some((s) =>
-      (s || '').toLowerCase().includes(searchLower)
-    );
+      const skillMatch = (p.requiredSkills || []).some((s) =>
+        (s || '').toLowerCase().includes(searchLower)
+      );
 
-    const textOk =
-      !search || titleMatch || supervisorMatch || skillMatch;
+      const textOk =
+        !search || titleMatch || supervisorMatch || skillMatch;
 
-    const degreeOk =
-      degreeFilter === 'all' ||
-      p.degreeType === degreeFilter 
-    const typeOk =
-      typeFilter === 'all' || p.projectType === typeFilter;
+      const degreeOk =
+        degreeFilter === 'all' ||
+        p.degreeType === degreeFilter 
+      const typeOk =
+        typeFilter === 'all' || p.projectType === typeFilter;
 
-    return textOk && degreeOk && typeOk;
-  });
-}, [proposals, search, degreeFilter, typeFilter, lang]);
+      return textOk && degreeOk && typeOk;
+    });
+  }, [proposals, search, degreeFilter, typeFilter, lang]);
 
   // ── File picker ────────────────────────────────────────────────────────────
   const pickFile = async (type: 'transcript' | 'cv') => {
@@ -88,7 +88,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   };
 
   // ── Upload file to Firebase Storage ───────────────────────────────────────
-  const uploadFile = async (uri: string): Promise<string> => { /** ERROR UPLOADING THE REQUEST -- NEED TO FIX IT **/
+  const uploadFile = async (uri: string): Promise<string> => { 
     try {
     const formData = new FormData();
 
@@ -250,16 +250,54 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                     <Text style={{ fontSize: 16, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
                   </View>
 
+                  {/* Title */}
                   <Text style={[styles.cardTitle, isRtl && styles.textRight]}>
                     {lang === 'he' ? p.titleHe : p.titleEn}
                   </Text>
 
-                  <Text style={[styles.cardSupervisor, isRtl && styles.textRight]}>
-                    👨‍🏫 {tx('supervisor', lang)}: {p.supervisorName}
-                  </Text>
+                  {/* ── NEW: Supervisor + Faculty + Duration row ── */}
+                  <View style={{ marginTop: 6, gap: 4 }}>
+                    
+                    {/* Supervisor */}
+                    <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 13, color: '#2E86FF', fontWeight: '700' }}>👨‍🏫</Text>
+                      <Text style={{ fontSize: 13, color: '#445', fontWeight: '600' }}>
+                        {p.supervisorName || (lang === 'he' ? 'לא צוין' : 'Not specified')}
+                      </Text>
+                    </View>
 
+                    {/* Faculty */}
+                    <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 13, color: '#8899BB' }}>🏛️</Text>
+                      <Text style={{ fontSize: 13, color: '#8899BB' }}>
+                        {lang === 'he' ? 'פקולטה: ' : 'Faculty: '}
+                        <Text style={{ fontWeight: '600', color: '#445' }}>
+                          {p.facultyId
+                            ? p.facultyId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                            : (lang === 'he' ? 'לא צוין' : 'Not specified')}
+                        </Text>
+                      </Text>
+                    </View>
+
+                    {/* Duration */}
+                    <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 13, color: '#8899BB' }}>📅</Text>
+                      <Text style={{ fontSize: 13, color: '#8899BB' }}>
+                        {lang === 'he' ? 'משך: ' : 'Duration: '}
+                        <Text style={{ fontWeight: '600', color: '#445' }}>
+                          {p.degreeType === 'masters'
+                            ? (lang === 'he' ? 'שנה אחת' : '1 year')
+                            : (lang === 'he' ? 'שנתיים' : '2 years')}
+                        </Text>
+                      </Text>
+                    </View>
+
+                  </View>
+                  {/* ── END NEW ── */}
+
+                  {/* Required skills */}
                   {p.requiredSkills.length > 0 && (
-                    <View style={[styles.skillsRow, isRtl && styles.rowReverse]}>
+                    <View style={[styles.skillsRow, isRtl && styles.rowReverse, { marginTop: 8 }]}>
                       {p.requiredSkills.slice(0, 4).map((sk) => (
                         <View key={sk} style={styles.skillChip}>
                           <Text style={styles.skillText}>{sk}</Text>
@@ -271,8 +309,10 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                     </View>
                   )}
 
+                  {/* Expanded section */}
                   {isExpanded && (
                     <View style={styles.expanded}>
+                      
                       {/* Description */}
                       {(lang === 'he' ? p.descriptionHe : p.descriptionEn) ? (
                         <Text style={[styles.descText, isRtl && styles.textRight]}>
@@ -287,7 +327,53 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                         </Text>
                       )}
 
-                      {/* ✅ Apply button — disabled if already applied */}
+                      {/* Max students */}
+                      <Text style={[styles.cardSupervisor, isRtl && styles.textRight]}>
+                        👥 {lang === 'he' ? 'מקסימום סטודנטים:' : 'Max students:'} {p.NumberOfStudents ?? 1}
+                      </Text>
+                      
+                      {/* ── PDF file — only shown if exists ── */}
+                      {p.projectFileUrl ? (
+                        <Pressable
+                          style={{
+                            flexDirection: isRtl ? 'row-reverse' : 'row',
+                            alignItems: 'center',
+                            gap: 8,
+                            backgroundColor: '#FEF2F2',
+                            borderRadius: 10,
+                            padding: 12,
+                            marginTop: 10,
+                            borderWidth: 1,
+                            borderColor: '#FECACA',
+                          }}
+                          onPress={() => {
+                            Linking.openURL(p.projectFileUrl!);
+                          }}
+                        >
+                          <Text style={{ fontSize: 20 }}>📄</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{
+                              fontSize: 13,
+                              fontWeight: '700',
+                              color: '#DC2626',
+                              textAlign: isRtl ? 'right' : 'left',
+                            }}>
+                              {lang === 'he' ? 'קובץ פרויקט' : 'Project File'}
+                            </Text>
+                            <Text style={{
+                              fontSize: 11,
+                              color: '#9BA8C0',
+                              textAlign: isRtl ? 'right' : 'left',
+                            }}>
+                              {lang === 'he' ? 'לחץ לצפייה בקובץ PDF' : 'Tap to view PDF'}
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '700' }}>
+                            {isRtl ? '←' : '→'}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                      {/* Apply button */}
                       {appliedProjectIds.includes(p.id) ? (
                         <View style={[styles.applyBtn, { backgroundColor: '#E2E8F0' }]}>
                           <Text style={[styles.applyBtnText, { color: '#94A3B8' }]}>

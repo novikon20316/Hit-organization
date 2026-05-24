@@ -1,12 +1,13 @@
 // app/supervisor/home.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
   SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, Linking,
 } from 'react-native';
 import { apiClient } from '@/src/api/apiClient';
 import { useRouter } from 'expo-router';
-import { type Lang } from '../../components/i18n';
+import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sharedStyles } from '@/constants';
 import { NewProjectModal } from '@/components/modals';
@@ -29,6 +30,7 @@ interface MyProject {
   enrolledStudentIds: string[]; applicationIds: string[];
   academicYear: string; projectType: string;
   descriptionHe: string; descriptionEn: string;
+  NumberOfStudents:number;
 }
 
 interface Application {
@@ -56,7 +58,8 @@ export default function SupervisorHome() {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
-
+  const [projectFile, setProjectFile] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
   const [myProjects,     setMyProjects]     = useState<MyProject[]>([]);
   const [applications,   setApplications]   = useState<Application[]>([]);
   const [pendingGrades,  setPendingGrades]  = useState<PendingMilestone[]>([]);
@@ -273,6 +276,8 @@ export default function SupervisorHome() {
         descriptionEn: newDescEn,
         degreeType: newDegree,
         projectType: newType,
+        projectInfo: projectFile,
+        NumberOfStudents: maxStudents,
         requiredSkills: newSkills.split(',').map(s => s.trim()).filter(Boolean),
         facultyId,
       });
@@ -399,6 +404,18 @@ export default function SupervisorHome() {
     }
   };
 
+  const pickFile = async (isNew: boolean) => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    if(isNew){
+      setProjectFile(asset.uri);
+      setProjectName(asset.name);  
+    } else{
+
+    }  
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -466,10 +483,11 @@ export default function SupervisorHome() {
               </Text>
             </Pressable>
 
-            {myProjects.length === 0 ? (
+            {!myProjects || myProjects.length === 0 ? (
               <EmptyState emoji="📭" text={lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'} />
             ) : (
               myProjects.map((p) => {
+                console.log("Mapping project:", p.id, "Enrolled students:", p.enrolledStudentIds);
                 const fc = getFacultyColor(p.facultyId);
                 return (
                   <View key={p.id} style={[styles.projectCard, { borderLeftColor: fc.primary }]}>
@@ -491,7 +509,7 @@ export default function SupervisorHome() {
                           ? p.projectType === 'project' ? 'פרויקט' : 'תזה'
                           : p.projectType === 'project' ? 'Project' : 'Thesis'}
                         {' · '}
-                        {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds.length}/1
+                        {lang === 'he' ? 'סטודנטים' : 'Students'}: {(p.enrolledStudentIds?.length ?? 0)}/{(p.NumberOfStudents ?? 1)}
                       </Text>
                     </View>
                     {(p.applicationIds?.length ?? 0) > 0 && (
@@ -713,6 +731,11 @@ export default function SupervisorHome() {
         maxStudents={maxStudents}
         setMaxStudents={setMaxStudents}
         facultyColors={FACULTY_COLORS}
+        projectName={projectName}
+        setProjectName={setProjectName}
+        projectFile={projectFile}
+        setProjectFile={setProjectFile}
+        pickFile={(b) => pickFile(b)}
         styles={styles}
       />
 
@@ -807,7 +830,6 @@ export default function SupervisorHome() {
               { label: lang === 'he' ? 'כותרת באנגלית *'  : 'English Title *',       value: editTitleEn, set: setEditTitleEn, dir: 'ltr' },
               { label: lang === 'he' ? 'תיאור בעברית'     : 'Hebrew Description',    value: editDescHe,  set: setEditDescHe,  dir: 'rtl', multi: true },
               { label: lang === 'he' ? 'תיאור באנגלית'    : 'English Description',   value: editDescEn,  set: setEditDescEn,  dir: 'ltr', multi: true },
-              { label: lang === 'he' ? 'טכנולוגיות'       : 'Technologies',          value: editSkills,  set: setEditSkills,  dir: 'ltr' },
             ].map((field) => (
               <View key={field.label}>
                 <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{field.label}</Text>
@@ -820,7 +842,19 @@ export default function SupervisorHome() {
                 />
               </View>
             ))}
-
+            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                        {tx('uploadProjectInfo', lang)} 
+            </Text>
+            <Pressable
+              style={[styles.uploadBtn, projectFile && styles.uploadBtnDone]}
+              onPress={() => pickFile(false)}
+            >
+              <Text style={styles.uploadBtnText}>
+                {projectFile
+                  ? `✓ ${projectName}`
+                  : `📄 ${tx('tapToUpload', lang)}`}
+              </Text>
+            </Pressable>
             <Pressable style={styles.submitBtn} onPress={() => handleEditProject(editProject)}>
               {saving
                 ? <ActivityIndicator color="#fff" />

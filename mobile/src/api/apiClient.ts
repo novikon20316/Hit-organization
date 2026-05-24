@@ -2,7 +2,7 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { auth } from '../firebase/firebase'; // Adjust this import path to point to your client-side Firebase config
 
 // Define the baseline configuration options for your Node.js backend server
-const SERVER_URL = 'http://10.100.102.22:5000'; // Replace with your actual machine IP (e.g., 192.168.1.X), do not use 'localhost' on physical mobile devices!
+const SERVER_URL = 'http://10.100.102.22:5000'; /** NEED TO CHANGE THE IP WHEN YOU RECONNECT TO ANY NETWORK **/
 
 class ApiClient {
   private api: AxiosInstance;

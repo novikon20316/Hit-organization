@@ -1,7 +1,9 @@
 // app/student/home.tsx  — React Native (Expo) version
 // The Next.js version is app/[locale]/(student)/home/page.tsx (see bottom of file)
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/src/firebase/firebase';
 import {
   View, Text, Pressable,
   ActivityIndicator, SafeAreaView,
@@ -9,7 +11,7 @@ import {
 import { apiClient } from '@/src/api/apiClient';
 import { useRouter } from 'expo-router';
 import { useStudentData } from '../../hooks/useStudentData';
-import { t, tx, type Lang } from '../../components/i18n';
+import { tx, type Lang } from '../../components/i18n';
 import { studentHomeStyles } from '@/constants';
 
 // ─── Sub-screens ──────────────────────────────────────────────────────────────
@@ -28,14 +30,16 @@ export default function StudentHome() {
     pendingApplication, unreadCount, studentDegree,
   } = useStudentData();
 
-  const handleSignOut = async () => {
-    try {
-      await apiClient.post('api/users/logout'); // Cleans state parameters on backend engines
-      router.replace('/');
-    } catch (e) {
-      router.replace('/');
-    }
-  };
+ const handleSignOut = async () => {
+  try {
+    await apiClient.post('/api/users/logout');  // ← add the /
+  } catch (e) {
+    console.warn('Logout API call failed, continuing anyway');
+  } finally {
+    await signOut(auth);
+    router.replace('/(auth)/login');
+  }
+};
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (studentState === 'loading') {

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import * as Notifications from 'expo-notifications'
+import axios from 'axios';
 import {
   View, Text, Pressable, StyleSheet, ScrollView,Modal,
   SafeAreaView, ActivityIndicator, Alert, TextInput,
@@ -7,8 +9,16 @@ import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
-import { DEGREE_LENGTHS } from '../../components/Notificationservice';
-import { apiClient } from '../../src/api/apiClient';
+
+const DEGREE_LENGTHS: Record<string, number> = {
+  computer_science: 3,
+  electrical: 4,
+  software: 3,
+  industrial: 4,
+  mechanical: 4,
+  learning_technology: 3,
+  default: 4,
+};
 
 type DegreeType = 'bachelors' | 'masters';
 type Major = keyof typeof DEGREE_LENGTHS;
@@ -51,54 +61,97 @@ export default function ProfileSetup() {
   })();
 
   // Validation: Ensure Name and Phone are filled along with academic details
-  const canSave = 
-    displayName.trim().length > 1 && 
-    phoneNumber.length >= 9 && 
-    email.includes('@') && 
-    degreeType && 
-    major && 
-    yearOfStudy;
+ 
 
   const handleSave = async () => {
-    console.log("Attempting to save profile with data:", {
-      displayName, phoneNumber, email, degreeType, major, yearOfStudy
-    });
     if (!canSave || !email || !password) {
-      Alert.alert("Error", "Please fill all fields, including email and password.");
-      return;
-    }else if((degreeType === 'bachelors' && yearOfStudy < 3 && selectedMajorData?.years === 4) || (degreeType === 'bachelors' && yearOfStudy < 2 && selectedMajorData?.years === 3) || (degreeType === 'masters' && yearOfStudy === 2)){
-      Alert.alert("Error", "NEED TO BE AT YOUR LAST YEAR OF THE DEGREE."); // need to be in final year to register, otherwise we get too many irrelevant users who just want to check the app without real intention to use it for project matching
+      Alert.alert("Error", "Please fill all fields.");
       return;
     }
     setSaving(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
-      await apiClient.post('/api/users/sync', {
-        newUid: user.uid,
-        email: email,
-        role: 'student',
-        facultyId: faculty,
-        degreeType: degreeType,
-        yearOfStudy: yearOfStudy,
-        major: faculty, // NEED TO CHANGE WHEN I GET THE JOB
-        studentId: studentId,
-      });
+      const idToken = await user.getIdToken();
+      let expoPushToken: string | null = null;
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status === 'granted') {
+          const tokenData = await Notifications.getExpoPushTokenAsync();
+          expoPushToken = tokenData.data;
+        }
+      } catch (e) {
+        console.warn('Could not get push token during registration:', e);
+        // Non-fatal — _layout.tsx will retry on next login
+      }
+      const response = await axios.post(
+        'http://10.100.102.22:5000/api/users/sync',
+        {
+          newUid: user.uid,
+          email: email,
+          role: 'student',
+          facultyId: faculty,
+          degreeType: degreeType,
+          yearOfStudy: yearOfStudy,
+          major: faculty,
+          studentId: studentId,
+          hasActiveProject: false,
+          expoPushToken: null,
+          displayName,
+          isActive: true,
+          profileComplete: true,
+          language: lang,
+          additionalRoles: [] 
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      console.log("✅ Sync response:", response.data);
       router.replace('/(auth)/login');
-    }catch (e: any) {
+
+    } catch (e: any) {
       console.error("Registration Error:", e);
-      
-      // Handle common Firebase errors
       let msg = e.message;
       if (e.code === 'auth/email-already-in-use') msg = "This email is already registered.";
       if (e.code === 'auth/weak-password') msg = "Password is too weak.";
-      
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', msg);
     } finally {
       setSaving(false);
     }
   };
 
+  const isValidStudentId = (id: string): boolean => {
+    return /^\d{9}$/.test(id);
+  }
+
+  const getPasswordStrength = (password: string): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    if (password.length < 8)           errors.push('At least 8 characters');
+    if (!/[A-Z]/.test(password))       errors.push('At least 1 uppercase letter');
+    if (!/[a-z]/.test(password))       errors.push('At least 1 lowercase letter');
+    if (!/[0-9]/.test(password))       errors.push('At least 1 digit');
+    if (!/[^A-Za-z0-9]/.test(password)) errors.push('At least 1 symbol (!@#$...)');
+    return { valid: errors.length === 0, errors };
+  }
+
+  const passwordCheck = getPasswordStrength(password);
+
+  const canSave = 
+    displayName.trim().length > 1 && 
+    phoneNumber.length >= 9 && 
+    email.includes('@') &&
+    isValidStudentId(studentId) &&      // ← added
+    passwordCheck.valid &&              // ← added
+    degreeType && 
+    major && 
+    yearOfStudy;
+
+  
   return (
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
@@ -149,33 +202,90 @@ export default function ProfileSetup() {
             value={phoneNumber}
             onChangeText={setPhoneNumber}
             keyboardType="phone-pad"
+            maxLength={10}
           />
 
           <TextInput
-            style={[s.input, isRtl && s.textRight]}
+            style={[
+              s.input, 
+              isRtl && s.textRight,
+              password.length > 0 && { 
+                borderColor: getPasswordStrength(password).valid ? '#10B981' : '#EF4444' 
+              }
+            ]}
             placeholder={lang === 'he' ? 'סיסמה' : 'Password'}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
+          {password.length > 0 && !getPasswordStrength(password).valid && (
+            <View style={{ marginTop: -8, marginBottom: 8 }}>
+              {getPasswordStrength(password).errors.map((err) => (
+                <Text key={err} style={{ color: '#EF4444', fontSize: 12, textAlign: isRtl ? 'right' : 'left' }}>
+                  {'• '}{err}
+                </Text>
+              ))}
+            </View>
+          )}
 
            
           <TextInput
-            style={[s.input, isRtl && s.textRight]}
+            style={[
+              s.input, 
+              isRtl && s.textRight,
+              studentId.length > 0 && { 
+                borderColor: isValidStudentId(studentId) ? '#10B981' : '#EF4444' 
+              }
+            ]}
             placeholder={lang === 'he' ? 'תעודת זהות' : 'Student ID'}
             value={studentId}
             onChangeText={setStudentId}
             keyboardType="numeric"
-          /> 
+            maxLength={9}
+          />
+          {studentId.length > 0 && !isValidStudentId(studentId) && (
+            <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
+              {lang === 'he' ? 'תעודת זהות חייבת להכיל 9 ספרות' : 'Student ID must be exactly 9 digits'}
+            </Text>
+          )} 
           
         </View>
+          <Text style={[s.label, { marginTop: 15 }, !isRtl && s.textRight]}>
+            {lang === 'he' ? 'בחר פקולטה / מחלקה:' : 'Select Faculty / Department:'}
+          </Text>
 
+          <Pressable 
+            style={({ pressed }) => [
+              s.input, 
+              { 
+                justifyContent: 'center', 
+                backgroundColor: pressed ? '#F0F4FF' : '#fff',
+                borderColor: showFacultyModal ? '#2E86FF' : '#E0E8FF',
+                minHeight: 50,
+              }
+            ]} 
+            onPress={() => setShowFacultyModal(true)}
+          >
+            <View style={{ 
+              flexDirection: isRtl ? 'row-reverse' : 'row', 
+              justifyContent: 'space-between', 
+              alignItems: 'center' 
+            }}>
+              <Text style={{
+                fontSize: 16,
+                color: '#333',
+              }}>
+                {MAJORS.find(m => m.id === faculty)?.[lang] || faculty}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#8899BB' }}>▼</Text>
+            </View>
+          </Pressable>
         {/* --- Degree type --- */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, isRtl && s.textRight]}>
+          <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
             {lang === 'he' ? '1. סוג תואר' : '1. Degree Type'}
           </Text>
-          <View style={[s.optionRow, isRtl && s.rowReverse]}>
+          <View style={[s.optionRow, !isRtl && s.rowReverse]}>
             {([
               { id: 'bachelors', he: 'תואר ראשון', en: "Bachelor's", emoji: '🎓' },
               { id: 'masters',   he: 'תואר שני',   en: "Master's",   emoji: '🏛️' },
@@ -193,11 +303,11 @@ export default function ProfileSetup() {
             ))}
           </View>
         </View>
-
+        
         {/* --- Major --- */}
         {degreeType && (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, isRtl && s.textRight]}>
+            <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
               {lang === 'he' ? '2. מגמה / חוג' : '2. Major / Department'}
             </Text>
             <View style={s.majorGrid}>
@@ -224,7 +334,7 @@ export default function ProfileSetup() {
         {/* --- Year of study --- */}
         {major && (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, isRtl && s.textRight]}>
+            <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
               {lang === 'he' ? '3. שנת לימוד נוכחית' : '3. Current Year of Study'}
             </Text>
 
@@ -281,26 +391,7 @@ export default function ProfileSetup() {
         </Pressable>
 
         <View style={{ height: 40 }} />
-          <Text style={[s.label, { marginTop: 15 }]}>
-            {lang === 'he' ? 'בחר פקולטה / מחלקה:' : 'Select Faculty / Department:'}
-          </Text>
-
-          <Pressable 
-            style={({ pressed }) => [
-              s.input, 
-              { 
-                justifyContent: 'center', 
-                backgroundColor: pressed ? '#F0F4FF' : '#fff',
-                borderColor: showFacultyModal ? '#2E86FF' : '#E0E8FF',
-                height: 50
-              }
-            ]} 
-            onPress={() => setShowFacultyModal(true)}
-          >
-            <Text style={{ fontSize: 16, color: '#333', textAlign: lang === 'he' ? 'right' : 'left' }}>
-              {MAJORS.find(m => m.id === faculty)?.[lang] || faculty}
-            </Text>
-          </Pressable>
+          
 
 
         {/* ─── POPUP LIST MODAL ─── */}
@@ -397,6 +488,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#E0E8FF',
     fontSize: 16,
+    lineHeight: 20,
     color: '#111',
   },
   // Keep the rest of your styles unchanged

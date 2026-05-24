@@ -1,4 +1,5 @@
 import React from "react";
+import { tx } from '../../components/i18n';
 import {
   Modal,
   View,
@@ -69,6 +70,14 @@ type Props = {
   maxStudents: number;
   setMaxStudents: (v: number) => void;
 
+  projectName: string | null;
+  setProjectName: (v: string | null) => void;
+  
+  projectFile: string | null;
+  setProjectFile: (v: string | null) => void;
+
+  pickFile: (v:boolean) => void;
+
   facultyColors: FacultyColors;
   styles: any;
 };
@@ -114,9 +123,21 @@ export default function NewProjectModal({
   maxStudents,
   setMaxStudents,
 
+  projectName,
+  setProjectName,
+
+  projectFile,
+  setProjectFile,
+
+  pickFile,
+
   facultyColors,
   styles,
 }: Props) {
+    
+    
+  
+  
   const isAdmin = mode === "admin";
   
   return (
@@ -140,7 +161,7 @@ export default function NewProjectModal({
           { label: lang === "he" ? "כותרת באנגלית *" : "English Title *", value: titleEn, set: setTitleEn, dir: "ltr" },
           { label: lang === "he" ? "תיאור בעברית" : "Hebrew Description", value: descHe, set: setDescHe, dir: "rtl", multi: true },
           { label: lang === "he" ? "תיאור באנגלית" : "English Description", value: descEn, set: setDescEn, dir: "ltr", multi: true },
-          { label: lang === "he" ? "טכנולוגיות" : "Technologies", value: skills, set: setSkills, dir: "ltr" },
+          
         ].map((f) => (
           <View key={f.label}>
             <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
@@ -158,6 +179,19 @@ export default function NewProjectModal({
             />
           </View>
         ))}
+        <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+            {tx('uploadProjectInfo', lang)} 
+        </Text>
+        <Pressable
+          style={[styles.uploadBtn, projectFile && styles.uploadBtnDone]}
+          onPress={() => pickFile(true)}
+        >
+          <Text style={styles.uploadBtnText}>
+            {projectFile
+              ? `✓ ${projectName}`
+              : `📄 ${tx('tapToUpload', lang)}`}
+          </Text>
+        </Pressable>
 
         {/* Faculty (ADMIN ONLY) */}
         {isAdmin && (

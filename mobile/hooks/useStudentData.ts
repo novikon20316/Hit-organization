@@ -1,7 +1,7 @@
 // student/hooks/useStudentData.ts
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../src/api/apiClient';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import  { db } from '../src/firebase/firebase';
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type StudentState = 'loading' | 'no_project' | 'pending' | 'active';
@@ -33,10 +33,11 @@ export interface ProjectProposal {
   facultyId:     string;
   degreeType:    DegreeType;
   projectType:   ProjectType;
-  maxStudents:   number;
+  NumberOfStudents:   number;
   requiredSkills:string[];
   status:        string;
   academicYear:  string;
+  projectFileUrl: string | null; 
 }
 
 export interface ActiveProject {
@@ -172,29 +173,53 @@ export function useStudentData() {
 
   // EFFECT 2: The Live Listener (Only runs if they are browsing proposals)
   useEffect(() => {
-    // Wait until we are sure they don't have a project AND we know their faculty/degree
     if (studentState !== 'no_project' || !studentFaculty || !studentDegree) return;
 
     const q = query(
       collection(db, 'projects'),
-      where('status', '==', 'published'),
-      where('facultyId', '==', studentFaculty), // Now uses actual facultyId
+      where('status', '==', 'active'),
+      where('facultyId', '==', studentFaculty),
       where('degreeType', '==', studentDegree)
     );
 
-    // Opens a live connection to Firestore
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const liveProjects = snapshot.docs.map(doc => ({
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const rawProjects = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as ProjectProposal[];
-      
-      setProposals(liveProjects);
+
+      // Get unique supervisor IDs that don't already have a name on the project
+      const supervisorIds = [...new Set(
+        rawProjects
+          .filter(p => p.supervisorId && !p.supervisorName)
+          .map(p => p.supervisorId)
+      )];
+
+      // Fetch supervisor names in parallel
+      const nameMap: Record<string, string> = {};
+      if (supervisorIds.length > 0) {
+        const supervisorDocs = await Promise.all(
+          supervisorIds.map(uid => getDoc(doc(db, 'users', uid)))
+        );
+        supervisorDocs.forEach(snap => {
+          if (snap.exists()) {
+            const data = snap.data();
+            nameMap[snap.id] = data?.displayName || data?.displayNameHe || '';
+          }
+        });
+      }
+
+      // Merge names into projects
+      const projectsWithNames = rawProjects.map(p => ({
+        ...p,
+        supervisorName: p.supervisorName || nameMap[p.supervisorId] || '',
+      }));
+
+      setProposals(projectsWithNames);
     });
 
-    // Close listener when screen unmounts or state changes
-    return () => unsubscribe(); 
-  }, [studentState, studentFaculty, studentDegree]);  
+    return () => unsubscribe();
+  }, [studentState, studentFaculty, studentDegree]); 
 
   // ── Derived helpers ───────────────────────────────────────────────────────
   const nextMilestone = milestones.find(

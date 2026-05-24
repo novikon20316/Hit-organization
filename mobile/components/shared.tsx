@@ -92,7 +92,7 @@ export function TopBar({
   const handleSignOut = async () => {
     onBeforeSignOut?.();           // ← call it before signing out
     await signOut(auth);
-    setTimeout(() => router.replace('/'), 100); // slight delay to ensure state updates before redirect
+    setTimeout(() => router.replace('/(auth)/login'), 100); // slight delay to ensure state updates before redirect
   };
 
   return (

@@ -72,6 +72,7 @@ export const t = {
   overdue:         { he: 'באיחור!', en: 'Overdue!' },
   today:           { he: 'היום!', en: 'Today!' },
   submitMilestone: { he: 'הגש אבן דרך', en: 'Submit Milestone' },
+  uploadProjectInfo:{ he: 'העלה קובץ מידע על הפרויקט (PDF)', en: 'Upload Project Information File (PDF)' },
 
   // ── Milestones ────────────────────────────────────────────────────────────
   milestonesTitle: { he: 'אבני הדרך שלי', en: 'My Milestones' },
