@@ -1,20 +1,25 @@
-import * as admin from 'firebase-admin';
-import * as path from 'path';
-// Import the specific types needed for the annotations
-import { Auth } from 'firebase-admin/auth';
-import { Messaging } from 'firebase-admin/messaging';
+import { initializeApp, cert, getApps } from 'firebase-admin/app'; 
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getAuth, Auth } from 'firebase-admin/auth';
+import { getMessaging, Messaging } from 'firebase-admin/messaging';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// 🚀 RECREATE __dirname FOR ES MODULE SCOPE
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Resolve the path to your service account key
 const serviceAccountPath = path.resolve(__dirname, '../../serviceAccountKey.json');
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccountPath),
+// 💡 FIXED: Invoke getApps() to check the length array safely
+if (getApps().length === 0) {
+  initializeApp({
+    credential: cert(serviceAccountPath),
   });
 }
 
-export const db: admin.firestore.Firestore = admin.firestore();
-export const auth: Auth = admin.auth(); // Added explicit type annotation
-export const messaging: Messaging = admin.messaging(); // Added explicit type annotation
-
-export default admin;
+// Clean initialization using direct SDK sub-modules
+export const db: Firestore = getFirestore();
+export const auth: Auth = getAuth();
+export const messaging: Messaging = getMessaging();

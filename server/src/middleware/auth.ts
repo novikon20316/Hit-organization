@@ -1,16 +1,23 @@
+// src/middleware/auth.ts
+// Single unified middleware — replaces both auth.ts and authMiddleware.ts
+// Import ONLY from this file across the entire server
+
 import { Request, Response, NextFunction } from 'express';
 import { auth, db } from '../config/firebase.js';
 
-// 1. Fixed ts(2375) by adding explicit support for 'undefined' to matching optional fields
 export interface AuthenticatedRequest extends Request {
   user?: {
-    uid: string;
-    email?: string | undefined; // Added explicitly to satisfy exactOptionalPropertyTypes
-    role: string;
+    uid:       string;
+    email?:    string | undefined;
+    role:      string;
     facultyId: string;
   };
 }
 
+/**
+ * verifyToken — enriches req.user with role + facultyId from Firestore.
+ * Use this on ALL routes so controllers can trust req.user.role.
+ */
 export const verifyToken = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -19,42 +26,45 @@ export const verifyToken = async (
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized payload context.' });
+    return res.status(401).json({ error: 'Missing or malformed authorization token.' });
   }
 
-  // 2. Fixed ts(2345) by ensuring idToken is strictly a string (not undefined)
   const rawToken = authHeader.split('Bearer ')[1];
-  if(!rawToken){
-    return res.status(401).json({ error: 'Malformed Authorization Header token.' });
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Empty Bearer token.' });
   }
-  const idToken: string  = rawToken;
+
   try {
-    const decodedToken = await auth.verifyIdToken(idToken);
+    const decodedToken = await auth.verifyIdToken(rawToken);
     const uid = decodedToken.uid;
 
     const userDoc = await db.collection('users').doc(uid).get();
-    
     if (!userDoc.exists) {
-      return res.status(404).json({ error: 'User registration document does not exist in Firestore.' });
+      console.error(`❌ User ${uid} not found in Firestore.`);
+      return res.status(404).json({ error: 'User not found in Firestore.' });
     }
+
 
     const userData = userDoc.data();
-
+    console.log("User Data:", userData);
     if (!userData?.isActive) {
-      return res.status(403).json({ error: 'Account disabled by administration.' });
+      return res.status(403).json({ error: 'Account has been disabled.' });
     }
 
-    // Assign mapped values safely
     req.user = {
       uid,
-      email: decodedToken.email, // Now fully compatible with the interface above
-      role: userData.role || 'student', // Fallback defaults to ensure strings
-      facultyId: userData.facultyId || 'computer_science'
+      email:     decodedToken.email,
+      role:      userData.role      ?? 'student',
+      facultyId: userData.facultyId ?? 'computer_science',
     };
 
     return next();
   } catch (error: any) {
-    console.error('Security token processing error:', error);
-    return res.status(403).json({ error: 'Session handshake failed: Invalid authentication.' });
+    console.error('Token verification error:', error);
+    return res.status(403).json({ error: 'Invalid or expired authentication token.' });
   }
 };
+
+// Alias so routes that imported authenticateUser still work
+// during migration — remove once all routes use verifyToken
+export const authenticateUser = verifyToken;

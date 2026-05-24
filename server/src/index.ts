@@ -1,52 +1,58 @@
-import express, { Request, Response } from 'express';
+// src/index.ts
+
+import express from 'express';
 import cors from 'cors';
-import { db } from './config/firebase.js';
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+import userRoutes         from './routes/users.js';
+import applicationRoutes  from './routes/applications.js';
+import milestoneRoutes    from './routes/milestones.js';
+import notificationRoutes from './routes/notifications.js';
+import projectRoutes      from './routes/projectRoutes.js';
+import chatRoutes         from './routes/chatRoute.js';
+import adminRoutes        from './routes/adminRoutes.js'
+import coordinatorRoutes  from './routes/coordinator.js'
+import supervisorRoute    from './routes/supervisor.js'
+import studentRoutes      from './routes/student.js'
+import { verifyToken } from './middleware/auth.js';
+import { getMilestonesByQuery } from './controllers/milestoneController.js';
 
-// Enable CORS so your Expo mobile app can communicate with it
+const app  = express();
+const PORT = Number(process.env.PORT) || 5000; // ← cast to number fixes ts(2769)
+
 app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.get('/api/projects/:projectId/milestones', verifyToken, getMilestonesByQuery);
 
-// Parse JSON requests (fully supports UTF-8 encoded bilingual/Hebrew strings)
-app.use(express.json({ limit: '10mb' })); 
 
-// Basic health check route
-app.get('/', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'Server running smoothly' });
+app.use((req, res, next) => {
+  console.log(`📥 Incoming: ${req.method} ${req.url}`);
+  console.log(`📦 Headers:`, req.headers.authorization); 
+  next();
 });
 
-/**
- * Example Endpoint: Sync or Create User Profile (Bilingual Safe)
- * Handlers use the specific document UID generated during client-side registration
- */
-app.post('/api/users/sync', async (req: Request, res: Response) => {
-  try {
-    const { newUid, email, fullName, role, faculty } = req.body;
-
-    if (!newUid || !email) {
-      return res.status(400).json({ error: 'Missing critical user identifiers.' });
-    }
-
-    // Save directly to Firestore using the explicitly passed newUid
-    const userRef = db.collection('users').doc(newUid);
-    
-    await userRef.set({
-      email,
-      fullName, // This safely handles Hebrew strings like "דור נוביק" without data loss
-      role,     // 'student', 'supervisor', 'coordinator'
-      faculty,
-      createdAt: new Date().toISOString()
-    }, { merge: true });
-
-    return res.status(200).json({ success: true, message: 'Profile synchronized successfully.' });
-  } catch (error: any) {
-    console.error('Error syncing user profile:', error);
-    return res.status(500).json({ error: error.message });
-  }
+// ─── Routes ───────────────────────────────────────────────────────────────────
+app.use('/api/users',         userRoutes);
+app.use('/api/milestones',    milestoneRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/projects',      projectRoutes);
+app.use('/api/chats',         chatRoutes);
+app.use('/api/admin',         adminRoutes);
+app.use('/api/coordinator',   coordinatorRoutes);
+app.use('/api/supervisor',    supervisorRoute);
+app.use('/api/student',       studentRoutes);
+app.use('/api/applications', applicationRoutes);
+// ─── Global error handler ─────────────────────────────────────────────────────
+app.use((err: any, _req: any, res: any, _next: any) => {
+  console.error('Unhandled error:', err.stack);
+  res.status(500).json({ message: 'Internal Server Error' });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+app.use((req, res) => {
+  console.log(`🕵️‍♂️ 404 TRAP CAUGHT A REQUEST: ${req.method} ${req.url}`);
+  res.status(404).json({ message: "Route not found" });
+});
+
+// ─── 0.0.0.0 lets physical devices reach the server on local network ──────────
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
 });

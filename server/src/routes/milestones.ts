@@ -1,54 +1,26 @@
 import { Router, Response } from 'express';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js';
-
+import {
+  getMilestonesByQuery,
+  submitMilestone,
+  initializeRoadMap,
+} from '../controllers/milestoneController.js'
 const router = Router();
 
-/**
- * @route   POST /api/milestones/grade
- * @desc    Secures the evaluation endpoint against cross-faculty configuration parameters
- */
-router.post('/grade', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { projectId, milestoneType, scores, feedback, approved } = req.body;
-    
-    // Safety guard using attributes mapped directly from your verification sequence
-    const evaluatorRole = req.user?.role;
-    const evaluatorFaculty = req.user?.facultyId;
 
-    if (!projectId || !milestoneType) {
-      return res.status(400).json({ error: 'Missing evaluation metadata criteria.' });
-    }
 
-    // Pull project context from database
-    const projectDoc = await db.collection('projects').doc(projectId).get();
-    if (!projectDoc.exists) {
-      return res.status(404).json({ error: 'Project file not found.' });
-    }
+router.post('/initialize-roadmap', verifyToken, initializeRoadMap)
+// GET /api/milestones  — fetch milestones by query params
+router.get('/', verifyToken, getMilestonesByQuery);
+// GET /api/milestones/:projectId/milestones — fetch milestones for a project (admin view)
+router.get('/:projectId/milestones', verifyToken, getMilestonesByQuery);
+// POST /api/milestones/submit — student submits a milestone (no ID in path)
+router.post('/submit', verifyToken, submitMilestone)
+// POST /api/milestones/:id/submit — student submits a specific milestone by ID
+router.post('/:id/submit', verifyToken, submitMilestone)
+// PUT /api/milestones/:id — update a milestone
+router.put('/:id', verifyToken, submitMilestone) // TODO: wire to correct update controller
 
-    const projectData = projectDoc.data();
-
-    // ENFORCE SECURITY RULES: Bypassed by system_admin, otherwise checked strictly against project facultyId
-    if (evaluatorRole !== 'system_admin' && evaluatorFaculty !== projectData?.facultyId) {
-      return res.status(403).json({ error: 'Access Denied: Cross-faculty grading violations detected.' });
-    }
-
-    const submissionRef = db.collection('projects').doc(projectId).collection('submissions').doc(milestoneType);
-
-    await submissionRef.set({
-      status: approved ? 'approved' : 'rejected',
-      evaluation: {
-        evaluatorUid: req.user?.uid,
-        feedback, // Safe bilingual processing context
-        scores,
-        gradedAt: new Date().toISOString()
-      }
-    }, { merge: true });
-
-    return res.status(200).json({ success: true, message: 'Evaluation securely verified and committed.' });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
-  }
-});
 
 export default router;
