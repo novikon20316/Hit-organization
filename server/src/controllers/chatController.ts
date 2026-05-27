@@ -457,3 +457,57 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
     return res.status(500).json({ message: 'Failed to load chat dashboard.' });
   }
 };
+
+/**
+ * GET /api/chats/:chatId/messages
+ * Returns all messages for a chat thread, ordered oldest → newest.
+ * createdAt is serialized as an ISO string so the frontend can parse it simply.
+ */
+export const getChatMessages = async (req: AuthenticatedRequest, res: Response) => {
+  const uid        = req.user?.uid;
+  const { chatId } = req.params;
+ 
+  if (!chatId || typeof chatId !== 'string') {
+    return res.status(400).json({ message: 'Invalid chatId.' });
+  }
+ 
+  try {
+    // Verify the requesting user is a participant before returning messages
+    const chatSnap = await db.collection('chats').doc(chatId).get();
+ 
+    if (!chatSnap.exists) {
+      return res.status(404).json({ message: 'Chat not found.' });
+    }
+ 
+    const participants: string[] = chatSnap.data()?.participants ?? [];
+    if (!participants.includes(uid!)) {
+      return res.status(403).json({ message: 'Access denied: not a participant.' });
+    }
+ 
+    const messagesSnap = await db
+      .collection('chats')
+      .doc(chatId)
+      .collection('messages')
+      .orderBy('createdAt', 'asc')
+      .get();
+ 
+    const messages = messagesSnap.docs.map((doc) => {
+      const data = doc.data();
+ 
+      // Firestore Timestamp → ISO string so the frontend gets a consistent format
+      const createdAt = data.createdAt?.toDate?.()?.toISOString() ?? null;
+ 
+      return {
+        id:        doc.id,
+        text:      data.text      ?? '',
+        senderId:  data.senderId  ?? '',
+        createdAt,
+      };
+    });
+ 
+    return res.status(200).json(messages);
+  } catch (error) {
+    console.error('getChatMessages error:', error);
+    return res.status(500).json({ message: 'Failed to load messages.' });
+  }
+};

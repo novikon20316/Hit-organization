@@ -99,3 +99,20 @@ export const verifyTokenOnly = async (
     return res.status(403).json({ error: 'Invalid or expired authentication token.' });
   }
 };
+
+export const softError = (
+  res: Response,
+  message: string,
+  debugInfo?: any        // logged server-side only, never sent to client
+): Response => {
+  if (debugInfo !== undefined) {
+    console.error(`[softError] ${message}`, debugInfo);
+  } else {
+    console.error(`[softError] ${message}`);
+  }
+ 
+  return res.status(200).json({
+    success: false,
+    message,
+  });
+};

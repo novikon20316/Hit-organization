@@ -64,6 +64,7 @@
     "cli-spinners": "^2.9.2",
     "cliui": "^8.0.1",
     "clone": "^1.0.4",
+    "cloudinary": "^2.10.0",
     "color-convert": "^2.0.1",
     "color-name": "^1.1.4",
     "combined-stream": "^1.0.8",

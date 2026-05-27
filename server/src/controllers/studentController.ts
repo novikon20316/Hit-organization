@@ -28,24 +28,3 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
   }
 };
 
-export const submitMilestone = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { id, milestoneId } = req.params;
-    const { text } = req.body; // text payload sent by frontend 
-    if (typeof milestoneId !== 'string' || !milestoneId) {
-        return res.status(400).json({ message: 'Invalid or missing projectId' });
-    }
-    const milestoneRef = db.collection('milestones').doc(milestoneId);
-    
-    await milestoneRef.update({
-      status: 'submitted',
-      submittedAt: new Date(),
-      submissionText: text || '',
-    });
-
-    return res.status(200).json({ success: true, message: 'Milestone submitted successfully' });
-  } catch (error: any) {
-    console.error('Error submitting milestone:', error);
-    return res.status(500).json({ error: error.message });
-  }
-};

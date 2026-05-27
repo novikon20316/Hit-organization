@@ -6,17 +6,19 @@ import { markChatNotificationsAsRead,
     getChatDashboard,
     getChatMeta,
     deleteChat,
+    getChatMessages 
  } from '../controllers/chatController.js';
-import { authenticateUser } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
 
 // Secure authorization gates
-router.get('/:chatId/meta', authenticateUser, getChatMeta)
-router.get('/candidates',    authenticateUser, getChatCandidates);
-router.get('/dashboard',     authenticateUser, getChatDashboard);
-router.post('/',             authenticateUser, findOrCreateDirectChat);
-router.post('/broadcast',    authenticateUser, sendBroadcastNotification);
-router.post('/:chatId/read', authenticateUser, markChatNotificationsAsRead);
-router.delete('/:chatId',    authenticateUser, deleteChat)
+router.get('/:chatId/messages', verifyToken, getChatMessages )
+router.get('/:chatId/meta',  verifyToken, getChatMeta)
+router.get('/candidates',    verifyToken, getChatCandidates);
+router.get('/dashboard',     verifyToken, getChatDashboard);
+router.post('/',             verifyToken, findOrCreateDirectChat);
+router.post('/broadcast',    verifyToken, sendBroadcastNotification);
+router.post('/:chatId/read', verifyToken, markChatNotificationsAsRead);
+router.delete('/:chatId',    verifyToken, deleteChat)
 export default router;

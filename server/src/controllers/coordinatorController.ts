@@ -76,26 +76,16 @@ export const assignExaminers = async (req: Request, res: Response) => {
  */
 export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const coordinatorId = req.user?.uid;
-
-  if (!coordinatorId) {
-    return res.status(401).json({ message: 'Unauthorized.' });
-  }
+  if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
 
   try {
-    // 1. Resolve the coordinator's faculty from their user document
     const coordinatorSnap = await db.collection('users').doc(coordinatorId).get();
-    if (!coordinatorSnap.exists) {
-      return res.status(404).json({ message: 'Coordinator user record not found.' });
-    }
+    if (!coordinatorSnap.exists) return res.status(404).json({ message: 'Coordinator user record not found.' });
 
     const coordinatorData = coordinatorSnap.data();
     const facultyId = coordinatorData?.facultyId;
+    if (!facultyId) return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
 
-    if (!facultyId) {
-      return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
-    }
-
-    // 2. Fetch all projects and milestones for this faculty in parallel
     const [projectsSnap, milestonesSnap, notifSnap] = await Promise.all([
       db.collection('projects').where('facultyId', '==', facultyId).get(),
       db.collection('milestones').where('facultyId', '==', facultyId).get(),
@@ -105,73 +95,122 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
         .get(),
     ]);
 
-    // 3. Index milestones by projectId for efficient stitching
+    // ── Index projects by ID for O(1) lookup ──────────────────────────────
+    const projectsById: Record<string, any> = {};
+    projectsSnap.docs.forEach((doc) => {
+      projectsById[doc.id] = { id: doc.id, ...doc.data() };
+    });
+
+    // ── Collect all unique userIds we need to resolve ─────────────────────
+    // (supervisors + enrolled students across all projects)
+    const userIdsToFetch = new Set<string>();
+    projectsSnap.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.supervisorId) userIdsToFetch.add(data.supervisorId);
+      (data.enrolledStudentIds ?? []).forEach((id: string) => userIdsToFetch.add(id));
+    });
+
+    // ── Batch-fetch all users in parallel (one call per user, all parallel) ─
+    const userSnaps = await Promise.all(
+      [...userIdsToFetch].map((uid) => db.collection('users').doc(uid).get())
+    );
+    const usersById: Record<string, string> = {}; // uid → displayName
+    userSnaps.forEach((snap) => {
+      if (snap.exists) usersById[snap.id] = snap.data()?.displayName ?? 'Unknown';
+    });
+
+    // ── Build enriched structures in one pass over milestones ─────────────
     const milestonesByProject: Record<string, any[]> = {};
-    let pendingReviewCount = 0;
+    const pendingMilestones: any[] = [];
 
     milestonesSnap.docs.forEach((doc) => {
       const data = doc.data();
-      const pid = data.projectId;
+      const pid  = data.projectId;
+      const project = projectsById[pid];
 
       if (!milestonesByProject[pid]) milestonesByProject[pid] = [];
       milestonesByProject[pid].push({ id: doc.id, ...data });
 
-      // Milestones submitted by supervisor but not yet coordinator-approved
-      if (data.status === 'submitted' || data.status === 'supervisor_graded') {
-        pendingReviewCount++;
+      // ── pendingMilestones: submitted or supervisor_graded ─────────────
+      if (data.status === 'submitted' || data.status === 'supervisor_graded' || data.status === 'graded') {
+        const studentNames = (project?.enrolledStudentIds ?? [])
+          .map((id: string) => usersById[id] ?? id);
+
+        pendingMilestones.push({
+          id:               doc.id,
+          projectId:        pid,
+          projectTitleHe:   project?.titleHe   ?? '',
+          projectTitleEn:   project?.titleEn   ?? '',
+          facultyId:        data.facultyId     ?? project?.facultyId ?? '',
+          type:             data.type,
+          status:           data.status,
+
+          // ── The fields the frontend was missing ──────────────────────
+          supervisorScore:   data.supervisorScore   ?? null,
+          supervisorComment: data.supervisorComment ?? null,
+          submissionNote:    data.submissionNote    ?? null,
+          fileUrls:          data.fileUrls          ?? [],
+
+          studentNames,
+          studentIds:        project?.enrolledStudentIds ?? [],
+          supervisorId:      project?.supervisorId       ?? '',
+          supervisorName:    project?.supervisorId
+                               ? (usersById[project.supervisorId] ?? 'Unknown')
+                               : 'Unassigned',
+
+          examinerIds:       data.examinerIds    ?? [],
+          examiner1Score:    data.examiner1Score ?? null,
+          examiner2Score:    data.examiner2Score ?? null,
+          gradeWeights:      data.gradeWeights   ?? null,
+          dueDate:           data.dueDate        ?? null,
+          defenseDate:       data.defenseDate    ?? null,
+          defenseRoom:       data.defenseRoom    ?? null,
+        });
       }
     });
 
-    // 4. Build enriched project list
-    const projects = await Promise.all(
-      projectsSnap.docs.map(async (doc) => {
-        const data = doc.data() as ProjectDocument;
-
-        // Fetch supervisor display name
-        let supervisorName = 'Unassigned';
-        if (data.supervisorId) {
-          const supSnap = await db.collection('users').doc(data.supervisorId).get();
-          if (supSnap.exists) supervisorName = supSnap.data()?.displayName ?? 'Unknown';
-        }
-
-        return {
-          id:                 doc.id,
-          academicYear:       data.academicYear,
-          applicationIds:     data.applicationIds,
-          createdAt:          data.createdAt,
-          degreeType:         data.degreeType,
-          descriptionEn:      data.descriptionEn,
-          descriptionHe:      data.descriptionHe,
-          enrolledStudentIds: data.enrolledStudentIds,
-          facultyId:          data.facultyId,
-          isArchived:         data.isArchived,
-          maxStudents:        data.maxStudents,
-          projectType:        data.projectType,
-          requiredSkills:     data.requiredSkills,
-          semesterStart:      data.semesterStart,
-          status:             data.status,
-          supervisorId:       data.supervisorId,
-          titleEn:            data.titleEn,
-          titleHe:            data.titleHe,
-          updatedAt:          data.updatedAt,
-          // Enriched fields
-          supervisorName,
-          milestones: milestonesByProject[doc.id] ?? [],
-        };
-      })
-    );
+    // ── Build final projects list (same as before, now using cached data) ──
+    const projects = projectsSnap.docs.map((doc) => {
+      const data = doc.data() as ProjectDocument;
+      return {
+        id:                 doc.id,
+        academicYear:       data.academicYear,
+        applicationIds:     data.applicationIds,
+        createdAt:          data.createdAt,
+        degreeType:         data.degreeType,
+        descriptionEn:      data.descriptionEn,
+        descriptionHe:      data.descriptionHe,
+        enrolledStudentIds: data.enrolledStudentIds,
+        facultyId:          data.facultyId,
+        isArchived:         data.isArchived,
+        maxStudents:        data.maxStudents,
+        projectType:        data.projectType,
+        requiredSkills:     data.requiredSkills,
+        semesterStart:      data.semesterStart,
+        status:             data.status,
+        supervisorId:       data.supervisorId,
+        titleEn:            data.titleEn,
+        titleHe:            data.titleHe,
+        updatedAt:          data.updatedAt,
+        supervisorName:     data.supervisorId
+                              ? (usersById[data.supervisorId] ?? 'Unknown')
+                              : 'Unassigned',
+        milestones:         milestonesByProject[doc.id] ?? [],
+      };
+    });
 
     return res.status(200).json({
       facultyId,
       projects,
-      pendingReviewCount,
+      pendingMilestones,        // ← now populated correctly
       unreadCount: notifSnap.size,
       stats: {
-        totalProjects: projects.length,
-        activeProjects: projects.filter((p) => p.status === 'active' || p.status === 'in_progress').length,
-        pendingReviewCount,
+        totalProjects:      projects.length,
+        activeProjects:     projects.filter((p) => p.status === 'active' || p.status === 'in_progress').length,
+        pendingReviewCount: pendingMilestones.length,
       },
     });
+
   } catch (error: any) {
     console.error('getCoordinatorDashboard error:', error);
     return res.status(500).json({ message: 'Failed to load coordinator dashboard.' });

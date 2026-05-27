@@ -1,30 +1,78 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
-import { AuthenticatedRequest } from '../middleware/auth.js'; // Adjust path if needed
+import { AuthenticatedRequest } from '../middleware/auth.js';
 
 const db = admin.firestore();
 
-/**
- * 1. GET /api/projects/supervisor/dashboard
- * Fetches the supervisor's active projects, pending applications, and overall statistics.
- */
+// ─── Push notification helper ─────────────────────────────────────────────────
+async function sendPushNotification(token: string, title: string, body: string, data: any = {}) {
+  try {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ to: token, title, body, data }),
+    });
+  } catch (err) {
+    console.error('Push notification failed:', err);
+  }
+}
+
+// ─── Firestore notification helper ───────────────────────────────────────────
+async function createNotification({
+  recipientId, type, titleHe, titleEn, bodyHe, bodyEn, relatedProjectId = null, relatedMilestoneId = null,
+}: {
+  recipientId: string; type: string;
+  titleHe: string; titleEn: string;
+  bodyHe: string;  bodyEn: string;
+  relatedProjectId?:   string | null;
+  relatedMilestoneId?: string | null;
+}) {
+  await db.collection('notifications').add({
+    recipientId, type, titleHe, titleEn, bodyHe, bodyEn,
+    relatedProjectId, relatedMilestoneId,
+    isRead:    false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+// ─── Get push token for a user ────────────────────────────────────────────────
+async function getUserPushToken(uid: string): Promise<string | null> {
+  const snap = await db.collection('users').doc(uid).get();
+  return snap.data()?.expoPushToken ?? null;
+}
+
+// ─── GET /api/supervisor/dashboard ───────────────────────────────────────────
 export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Response) => {
-  console.log('👤 req.user object:', JSON.stringify(req.user));
   const supervisorId = req.user?.uid;
-  console.log('🔑 supervisorId from token:', supervisorId);
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized access.' });
 
   try {
-    // Fetch supervisor profile for name + facultyId
     const userSnap = await db.collection('users').doc(supervisorId).get();
     const userData = userSnap.data() ?? {};
 
     const projectsSnap = await db.collection('projects')
       .where('supervisorId', '==', supervisorId)
       .get();
-    const myProjects = projectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // ✅ Fix: was 'application' — must match your Firestore collection name
+    const myProjects = projectsSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id:                 doc.id,
+        titleHe:            data.titleHe            ?? '',
+        titleEn:            data.titleEn            ?? '',
+        descriptionHe:      data.descriptionHe      ?? '',
+        descriptionEn:      data.descriptionEn      ?? '',
+        facultyId:          data.facultyId          ?? '',
+        status:             data.status             ?? '',
+        degreeType:         data.degreeType         ?? '',
+        projectType:        data.projectType        ?? '',
+        academicYear:       data.academicYear       ?? '',
+        applicationIds:     data.applicationIds     ?? [],
+        enrolledStudentIds: data.enrolledStudentIds ?? [],
+        NumberOfStudents:   data.maxStudents        ?? data.NumberOfStudents ?? 1,
+      };
+    });
+
     const applicationsSnap = await db.collection('applications')
       .where('supervisorId', '==', supervisorId)
       .where('status', '==', 'applied')
@@ -35,13 +83,28 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
       .where('supervisorId', '==', supervisorId)
       .where('status', '==', 'submitted')
       .get();
-    const pendingGrades = milestonesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    console.log('📦 applications found:', applicationsSnap.docs.length);
-    applicationsSnap.docs.forEach(d => console.log('  →', d.id, JSON.stringify(d.data())));
+    const pendingGrades = milestonesSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id:             doc.id,
+        projectId:      data.projectId      ?? '',
+        projectTitleHe: data.projectTitleHe ?? '',
+        projectTitleEn: data.projectTitleEn ?? '',
+        type:           data.type           ?? '',
+        status:         data.status         ?? '',
+        studentNames:   data.studentNames   ?? [],
+        fileUrls:       data.fileUrls       ?? [],
+        submissionNote: data.submissionNote ?? '',
+        facultyId:      data.facultyId      ?? '',
+        dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
+        submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      supervisorId,                                              // ← this is the critical one
+      supervisorId,
       supervisorName: userData.displayNameHe ?? userData.displayNameEn ?? '',
       facultyId:      userData.facultyId ?? '',
       myProjects,
@@ -49,45 +112,79 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
       pendingGrades,
     });
   } catch (error: any) {
-    console.error('💥 getSupervisorDashboard CRASH:', error.code, error.message, error.stack);
+    console.error('getSupervisorDashboard error:', error);
     return res.status(500).json({ message: 'Failed to compile supervisor dashboard data.' });
   }
 };
 
-/**
- * 2. POST /api/projects/supervisor/dashboard (or /projects)
- * Creates a new project listing under this supervisor.
- */
+// ─── POST /api/supervisor/projects ───────────────────────────────────────────
 export const createSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized access.' });
-
+ 
   try {
-    const projectData = req.body;
+    const {
+      titleHe, titleEn, descriptionHe, descriptionEn,
+      degreeType, projectType, projectInfo,
+      NumberOfStudents, requiredSkills, facultyId,
+      gradingCriteria, // ← NEW: array of { key, label, maxScore }
+    } = req.body;
+ 
+    if (!titleHe?.trim() || !titleEn?.trim()) {
+      return res.status(400).json({ message: 'Title in both languages is required.' });
+    }
+ 
+    // Validate criteria if provided — must sum to 100
+    if (gradingCriteria && Array.isArray(gradingCriteria)) {
+      const total = gradingCriteria.reduce(
+        (sum: number, c: any) => sum + (Number(c.maxScore) || 0), 0
+      );
+      if (total !== 100) {
+        return res.status(400).json({
+          message: `Grading criteria must sum to 100 (currently ${total}).`,
+        });
+      }
+    }
+ 
     const newProjectRef = db.collection('projects').doc();
-
+ 
     await newProjectRef.set({
-      ...projectData,
-      projectId: newProjectRef.id,
-      supervisorId: supervisorId,
-      status: 'active', // Default status for a brand new project
-      createdAt: new Date().toISOString()
+      titleHe,
+      titleEn,
+      descriptionHe:      descriptionHe      ?? '',
+      descriptionEn:      descriptionEn      ?? '',
+      degreeType:         degreeType         ?? 'bachelors',
+      projectType:        projectType        ?? 'project',
+      projectInfo:        projectInfo        ?? null,
+      NumberOfStudents:   NumberOfStudents   ?? 1,
+      requiredSkills:     requiredSkills     ?? [],
+      facultyId:          facultyId          ?? req.user?.facultyId ?? '',
+      supervisorId,
+      projectId:          newProjectRef.id,
+      enrolledStudentIds: [],
+      status:             'active',
+      // Save criteria — fall back to sensible defaults if supervisor skipped the section
+      gradingCriteria: gradingCriteria ?? [
+        { key: 'clarity',     label: 'Research Clarity', maxScore: 20 },
+        { key: 'methodology', label: 'Methodology',       maxScore: 25 },
+        { key: 'feasibility', label: 'Feasibility',       maxScore: 20 },
+        { key: 'innovation',  label: 'Innovation',        maxScore: 15 },
+        { key: 'writing',     label: 'Writing Quality',   maxScore: 20 },
+      ],
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-
-    return res.status(201).json({ success: true, projectId: newProjectRef.id, message: 'Project created successfully.' });
+ 
+    return res.status(201).json({ success: true, projectId: newProjectRef.id });
   } catch (error: any) {
     console.error('createSupervisorProject Error:', error);
     return res.status(500).json({ message: 'Failed to create new project.' });
   }
 };
 
-/**
- * 3. POST /api/projects/supervisor/applications/decision
- * Approves or rejects a student's application to a project.
- */
+// ─── POST /api/supervisor/applications/decision ───────────────────────────────
 export const handleApplicationDecision = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
-  const { applicationId, decision, notes } = req.body; // decision should be 'approved' or 'rejected'
+  const { applicationId, decision, notes } = req.body;
 
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
   if (!applicationId || !decision) return res.status(400).json({ message: 'Missing decision parameters.' });
@@ -97,24 +194,134 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     const appSnap = await applicationRef.get();
 
     if (!appSnap.exists) return res.status(404).json({ message: 'Application not found.' });
+    if (appSnap.data()?.supervisorId !== supervisorId)
+      return res.status(403).json({ message: 'Forbidden.' });
 
-    // Security Gate: Ensure this supervisor owns the project this application is for
-    if (appSnap.data()?.supervisorId !== supervisorId) {
-      return res.status(403).json({ message: 'Forbidden: You do not manage this project.' });
-    }
-    
+    const projectId = appSnap.data()?.projectId;
+    const studentId = appSnap.data()?.studentId;
+    const facultyId = appSnap.data()?.facultyId ?? '';
+
+    // Fetch project title + student push token in parallel
+    const [projectSnap, studentSnap, supervisorSnap] = await Promise.all([
+      db.collection('projects').doc(projectId).get(),
+      db.collection('users').doc(studentId).get(),
+      db.collection('users').doc(supervisorId).get(),
+    ]);
+
+    const projectTitleHe = projectSnap.data()?.titleHe ?? '';
+    const projectTitleEn = projectSnap.data()?.titleEn ?? '';
+    const studentToken   = studentSnap.data()?.expoPushToken ?? null;
+    const supervisorName = supervisorSnap.data()?.displayNameHe ?? supervisorSnap.data()?.displayName ?? '';
+
     await applicationRef.update({
-      status: decision,
+      status:        decision,
       supervisorNote: notes || null,
-      reviewedAt: new Date().toISOString()
+      reviewedAt:    new Date().toISOString(),
     });
 
-    // Optional: If approved, you might also want to update the actual Project document to 'enrolled'
     if (decision === 'approved') {
-      const projectId = appSnap.data()?.projectId;
-      const studentId = appSnap.data()?.studentId;
-      await db.collection('projects').doc(projectId).update({ status: 'enrolled', studentId });
-      await db.collection('users').doc(studentId).update({hasActiveProject: true, activeProjectId: projectId, supervisorId: supervisorId })
+      // 1. Update project
+      await db.collection('projects').doc(projectId).update({
+        status:             'active',
+        enrolledStudentIds: admin.firestore.FieldValue.arrayUnion(studentId),
+        studentId:          admin.firestore.FieldValue.delete(),
+      });
+
+      // 2. Update student
+      await db.collection('users').doc(studentId).update({
+        hasActiveProject: true,
+        activeProjectId:  projectId,
+        supervisorId,
+      });
+
+      // 3. Create milestones
+      const batch = db.batch();
+      const baseDate = new Date();
+      const MILESTONE_TEMPLATES = [
+        { type: 'research_proposal', nameHe: 'הצעת מחקר',    nameEn: 'Research Proposal', days: 30  },
+        { type: 'progress_report',   nameHe: 'דו"ח התקדמות', nameEn: 'Progress Report',   days: 120 },
+        { type: 'final_report',      nameHe: 'דו"ח מסכם',    nameEn: 'Final Report',      days: 210 },
+        { type: 'defense',           nameHe: 'בחינת הגנה',   nameEn: 'Defense Exam',      days: 240 },
+      ];
+      for (const t of MILESTONE_TEMPLATES) {
+        const dueDate = new Date();
+        dueDate.setDate(baseDate.getDate() + t.days);
+        const milestoneRef = db.collection('milestones').doc();
+        batch.set(milestoneRef, {
+          projectId, studentIds: [studentId], supervisorId, facultyId,
+          type: t.type, nameHe: t.nameHe, nameEn: t.nameEn,
+          status:          'pending',
+          dueDate:         admin.firestore.Timestamp.fromDate(dueDate),
+          createdAt:       admin.firestore.FieldValue.serverTimestamp(),
+          finalGrade:      null, fileUrls: [], examinerIds: [],
+          supervisorScore: null, examiner1Score: null, examiner2Score: null,
+        });
+      }
+      await batch.commit();
+
+      // 4. ✅ Firestore notification — approved
+      await createNotification({
+        recipientId:      studentId,
+        type:             'application_approved',
+        titleHe:          'בקשתך אושרה! 🎉',
+        titleEn:          'Application Approved! 🎉',
+        bodyHe:           `המנחה ${supervisorName} אישר את בקשתך לפרויקט "${projectTitleHe}".`,
+        bodyEn:           `Supervisor ${supervisorName} approved your application for "${projectTitleEn}".`,
+        relatedProjectId: projectId,
+      });
+
+      // 5. ✅ Push notification — approved
+      if (studentToken) {
+        await sendPushNotification(
+          studentToken,
+          '✅ Application Approved!',
+          `You have been accepted to "${projectTitleEn}".`,
+          { projectId },
+        );
+      }
+
+    } else if (decision === 'rejected') {
+      // ✅ Firestore notification — rejected
+      await createNotification({
+        recipientId:      studentId,
+        type:             'application_rejected',
+        titleHe:          'בקשתך נדחתה',
+        titleEn:          'Application Rejected',
+        bodyHe:           `לצערנו, בקשתך לפרויקט "${projectTitleHe}" נדחתה.${notes ? ` הערה: ${notes}` : ''}`,
+        bodyEn:           `Unfortunately your application for "${projectTitleEn}" was rejected.${notes ? ` Note: ${notes}` : ''}`,
+        relatedProjectId: projectId,
+      });
+
+      // ✅ Push notification — rejected
+      if (studentToken) {
+        await sendPushNotification(
+          studentToken,
+          '❌ Application Update',
+          `Your application for "${projectTitleEn}" was not accepted.`,
+          { projectId },
+        );
+      }
+
+    } else if (decision === 'meeting_requested') {
+      // ✅ Firestore notification — meeting requested
+      await createNotification({
+        recipientId:      studentId,
+        type:             'meeting_requested',
+        titleHe:          'בקשת פגישה 📅',
+        titleEn:          'Meeting Requested 📅',
+        bodyHe:           `המנחה ${supervisorName} מבקש לקיים פגישה לפני קבלת ההחלטה על פרויקט "${projectTitleHe}".`,
+        bodyEn:           `Supervisor ${supervisorName} requested a meeting before deciding on "${projectTitleEn}".`,
+        relatedProjectId: projectId,
+      });
+
+      if (studentToken) {
+        await sendPushNotification(
+          studentToken,
+          '📅 Meeting Requested',
+          `Your supervisor wants to meet regarding "${projectTitleEn}".`,
+          { projectId },
+        );
+      }
     }
 
     return res.status(200).json({ success: true, message: `Application ${decision} successfully.` });
@@ -124,36 +331,68 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
   }
 };
 
-/**
- * 4. POST /api/projects/supervisor/milestones/:id/grade
- * Submits grades/evaluations for a specific project milestone.
- */
+// ─── POST /api/supervisor/milestones/:id/grade ────────────────────────────────
 export const gradeMilestone = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   const { id: milestoneId } = req.params;
-  const { score, feedback } = req.body;
+  const { givenScore, comments } = req.body;
 
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if(!milestoneId || typeof milestoneId !== 'string'){
-    return res.status(400).json({
-        success:false,
-        message: "Error gradeMilestone milestoneId is not good"
-    })
-  }
+  if (!milestoneId || typeof milestoneId !== 'string')
+    return res.status(400).json({ message: 'Invalid milestoneId.' });
+
   try {
-    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneRef  = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
 
     if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
 
+    const milestoneData = milestoneSnap.data()!;
+    const projectId     = milestoneData.projectId ?? null;
+    const studentIds: string[] = milestoneData.studentIds ?? [];
+
     await milestoneRef.update({
-      [`supervisorGrading.${supervisorId}`]: {
-        score: Number(score),
-        feedback: feedback || '',
-        gradedAt: new Date().toISOString()
-      },
-      status: 'graded'
+      supervisorScore: Number(givenScore),
+      supervisorComment: comments ?? '',
+      status:    'supervisor_graded',
+      gradedAt:  admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // Fetch project title
+    let projectTitleHe = '';
+    let projectTitleEn = '';
+    if (projectId) {
+      const projSnap = await db.collection('projects').doc(projectId).get();
+      projectTitleHe = projSnap.data()?.titleHe ?? '';
+      projectTitleEn = projSnap.data()?.titleEn ?? '';
+    }
+
+    const milestoneNameHe = milestoneData.nameHe ?? milestoneData.type ?? '';
+    const milestoneNameEn = milestoneData.nameEn ?? milestoneData.type ?? '';
+
+    // ✅ Notify each student
+    await Promise.all(studentIds.map(async (studentId) => {
+      await createNotification({
+        recipientId:       studentId,
+        type:              'milestone_graded',
+        titleHe:           'אבן דרך קיבלה ציון ✏️',
+        titleEn:           'Milestone Graded ✏️',
+        bodyHe:            `המנחה נתן ציון לאבן הדרך "${milestoneNameHe}" בפרויקט "${projectTitleHe}". ציון: ${givenScore}.`,
+        bodyEn:            `Your supervisor graded "${milestoneNameEn}" in "${projectTitleEn}". Score: ${givenScore}.`,
+        relatedProjectId:  projectId,
+        relatedMilestoneId: milestoneId,
+      });
+
+      const token = await getUserPushToken(studentId);
+      if (token) {
+        await sendPushNotification(
+          token,
+          '✏️ Milestone Graded',
+          `"${milestoneNameEn}" received a score of ${givenScore}.`,
+          { projectId, milestoneId },
+        );
+      }
+    }));
 
     return res.status(200).json({ success: true, message: 'Milestone graded successfully.' });
   } catch (error: any) {
@@ -162,37 +401,52 @@ export const gradeMilestone = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
-/**
- * 5. PUT /api/projects/supervisor/projects/:id
- * Updates existing project details (title, description, requirements, etc.).
- */
+// ─── PUT /api/supervisor/projects/:id ────────────────────────────────────────
 export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   const { id: projectId } = req.params;
   const updateData = req.body;
 
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if(!projectId || typeof projectId !== 'string'){
-    return res.status(400).json({
-        success:false,
-        message: "Error updating projectId is not good"
-    })
-  }
+  if (!projectId || typeof projectId !== 'string')
+    return res.status(400).json({ message: 'Invalid projectId.' });
+
   try {
-    const projectRef = db.collection('projects').doc(projectId);
+    const projectRef  = db.collection('projects').doc(projectId);
     const projectSnap = await projectRef.get();
 
     if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (projectSnap.data()?.supervisorId !== supervisorId)
+      return res.status(403).json({ message: 'Forbidden.' });
 
-    // Security Gate: Prevent supervisors from editing other supervisors' projects
-    if (projectSnap.data()?.supervisorId !== supervisorId) {
-      return res.status(403).json({ message: 'Forbidden: You can only edit your own projects.' });
-    }
+    await projectRef.update({ ...updateData, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
 
-    await projectRef.update({
-      ...updateData,
-      updatedAt: new Date().toISOString()
-    });
+    // ✅ Notify enrolled students that the project was updated
+    const enrolledStudentIds: string[] = projectSnap.data()?.enrolledStudentIds ?? [];
+    const titleHe = projectSnap.data()?.titleHe ?? '';
+    const titleEn = projectSnap.data()?.titleEn ?? '';
+
+    await Promise.all(enrolledStudentIds.map(async (studentId) => {
+      await createNotification({
+        recipientId:      studentId,
+        type:             'project_updated',
+        titleHe:          'פרויקט עודכן 📝',
+        titleEn:          'Project Updated 📝',
+        bodyHe:           `הפרויקט "${titleHe}" עודכן על ידי המנחה.`,
+        bodyEn:           `Your project "${titleEn}" was updated by your supervisor.`,
+        relatedProjectId: projectId,
+      });
+
+      const token = await getUserPushToken(studentId);
+      if (token) {
+        await sendPushNotification(
+          token,
+          '📝 Project Updated',
+          `"${titleEn}" has been updated by your supervisor.`,
+          { projectId },
+        );
+      }
+    }));
 
     return res.status(200).json({ success: true, message: 'Project updated successfully.' });
   } catch (error: any) {
@@ -201,36 +455,61 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
   }
 };
 
-/**
- * 6. DELETE /api/projects/supervisor/projects/:id
- * Deletes a project completely.
- */
+// ─── DELETE /api/supervisor/projects/:id ─────────────────────────────────────
 export const deleteSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   const { id: projectId } = req.params;
 
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if(!projectId || typeof projectId !== 'string'){
-    return res.status(400).json({
-        success:false,
-        message: "Error Deleting projectId is not good"
-    })
-  }
+  if (!projectId || typeof projectId !== 'string')
+    return res.status(400).json({ message: 'Invalid projectId.' });
+
   try {
-    const projectRef = db.collection('projects').doc(projectId);
+    const projectRef  = db.collection('projects').doc(projectId);
     const projectSnap = await projectRef.get();
 
     if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (projectSnap.data()?.supervisorId !== supervisorId)
+      return res.status(403).json({ message: 'Forbidden.' });
 
-    // Security Gate: Ensure the supervisor owns the project before allowing deletion
-    if (projectSnap.data()?.supervisorId !== supervisorId) {
-      return res.status(403).json({ message: 'Forbidden: You can only delete your own projects.' });
-    }
+    const enrolledStudentIds: string[] = projectSnap.data()?.enrolledStudentIds ?? [];
+    const titleHe = projectSnap.data()?.titleHe ?? '';
+    const titleEn = projectSnap.data()?.titleEn ?? '';
 
-    await projectRef.delete();
+    // Soft delete
+    await projectRef.update({
+      isArchived: true,
+      deletedAt:  admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    // Optional: You could also add logic here to delete associated applications or milestones
-    // using a batched write, similar to how we handled search-and-delete previously.
+    // Delete milestones
+    const milestonesSnap = await db.collection('milestones').where('projectId', '==', projectId).get();
+    const batch = db.batch();
+    milestonesSnap.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+
+    // ✅ Notify enrolled students the project was removed
+    await Promise.all(enrolledStudentIds.map(async (studentId) => {
+      await createNotification({
+        recipientId:      studentId,
+        type:             'project_deleted',
+        titleHe:          'פרויקט הוסר ⚠️',
+        titleEn:          'Project Removed ⚠️',
+        bodyHe:           `הפרויקט "${titleHe}" הוסר על ידי המנחה.`,
+        bodyEn:           `The project "${titleEn}" has been removed by your supervisor.`,
+        relatedProjectId: projectId,
+      });
+
+      const token = await getUserPushToken(studentId);
+      if (token) {
+        await sendPushNotification(
+          token,
+          '⚠️ Project Removed',
+          `"${titleEn}" has been removed by your supervisor.`,
+          { projectId },
+        );
+      }
+    }));
 
     return res.status(200).json({ success: true, message: 'Project deleted successfully.' });
   } catch (error: any) {

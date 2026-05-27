@@ -142,6 +142,13 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
       ...projectData,
       projectId: newProjectRef.id,
       status: projectData.status || 'active',
+      gradingCriteria: projectData.gradingCriteria ?? [
+        { key: 'clarity',     label: 'Research Clarity', maxScore: 20 },
+        { key: 'methodology', label: 'Methodology',       maxScore: 25 },
+        { key: 'feasibility', label: 'Feasibility',       maxScore: 20 },
+        { key: 'innovation',  label: 'Innovation',        maxScore: 15 },
+        { key: 'writing',     label: 'Writing Quality',   maxScore: 20 },
+      ],
       createdAt: new Date().toISOString()
     });
 
