@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert,
+  ActivityIndicator, Modal, TextInput, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
@@ -57,14 +59,18 @@ interface InProgressProject {
   projectTitleHe: string;
   projectTitleEn: string;
   facultyId: string;
-  studentNames: string[];
   supervisorName: string;
-  progress: number;
   status: string;
-  milestones: {
-    type: string;
-    status: string;
-    supervisorScore: number | null;
+
+  students: {
+    id: string;
+    name: string;
+    progress: number;
+    milestones: {
+      type: string;
+      status: string;
+      supervisorScore: number | null;
+    }[];
   }[];
 }
 
@@ -103,7 +109,6 @@ export default function CoordinatorHome() {
   const [pendingMilestones, setPendingMilestones] = useState<PendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [inProgressProjects, setInProgressProjects] = useState<InProgressProject[]>([]);
-  const [pendingApprovals, setPendingApprovals] = useState<PendingMilestone[]>([]);
   const [defenseSetups,    setDefenseSetups]    = useState<PendingMilestone[]>([]);
   const [allExaminers,     setAllExaminers]     = useState<ExaminerUser[]>([]);
 
@@ -129,6 +134,12 @@ export default function CoordinatorHome() {
   const [saving, setSaving] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const uid = auth.currentUser?.uid;
+
+  const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
+  const toggleStudentExpansion = (projectId: string, studentIndex: number) => {
+    const key = `${projectId}-${studentIndex}`;
+    setExpandedStudents(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
 
   const updateProjectProgress = async (projectId: string, milestoneType: string) => {
@@ -165,12 +176,18 @@ export default function CoordinatorHome() {
       // 🚀 Replaced all multi-collection snapshots with one optimized backend matrix call
       const [profileRes, dashboardRes] = await Promise.all([
         apiClient.get('/api/users/profile'),
-        apiClient.get('/api/coordinator/dashboard') 
-      ]);
+        apiClient.get('/api/coordinator/dashboard'),
+        
+      ]);     
+      try{
+        const ActiveProjects = await apiClient.get('/api/projects/ActiveProjects')
+        setInProgressProjects(ActiveProjects.data.InProgress || [])
+      }catch(error:any){
+        console.error("/api/projects/ActiveProjects is failing with ", error)
+      }
 
       setCoordinatorName(profileRes.data?.displayName || 'Coordinator');
       if (profileRes.data?.language) setLang(profileRes.data.language);
-
       setPendingMilestones(dashboardRes.data.pendingMilestones || []);
       setProjects(dashboardRes.data.projects || []);
       setUnreadCount(dashboardRes.data.unreadCount || 0);
@@ -181,6 +198,9 @@ export default function CoordinatorHome() {
     }
   };
 
+  useEffect(() => {
+    fetchCoordinatorDashboard();
+  }, []);
 
   // ── Approve milestone (research_proposal or progress_report) ─────────────
   const handleApprove = async (milestone: PendingMilestone) => {
@@ -198,7 +218,7 @@ export default function CoordinatorHome() {
     try {
       setSaving(true);
       // 🚀 Moved scoring computations & structural calculations to the server
-      await apiClient.post(`/api/coordinator/milestones/${milestone.id}/approve`);
+      await apiClient.post(`/api/coordinator/${milestone.id}/approve`);
       
       Alert.alert('✅', lang === 'he' ? 'אבן הדרך אושרה בהצלחה' : 'Milestone approved successfully');
       fetchCoordinatorDashboard();
@@ -323,7 +343,7 @@ export default function CoordinatorHome() {
 
       <View style={styles.tabBar}>
         {([
-          { key: 'pending', heLabel: 'ממתין לאישור', enLabel: 'Pending Approval', badge: pendingApprovals.length },
+          { key: 'pending', heLabel: 'ממתין לאישור', enLabel: 'Pending Approval', badge: pendingMilestones.length },
           { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: defenseSetups.length },
           { key: 'inProgress', heLabel: 'פרויקטים פעילים', enLabel: 'In Progress',       badge: inProgressProjects.length },
         ] as const).map((tab) => (
@@ -348,7 +368,7 @@ export default function CoordinatorHome() {
 
         {activeTab === 'pending' && (
           <>
-            {pendingApprovals.length === 0 ? (
+            {pendingMilestones.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>✅</Text>
                 <Text style={styles.emptyText}>
@@ -356,7 +376,7 @@ export default function CoordinatorHome() {
                 </Text>
               </View>
             ) : (
-              pendingApprovals.map((m) => (
+              pendingMilestones.map((m) => (
                 <Pressable
                   key={m.id}
                   style={[
@@ -607,103 +627,142 @@ export default function CoordinatorHome() {
         </View>
       ) : (
         inProgressProjects.map((p) => (
-          <Pressable
-            key={p.id}
-            style={[styles.card, expandedCards[p.id] && styles.cardExpanded]}
-            onPress={() => toggleCardExpansion(p.id)}
-          >
-            {/* ── Header ── */}
-            <View style={styles.cardHeader}>
-              <Text style={styles.milestoneType}>
-                {lang === 'he' ? p.projectTitleHe : p.projectTitleEn}
-              </Text>
-              <FacultyBadge facultyId={p.facultyId} lang={lang} />
-            </View>
+  <View
+    key={p.id}
+    style={[styles.card, expandedCards[p.id] && styles.cardExpanded]} // Re-applied the card expanded style here
+  >
+    {/* ── Header (Now Clickable again to expand the general project card view) ── */}
+    <Pressable 
+      style={styles.cardHeader}
+      onPress={() => toggleCardExpansion(p.id)} // Restored general project card expansion toggle
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={styles.milestoneType}>
+          {lang === 'he' ? p.projectTitleHe : p.projectTitleEn}
+        </Text>
+      </View>
+      <FacultyBadge facultyId={p.facultyId} lang={lang} />
+    </Pressable>
 
-            {/* ── Always visible ── */}
-            <Text style={styles.cardMeta}>
-              👤 {p.studentNames.length > 0 ? p.studentNames.join(', ') : (lang === 'he' ? 'אין סטודנטים' : 'No students')}
-            </Text>
-            <Text style={styles.cardMeta}>
-              👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {p.supervisorName}
-            </Text>
+    {/* ── Project Metadata ── */}
+    <Text style={[styles.cardMeta, !isRtl && styles.textRight]}>
+      👤 {p.students?.length > 0 
+          ? (lang === 'he' ? `${p.students.length} סטודנטים` : `${p.students.length} students`) 
+          : (lang === 'he' ? 'אין סטודנטים' : 'No students')}
+    </Text>
+    <Text style={[styles.cardMeta, !isRtl && styles.textRight]}>
+      👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {p.supervisorName}
+    </Text>
 
-            {/* ── Progress bar ── */}
-            <View style={{ marginTop: 10, marginBottom: 4 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 12, color: '#8899BB' }}>
-                  {lang === 'he' ? 'התקדמות' : 'Progress'}
+    {/* ── Only display the nested student content if the main card is expanded ── */}
+    {expandedCards[p.id] && (
+      <View style={{ marginTop: 15 }}>
+        {p.students?.map((student: any, sIdx: number) => {
+          const studentKey = `${p.id}-${sIdx}`;
+          const isStudentExpanded = expandedStudents[studentKey];
+
+          return (
+            <View key={sIdx} style={{ marginBottom: 12 }}>
+              
+              {/* Clickable Row: Student Name + Progress Bar */}
+              <Pressable 
+                onPress={() => toggleStudentExpansion(p.id, sIdx)}
+                style={[{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }]}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', width: 80, textAlign: isRtl ? 'right' : 'left' }}>
+                  {student.name}
                 </Text>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#2E86FF' }}>
-                  {p.progress}%
-                </Text>
-              </View>
-              <View style={{ height: 6, backgroundColor: '#E0E8FF', borderRadius: 3, overflow: 'hidden' }}>
-                <View style={{
-                  height: '100%',
-                  width: `${p.progress}%`,
-                  backgroundColor: p.progress === 100 ? '#10B981' : '#2E86FF',
-                  borderRadius: 3,
-                }} />
-              </View>
-            </View>
+                
+                <View style={{ flex: 1, marginHorizontal: 10 }}>
+                  <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 10, color: '#8899BB' }}>
+                      {lang === 'he' ? 'התקדמות' : 'Progress'}
+                    </Text>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#2E86FF' }}>
+                      {student.progress}%
+                    </Text>
+                  </View>
+                  {/* Visual Bar */}
+                  <View style={{ height: 6, backgroundColor: '#E0E8FF', borderRadius: 3, overflow: 'hidden' }}>
+                    <View style={{
+                      height: '100%',
+                      width: `${student.progress}%`,
+                      backgroundColor: student.progress === 100 ? '#10B981' : '#2E86FF',
+                      borderRadius: 3,
+                    }} />
+                  </View>
+                </View>
 
-            {/* ── Expanded: milestone breakdown ── */}
-            {expandedCards[p.id] && (
-              <View style={styles.expandedSection}>
-                <View style={styles.expandedBox}>
-                  <Text style={styles.expandedTitle}>
-                    {lang === 'he' ? '📊 אבני דרך' : '📊 Milestones'}
-                  </Text>
-                  {p.milestones.length === 0 ? (
+                <Text style={{ color: '#C0CCDD', fontSize: 10 }}>
+                  {isStudentExpanded ? '▲' : '▼'}
+                </Text>
+              </Pressable>
+
+              {/* Nested Child: This Specific Student's Milestones Breakdown */}
+              {isStudentExpanded && (
+                <View style={[styles.expandedBox, { marginTop: 8, padding: 10, backgroundColor: '#FAFAFA', borderRadius: 6 }]}>
+                  {student.milestones?.length === 0 ? (
                     <Text style={styles.expandedText}>
-                      {lang === 'he' ? 'לא נוצרו אבני דרך' : 'No milestones created'}
+                      {lang === 'he' ? 'לא נוצרו אבני דרך לסטודנט זה' : 'No milestones created for this student'}
                     </Text>
                   ) : (
-                    p.milestones.map((m, i) => (
-                      <View
-                        key={i}
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          paddingVertical: 6,
-                          borderBottomWidth: i < p.milestones.length - 1 ? 1 : 0,
-                          borderBottomColor: '#F0F4FF',
-                        }}
-                      >
-                        {/* Milestone name + status */}
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: '#111' }}>
+                    student.milestones.map((m: any, mIdx: number) => {
+                      
+                      let displayStatus = '';
+                      let statusColor = '';
+
+                      if (m.status === 'coordinator_approved' || m.status === 'completed') {
+                        displayStatus = m.supervisorScore !== null && m.supervisorScore !== undefined 
+                          ? `${m.supervisorScore}/100` 
+                          : (lang === 'he' ? 'אושר' + '(' + {} + ')' : 'Approved'); /////////////////////////////////// NEED TO ADD THE GRADE //////////////////////
+                        statusColor = '#10B981';
+                      } else if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') {
+                        displayStatus = lang === 'he' ? 'הוגש' : 'Submitted';
+                        statusColor = '#F59E0B';
+                      } else {
+                        displayStatus = lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
+                        statusColor = '#8899BB';
+                      }
+
+                      return (
+                        <View
+                          key={mIdx}
+                          style={[{
+                            flexDirection: isRtl ? 'row-reverse' : 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            paddingVertical: 6,
+                            borderBottomWidth: mIdx < student.milestones.length - 1 ? 1 : 0,
+                            borderBottomColor: '#F0F4FF',
+                          }]}
+                        >
+                          <Text style={[{ fontSize: 13, fontWeight: '500', color: '#333' }, !isRtl && styles.textRight]}>
                             {MILESTONE_LABEL[m.type]?.[lang] ?? m.type}
                           </Text>
-                          <Text style={{ fontSize: 11, color: STATUS_COLORS[m.status] ?? '#8899BB', marginTop: 2 }}>
-                            {STATUS_LABEL[m.status]?.[lang] ?? m.status}
+                          
+                          <Text style={[{ fontSize: 13, fontWeight: '700', color: statusColor }, isRtl && styles.textRight]}>
+                            {displayStatus}
                           </Text>
                         </View>
-
-                        {/* Score */}
-                        <Text style={{
-                          fontSize: 14,
-                          fontWeight: '700',
-                          color: m.supervisorScore !== null ? '#10B981' : '#C0CCDD',
-                        }}>
-                          {m.supervisorScore !== null
-                            ? `${m.supervisorScore}/100`
-                            : '—'}
-                        </Text>
-                      </View>
-                    ))
+                      );
+                    })
                   )}
                 </View>
-              </View>
-            )}
+              )}
+            </View>
+          );
+        })}
+      </View>
+    )}
 
-            <Text style={{ textAlign: 'center', color: '#C0CCDD', fontSize: 11, marginTop: 6 }}>
-              {expandedCards[p.id] ? '▲' : '▼'}
-            </Text>
-          </Pressable>
-        ))
+    {/* Bottom visual toggle indicators for the main card layout expansion */}
+    <Pressable onPress={() => toggleCardExpansion(p.id)} style={{ paddingVertical: 4 }}>
+      <Text style={{ textAlign: 'center', color: '#C0CCDD', fontSize: 11, marginTop: 6 }}>
+        {expandedCards[p.id] ? '▲' : '▼'}
+      </Text>
+    </Pressable>
+  </View>
+))
       )}
     </>
   )}

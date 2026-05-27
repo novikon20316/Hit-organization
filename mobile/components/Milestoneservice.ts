@@ -1,21 +1,28 @@
+import { Timestamp } from "firebase/firestore";
+
 export interface GradeWeights {
   supervisorWeight: number;   // e.g. 0.30
   examiner1Weight:  number;   // e.g. 0.35
   examiner2Weight:  number;   // e.g. 0.35
 }
 
-export function daysUntil(dueDateString: string): number {
-  // Date.parse() takes a string date and natively returns its value in milliseconds
-  const dueMillis = Date.parse(dueDateString);
+export function daysUntil(dueDate: Timestamp | string | null | undefined): number {
+  if (!dueDate) return 0;
   
-  // Safety check: If the string passed can't be parsed, it returns NaN
-  if (isNaN(dueMillis)) {
-    console.warn(`⚠️ Invalid date string passed to daysUntil: "${dueDateString}"`);
-    return 0; 
+  let date: Date;
+  if (typeof dueDate === 'string') {
+    date = new Date(dueDate);
+  } else if (dueDate instanceof Timestamp) {
+    date = dueDate.toDate();
+  } else if (typeof (dueDate as any).toDate === 'function') {
+    // handles admin SDK Timestamp too
+    date = (dueDate as any).toDate();
+  } else {
+    return 0;
   }
 
-  const diff = dueMillis - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  if (isNaN(date.getTime())) return 0;
+  return Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
 export function urgencyLevel(days: number): 'overdue' | 'critical' | 'warning' | 'ok' {

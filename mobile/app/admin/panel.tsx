@@ -5,12 +5,14 @@ import {
   Text,
   ScrollView,
   Pressable,
-  SafeAreaView,
   ActivityIndicator,
   TextInput,
   Alert,
   Switch,
 } from 'react-native';
+import { GradingCriterion } from '../../components/modals/NewProjectModal'
+import * as DocumentPicker from 'expo-document-picker';
+import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
 import { auth } from '../../src/firebase/firebase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -83,7 +85,8 @@ interface MilestoneRecord {
 
 export default function PanelScreen() {
   const router = useRouter();
-
+  const [projectFile, setProjectFile] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -141,7 +144,7 @@ export default function PanelScreen() {
   const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
-  
+  const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
   // ── Add student to project state ──────────────────────────────────────────────
   const [addStudentModal, setAddStudentModal] = useState(false);
   const [addStudentProject, setAddStudentProject] = useState<ProjectRecord | null>(null);
@@ -159,6 +162,7 @@ export default function PanelScreen() {
   }, [projects]);
 
   // ── 1. Unified Core Dashboard Synchronization ────────────────────────
+  
   const fetchAllDashboardData = async () => {
     try {
       if (!auth.currentUser) return;
@@ -383,6 +387,7 @@ export default function PanelScreen() {
         projectType: newType,
         maxStudents: maxStudents,
         requiredSkills: newSkills.split(',').map((s) => s.trim()).filter(Boolean),
+        gradingCriteria,
       });
 
       setShowNewProject(false);
@@ -520,6 +525,18 @@ export default function PanelScreen() {
     } catch (e) {
       console.log(e);
     }
+  };
+
+  const pickFile = async (isNew: boolean) => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    if(isNew){
+      setProjectFile(asset.uri);
+      setProjectName(asset.name);  
+    } else{
+  
+    }  
   };
 
   if (loading) {
@@ -959,6 +976,17 @@ export default function PanelScreen() {
         setMaxStudents={setMaxStudents}
 
         setShowConfirm={setShowConfirm}
+
+        projectName={projectName}
+        setProjectName={setProjectName}
+
+        projectFile={projectFile}
+        setProjectFile={setProjectFile}
+
+        gradingCriteria={gradingCriteria}
+        setGradingCriteria={setGradingCriteria}
+
+        pickFile={(b) => pickFile(b)}
 
         facultyColors={FACULTY_COLORS}
         styles={styles}

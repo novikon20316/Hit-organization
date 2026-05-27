@@ -3,14 +3,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert, Linking,
+  ActivityIndicator, Modal, TextInput, Alert, Linking,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
 import { useRouter } from 'expo-router';
 import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sharedStyles } from '@/constants';
 import { NewProjectModal } from '@/components/modals';
+import { GradingCriterion } from '../../components/modals/NewProjectModal'
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 // Adjust this import path to match your firebase config file location
@@ -20,6 +22,8 @@ import {
   query,
   where,
   onSnapshot,
+  doc,
+  getDoc,
 } from 'firebase/firestore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -82,7 +86,7 @@ export default function SupervisorHome() {
   const [newSkills,   setNewSkills]   = useState('');
   const [creating,    setCreating]    = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
-
+  const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
   // ── Grade modal ───────────────────────────────────────────────────────────
   const [gradeModal,      setGradeModal]      = useState(false);
   const [gradeMilestone,  setGradeMilestone]  = useState<PendingMilestone | null>(null);
@@ -105,11 +109,11 @@ export default function SupervisorHome() {
   const [editDescHe,      setEditDescHe]      = useState('');
   const [editDescEn,      setEditDescEn]      = useState('');
   const [editSkills,      setEditSkills]      = useState('');
-
   // ── Firestore unsubscribe refs (cleanup on unmount) ───────────────────────
   const unsubNotificationsRef = useRef<(() => void) | null>(null);
   const unsubApplicationsRef  = useRef<(() => void) | null>(null);
-
+  const unsubProjectsRef      = useRef<(() => void) | null>(null);
+  const unsubGradingRef = useRef<(() => void) | null>(null);
   const toggleCardExpansion = (milestoneId: string) => {
     setExpandedCards((prev) => ({ ...prev, [milestoneId]: !prev[milestoneId] }));
   };
@@ -148,6 +152,8 @@ export default function SupervisorHome() {
     return () => {
       unsubNotificationsRef.current?.();
       unsubApplicationsRef.current?.();
+      unsubProjectsRef.current?.();
+      unsubGradingRef.current?.();
     };
   }, []);
 
@@ -196,6 +202,7 @@ export default function SupervisorHome() {
       collection(db, 'applications'),
       where('supervisorId', '==', supervisorId),
       where('status', 'in', ['applied', 'meeting_requested']),
+      
     );
 
     const unsub = onSnapshot(
@@ -261,6 +268,98 @@ export default function SupervisorHome() {
     return () => unsub();
   }, [supervisorId]);
 
+  // ── Firestore: real-time projects listener ────────────────────────────────
+  useEffect(() => {
+    if (!supervisorId) return;
+
+    unsubProjectsRef.current?.();
+
+    const projectsQuery = query(
+      collection(db, 'projects'),
+      where('supervisorId', '==', supervisorId),
+      where('facultyId', '==', facultyId),
+    );
+
+    const unsub = onSnapshot(
+      projectsQuery,
+      (snapshot) => {
+        const projects: MyProject[] = snapshot.docs.map((d) => {
+          const data = d.data();
+          return {
+            id:                 d.id,
+            titleHe:            data.titleHe            ?? '',
+            titleEn:            data.titleEn            ?? '',
+            descriptionHe:      data.descriptionHe      ?? '',
+            descriptionEn:      data.descriptionEn      ?? '',
+            facultyId:          data.facultyId          ?? '',
+            status:             data.status             ?? '',
+            degreeType:         data.degreeType         ?? '',
+            projectType:        data.projectType        ?? '',
+            academicYear:       data.academicYear       ?? '',
+            applicationIds:     data.applicationIds     ?? [],
+            enrolledStudentIds: data.enrolledStudentIds ?? [],
+            NumberOfStudents:   data.maxStudents        ?? data.NumberOfStudents ?? 1,
+          };
+        });
+        setMyProjects(projects); // ✅ updates instantly when Firestore changes
+      },
+      (error) => {
+        console.warn('❌ Projects listener error:', error);
+      },
+    );
+
+    unsubProjectsRef.current = unsub;
+    return () => unsub();
+  }, [supervisorId]); // ✅ re-runs only when supervisorId changes
+
+  useEffect(() => {
+    if (!supervisorId) return;
+
+    unsubGradingRef.current?.();
+
+    const gradingQuery = query(
+      collection(db, 'milestones'),
+      where('supervisorId', '==', supervisorId),
+      where('status', '==', 'submitted'),
+    );
+
+    const unsub = onSnapshot(gradingQuery, async (snapshot) => {
+      const grades: PendingMilestone[] = await Promise.all(
+        snapshot.docs.map(async (d) => {
+          const data = d.data();
+          const studentIds: string[] = data.studentIds ?? [];
+
+          // Resolve student names
+          const studentNames = await Promise.all(
+            studentIds.map(async (sid) => {
+              const snap = await getDoc(doc(db, 'users', sid));
+              return snap.data()?.displayName ?? snap.data()?.displayNameHe ?? '';
+            })
+          );
+
+          return {
+            id:             d.id,
+            projectId:      data.projectId      ?? '',
+            projectTitleHe: data.projectTitleHe ?? '',
+            projectTitleEn: data.projectTitleEn ?? '',
+            type:           data.type           ?? '',
+            status:         data.status         ?? '',
+            studentNames,
+            fileUrls:       data.fileUrls       ?? [],
+            submissionNote: data.submissionNote ?? '',
+            facultyId:      data.facultyId      ?? '',
+            dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
+            submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
+          };
+        })
+      );
+      setPendingGrades(grades);
+    });
+
+    unsubGradingRef.current = unsub;
+    return () => unsub();
+  }, [supervisorId]);
+
   // ── Create project ────────────────────────────────────────────────────────
   const handleCreateProject = async () => {
     if (!newTitleHe.trim() || !newTitleEn.trim()) {
@@ -280,6 +379,7 @@ export default function SupervisorHome() {
         NumberOfStudents: maxStudents,
         requiredSkills: newSkills.split(',').map(s => s.trim()).filter(Boolean),
         facultyId,
+        gradingCriteria,
       });
       setShowNewProject(false);
       fetchDashboardData();
@@ -316,18 +416,29 @@ export default function SupervisorHome() {
     if (!activeMilestone) return;
     setSubmitting(true);
     try {
-      await apiClient.post(`/api/projects/milestones/${activeMilestone.id}/grade`, {
-        givenScore: totalScore,
-        comments: gradeComment,
+      const res = await apiClient.post(`/api/projects/milestones/${activeMilestone.id}/grade`, {
+        givenScore: totalScore, // Map your calculated total score
+        comments: gradeComment, // Map your text input comment
+        projectId: activeMilestone.projectId,
+        criteria: {
+          clarity: Number(criteria.clarity) || 0,
+          methodology: Number(criteria.methodology) || 0,
+          feasibility: Number(criteria.feasibility) || 0,
+          innovation: Number(criteria.innovation) || 0,
+          writing: Number(criteria.writing) || 0,
+        },
       });
-      Alert.alert(
-        lang === 'he' ? 'הצלחה' : 'Success',
-        lang === 'he' ? 'הציון נקלט בהצלחה' : 'Grade recorded successfully'
-      );
+      if (res.status === 200 || res.status === 201 || res.data?.success) {
+        Alert.alert(lang === 'he' ? 'הצלחה' : 'Success', lang === 'he' ? 'הציון נשמר!' : 'Grade submitted!');
+        setGradeModal(false);
+        setPendingGrades(prev => prev.filter(m => m.id !== activeMilestone.id));
+      }
       setGradeModal(false);
       setGradeComment('');
       fetchDashboardData(); // refresh grading list from API
-    } catch (error) {
+    } catch (error: any) {
+      console.error("❌ Network or Execution catch block error:", error);
+      console.error("❌ Response Details:", error?.response?.data || "No response data available");
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'שגיאה בשמירת הציון' : 'Failed to submit grade.'
@@ -667,41 +778,120 @@ export default function SupervisorHome() {
             ) : (
               pendingGrades.map((m) => {
                 const fc    = getFacultyColor(m.facultyId);
+                const isExpanded = expandedCards[m.id] ?? false;
                 const label = lang === 'he' ? MILESTONE_LABEL[m.type]?.he ?? m.type : MILESTONE_LABEL[m.type]?.en ?? m.type;
+                // Calculate timing metadata
+                const dueTime = m.dueDate ? new Date(m.dueDate).getTime() : null;
+                const submitTime = m.submittedAt ? new Date(m.submittedAt).getTime() : null;
+                
+                let targetDaysText = '';
+                let targetDaysColor = '#8899BB';
+
+                if (dueTime && submitTime) {
+                  const diffMs = dueTime - submitTime;
+                  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                  
+                  if (diffDays > 0) {
+                    targetDaysText = lang === 'he' ? `✅ הוגש בזמן (${diffDays} ${tx('daysLeft', lang)})` : `✅ Submitted on time (${diffDays} ${tx('daysLeft', lang)})`;
+                    targetDaysColor = '#10B981';
+                  } else if (diffDays === 0) {
+                    targetDaysText = lang === 'he' ? '✅ הוגש ביום היעד' : '✅ Submitted today on due date';
+                    targetDaysColor = '#F59E0B';
+                  } else {
+                    targetDaysText = lang === 'he' ? `⚠️ איחור של ${Math.abs(diffDays)} ימים` : `⚠️ ${Math.abs(diffDays)} ${tx('daysOverdue', lang)}`;
+                    targetDaysColor = '#D32F2F';
+                  }
+                }
                 return (
-                  <View key={m.id} style={[styles.gradeCard, { borderLeftColor: fc.primary }]}>
-                    <Text style={[styles.gradeMilestoneType, { color: fc.primary }, isRtl && styles.textRight]}>
-                      {label}
+                  <Pressable 
+                    key={m.id} 
+                    style={[styles.gradeCard, { borderLeftColor: fc.primary }]}
+                    onPress={() => toggleCardExpansion(m.id)}
+                  >
+                    {/* Header Content Info */}
+                    <View style={[styles.row, isRtl && styles.rowReverse, { justifyContent: 'space-between', alignItems: 'center' }]}>
+                      <Text style={[styles.gradeMilestoneType, { color: fc.primary, marginBottom: 0 }, isRtl && styles.textRight]}>
+                        {label}
+                      </Text>
+                      <Text style={{ fontSize: 16, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
+                    </View>
+
+                    <Text style={[styles.gradeProjectTitle, !isRtl && styles.textRight, { marginTop: 6 }]}>
+                      📁 {(() => {
+                          // Milestone doc may have empty title — fall back to myProjects lookup
+                          const titleHe = m.projectTitleHe || myProjects.find(p => p.id === m.projectId)?.titleHe || '';
+                          const titleEn = m.projectTitleEn || myProjects.find(p => p.id === m.projectId)?.titleEn || '';
+                          return lang === 'he' ? titleHe : titleEn;
+                        })()}
                     </Text>
-                    <Text style={[styles.gradeProjectTitle, isRtl && styles.textRight]}>
-                      📁 {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
-                    </Text>
-                    <Text style={[styles.gradeStudents, isRtl && styles.textRight]}>
+                    <Text style={[styles.gradeStudents, !isRtl && styles.textRight]}>
                       👤 {m.studentNames.join(', ')}
                     </Text>
-                    {m.fileUrls.length > 0 && (
-                      <Text style={styles.filesNote}>
-                        📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים מצורפים' : 'files attached'}
-                      </Text>
+
+                    {/* ── Collapsed vs Expanded Area ── */}
+                    {!isExpanded ? (
+                      m.fileUrls.length > 0 && (
+                        <Text style={styles.filesNote}>
+                          📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים מצורפים' : 'files attached'}
+                        </Text>
+                      )
+                    ) : (
+                      <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 10 }}>
+                        {/* 1. Days info / Status logic */}
+                        {targetDaysText ? (
+                          <Text style={[isRtl && styles.textRight, { color: targetDaysColor, fontWeight: '600', marginBottom: 8, fontSize: 13 }]}>
+                            {targetDaysText}
+                          </Text>
+                        ) : null}
+
+                        {/* Submission note if it exists */}
+                        {m.submissionNote ? (
+                          <Text style={[styles.submissionNote, isRtl && styles.textRight, { marginBottom: 12 }]}>
+                            💬 {m.submissionNote}
+                          </Text>
+                        ) : null}
+
+                        {/* 2. Downloadable items files block */}
+                        {m.fileUrls.length > 0 ? (
+                          <View style={[styles.docsRow, isRtl && styles.rowReverse, { marginBottom: 12, flexWrap: 'wrap' }]}>
+                            {m.fileUrls.map((url, uIdx) => (
+                              <Pressable
+                                key={uIdx}
+                                style={[styles.docChip, { backgroundColor: '#F0F4FF', borderColor: '#3B82F6', borderWidth: 1 }]}
+                                onPress={(e) => { 
+                                  e.stopPropagation(); 
+                                  handleOpenDocument(url); 
+                                }}
+                              >
+                                <Text style={[styles.docChipText, { color: '#3B82F6' }]}>
+                                  📥 {lang === 'he' ? `${tx('fileDownload', lang)} ${uIdx + 1}` : `${tx('fileDownload', lang)} ${uIdx + 1}`}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        ) : (
+                          <Text style={[isRtl && styles.textRight, { fontStyle: 'italic', color: '#8899BB', marginBottom: 12, fontSize: 12 }]}>
+                            {lang === 'he' ? 'אין קבצים מצורפים להורדה' : 'No attached files available'}
+                          </Text>
+                        )}
+
+                        {/* Execution Grade Button Action Form */}
+                        <Pressable
+                          style={[styles.gradeBtn, { backgroundColor: fc.primary, marginTop: 4 }]}
+                          onPress={(e) => {
+                            e.stopPropagation(); // prevent collapsing layout card
+                            setActiveMilestone(m);
+                            setGradeComment('');
+                            setCriteria({ clarity: '', methodology: '', feasibility: '', innovation: '', writing: '' });
+                            setGradeMilestone(m);
+                            setGradeModal(true);
+                          }}
+                        >
+                          <Text style={styles.gradeBtnText}>✏️ {lang === 'he' ? 'תן ציון' : 'Grade'}</Text>
+                        </Pressable>
+                      </View>
                     )}
-                    {m.submissionNote ? (
-                      <Text style={[styles.submissionNote, isRtl && styles.textRight]} numberOfLines={2}>
-                        💬 {m.submissionNote}
-                      </Text>
-                    ) : null}
-                    <Pressable
-                      style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
-                      onPress={() => {
-                        setActiveMilestone(m);
-                        setGradeComment('');
-                        setCriteria({ clarity: '', methodology: '', feasibility: '', innovation: '', writing: '' });
-                        setGradeMilestone(m);
-                        setGradeModal(true);
-                      }}
-                    >
-                      <Text style={styles.gradeBtnText}>✏️ {lang === 'he' ? 'תן ציון' : 'Grade'}</Text>
-                    </Pressable>
-                  </View>
+                  </Pressable>
                 );
               })
             )}
@@ -735,6 +925,8 @@ export default function SupervisorHome() {
         setProjectName={setProjectName}
         projectFile={projectFile}
         setProjectFile={setProjectFile}
+        gradingCriteria={gradingCriteria}
+        setGradingCriteria={setGradingCriteria}
         pickFile={(b) => pickFile(b)}
         styles={styles}
       />

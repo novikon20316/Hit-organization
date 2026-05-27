@@ -6,8 +6,9 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/src/firebase/firebase';
 import {
   View, Text, Pressable,
-  ActivityIndicator, SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
 import { useRouter } from 'expo-router';
 import { useStudentData } from '../../hooks/useStudentData';

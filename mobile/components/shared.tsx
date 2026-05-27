@@ -2,14 +2,14 @@
 // Shared across Supervisor, Examiner, and Admin pages
 
 import React from 'react';
+import { Timestamp } from 'firebase/firestore';
 import {
-  View, Text, Pressable, StyleSheet, Platform,
+  View, Text, Pressable, StyleSheet,
 } from 'react-native';
 import { signOut } from 'firebase/auth';
 import { auth } from '../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from './i18n';
-import { tx } from './i18n';
 
 
 // ─── Faculty / Department color palette ───────────────────────────────────────
@@ -202,6 +202,16 @@ export function StatusBadge({ status, lang }: { status: string; lang: Lang }) {
     </View>
   );
 }
+
+export const toDate = (val: Timestamp | string | null | undefined): Date | null => {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof (val as any).toDate === 'function') return (val as any).toDate();
+  return null;
+};
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const tb = StyleSheet.create({

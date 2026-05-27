@@ -82,11 +82,11 @@ export const t = {
   milestoneDefense:   { he: 'הגנה', en: 'Defense' },
 
   // Milestone statuses
-  statusPending:      { he: 'ממתין להגשה', en: 'Pending Submission' },
-  statusSubmitted:    { he: 'הוגש — ממתין לציון מנחה', en: 'Submitted — Awaiting Supervisor Grade' },
+  statusPending:          { he: 'ממתין להגשה',                       en: 'Pending Submission' },
+  statusSubmitted:        { he: 'הוגש — ממתין לציון מנחה',           en: 'Submitted — Awaiting Supervisor Grade' },
   statusSupervisorGraded: { he: 'מוגן על ידי מנחה — ממתין לאישור רכז', en: 'Graded — Awaiting Coordinator Approval' },
-  statusApproved:     { he: 'אושר על ידי הרכז', en: 'Approved by Coordinator' },
-  statusCompleted:    { he: 'הושלם ✓', en: 'Completed ✓' },
+  statusApproved:         { he: 'אושר על ידי הרכז',                  en: 'Approved by Coordinator' },
+  statusCompleted:        { he: 'הושלם ✓',                           en: 'Completed ✓' },
 
   // ── Milestone submit form ─────────────────────────────────────────────────
   submitTitle:     { he: 'הגשת', en: 'Submit' },
@@ -104,6 +104,15 @@ export const t = {
   gradeComments:   { he: 'הערות', en: 'Comments' },
   notGradedYet:    { he: 'טרם נוקד', en: 'Not graded yet' },
 
+  // ── Grades tab — three states ─────────────────────────────────────────────
+  gradeNotSubmitted:      { he: '📭 טרם הוגש',                      en: '📭 Not submitted yet' },
+  gradeSubmitted:         { he: '📤 הוגש',                          en: '📤 Submitted' },
+  gradeAwaitingApproval:  { he: '⏳ ממתין לאישור ציון ע"י הרכז',   en: '⏳ Awaiting grade approval by coordinator' },
+
+  // ── Milestones tab — per-milestone state labels ───────────────────────────
+  milestoneSubmittedAwaiting: { he: 'הוגש — ממתין לאישור',   en: 'Submitted — awaiting approval' },
+  milestoneApprovedByCoord:   { he: 'אושר ע"י הרכז',        en: 'Approved by coordinator' },
+
   // ── Defense ───────────────────────────────────────────────────────────────
   defenseDate:     { he: 'תאריך הגנה:', en: 'Defense Date:' },
   defenseTime:     { he: 'שעה:', en: 'Time:' },
@@ -115,6 +124,18 @@ export const t = {
   notifTitle:      { he: 'התראות', en: 'Notifications' },
   noNotifications: { he: 'אין התראות חדשות', en: 'No new notifications' },
   markAllRead:     { he: 'סמן הכל כנקרא', en: 'Mark all as read' },
+
+  // ── Expandable Row & Approval additions ───────────────────────────────────
+  waitingForApproval:   { he: 'ממתין לאישור',               en: 'Waiting for approval' },
+  fileDownload:         { he: 'הורד קובץ',                  en: 'Download File' },
+  daysLeftText:         { he: 'ימים לסיום ההגשה',           en: 'days left until due date' },
+  daysOverdueText:      { he: 'ימי איחור בהגשה',            en: 'days overdue' },
+  submittedOnTime:      { he: '✅ הוגש בזמן',               en: '✅ Submitted on time' },
+  submittedToday:       { he: '✅ הוגש היום',               en: '✅ Submitted today' },
+  awaitingFacultyGrade: { he: 'ממתין לאישור סגל',           en: 'Awaiting Faculty Approval' },
+  attachedFiles:        { he: 'קבצים מצורפים',              en: 'attached files' },
+  noAttachedFiles:      { he: 'אין קבצים מצורפים',          en: 'No attached files' },
+  daysOverdue:          { he: 'ימי איחור בהגשה',            en: 'days overdue' },
 };
 
 export function tx(key: keyof typeof t, lang: Lang): string {

@@ -3,8 +3,9 @@ import * as Notifications from 'expo-notifications'
 import axios from 'axios';
 import {
   View, Text, Pressable, StyleSheet, ScrollView,Modal,
-  SafeAreaView, ActivityIndicator, Alert, TextInput,
+  ActivityIndicator, Alert, TextInput,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, SafeAreaView,
+  View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert, Switch,
 } from 'react-native';
-
-import { db, auth } from '../../src/firebase/firebase';
+import {SafeAreaView} from 'react-native-safe-area-context'
+import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar } from '../../components/shared';

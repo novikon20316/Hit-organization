@@ -3,11 +3,11 @@ import {
   View,
   Text,
   Modal,
-  SafeAreaView,
   ScrollView,
   TextInput,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface UserRecord {
   id: string;

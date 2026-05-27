@@ -15,6 +15,7 @@ interface Props {
 }
 
 export default function PendingScreen({ application, lang, isRtl }: Props) {
+  if (!application) return null;
   const submittedDate = application.submittedAt
     ? new Date(application.submittedAt).toLocaleDateString(
       lang === 'he' ? 'he-IL' : 'en-US',

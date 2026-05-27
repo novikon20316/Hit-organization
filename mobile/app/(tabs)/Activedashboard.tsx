@@ -5,15 +5,11 @@ import {
   Modal, TextInput, ActivityIndicator,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import {
-  doc, updateDoc, serverTimestamp,
-} from 'firebase/firestore';
-import { db, auth } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import type { ActiveProject, Milestone, MilestoneType, MilestoneStatus } from '../../hooks/useStudentData';
 import { ActivateDashboardStyles } from '@/constants';
 import { apiClient } from '../../src/api/apiClient';
-
 
 interface Props {
   project:       ActiveProject;
@@ -23,6 +19,8 @@ interface Props {
   lang:          Lang;
   isRtl:         boolean;
 }
+
+
 
 // ─── Milestone type labels ─────────────────────────────────────────────────────
 const MILESTONE_LABEL: Record<MilestoneType, { he: string; en: string }> = {
@@ -36,20 +34,58 @@ const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string; icon: 
   pending:              { color: '#8899BB', bg: '#F0F4FF', icon: '🕐' },
   submitted:            { color: '#F59E0B', bg: '#FFFBEB', icon: '📤' },
   supervisor_graded:    { color: '#3B82F6', bg: '#EFF6FF', icon: '👨‍🏫' },
+  graded:               { color: '#3B82F6', bg: '#EFF6FF', icon: '👨‍🏫' },
   coordinator_approved: { color: '#8B5CF6', bg: '#F5F3FF', icon: '✅' },
   completed:            { color: '#10B981', bg: '#ECFDF5', icon: '🏁' },
 };
 
+const MILESTONE_ORDER: MilestoneType[] = [
+  'research_proposal',
+  'progress_report',
+  'final_report',
+  'defense',
+];
+
 export default function ActiveDashboard({
   project, milestones, nextMilestone, progress, lang, isRtl,
 }: Props) {
-  const [submitModal,   setSubmitModal]   = useState(false);
+  const [submitModal,     setSubmitModal]     = useState(false);
   const [targetMilestone, setTargetMilestone] = useState<Milestone | null>(null);
-  const [note,          setNote]          = useState('');
-  const [files,         setFiles]         = useState<Array<{ uri: string; name: string }>>([]);
-  const [submitting,    setSubmitting]    = useState(false);
-  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
-  const [activeTab,     setActiveTab]     = useState<'overview' | 'milestones' | 'grades'>('overview');
+  const [note,            setNote]            = useState('');
+  const [files,           setFiles]           = useState<Array<{ uri: string; name: string; mimeType?: string }>>([]);
+  const [submitting,      setSubmitting]      = useState(false);
+  const [submitMessage,   setSubmitMessage]   = useState<string | null>(null);
+  const [activeTab,       setActiveTab]       = useState<'overview' | 'milestones' | 'grades'>('overview');
+  const [expandedGrades,   setExpandedGrades]   = useState<Record<string, boolean>>({});
+  const [loadingDetail, setLoadingDetail] = useState<Record<string, boolean>>({});
+const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
+  // ─── Milestone unlock logic ────────────────────────────────────────────────
+  // A milestone is "unlocked" (ready to interact with) when all previous ones
+  // have status === 'coordinator_approved' OR 'completed'.
+  const isUnlocked = (m: Milestone): boolean => {
+    const idx = MILESTONE_ORDER.indexOf(m.type);
+    if (idx === 0) return true;
+    return milestones
+      .filter(prev => MILESTONE_ORDER.indexOf(prev.type) < idx)
+      .every(prev => prev.status === 'coordinator_approved' || prev.status === 'completed');
+  };
+
+  // ─── The "true" next actionable milestone for the Overview tab ────────────
+  // This is the first milestone that is still 'pending' AND unlocked.
+  // After coordinator_approved the next pending one becomes unlocked.
+  const actionableNextMilestone: Milestone | null =
+    milestones.find(m => m.status === 'pending' && isUnlocked(m)) ?? null;
+
+  // ─── Overview banner: what to display ─────────────────────────────────────
+  // Show the submitted/in-review milestone if any, otherwise the next pending one.
+  const overviewDisplayMilestone: Milestone | null =
+    milestones.find(m => ['submitted', 'supervisor_graded'].includes(m.status))
+    ?? actionableNextMilestone;
+
+  // Is there a milestone currently waiting for coordinator approval?
+  const isWaitingApproval = milestones.some(
+    m => ['submitted', 'supervisor_graded'].includes(m.status)
+  );
 
   // ── Days until deadline ────────────────────────────────────────────────────
   const daysUntil = (ts: string | null | undefined): number | null => {
@@ -60,10 +96,10 @@ export default function ActiveDashboard({
   };
 
   const toDate = (val: string | null | undefined): Date | null => {
-  if (!val) return null;
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d;
-};
+    if (!val) return null;
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  };
 
   // ── File picker ────────────────────────────────────────────────────────────
   const pickFile = async () => {
@@ -71,78 +107,36 @@ export default function ActiveDashboard({
     if (result.canceled || !result.assets?.length) return;
     setFiles((prev) => [
       ...prev,
-      ...result.assets.map((a) => ({ uri: a.uri, name: a.name })),
+      ...result.assets.map((a) => ({ uri: a.uri, name: a.name, mimeType: a.mimeType })),
     ]);
   };
 
   // ── Submit milestone ───────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!targetMilestone) return;
+    if (!isUnlocked(targetMilestone)) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
-    if (!nextMilestone)return;
-    
+
     try {
       setSubmitting(true);
       setSubmitMessage(null);
-    
-      // 🚀 Create ONE FormData instance scoped to the whole function
+
       const formData = new FormData();
-
-      // 🚀 Append each file from your state array to the form data
-      if (files && files.length > 0) {
-        files.forEach((f: any) => {
-          const fileExtension = f.name?.split('.').pop()?.toLowerCase();
-          const fallbackType = fileExtension === 'pdf' ? 'application/pdf' : 'application/octet-stream';
-          formData.append('files', {
-            uri: f.uri,
-            name: f.name,
-            type: f.mimeType || fallbackType, // fallback safely to pdf
-          } as any);
-        });
-      }
-
-      // 🚀 Append textual metadata such as the text submission notes
-      formData.append('note', note);
-      formData.append('milestoneId', nextMilestone.id);
-
-      /* const fileUrls: string[] = [];
-      for (const f of files) {
-        const formData = new FormData();
-
-        formData.append('file', {
-          uri: f.uri,
-          type: 'application/octet-stream',
+      files.forEach((f) => {
+        const fileExtension = f.name?.split('.').pop()?.toLowerCase();
+        const fallbackType  = fileExtension === 'pdf' ? 'application/pdf' : 'application/octet-stream';
+        formData.append('files', {
+          uri:  f.uri,
           name: f.name,
+          type: f.mimeType || fallbackType,
         } as any);
-
-        formData.append('upload_preset', 'MileStones');
-
-        const res = await fetch(
-          'https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload',
-          {
-            method: 'POST',
-            body: formData,
-          }
-        );
-
-        const data = await res.json();
-        console.log('Cloudinary response:', JSON.stringify(data)); // add this
-        fileUrls.push(data.secure_url);
-      }
-      console.log("FINAL fileUrls:", fileUrls);
-      console.log("HAS INVALID:", fileUrls.some(x => typeof x !== 'string'));
-       Update milestone doc
-      await updateDoc(doc(db, 'milestones', targetMilestone.id), {
-        status:         'submitted',
-        submittedAt:    serverTimestamp(),
-        fileUrls:       fileUrls ,
-        submissionNote: note,
-      });*/
-
-      await apiClient.post(`/api/milestones/${nextMilestone.id}/submit`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
       });
+      formData.append('note',        note);
+      formData.append('milestoneId', targetMilestone.id);
+      formData.append('projectId',   project.id);
+
+      await apiClient.submitMilestone(targetMilestone.id, formData);
 
       setSubmitMessage('✅ ' + tx('submitSuccess', lang));
       setTimeout(() => {
@@ -151,8 +145,9 @@ export default function ActiveDashboard({
         setNote('');
         setSubmitMessage(null);
       }, 1500);
-    } catch (e) {
-      console.error('Submit milestone error:', e);
+
+    } catch (e: any) {
+      console.error('Submit milestone error:', e?.message);
       setSubmitMessage(tx('submitError', lang));
     } finally {
       setSubmitting(false);
@@ -164,16 +159,38 @@ export default function ActiveDashboard({
     setSubmitModal(true);
   };
 
-  // ────────────────────────────────────────────────────────────────────────────
+  const handleExpandGrade = (milestoneId: string) => {
+    setExpandedGrades((prev) => ({ ...prev, [milestoneId]: !prev[milestoneId] }));
+  };
+
+  // ─── Grade color helper ────────────────────────────────────────────────────
+  // Returns a color on a red→orange→yellow→green gradient based on 0–100 score.
+  const gradeColor = (grade: number): string => {
+    if (grade >= 90) return '#10B981'; // vivid green
+    if (grade >= 80) return '#34D399'; // light green
+    if (grade >= 70) return '#FBBF24'; // yellow
+    if (grade >= 60) return '#F97316'; // orange
+    return '#EF4444';                  // red
+  };
+
+  // ─── Grade bar background (muted) ─────────────────────────────────────────
+  const gradeTrackColor = (grade: number): string => {
+    if (grade >= 90) return '#D1FAE5';
+    if (grade >= 80) return '#A7F3D0';
+    if (grade >= 70) return '#FEF3C7';
+    if (grade >= 60) return '#FFEDD5';
+    return '#FEE2E2';
+  };
+
   return (
     <View style={styles.container}>
 
       {/* ── Tab Bar ── */}
       <View style={styles.tabBar}>
         {([
-          { key: 'overview',   labelHe: 'סקירה',     labelEn: 'Overview' },
-          { key: 'milestones', labelHe: 'אבני דרך',  labelEn: 'Milestones' },
-          { key: 'grades',     labelHe: 'ציונים',    labelEn: 'Grades' },
+          { key: 'overview',   labelHe: 'סקירה',    labelEn: 'Overview' },
+          { key: 'milestones', labelHe: 'אבני דרך', labelEn: 'Milestones' },
+          { key: 'grades',     labelHe: 'ציונים',   labelEn: 'Grades' },
         ] as const).map((tab) => (
           <Pressable
             key={tab.key}
@@ -217,63 +234,68 @@ export default function ActiveDashboard({
                 <View style={styles.progressTrack}>
                   <View style={[styles.progressFill, { width: `${progress}%` }]} />
                 </View>
-                <Text style={[styles.progressSub, isRtl && styles.textRight]}>
-                  {milestones.filter((m) => m.status === 'completed').length} / {milestones.length}{' '}
+                <Text style={[styles.progressSub, !isRtl && styles.textRight]}>
+                  {milestones.length} / {milestones.filter((m) => m.status === 'coordinator_approved').length}{' '}
                   {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
                 </Text>
               </View>
             </View>
 
-            {/* Next milestone banner */}
-            {nextMilestone && (
+            {/* ── Next milestone banner ── */}
+            {overviewDisplayMilestone && (
               <View style={styles.nextMilestone}>
                 <View style={[styles.nextHeader, isRtl && styles.rowReverse]}>
-                  <Text style={styles.nextLabel}>
-                    ⚡ {tx('nextMilestone', lang)}
-                  </Text>
-                  {(() => {
-                    const days = daysUntil(nextMilestone.dueDate);
-                    const isOverdue = days !== null && days < 0;
-                    const isToday   = days === 0;
-                    return (
-                      <View style={[
-                        styles.daysBadge,
-                        isOverdue ? styles.daysBadgeRed : isToday ? styles.daysBadgeOrange : styles.daysBadgeBlue,
-                      ]}>
-                        <Text style={styles.daysBadgeText}>
-                          {isOverdue ? tx('overdue', lang)
-                           : isToday ? tx('today', lang)
-                           : `${days} ${tx('daysLeft', lang)}`}
-                        </Text>
-                      </View>
-                    );
-                  })()}
+                  <Text style={styles.nextLabel}>⚡ {tx('nextMilestone', lang)}</Text>
+
+                  {/* Status badge */}
+                  {isWaitingApproval ? (
+                    <View style={[styles.daysBadge, { backgroundColor: '#FFFBEB', borderColor: '#F59E0B', borderWidth: 1 }]}>
+                      <Text style={[styles.daysBadgeText, { color: '#F59E0B' }]}>
+                        {lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Waiting for approval'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.daysBadge, styles.daysBadgeBlue]}>
+                      <Text style={styles.daysBadgeText}>
+                        {daysUntil(overviewDisplayMilestone.dueDate)} {tx('daysLeft', lang)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
+                {/* Milestone title */}
                 <Text style={[styles.nextTitle, isRtl && styles.textRight]}>
-                  {lang === 'he'
-                    ? MILESTONE_LABEL[nextMilestone.type].he
-                    : MILESTONE_LABEL[nextMilestone.type].en}
+                  {(() => {
+                    // If something is in-review, peek forward to the next pending milestone
+                    const nextPending = milestones.find(m => m.status === 'pending');
+                    const displayType = nextPending?.type ?? overviewDisplayMilestone.type;
+                    return lang === 'he'
+                      ? MILESTONE_LABEL[displayType].he
+                      : MILESTONE_LABEL[displayType].en;
+                  })()}
                 </Text>
 
-                <Text style={[styles.nextDue, isRtl && styles.textRight]}>
-                  {tx('dueDate', lang)}{' '}
-                  {toDate(nextMilestone.dueDate)?.toLocaleDateString(
-                    lang === 'he' ? 'he-IL' : 'en-GB',
-                    { day: 'numeric', month: 'long', year: 'numeric' }
-                  )}
-                </Text>
-
-                {nextMilestone.status === 'pending' && (
-                  <Pressable
-                    style={styles.submitMilestoneBtn}
-                    onPress={() => openSubmit(nextMilestone)}
-                  >
-                    <Text style={styles.submitMilestoneBtnText}>
-                      {tx('submitMilestone', lang)}
-                    </Text>
-                  </Pressable>
-                )}
+                {/* ── Submit button ──
+                    Enabled ONLY when:
+                    • There is an actionable (pending + unlocked) next milestone
+                    • AND we are NOT waiting for coordinator approval on any milestone
+                */}
+                {(() => {
+                  const canSubmit = !!actionableNextMilestone && !isWaitingApproval;
+                  return (
+                    <Pressable
+                      style={[styles.submitMilestoneBtn, !canSubmit && { opacity: 0.45 }]}
+                      disabled={!canSubmit}
+                      onPress={() => actionableNextMilestone && openSubmit(actionableNextMilestone)}
+                    >
+                      <Text style={styles.submitMilestoneBtnText}>
+                        {isWaitingApproval
+                          ? (lang === 'he' ? 'ממתין לאישור סגל' : 'Awaiting Faculty Approval')
+                          : tx('submitMilestone', lang)}
+                      </Text>
+                    </Pressable>
+                  );
+                })()}
               </View>
             )}
 
@@ -297,24 +319,40 @@ export default function ActiveDashboard({
             </Text>
 
             {milestones.map((m, index) => {
-              const cfg   = STATUS_CONFIG[m.status];
-              const days  = daysUntil(m.dueDate);
-              const label = lang === 'he'
-                ? MILESTONE_LABEL[m.type].he
-                : MILESTONE_LABEL[m.type].en;
+              const unlocked  = isUnlocked(m);
+              const cfg       = STATUS_CONFIG[m.status as MilestoneStatus] ??
+              { color: '#8899BB', bg: '#F0F4FF', icon: '🕐' }
+              const days      = daysUntil(m.dueDate);
+              const label     = lang === 'he' ? MILESTONE_LABEL[m.type].he : MILESTONE_LABEL[m.type].en;
               const isDefense = m.type === 'defense';
 
+              // ── Per-milestone display logic ──────────────────────────────
+              // submitted / supervisor_graded  → show "submitted" text, disable button
+              // coordinator_approved / completed → show ✅ green check
+              const normalizedStatus = (m.status ?? '').trim().toLowerCase();
+              const isSubmittedInReview =
+                normalizedStatus === 'submitted' ||
+                normalizedStatus === 'supervisor_graded' ||
+                normalizedStatus === 'graded';          
+
+              const isApprovedOrDone =
+                normalizedStatus === 'coordinator_approved' ||
+                normalizedStatus === 'completed';
+              
               return (
                 <View key={m.id} style={styles.milestoneCard}>
                   {/* Timeline dot + connector */}
                   <View style={styles.timelineCol}>
-                    <View style={[styles.timelineDot, { backgroundColor: cfg.color }]}>
-                      <Text style={styles.timelineNum}>{index + 1}</Text>
+                    <View style={[styles.timelineDot, { backgroundColor: isApprovedOrDone ? '#10B981' : cfg.color }]}>
+                      {isApprovedOrDone
+                        ? <Text style={styles.timelineNum}>✓</Text>
+                        : <Text style={styles.timelineNum}>{index + 1}</Text>
+                      }
                     </View>
                     {index < milestones.length - 1 && (
                       <View style={[
                         styles.timelineLine,
-                        m.status === 'completed' && styles.timelineLineDone,
+                        isApprovedOrDone && styles.timelineLineDone,
                       ]} />
                     )}
                   </View>
@@ -324,13 +362,15 @@ export default function ActiveDashboard({
                     {/* Header */}
                     <View style={[styles.milestoneHeader, isRtl && styles.rowReverse]}>
                       <Text style={styles.milestoneTitle}>{label}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
-                        <Text style={[styles.statusBadgeText, { color: cfg.color }]}>
-                          {cfg.icon} {lang === 'he'
+                      <View style={[styles.statusBadge, { backgroundColor: isApprovedOrDone ? '#ECFDF5' : cfg.bg }]}>
+                        <Text style={[styles.statusBadgeText, { color: isApprovedOrDone ? '#10B981' : cfg.color }]}>
+                          {isApprovedOrDone ? '✅' : cfg.icon}{' '}
+                          {lang === 'he'
                             ? ({
                                 pending:              'ממתין',
                                 submitted:            'הוגש',
                                 supervisor_graded:    'נוקד ע"י מנחה',
+                                graded:               'נוקד ע"י מנחה',
                                 coordinator_approved: 'אושר ע"י רכז',
                                 completed:            'הושלם',
                               }[m.status])
@@ -338,6 +378,7 @@ export default function ActiveDashboard({
                                 pending:              'Pending',
                                 submitted:            'Submitted',
                                 supervisor_graded:    'Supervisor Graded',
+                                graded:               'Supervisor Graded',
                                 coordinator_approved: 'Coordinator Approved',
                                 completed:            'Completed',
                               }[m.status])
@@ -346,32 +387,49 @@ export default function ActiveDashboard({
                       </View>
                     </View>
 
-                    {/* Due date */}
-                    <Text style={[styles.milestoneDue, isRtl && styles.textRight]}>
-                      📅 {tx('dueDate', lang)}{' '}
-                      {toDate(m.dueDate)?.toLocaleDateString(
-                        lang === 'he' ? 'he-IL' : 'en-GB',
-                        { day: 'numeric', month: 'short', year: 'numeric' }
-                      )}
-                      {days !== null && m.status === 'pending' && (
-                        <Text style={[
-                          styles.daysTag,
-                          days < 0 ? { color: '#D32F2F' }
-                          : days <= 7 ? { color: '#F59E0B' }
-                          : { color: '#10B981' },
-                        ]}>
-                          {' '}({days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : `${days} ${tx('daysLeft', lang)}`})
-                        </Text>
-                      )}
-                    </Text>
-
-                    {/* Grade */}
-                    {m.finalGrade !== null && (
-                      <View style={styles.gradeChip}>
-                        <Text style={styles.gradeChipText}>
-                          {tx('grade', lang)}: {m.finalGrade}
-                        </Text>
-                      </View>
+                    {/* ── Due date / Submitted / Approved display ── */}
+                    {!unlocked ? (
+                      <Text style={[styles.notScheduled, isRtl && styles.textRight]}>
+                        🔒{' '}
+                        {lang === 'he'
+                          ? 'יש להשלים אבני דרך קודמות'
+                          : 'Need to complete previous milestones'}
+                      </Text>
+                    ) : isApprovedOrDone ? (
+                      // Green check + approved label replaces the due date row
+                      <Text style={[{ fontSize: 13, color: '#10B981', fontWeight: '600', marginTop: 4 }, isRtl && styles.textRight]}>
+                        ✅ {lang === 'he' ? 'אושר ע"י הרכז' : 'Approved by coordinator'}
+                        {m.finalGrade !== null && (
+                          <Text style={{ color: '#059669' }}> · {tx('grade', lang)}: {m.finalGrade}</Text>
+                        )}
+                      </Text>
+                    ) : isSubmittedInReview ? (
+                      // "Submitted" replaces the due date
+                      <Text style={[{ fontSize: 13, color: '#F59E0B', fontWeight: '600', marginTop: 4 }, isRtl && styles.textRight]}>
+                        📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}
+                      </Text>
+                    ) : (
+                      // Normal due date row (pending + unlocked)
+                      <Text style={[styles.milestoneDue, isRtl && styles.textRight]}>
+                        📅 {tx('dueDate', lang)}{' '}
+                        {toDate(m.dueDate)?.toLocaleDateString(
+                          lang === 'he' ? 'he-IL' : 'en-US',
+                          { day: 'numeric', month: 'short', year: 'numeric' }
+                        )}
+                        {days !== null && m.status === 'pending' && unlocked && (
+                          <Text style={[
+                            styles.daysTag,
+                            days < 0  ? { color: '#D32F2F' }
+                            : days <= 7 ? { color: '#F59E0B' }
+                            : { color: '#10B981' },
+                          ]}>
+                            {' '}({days < 0
+                              ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}`
+                              : `${days} ${tx('daysLeft', lang)}`
+                            })
+                          </Text>
+                        )}
+                      </Text>
                     )}
 
                     {/* Defense info */}
@@ -380,7 +438,7 @@ export default function ActiveDashboard({
                         <Text style={[styles.defenseRow, isRtl && styles.textRight]}>
                           📅 {tx('defenseDate', lang)}{' '}
                           {toDate(m.defenseDate)?.toLocaleDateString(
-                            lang === 'he' ? 'he-IL' : 'en-GB',
+                            lang === 'he' ? 'he-IL' : 'en-US',
                             { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
                           )}
                         </Text>
@@ -403,8 +461,13 @@ export default function ActiveDashboard({
                       </Text>
                     )}
 
-                    {/* Submit button */}
-                    {m.status === 'pending' && !isDefense && (
+                    {/* ── Submit button ──
+                        Show ONLY when:
+                        • status is 'pending'
+                        • not the defense milestone
+                        • milestone is unlocked (previous was coordinator_approved/completed)
+                    */}
+                    {m.status === 'pending' && !isDefense && unlocked && (
                       <Pressable
                         style={styles.milestoneSubmitBtn}
                         onPress={() => openSubmit(m)}
@@ -415,7 +478,7 @@ export default function ActiveDashboard({
                       </Pressable>
                     )}
 
-                    {/* Submitted files */}
+                    {/* Submitted files count */}
                     {m.fileUrls?.length > 0 && (
                       <View style={styles.filesRow}>
                         <Text style={styles.filesLabel}>
@@ -433,38 +496,182 @@ export default function ActiveDashboard({
         {/* ══════════════ GRADES TAB ══════════════ */}
         {activeTab === 'grades' && (
           <>
-            <Text style={[styles.sectionTitle, isRtl && styles.textRight]}>
+            <Text style={[styles.sectionTitle, !isRtl && styles.textRight]}>
               {lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}
             </Text>
-
+        
             {milestones.map((m) => {
               const label = lang === 'he'
                 ? MILESTONE_LABEL[m.type].he
                 : MILESTONE_LABEL[m.type].en;
+        
+              const normalizedStatus = (m.status ?? '').trim().toLowerCase();
+              const grade   = m.finalGrade ?? m.supervisorScore ?? null;
+              const hasGrade = typeof grade === 'number' && !isNaN(grade);
+        
+              const isSubmittedState = !hasGrade && (
+                normalizedStatus === 'submitted' ||
+                normalizedStatus === 'supervisor_graded' ||
+                normalizedStatus === 'graded'
+              );
+        
+              const isGradeVisible =
+                normalizedStatus === 'coordinator_approved' ||
+                normalizedStatus === 'completed';
+        
+              const gradeVisible = isGradeVisible && hasGrade;
+        
+              const barColor   = hasGrade ? gradeColor(grade)      : '#E0E8FF';
+              const trackColor = hasGrade ? gradeTrackColor(grade) : '#F0F4FF';
+              const barFlex    = hasGrade ? (grade / 100) : 0;
+        
+              // Expandable state for this card
+              const isExpanded     = expandedGrades[m.id] ?? false;
+              const isLoadingDetail = loadingDetail[m.id] ?? false;
+              const detail         = gradeDetails[m.id];
+        
               return (
-                <View key={m.id} style={styles.gradeCard}>
-                  <View style={[styles.gradeCardHeader, isRtl && styles.rowReverse]}>
+                <Pressable
+                  key={m.id}
+                  style={styles.gradeCard}
+                  // Only tappable when the grade is visible to the student
+                  onPress={gradeVisible ? () => handleExpandGrade(m.id) : undefined}
+                  disabled={!gradeVisible}
+                >
+                  {/* ── Card header ── */}
+                  <View style={[styles.gradeCardHeader, !isRtl && styles.rowReverse]}>
                     <Text style={styles.gradeCardTitle}>{label}</Text>
-                    {m.finalGrade !== null ? (
-                      <View style={styles.gradePill}>
-                        <Text style={styles.gradePillText}>{m.finalGrade}</Text>
+        
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {gradeVisible ? (
+                        <>
+                          <View style={[styles.gradePill, { backgroundColor: gradeTrackColor(grade!) }]}>
+                            <Text style={[styles.gradePillText, { color: gradeColor(grade!) }]}>
+                              {grade}
+                            </Text>
+                          </View>
+                          {/* Expand / collapse chevron */}
+                          <Text style={{ fontSize: 14, color: '#8899BB' }}>
+                            {isExpanded ? '▲' : '▼'}
+                          </Text>
+                        </>
+                      ) : isSubmittedState ? (
+                        <Text style={{ fontSize: 12, color: '#F59E0B', fontWeight: '600' }}>
+                          📤 {lang === 'he' ? 'הוגש' : 'Submitted'}
+                        </Text>
+                      ) : (
+                        <Text style={{ fontSize: 12, color: '#8899BB' }}>
+                          📭 {lang === 'he' ? 'טרם הוגש' : 'Not submitted yet'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+        
+                  {/* ── Grade bar ── */}
+                  {hasGrade ? (
+                    <View style={{ marginTop: 8 }}>
+                      <View style={[styles.gradeProgress, { backgroundColor: trackColor, flexDirection: 'row' }]}>
+                        <View style={[
+                          styles.gradeProgressFill,
+                          { flexGrow: barFlex, backgroundColor: barColor, width: undefined },
+                        ]} />
+                        {barFlex < 1 && <View style={{ flexGrow: 1 - barFlex }} />}
                       </View>
-                    ) : (
-                      <Text style={styles.noGrade}>{tx('notGradedYet', lang)}</Text>
-                    )}
-                  </View>
-
-                  <View style={styles.gradeProgress}>
-                    <View style={[
-                      styles.gradeProgressFill,
-                      { width: m.finalGrade ? `${m.finalGrade}%` : '0%' },
-                    ]} />
-                  </View>
-                </View>
+                      <View style={[
+                        { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+                        isRtl && styles.rowReverse,
+                      ]}>
+                        <Text style={{ fontSize: 11, color: '#8899BB' }}>{!isRtl ? '0' : '100'}</Text>
+                        <Text style={{ fontSize: 11, color: '#8899BB' }}>{!isRtl ? '100' : '0'}</Text>
+                      </View>
+                    </View>
+                  ) : isSubmittedState ? (
+                    <View style={{ marginTop: 8 }}>
+                      <View style={[styles.gradeProgress, { backgroundColor: '#FEF3C7', flexDirection: 'row' }]}>
+                        <View style={{ flexGrow: 1, backgroundColor: '#FDE68A', borderRadius: 6, opacity: 0.6 }} />
+                      </View>
+                      <Text style={[{ fontSize: 11, color: '#F59E0B', marginTop: 4 }, isRtl && styles.textRight]}>
+                        {lang === 'he' ? '⏳ ממתין לאישור ציון ע"י הרכז' : '⏳ Awaiting grade approval by coordinator'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.gradeProgress, { marginTop: 8, flexDirection: 'row' }]}>
+                      <View style={{ flexGrow: 1, backgroundColor: 'transparent' }} />
+                    </View>
+                  )}
+        
+                  {/* ── Expanded criteria breakdown ── */}
+                  {gradeVisible && isExpanded && (
+                    <View style={breakdownStyles.container}>
+                      {isLoadingDetail ? (
+                        <ActivityIndicator size="small" color="#2E86FF" style={{ marginVertical: 12 }} />
+                      ) : detail?.hasGrade ? (
+                        <>
+                          {/* Criteria rows */}
+                          {detail.breakdown?.map((b: any) => (
+                            <View key={b.key} style={breakdownStyles.row}>
+                              <Text style={[breakdownStyles.criterionLabel, isRtl && styles.textRight]} numberOfLines={1}>
+                                {b.label}
+                              </Text>
+                              <View style={breakdownStyles.scoreRow}>
+                                {/* Mini progress bar */}
+                                <View style={breakdownStyles.miniTrack}>
+                                  <View style={[
+                                    breakdownStyles.miniFill,
+                                    {
+                                      flexGrow: b.score !== null ? (b.score / b.maxScore) : 0,
+                                      backgroundColor: b.score !== null
+                                        ? gradeColor(Math.round((b.score / b.maxScore) * 100))
+                                        : '#E0E8FF',
+                                    },
+                                  ]} />
+                                  <View style={{ flexGrow: b.score !== null ? 1 - (b.score / b.maxScore) : 1 }} />
+                                </View>
+                                {/* Score text */}
+                                <Text style={breakdownStyles.scoreText}>
+                                  {b.score ?? '—'} / {b.maxScore}
+                                </Text>
+                              </View>
+                            </View>
+                          ))}
+        
+                          {/* Divider */}
+                          <View style={breakdownStyles.divider} />
+        
+                          {/* Total */}
+                          <View style={[breakdownStyles.row, { marginTop: 4 }]}>
+                            <Text style={[breakdownStyles.criterionLabel, { fontWeight: '800', color: '#111' }]}>
+                              {lang === 'he' ? 'סה"כ' : 'Total'}
+                            </Text>
+                            <Text style={[breakdownStyles.scoreText, { fontWeight: '800', color: gradeColor(detail.total ?? 0) }]}>
+                              {detail.total ?? '—'} / 100
+                            </Text>
+                          </View>
+        
+                          {/* Comments */}
+                          {detail.comments ? (
+                            <View style={breakdownStyles.commentsBox}>
+                              <Text style={[breakdownStyles.commentsLabel, isRtl && styles.textRight]}>
+                                💬 {lang === 'he' ? 'הערות המנחה' : 'Supervisor Comments'}
+                              </Text>
+                              <Text style={[breakdownStyles.commentsText, isRtl && styles.textRight]}>
+                                {detail.comments}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </>
+                      ) : (
+                        <Text style={{ fontSize: 13, color: '#8899BB', textAlign: 'center', paddingVertical: 8 }}>
+                          {lang === 'he' ? 'לא נמצאו פרטי ציון' : 'Grade details not available'}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </Pressable>
               );
             })}
-
-            {/* Final grade */}
+        
+            {/* Final grade card */}
             {milestones.every((m) => m.finalGrade !== null) && milestones.length > 0 && (
               <View style={styles.finalGradeCard}>
                 <Text style={styles.finalGradeLabel}>{tx('finalGrade', lang)}</Text>
@@ -561,4 +768,74 @@ export default function ActiveDashboard({
   );
 }
 
-const styles = ActivateDashboardStyles
+const styles = ActivateDashboardStyles;
+
+const breakdownStyles = StyleSheet.create({
+  container: {
+    marginTop:       12,
+    paddingTop:      12,
+    borderTopWidth:  1,
+    borderTopColor:  '#E0E8FF',
+  },
+  row: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    marginBottom:    10,
+  },
+  criterionLabel: {
+    fontSize:   13,
+    color:      '#445',
+    fontWeight: '600',
+    flex:       1,
+    marginRight: 8,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           8,
+  },
+  miniTrack: {
+    width:           80,
+    height:          8,
+    borderRadius:    4,
+    backgroundColor: '#F0F4FF',
+    flexDirection:   'row',
+    overflow:        'hidden',
+  },
+  miniFill: {
+    borderRadius: 4,
+    height:       '100%',
+  },
+  scoreText: {
+    fontSize:   13,
+    color:      '#445',
+    fontWeight: '700',
+    minWidth:   50,
+    textAlign:  'right',
+  },
+  divider: {
+    height:          1,
+    backgroundColor: '#E0E8FF',
+    marginVertical:  8,
+  },
+  commentsBox: {
+    marginTop:       8,
+    backgroundColor: '#F8FAFF',
+    borderRadius:    10,
+    padding:         10,
+    borderWidth:     1,
+    borderColor:     '#E0E8FF',
+  },
+  commentsLabel: {
+    fontSize:     12,
+    fontWeight:   '700',
+    color:        '#8899BB',
+    marginBottom: 4,
+  },
+  commentsText: {
+    fontSize:   13,
+    color:      '#445',
+    lineHeight: 19,
+  },
+});

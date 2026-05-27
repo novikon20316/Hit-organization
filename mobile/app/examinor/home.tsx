@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  SafeAreaView, ActivityIndicator, Modal, TextInput, Alert} from 'react-native';
+  ActivityIndicator, Modal, TextInput, Alert} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';

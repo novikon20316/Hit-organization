@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  Pressable,
-  SafeAreaView,
   ActivityIndicator,
-  Modal,
-  TextInput,
   Alert,
   Switch,
   Dimensions,
 } from 'react-native';
-
+import * as DocumentPicker from 'expo-document-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   serverTimestamp,
 } from 'firebase/firestore';
@@ -23,13 +20,9 @@ import type { Lang } from '../../components/i18n';
 
 import {
   TopBar,
-  StatCard,
-  FacultyBadge,
-  StatusBadge,
-  getFacultyColor,
   FACULTY_COLORS,
 } from '../../components/shared';
-
+import { GradingCriterion } from '../../components/modals/NewProjectModal'
 import { ROLE_LABELS } from '../../constants';
 
 import {
@@ -115,10 +108,11 @@ export default function PanelScreen() {
   const [saving, setSaving] = useState(false);
 
   const [showNewUser, setShowNewUser] = useState(false);
-
+  const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
   const [newProjectFaculty, setNewProjectFaculty] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
-
+  const [projectFile, setProjectFile] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
   const [newTitleHe, setNewTitleHe] = useState('');
   const [newTitleEn, setNewTitleEn] = useState('');
   const [newDescHe, setNewDescHe] = useState('');
@@ -270,6 +264,18 @@ export default function PanelScreen() {
     }
   };
 
+  const pickFile = async (isNew: boolean) => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    if(isNew){
+      setProjectFile(asset.uri);
+      setProjectName(asset.name);  
+    } else{
+  
+    }  
+  };
+
   // ───────────────────────────────
   // UI
   // ───────────────────────────────
@@ -362,6 +368,17 @@ export default function PanelScreen() {
 
         maxStudents={maxStudents}
         setMaxStudents={setMaxStudents}
+
+        projectName={projectName}
+        setProjectName={setProjectName}
+        
+        projectFile={projectFile}
+        setProjectFile={setProjectFile}
+
+        gradingCriteria={gradingCriteria}
+        setGradingCriteria={setGradingCriteria}
+
+        pickFile={(b) => pickFile(b)}
 
         facultyColors={FACULTY_COLORS}
         styles={{}}

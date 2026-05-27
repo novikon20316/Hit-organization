@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  SafeAreaView, ActivityIndicator, Animated, FlatList, Alert,
+  ActivityIndicator, Animated, FlatList, Alert,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context'
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';

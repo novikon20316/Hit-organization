@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ActivityIndicator,
-  SafeAreaView, Pressable, Platform, Linking,
+  Pressable, Platform, Linking,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';

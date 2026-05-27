@@ -780,7 +780,7 @@ export const coordinatorHomeStyles = StyleSheet.create({
   root:        { flex: 1, backgroundColor: '#F5F0FF' },
   centered:    { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content:     { padding: 16 },
-
+  textRight:   { textAlign: 'right' },
   tabBar: {
     flexDirection: 'row', backgroundColor: '#fff',
     borderBottomWidth: 1, borderBottomColor: '#E8E0FF',

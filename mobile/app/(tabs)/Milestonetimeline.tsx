@@ -4,12 +4,12 @@
 // Props control which actions are visible per role.
 
 import React, { useState } from 'react';
+import { toDate } from '@/components/shared';
 import {
   View, Text, Pressable, StyleSheet,
   Modal, TextInput, ActivityIndicator,
 } from 'react-native';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../../src/firebase/firebase';
+import { Timestamp } from 'firebase/firestore';
 import { apiClient } from '../../src/api/apiClient';
 import {
   daysUntil, urgencyLevel, URGENCY_COLORS,
@@ -26,7 +26,7 @@ export interface MilestoneData {
   descriptionHe: string;
   descriptionEn: string;
   status:        MilestoneStatus;
-  dueDate:       Timestamp;
+  dueDate:       Timestamp | string;
   submittedAt:   Timestamp | null;
   approvalChainHe: string[];
   approvalChainEn: string[];
@@ -187,10 +187,10 @@ function MilestoneCard({
         {/* Due date line */}
         <Text style={[mc.dueDate, isRtl && mc.textRight]}>
           📅 {lang === 'he' ? 'תאריך יעד:' : 'Due:'}{' '}
-          {milestone.dueDate.toDate().toLocaleDateString(
-            lang === 'he' ? 'he-IL' : 'en-GB',
-            { day: 'numeric', month: 'long', year: 'numeric' }
-          )}
+              {toDate(milestone.dueDate)?.toLocaleDateString(
+                lang === 'he' ? 'he-IL' : 'en-GB',
+                { day: 'numeric', month: 'long', year: 'numeric' }
+              ) ?? '—'}
           {canCoordinatorAdjust && (
             <Text
               style={mc.adjustBtn}

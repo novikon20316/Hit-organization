@@ -1,22 +1,22 @@
 // app/message/[chatId].tsx
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, Text, SafeAreaView, StyleSheet, FlatList,
+  View, Text, StyleSheet, FlatList,
   TextInput, Pressable, KeyboardAvoidingView, Platform,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { auth } from '../../src/firebase/firebase';
-import { roleColor } from './new'; // re-uses the helper
+import { roleColor } from './new';
 import { apiClient } from '@/src/api/apiClient';
-
 
 interface Message {
   id:        string;
   text:      string;
   senderId:  string;
-  createdAt?: any;
+  createdAt: string | null; // ISO string from backend, never a Firestore Timestamp
 }
 
 // ─── Role → readable label ────────────────────────────────────────────────────
@@ -33,15 +33,24 @@ function roleLabel(role: string): string {
 }
 
 // ─── Format timestamp ─────────────────────────────────────────────────────────
-function formatTime(ts: any): string {
-  if (!ts?.toDate) return '';
-  const d = ts.toDate() as Date;
+// createdAt is now always an ISO string (or null) — no Firestore Timestamp objects.
+function formatTime(isoString: string | null): string {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// Returns true if two ISO timestamps are more than 5 minutes apart
+function isMoreThan5MinApart(a: string | null, b: string | null): boolean {
+  if (!a || !b) return true;
+  const diff = new Date(a).getTime() - new Date(b).getTime();
+  return Math.abs(diff) > 5 * 60 * 1000;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ChatScreen() {
-  const router                        = useRouter();
+  const router                           = useRouter();
   const { chatId, otherName, otherRole } = useLocalSearchParams<{
     chatId:    string;
     otherName: string;
@@ -51,44 +60,59 @@ export default function ChatScreen() {
   const currentUser = auth.currentUser;
   const flatRef     = useRef<FlatList>(null);
 
-  const [messages,    setMessages]    = useState<Message[]>([]);
-  const [text,        setText]        = useState('');
-  const [sending,     setSending]     = useState(false);
-  const [headerName,  setHeaderName]  = useState(otherName ?? '');
-  const [headerRole,  setHeaderRole]  = useState(otherRole ?? '');
+  const [messages,   setMessages]   = useState<Message[]>([]);
+  const [text,       setText]       = useState('');
+  const [sending,    setSending]    = useState(false);
+  const [headerName, setHeaderName] = useState(otherName ?? '');
+  const [headerRole, setHeaderRole] = useState(otherRole ?? '');
 
- // ── 🆕 Look up structural chat metadata via the backend server ──────────
+  // ── Fetch messages (polls every 3s) ────────────────────────────────────────
+  const fetchMessages = useCallback(async () => {
+    if (!chatId || !currentUser) return;
+    try {
+      const res = await apiClient.get(`/api/chats/${chatId}/messages`);
+      setMessages(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+    }
+  }, [chatId, currentUser]);
+
+  useEffect(() => {
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, [fetchMessages]);
+
+  // ── Look up header metadata if not passed as params ────────────────────────
   useEffect(() => {
     if (headerName || !currentUser || !chatId) return;
-    
+
     const fetchChatMetadata = async () => {
       try {
         const response = await apiClient.get(`/api/chats/${chatId}/meta`);
-        setHeaderName(response.data.displayName || 'Unknown');
-        setHeaderRole(response.data.role || '');
+        // meta returns all participants; find the other person
+        const other = response.data.participants?.find(
+          (p: any) => p.id !== currentUser.uid
+        );
+        if (other) {
+          setHeaderName(other.name  ?? 'Unknown');
+          setHeaderRole(other.role  ?? '');
+        }
       } catch (err) {
-        console.error('Failed to look up deep-linked chat profile metadata:', err);
+        console.error('Failed to look up chat metadata:', err);
       }
     };
+
     fetchChatMetadata();
   }, [chatId, currentUser, headerName]);
 
-  // Add this effect block inside your ChatScreen component in [chatId].tsx
+  // ── Mark chat notifications as read when opening ───────────────────────────
   useEffect(() => {
     if (!chatId || !currentUser) return;
+    apiClient.post(`/api/chats/${chatId}/read`).catch(() => {});
+  }, [chatId, currentUser]);
 
-    const clearUnreadBanners = async () => {
-      try {
-        await apiClient.post(`/api/chats/${chatId}/read`);
-      } catch (err) {
-        console.warn('Silent notice: Failed to mark incoming messages as read:', err);
-      }
-    };
-
-    clearUnreadBanners();
-  }, [chatId, messages.length]);
-
-  // ── Send ──────────────────────────────────────────────────────────────────
+  // ── Send ───────────────────────────────────────────────────────────────────
   const sendMessage = async () => {
     const trimmed = text.trim();
     if (!trimmed || !currentUser || sending) return;
@@ -96,9 +120,11 @@ export default function ChatScreen() {
     setText('');
     try {
       await apiClient.post(`/api/chats/${chatId}/messages`, {
-        text: trimmed,
-        senderId:  currentUser.uid,
+        text:     trimmed,
+        senderId: currentUser.uid,
       });
+      // Immediately fetch so the sent message appears without waiting for the interval
+      await fetchMessages();
     } catch (err) {
       console.error('Send message error:', err);
       setText(trimmed); // restore on failure
@@ -107,8 +133,8 @@ export default function ChatScreen() {
     }
   };
 
-  // ── Header ────────────────────────────────────────────────────────────────
-  const initials = headerName
+  // ── Derived header values ──────────────────────────────────────────────────
+  const initials    = headerName
     ? headerName.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
     : '?';
   const accentColor = roleColor(headerRole);
@@ -118,17 +144,14 @@ export default function ChatScreen() {
 
       {/* ── Top header ── */}
       <View style={s.header}>
-        {/* Back button */}
         <Pressable style={s.backBtn} onPress={() => router.back()}>
           <Text style={s.backArrow}>←</Text>
         </Pressable>
 
-        {/* Avatar */}
         <View style={[s.avatar, { backgroundColor: accentColor }]}>
           <Text style={s.avatarText}>{initials}</Text>
         </View>
 
-        {/* Name + role */}
         <View style={s.headerInfo}>
           <Text style={s.headerName} numberOfLines={1}>
             {headerName || '…'}
@@ -164,9 +187,12 @@ export default function ChatScreen() {
           renderItem={({ item, index }) => {
             const mine    = item.senderId === currentUser?.uid;
             const prevMsg = messages[index - 1];
-            const showTime = !prevMsg
-              || (item.createdAt && prevMsg.createdAt
-                  && item.createdAt.toMillis() - prevMsg.createdAt.toMillis() > 5 * 60 * 1000);
+
+            // Both timestamps are now plain ISO strings — safe to compare
+            const showTime = !prevMsg || isMoreThan5MinApart(
+              item.createdAt,
+              prevMsg.createdAt
+            );
 
             return (
               <>
@@ -215,11 +241,9 @@ export default function ChatScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#EDF3FF' },
 
-  // Header
   header: {
     flexDirection:     'row',
     alignItems:        'center',
@@ -245,8 +269,7 @@ const s = StyleSheet.create({
     borderWidth:     1,
     borderColor:     '#D0DEFF',
   },
-  backArrow: { fontSize: 18, color: '#2E86FF', fontWeight: '700' },
-
+  backArrow:    { fontSize: 18, color: '#2E86FF', fontWeight: '700' },
   avatar: {
     width:          44,
     height:         44,
@@ -254,13 +277,12 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems:     'center',
   },
-  avatarText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-
-  headerInfo: { flex: 1, justifyContent: 'center' },
+  avatarText:   { color: '#fff', fontWeight: '900', fontSize: 16 },
+  headerInfo:   { flex: 1, justifyContent: 'center' },
   headerName: {
-    fontSize:   16,
-    fontWeight: '800',
-    color:      '#111827',
+    fontSize:     16,
+    fontWeight:   '800',
+    color:        '#111827',
     marginBottom: 3,
   },
   roleBadge: {
@@ -271,9 +293,7 @@ const s = StyleSheet.create({
   },
   roleBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
 
-  // Messages list
-  messagesList: { padding: 14, paddingBottom: 20 },
-
+  messagesList:  { padding: 14, paddingBottom: 20 },
   timeStamp: {
     textAlign:    'center',
     fontSize:     11,
@@ -281,48 +301,44 @@ const s = StyleSheet.create({
     marginBottom: 8,
     marginTop:    4,
   },
-
-  msgWrap:     { alignItems: 'flex-start', marginBottom: 6 },
-  msgWrapMine: { alignItems: 'flex-end' },
-
+  msgWrap:      { alignItems: 'flex-start', marginBottom: 6 },
+  msgWrapMine:  { alignItems: 'flex-end' },
   bubble: {
-    maxWidth:          '78%',
-    backgroundColor:   '#fff',
-    borderRadius:      18,
+    maxWidth:               '78%',
+    backgroundColor:        '#fff',
+    borderRadius:           18,
     borderBottomLeftRadius: 4,
-    paddingHorizontal: 14,
-    paddingVertical:   10,
-    shadowColor:       '#000',
-    shadowOpacity:     0.04,
-    shadowRadius:      4,
-    elevation:         1,
+    paddingHorizontal:      14,
+    paddingVertical:        10,
+    shadowColor:            '#000',
+    shadowOpacity:          0.04,
+    shadowRadius:           4,
+    elevation:              1,
   },
   bubbleMine: {
-    backgroundColor:      '#2E86FF',
+    backgroundColor:         '#2E86FF',
     borderBottomLeftRadius:  18,
     borderBottomRightRadius: 4,
   },
   bubbleText:     { color: '#111', fontSize: 15, lineHeight: 21 },
   bubbleTextMine: { color: '#fff' },
 
-  // Empty
   emptyChat: {
-    alignItems:  'center',
-    paddingTop:  80,
+    alignItems:    'center',
+    paddingTop:    80,
     paddingBottom: 40,
   },
   emptyChatEmoji: { fontSize: 48, marginBottom: 12 },
   emptyChatText:  { fontSize: 14, color: '#9BA8C0' },
 
-  // Input bar
   inputBar: {
-    flexDirection:     'row',
-    alignItems:        'flex-end',
-    padding:           12,
-    gap:               10,
-    borderTopWidth:    1,
-    borderTopColor:    '#DCE6FF',
-    backgroundColor:   '#fff',
+    flexDirection:   'row',
+    alignItems:      'flex-end',
+    padding:         12,
+    gap:             10,
+    borderTopWidth:  1,
+    borderTopColor:  '#DCE6FF',
+    backgroundColor: '#fff',
   },
   input: {
     flex:              1,

@@ -13,6 +13,7 @@ export type MilestoneStatus =
   | 'pending'
   | 'submitted'
   | 'supervisor_graded'
+  | 'graded'
   | 'coordinator_approved'
   | 'completed';
 
@@ -44,8 +45,8 @@ export interface ActiveProject {
   id:            string;
   titleHe:       string;
   titleEn:       string;
-  descriptionHe: string;
-  descriptionEn: string;
+  descriptionHe: string;  // ← was missing
+  descriptionEn: string;  // ← was missing
   supervisorId:  string;
   supervisorName:string;
   academicYear:  string;
@@ -64,6 +65,7 @@ export interface Milestone {
   defenseDate: string | null;
   defenseRoom: string | null;
   examinerNames: string[];
+  supervisorScore?: number | null;
 }
 
 export interface PendingApplication {
@@ -126,8 +128,13 @@ export function useStudentData() {
           console.log('✅ Project response:', JSON.stringify(projectRes.data));
           setActiveProject(projectRes.data);
           
+          const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
           const milestonesRes = await apiClient.getMilestones({ studentId: uid });
-          setMilestones(milestonesRes?.milestones || []);
+          const sorted = (milestonesRes?.milestones || []).sort(
+            (a: Milestone, b: Milestone) =>
+              MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type)
+          );
+          setMilestones(sorted);
           
           setStudentState('active');
         } catch (e) {
@@ -239,12 +246,66 @@ export function useStudentData() {
 
     return () => unsubscribe();
   }, [fetchDashboardData]);
-  // ── Derived helpers ───────────────────────────────────────────────────────
-  const nextMilestone = milestones.find(
-    (m) => m.status === 'pending' || m.status === 'submitted'
-  ) ?? null;
 
-  const completedCount = milestones.filter((m) => m.status === 'completed').length;
+  // ── EFFECT 3: Real-Time Milestones Listener ──────────────────────────────
+  useEffect(() => {
+    // Only listen if the student has an active project loaded
+    if (studentState !== 'active' || !activeProject?.id) return;
+
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    
+    const q = query(
+      collection(db, 'milestones'),
+      where('projectId', '==', activeProject.id),
+      where('studentIds', 'array-contains', uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const MILESTONE_ORDER: MilestoneType[] = [
+        'research_proposal',
+        'progress_report',
+        'final_report',
+        'defense'
+      ];
+
+      const liveMilestones = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          type: data.type,
+          status: data.status,
+          dueDate: data.dueDate ?? null,
+          submittedAt: data.submittedAt ?? null,
+          fileUrls: data.fileUrls ?? [],
+          finalGrade: data.finalGrade ?? null,
+          supervisorScore: data.supervisorScore ?? null, // 🔥 IMPORTANT
+          defenseDate: data.defenseDate ?? null,
+          defenseRoom: data.defenseRoom ?? null,
+          examinerNames: data.examinerNames ?? [],
+        } as Milestone;
+      });
+
+      // Sort them to maintain workflow order
+      const sorted = liveMilestones.sort(
+        (a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type)
+      );
+
+      // Instantly updates the entire dashboard whenever a supervisor/coordinator acts!
+      setMilestones(sorted);
+    });
+
+    return () => unsubscribe();
+  }, [studentState, activeProject?.id]);
+  // ── Derived helpers ───────────────────────────────────────────────────────
+  const nextMilestone: Milestone | null =
+  milestones.find(m =>
+    m.status === 'submitted' || m.status === 'supervisor_graded'
+  ) ??
+  milestones.find(m => m.status === 'pending') ??
+  null;
+
+  const completedCount = milestones.filter((m) => m.status === 'coordinator_approved').length;
   const progress = milestones.length > 0
     ? Math.round((completedCount / milestones.length) * 100)
     : 0;

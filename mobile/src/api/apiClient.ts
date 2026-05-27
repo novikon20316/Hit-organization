@@ -1,7 +1,8 @@
+// src/api/apiClient.ts
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { auth } from '../firebase/firebase'; // Adjust this import path to point to your client-side Firebase config
+import { Alert } from 'react-native';
+import { auth } from '../firebase/firebase';
 
-// Define the baseline configuration options for your Node.js backend server
 const SERVER_URL = 'http://10.100.102.22:5000'; /** NEED TO CHANGE THE IP WHEN YOU RECONNECT TO ANY NETWORK **/
 
 class ApiClient {
@@ -12,13 +13,12 @@ class ApiClient {
       baseURL: SERVER_URL,
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
-        'Accept': 'application/json',
+        'Accept':       'application/json',
       },
-      timeout: 15000, // 15 seconds timeout
+      timeout: 15000,
     });
 
-
-    // Request Interceptor: Automatically attaches the fresh Firebase ID Token
+    // ── Request interceptor: attach fresh Firebase ID token ──────────────────
     this.api.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
         try {
@@ -26,9 +26,9 @@ class ApiClient {
           if (currentUser) {
             const idToken = await currentUser.getIdToken(true);
             config.headers.Authorization = `Bearer ${idToken}`;
-            console.log(`✅ Token successfully attached for: ${config.url}`);
+            console.log(`✅ Token attached for: ${config.url}`);
           } else {
-            console.warn(`⚠️ Warning: auth.currentUser is null! No token sent for: ${config.url}`);
+            console.warn(`⚠️ No auth user — no token sent for: ${config.url}`);
           }
         } catch (error) {
           console.error('❌ Failed to retrieve Firebase ID token:', error);
@@ -37,7 +37,48 @@ class ApiClient {
       },
       (error) => Promise.reject(error)
     );
+
+    // ── Response interceptor: handle { success: false } soft errors ──────────
+    //
+    // The backend returns HTTP 200 with { success: false, message } for
+    // non-critical failures (e.g. a Firestore write that failed after auth passed).
+    // This interceptor catches those in one place so no screen needs to check for it.
+    //
+    // Real HTTP error codes (401, 403, 404, 400) are NOT caught here —
+    // they still throw so the app can handle them structurally (e.g. redirect to login).
+    this.api.interceptors.response.use(
+      (response) => {
+        const data = response.data;
+
+        // Only trigger for objects that explicitly set success: false
+        if (
+          data !== null &&
+          typeof data === 'object' &&
+          !Array.isArray(data) &&           // don't interfere with feed arrays
+          data.success === false &&
+          typeof data.message === 'string'
+        ) {
+          console.warn(`[ApiClient] Soft error from ${response.config.url}: ${data.message}`);
+
+          Alert.alert(
+            'שגיאה / Error',
+            data.message,
+            [{ text: 'OK', style: 'default' }]
+          );
+        }
+
+        // Always return the response so the calling code still gets its data
+        return response;
+      },
+      (error) => {
+        // Real HTTP errors (4xx / 5xx / network timeout) — let them propagate
+        // so the app can handle auth failures, redirects, etc. as before.
+        return Promise.reject(error);
+      }
+    );
   }
+
+  // ─── Base HTTP methods ────────────────────────────────────────────────────
 
   public async get<T = any>(url: string, config?: any) {
     return this.api.get<T>(url, config);
@@ -51,96 +92,84 @@ class ApiClient {
     return this.api.put<T>(url, data, config);
   }
 
+  public async patch<T = any>(url: string, data?: any, config?: any) {
+    return this.api.patch<T>(url, data, config);
+  }
+
   public async delete<T = any>(url: string, config?: any) {
     return this.api.delete<T>(url, config);
   }
 
   // ─── 1. USER ENDPOINTS ───────────────────────────────────────────────────
-  
-  /**
-   * Syncs the authenticated user profile with the backend Firestore schema.
-   * Handles Hebrew strings perfectly.
-   */
+
   async syncUserProfile(profileData: {
-    newUid: string;
-    email: string;
-    displayNameHe: string;
-    displayNameEn: string;
-    role: 'student' | 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'system_admin';
-    facultyId: string;
-    degreeType?: 'bachelors' | 'masters' | null;
-    yearOfStudy?: number | null;
-    major?: string | null;
-    studentId?: string | null;
+    newUid:         string;
+    email:          string;
+    displayNameHe:  string;
+    displayNameEn:  string;
+    role:           'student' | 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'system_admin';
+    facultyId:      string;
+    degreeType?:    'bachelors' | 'masters' | null;
+    yearOfStudy?:   number | null;
+    major?:         string | null;
+    studentId?:     string | null;
   }) {
     const response = await this.api.post('/api/users/sync', profileData);
     return response.data;
   }
-  
 
-  // ─── 2. MILESTONE WORKFLOW ENDPOINTS ──────────────────────────────────────
+  // ─── 2. MILESTONE ENDPOINTS ───────────────────────────────────────────────
 
-  /**
-   * Submits a project milestone (Proposal, Progress Report, Final Thesis)
-   */
-  async submitMilestone(payload: {
-    projectId: string;
-    milestoneType: 'proposal' | 'progress_report' | 'final_thesis';
-    fileUrl: string; // The Cloudinary secure resource link
-    comments?: string;
-  }) {
-    const response = await this.api.post('/api/milestones/submit', payload);
+  async submitMilestone(milestoneId: string, formData: FormData) {
+    const response = await this.api.post(
+      `/api/milestones/${milestoneId}/submit`,
+      formData,
+      {
+        headers:          { 'Content-Type': 'multipart/form-data' },
+        transformRequest: (data) => data,
+      }
+    );
     return response.data;
   }
 
-  /**
-   * Logs a supervisor or coordinator's assessment grade form
-   */
   async gradeMilestone(payload: {
-    projectId: string;
+    projectId:     string;
     milestoneType: 'proposal' | 'progress_report' | 'final_thesis';
-    scores: Record<string, number>; // Object holding standard evaluation rows
-    feedback: string;               // Bilingual feedback string
-    approved: boolean;
+    scores:        Record<string, number>;
+    feedback:      string;
+    approved:      boolean;
   }) {
     const response = await this.api.post('/api/milestones/grade', payload);
     return response.data;
   }
 
+  async getMilestones(params: {
+    projectId?:    string;
+    supervisorId?: string;
+    studentId?:    string;
+    facultyId?:    string;
+    statusFilter?: string[];
+  }) {
+    const response = await this.api.get('/api/milestones', { params });
+    return response.data;
+  }
+
   // ─── 3. NOTIFICATION ENDPOINTS ───────────────────────────────────────────
 
-  /**
-   * Dispatches direct notification logs and triggers Expo push alerts
-   */
   async triggerNotification(payload: {
     recipientUid: string;
-    title: string; // Supports Hebrew e.g., "הגשת אבן דרך עודכנה"
-    body: string;
-    data?: Record<string, any>;
+    title:        string;
+    body:         string;
+    data?:        Record<string, any>;
   }) {
     const response = await this.api.post('/api/notifications/trigger', payload);
     return response.data;
   }
 
-  async markNotificationRead(
-    notificationId: string
-  ) {
+  async markNotificationRead(notificationId: string) {
     const response = await this.api.patch(`/api/notifications/${notificationId}/read`);
-    return response.data;
-  };
-
-  async getMilestones(params: {
-    projectId?: string;
-    supervisorId?: string;
-    studentId?: string;
-    facultyId?: string;
-    statusFilter?: string[];
-  }) {
-    
-    const response = await this.api.get('/api/milestones', { params });
     return response.data;
   }
 }
 
-// Export a single singleton instance to use across your entire application components/screens
 export const apiClient = new ApiClient();
