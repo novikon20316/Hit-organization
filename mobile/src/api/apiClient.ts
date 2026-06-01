@@ -3,7 +3,7 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { Alert } from 'react-native';
 import { auth } from '../firebase/firebase';
 
-const SERVER_URL = 'http://10.100.102.22:5000'; /** NEED TO CHANGE THE IP WHEN YOU RECONNECT TO ANY NETWORK **/
+const SERVER_URL = 'http://XXXXXXXXXXXXXXXX:XXXXX'; /** NEED TO CHANGE THE IP WHEN YOU RECONNECT TO ANY NETWORK **/
 
 class ApiClient {
   private api: AxiosInstance;
