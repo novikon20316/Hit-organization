@@ -1,6 +1,5 @@
 import { StyleSheet, I18nManager } from 'react-native';
-import { palette, spacing, radius, shadows, fontSize, fontWeight } from './theme';
-import { cardStyles } from './index';
+import { palette, spacing, radius, shadows, fontSize, fontWeight, cardStyles } from './theme';
 
 export const PRIMARY = "#2E86FF"; // replace with HIT logo color if needed
 export const loginStyles = StyleSheet.create({
@@ -643,9 +642,34 @@ export const sharedStyles = StyleSheet.create({
     borderColor: '#D0DEFF',
     borderStyle: 'dashed',
     alignItems: 'center',
+    marginBottom: 4,
   },
   uploadBtnDone: { borderColor: '#4CAF50', borderStyle: 'solid', backgroundColor: '#F1FFF3' },
   uploadBtnText: { fontSize: 14, color: '#5577AA', fontWeight: '500' },
+
+  // ── Deadline Row Styles ────────────────────────────────────────────────────
+  deadlineRow: {
+    ...cardStyles.base,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  label: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semi,
+    color: palette.textSecondary,
+  },
+  value: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: palette.textPrimary,
+  },
+  daysLeft: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.bold,
+    marginLeft: spacing.sm,
+  },
 });
 
 export const studentHomeStyles = StyleSheet.create({
@@ -948,6 +972,23 @@ export const coordinatorHomeStyles = StyleSheet.create({
     paddingVertical: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F4FF',
+  },
+
+  // ── Deadline Styles ────────────────────────────────────────────────────────
+  deadlineLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  deadlineValue: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  deadlineDaysLeft: {
+    fontSize: 18,
+    fontWeight: '700',
   },
 });
 

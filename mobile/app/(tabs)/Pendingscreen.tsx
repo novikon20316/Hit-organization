@@ -4,7 +4,7 @@ import {
   View, Text, ScrollView, Pressable, Alert,
 } from 'react-native';
 import { tx, type Lang } from '../../components/i18n';
-import type { PendingApplication } from '../../hooks/useStudentData';
+import type { PendingApplication } from '@/types';
 import {PendingScreenStyles} from '@/constants'
 import { apiClient } from '../../src/api/apiClient';
 

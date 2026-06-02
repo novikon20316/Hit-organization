@@ -1,28 +1,21 @@
 // components/modals/NewProjectModal.tsx
-import React, { useState } from "react";
+import React from "react";
+import {AppUser, GradingCriterion, DegreeLevel, Program, Faculty, UserRole }from '@/types'
 import { tx } from '../../components/i18n';
 import {
   Modal, View, Text, ScrollView, Pressable,
-  TextInput, ActivityIndicator,
+  TextInput, ActivityIndicator, StyleSheet
 } from "react-native";
 
-interface AppUser {
-  id: string;
-  displayName?: string;
-  email?: string;
-  role?: string;
-  facultyId?: string;
-  expoPushToken?: string;
+// Returns true if the user holds a given role (checks both roles[] and the
+// legacy single role field so old data keeps working)
+function userHasRole(user: AppUser | undefined, role: UserRole): boolean {
+  if (!user) return false;
+  if (user.roles?.includes(role)) return true;
+  return user.role === role;
 }
 
-type FacultyColors = Record<string, { primary: string; label: Record<string, string> }>;
-
-// ─── Criterion shape ──────────────────────────────────────────────────────────
-export interface GradingCriterion {
-  key:   string; // unique identifier, e.g. 'clarity'
-  label: string; // display name, e.g. 'Research Clarity'
-  maxScore: number;
-}
+type FacultyColors = Record<string, { primary: string; light?: string; label: Record<string, string> }>;
 
 export const DEFAULT_CRITERIA: GradingCriterion[] = [
   { key: 'clarity',     label: 'Research Clarity', maxScore: 20 },
@@ -31,6 +24,85 @@ export const DEFAULT_CRITERIA: GradingCriterion[] = [
   { key: 'innovation',  label: 'Innovation',        maxScore: 15 },
   { key: 'writing',     label: 'Writing Quality',   maxScore: 20 },
 ];
+
+// ─── HIT Faculty & Program Data ───────────────────────────────────────────────
+
+export const HIT_FACULTIES: Faculty[] = [
+  {
+    key:   "sciences",
+    label: { he: "הפקולטה למדעים", en: "Faculty of Sciences" },
+    programs: [
+      { key: "bsc_cs",       label: { he: "B.Sc במדעי המחשב",                       en: "B.Sc in Computer Science"            }, level: "bachelors" },
+      { key: "bsc_math",     label: { he: "B.Sc במתמטיקה שימושית",                  en: "B.Sc in Applied Mathematics"         }, level: "bachelors" },
+      { key: "dual_math",    label: { he: "מסלול דו-תואר במתמטיקה שימושית",          en: "Dual Degree in Applied Mathematics"  }, level: "bachelors" },
+      { key: "msc_cs",       label: { he: "M.Sc במדעי המחשב (עם תזה)",              en: "M.Sc in Computer Science (with Thesis)"    }, level: "masters" },
+      { key: "msc_cs_notx",  label: { he: "M.Sc במדעי המחשב (ללא תזה)",             en: "M.Sc in Computer Science (without Thesis)" }, level: "masters" },
+      { key: "msc_ds",       label: { he: "M.Sc במדעי הנתונים (Data Science)",       en: "M.Sc in Data Science"                      }, level: "masters" },
+    ],
+  },
+  {
+    key:   "electrical",
+    label: { he: "הפקולטה להנדסת חשמל ואלקטרוניקה", en: "Faculty of Electrical & Electronics Engineering" },
+    programs: [
+      { key: "bsc_ee",  label: { he: "B.Sc בהנדסת חשמל ואלקטרוניקה", en: "B.Sc in Electrical & Electronics Engineering" }, level: "bachelors" },
+      { key: "msc_ee",  label: { he: "M.Sc בהנדסת חשמל ואלקטרוניקה", en: "M.Sc in Electrical & Electronics Engineering" }, level: "masters"   },
+    ],
+  },
+  {
+    key:   "industrial",
+    label: { he: "הפקולטה להנדסת תעשייה וניהול טכנולוגיה", en: "Faculty of Industrial Engineering & Technology Management" },
+    programs: [
+      { key: "bsc_ie",    label: { he: "B.Sc בהנדסת תעשייה וניהול", en: "B.Sc in Industrial Engineering & Management"  }, level: "bachelors" },
+      { key: "bsc_tm",    label: { he: "B.Sc בניהול טכנולוגיה",      en: "B.Sc in Technology Management"               }, level: "bachelors" },
+      { key: "msc_tm",    label: { he: "M.Sc בניהול טכנולוגיה",      en: "M.Sc in Technology Management"               }, level: "masters"   },
+    ],
+  },
+  {
+    key:   "learning_tech",
+    label: { he: "הפקולטה לטכנולוגיות למידה", en: "Faculty of Learning Technologies" },
+    programs: [
+      { key: "ba_lt",  label: { he: "B.A בטכנולוגיות למידה", en: "B.A in Learning Technologies" }, level: "bachelors" },
+      { key: "ma_lt",  label: { he: "M.A בטכנולוגיות למידה", en: "M.A in Learning Technologies" }, level: "masters"   },
+    ],
+  },
+  {
+    key:   "medical_tech",
+    label: { he: "הפקולטה לטכנולוגיות רפואיות", en: "Faculty of Medical Technologies" },
+    programs: [
+      { key: "bsc_dmt",   label: { he: "B.Sc בטכנולוגיות דיגיטליות ברפואה", en: "B.Sc in Digital Medical Technologies" }, level: "bachelors" },
+      { key: "pre_med",   label: { he: "מסלול Pre-Med (קדם-רפואה)",           en: "Pre-Med Track"                        }, level: "bachelors" },
+    ],
+  },
+  {
+    key:   "design",
+    label: { he: "הפקולטה לעיצוב", en: "Faculty of Design" },
+    programs: [
+      { key: "bdes_vc",  label: { he: "B.Des בעיצוב תקשורת חזותית",       en: "B.Des in Visual Communication Design" }, level: "bachelors" },
+      { key: "bdes_id",  label: { he: "B.Des בעיצוב תעשייתי",              en: "B.Des in Industrial Design"           }, level: "bachelors" },
+      { key: "bdes_int", label: { he: "B.Des בעיצוב פנים",                  en: "B.Des in Interior Design"             }, level: "bachelors" },
+      { key: "mdes",     label: { he: "M.Des בעיצוב לסביבה טכנולוגית",     en: "M.Des in Design for Technological Environments" }, level: "masters" },
+    ],
+  },
+
+];
+
+// Helper: get faculty object by key
+export function getFacultyByKey(key: string): Faculty | undefined {
+  return HIT_FACULTIES.find((f) => f.key === key);
+}
+
+// Helper: get filtered programs for a given faculty + degree level
+export function getFilteredPrograms(
+  facultyKey: string,
+  level: DegreeLevel | "both",
+): Program[] {
+  const faculty = getFacultyByKey(facultyKey);
+  if (!faculty) return [];
+  if (level === "both") return faculty.programs;
+  return faculty.programs.filter((p) => p.level === level);
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
   visible:    boolean;
@@ -53,6 +125,10 @@ type Props = {
   type:      "project" | "thesis";
   setType:   (v: "project" | "thesis") => void;
 
+  // NEW: selected program
+  selectedProgram?:    string | null;
+  setSelectedProgram?: (v: string | null) => void;
+
   supervisors?:           AppUser[];
   selectedSupervisor?:    AppUser | null;
   setSelectedSupervisor?: (s: AppUser) => void;
@@ -69,13 +145,17 @@ type Props = {
   projectFile: string | null; setProjectFile: (v: string | null) => void;
   pickFile:    (v: boolean) => void;
 
-  // ── NEW: grading criteria ────────────────────────────────────────────────
   gradingCriteria:    GradingCriterion[];
   setGradingCriteria: (v: GradingCriterion[]) => void;
+
+  // The logged-in user — used to lock faculty scope for supervisors
+  currentUser?:  AppUser;
 
   facultyColors: FacultyColors;
   styles:        any;
 };
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function NewProjectModal({
   visible, setVisible, mode, lang, isRtl,
@@ -85,6 +165,7 @@ export default function NewProjectModal({
   faculty, setFaculty,
   degree,  setDegree,
   type,    setType,
+  selectedProgram, setSelectedProgram,
   supervisors, selectedSupervisor, setSelectedSupervisor, setShowConfirm,
   onCreate, creating,
   maxStudents, setMaxStudents,
@@ -92,10 +173,26 @@ export default function NewProjectModal({
   projectFile, setProjectFile,
   pickFile,
   gradingCriteria, setGradingCriteria,
+  currentUser,
   facultyColors, styles,
 }: Props) {
 
   const isAdmin = mode === "admin";
+
+  // A user is treated as a supervisor (faculty-locked) when:
+  //   - the screen passes mode="supervisor", OR
+  //   - the currentUser holds the "supervisor" role (even alongside other roles)
+  // Admins and faculty_admins are never locked even if they also supervise.
+  const isSupervisor =
+    mode === "supervisor" ||
+    (!isAdmin && mode !== "faculty_admin" && userHasRole(currentUser, "supervisor"));
+
+  // ── For supervisors: faculty is fixed to their own facultyId ────────────────
+  // The parent should still pass faculty / setFaculty; we just auto-lock it.
+  const effectiveFaculty = isSupervisor ? (currentUser?.facultyId ?? faculty) : faculty;
+  const supervisorFacultyObj = isSupervisor
+    ? getFacultyByKey(effectiveFaculty ?? "")
+    : null;
 
   // ── Criteria helpers ────────────────────────────────────────────────────────
   const totalMax = gradingCriteria.reduce((s, c) => s + (Number(c.maxScore) || 0), 0);
@@ -121,11 +218,40 @@ export default function NewProjectModal({
     setGradingCriteria(gradingCriteria.filter((_, i) => i !== index));
   };
 
+  // ── Faculty selection handler: reset program when faculty changes ────────────
+  const handleFacultyChange = (fid: string) => {
+    setFaculty?.(fid);
+    setSelectedProgram?.(null); // reset program selection
+  };
+
+  // ── Degree selection handler: reset program when degree changes ─────────────
+  const handleDegreeChange = (d: "bachelors" | "masters") => {
+    setDegree(d);
+    setSelectedProgram?.(null); // reset program selection
+  };
+
+
+  const hasOnlySupervisorRole =
+    currentUser &&
+    userHasRole(currentUser, "supervisor") &&
+    !userHasRole(currentUser, "system_admin") &&
+    !userHasRole(currentUser, "faculty_admin");
+
+  // ── Programs available for current faculty + degree ─────────────────────────
+  const availablePrograms: Program[] = effectiveFaculty
+    ? getFilteredPrograms(effectiveFaculty, degree)
+    : [];
+
+  const showProgramPicker = availablePrograms.length > 0;
+
+  const shouldShowClassSelection =
+    hasOnlySupervisorRole && effectiveFaculty && !showProgramPicker;
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
 
-        {/* Header */}
+        {/* ── Header ──────────────────────────────────────────────────────────── */}
         <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
           <Text style={styles.modalTitle}>
             {lang === "he" ? "פרסום פרויקט חדש" : "Post New Project"}
@@ -135,17 +261,17 @@ export default function NewProjectModal({
           </Pressable>
         </View>
 
-        {/* Basic text fields */}
+        {/* ── Basic text fields ────────────────────────────────────────────────── */}
         {[
-          { label: lang === "he" ? "כותרת בעברית *" : "Hebrew Title *",          value: titleHe, set: setTitleHe, dir: "rtl" },
-          { label: lang === "he" ? "כותרת באנגלית *" : "English Title *",         value: titleEn, set: setTitleEn, dir: "ltr" },
-          { label: lang === "he" ? "תיאור בעברית" : "Hebrew Description",         value: descHe,  set: setDescHe,  dir: "rtl", multi: true },
-          { label: lang === "he" ? "תיאור באנגלית" : "English Description",       value: descEn,  set: setDescEn,  dir: "ltr", multi: true },
+          { label: lang === "he" ? "כותרת בעברית *"   : "Hebrew Title *",       value: titleHe, set: setTitleHe, dir: "rtl" },
+          { label: lang === "he" ? "כותרת באנגלית *"  : "English Title *",      value: titleEn, set: setTitleEn, dir: "ltr" },
+          { label: lang === "he" ? "תיאור בעברית"     : "Hebrew Description",   value: descHe,  set: setDescHe,  dir: "rtl", multi: true },
+          { label: lang === "he" ? "תיאור באנגלית"    : "English Description",  value: descEn,  set: setDescEn,  dir: "ltr", multi: true },
         ].map((f) => (
-          <View key={f.label}>
-            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{f.label}</Text>
+          <View key={f.label} style={{ marginBottom: 12 }}>
+            <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>{f.label}</Text>
             <TextInput
-              style={[styles.input, f.multi && styles.textarea, { textAlign: f.dir === "rtl" ? "right" : "left" }]}
+              style={[styles.input, f.multi && styles.textarea, { textAlign: f.dir === "rtl" ? "right" : "left" }, { marginBottom: 20 }]}
               value={f.value}
               onChangeText={f.set}
               multiline={f.multi}
@@ -153,12 +279,21 @@ export default function NewProjectModal({
           </View>
         ))}
 
-        {/* File upload */}
-        <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+        {/* ── File upload ──────────────────────────────────────────────────────── */}
+        <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>
           {tx('uploadProjectInfo', lang)}
         </Text>
         <Pressable
-          style={[styles.uploadBtn, projectFile && styles.uploadBtnDone]}
+          style={[{
+            backgroundColor: projectFile ? '#F1FFF3' : '#fff',
+            borderRadius:    12,
+            padding:         16,
+            borderWidth:     2,
+            borderColor:     projectFile ? '#4CAF50' : '#D0DEFF',
+            borderStyle:     projectFile ? 'solid' : 'dashed',
+            alignItems:      'center',
+            marginBottom:    16,
+          }]}
           onPress={() => pickFile(true)}
         >
           <Text style={styles.uploadBtnText}>
@@ -166,39 +301,63 @@ export default function NewProjectModal({
           </Text>
         </Pressable>
 
-        {/* Faculty (admin only) */}
+        {/* ── Faculty: picker for admin, read-only badge for supervisor ──────── */}
         {isAdmin && (
           <>
-            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+            <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
               {lang === "he" ? "פקולטה *" : "Faculty *"}
             </Text>
-            <View style={styles.facultyGrid}>
-              {Object.entries(facultyColors)
-                .filter(([k]) => k !== "default")
-                .map(([fid, fc]) => (
+            <View style={programStyles.facultyList}>
+              {HIT_FACULTIES.map((f) => {
+                const isSelected = faculty === f.key;
+                const fc = facultyColors[f.key] ?? facultyColors["default"];
+                const accentColor = fc?.primary ?? "#2E86FF";
+                return (
                   <Pressable
-                    key={fid}
+                    key={f.key}
                     style={[
-                      styles.facultyPickerBtn,
-                      faculty === fid && { backgroundColor: fc.primary, borderColor: fc.primary },
+                      programStyles.facultyBtn,
+                      isSelected && { backgroundColor: accentColor, borderColor: accentColor },
                     ]}
-                    onPress={() => setFaculty?.(fid)}
+                    onPress={() => handleFacultyChange(f.key)}
                   >
-                    <View style={[styles.facultyPickerDot, { backgroundColor: fc.primary }]} />
-                    <Text style={[styles.facultyPickerText, faculty === fid && { color: "#fff" }]}>
-                      {fc.label[lang]}
+                    <View style={[programStyles.facultyDot, { backgroundColor: accentColor }]} />
+                    <Text style={[programStyles.facultyBtnText, isSelected && { color: "#fff" }]}>
+                      {f.label[lang]}
                     </Text>
                   </Pressable>
-                ))}
+                );
+              })}
             </View>
           </>
         )}
 
-        {/* Max students */}
-        <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+        {isSupervisor && supervisorFacultyObj && (
+          <>
+            <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
+              {lang === "he" ? "פקולטה" : "Faculty"}
+            </Text>
+            {(() => {
+              const fc = facultyColors[supervisorFacultyObj.key] ?? facultyColors["default"];
+              const accentColor = fc?.primary ?? "#2E86FF";
+              return (
+                <View style={[programStyles.supervisorFacultyBadge, { borderColor: accentColor, backgroundColor: fc?.light ?? "#F8FAFF" }]}>
+                  <View style={[programStyles.facultyDot, { backgroundColor: accentColor }]} />
+                  <Text style={[programStyles.supervisorFacultyText, { color: accentColor }]}>
+                    {supervisorFacultyObj.label[lang]}
+                  </Text>
+                  <Text style={programStyles.supervisorFacultyLock}>🔒</Text>
+                </View>
+              );
+            })()}
+          </>
+        )}
+
+        {/* ── Max students ─────────────────────────────────────────────────────── */}
+        <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
           {lang === "he" ? "מספר סטודנטים" : "Max Students"}
         </Text>
-        <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
+        <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
           {[1, 2, 3, 4].map((num) => (
             <Pressable
               key={num}
@@ -212,45 +371,144 @@ export default function NewProjectModal({
           ))}
         </View>
 
-        {/* Degree */}
-        <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+        {/* ── Degree ───────────────────────────────────────────────────────────── */}
+        <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
           {lang === "he" ? "סוג תואר" : "Degree Type"}
         </Text>
-        <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-          {["bachelors", "masters"].map((d) => (
+        <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
+          {(["bachelors", "masters"] as const).map((d) => (
             <Pressable
               key={d}
               style={[styles.toggleBtn, degree === d && styles.toggleBtnActive]}
-              onPress={() => setDegree(d as any)}
+              onPress={() => handleDegreeChange(d)}
             >
-              <Text style={[styles.toggleText, degree === d && styles.toggleTextActive]}>{d}</Text>
+              <Text style={[styles.toggleText, degree === d && styles.toggleTextActive]}>
+                {d === "bachelors"
+                  ? (lang === "he" ? "תואר ראשון" : "Bachelor's")
+                  : (lang === "he" ? "תואר שני"   : "Master's")}
+              </Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Type */}
-        <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+        {/* ── Program picker (shown when faculty + degree are selected) ───────── */}
+        {showProgramPicker && (
+          <View style={programStyles.section}>
+            <Text style={[programStyles.sectionTitle, { marginBottom: 10 }]}>
+              {lang === "he" ? "מסלול לימודים *" : "Study Program *"}
+            </Text>
+
+            {availablePrograms.map((p) => {
+              const isSelected = selectedProgram === p.key;
+              return (
+                <Pressable
+                  key={p.key}
+                  style={[programStyles.programBtn, isSelected && programStyles.programBtnActive]}
+                  onPress={() => setSelectedProgram?.(isSelected ? null : p.key)}
+                >
+                  <View style={[programStyles.programRadio, isSelected && programStyles.programRadioActive]}>
+                    {isSelected && <View style={programStyles.programRadioDot} />}
+                  </View>
+                  <Text style={[programStyles.programBtnText, isSelected && programStyles.programBtnTextActive]}>
+                    {p.label[lang]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Hint when faculty is selected but no programs match degree */}
+        {effectiveFaculty && !showProgramPicker && (
+          hasOnlySupervisorRole ? (
+            <View style={programStyles.section}>
+              <Text style={[programStyles.sectionTitle, { marginBottom: 10 }]}>
+                {lang === "he"
+                  ? "בחר מסלול"
+                  : "Select Program"}
+              </Text>
+
+              {(
+                getFacultyByKey(currentUser?.facultyId ?? "")?.programs || []
+              ).map((p) => {
+                const isSelected = selectedProgram === p.key;
+
+                return (
+                  <Pressable
+                    key={p.key}
+                    style={[
+                      programStyles.programBtn,
+                      isSelected && programStyles.programBtnActive,
+                    ]}
+                    onPress={() =>
+                      setSelectedProgram?.(isSelected ? null : p.key)
+                    }
+                  >
+                    <View
+                      style={[
+                        programStyles.programRadio,
+                        isSelected && programStyles.programRadioActive,
+                      ]}
+                    >
+                      {isSelected && (
+                        <View style={programStyles.programRadioDot} />
+                      )}
+                    </View>
+
+                    <Text
+                      style={[
+                        programStyles.programBtnText,
+                        isSelected && programStyles.programBtnTextActive,
+                      ]}
+                    >
+                      {p.label[lang]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={programStyles.emptyHint}>
+              <Text style={programStyles.emptyHintText}>
+                {lang === "he"
+                  ? "אין מסלולים זמינים לפקולטה זו עבור הדרגה שנבחרה."
+                  : "No programs available for this faculty at the selected degree level."}
+              </Text>
+            </View>
+          )
+        )}
+        {/* ── Type ─────────────────────────────────────────────────────────────── */}
+        <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
           {lang === "he" ? "סוג פרויקט" : "Project Type"}
         </Text>
-        <View style={[styles.toggleRow, isRtl && styles.rowReverse]}>
-          {["project", "thesis"].map((t) => (
+        <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
+          {(["project", "thesis"] as const).map((t) => (
             <Pressable
               key={t}
               style={[styles.toggleBtn, type === t && styles.toggleBtnActive]}
-              onPress={() => setType(t as any)}
+              onPress={() => setType(t)}
             >
-              <Text style={[styles.toggleText, type === t && styles.toggleTextActive]}>{t}</Text>
+              <Text style={[styles.toggleText, type === t && styles.toggleTextActive]}>
+                {t === "project"
+                  ? (lang === "he" ? "פרויקט" : "Project")
+                  : (lang === "he" ? "תזה"    : "Thesis")}
+              </Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Supervisors (admin only) */}
+        {/* ── Supervisors (admin only) ─────────────────────────────────────────── */}
         {isAdmin && supervisors?.length ? (
           <>
             <Text style={styles.fieldLabel}>
               {lang === "he" ? "בחר מנחה" : "Select Supervisor"}
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 8 }}
+              contentContainerStyle={{ paddingVertical: 4, paddingHorizontal: 2 }}
+            >
               {supervisors.map((s) => (
                 <Pressable
                   key={s.id}
@@ -307,7 +565,7 @@ export default function NewProjectModal({
               </View>
               <View style={{ width: 70 }}>
                 <Text style={criteriaStyles.criterionLabel}>
-                  {lang === 'he' ? 'מקס׳' : 'Max'}
+                  {lang === 'he' ? "מקס'" : 'Max'}
                 </Text>
                 <TextInput
                   style={[criteriaStyles.criterionInput, { textAlign: 'center' }]}
@@ -332,7 +590,7 @@ export default function NewProjectModal({
           </Pressable>
         </View>
 
-        {/* Submit */}
+        {/* ── Submit ───────────────────────────────────────────────────────────── */}
         <Pressable style={styles.submitBtn} onPress={onCreate} disabled={creating}>
           {creating
             ? <ActivityIndicator color="#fff" />
@@ -347,8 +605,127 @@ export default function NewProjectModal({
   );
 }
 
+// ─── Program picker styles ────────────────────────────────────────────────────
+
+const programStyles = StyleSheet.create({
+  facultyList: {
+    gap:          8,
+    marginBottom: 16,
+  },
+  facultyBtn: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: 14,
+    paddingVertical:   10,
+    borderRadius:      12,
+    borderWidth:       1.5,
+    borderColor:       '#D0DEFF',
+    backgroundColor:   '#F8FAFF',
+    gap:               8,
+  },
+  facultyDot: {
+    width:        10,
+    height:       10,
+    borderRadius: 5,
+  },
+  facultyBtnText: {
+    fontSize:   14,
+    color:      '#374151',
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  section: {
+    marginTop:       12,
+    marginBottom:    8,
+    backgroundColor: '#F8FAFF',
+    borderRadius:    16,
+    padding:         16,
+    borderWidth:     1,
+    borderColor:     '#E0E8FF',
+  },
+  sectionTitle: {
+    fontSize:   15,
+    fontWeight: '700',
+    color:      '#111827',
+  },
+  programBtn: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: 14,
+    paddingVertical:   11,
+    borderRadius:      12,
+    borderWidth:       1.5,
+    borderColor:       '#D0DEFF',
+    backgroundColor:   '#fff',
+    marginBottom:      8,
+    gap:               10,
+  },
+  programBtnActive: {
+    borderColor:     '#2E86FF',
+    backgroundColor: '#EBF3FF',
+  },
+  programBtnText: {
+    fontSize:   14,
+    color:      '#374151',
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  programBtnTextActive: {
+    color:      '#1A5FCC',
+    fontWeight: '600',
+  },
+  programRadio: {
+    width:           18,
+    height:          18,
+    borderRadius:    9,
+    borderWidth:     2,
+    borderColor:     '#9BA8C0',
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  programRadioActive: {
+    borderColor: '#2E86FF',
+  },
+  programRadioDot: {
+    width:           8,
+    height:          8,
+    borderRadius:    4,
+    backgroundColor: '#2E86FF',
+  },
+  supervisorFacultyBadge: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    alignSelf:         'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical:   10,
+    borderRadius:      12,
+    borderWidth:       1.5,
+    gap:               8,
+    marginBottom:      16,
+  },
+  supervisorFacultyText: {
+    fontSize:   14,
+    fontWeight: '600',
+  },
+  supervisorFacultyLock: {
+    fontSize: 13,
+    marginLeft: 2,
+  },
+  emptyHint: {
+    padding:         12,
+    backgroundColor: '#FFFBEB',
+    borderRadius:    10,
+    borderWidth:     1,
+    borderColor:     '#FDE68A',
+    marginBottom:    12,
+  },
+  emptyHintText: {
+    fontSize: 13,
+    color:    '#92400E',
+  },
+});
+
 // ─── Criteria section styles ──────────────────────────────────────────────────
-import { StyleSheet } from 'react-native';
 
 const criteriaStyles = StyleSheet.create({
   section: {
@@ -362,14 +739,14 @@ const criteriaStyles = StyleSheet.create({
   },
   sectionHeader: {
     flexDirection:    'row',
-    justifyContent:   'space-between',
+    justifyContent:  'space-between',
     alignItems:       'center',
     marginBottom:     12,
   },
   sectionTitle: {
-    fontSize:         15,
-    fontWeight:       '700',
-    color:            '#111827',
+    fontSize:   15,
+    fontWeight: '700',
+    color:      '#111827',
   },
   totalBadge: {
     paddingHorizontal: 10,
@@ -387,9 +764,9 @@ const criteriaStyles = StyleSheet.create({
     fontWeight:   '600',
   },
   criterionRow: {
-    flexDirection:  'row',
-    alignItems:     'flex-end',
-    marginBottom:   10,
+    flexDirection: 'row',
+    alignItems:    'flex-end',
+    marginBottom:  10,
   },
   criterionLabel: {
     fontSize:     11,

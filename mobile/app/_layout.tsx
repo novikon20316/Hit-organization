@@ -1,8 +1,8 @@
 // app/_layout.tsx
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, usePathname } from "expo-router";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useEffect, useState } from "react";
-import { Alert, Platform } from 'react-native';
+import { useCallback, useEffect, useState } from "react";
+import { View, Text, ActivityIndicator, Alert, Platform } from 'react-native';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../src/firebase/firebase";
 import { apiClient } from "../src/api/apiClient";
@@ -11,6 +11,8 @@ import * as Device from 'expo-device';
 import { useSafeKeepAwake } from '@/hooks/useSafeKeepAwake';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
+import { NotificationsProvider } from '../src/context/NotificationsContext';
+
 
 // ─── Android notification channel ─────────────────────────────────────────────
 // Must be set up before any notification can appear on Android.
@@ -84,25 +86,69 @@ const registerPushToken = async () => {
 // ─── Root layout ──────────────────────────────────────────────────────────────
 export default function RootLayout() {
   const router = useRouter();
+  const pathname = usePathname();
   useSafeKeepAwake();
   const [loading, setLoading] = useState(true);
+  type RouterTarget = Parameters<typeof router.replace>[0];
+  const [pendingRedirect, setPendingRedirect] = useState<RouterTarget | null>(null);
 
-  // ── Auth state → role-based routing ────────────────────────────────────────
   useEffect(() => {
+    if (!pendingRedirect) return;
+    if (pathname === pendingRedirect) {
+      setPendingRedirect(null);
+      return;
+    }
+    router.replace(pendingRedirect);
+  }, [pathname, pendingRedirect, router]);
+
+  const scheduleRedirect = useCallback((target: RouterTarget) => {
+    if (pathname === target) return;
+    if (pendingRedirect === target) return;
+    setPendingRedirect(target);
+  }, [pathname, pendingRedirect]);
+
+  // ── Auth state → role-based routing ────────────────────────
+  useEffect(() => {
+    console.log("PATHNAME:", pathname);
+    const authRoutes = new Set<string>([
+      '/',
+      '/index',
+      '/login',
+      '/signup',
+      '/register',
+    ]);
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
+        console.log('No user, pathname =', pathname);
+        console.log('authRoutes has pathname?', authRoutes.has(pathname));
+        if (!authRoutes.has(pathname)) {
+          console.log('Redirecting to login');
+          scheduleRedirect('/(auth)/login');
+        }
         setLoading(false);
         return;
       }
 
       try {
-        const response = await apiClient.get('/api/users/me');
-        console.log('👤 /me response:', JSON.stringify(response.data));
-        console.log('👤 role:', response.data?.role);
-        const userData = response.data;
+        let userData = null;
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          try {
+            const response = await apiClient.get('/api/users/me');
+            userData = response.data;
+            break;
+          } catch (err: any) {
+            if (err?.response?.status === 404 && attempt < 5) {
+              console.log(`⏳ /me attempt ${attempt} — retrying...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+              throw err;
+            }
+          }
+        }
 
         if (!userData) {
-          router.replace('/(auth)/login');
+          scheduleRedirect('/(auth)/login');
           setLoading(false);
           return;
         }
@@ -110,40 +156,35 @@ export default function RootLayout() {
         const role = userData.role;
         await registerPushToken();
 
-        setTimeout(() => {
-          if      (role === 'system_admin')   router.replace('/admin/panel');
-          else if (role === 'faculty_admin')  router.replace('/faculty_admin/dashboard');
-          else if (role === 'coordinator')    router.replace('/coordinator/home');
-          else if (role === 'supervisor')     router.replace('/supervisor/dashboard');
-          else if (role === 'student')        router.replace('/student/home');
-          else if (role === 'examiner')       router.replace('/examinor/home');
-          else                                router.replace('/(auth)/login');
-        }, 250);
+        if (authRoutes.has(pathname)) {
+          scheduleRedirect(
+            role === 'system_admin'   ? '/admin/panel'
+          : role === 'faculty_admin'  ? '/faculty_admin/dashboard'
+          : role === 'coordinator'    ? '/coordinator/home'
+          : role === 'supervisor'     ? '/supervisor/dashboard'
+          : role === 'student'        ? '/student/home'
+          : role === 'examiner'       ? '/examinor/home'
+          : '/(auth)/login'
+          );
+        }
+        setLoading(false);
 
       } catch (err: any) {
         console.error('Auth state exception caught:', err);
-
         if (err?.message === 'Network Error' || !err.response) {
           Alert.alert(
             'Network Connection Error / שגיאת חיבור',
-            'There is a problem with the internet connection. Please try again later.\n\n' +
-            'ישנה בעיה בחיבור לאינטרנט או לשרת הפיתוח. אנא נסה שנית מאוחר יותר.'
+            'There is a problem with the internet connection.\n\nישנה בעיה בחיבור לאינטרנט.'
           );
           await auth.signOut();
-          router.replace('/(auth)/login');
-        } else if (err?.response?.status === 404) {
-          console.log('ℹ️ New user profile record missing, routing to login form.');
-          router.replace('/(auth)/login');
-        } else {
-          router.replace('/(auth)/login');
         }
-      } finally {
+        scheduleRedirect('/(auth)/login');
         setLoading(false);
       }
     });
 
     return unsub;
-  }, []);
+  }, [scheduleRedirect, pathname]);
 
   // ── Notification listeners ──────────────────────────────────────────────────
   // ⚠️  The empty [] dependency array is critical — without it this effect
@@ -180,21 +221,29 @@ export default function RootLayout() {
       notifListener.remove();
       responseListener.remove();
     };
-  }, []); // ← empty array: register once, never re-register
+  }, [router]); // ← router is stable in expo-router, keep listener registration once per navigator instance
 
   if (loading) {
     return (
-      <SafeAreaProvider>
+      <SafeAreaProvider> 
         <StatusBar style="auto" translucent={false} />
-        <Stack screenOptions={{ headerShown: false }} />
-      </SafeAreaProvider>
+        {/* ✅ Replace the empty Stack with an actual loading screen */}
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F4FF' }}>
+          <ActivityIndicator size="large" color="#2E86FF" />
+          <Text style={{ marginTop: 16, fontSize: 16, color: '#2E86FF', fontWeight: '600' }}>
+            Signing in...
+          </Text>
+        </View>
+    </SafeAreaProvider>
     );
   }
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" translucent={false} />
-      <Stack screenOptions={{ headerShown: false }} />
+      <NotificationsProvider>
+        <StatusBar style="auto" translucent={false} />
+        <Stack screenOptions={{ headerShown: false }} />
+      </NotificationsProvider>
     </SafeAreaProvider>
   );
 }

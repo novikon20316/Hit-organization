@@ -7,6 +7,8 @@ import {
   Alert,
   Switch,
   Dimensions,
+  Pressable,
+  StyleSheet,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +24,7 @@ import {
   TopBar,
   FACULTY_COLORS,
 } from '../../components/shared';
-import { GradingCriterion } from '../../components/modals/NewProjectModal'
+import { GradingCriterion, AppUser, SystemStats, UserRecord, ProjectRecord, MilestoneRecord } from '@/types'
 import { ROLE_LABELS } from '../../constants';
 
 import {
@@ -34,56 +36,6 @@ import {
 
 const { width } = Dimensions.get('window');
 
-interface AppUser {
-  id: string;
-  displayName?: string;
-  email?: string;
-  role?: string;
-  facultyId?: string;
-  expoPushToken?: string;
-}
-
-interface SystemStats {
-  totalUsers: number;
-  totalProjects: number;
-  activeProjects: number;
-  totalMilestones: number;
-  pendingMilestones: number;
-}
-
-interface UserRecord {
-  id: string;
-  displayName: string;
-  email: string;
-  role: string;
-  facultyId: string;
-  isActive: boolean;
-}
-
-interface ProjectRecord {
-  id: string;
-  titleHe: string;
-  titleEn: string;
-  facultyId: string;
-  status: string;
-  supervisorName: string;
-  degreeType: string;
-  projectType: string;
-  academicYear: string;
-  enrolledStudentIds: string[];
-}
-
-interface MilestoneRecord {
-  id: string;
-  projectId: string;
-  type: string;
-  status: string;
-  projectTitleHe: string;
-  projectTitleEn: string;
-  facultyId: string;
-  studentNames: string[];
-}
-
 export default function PanelScreen() {
   const router = useRouter();
 
@@ -92,21 +44,25 @@ export default function PanelScreen() {
 
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState('');
-  const [unreadCount, setUnreadCount] = useState(0);
-
+  
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones'
+    'overview' | 'users' | 'projects' | 'milestones' | 'deadlines'
   >('overview');
+
+  const [deadlines, setDeadlines] = useState<any[]>([]);
+  const [loadingDeadlines, setLoadingDeadlines] = useState(false);
 
   const [userModal, setUserModal] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
-
+  const [editFaculty, setEditFaculty] = useState<string>('');
+  const [editRole , setEditRole] = useState<string>('');
+  const [editRoles, setEditRoles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-
+  const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
   const [showNewUser, setShowNewUser] = useState(false);
   const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
   const [newProjectFaculty, setNewProjectFaculty] = useState('');
@@ -139,7 +95,6 @@ export default function PanelScreen() {
       
       setAdminName(response.data.adminName || 'Admin');
       setAdminFacultyId(response.data.adminFacultyId || '');
-      setUnreadCount(response.data.unreadCount || 0);
       setUsers(response.data.users || []);
       setProjects(response.data.projects || []);
       setMilestones(response.data.milestones || []);
@@ -156,50 +111,51 @@ export default function PanelScreen() {
     fetchAdminDashboard();
   }, []);
 
+  useEffect(() => {
+    if (activeTab !== 'deadlines') return;
+    const fetchDeadlines = async () => {
+      try {
+        setLoadingDeadlines(true);
+        const res = await apiClient.get('/api/staff/deadlines');
+        setDeadlines(res.data.rows || []);
+      } catch (e) {
+        console.error('Failed to load deadlines', e);
+        Alert.alert('Error', 'Failed to load deadlines');
+      } finally {
+        setLoadingDeadlines(false);
+      }
+    };
+    fetchDeadlines();
+  }, [activeTab]);
+
+  
   // ─── 🆕 CRUD Request Actions ──────────────────────────────────────────────
   
   // ─── 🆕 Fix: handleSaveUser Parameters Matching () => void ──────────────
   const handleSaveUser = async () => {
     if (!editUser) return;
-
     try {
       setSaving(true);
-      // Synchronize modal changes seamlessly to the API backend
-      await apiClient.post(`/api/admin/users/${editUser.id}`, {
-        isActive: editUser.isActive,
-        role: editUser.role,
-        facultyId: editUser.facultyId
+      await apiClient.post(`/api/admin/users/${editUser.id}/role-update`, {
+        role:      editRole,
+        roles:     editRoles,     // ← ADD
+        facultyId: editFaculty,
       });
-
-      Alert.alert('Success', 'User metadata aligned successfully');
+      Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
       setUserModal(false);
-      await fetchAdminDashboard();
+      fetchAdminDashboard();
     } catch (e) {
-      console.error(e);
-      Alert.alert('Error', 'Failed to execute user schema updates');
+      console.log(e);
     } finally {
       setSaving(false);
     }
   };
 
-  // ─── 🆕 Fix: toggleUserActive Definition ───────────────────────────────
-  const toggleUserActive = async (userId: string, currentStatus: boolean) => {
-    try {
-      await apiClient.post(`/api/admin/users/${userId}/toggle-active`, {
-        isActive: !currentStatus,
-      });
-      // Perform hot reloading update directly on state items array
-      setUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === userId ? { ...u, isActive: !currentStatus } : u))
-      );
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'Failed to update user accessibility permission');
-    }
-  };
-
   const openEditUser = (user: UserRecord) => {
     setEditUser(user);
+    setEditRole(user.role);
+    setEditRoles(user.roles?.length ? user.roles : [user.role]); // ← ADD
+    setEditFaculty(user.facultyId);
     setUserModal(true);
   };
 
@@ -264,6 +220,40 @@ export default function PanelScreen() {
     }
   };
 
+  const toggleUserActive = async (userId: string, current: boolean) => {
+    try {
+      await apiClient.post(`/api/admin/users/${userId}/faculty_admin_toggle-status`, {
+        isActive: !current,
+      });
+
+      // optimistic UI update
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? { ...u, isActive: !current }
+            : u
+        )
+      );
+
+      Alert.alert(
+        'Success',
+        lang === 'he'
+          ? 'סטטוס המשתמש עודכן'
+          : 'User status updated'
+      );
+
+    } catch (e) {
+      console.error('Toggle user error:', e);
+
+      Alert.alert(
+        'Error',
+        lang === 'he'
+          ? 'שגיאה בעדכון המשתמש'
+          : 'Failed to update user status'
+      );
+    }
+  };
+
   const pickFile = async (isNew: boolean) => {
     const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
     if (result.canceled || !result.assets?.length) return;
@@ -295,24 +285,106 @@ export default function PanelScreen() {
         role="faculty_admin"
         lang={lang}
         isRtl={isRtl}
-        unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/notifications')}
       />
 
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('overview')}> 
+        <Text style={localStyles.tabLabel}>Overview</Text>
+      </Pressable>
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('deadlines')}> 
+        <Text style={localStyles.tabLabel}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
+      </Pressable>
+
       <ScrollView>
+        {activeTab === 'deadlines' ? (
+            loadingDeadlines ? (
+            <ActivityIndicator size="large" />
+          ) : (
+            deadlines.length === 0 ? (
+              <View style={{ padding: 20 }}><Text>{lang === 'he' ? 'אין מועדי הגשה' : 'No deadlines available'}</Text></View>
+            ) : (
+              deadlines.map((d) => (
+                <View key={`${d.milestoneId}-${d.studentId}`} style={localStyles.deadlineRow}>
+                  {/* Student Name - Bold Header */}
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={localStyles.studentName}>👤 {d.studentName}</Text>
+                  </View>
 
-        {/* USERS */}
-        {users.map((u) => (
-          <View key={u.id}>
-            <Text>{u.displayName}</Text>
+                  {/* Info Grid */}
+                  <View style={{ marginBottom: 8 }}>
+                    {/* Degree Type & Year of Study */}
+                    <View style={{ marginBottom: 6 }}>
+                      <Text style={localStyles.label}>
+                        {lang === 'he' ? 'תואר:' : 'Degree:'} <Text style={localStyles.value}>{d.degreeType || 'N/A'}</Text>
+                      </Text>
+                      <Text style={localStyles.label}>
+                        {lang === 'he' ? 'שנה:' : 'Year:'} <Text style={localStyles.value}>{d.yearOfStudy || '—'}</Text>
+                      </Text>
+                    </View>
 
-            <Switch
-              value={u.isActive}
-              onValueChange={() => toggleUserActive(u.id, u.isActive)}
-            />
-          </View>
-        ))}
+                    {/* Project/Thesis Name */}
+                    <View style={{ marginBottom: 6 }}>
+                      <Text style={localStyles.label}>
+                        {lang === 'he' ? 'פרויקט:' : 'Project:'} <Text style={localStyles.value}>{d.projectTitle || 'N/A'}</Text>
+                      </Text>
+                    </View>
+
+                    {/* Current Milestone */}
+                    <View style={{ marginBottom: 6 }}>
+                      <Text style={localStyles.label}>
+                        {lang === 'he' ? 'אבן דרך:' : 'Milestone:'} <Text style={localStyles.value}>{d.milestoneName || 'N/A'}</Text>
+                      </Text>
+                    </View>
+
+                    {/* Days Until Due - Color Coded */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={localStyles.label}>
+                        {lang === 'he' ? 'ימים לסיום:' : 'Days Left:'}
+                      </Text>
+                      <Text
+                        style={[
+                          localStyles.daysLeft,
+                          {
+                            color: d.daysLeft !== null && d.daysLeft < 0 ? '#EF4444' : '#10B981',
+                            fontWeight: '700',
+                          },
+                        ]}
+                      >
+                        {d.daysLeft !== null ? `${d.daysLeft} ${lang === 'he' ? 'ימים' : 'days'}` : 'N/A'}
+                      </Text>
+                    </View>
+
+                    {/* Faculty (only for faculty_admin) */}
+                    {d.facultyId ? (
+                      <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+                        <Text style={localStyles.label}>
+                          {lang === 'he' ? 'פקולטה:' : 'Faculty:'} <Text style={localStyles.value}>{d.facultyId}</Text>
+                        </Text>
+                        {d.class && (
+                          <Text style={localStyles.label}>
+                            {lang === 'he' ? 'קבוצה:' : 'Class:'} <Text style={localStyles.value}>{d.class}</Text>
+                          </Text>
+                        )}
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ))
+            )
+          )
+        ) : (
+          /* USERS */
+          users.map((u) => (
+            <View key={u.id}>
+              <Text>{u.displayName}</Text>
+
+              <Switch
+                value={u.isActive}
+                onValueChange={() => toggleUserActive(u.id, u.isActive)}
+              />
+            </View>
+          ))
+        )}
 
       </ScrollView>
 
@@ -329,6 +401,8 @@ export default function PanelScreen() {
         styles={{}}
         roleLabels={ROLE_LABELS}
         facultyColors={FACULTY_COLORS}
+        roles={editRoles} 
+        setRoles={setEditRoles}
       />
 
       <NewProjectModal
@@ -378,6 +452,9 @@ export default function PanelScreen() {
         gradingCriteria={gradingCriteria}
         setGradingCriteria={setGradingCriteria}
 
+        selectedProgram={selectedProgram}
+        setSelectedProgram={setSelectedProgram}
+
         pickFile={(b) => pickFile(b)}
 
         facultyColors={FACULTY_COLORS}
@@ -386,3 +463,28 @@ export default function PanelScreen() {
     </SafeAreaView>
   );
 }
+
+const localStyles = StyleSheet.create({
+  tabBar: { padding: 10, backgroundColor: '#F3F4F6' },
+  tabLabel: { fontSize: 16, fontWeight: '600' },
+  deadlineRow: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  studentName: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  label: { fontSize: 13, fontWeight: '600', color: '#6B7280', marginBottom: 4 },
+  value: { fontSize: 13, fontWeight: '500', color: '#111827' },
+  small: { fontSize: 13, color: '#666', marginTop: 2 },
+  daysLeft: { fontSize: 18, fontWeight: '700' },
+});

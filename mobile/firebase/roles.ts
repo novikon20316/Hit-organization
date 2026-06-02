@@ -29,7 +29,7 @@ const ADMIN_USER_DOC = {
 
   // ── Role — THIS is what the Firestore rules check ───────────────────────────
   role:            "system_admin",            // ← critical field
-
+  roles:           ["system_admin", "faculty_admin", "supervisor", "coordinator"],          // ← for easier role checks in the app (can be empty if you handle "system_admin" as a special case)
   // ── Faculty — system_admin bypasses faculty checks, but field must exist ────
   facultyId:       "all",                     // "all" = cross-faculty access
 

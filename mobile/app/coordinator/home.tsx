@@ -13,73 +13,7 @@ import {type GradeWeights } from '../../components/Milestoneservice';
 import { coordinatorHomeStyles } from '../../constants/styles';
 import {STATUS_LABEL, STATUS_COLORS} from '../../constants/labels'
 import { apiClient } from '@/src/api/apiClient';
-
-
-interface PendingMilestone {
-  id: string;
-  projectId: string;
-  projectTitleHe: string;
-  projectTitleEn: string;
-  type: string;
-  status: string;
-  studentNames: string[];
-  studentIds: string[];
-  supervisorId: string;
-  supervisorScore: number | null;
-  supervisorComment?: string;
-  fileUrls?: string[];
-  submissionNote?: string;
-  
-  examinerIds: string[];
-  examiner1Score: number | null;
-  examiner2Score: number | null;
-  gradeWeights: GradeWeights | null;
-  dueDate: any;
-  facultyId: string;
-  defenseDate: any;
-  defenseRoom: string | null;
-
-  supervisorName?: string;        // ← add
-  milestoneGrades?: {             // ← add
-    type: string;
-    score: number | null;
-  }[];
-}
-
-interface Project {
-  id: string;
-  titleHe: string;
-  titleEn: string;
-  status: string;
-  facultyId: string;
-}
-
-interface InProgressProject {
-  id: string;
-  projectTitleHe: string;
-  projectTitleEn: string;
-  facultyId: string;
-  supervisorName: string;
-  status: string;
-
-  students: {
-    id: string;
-    name: string;
-    progress: number;
-    milestones: {
-      type: string;
-      status: string;
-      supervisorScore: number | null;
-    }[];
-  }[];
-}
-
-interface ExaminerUser {
-  id: string;
-  displayName: string;
-  email: string;
-  facultyId: string;
-}
+import {PendingMilestone, Project, InProgressProject, ExaminerUser} from '@/types'
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -104,8 +38,10 @@ export default function CoordinatorHome() {
 
   const [coordinatorName, setCoordinatorName] = useState('');
   const [loading, setLoading]     = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress'>('pending');
+  
+  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress' | 'deadlines'>('pending');
+  const [deadlines, setDeadlines] = useState<any[]>([]);
+  const [loadingDeadlines, setLoadingDeadlines] = useState(false);
   const [pendingMilestones, setPendingMilestones] = useState<PendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [inProgressProjects, setInProgressProjects] = useState<InProgressProject[]>([]);
@@ -133,30 +69,11 @@ export default function CoordinatorHome() {
   const [projectId, setProjectId] = useState<string>('')
   const [saving, setSaving] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
-  const uid = auth.currentUser?.uid;
 
   const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
   const toggleStudentExpansion = (projectId: string, studentIndex: number) => {
     const key = `${projectId}-${studentIndex}`;
     setExpandedStudents(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-
-  const updateProjectProgress = async (projectId: string, milestoneType: string) => {
-    try {
-      setLoading(true);
-      // 🚀 We talk only to our API. The server handles the logic!
-      await apiClient.post(`/api/projects/${projectId}/progress`, { 
-        milestoneType 
-      });
-      
-      // Refresh the UI to show the new progress
-      fetchCoordinatorDashboard(); 
-    } catch (err) {
-      Alert.alert('Error', 'Could not update progress');
-    } finally {
-      setLoading(false);
-    }
   };
 
 
@@ -167,6 +84,7 @@ export default function CoordinatorHome() {
     }));
   };
 
+
   // ── 1. Unified Fetch Loop ───────────────────────────────────────────
   const fetchCoordinatorDashboard = async () => {
     try {
@@ -174,23 +92,27 @@ export default function CoordinatorHome() {
       setLoading(true);
 
       // 🚀 Replaced all multi-collection snapshots with one optimized backend matrix call
-      const [profileRes, dashboardRes] = await Promise.all([
-        apiClient.get('/api/users/profile'),
-        apiClient.get('/api/coordinator/dashboard'),
+      const [profileRes, dashboardRes, examinersRes] = await Promise.all([
+        apiClient.get('/api/users/profile').catch(e => { console.error('❌ profile failed:', e.response?.status, e.response?.config?.url); throw e; }),
+        apiClient.get('/api/coordinator/dashboard').catch(e => { console.error('❌ dashboard failed:', e.response?.status, e.response?.config?.url); throw e; }),
+        apiClient.get('/api/examiner/get-list').catch(e => { console.error('❌ examiners failed:', e.response?.status, e.response?.config?.url); throw e; }),
         
       ]);     
-      try{
-        const ActiveProjects = await apiClient.get('/api/projects/ActiveProjects')
-        setInProgressProjects(ActiveProjects.data.InProgress || [])
-      }catch(error:any){
-        console.error("/api/projects/ActiveProjects is failing with ", error)
-      }
-
+      const ActiveProjects = await apiClient.get('/api/projects/ActiveProjects')
+      setInProgressProjects(ActiveProjects.data.InProgress || [])
       setCoordinatorName(profileRes.data?.displayName || 'Coordinator');
       if (profileRes.data?.language) setLang(profileRes.data.language);
-      setPendingMilestones(dashboardRes.data.pendingMilestones || []);
+      const allMilestones = dashboardRes.data.pendingMilestones || [];
+      setPendingMilestones(allMilestones.filter(
+        (m: PendingMilestone) =>
+          !(m.type === 'final_report' && m.status === 'graded')
+      ));
+      setDefenseSetups(allMilestones.filter(
+        (m: PendingMilestone) =>
+          m.type === 'final_report' && m.status === 'graded'
+      ));
       setProjects(dashboardRes.data.projects || []);
-      setUnreadCount(dashboardRes.data.unreadCount || 0);
+      setAllExaminers(examinersRes.data || []);
     } catch (err) {
       console.error("Failed fetching coordinator panel matrix:", err);
     } finally {
@@ -202,11 +124,29 @@ export default function CoordinatorHome() {
     fetchCoordinatorDashboard();
   }, []);
 
+  useEffect(() => {
+    if (activeTab !== 'deadlines') return;
+    const fetchDeadlines = async () => {
+      try {
+        setLoadingDeadlines(true);
+        const res = await apiClient.get('/api/staff/deadlines');
+        setDeadlines(res.data.rows || []);
+      } catch (e) {
+        console.error('Failed to load deadlines', e);
+        Alert.alert('Error', 'Failed to load deadlines');
+      } finally {
+        setLoadingDeadlines(false);
+      }
+    };
+    fetchDeadlines();
+  }, [activeTab]);
+
   // ── Approve milestone (research_proposal or progress_report) ─────────────
   const handleApprove = async (milestone: PendingMilestone) => {
     if (milestone.type === 'final_report') {
       // Open assign examiners modal instead
       setSelectedMilestone(milestone);
+      setProjectId(milestone.projectId);
       setExaminer1Id('');
       setExaminer2Id('');
       setWeightSupervisor('30');
@@ -253,6 +193,7 @@ export default function CoordinatorHome() {
   // ── Assign examiners + weights (final_report) ─────────────────────────────
   const handleAssignExaminers = async () => {
     if (!selectedMilestone) return;
+    const currentProjectId = selectedMilestone.projectId;
     if (!examiner1Id || !examiner2Id) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'יש לבחור שני בוחנים' : 'Please select both examiners');
@@ -273,18 +214,46 @@ export default function CoordinatorHome() {
     }
     try {
       setSaving(true);
-      // 🚀 Clean API call: The server will validate the examiners and update the project
-      await apiClient.post(`/api/coordinator/projects/${projectId}/assign-examiners`, {
-        examinerIds: [examiner1Id,examiner2Id],
-        
-      });
       const response = await apiClient.get('/api/config/system/defenseWindowDays')
       const defenseWindowDays = response.data;
       const calculatedDefenseDate = new Date();
       calculatedDefenseDate.setDate(
         calculatedDefenseDate.getDate() + defenseWindowDays
       );
+      if (isNaN(calculatedDefenseDate.getTime())) {
+        Alert.alert('Error', 'Failed to calculate defense date');
+        return;
+      }
       setDefenseDate(calculatedDefenseDate);
+      // 🚀 Clean API call: The server will validate the examiners and update the project
+      await apiClient.post(`/api/coordinator/projects/${projectId}/assign-examiners`, {
+        examinerIds: [examiner1Id,examiner2Id],
+        studentIds: selectedMilestone.studentIds,
+      });
+      const re = await apiClient.post(`/api/examiner/${projectId}/setDate`, {
+        examinerIds: [examiner1Id,examiner2Id],
+        date: calculatedDefenseDate.toISOString(),
+        projectId: currentProjectId,
+      });
+      if (re.data?.success) {
+        const chosen = new Date(re.data.chosenDate);
+        const formatted = chosen.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        Alert.alert(
+          lang === 'he' ? '📅 מועד הגנה נקבע' : '📅 Defense Date Set',
+          lang === 'he'
+            ? `מועד ההגנה נקבע לתאריך: ${formatted}`
+            : `The defense date is chosen to be on ${formatted}`
+        );
+        setAssignModal(false)
+      } else {
+        Alert.alert('Error', lang === 'he' ? 'שגיאה בקביעת מועד' : 'Failed to set defense date');
+      }
+      
       Alert.alert('✅', lang === 'he' ? 'בוחנים שובצו בהצלחה' : 'Examiners assigned successfully');
       fetchCoordinatorDashboard(); 
     } catch (err) {
@@ -321,6 +290,7 @@ export default function CoordinatorHome() {
     }
   };
 
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -336,9 +306,7 @@ export default function CoordinatorHome() {
         role="coordinator"
         lang={lang}
         isRtl={isRtl}
-        unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/notifications')}
       />
 
       <View style={styles.tabBar}>
@@ -362,6 +330,12 @@ export default function CoordinatorHome() {
             )}
           </Pressable>
         ))}
+        <Pressable
+          style={[styles.tab, activeTab === 'deadlines' && styles.tabActive]}
+          onPress={() => setActiveTab('deadlines')}
+        >
+          <Text style={styles.tabText}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -463,28 +437,6 @@ export default function CoordinatorHome() {
                       )}
                     </View>
                   )}
-                  <View style={styles.actionRow}>
-                    <Pressable
-                      style={styles.approveBtn}
-                      onPress={() => handleApprove(m)}
-                    >
-                      <Text style={styles.approveBtnText}>
-                        {m.type === 'final_report'
-                          ? (lang === 'he' ? '👥 אשר + הקצה בוחנים' : '👥 Approve + Assign Examiners')
-                          : (lang === 'he' ? '✅ אשר' : '✅ Approve')}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.rejectBtn}
-                      onPress={() => handleReject(m)}
-                    >
-                      <Text style={styles.rejectBtnText}>
-                        {m.type === 'final_report'
-                          ? (lang === 'he' ? '👥 דחה + אל תקצה בוחנים' : '👥 Reject + Do Not Assign Examiners')
-                          : (lang === 'he' ? '❌ דחה' : '❌ Reject')}
-                      </Text>
-                    </Pressable>
-                  </View>
                 </Pressable>
               ))
             )}
@@ -585,29 +537,22 @@ export default function CoordinatorHome() {
           <View style={styles.actionRow}>
             <Pressable
               style={styles.approveBtn}
-              onPress={() => {
-                setSelectedMilestone(m);
-                setExaminer1Id(m.examinerIds[0] ?? '');
-                setExaminer2Id(m.examinerIds[1] ?? '');
-                setAssignModal(true);
-              }}
+              onPress={() => handleApprove(m)}
             >
               <Text style={styles.approveBtnText}>
-                👥 {lang === 'he' ? 'הקצה בוחנים' : 'Assign Examiners'}
+                {m.type === 'final_report'
+                  ? (lang === 'he' ? '👥 אשר + הקצה בוחנים' : '👥 Approve + Assign Examiners')
+                  : (lang === 'he' ? '✅ אשר' : '✅ Approve')}
               </Text>
             </Pressable>
             <Pressable
-              style={styles.scheduleBtn}
-              onPress={() => {
-                setSelectedMilestone(m);
-                setDefenseDate(m.defenseDate ?? '');
-                setDefenseRoom(m.defenseRoom ?? '');
-                setDefenseModal(true);
-                setProjectId(m.projectId)
-              }}
+              style={styles.rejectBtn}
+              onPress={() => handleReject(m)}
             >
-              <Text style={styles.scheduleBtnText}>
-                📅 {lang === 'he' ? 'קבע מועד' : 'Set Date'}
+              <Text style={styles.rejectBtnText}>
+                {m.type === 'final_report'
+                  ? (lang === 'he' ? '👥 דחה + אל תקצה בוחנים' : '👥 Reject + Do Not Assign Examiners')
+                  : (lang === 'he' ? '❌ דחה' : '❌ Reject')}
               </Text>
             </Pressable>
           </View>
@@ -707,14 +652,16 @@ export default function CoordinatorHome() {
                     </Text>
                   ) : (
                     student.milestones.map((m: any, mIdx: number) => {
-                      
                       let displayStatus = '';
                       let statusColor = '';
 
                       if (m.status === 'coordinator_approved' || m.status === 'completed') {
-                        displayStatus = m.supervisorScore !== null && m.supervisorScore !== undefined 
-                          ? `${m.supervisorScore}/100` 
-                          : (lang === 'he' ? 'אושר' + '(' + {} + ')' : 'Approved'); /////////////////////////////////// NEED TO ADD THE GRADE //////////////////////
+                         const grade = m.finalGrade ?? m.supervisorScore;
+                        displayStatus =  grade !== null && grade !== undefined
+                          ? (lang === 'he'
+                              ? `אושר (${grade}/100)`
+                              : `Approved (${grade}/100)`)
+                          : (lang === 'he' ? 'אושר' : 'Approved');
                         statusColor = '#10B981';
                       } else if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') {
                         displayStatus = lang === 'he' ? 'הוגש' : 'Submitted';
@@ -763,6 +710,77 @@ export default function CoordinatorHome() {
     </Pressable>
   </View>
 ))
+      )}
+    </>
+  )}
+
+  {activeTab === 'deadlines' && (
+    <>
+      {loadingDeadlines ? (
+        <ActivityIndicator size="large" />
+      ) : deadlines.length === 0 ? (
+        <View style={styles.centered}><Text>{lang === 'he' ? 'אין מועדי הגשה' : 'No deadlines'}</Text></View>
+      ) : (
+        deadlines.map((d) => (
+          <View key={`${d.milestoneId}-${d.studentId}`} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#F59E0B' }]}>
+            {/* Student Name - Bold Header */}
+            <Text style={[styles.cardTitle, { marginBottom: 12 }]}>👤 {d.studentName}</Text>
+
+            {/* Info Grid */}
+            <View style={{ marginBottom: 8 }}>
+              {/* Degree Type & Year of Study */}
+              <View style={{ marginBottom: 6 }}>
+                <Text style={styles.deadlineLabel}>
+                  {lang === 'he' ? 'תואר:' : 'Degree:'} <Text style={styles.deadlineValue}>{d.degreeType || 'N/A'}</Text>
+                </Text>
+                <Text style={styles.deadlineLabel}>
+                  {lang === 'he' ? 'שנה:' : 'Year:'} <Text style={styles.deadlineValue}>{d.yearOfStudy || '—'}</Text>
+                </Text>
+              </View>
+
+              {/* Project/Thesis Name */}
+              <View style={{ marginBottom: 6 }}>
+                <Text style={styles.deadlineLabel}>
+                  {lang === 'he' ? 'פרויקט:' : 'Project:'} <Text style={styles.deadlineValue}>{d.projectTitle || 'N/A'}</Text>
+                </Text>
+              </View>
+
+              {/* Current Milestone */}
+              <View style={{ marginBottom: 6 }}>
+                <Text style={styles.deadlineLabel}>
+                  {lang === 'he' ? 'אבן דרך:' : 'Milestone:'} <Text style={styles.deadlineValue}>{d.milestoneName || 'N/A'}</Text>
+                </Text>
+              </View>
+
+              {/* Days Until Due - Color Coded */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.deadlineLabel}>
+                  {lang === 'he' ? 'ימים לסיום:' : 'Days Left:'}
+                </Text>
+                <Text
+                  style={[
+                    styles.deadlineDaysLeft,
+                    {
+                      color: d.daysLeft !== null && d.daysLeft < 0 ? '#EF4444' : '#10B981',
+                      fontWeight: '700',
+                    },
+                  ]}
+                >
+                  {d.daysLeft !== null ? `${d.daysLeft} ${lang === 'he' ? 'ימים' : 'days'}` : 'N/A'}
+                </Text>
+              </View>
+
+              {/* Class (for coordinator) */}
+              {d.class ? (
+                <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+                  <Text style={styles.deadlineLabel}>
+                    {lang === 'he' ? 'קבוצה:' : 'Class:'} <Text style={styles.deadlineValue}>{d.class}</Text>
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ))
       )}
     </>
   )}

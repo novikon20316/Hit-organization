@@ -43,6 +43,7 @@ export type MilestoneStatus =
   | 'pending'
   | 'submitted'
   | 'supervisor_graded'
+  | 'graded'
   | 'coordinator_approved'
   | 'examiners_assigned'    // coordinator picked 2 examiners (after final_report)
   | 'examiner_graded'       // at least one examiner graded

@@ -10,7 +10,7 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import { GradingCriterion } from '../../components/modals/NewProjectModal'
+import { AppUser, GradingCriterion, SystemStats, UserRecord, ProjectRecord, MilestoneRecord } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
@@ -29,60 +29,6 @@ import { adminPanelStyles } from '../../constants/styles';
 import {ROLE_LABELS} from '../../constants';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal} from '@/components/modals';
 
-interface AppUser {
-  id: string;
-  displayName?: string;
-  email?: string;
-  role?: string;
-  facultyId?: string;
-  expoPushToken?: string;
-}
-
-interface SystemStats {
-  totalUsers: number;
-  totalProjects: number;
-  activeProjects: number;
-  totalMilestones: number;
-  pendingMilestones: number;
-  totalApplications: number;
-}
-
-interface UserRecord {
-  id: string;
-  displayName: string;
-  email: string;
-  role: string;
-  facultyId: string;
-  isActive: boolean;
-}
-
-interface ProjectRecord {
-  id: string;
-  titleHe: string;
-  titleEn: string;
-  facultyId: string;
-  status: string;
-  supervisorName: string;
-  degreeType: string;
-  projectType: string;
-  academicYear: string;
-  enrolledStudentIds: string[];
-}
-
-interface MilestoneRecord {
-  id: string;
-  projectId: string;
-  type: string;
-  status: string;
-  projectTitleHe: string;
-  projectTitleEn: string;
-  facultyId: string;
-  dueDate: any;
-  studentNames: string[];
-}
-
-
-
 export default function PanelScreen() {
   const router = useRouter();
   const [projectFile, setProjectFile] = useState<string | null>(null);
@@ -92,7 +38,6 @@ export default function PanelScreen() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState('');
-  const [unreadCount, setUnreadCount] = useState(0);
   const [showNewUser, setShowNewUser] = useState(false);
 
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -110,6 +55,7 @@ export default function PanelScreen() {
   const [userModal, setUserModal] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
   const [editRole, setEditRole] = useState('');
+  const [editRoles, setEditRoles] = useState<string[]>([]);
   const [editFaculty, setEditFaculty] = useState('');
   const [saving, setSaving] = useState(false);
   // ── New user modal state ───────────────────────────────────────────────────
@@ -145,6 +91,7 @@ export default function PanelScreen() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
   const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
+  const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
   // ── Add student to project state ──────────────────────────────────────────────
   const [addStudentModal, setAddStudentModal] = useState(false);
   const [addStudentProject, setAddStudentProject] = useState<ProjectRecord | null>(null);
@@ -180,7 +127,6 @@ export default function PanelScreen() {
       setUsers(dataMatrix.data.users || []);
       setProjects(dataMatrix.data.projects || []);
       setMilestones(dataMatrix.data.milestones || []);
-      setUnreadCount(dataMatrix.data.unreadCount || 0);
     } catch (err) {
       console.error("Critical Admin Matrix Sync Fault:", err);
     } finally {
@@ -470,6 +416,7 @@ export default function PanelScreen() {
   const openEditUser = (user: UserRecord) => {
     setEditUser(user);
     setEditRole(user.role);
+    setEditRoles(user.roles?.length ? user.roles : [user.role]); // ← ADD
     setEditFaculty(user.facultyId);
     setUserModal(true);
   };
@@ -478,12 +425,11 @@ export default function PanelScreen() {
     if (!editUser) return;
     try {
       setSaving(true);
-      // 🚀 Replaced direct updateDoc statement path
       await apiClient.post(`/api/admin/users/${editUser.id}/role-update`, {
-        role: editRole,
+        role:      editRole,
+        roles:     editRoles,     
         facultyId: editFaculty,
       });
-
       Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
       setUserModal(false);
       fetchAllDashboardData();
@@ -554,9 +500,7 @@ export default function PanelScreen() {
         role="system_admin"
         lang={lang}
         isRtl={isRtl}
-        unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/notifications')}
         onMaintenance={() => setMaintenanceModal(true)}
         onBeforeSignOut={() => {
           unsubUsersRef.current?.();
@@ -986,6 +930,9 @@ export default function PanelScreen() {
         gradingCriteria={gradingCriteria}
         setGradingCriteria={setGradingCriteria}
 
+        selectedProgram={selectedProgram}
+        setSelectedProgram={setSelectedProgram}
+
         pickFile={(b) => pickFile(b)}
 
         facultyColors={FACULTY_COLORS}
@@ -1009,6 +956,9 @@ export default function PanelScreen() {
 
         onSave={handleSaveUser}
         saving={saving}
+
+        roles={editRoles}
+        setRoles={setEditRoles}
 
         styles={styles}
       />
@@ -1045,6 +995,7 @@ export default function PanelScreen() {
         project={addStudentProject}
         studentSearch={studentSearch}
         setStudentSearch={setStudentSearch}
+        
 
         setVisible={setAddStudentModal}
         setProject={setAddStudentProject}

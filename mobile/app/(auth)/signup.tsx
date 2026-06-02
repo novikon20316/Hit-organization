@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import * as Notifications from 'expo-notifications'
 import axios from 'axios';
 import {
   View, Text, Pressable, StyleSheet, ScrollView,Modal,
   ActivityIndicator, Alert, TextInput,
+  Keyboard, TextInputProps 
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
+
+type FloatingInputProps = TextInputProps & {
+  placeholder: string;
+  isRtl: boolean;
+};
 
 const DEGREE_LENGTHS: Record<string, number> = {
   computer_science: 3,
@@ -35,8 +41,8 @@ const MAJORS: Array<{ id: Major; he: string; en: string; years: number }> = [
 
 export default function ProfileSetup() {
   const router = useRouter();
-  
-
+  const passwordRef = useRef<TextInput>(null); // ← add with other state declarations
+  const [showPassword, setShowPassword] = useState(false); // ← add with other state declarations
   const [lang,        setLang]        = useState<Lang>('he');
   const [displayName, setDisplayName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -45,6 +51,7 @@ export default function ProfileSetup() {
   const [studentId, setStudentId] = useState('');
   const [faculty, setFaculty] = useState<Major>('computer_science');
   const [showFacultyModal, setShowFacultyModal] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   // const [studentId,   setStudentId]   = useState(''); // For future use
   const [degreeType,  setDegreeType]  = useState<DegreeType | null>(null);
   const [major,       setMajor]       = useState<Major | null>(null);
@@ -112,7 +119,13 @@ export default function ProfileSetup() {
         }
       );
 
-      console.log("✅ Sync response:", response.data);
+      if (!response.data?.success) {
+        throw new Error('Sync failed: ' + (response.data?.message ?? 'unknown error'));
+      }
+
+      console.log("✅ Sync confirmed, navigating to login");
+      // Small buffer so Firestore propagation completes before onAuthStateChanged fires on login
+      await new Promise(resolve => setTimeout(resolve, 1000));
       router.replace('/(auth)/login');
 
     } catch (e: any) {
@@ -152,10 +165,47 @@ export default function ProfileSetup() {
     major && 
     yearOfStudy;
 
+  const FloatingInput = ({ placeholder, isRtl, ...props }: FloatingInputProps) => {
+    const [isFocused, setIsFocused] = useState(false);
+    const showPlaceholder = !isFocused && !props.value;
+
+    return (
+      <View style={{ position: 'relative', marginBottom: 12 }}>
+        {showPlaceholder && (
+          <Text
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: 16,
+              left: !isRtl ? undefined : 16,
+              right: !isRtl ? 16 : undefined,
+              fontSize: 16,
+              color: '#9BA8C0',
+              zIndex: 1,
+            }}
+          >
+            {placeholder}
+          </Text>
+        )}
+        <TextInput
+          {...props}
+          placeholder=""
+          onFocus={(e) => { setIsFocused(true); props.onFocus?.(e); }}
+          onBlur={(e)  => { setIsFocused(false); props.onBlur?.(e); }}
+          style={[s.input, { marginBottom: 0 }, isRtl && s.textRight, props.style]}
+        />
+      </View>
+    );
+  };
   
   return (
     <SafeAreaView style={s.root}>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={s.content} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled" 
+        onScrollBeginDrag={Keyboard.dismiss}
+      >
 
         <View style={[s.langRow, isRtl && s.rowReverse]}>
           <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
@@ -181,44 +231,74 @@ export default function ProfileSetup() {
             {lang === 'he' ? 'פרטים אישיים' : 'Personal Details'}
           </Text>
           
-          <TextInput
-            style={[s.input, isRtl && s.textRight]}
+          <FloatingInput
             placeholder={lang === 'he' ? 'שם מלא' : 'Full Name'}
             value={displayName}
             onChangeText={setDisplayName}
+            isRtl={isRtl}
           />
 
-          <TextInput
-            style={[s.input, isRtl && s.textRight]}
+          <FloatingInput
             placeholder={lang === 'he' ? 'כתובת אימייל' : 'Email Address'}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            isRtl={isRtl}
           />
 
-          <TextInput
-            style={[s.input, isRtl && s.textRight]}
+          <FloatingInput
             placeholder={lang === 'he' ? 'מספר טלפון' : 'Phone Number'}
             value={phoneNumber}
             onChangeText={setPhoneNumber}
             keyboardType="phone-pad"
             maxLength={10}
+            isRtl={isRtl}
           />
 
+          <View style={{ position: 'relative', justifyContent: 'center', marginBottom: 12 }}>
+          {!showPassword && !password && !passwordFocused && (    // ← add passwordFocused state
+            <Text
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: 16,
+                left: !isRtl ? undefined : 16,
+                right: isRtl ? 16 : undefined,
+                fontSize: 16,
+                color: '#9BA8C0',
+                zIndex: 1,
+              }}
+            >
+              {lang === 'he' ? 'סיסמה' : 'Password'}
+            </Text>
+          )}
           <TextInput
+            ref={passwordRef}
             style={[
-              s.input, 
-              isRtl && s.textRight,
-              password.length > 0 && { 
-                borderColor: getPasswordStrength(password).valid ? '#10B981' : '#EF4444' 
+              s.input,
+              { marginBottom: 0, paddingRight: 48 },
+              !isRtl && s.textRight,
+              password.length > 0 && {
+                borderColor: getPasswordStrength(password).valid ? '#10B981' : '#EF4444'
               }
             ]}
-            placeholder={lang === 'he' ? 'סיסמה' : 'Password'}
+            placeholder=""                                        // ← clear real placeholder
+            placeholderTextColor="#9BA8C0"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showPassword}
+            onFocus={() => setPasswordFocused(true)}              // ← add these
+            onBlur={() => setPasswordFocused(false)}              // ← add these
           />
+          <Pressable
+            onPress={() => setShowPassword(prev => !prev)}
+            style={{ position: 'absolute', right: 14, padding: 4 }}
+          >
+            <Text style={{ fontSize: 18 }}>{showPassword ? '🙈' : '👁️'}</Text>
+          </Pressable>
+        </View>
+
           {password.length > 0 && !getPasswordStrength(password).valid && (
             <View style={{ marginTop: -8, marginBottom: 8 }}>
               {getPasswordStrength(password).errors.map((err) => (
@@ -230,19 +310,16 @@ export default function ProfileSetup() {
           )}
 
            
-          <TextInput
-            style={[
-              s.input, 
-              isRtl && s.textRight,
-              studentId.length > 0 && { 
-                borderColor: isValidStudentId(studentId) ? '#10B981' : '#EF4444' 
-              }
-            ]}
+          <FloatingInput
             placeholder={lang === 'he' ? 'תעודת זהות' : 'Student ID'}
             value={studentId}
             onChangeText={setStudentId}
             keyboardType="numeric"
             maxLength={9}
+            isRtl={isRtl}
+            style={studentId.length > 0 ? {
+              borderColor: isValidStudentId(studentId) ? '#10B981' : '#EF4444'
+            } : {}}
           />
           {studentId.length > 0 && !isValidStudentId(studentId) && (
             <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
@@ -489,7 +566,6 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#E0E8FF',
     fontSize: 16,
-    lineHeight: 20,
     color: '#111',
   },
   // Keep the rest of your styles unchanged

@@ -434,9 +434,7 @@ export default function FacultyTemplateManager() {
         role="faculty_admin"
         lang={lang}
         isRtl={isRtl}
-        unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/notifications')}
       />
 
       {/* ── Main tabs ── */}

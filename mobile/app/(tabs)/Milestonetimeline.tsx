@@ -62,14 +62,15 @@ const STATUS_CONFIG: Record<MilestoneStatus, {
   icon: string; colorKey: string;
   labelHe: string; labelEn: string;
 }> = {
-  pending:              { icon: '⏳', colorKey: '#8899BB', labelHe: 'ממתין להגשה',         labelEn: 'Awaiting Submission' },
+  pending:              { icon: '⏳', colorKey: '#8899BB', labelHe: 'ממתין להגשה',          labelEn: 'Awaiting Submission' },
   submitted:            { icon: '📤', colorKey: '#F59E0B', labelHe: 'הוגש',                 labelEn: 'Submitted' },
-  supervisor_graded:    { icon: '👨‍🏫', colorKey: '#2E86FF', labelHe: 'נוקד ע"י מנחה',       labelEn: 'Supervisor Graded' },
+  supervisor_graded:    { icon: '👨‍🏫', colorKey: '#2E86FF', labelHe: 'נוקד ע"י מנחה',        labelEn: 'Supervisor Graded' },
   coordinator_approved: { icon: '✅', colorKey: '#8B5CF6', labelHe: 'אושר ע"י רכז',         labelEn: 'Coordinator Approved' },
+  graded:               {icon: '👨‍🏫',  colorKey: 'blue',    labelHe: 'נוקד ע"י מנחה',        labelEn: 'Graded' }, // ← add this
   examiners_assigned:   { icon: '👥', colorKey: '#6366F1', labelHe: 'בוחנים הוקצו',         labelEn: 'Examiners Assigned' },  // ← add this
   examiner_graded:      { icon: '🎓', colorKey: '#10B981', labelHe: 'נוקד ע"י בוחנים',      labelEn: 'Examiner Graded' },
   both_examiners_graded:{ icon: '🎓', colorKey: '#10B981', labelHe: 'שני בוחנים ניקדו',     labelEn: 'Both Examiners Graded' }, // ← add this
-  completed:            { icon: '🏁', colorKey: '#10B981', labelHe: 'הושלם ✓',              labelEn: 'Completed ✓' },
+  completed:            { icon: '🏁', colorKey: '#10B981', labelHe: 'הושלם ✓',               labelEn: 'Completed ✓' },
 };
 
 // ─── Single milestone card ─────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sharedStyles } from '@/constants';
 import { NewProjectModal } from '@/components/modals';
-import { GradingCriterion } from '../../components/modals/NewProjectModal'
+import { GradingCriterion, AppUser } from '@/types'
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 // Adjust this import path to match your firebase config file location
@@ -69,13 +69,17 @@ export default function SupervisorHome() {
   const [pendingGrades,  setPendingGrades]  = useState<PendingMilestone[]>([]);
   const [supervisorName, setSupervisorName] = useState('');
   const [facultyId,      setFacultyId]      = useState('');
-  const [supervisorId,   setSupervisorId]   = useState('');  // needed for Firestore queries
+  const [supervisorId,   setSupervisorId]   = useState('');  
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loading,        setLoading]        = useState(true);
-  const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading'>('projects');
+  const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines'>('projects');
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
+  const [deadlines, setDeadlines] = useState<any[]>([]);
+  const [loadingDeadlines, setLoadingDeadlines] = useState(false);
 
   // ── New project modal ─────────────────────────────────────────────────────
+  const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newTitleHe,  setNewTitleHe]  = useState('');
   const [newTitleEn,  setNewTitleEn]  = useState('');
@@ -133,6 +137,13 @@ export default function SupervisorHome() {
       setSupervisorName(res.data.supervisorName);
       setFacultyId(res.data.facultyId);
       setSupervisorId(res.data.supervisorId);
+      setCurrentUser({
+        id:          res.data.supervisorId,
+        displayName: res.data.supervisorName,
+        facultyId:   res.data.facultyId,
+        role:        res.data.role  ?? 'supervisor',
+        roles:       res.data.roles ?? ['supervisor'],
+      });
       setMyProjects(res.data.myProjects ?? []);
       setPendingGrades(res.data.pendingGrades ?? []);
       // Only use API applications as fallback if Firestore listener isn't up yet
@@ -156,6 +167,24 @@ export default function SupervisorHome() {
       unsubGradingRef.current?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'deadlines' || !supervisorId) return;
+    const fetchDeadlines = async () => {
+      try {
+        setLoadingDeadlines(true);
+        const res = await apiClient.get('/api/supervisor/deadlines');
+        setDeadlines(res.data.rows || []);
+      } catch (e) {
+        console.error('Failed to load deadlines', e);
+        Alert.alert('Error', 'Failed to load deadlines');
+        setDeadlines([]); // Clear deadlines on error
+      } finally {
+        setLoadingDeadlines(false);
+      }
+    };
+    fetchDeadlines();
+  }, [activeTab, supervisorId]);
 
   // ── Firestore: real-time notifications unread count ───────────────────────
   // Starts listening once we have the supervisorId from the API response
@@ -542,21 +571,19 @@ export default function SupervisorHome() {
         role="supervisor"
         lang={lang}
         isRtl={isRtl}
-        unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/notifications')}
       />
 
       {/* Stats row */}
       <View style={[styles.statsRow, isRtl && styles.rowReverse]}>
         <StatCard emoji="📁" value={myProjects.length}
-          label={lang === 'he' ? 'הפרויקטים שלי' : 'My Projects'} color="#2E86FF" />
+          label={lang === 'he' ? 'הפרויקטים שלי' : 'My Projects'} color="#2E86FF" isRtl={isRtl} />
         <View style={styles.statGap} />
         <StatCard emoji="📨" value={applications.length}
-          label={lang === 'he' ? 'מועמדויות ממתינות' : 'Pending Applications'} color="#F59E0B" />
+          label={lang === 'he' ? 'מועמדויות ממתינות' : 'Pending Applications'} color="#F59E0B" isRtl={isRtl} />
         <View style={styles.statGap} />
         <StatCard emoji="✏️" value={pendingGrades.length}
-          label={lang === 'he' ? 'ממתינות לציון' : 'Need Grading'} color="#8B5CF6" />
+          label={lang === 'he' ? 'ממתינות לציון' : 'Need Grading'} color="#8B5CF6" isRtl={isRtl} />
       </View>
 
       {/* Tabs */}
@@ -581,6 +608,14 @@ export default function SupervisorHome() {
             )}
           </Pressable>
         ))}
+        <Pressable
+          style={[styles.tab, activeTab === 'deadlines' && styles.tabActive]}
+          onPress={() => setActiveTab('deadlines')}
+        >
+          <Text style={[styles.tabText, activeTab === 'deadlines' && styles.tabTextActive]}>
+            {lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}
+          </Text>
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -601,7 +636,7 @@ export default function SupervisorHome() {
                 console.log("Mapping project:", p.id, "Enrolled students:", p.enrolledStudentIds);
                 const fc = getFacultyColor(p.facultyId);
                 return (
-                  <View key={p.id} style={[styles.projectCard, { borderLeftColor: fc.primary }]}>
+                  <View key={p.id} style={[styles.projectCard, isRtl ? { borderRightColor: fc.primary, borderRightWidth: 4 } : { borderLeftColor: fc.primary, borderLeftWidth: 4 }]}>
                     <View style={[styles.row, isRtl && styles.rowReverse, { marginBottom: 8 }]}>
                       <FacultyBadge facultyId={p.facultyId} lang={lang} />
                       <View style={styles.rowGap} />
@@ -611,7 +646,7 @@ export default function SupervisorHome() {
                       {lang === 'he' ? p.titleHe : p.titleEn}
                     </Text>
                     <View style={[styles.row, isRtl && styles.rowReverse, { marginTop: 6 }]}>
-                      <Text style={styles.cardMeta}>
+                      <Text style={[styles.cardMeta, isRtl && styles.textRight]}>
                         {lang === 'he'
                           ? p.degreeType === 'bachelors' ? 'תואר ראשון' : 'תואר שני'
                           : p.degreeType === 'bachelors' ? "Bachelor's" : "Master's"}
@@ -642,6 +677,70 @@ export default function SupervisorHome() {
                   </View>
                 );
               })
+            )}
+          </>
+        )}
+        {activeTab === 'deadlines' && (
+          <>
+            {loadingDeadlines ? (
+              <ActivityIndicator size="large" />
+            ) : deadlines.length === 0 ? (
+              <EmptyState emoji="📭" text={lang === 'he' ? 'אין מועדי הגשה' : 'No deadlines found'} />
+            ) : (
+              deadlines.map((d) => (
+                <View key={`${d.milestoneId}-${d.studentId}`} style={styles.deadlineRow}>
+                  {/* Student Name - Bold Header */}
+                  <View style={[styles.row, !isRtl && styles.rowReverse, { marginBottom: 12 }]}>
+                    <Text style={[styles.studentName, !isRtl && styles.textRight]}>👤 {d.studentName}</Text>
+                  </View>
+
+                  {/* Info Grid */}
+                  <View style={{ marginBottom: 8 }}>
+                    {/* Degree Type & Year of Study */}
+                    <View style={[styles.row, !isRtl && styles.rowReverse, { marginBottom: 6 }]}>
+                      <Text style={[styles.label, !isRtl && styles.textRight]}>
+                        {lang === 'he' ? 'תואר:' : 'Degree:'} <Text style={styles.value}>{d.degreeType || 'N/A'}</Text>
+                      </Text>
+                      <View style={{ flex: 1 }} />
+                      <Text style={[styles.label, !isRtl && styles.textRight]}>
+                        {lang === 'he' ? 'שנה:' : 'Year:'} <Text style={styles.value}>{d.yearOfStudy || '—'}</Text>
+                      </Text>
+                    </View>
+
+                    {/* Project/Thesis Name */}
+                    <View style={[styles.row, !isRtl && styles.rowReverse, { marginBottom: 6 }]}>
+                      <Text style={[styles.label, !isRtl && styles.textRight]}>
+                        {lang === 'he' ? 'פרויקט:' : 'Project:'} <Text style={styles.value}>{d.projectTitle || 'N/A'}</Text>
+                      </Text>
+                    </View>
+
+                    {/* Current Milestone */}
+                    <View style={[styles.row, !isRtl && styles.rowReverse, { marginBottom: 6 }]}>
+                      <Text style={[styles.label, !isRtl && styles.textRight]}>
+                        {lang === 'he' ? 'אבן דרך:' : 'Milestone:'} <Text style={styles.value}>{d.milestoneName || 'N/A'}</Text>
+                      </Text>
+                    </View>
+
+                    {/* Days Until Due - Color Coded */}
+                    <View style={[styles.row, !isRtl && styles.rowReverse]}>
+                      <Text style={[styles.label, !isRtl && styles.textRight]}>
+                        {lang === 'he' ? 'ימים לסיום:' : 'Days Left:'}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.daysLeft,
+                          {
+                            color: d.daysLeft !== null && d.daysLeft < 0 ? '#EF4444' : '#10B981',
+                            fontWeight: '700',
+                          },
+                        ]}
+                      >
+                        {d.daysLeft !== null ? `${d.daysLeft} ${lang === 'he' ? 'ימים' : 'days'}` : 'N/A'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))
             )}
           </>
         )}
@@ -805,7 +904,7 @@ export default function SupervisorHome() {
                 return (
                   <Pressable 
                     key={m.id} 
-                    style={[styles.gradeCard, { borderLeftColor: fc.primary }]}
+                    style={[styles.gradeCard, isRtl ? { borderRightColor: fc.primary, borderRightWidth: 4 } : { borderLeftColor: fc.primary, borderLeftWidth: 4 }]}
                     onPress={() => toggleCardExpansion(m.id)}
                   >
                     {/* Header Content Info */}
@@ -816,7 +915,7 @@ export default function SupervisorHome() {
                       <Text style={{ fontSize: 16, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
                     </View>
 
-                    <Text style={[styles.gradeProjectTitle, !isRtl && styles.textRight, { marginTop: 6 }]}>
+                    <Text style={[styles.gradeProjectTitle, isRtl && styles.textRight, { marginTop: 6 }]}>
                       📁 {(() => {
                           // Milestone doc may have empty title — fall back to myProjects lookup
                           const titleHe = m.projectTitleHe || myProjects.find(p => p.id === m.projectId)?.titleHe || '';
@@ -824,7 +923,7 @@ export default function SupervisorHome() {
                           return lang === 'he' ? titleHe : titleEn;
                         })()}
                     </Text>
-                    <Text style={[styles.gradeStudents, !isRtl && styles.textRight]}>
+                    <Text style={[styles.gradeStudents, isRtl && styles.textRight]}>
                       👤 {m.studentNames.join(', ')}
                     </Text>
 
@@ -927,6 +1026,9 @@ export default function SupervisorHome() {
         setProjectFile={setProjectFile}
         gradingCriteria={gradingCriteria}
         setGradingCriteria={setGradingCriteria}
+        selectedProgram={selectedProgram}
+        setSelectedProgram={setSelectedProgram}
+        currentUser={currentUser ?? undefined}
         pickFile={(b) => pickFile(b)}
         styles={styles}
       />

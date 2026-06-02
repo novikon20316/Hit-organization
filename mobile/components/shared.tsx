@@ -10,50 +10,51 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from './i18n';
+import { NotificationBell } from './NotificationBell';
 
 
 // ─── Faculty / Department color palette ───────────────────────────────────────
 // Each faculty gets a unique accent color used on project cards, badges, borders
 export const FACULTY_COLORS: Record<string, {
   primary: string;
-  light: string;
-  label: { he: string; en: string };
+  light:   string;
+  label:   { he: string; en: string };
 }> = {
-  computer_science: {
+  sciences: {
     primary: '#2E86FF',
     light:   '#EFF6FF',
-    label:   { he: 'מדעי המחשב',          en: 'Computer Science' },
+    label:   { he: 'הפקולטה למדעים', en: 'Faculty of Sciences' },
   },
   electrical: {
     primary: '#F59E0B',
     light:   '#FFFBEB',
-    label:   { he: 'הנדסת חשמל ואלקטרוניקה', en: 'Electrical Engineering' },
-  },
-  learning_technology: {
-    primary: '#10B981',
-    light:   '#ECFDF5',
-    label:   { he: 'טכנולוגיות למידה',    en: 'Learning Technology' },
+    label:   { he: 'הפקולטה להנדסת חשמל ואלקטרוניקה', en: 'Faculty of Electrical & Electronics Engineering' },
   },
   industrial: {
     primary: '#8B5CF6',
     light:   '#F5F3FF',
-    label:   { he: 'הנדסת תעשייה וניהול', en: 'Industrial Engineering' },
+    label:   { he: 'הפקולטה להנדסת תעשייה וניהול טכנולוגיה', en: 'Faculty of Industrial Engineering & Technology Management' },
   },
-  mechanical: {
+  learning_tech: {
+    primary: '#10B981',
+    light:   '#ECFDF5',
+    label:   { he: 'הפקולטה לטכנולוגיות למידה', en: 'Faculty of Learning Technologies' },
+  },
+  medical_tech: {
     primary: '#EF4444',
     light:   '#FEF2F2',
-    label:   { he: 'הנדסה מכנית',         en: 'Mechanical Engineering' },
+    label:   { he: 'הפקולטה לטכנולוגיות רפואיות', en: 'Faculty of Medical Technologies' },
   },
-  software: {
-    primary: '#06B6D4',
-    light:   '#ECFEFF',
-    label:   { he: 'הנדסת תוכנה',         en: 'Software Engineering' },
+  design: {
+    primary: '#EC4899',
+    light:   '#FDF2F8',
+    label:   { he: 'הפקולטה לעיצוב', en: 'Faculty of Design' },
   },
   // fallback for unknown facultyId
   default: {
     primary: '#64748B',
     light:   '#F1F5F9',
-    label:   { he: 'פקולטה',              en: 'Faculty' },
+    label:   { he: 'פקולטה', en: 'Faculty' },
   },
 };
 
@@ -75,16 +76,14 @@ interface TopBarProps {
   name:      string;
   role:      keyof typeof ROLE_ACCENT;
   lang:      Lang;
-  isRtl:     boolean;
-  unreadCount: number;
+  isRtl:     boolean; 
   onToggleLang: () => void;
-  onBell:    () => void;
   onMaintenance?: () => void;
   onBeforeSignOut?: () => void;
 }
 
 export function TopBar({
-  name, role, lang, isRtl, unreadCount, onToggleLang, onBell, onMaintenance, onBeforeSignOut,
+  name, role, lang, isRtl, onToggleLang, onMaintenance, onBeforeSignOut,
 }: TopBarProps) {
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
@@ -125,14 +124,7 @@ export function TopBar({
                     <Text style={{ fontSize: 18 }}>🛠️</Text>
                   </Pressable>
                 )}
-        <Pressable style={tb.bellBtn} onPress={onBell}>
-          <Text style={tb.bellIcon}>🔔</Text>
-          {unreadCount > 0 && (
-            <View style={tb.badge}>
-              <Text style={tb.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-            </View>
-          )}
-        </Pressable>
+        <NotificationBell />
 
         <Pressable style={tb.signOutBtn} onPress={handleSignOut}>
           <Text style={tb.signOutText}>
@@ -146,15 +138,15 @@ export function TopBar({
 
 // ─── Shared stat card ─────────────────────────────────────────────────────────
 export function StatCard({
-  emoji, value, label, color = '#2E86FF',
+  emoji, value, label, color = '#2E86FF', isRtl = false,
 }: {
-  emoji: string; value: string | number; label: string; color?: string;
+  emoji: string; value: string | number; label: string; color?: string; isRtl?: boolean;
 }) {
   return (
     <View style={[sc.card, { borderTopColor: color }]}>
       <Text style={sc.emoji}>{emoji}</Text>
       <Text style={[sc.value, { color }]}>{value}</Text>
-      <Text style={sc.label}>{label}</Text>
+      <Text style={[sc.label, isRtl && sc.labelRight]}>{label}</Text>
     </View>
   );
 }
@@ -270,6 +262,7 @@ const sc = StyleSheet.create({
   emoji: { fontSize: 24, marginBottom: 6 },
   value: { fontSize: 26, fontWeight: '900', marginBottom: 2 },
   label: { fontSize: 11, color: '#8899BB', fontWeight: '500', textAlign: 'center' },
+  labelRight: { textAlign: 'right' },
 });
 
 const sh = StyleSheet.create({

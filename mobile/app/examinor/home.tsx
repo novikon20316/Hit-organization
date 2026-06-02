@@ -9,38 +9,8 @@ import type { Lang } from '../../components/i18n';
 import { TopBar, getFacultyColor } from '../../components/shared';
 import {type GradeWeights } from '../../components/Milestoneservice';
 import { examinerHomeStyles } from '../../constants/styles';
- import { apiClient } from '@/src/api/apiClient';
-// ─── Types ────────────────────────────────────────────────────────────────────
- 
-interface AssignedMilestone {
-  id: string;
-  projectId: string;
-  projectTitleHe: string;
-  projectTitleEn: string;
-  type: string;
-  status: string;
-  studentNames: string[];
-  studentIds: string[];
-  supervisorId: string;
-  supervisorScore: number | null;
-  supervisorName: string;                // ← new
-  examinerIds: string[];
-  examiner1Score: number | null;
-  examiner2Score: number | null;
-  examiner1GradeId: string | null;
-  examiner2GradeId: string | null;
-  gradeWeights: GradeWeights | null;
-  defenseDate: string | null;
-  defenseRoom: string | null;
-  facultyId: string;
-  milestoneHistory: {                    // ← new
-    type: string;
-    supervisorScore: number | null;
-    supervisorComment: string;
-    fileUrls: string[];
-    status: string;
-  }[];
-}
+import { apiClient } from '@/src/api/apiClient';
+import {AssignedMilestone} from '@/types'
  
 // ─── Constants ────────────────────────────────────────────────────────────────
  
@@ -86,7 +56,6 @@ export default function ExaminerHome() {
  
   const [examinerName, setExaminerName] = useState('');
   const [loading,      setLoading]      = useState(true);
-  const [unreadCount,  setUnreadCount]  = useState(0);
   const [activeTab,    setActiveTab]    = useState<'projects' | 'schedule'>('projects');
   const [assignments,  setAssignments]  = useState<AssignedMilestone[]>([]);
   const [expandedCards,setExpandedCards]= useState<Record<string, boolean>>({});
@@ -105,11 +74,10 @@ export default function ExaminerHome() {
     try {
       setLoading(true);
       // 🚀 The server handles examiner name lookup, notifications count, and milestone stitching in ONE call.
-      const response = await apiClient.get('/api/examiner/dashboard');
-      
-      setExaminerName(response.data.examinerName || '');
-      setUnreadCount(response.data.unreadCount || 0);
-      setAssignments(response.data.assignments || []);
+      const dashboardRes = await apiClient.get(`/api/examiner/${uid}/dashboard`).catch(e => { console.error('❌ profile failed:', e.response?.status, e.response?.config?.url); throw e; });
+      console.log(dashboardRes.data)
+      setExaminerName(dashboardRes.data.examinerName || '');
+      setAssignments(dashboardRes.data.assignments || []);///// NEED TO CHANGE THIS BECAUSE THAT IS NOT EXISTS
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
       Alert.alert(
@@ -128,9 +96,16 @@ export default function ExaminerHome() {
  
   // ── Helpers (unchanged) ─────────────────────────────────────────────────
   const alreadyGraded = (m: AssignedMilestone): boolean => {
-    const isExaminer1 = m.examinerIds[0] === uid;
-    return isExaminer1 ? m.examiner1GradeId !== null : m.examiner2GradeId !== null;
+    const myIndex = m.examinerIds[0] === uid ? 0 : 1;
+    const myGrading = (m as any).examinerGrading?.[uid ?? ''];
+    return !!myGrading?.gradedAt;
   };
+
+  function isBeforeDefense(defenseDate: string | null): boolean {
+    if (!defenseDate) return false;
+    const date = new Date(defenseDate);
+    return isNaN(date.getTime()) ? false : new Date() < date;
+  }
  
   const openGradeModal = (m: AssignedMilestone) => {
     setSelected(m);
@@ -240,12 +215,11 @@ export default function ExaminerHome() {
  
   // Schedule: only milestones with a defenseDate, sorted soonest first
   const scheduled = [...assignments]
-    .filter((m) => m.defenseDate)
+    .filter((m) => !!m.defenseDate)
     .sort((a, b) => {
-      const da = parseDefenseDate(a.defenseDate);
-      const db_ = parseDefenseDate(b.defenseDate);
-      if (!da || !db_) return 0;
-      return da.getTime() - db_.getTime();
+      const da = new Date(a.defenseDate!).getTime();
+      const db_ = new Date(b.defenseDate!).getTime();
+      return da - db_;
     });
  
   return (
@@ -255,9 +229,7 @@ export default function ExaminerHome() {
         role="examiner"
         lang={lang}
         isRtl={isRtl}
-        unreadCount={unreadCount}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onBell={() => router.push('/(tabs)/notifications')}
       />
  
       {/* ── Tab bar ── */}
@@ -424,6 +396,14 @@ export default function ExaminerHome() {
                           ✅ {lang === 'he' ? 'ציון הוגש' : 'Grade submitted'}
                         </Text>
                       </View>
+                    ) : isBeforeDefense(m.defenseDate) ? (
+                      <View style={[styles.gradedBadge, { backgroundColor: '#FFF7ED', borderColor: '#F97316' }]}>
+                        <Text style={[styles.gradedBadgeText, { color: '#F97316' }]}>
+                          🕐 {lang === 'he'
+                            ? `ניתן לציין רק לאחר ההגנה · ${new Date(m.defenseDate!).toLocaleDateString('he-IL', { day: 'numeric', month: 'long' })}`
+                            : `Grading opens after the defense · ${new Date(m.defenseDate!).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`}
+                        </Text>
+                      </View>
                     ) : (
                       <Pressable
                         style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
@@ -453,78 +433,78 @@ export default function ExaminerHome() {
               </View>
             ) : (
               scheduled.map((m) => {
-                const defDate = parseDefenseDate(m.defenseDate);
-                const days          = defDate ? daysUntil(defDate) : null;
-                const fc            = getFacultyColor(m.facultyId);
-                const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
- 
+                const defDate   = new Date(m.defenseDate!);
+                const isValid   = !isNaN(defDate.getTime());
+                const days      = isValid ? daysUntil(defDate) : null;
+                const fc        = getFacultyColor(m.facultyId);
+
                 const urgencyColor =
                   days === null ? '#6B7280' :
-                  days < 0     ? '#9CA3AF' :
-                  days === 0   ? '#EF4444' :
-                  days <= 3    ? '#F97316' :
-                  days <= 7    ? '#F59E0B' :
-                                 '#10B981';
- 
-                const urgencyLabel =
-                  lang === 'he'
-                    ? (days === null ? '—'    :
-                       days < 0     ? 'עברה'  :
-                       days === 0   ? 'היום!' :
-                       days === 1   ? 'מחר!'  :
-                       `בעוד ${days} ימים`)
-                    : (days === null ? '—'          :
-                       days < 0     ? 'Past'        :
-                       days === 0   ? 'Today!'      :
-                       days === 1   ? 'Tomorrow!'   :
-                       `In ${days} days`);
- 
-                const datePart = m.defenseDate ? m.defenseDate.split(' ')[0] ?? '' : '';
-                const timePart = m.defenseDate ? m.defenseDate.split(' ')[1] ?? '' : '';
+                  days < 0      ? '#9CA3AF' :
+                  days === 0    ? '#EF4444' :
+                  days <= 3     ? '#F97316' :
+                  days <= 7     ? '#F59E0B' :
+                                  '#10B981';
+
+                const urgencyLabel = lang === 'he'
+                  ? (days === null ? '—' : days < 0 ? 'עברה' : days === 0 ? 'היום!' : days === 1 ? 'מחר!' : `בעוד ${days} ימים`)
+                  : (days === null ? '—' : days < 0 ? 'Past' : days === 0 ? 'Today!' : days === 1 ? 'Tomorrow!' : `In ${days} days`);
+
+                const formattedDate = isValid
+                  ? defDate.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', {
+                      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                    })
+                  : (lang === 'he' ? 'תאריך לא זמין' : 'Date unavailable');
+
+                const formattedTime = isValid
+                  ? defDate.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US', {
+                      hour: '2-digit', minute: '2-digit', hour12: false,
+                    })
+                  : '';
+
                 return (
                   <View key={m.id} style={[styles.scheduleCard, { borderLeftColor: fc.primary }]}>
- 
+
                     {/* Countdown badge */}
                     <View style={[styles.countdownBadge, { backgroundColor: urgencyColor }]}>
                       <Text style={styles.countdownText}>{urgencyLabel}</Text>
                     </View>
- 
+
                     {/* Project title */}
                     <Text style={styles.scheduleTitle}>
                       {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
                     </Text>
- 
+
                     {/* Students */}
-                    <Text style={styles.cardMeta}>👤 {m.studentNames.join(', ')}</Text>
- 
+                    <Text style={styles.cardMeta}>
+                      👤 {m.studentNames.length > 0
+                        ? (Array.isArray(m.studentNames) ? m.studentNames.join(', ') : m.studentNames)
+                        : (lang === 'he' ? 'לא ידוע' : 'Unknown')}
+                    </Text>
+
                     {/* Supervisor */}
                     <Text style={styles.cardMeta}>
                       👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}
                     </Text>
- 
-                    {/* My role */}
-                    <Text style={styles.cardMeta}>
-                      🔢 {lang === 'he'
-                        ? `תפקידי: בוחן #${examinerIndex}`
-                        : `My role: Examiner #${examinerIndex}`}
-                    </Text>
- 
+
                     {/* Date / Time / Room chips */}
                     <View style={styles.scheduleRow}>
                       <View style={styles.scheduleChip}>
                         <Text style={styles.scheduleChipLabel}>
                           {lang === 'he' ? 'תאריך' : 'Date'}
                         </Text>
-                        <Text style={styles.scheduleChipValue}>{datePart}</Text>
+                        <Text style={styles.scheduleChipValue}>{formattedDate}</Text>
                       </View>
-                      {timePart ? (
+
+                      {formattedTime ? (
                         <View style={styles.scheduleChip}>
                           <Text style={styles.scheduleChipLabel}>
                             {lang === 'he' ? 'שעה' : 'Time'}
                           </Text>
-                          <Text style={styles.scheduleChipValue}>{timePart}</Text>
+                          <Text style={styles.scheduleChipValue}>{formattedTime}</Text>
                         </View>
                       ) : null}
+
                       {m.defenseRoom ? (
                         <View style={styles.scheduleChip}>
                           <Text style={styles.scheduleChipLabel}>
@@ -534,22 +514,7 @@ export default function ExaminerHome() {
                         </View>
                       ) : null}
                     </View>
- 
-                    {/* Grade weights — highlight my slot */}
-                    {m.gradeWeights && (
-                      <View style={styles.weightsRow}>
-                        {[
-                          { label: lang === 'he' ? 'מנחה'   : 'Supervisor', w: m.gradeWeights.supervisorWeight, hl: false },
-                          { label: lang === 'he' ? 'בוחן 1' : 'Examiner 1', w: m.gradeWeights.examiner1Weight,  hl: examinerIndex === 1 },
-                          { label: lang === 'he' ? 'בוחן 2' : 'Examiner 2', w: m.gradeWeights.examiner2Weight,  hl: examinerIndex === 2 },
-                        ].map((wt) => (
-                          <View key={wt.label} style={[styles.weightChip, wt.hl && styles.weightChipHL]}>
-                            <Text style={[styles.weightChipLabel, wt.hl && { color: '#fff' }]}>{wt.label}</Text>
-                            <Text style={[styles.weightChipValue, wt.hl && { color: '#fff' }]}>{Math.round(wt.w * 100)}%</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
+
                   </View>
                 );
               })

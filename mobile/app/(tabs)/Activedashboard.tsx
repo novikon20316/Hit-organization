@@ -7,7 +7,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
-import type { ActiveProject, Milestone, MilestoneType, MilestoneStatus } from '../../hooks/useStudentData';
+import type { ActiveProject, Milestone, MilestoneType, MilestoneStatus } from '@/types';
 import { ActivateDashboardStyles } from '@/constants';
 import { apiClient } from '../../src/api/apiClient';
 
@@ -36,6 +36,9 @@ const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string; icon: 
   supervisor_graded:    { color: '#3B82F6', bg: '#EFF6FF', icon: '👨‍🏫' },
   graded:               { color: '#3B82F6', bg: '#EFF6FF', icon: '👨‍🏫' },
   coordinator_approved: { color: '#8B5CF6', bg: '#F5F3FF', icon: '✅' },
+  examiners_assigned:   { color: '#6366F1', bg: '#EEF2FF', icon: '👥' },
+  examiner_graded:      { color: '#10B981', bg: '#ECFDF5', icon: '🎓' },
+  both_examiners_graded:{ color: '#10B981', bg: '#ECFDF5', icon: '🎓' },
   completed:            { color: '#10B981', bg: '#ECFDF5', icon: '🏁' },
 };
 
@@ -58,7 +61,7 @@ export default function ActiveDashboard({
   const [activeTab,       setActiveTab]       = useState<'overview' | 'milestones' | 'grades'>('overview');
   const [expandedGrades,   setExpandedGrades]   = useState<Record<string, boolean>>({});
   const [loadingDetail, setLoadingDetail] = useState<Record<string, boolean>>({});
-const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
+  const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
   // ─── Milestone unlock logic ────────────────────────────────────────────────
   // A milestone is "unlocked" (ready to interact with) when all previous ones
   // have status === 'coordinator_approved' OR 'completed'.
@@ -79,12 +82,12 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
   // ─── Overview banner: what to display ─────────────────────────────────────
   // Show the submitted/in-review milestone if any, otherwise the next pending one.
   const overviewDisplayMilestone: Milestone | null =
-    milestones.find(m => ['submitted', 'supervisor_graded'].includes(m.status))
+    milestones.find(m => ['submitted', 'supervisor_graded', 'graded'].includes(m.status))
     ?? actionableNextMilestone;
 
   // Is there a milestone currently waiting for coordinator approval?
   const isWaitingApproval = milestones.some(
-    m => ['submitted', 'supervisor_graded'].includes(m.status)
+    m => ['graded', 'supervisor_graded'].includes(m.status)
   );
 
   // ── Days until deadline ────────────────────────────────────────────────────
@@ -95,8 +98,10 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
-  const toDate = (val: string | null | undefined): Date | null => {
+  const toDate = (val: any): Date | null => {
     if (!val) return null;
+    if (typeof val?.toDate === 'function') return val.toDate();
+    // ISO string or number
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d;
   };
@@ -135,7 +140,6 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
       formData.append('note',        note);
       formData.append('milestoneId', targetMilestone.id);
       formData.append('projectId',   project.id);
-
       await apiClient.submitMilestone(targetMilestone.id, formData);
 
       setSubmitMessage('✅ ' + tx('submitSuccess', lang));
@@ -181,7 +185,7 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
     if (grade >= 60) return '#FFEDD5';
     return '#FEE2E2';
   };
-
+  
   return (
     <View style={styles.container}>
 
@@ -255,9 +259,14 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
                       </Text>
                     </View>
                   ) : (
+                    
                     <View style={[styles.daysBadge, styles.daysBadgeBlue]}>
                       <Text style={styles.daysBadgeText}>
-                        {daysUntil(overviewDisplayMilestone.dueDate)} {tx('daysLeft', lang)}
+                        {daysUntil(
+                          overviewDisplayMilestone.type === 'defense'   // ← moved here, now safe
+                            ? overviewDisplayMilestone.defenseDate
+                            : overviewDisplayMilestone.dueDate
+                        )} {tx('daysLeft', lang)}
                       </Text>
                     </View>
                   )}
@@ -274,13 +283,111 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
                       : MILESTONE_LABEL[displayType].en;
                   })()}
                 </Text>
+                {actionableNextMilestone?.type === 'defense' && (() => {
+                  console.log('🎓 Defense milestone data:', JSON.stringify(actionableNextMilestone, null, 2));
+                  const m = actionableNextMilestone;
+                  
+                  const defenseDate = m.defenseDate
+                    ? ((m.defenseDate as any)?.toDate
+                        ? (m.defenseDate as any).toDate()
+                        : new Date(m.defenseDate))
+                    : null;
 
+                  const formattedDate = defenseDate
+                    ? defenseDate.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
+                        day: 'numeric', month: 'long', year: 'numeric',
+                      })
+                    : (lang === 'he' ? 'טרם נקבע' : 'Not set yet');
+
+                  const formattedTime = defenseDate
+                    ? defenseDate.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US', {
+                        hour: '2-digit', minute: '2-digit', hour12: false,
+                      })
+                    : (lang === 'he' ? 'טרם נקבע' : 'Not set yet');
+
+                  const rows = [
+                    {
+                      label: lang === 'he' ? 'בוחן 1' : 'Examiner 1',
+                      value: m.examinerNames?.[0] ?? (lang === 'he' ? 'טרם שובץ' : 'Not assigned yet'),
+                    },
+                    {
+                      label: lang === 'he' ? 'בוחן 2' : 'Examiner 2',
+                      value: m.examinerNames?.[1] ?? (lang === 'he' ? 'טרם שובץ' : 'Not assigned yet'),
+                    },
+                    {
+                      label: lang === 'he' ? 'תאריך' : 'Date',
+                      value: formattedDate,
+                    },
+                    {
+                      label: lang === 'he' ? 'שעה' : 'Time',
+                      value: formattedTime,
+                    },
+                    {
+                      label: lang === 'he' ? 'חדר' : 'Room',
+                      // TODO: replace with `${m.buildingNumber} → ${m.roomNumber}` when available
+                      value: m.defenseRoom ?? (lang === 'he' ? 'טרם נקבע' : 'Not set yet'),
+                    },
+                  ];
+
+                  return (
+                    <View style={{
+                      marginTop: 12,
+                      backgroundColor: '#F5F3FF',
+                      borderRadius: 12,
+                      padding: 14,
+                      borderLeftWidth: 4,
+                      borderLeftColor: '#8B5CF6',
+                      gap: 8,
+                    }}>
+                      <Text style={{
+                        fontSize: 13,
+                        fontWeight: '700',
+                        color: '#5B21B6',
+                        marginBottom: 4,
+                      }}>
+                        🎓 {lang === 'he' ? 'פרטי ההגנה' : 'Defense Details'}
+                      </Text>
+
+                      {rows.map((row) => (
+                        <View key={row.label} style={{
+                          flexDirection: isRtl ? 'row-reverse' : 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 4,
+                          borderBottomWidth: 1,
+                          borderBottomColor: '#EDE9FE',
+                        }}>
+                          <Text style={{
+                            fontSize: 13,
+                            fontWeight: '600',
+                            color: '#7C3AED',
+                            textAlign: isRtl ? 'right' : 'left',
+                          }}>
+                            {row.label}
+                          </Text>
+                          <Text style={{
+                            fontSize: 13,
+                            color: '#1F1344',
+                            fontWeight: '500',
+                            textAlign: isRtl ? 'left' : 'right',
+                            flexShrink: 1,
+                            marginLeft: isRtl ? 0 : 8,
+                            marginRight: isRtl ? 8 : 0,
+                          }}>
+                            {row.value}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })()}
                 {/* ── Submit button ──
                     Enabled ONLY when:
                     • There is an actionable (pending + unlocked) next milestone
                     • AND we are NOT waiting for coordinator approval on any milestone
                 */}
-                {(() => {
+                {actionableNextMilestone?.type !== 'defense' && (() => {
+                  
                   const canSubmit = !!actionableNextMilestone && !isWaitingApproval;
                   return (
                     <Pressable
@@ -371,6 +478,9 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
                                 submitted:            'הוגש',
                                 supervisor_graded:    'נוקד ע"י מנחה',
                                 graded:               'נוקד ע"י מנחה',
+                                examiners_assigned:   'נבחרו בוחנים',
+                                examiner_graded:      'נוקד ע"י בוחן',
+                                both_examiners_graded:'שני בוחנים ניקדו',
                                 coordinator_approved: 'אושר ע"י רכז',
                                 completed:            'הושלם',
                               }[m.status])
@@ -379,6 +489,9 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
                                 submitted:            'Submitted',
                                 supervisor_graded:    'Supervisor Graded',
                                 graded:               'Supervisor Graded',
+                                examiners_assigned:   'Examiners Assigned',
+                                examiner_graded:      'Examiner Graded',
+                                both_examiners_graded:'Both Examiners Graded',
                                 coordinator_approved: 'Coordinator Approved',
                                 completed:            'Completed',
                               }[m.status])
@@ -467,7 +580,7 @@ const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
                         • not the defense milestone
                         • milestone is unlocked (previous was coordinator_approved/completed)
                     */}
-                    {m.status === 'pending' && !isDefense && unlocked && (
+                    {m.status === 'pending' && !isDefense && unlocked && !m.defenseDate && (
                       <Pressable
                         style={styles.milestoneSubmitBtn}
                         onPress={() => openSubmit(m)}

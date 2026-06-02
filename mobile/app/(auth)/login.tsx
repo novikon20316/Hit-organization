@@ -21,6 +21,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // ← new
 
   const handleLogin = async () => {
     if(loading) return;
@@ -32,7 +33,6 @@ export default function Home() {
       setError("");
       setLoading(true);
       await loginUser(email, password);
-      // ❗ NO navigation here — RootLayout handles redirect
     } catch (err: any) {
       console.log("Login error:", err);
       const code = err?.code;
@@ -41,7 +41,7 @@ export default function Home() {
       } else if (code === "auth/too-many-requests") {
         setError("Too many attempts. Please try again later");
       } else if (code === "auth/network-request-failed") {
-        setError("Network error. Check your connection and try again"); // ← your actual bug
+        setError("Network error. Check your connection and try again");
       } else {
         setError("Something went wrong. Please try again");
       }
@@ -57,17 +57,15 @@ export default function Home() {
     >
       <View style={styles.container}>
 
-        {/* LOGO SECTION */}
         <View style={styles.logoContainer}>
           <Image
-            source={require("../../assets/hit-logo.png")} // <-- make sure file exists
+            source={require("../../assets/hit-logo.png")}
             style={styles.logo}
             resizeMode="contain"
           />
           <Text style={styles.title}>HIT System</Text>
         </View>
 
-        {/* INPUTS */}
         <View style={styles.form}>
           <TextInput
             placeholder="Email"
@@ -79,24 +77,38 @@ export default function Home() {
             autoCapitalize="none"
           />
 
-          <TextInput
-            placeholder="Password"
-            placeholderTextColor="#999"
-            value={password}
-            onChangeText={(t) => { setPassword(t); setError(""); }}
-            secureTextEntry
-            style={styles.input}
-          />
+          {/* ── Password row with show/hide toggle ── */}
+          <View style={{ position: 'relative', justifyContent: 'center', marginBottom: 12 }}>
+            <TextInput
+              placeholder="Password"
+              placeholderTextColor="#999"
+              value={password}
+              onChangeText={(t) => { setPassword(t); setError(""); }}
+              secureTextEntry={!showPassword}
+              style={[styles.input, { marginBottom: 0, paddingRight: 48 }]}
+            />
+            <Pressable
+              onPress={() => setShowPassword(prev => !prev)}
+              style={{
+                position: 'absolute',
+                right: 14,
+                padding: 4,
+              }}
+            >
+              <Text style={{ fontSize: 18 }}>
+                {showPassword ? '🙈' : '👁️'}
+              </Text>
+            </Pressable>
+          </View>
 
-          {/* Inline error instead of alert() */}
           {error ? (
             <Text style={{ color: "red", marginBottom: 8, textAlign: "center" }}>
               {error}
             </Text>
           ) : null}
 
-          <TouchableOpacity 
-            style={styles.button} 
+          <TouchableOpacity
+            style={styles.button}
             onPress={handleLogin}
             disabled={loading}
           >
@@ -106,11 +118,12 @@ export default function Home() {
               <Text style={styles.buttonText}>Login</Text>
             )}
           </TouchableOpacity>
-            <Pressable onPress={() => router.push('/(auth)/signup')}>
-              <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
-                Don&#39;t have an account? Sign Up.
-              </Text>
-            </Pressable>
+
+          <Pressable onPress={() => router.push('/(auth)/signup')}>
+            <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
+              Don&#39;t have an account? Sign Up.
+            </Text>
+          </Pressable>
         </View>
       </View>
     </KeyboardAvoidingView>

@@ -8,7 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import { browseProjectsStyles } from '../../constants/styles';
-import type { ProjectProposal } from '../../hooks/useStudentData';
+import type { ProjectProposal } from '@/types';
 import { apiClient } from '../../src/api/apiClient';
 
 interface Props {

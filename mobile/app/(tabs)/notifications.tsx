@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import NewChatSheet from '../message/new';
 import { apiClient } from '../../src/api/apiClient';
+import { useNotifications } from '../../src/context/NotificationsContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -189,7 +190,7 @@ function ChatRowItem({ chat, lang, isRtl, onPress, onLongPress }: {
 export default function NotificationsScreen() {
   const router = useRouter();
   const uid    = auth.currentUser?.uid;
-
+  const { refresh } = useNotifications();
   const unsubNotifsRef = useRef<(() => void) | null>(null);
   const unsubChatsRef  = useRef<(() => void) | null>(null);
 
@@ -324,6 +325,7 @@ export default function NotificationsScreen() {
 
   const handleTapNotif = async (notif: Notif) => {
     if (!notif.isRead) await apiClient.markNotificationRead(notif.id);
+    refresh();
     switch (notif.type) {
       case 'new_message':
         if (notif.chatId) {
@@ -361,7 +363,7 @@ export default function NotificationsScreen() {
 
       // 💡 Instantly update your local UI state array to set everything to read
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      
+      refresh();
     } catch (err: any) {
       console.error('Failed to mark all notifications as read:', err);
     }
@@ -542,13 +544,11 @@ export default function NotificationsScreen() {
               />
             </>
           )}
+          <Pressable style={s.fab} onPress={() => setChatSheetVisible(true)}>
+            <Text style={s.fabText}>+</Text>
+          </Pressable>
         </>
       )}
-
-      {/* ── FAB ── */}
-      <Pressable style={s.fab} onPress={() => setChatSheetVisible(true)}>
-        <Text style={s.fabText}>+</Text>
-      </Pressable>
 
       {/* ── New chat sheet ── */}
       <NewChatSheet

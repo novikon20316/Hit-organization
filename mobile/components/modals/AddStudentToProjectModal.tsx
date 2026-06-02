@@ -14,6 +14,7 @@ interface UserRecord {
   displayName: string;
   email: string;
   role: string;
+  roles: string[];
   facultyId: string;
   isActive: boolean;
 }
@@ -48,7 +49,7 @@ interface Props {
 
   addingStudent: boolean;
 
-  onAddStudent: (user: UserRecord) => void;
+  onAddStudent: (user: UserRecord) => void | Promise<void>;
 
   getFacultyColor: (id: string) => any;
   styles: any;

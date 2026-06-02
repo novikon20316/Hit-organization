@@ -1,9 +1,17 @@
 // src/api/apiClient.ts
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { auth } from '../firebase/firebase';
 
-const SERVER_URL = 'http://XXXXXXXXXXXXXXXX:XXXXX'; /** NEED TO CHANGE THE IP WHEN YOU RECONNECT TO ANY NETWORK **/
+const configuredApiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
+const DEFAULT_LOCAL_API_URL = Platform.OS === 'android'
+  ? 'http://10.0.2.2:5000'
+  : 'http://127.0.0.1:5000';
+const SERVER_URL = configuredApiUrl ?? DEFAULT_LOCAL_API_URL;
+
+console.log(`[ApiClient] Using base URL: ${SERVER_URL}`);
+
 
 class ApiClient {
   private api: AxiosInstance;

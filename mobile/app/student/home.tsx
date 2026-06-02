@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useStudentData } from '../../hooks/useStudentData';
 import { tx, type Lang } from '../../components/i18n';
 import { studentHomeStyles } from '@/constants';
+import { NotificationBell } from '../../components/NotificationBell';
 
 // ─── Sub-screens ──────────────────────────────────────────────────────────────
 import BrowseProjects  from '../(tabs)/Browseprojects';
@@ -28,7 +29,7 @@ export default function StudentHome() {
   const {
     studentState, studentName,
     proposals, activeProject, milestones, nextMilestone, progress,
-    pendingApplication, unreadCount, studentDegree,
+    pendingApplication, studentDegree, cancelAllListeners 
   } = useStudentData();
 
  const handleSignOut = async () => {
@@ -37,6 +38,7 @@ export default function StudentHome() {
   } catch (e) {
     console.warn('Logout API call failed, continuing anyway');
   } finally {
+    cancelAllListeners();
     await signOut(auth);
     router.replace('/(auth)/login');
   }
@@ -83,16 +85,7 @@ export default function StudentHome() {
           </Pressable>
 
           {/* Notifications bell */}
-          <Pressable style={styles.bellBtn} onPress={() => router.push('/(tabs)/notifications')}>
-            <Text style={styles.bellIcon}>🔔</Text>
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </Pressable>
+          <NotificationBell />
 
           {/* Sign out */}
           <Pressable style={styles.signOutBtn} onPress={handleSignOut}>
