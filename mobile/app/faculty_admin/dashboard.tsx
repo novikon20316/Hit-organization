@@ -138,7 +138,7 @@ export default function PanelScreen() {
       setSaving(true);
       await apiClient.post(`/api/admin/users/${editUser.id}/role-update`, {
         role:      editRole,
-        roles:     editRoles,     // ← ADD
+        roles:     editRoles,
         facultyId: editFaculty,
       });
       Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');

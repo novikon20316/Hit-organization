@@ -130,7 +130,7 @@ export default function CoordinatorHome() {
       try {
         setLoadingDeadlines(true);
         const res = await apiClient.get('/api/staff/deadlines');
-        setDeadlines(res.data.rows || []);
+        setDeadlines(res.data.deadlines || []);
       } catch (e) {
         console.error('Failed to load deadlines', e);
         Alert.alert('Error', 'Failed to load deadlines');

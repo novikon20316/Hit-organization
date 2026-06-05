@@ -93,7 +93,7 @@ export default function ProfileSetup() {
         // Non-fatal — _layout.tsx will retry on next login
       }
       const response = await axios.post(
-        'http://10.100.102.22:5000/api/users/sync',
+        'http://172.18.34.144:5000/api/users/sync',
         {
           newUid: user.uid,
           email: email,
