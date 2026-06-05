@@ -121,3 +121,14 @@ export const updateGrading = async (req: AuthenticatedRequest, res: Response) =>
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const getList = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const examinersSnap = await db.collection('users').where('role', '==', 'examiner').get();
+    const examiners = examinersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json({ examiners });
+  } catch (error) {
+    console.error('Failed to fetch examiners:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
