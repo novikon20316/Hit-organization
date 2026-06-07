@@ -173,7 +173,7 @@ export default function SupervisorHome() {
     const fetchDeadlines = async () => {
       try {
         setLoadingDeadlines(true);
-        const res = await apiClient.get('/api/supervisor/deadlines');
+        const res = await apiClient.get(`/api/staff/${supervisorId}/deadlines`);
         setDeadlines(res.data.rows || []);
       } catch (e) {
         console.error('Failed to load deadlines', e);

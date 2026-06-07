@@ -13,6 +13,9 @@ import {PRIMARY, loginStyles} from '../../constants'
 import { loginUser } from "../../firebase/authService";
 import { useState } from "react";
 import { useRouter } from 'expo-router';
+import { doc, getDoc } from "firebase/firestore";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth, db } from "@/src/firebase/firebase";
 
 
 export default function Home() {
@@ -24,26 +27,37 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false); // ← new
 
   const handleLogin = async () => {
-    if(loading) return;
-    if (!email || !password) {
-      setError("Please enter email and password");
-      return;
-    }
+    if (!email || !password) return;
+    setLoading(true);
+    setError('');
     try {
-      setError("");
-      setLoading(true);
-      await loginUser(email, password);
-    } catch (err: any) {
-      console.log("Login error:", err);
-      const code = err?.code;
-      if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-        setError("Email or password is incorrect");
-      } else if (code === "auth/too-many-requests") {
-        setError("Too many attempts. Please try again later");
-      } else if (code === "auth/network-request-failed") {
-        setError("Network error. Check your connection and try again");
+      const firebaseUser = await signInWithEmailAndPassword(auth, email, password);
+
+      const userDoc = await getDoc(doc(db, 'users', firebaseUser.user.uid));
+      const userData = userDoc.data();
+
+      if (userData?.totp_enabled) {
+        // ✅ go to verify, NOT setup
+        router.push('/(auth)/verify2fa');
       } else {
-        setError("Something went wrong. Please try again");
+        const role = userData?.role;
+        router.replace(
+          role === 'system_admin'  ? '/admin/panel'
+          : role === 'faculty_admin' ? '/faculty_admin/dashboard'
+          : role === 'coordinator'   ? '/coordinator/home'
+          : role === 'supervisor'    ? '/supervisor/dashboard'
+          : role === 'student'       ? '/student/home'
+          : role === 'examiner'      ? '/examinor/home'
+          : '/(auth)/login'
+        );
+      }
+    } catch (err: any) {
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        setError('Incorrect email or password.');
+      } else if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email.');
+      } else {
+        setError('Login failed. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -122,6 +136,11 @@ export default function Home() {
           <Pressable onPress={() => router.push('/(auth)/signup')}>
             <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
               Don&#39;t have an account? Sign Up.
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/(auth)/resetPass')}>
+            <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
+              Don&#39;t remember your password? Reset It.
             </Text>
           </Pressable>
         </View>

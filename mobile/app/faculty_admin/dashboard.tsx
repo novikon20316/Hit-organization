@@ -116,7 +116,7 @@ export default function PanelScreen() {
     const fetchDeadlines = async () => {
       try {
         setLoadingDeadlines(true);
-        const res = await apiClient.get('/api/staff/deadlines');
+        const res = await apiClient.get(`/api/staff/${uid}/deadlines`);
         setDeadlines(res.data.rows || []);
       } catch (e) {
         console.error('Failed to load deadlines', e);

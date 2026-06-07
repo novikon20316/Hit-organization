@@ -4,12 +4,29 @@ import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { auth } from '../firebase/firebase';
 
-const configuredApiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
-const DEFAULT_LOCAL_API_URL = Platform.OS === 'android'
-  ? 'http://10.0.2.2:5000'
-  : 'http://127.0.0.1:5000';
-const SERVER_URL = configuredApiUrl ?? DEFAULT_LOCAL_API_URL;
+function getBaseUrl(): string {
+  // Dev build on a real device — derive IP from Metro's hostUri
+  const debuggerHost =
+    Constants.expoConfig?.hostUri ??
+    (Constants as any).manifest2?.extra?.expoClient?.hostUri ??
+    (Constants as any).manifest?.debuggerHost;
 
+  if (debuggerHost) {
+    const host = debuggerHost.split(':')[0];
+    return `http://${host}:5000`;
+  }
+
+  // Production build — use the value baked in via app.json extra
+  const configuredApiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
+  if (configuredApiUrl) return configuredApiUrl;
+
+  // Last resort emulator fallback
+  return Platform.OS === 'android'
+    ? 'http://10.0.2.2:5000'
+    : 'http://127.0.0.1:5000';
+}
+
+const SERVER_URL = getBaseUrl();
 console.log(`[ApiClient] Using base URL: ${SERVER_URL}`);
 
 

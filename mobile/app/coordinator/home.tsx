@@ -69,7 +69,7 @@ export default function CoordinatorHome() {
   const [projectId, setProjectId] = useState<string>('')
   const [saving, setSaving] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
-
+  const coordinatorId = auth.currentUser?.uid || '';
   const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
   const toggleStudentExpansion = (projectId: string, studentIndex: number) => {
     const key = `${projectId}-${studentIndex}`;
@@ -127,9 +127,10 @@ export default function CoordinatorHome() {
   useEffect(() => {
     if (activeTab !== 'deadlines') return;
     const fetchDeadlines = async () => {
+      if(coordinatorId === '') return;
       try {
         setLoadingDeadlines(true);
-        const res = await apiClient.get('/api/staff/deadlines');
+        const res = await apiClient.get(`/api/staff/${coordinatorId}/deadlines`);
         setDeadlines(res.data.deadlines || []);
       } catch (e) {
         console.error('Failed to load deadlines', e);

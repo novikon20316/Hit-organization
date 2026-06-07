@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../api/apiClient';
 import { auth } from '../firebase/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 interface NotificationsContextValue {
   unreadCount: number;
@@ -17,6 +18,19 @@ const NotificationsContext = createContext<NotificationsContextValue>({
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChats, setUnreadChats] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+   // Track auth state
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setIsLoggedIn(!!user);
+      if (!user) {
+        setUnreadCount(0);   // ← clear on logout
+        setUnreadChats(0);
+      }
+    });
+    return unsub;
+  }, []);
 
   const refresh = useCallback(async () => {
     const uid = auth.currentUser?.uid;
@@ -35,12 +49,13 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
-  // Poll every 30 seconds — same interval you already use
+  // ← Only poll when logged in
   useEffect(() => {
+    if (!isLoggedIn) return;
     refresh();
-    const interval = setInterval(refresh, 30000);
+    const interval = setInterval(refresh, 30_000);
     return () => clearInterval(interval);
-  }, [refresh]);
+  }, [isLoggedIn, refresh]);
 
   return (
     <NotificationsContext.Provider value={{ unreadCount, unreadChats, refresh }}>

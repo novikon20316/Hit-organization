@@ -707,13 +707,58 @@ export default function PanelScreen() {
                       </Text>
                     </View>
 
-                    <Pressable
-                      style={styles.editBtn}
-                      onPress={() => openEditUser(u)}
-                    >
-                      <Text style={styles.editBtnText}>
-                        ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
+                    {/* 2FA status badge */}
+                    <View style={[
+                      styles.roleBadge,
+                      { backgroundColor: (u as any).totp_enabled ? '#ECFDF5' : '#F1F5F9' }
+                    ]}>
+                      <Text style={{
+                        fontSize: 11, fontWeight: '700',
+                        color: (u as any).totp_enabled ? '#10B981' : '#94A3B8'
+                      }}>
+                        {(u as any).totp_enabled
+                          ? (lang === 'he' ? '🔐 2FA פעיל' : '🔐 2FA On')
+                          : (lang === 'he' ? '🔓 2FA כבוי' : '🔓 2FA Off')}
                       </Text>
+                    </View>
+
+                    {/* Disable 2FA button — only shown when enabled */}
+                    {(u as any).totp_enabled && (
+                      <Pressable
+                        style={[styles.editBtn, { backgroundColor: '#FFF7ED', borderColor: '#F97316' }]}
+                        onPress={() => {
+                          Alert.alert(
+                            lang === 'he' ? 'ביטול 2FA' : 'Disable 2FA',
+                            lang === 'he'
+                              ? `האם לבטל את האימות הדו-שלבי עבור ${u.displayName}?`
+                              : `Disable 2FA for ${u.displayName}?`,
+                            [
+                              { text: lang === 'he' ? 'לא' : 'Cancel', style: 'cancel' },
+                              {
+                                text: lang === 'he' ? 'כן, בטל' : 'Yes, disable',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  try {
+                                    await apiClient.post(`/api/admin/users/${u.id}/disable-2fa`);
+                                    Alert.alert('✅', lang === 'he' ? '2FA בוטל בהצלחה' : '2FA disabled successfully');
+                                    fetchAllDashboardData();
+                                  } catch {
+                                    Alert.alert('Error', lang === 'he' ? 'שגיאה בביטול 2FA' : 'Failed to disable 2FA');
+                                  }
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Text style={[styles.editBtnText, { color: '#F97316' }]}>
+                          🔓 {lang === 'he' ? 'בטל 2FA' : 'Disable 2FA'}
+                        </Text>
+                      </Pressable>
+                    )}
+
+                    <Pressable style={styles.editBtn} onPress={() => openEditUser(u)}>
+                      <Text style={styles.editBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
                     </Pressable>
                   </View>
                 </View>

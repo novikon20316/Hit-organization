@@ -363,6 +363,8 @@ export interface UserRecord {
   roles: string[];
   facultyId: string;
   isActive: boolean;
+  totp_enabled?: boolean;
+  totp_last_verified?: any;
 }
 
 /**

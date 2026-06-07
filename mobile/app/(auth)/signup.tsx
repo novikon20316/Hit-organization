@@ -11,6 +11,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
+import { apiClient } from '@/src/api/apiClient';
 
 type FloatingInputProps = TextInputProps & {
   placeholder: string;
@@ -38,6 +39,113 @@ const MAJORS: Array<{ id: Major; he: string; en: string; years: number }> = [
   { id: 'mechanical',          he: 'הנדסה מכנית',             en: 'Mechanical Engineering', years: 4 },
   { id: 'learning_technology', he: 'טכנולוגיות למידה',        en: 'Learning Technology',    years: 3 },
 ];
+const s = StyleSheet.create({
+  // ... existing styles ...
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#445',
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#E0E8FF',
+    fontSize: 16,
+    color: '#111',
+  },
+  // Keep the rest of your styles unchanged
+  root:     { flex: 1, backgroundColor: '#F0F4FF' },
+  content: { padding: 20 },
+  rowReverse: { flexDirection: 'row-reverse' },
+  textRight:  { textAlign: 'right' },
+  textCenter: { textAlign: 'center' },
+  langRow:  { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
+  langBtn: {
+    backgroundColor: '#EFF6FF', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: '#D0DEFF',
+  },
+  langText: { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
+  hero:       { alignItems: 'center', marginBottom: 32 },
+  heroEmoji: { fontSize: 56, marginBottom: 12 },
+  heroTitle: { fontSize: 26, fontWeight: '900', color: '#111', marginBottom: 8 },
+  heroSub:    { fontSize: 14, color: '#8899BB', lineHeight: 20, textAlign: 'center' },
+  section:      { marginBottom: 24 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 14 },
+  optionRow:     { flexDirection: 'row', gap: 12 },
+  bigOption: {
+    flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 18,
+    alignItems: 'center', borderWidth: 2, borderColor: '#E0E8FF',
+  },
+  bigOptionActive:     { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
+  bigOptionEmoji:      { fontSize: 32, marginBottom: 8 },
+  bigOptionText:       { fontSize: 14, fontWeight: '700', color: '#8899BB', textAlign: 'center' },
+  bigOptionTextActive:{ color: '#2E86FF' },
+  majorGrid:    { gap: 8 },
+  majorOption: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 14,
+    borderWidth: 1.5, borderColor: '#E0E8FF',
+  },
+  majorOptionActive:  { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
+  majorText:          { fontSize: 14, fontWeight: '600', color: '#445', marginBottom: 2 },
+  majorTextActive:    { color: '#2E86FF' },
+  majorYears:         { fontSize: 11, color: '#9BA8C0' },
+  majorYearsActive:   { color: '#60A5FA' },
+  yearRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  yearOption: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 14,
+    alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E8FF',
+    minWidth: '45%', flex: 1,
+  },
+  yearOptionActive:      { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
+  yearOptionFinal:       { borderColor: '#10B981', borderStyle: 'dashed' },
+  yearOptionFinalActive: { backgroundColor: '#ECFDF5', borderStyle: 'solid' },
+  yearNum:               { fontSize: 15, fontWeight: '700', color: '#445', marginBottom: 4 },
+  yearNumActive:         { color: '#2E86FF' },
+  saveBtn: {
+    backgroundColor: '#2E86FF', borderRadius: 16, paddingVertical: 16,
+    alignItems: 'center', marginTop: 8,
+    shadowColor: '#2E86FF', shadowOpacity: 0.35, shadowRadius: 12, elevation: 5,
+  },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+});
+
+  const FloatingInput = ({ placeholder, isRtl, ...props }: FloatingInputProps) => {
+    const [isFocused, setIsFocused] = useState(false);
+    const showPlaceholder = !isFocused && !props.value;
+
+    return (
+      <View style={{ position: 'relative', marginBottom: 12 }}>
+        {showPlaceholder && (
+          <Text
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: 16,
+              left: !isRtl ? undefined : 16,
+              right: !isRtl ? 16 : undefined,
+              fontSize: 16,
+              color: '#9BA8C0',
+              zIndex: 1,
+            }}
+          >
+            {placeholder}
+          </Text>
+        )}
+        <TextInput
+          {...props}
+          placeholder=""
+          onFocus={(e) => { setIsFocused(true); props.onFocus?.(e); }}
+          onBlur={(e)  => { setIsFocused(false); props.onBlur?.(e); }}
+          style={[s.input, { marginBottom: 0 }, isRtl && s.textRight, props.style]}
+        />
+      </View>
+    );
+  };
 
 export default function ProfileSetup() {
   const router = useRouter();
@@ -92,9 +200,7 @@ export default function ProfileSetup() {
         console.warn('Could not get push token during registration:', e);
         // Non-fatal — _layout.tsx will retry on next login
       }
-      const response = await axios.post(
-        'http://172.18.34.144:5000/api/users/sync',
-        {
+      const response = await apiClient.post('/api/users/sync', {
           newUid: user.uid,
           email: email,
           role: 'student',
@@ -109,7 +215,7 @@ export default function ProfileSetup() {
           isActive: true,
           profileComplete: true,
           language: lang,
-          additionalRoles: [] 
+          additionalRoles: [],
         },
         {
           headers: {
@@ -164,39 +270,6 @@ export default function ProfileSetup() {
     degreeType && 
     major && 
     yearOfStudy;
-
-  const FloatingInput = ({ placeholder, isRtl, ...props }: FloatingInputProps) => {
-    const [isFocused, setIsFocused] = useState(false);
-    const showPlaceholder = !isFocused && !props.value;
-
-    return (
-      <View style={{ position: 'relative', marginBottom: 12 }}>
-        {showPlaceholder && (
-          <Text
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              top: 16,
-              left: !isRtl ? undefined : 16,
-              right: !isRtl ? 16 : undefined,
-              fontSize: 16,
-              color: '#9BA8C0',
-              zIndex: 1,
-            }}
-          >
-            {placeholder}
-          </Text>
-        )}
-        <TextInput
-          {...props}
-          placeholder=""
-          onFocus={(e) => { setIsFocused(true); props.onFocus?.(e); }}
-          onBlur={(e)  => { setIsFocused(false); props.onBlur?.(e); }}
-          style={[s.input, { marginBottom: 0 }, isRtl && s.textRight, props.style]}
-        />
-      </View>
-    );
-  };
   
   return (
     <SafeAreaView style={s.root}>
@@ -550,77 +623,3 @@ export default function ProfileSetup() {
   );
 }
 
-const s = StyleSheet.create({
-  // ... existing styles ...
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#445',
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1.5,
-    borderColor: '#E0E8FF',
-    fontSize: 16,
-    color: '#111',
-  },
-  // Keep the rest of your styles unchanged
-  root:     { flex: 1, backgroundColor: '#F0F4FF' },
-  content: { padding: 20 },
-  rowReverse: { flexDirection: 'row-reverse' },
-  textRight:  { textAlign: 'right' },
-  textCenter: { textAlign: 'center' },
-  langRow:  { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
-  langBtn: {
-    backgroundColor: '#EFF6FF', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: '#D0DEFF',
-  },
-  langText: { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
-  hero:       { alignItems: 'center', marginBottom: 32 },
-  heroEmoji: { fontSize: 56, marginBottom: 12 },
-  heroTitle: { fontSize: 26, fontWeight: '900', color: '#111', marginBottom: 8 },
-  heroSub:    { fontSize: 14, color: '#8899BB', lineHeight: 20, textAlign: 'center' },
-  section:      { marginBottom: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 14 },
-  optionRow:     { flexDirection: 'row', gap: 12 },
-  bigOption: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 18,
-    alignItems: 'center', borderWidth: 2, borderColor: '#E0E8FF',
-  },
-  bigOptionActive:     { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
-  bigOptionEmoji:      { fontSize: 32, marginBottom: 8 },
-  bigOptionText:       { fontSize: 14, fontWeight: '700', color: '#8899BB', textAlign: 'center' },
-  bigOptionTextActive:{ color: '#2E86FF' },
-  majorGrid:    { gap: 8 },
-  majorOption: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    borderWidth: 1.5, borderColor: '#E0E8FF',
-  },
-  majorOptionActive:  { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
-  majorText:          { fontSize: 14, fontWeight: '600', color: '#445', marginBottom: 2 },
-  majorTextActive:    { color: '#2E86FF' },
-  majorYears:         { fontSize: 11, color: '#9BA8C0' },
-  majorYearsActive:   { color: '#60A5FA' },
-  yearRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  yearOption: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E8FF',
-    minWidth: '45%', flex: 1,
-  },
-  yearOptionActive:      { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
-  yearOptionFinal:       { borderColor: '#10B981', borderStyle: 'dashed' },
-  yearOptionFinalActive: { backgroundColor: '#ECFDF5', borderStyle: 'solid' },
-  yearNum:               { fontSize: 15, fontWeight: '700', color: '#445', marginBottom: 4 },
-  yearNumActive:         { color: '#2E86FF' },
-  saveBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 16, paddingVertical: 16,
-    alignItems: 'center', marginTop: 8,
-    shadowColor: '#2E86FF', shadowOpacity: 0.35, shadowRadius: 12, elevation: 5,
-  },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
-});
