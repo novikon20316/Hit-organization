@@ -5,6 +5,6 @@ import {
 } from '../controllers/staffController.js';
 const router = Router();
 
-router.get('/deadlines', verifyToken, getDeadLines)
+router.get('/:id/deadlines', verifyToken, getDeadLines)
 
 export default router;

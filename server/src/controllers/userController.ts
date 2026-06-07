@@ -85,6 +85,10 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       hasActiveProject:false,
       language:        'he',
       expoPushToken:   null,
+      totp_enabled: false,       
+      totp_secret: null,         
+      totp_secret_temp: null,    
+      totp_last_verified: null,
 
       ...(role === 'examiner' ? { dates: [] } : {}),
 

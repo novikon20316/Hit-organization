@@ -11,6 +11,7 @@ export interface AuthenticatedRequest extends Request {
     email?:    string | undefined;
     role:      string;
     facultyId: string;
+    roles: string[];
   };
 }
 
@@ -56,6 +57,7 @@ export const verifyToken = async (
       email:     decodedToken.email,
       role:      userData.role      ?? 'student',
       facultyId: userData.facultyId ?? 'computer_science',
+      roles:     userData.roles     ?? ['student'],
     };
 
     return next();
@@ -92,6 +94,7 @@ export const verifyTokenOnly = async (
       email:     decodedToken.email,
       role:      'student',       // default, sync will set the real value
       facultyId: 'computer_science',
+      roles:     ['student'],
     };
     return next();
   } catch (error: any) {

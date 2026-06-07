@@ -16,7 +16,8 @@ import {
   updateUserRoleAdmin,
   toggleUserStatusAdmin,
   toggleSystemMaintenance,
-  deleteAdminProject
+  deleteAdminProject,
+  disableUser2FA 
 } from '../controllers/adminController.js'
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
@@ -43,6 +44,7 @@ router.post('/users/:id/toggle-status', verifyToken, toggleUserStatusAdmin);
 router.post('/system/maintenance', verifyToken, toggleSystemMaintenance);
 router.post('/projects', authenticateUser, adminCreateProject);
 router.post('/projects/:projectId/enroll', authenticateUser, enrollStudentToProject);
+router.post('/users/:id/disable-2fa', verifyToken, disableUser2FA);
 
 
 // DELETE routes

@@ -14,6 +14,7 @@ import coordinatorRoutes  from './routes/coordinator.js';
 import supervisorRoute    from './routes/supervisor.js';
 import studentRoutes      from './routes/student.js';
 import staffRoutes        from './routes/staff.js';
+import authRoutes         from './routes/authRoutes.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { v2 as cloudinary } from 'cloudinary';
@@ -55,6 +56,7 @@ app.use('/api/supervisor',    supervisorRoute);
 app.use('/api/student',       studentRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/staff',         staffRoutes);
+app.use('/api/auth',          authRoutes);
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error('Unhandled error:', err.stack);

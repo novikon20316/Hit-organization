@@ -170,6 +170,10 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
 
     await newUserRef.set({
       ...userData,
+      totp_enabled: false,       // becomes true after they complete setup2fa
+      totp_secret: null,         // filled in after setup2fa
+      totp_secret_temp: null,    // temporary during setup, cleared after
+      totp_last_verified: null,
       isActive: true,
       createdAt: new Date().toISOString()
     });
@@ -322,5 +326,37 @@ export const deleteAdminProject = async (req: AuthenticatedRequest, res: Respons
   } catch (error: any) {
     console.error('deleteAdminProject Error:', error);
     return res.status(500).json({ message: 'Failed to delete project.' });
+  }
+};
+
+/**
+ * POST /api/admin/users/:id/disable-2fa
+ * Disables 2FA for a specific user. Accessible by system_admin and faculty_admin.
+ */
+export const disableUser2FA = async (req: AuthenticatedRequest, res: Response) => {
+  const role = req.user?.role;
+  const roles = req.user?.roles ?? [];
+
+  const isAuthorized = role === 'system_admin' ||  roles.includes('system_admin') ;
+  if (!isAuthorized) {
+    return res.status(403).json({ message: 'Access denied: admin only.' });
+  }
+
+  const { id: userId } = req.params;
+  if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+
+  try {
+    await db.collection('users').doc(userId).update({
+      totp_enabled:      false,
+      totp_secret:       null,
+      totp_secret_temp:  null,
+      totp_last_verified: null,
+      updatedAt:         new Date().toISOString(),
+    });
+
+    return res.status(200).json({ success: true, message: '2FA disabled for user.' });
+  } catch (error: any) {
+    console.error('disableUser2FA error:', error);
+    return res.status(500).json({ message: 'Failed to disable 2FA.' });
   }
 };
