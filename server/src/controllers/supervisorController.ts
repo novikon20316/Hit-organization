@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { enrollStudentInProject } from '../services/projectEnrollment.js';
 
 const db = admin.firestore();
 
@@ -27,12 +28,19 @@ async function createNotification({
   relatedProjectId?:   string | null;
   relatedMilestoneId?: string | null;
 }) {
-  await db.collection('notifications').add({
-    recipientId, type, titleHe, titleEn, bodyHe, bodyEn,
-    relatedProjectId, relatedMilestoneId,
-    isRead:    false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  // Self-guarded like sendPushNotification above — a notification failure
+  // must never mask a primary write (grade/update/delete/decision) that has
+  // already committed by the time this is called.
+  try {
+    await db.collection('notifications').add({
+      recipientId, type, titleHe, titleEn, bodyHe, bodyEn,
+      relatedProjectId, relatedMilestoneId,
+      isRead:    false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    console.error('createNotification failed:', err);
+  }
 }
 
 // ─── Get push token for a user ────────────────────────────────────────────────
@@ -128,6 +136,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       degreeType, projectType, projectInfo,
       NumberOfStudents, requiredSkills, facultyId,
       gradingCriteria, // ← NEW: array of { key, label, maxScore }
+      prerequisites, // ← courses a student must have completed to be eligible
     } = req.body;
  
     if (!titleHe?.trim() || !titleEn?.trim()) {
@@ -158,6 +167,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       projectInfo:        projectInfo        ?? null,
       NumberOfStudents:   NumberOfStudents   ?? 1,
       requiredSkills:     requiredSkills     ?? [],
+      prerequisites:      Array.isArray(prerequisites) ? prerequisites : [],
       facultyId:          facultyId          ?? req.user?.facultyId ?? '',
       supervisorId,
       projectId:          newProjectRef.id,
@@ -220,44 +230,9 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     });
 
     if (decision === 'approved') {
-      // 1. Update project
-      await db.collection('projects').doc(projectId).update({
-        status:             'active',
-        enrolledStudentIds: admin.firestore.FieldValue.arrayUnion(studentId),
-        studentId:          admin.firestore.FieldValue.delete(),
-      });
-
-      // 2. Update student
-      await db.collection('users').doc(studentId).update({
-        hasActiveProject: true,
-        activeProjectId:  projectId,
-        supervisorId,
-      });
-
-      // 3. Create milestones
-      const batch = db.batch();
-      const baseDate = new Date();
-      const MILESTONE_TEMPLATES = [
-        { type: 'research_proposal', nameHe: 'הצעת מחקר',    nameEn: 'Research Proposal', days: 30  },
-        { type: 'progress_report',   nameHe: 'דו"ח התקדמות', nameEn: 'Progress Report',   days: 120 },
-        { type: 'final_report',      nameHe: 'דו"ח מסכם',    nameEn: 'Final Report',      days: 210 },
-        { type: 'defense',           nameHe: 'בחינת הגנה',   nameEn: 'Defense Exam',      days: 240 },
-      ];
-      for (const t of MILESTONE_TEMPLATES) {
-        const dueDate = new Date();
-        dueDate.setDate(baseDate.getDate() + t.days);
-        const milestoneRef = db.collection('milestones').doc();
-        batch.set(milestoneRef, {
-          projectId, studentIds: [studentId], supervisorId, facultyId,
-          type: t.type, nameHe: t.nameHe, nameEn: t.nameEn,
-          status:          'pending',
-          dueDate:         admin.firestore.Timestamp.fromDate(dueDate),
-          createdAt:       admin.firestore.FieldValue.serverTimestamp(),
-          finalGrade:      null, fileUrls: [], examinerIds: [],
-          supervisorScore: null, examiner1Score: null, examiner2Score: null,
-        });
-      }
-      await batch.commit();
+      // 1-3. Project/student/milestone writes — shared with the admin and
+      // faculty-admin manual-enrollment paths so all three stay in sync.
+      await enrollStudentInProject(projectId, studentId, supervisorId, facultyId);
 
       // 4. ✅ Firestore notification — approved
       await createNotification({
@@ -348,6 +323,9 @@ export const gradeMilestone = async (req: AuthenticatedRequest, res: Response) =
     if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
 
     const milestoneData = milestoneSnap.data()!;
+    if (milestoneData.supervisorId !== supervisorId)
+      return res.status(403).json({ message: 'Forbidden.' });
+
     const projectId     = milestoneData.projectId ?? null;
     const studentIds: string[] = milestoneData.studentIds ?? [];
 
@@ -452,6 +430,74 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
   } catch (error: any) {
     console.error('updateSupervisorProject Error:', error);
     return res.status(500).json({ message: 'Failed to update project.' });
+  }
+};
+
+// ─── GET /api/supervisor/examiner-recommendations ────────────────────────────
+export const getSupervisorExaminerRecommendations = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+
+  try {
+    const snap = await db.collection('examinerRecommendations')
+      .where('supervisorId', '==', supervisorId)
+      .get();
+
+    const recommendations = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return res.status(200).json({ recommendations });
+  } catch (error: any) {
+    console.error('getSupervisorExaminerRecommendations error:', error);
+    return res.status(500).json({ message: 'Failed to load examiner recommendations.' });
+  }
+};
+
+// ─── POST /api/supervisor/examiner-recommendations ───────────────────────────
+// Body: { projectId, projectTitleHe, projectTitleEn, recommendedExaminers }
+// recommendedExaminers: Array<{ type: 'internal'|'external', internalUserId?, name, email, institution, expertise, priority, notes }>
+// See mobile/components/modals/RecommendedExaminerModal.tsx for the exact shape.
+export const createExaminerRecommendation = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+
+  const { projectId, projectTitleHe, projectTitleEn, recommendedExaminers } = req.body;
+
+  if (!projectId || typeof projectId !== 'string') {
+    return res.status(400).json({ message: 'Missing projectId.' });
+  }
+  if (!Array.isArray(recommendedExaminers) || recommendedExaminers.length === 0) {
+    return res.status(400).json({ message: 'At least one recommended examiner is required.' });
+  }
+
+  try {
+    const [projectSnap, supervisorSnap] = await Promise.all([
+      db.collection('projects').doc(projectId).get(),
+      db.collection('users').doc(supervisorId).get(),
+    ]);
+    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (projectSnap.data()?.supervisorId !== supervisorId) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+
+    const facultyId     = projectSnap.data()?.facultyId ?? req.user?.facultyId ?? '';
+    const supervisorName = supervisorSnap.data()?.displayNameHe ?? supervisorSnap.data()?.displayName ?? '';
+
+    const recRef = db.collection('examinerRecommendations').doc();
+    await recRef.set({
+      projectId,
+      projectTitleHe: projectTitleHe ?? projectSnap.data()?.titleHe ?? '',
+      projectTitleEn: projectTitleEn ?? projectSnap.data()?.titleEn ?? '',
+      facultyId,
+      supervisorId,
+      supervisorName,
+      recommendedExaminers,
+      status:    'pending',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return res.status(201).json({ success: true, id: recRef.id });
+  } catch (error: any) {
+    console.error('createExaminerRecommendation error:', error);
+    return res.status(500).json({ message: 'Failed to submit examiner recommendation.' });
   }
 };
 

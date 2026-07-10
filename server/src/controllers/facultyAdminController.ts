@@ -1,28 +1,15 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import admin from 'firebase-admin';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+import { enrollStudentInProject } from '../services/projectEnrollment.js';
+
+const FACULTY_ADMIN_ROLES = ['faculty_admin', 'system_admin'];
 
 const db = admin.firestore();
 
-const buildProjectMilestones = (projectId: string, facultyId: string, supervisorId: string, studentIds: string[]) => {
-  const types = ['research_proposal', 'progress_report', 'final_report', 'defense'];
-  return types.map((type) => ({
-    projectId,
-    facultyId,
-    supervisorId,
-    studentIds,
-    type,
-    status: 'pending',
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    examinerIds: [],
-    supervisorScore: null,
-    examiner1Score: null,
-    examiner2Score: null
-  }));
-};
-
-export const getAdminDashboardData = async (req: Request, res: Response) => {
-  const uid = (req as any).user?.uid;
+export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
 
   try {
     const adminSnap = await db.collection('users').doc(uid).get();
@@ -81,7 +68,11 @@ export const getAdminDashboardData = async (req: Request, res: Response) => {
   }
 };
 
-export const updateUserPermissions = async (req: Request, res: Response) => {
+export const updateUserPermissions = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user?.role || !FACULTY_ADMIN_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
+  }
+
   const { userId } = req.params;
   const { role, facultyId } = req.body;
 
@@ -101,38 +92,11 @@ export const updateUserPermissions = async (req: Request, res: Response) => {
   }
 };
 
-export const adminCreateProject = async (req: Request, res: Response) => {
-  const uid = (req as any).user?.uid;
-  const fields = req.body;
-
-  try {
-    const adminSnap = await db.collection('users').doc(uid).get();
-    const facultyId = adminSnap.data()?.facultyId;
-
-    const projectRef = db.collection('projects').doc();
-    await projectRef.set({
-      titleHe: fields.titleHe,
-      titleEn: fields.titleEn,
-      descriptionHe: fields.descriptionHe || '',
-      descriptionEn: fields.descriptionEn || '',
-      skills: fields.skills || '',
-      degree: fields.degree,
-      type: fields.type,
-      supervisorId: fields.supervisorId,
-      facultyId,
-      status: 'approved',
-      studentIds: [],
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    return res.status(201).json({ success: true, projectId: projectRef.id });
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to insert project definition' });
+export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user?.role || !FACULTY_ADMIN_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
   }
-};
 
-export const enrollStudentToProject = async (req: Request, res: Response) => {
   const { projectId } = req.params;
   const { studentId } = req.body;
 
@@ -141,44 +105,19 @@ export const enrollStudentToProject = async (req: Request, res: Response) => {
   }
 
   try {
-    await db.runTransaction(async (transaction) => {
-      const projectRef = db.collection('projects').doc(projectId);
-      const studentRef = db.collection('users').doc(studentId);
+    const projectRef = db.collection('projects').doc(projectId);
+    const [pSnap, sSnap] = await Promise.all([
+      projectRef.get(),
+      db.collection('users').doc(studentId).get(),
+    ]);
 
-      const [pSnap, sSnap] = await Promise.all([
-        transaction.get(projectRef),
-        transaction.get(studentRef)
-      ]);
+    if (!pSnap.exists) throw new Error('Project references do not exist');
+    if (!sSnap.exists || sSnap.data()?.hasActiveProject) {
+      throw new Error('Target student already assigned or missing record');
+    }
 
-      if (!pSnap.exists) throw new Error('Project references do not exist');
-      if (!sSnap.exists || sSnap.data()?.hasActiveProject) {
-        throw new Error('Target student already assigned or missing record');
-      }
-
-      const currentStudents = pSnap.data()?.studentIds || [];
-
-      transaction.update(projectRef, {
-        studentIds: [...currentStudents, studentId],
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      transaction.update(studentRef, {
-        hasActiveProject: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      const milestoneRecords = buildProjectMilestones(
-        projectId,
-        pSnap.data()?.facultyId,
-        pSnap.data()?.supervisorId,
-        [...currentStudents, studentId]
-      );
-
-      milestoneRecords.forEach((mDoc) => {
-        const newMilestoneRef = db.collection('milestones').doc();
-        transaction.set(newMilestoneRef, mDoc);
-      });
-    });
+    const pData = pSnap.data()!;
+    await enrollStudentInProject(projectId, studentId, pData.supervisorId, pData.facultyId);
 
     return res.status(200).json({ success: true });
   } catch (error: any) {
@@ -196,7 +135,15 @@ export const enrollStudentToProject = async (req: Request, res: Response) => {
  *      This one is scoped to faculty_admin and uses the same field (isActive)
  *      so the Firestore data shape stays consistent.
  */
-export const toggleUserActive = async (req: Request, res: Response) => {
+export const toggleUserActive = async (req: AuthenticatedRequest, res: Response) => {
+  const role  = req.user?.role;
+  const roles = req.user?.roles ?? [];
+  const isAuthorized = role === 'faculty_admin' || role === 'system_admin' ||
+    roles.includes('faculty_admin') || roles.includes('system_admin');
+  if (!isAuthorized) {
+    return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
+  }
+
   const { userId } = req.params;
   const { isActive } = req.body;
 
@@ -214,6 +161,11 @@ export const toggleUserActive = async (req: Request, res: Response) => {
 
     if (!userSnap.exists) {
       return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Faculty admins may only toggle users within their own faculty.
+    if (role === 'faculty_admin' && userSnap.data()?.facultyId !== req.user?.facultyId) {
+      return res.status(403).json({ message: 'Cannot modify a user outside your faculty.' });
     }
 
     await userRef.update({

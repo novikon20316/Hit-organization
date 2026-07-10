@@ -36,6 +36,8 @@ export interface MilestoneData {
   examinerIds:   string[];
   defenseDate:   Timestamp | null;
   defenseRoom:   string | null;
+  defenseBuilding?: string | null;
+  defenseTime?:  string | null;
   finalGrade:    number | null;
   fileUrls:      string[];
 }
@@ -88,8 +90,9 @@ function MilestoneCard({
   const [newDateText, setNewDateText] = useState('');
   const [savingDate, setSavingDate] = useState(false);
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
-  const [selectedDateString, setSelectedDateString] = useState<string>(''); // or Date / number
-  const isCompleted = milestone.status === 'completed';
+  // 'coordinator_approved' is the actual completion status the server sets
+  // (coordinatorController.ts) — 'completed' alone is never written anywhere.
+  const isCompleted = milestone.status === 'coordinator_approved' || milestone.status === 'completed';
   const cfg         = STATUS_CONFIG[milestone.status];
   const days        = daysUntil(milestone.dueDate);
   const urgency     = isCompleted ? 'ok' : urgencyLevel(days);
@@ -103,19 +106,15 @@ function MilestoneCard({
     viewerRole === 'system_admin'
   ) && milestone.status === 'pending';
 
-  const handleSaveDate = async (milestoneId: string, updatedData: any) => {
+  const handleSaveDate = async (milestoneId: string) => {
     if (!newDateText.trim()) return;
     const parsed = new Date(newDateText);
     if (isNaN(parsed.getTime())) return;
     try {
       setSavingDate(true);
-      /*await updateDoc(doc(db, 'milestones', milestone.id), {
-        dueDate: Timestamp.fromDate(parsed),
-      });*/
       await apiClient.put(`/api/milestones/${milestoneId}`, {
-        status: updatedData.status,
-        dueDate: updatedData.dueDate, // Express backend maps date changes securely
-        grades: updatedData.grades
+        dueDate: parsed.toISOString(),
+        status: 'pending',
       });
       onAdjustDate?.(milestone, parsed);
       setShowDatePicker(false);
@@ -228,6 +227,8 @@ function MilestoneCard({
                     { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
                   ) ?? '—'
               }
+              {milestone.defenseTime ? `  |  🕐 ${milestone.defenseTime}` : ''}
+              {milestone.defenseBuilding ? `  |  🏢 ${milestone.defenseBuilding}` : ''}
               {milestone.defenseRoom ? `  |  🏛️ ${milestone.defenseRoom}` : ''}
             </Text>
           </View>
@@ -356,10 +357,7 @@ function MilestoneCard({
                 style={[mc.modalSaveBtn, savingDate && { opacity: 0.6 }]}
                 onPress={() => {
                   if (selectedMilestoneId) {
-                    handleSaveDate(selectedMilestoneId, {
-                      dueDate: selectedDateString, // Passes the new date string or timestamp
-                      status: 'pending'            // Keeps or modifies the status parameter securely
-                    });
+                    handleSaveDate(selectedMilestoneId);
                   }
                 }}
                 disabled={savingDate}
@@ -398,7 +396,11 @@ export default function MilestoneTimeline({
   }
 
   // Progress bar
-  const completed = milestones.filter((m) => m.status === 'completed').length;
+  // 'coordinator_approved' is the actual completion status the server sets
+  // (coordinatorController.ts) — 'completed' alone is never written anywhere.
+  const completed = milestones.filter(
+    (m) => m.status === 'coordinator_approved' || m.status === 'completed'
+  ).length;
   const progress  = Math.round((completed / milestones.length) * 100);
 
   return (

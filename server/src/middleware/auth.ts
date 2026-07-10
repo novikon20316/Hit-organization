@@ -12,6 +12,10 @@ export interface AuthenticatedRequest extends Request {
     role:      string;
     facultyId: string;
     roles: string[];
+    // Unix seconds — when this ID token's underlying sign-in happened. Used
+    // by account-deletion's "require a recent reauthentication" check; no
+    // other route relies on this.
+    authTime: number;
   };
 }
 
@@ -56,8 +60,9 @@ export const verifyToken = async (
       uid,
       email:     decodedToken.email,
       role:      userData.role      ?? 'student',
-      facultyId: userData.facultyId ?? 'computer_science',
+      facultyId: userData.facultyId ?? 'sciences',
       roles:     userData.roles     ?? ['student'],
+      authTime:  decodedToken.auth_time,
     };
 
     return next();
@@ -93,8 +98,9 @@ export const verifyTokenOnly = async (
       uid:       decodedToken.uid,
       email:     decodedToken.email,
       role:      'student',       // default, sync will set the real value
-      facultyId: 'computer_science',
+      facultyId: 'sciences',
       roles:     ['student'],
+      authTime:  decodedToken.auth_time,
     };
     return next();
   } catch (error: any) {

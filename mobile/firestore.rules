@@ -1,0 +1,336 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Core auth check (no get() call) ────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // ─── Single cached user fetch ────────────────────────────────────────────
+    // ALL role/faculty checks go through this one function.
+    // Firestore does NOT cache get() calls between function invocations,
+    // so every helper that called getUser() was a separate read.
+    // Solution: call userDoc() once per rule and pass it around, OR
+    // inline the single get() directly in each match block.
+    // We use the inline pattern so each match block pays exactly 1 get().
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // ─── Role helpers that accept a pre-fetched user doc ────────────────────
+    // These take `u` (the result of userDoc()) so no extra get() is needed.
+    function role(u) {
+      return u.role;
+    }
+    function facultyId(u) {
+      return u.get('facultyId', '');
+    }
+    function isStaffRole(u) {
+      return role(u) in ['supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator', 'program_head', 'internal_examiner',
+                         'faculty_admin', 'grad_school_head', 'system_admin'];
+    }
+    // Roles with cross-faculty (or "all") access
+    function isCrossFaculty(u) {
+      return role(u) in ['grad_school_head', 'internal_examiner', 'system_admin'];
+    }
+
+    // Roles that manage a single faculty
+    function isFacultyManager(u) {
+      return role(u) in [
+        'coordinator', 'faculty_admin', 'program_head', 'project_coordinator'
+      ];
+    }
+
+    // Grad-school-level approvers
+    function isGradSchoolApprover(u) {
+      return role(u) in ['grad_school_head', 'system_admin'];
+    }
+
+    // Faculty match helper
+    function sameFaculty(u, resourceFacultyId) {
+      return facultyId(u) == resourceFacultyId || facultyId(u) == 'all';
+    }
+
+
+    // ─────────────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:  if isSignedIn();   // any signed-in user can read profiles
+      allow write: if isSignedIn() && (
+        request.auth.uid == userId || isStaffRole(userDoc())
+      );
+
+      // TOTP secret/recovery-hash — server (Admin SDK) only. Admin SDK bypasses
+      // rules entirely, so this doesn't break 2FA; it just stops the parent
+      // doc's permissive read above from ever exposing these fields, since
+      // they now live here instead of on users/{userId} directly.
+      match /private/{docId} {
+        allow read, write: if false;
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    match /projects/{projectId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid in resource.data.get('enrolledStudentIds', []) ||
+        (role(userDoc()) == 'student' && resource.data.get('status', '') == 'active') ||
+        isStaffRole(userDoc())
+      );
+      allow create: if isSignedIn() &&
+        role(userDoc()) in ['supervisor', 'faculty_admin', 'system_admin', 'program_head', 'project_coordinator'];
+      allow update: if isSignedIn() &&
+        role(userDoc()) in ['supervisor', 'coordinator', 'faculty_admin', 'system_admin', 'program_head', 'project_coordinator'];
+      allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    match /applications/{appId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+    		isStaffRole(userDoc())
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        isStaffRole(userDoc())
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    match /milestones/{milestoneId} {
+      allow read: if isSignedIn() && (
+        // Data-level checks first (0 get() calls) — fast path for students/supervisors
+        request.auth.uid in resource.data.get('studentIds', []) ||
+        resource.data.get('supervisorId', '') == request.auth.uid ||
+        resource.data.get('secondarySupervisorId', '') == request.auth.uid ||
+        request.auth.uid in resource.data.get('examinerIds', []) ||
+        // Role check (1 get() call) — for coordinators/admins
+        role(userDoc()) in ['system_admin', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head',
+          'internal_examiner']
+      );
+      allow create: if isSignedIn() && isStaffRole(userDoc());
+      allow update: if isSignedIn() && (
+        // Data-level checks first (0 get() calls)
+        request.auth.uid in resource.data.get('studentIds', []) ||
+        // Role check (1 get() call)
+        role(userDoc()) in ['supervisor', 'secondary_supervisor', 'coordinator', 'internal_examiner',
+                            'faculty_admin', 'system_admin', 'program_head', 'project_coordinator', 'grad_school_head']
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    match /grades/{gradeId} {
+      allow read: if isSignedIn() && (
+        resource.data.graderId == request.auth.uid ||
+        resource.data.studentId == request.auth.uid ||
+        role(userDoc()) in ['coordinator', 'faculty_admin', 'program_head',
+          'project_coordinator', 'grad_school_head', 'system_admin']
+      );
+      allow create: if isSignedIn() &&
+        role(userDoc()) in ['supervisor', 'internal_examiner', 'system_admin'];
+      allow update: if isSignedIn() &&
+      	resource.data.graderId == request.auth.uid ||
+        role(userDoc()) in ['grad_school_head', 'system_admin'];
+    }
+		// ─────────────────────────────────────────────────────────────────────────
+		match /processFiles/{processId} {
+    	allow read: if isSignedIn() && (
+      	resource.data.studentId == request.auth.uid ||
+        resource.data.get('supervisorId', '') == request.auth.uid ||
+        resource.data.get('secondarySupervisorId', '') == request.auth.uid ||
+        (isFacultyManager(userDoc()) &&
+            sameFaculty(userDoc(), resource.data.get('facultyId', ''))) ||
+            isCrossFaculty(userDoc()
+          )
+      );
+			allow create: if isSignedIn() && (
+      	role(userDoc()) in [
+          'coordinator', 'faculty_admin', 'program_head',
+          'project_coordinator', 'system_admin'
+        ]
+      );
+      allow update: if isSignedIn() && (
+      	resource.data.studentId == request.auth.uid ||
+        role(userDoc()) in [
+          'coordinator', 'faculty_admin', 'program_head',
+          'project_coordinator', 'grad_school_head', 'system_admin'
+        ]
+      );
+      allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    match /processTemplates/{templateId} {
+      allow read: if isSignedIn() && (
+        isFacultyManager(userDoc()) ||
+        isCrossFaculty(userDoc())
+      );
+			allow create: if isSignedIn() &&
+        role(userDoc()) in [
+          'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'
+        ];
+			allow update: if isSignedIn() &&
+        role(userDoc()) in [
+          'faculty_admin', 'program_head', 'project_coordinator',
+          'grad_school_head', 'system_admin'
+        ];
+			allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    match /examinerTokens/{token} {
+    	// Get-by-known-token is intentionally public (the token itself is the secret —
+    	// external examiners have no Firebase account). List must stay denied, or
+    	// anyone could enumerate every issued token with an unfiltered collection scan.
+    	allow get: if true;
+    	allow list: if false;
+    	allow create: if isSignedIn() &&
+        role(userDoc()) in [
+          'coordinator', 'faculty_admin', 'program_head',
+          'project_coordinator', 'system_admin'
+        ];
+      allow update: if (
+        (isSignedIn() &&
+          role(userDoc()) in [
+            'coordinator', 'faculty_admin', 'program_head',
+            'project_coordinator', 'grad_school_head', 'system_admin'
+        	]
+        ) ||
+        true
+      );
+			allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+		match /examiners/{examinerId} {
+    	allow read: if isSignedIn() && isStaffRole(userDoc());
+      allow create: if isSignedIn() &&
+        role(userDoc()) in [
+          'coordinator', 'faculty_admin', 'program_head',
+          'project_coordinator', 'grad_school_head', 'system_admin'
+        ];
+      allow update: if isSignedIn() &&
+        role(userDoc()) in [
+          'coordinator', 'faculty_admin', 'program_head',
+          'project_coordinator', 'grad_school_head', 'system_admin'
+        ];
+      allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+
+    }
+		// ─────────────────────────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (
+        resource.data.recipientId == request.auth.uid ||
+        role(userDoc()) == 'system_admin'
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    match /config/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && role(userDoc()) == 'system_admin';
+    }
+
+    match /system/{docId} {
+      allow read:  if docId == 'maintenance' || isSignedIn();
+      allow write: if isSignedIn() && role(userDoc()) == 'system_admin';
+    }
+
+    match /auditLog/{entryId} {
+      allow read: if isSignedIn() &&
+        role(userDoc()) in [
+          'coordinator', 'faculty_admin', 'program_head',
+          'grad_school_head', 'system_admin'
+        ];
+      // Audit entries are written by Cloud Functions only.
+      // Direct client writes are blocked.
+      allow write: if false;
+    }
+
+
+    // ─── Chats ───────────────────────────────────────────────────────────────
+    match /chats/{chatId} {
+
+      function myUid() {
+        return request.auth.uid;
+      }
+      // In the chat scope we need two user docs (self + other participant).
+      // We accept this as unavoidable — it's 2 get() calls max, well within limit.
+      function myData() {
+        return get(/databases/$(database)/documents/users/$(myUid())).data;
+      }
+      function otherUid() {
+        return request.resource.data.participants[
+          request.resource.data.participants[0] == myUid() ? 1 : 0
+        ];
+      }
+      function otherData() {
+        return get(/databases/$(database)/documents/users/$(otherUid())).data;
+      }
+      function isParticipant() {
+        return request.auth != null && myUid() in resource.data.participants;
+      }
+      function isCreatingParticipant() {
+        return request.auth != null && myUid() in request.resource.data.participants;
+      }
+
+      // Chat creation policy — evaluated once, 2 get() calls maximum
+      function chatCreateAllowed() {
+        let me    = myData();
+        let other = otherData();
+        return (
+          me.role == 'system_admin'
+          || me.role in ['coordinator', 'faculty_admin', 'program_head',
+                         'project_coordinator', 'grad_school_head']
+          || (me.role == 'faculty_admin' && other.facultyId == me.facultyId)
+          || (me.role in ['supervisor', 'secondary_supervisor']
+              && other.role == 'student'
+              && (
+                   other.get('supervisorId', '') == myUid()
+                   || (other.get('activeProjectId', '') != ''
+                       && get(/databases/$(database)/documents/projects/$(other.activeProjectId)).data.supervisorId == myUid())
+                 ))
+          || (me.role == 'student'
+              && other.role in ['supervisor', 'secondary_supervisor',
+                                'coordinator', 'faculty_admin']
+              && (
+                   me.get('supervisorId', '') == otherUid()
+                   || (me.get('activeProjectId', '') != ''
+                       && get(/databases/$(database)/documents/projects/$(me.activeProjectId)).data.supervisorId == otherUid())
+                   || exists(/databases/$(database)/documents/applications/$(
+                        me.get('activeProjectId', 'NONE')))
+                 ))
+        );
+      }
+
+
+      allow get:    if isParticipant();
+      // Was `if request.auth != null` — any signed-in user could list the whole
+      // chats collection. Scope list to the same check as get.
+      allow list:   if isParticipant();
+      allow create: if isCreatingParticipant()
+                    && request.resource.data.participants.size() == 2
+                    && chatCreateAllowed();
+      allow update: if isParticipant();
+      allow delete: if false;
+
+      // ── Messages subcollection ────────────────────────────────────────────
+      match /messages/{messageId} {
+        function parentParticipants() {
+          return get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        }
+        function isParentParticipant() {
+          return request.auth != null && request.auth.uid in parentParticipants();
+        }
+
+        allow read: if isParentParticipant();
+        allow create: if isParentParticipant()
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

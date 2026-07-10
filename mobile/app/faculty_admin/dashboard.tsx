@@ -76,6 +76,7 @@ export default function PanelScreen() {
   const [newDegree, setNewDegree] = useState<'bachelors' | 'masters'>('bachelors');
   const [newType, setNewType] = useState<'project' | 'thesis'>('project');
   const [newSkills, setNewSkills] = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState('');
   const [creating, setCreating] = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
 
@@ -196,6 +197,7 @@ export default function PanelScreen() {
         degreeType: newDegree,
         projectType: newType,
         requiredSkills: newSkills.split(',').map((s) => s.trim()),
+        prerequisites: newPrerequisites.split(',').map((s) => s.trim()).filter(Boolean),
         status: 'published',
         enrolledStudentIds: [],
         isArchived: false,
@@ -222,7 +224,7 @@ export default function PanelScreen() {
 
   const toggleUserActive = async (userId: string, current: boolean) => {
     try {
-      await apiClient.post(`/api/admin/users/${userId}/faculty_admin_toggle-status`, {
+      await apiClient.post(`/api/admin/users/${userId}/toggle-active`, {
         isActive: !current,
       });
 
@@ -423,6 +425,9 @@ export default function PanelScreen() {
 
         skills={newSkills}
         setSkills={setNewSkills}
+
+        prerequisites={newPrerequisites}
+        setPrerequisites={setNewPrerequisites}
 
         faculty={adminFacultyId}
         setFaculty={() => {}}

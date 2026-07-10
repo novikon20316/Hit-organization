@@ -56,7 +56,54 @@ export type MilestoneStatus =
   | 'examiners_assigned'     // coordinator picked 2 examiners (after final_report)
   | 'examiner_graded'        // at least one examiner graded
   | 'both_examiners_graded'  // both examiners submitted grades
+  | 'awaiting_defense_date'  // defense panel confirmed, examiners submitting candidate dates
+  | 'date_conflict'          // examiners had no common date — coordinator must resolve
+  | 'defense_date_set'       // date locked in, waiting on coordinator for time/room/building
+  | 'scheduled'              // full defense logistics set
   | 'completed';
+
+// ── Defense date matching (see server/src/services/defenseScheduling.ts) ───
+export interface DefensePanelMember {
+  type: 'internal' | 'external';
+  ref: string;             // uid for internal, examinerTokens doc id for external
+  displayName: string;
+  email?: string;          // external only
+}
+
+export interface DefenseDateSubmission {
+  examinerKey: string;     // `${type}:${ref}`
+  type: 'internal' | 'external';
+  ref: string;
+  roundIndex: number;
+  candidateDates: string[]; // ISO 'YYYY-MM-DD', Sun-Thu only
+  submittedAt: any;
+}
+
+export interface DefenseSchedulingRound {
+  roundIndex: number;
+  panel: [string, string]; // examinerKeys
+  startedAt: any;
+  outcome: 'pending' | 'matched' | 'no_common_date';
+  matchedDate: string | null;
+  resolvedBy: null | {
+    coordinatorId: string;
+    decidedAt: any;
+    action: 'keep_examiners' | 'replace_examiner';
+    replacedExaminerKey?: string;
+    newExaminerKey?: string;
+    autoPickedDate?: string;
+  };
+}
+
+export interface DefenseDateMatching {
+  windowStart: any;
+  windowEnd: any;
+  windowAnchoredAt: any;
+  currentRound: number;
+  finalDate: any | null;
+  submissions: Record<string, DefenseDateSubmission>;
+  rounds: DefenseSchedulingRound[];
+}
 
 /**
  * All possible statuses a project or application can carry.
@@ -280,12 +327,16 @@ export function userHasRole(user: AppUser | undefined, role: UserRole): boolean 
 
 /**
  * A single study program within a faculty.
- * Source: NewProjectModal.tsx
+ * Source: constants/faculties.ts
  */
 export interface Program {
   key: string;
   label: Record<Lang, string>;
   level: DegreeLevel;
+  // Readable subject slug (e.g. 'computer_science', 'data_science') shared by
+  // every degree level of the same subject — this is what gets written to a
+  // student's `major` field on their user doc, not `key`.
+  slug: string;
 }
 
 /**
@@ -403,7 +454,12 @@ export interface AssignedMilestone {
   examiner2GradeId: string | null;
   gradeWeights: GradeWeights | null;
   defenseDate: string | null;
+  dueDate?: any;                          // ← add — actual defense date lives here (Firestore Timestamp shape), not defenseDate
   defenseRoom: string | null;
+  defenseBuilding?: string | null;
+  defenseTime?: string | null;
+  defensePanel?: DefensePanelMember[];
+  dateMatching?: DefenseDateMatching;
   facultyId: string;
   milestoneHistory: {                    // ← new
     type: string;
@@ -460,6 +516,10 @@ export interface PendingMilestone {
   facultyId: string;
   defenseDate: any;
   defenseRoom: string | null;
+  defenseBuilding?: string | null;
+  defenseTime?: string | null;
+  defensePanel?: DefensePanelMember[];
+  dateMatching?: DefenseDateMatching;
 
   supervisorName?: string;        // ← add
   milestoneGrades?: {             // ← add
@@ -474,6 +534,11 @@ export interface Project {
   titleEn: string;
   status: string;
   facultyId: string;
+  supervisorId?: string;
+  enrolledStudentIds?: string[];
+  examinerIds?: string[];
+  milestones?: AssignedMilestone[];
+  defensePanel?: DefensePanelMember[];
 }
 
 export interface InProgressProject {
@@ -503,7 +568,7 @@ export interface ExaminerUser {
   facultyId: string;
 }
 
-export type StudentState = 'loading' | 'no_project' | 'pending' | 'active';
+export type StudentState = 'ineligible' | 'loading' | 'no_project' | 'pending' | 'active';
 
 export type DegreeType  = 'bachelors' | 'masters' ;
 
@@ -526,9 +591,10 @@ export interface ProjectProposal {
   projectType:   ProjectType;
   NumberOfStudents:   number;
   requiredSkills:string[];
+  prerequisites?: string[];
   status:        string;
   academicYear:  string;
-  projectFileUrl: string | null; 
+  projectFileUrl: string | null;
 }
 
 export interface ActiveProject {
@@ -554,6 +620,10 @@ export interface Milestone {
   finalGrade:  number | null;
   defenseDate: string | null;
   defenseRoom: string | null;
+  defenseBuilding?: string | null;
+  defenseTime?: string | null;
+  defensePanel?: DefensePanelMember[];
+  dateMatching?: DefenseDateMatching;
   examinerNames: string[];
   examinerIds: string[];
   supervisorScore?: number | null;
@@ -577,4 +647,21 @@ export interface AppNotification {
   isRead:    boolean;
   createdAt: string;
   relatedProjectId: string | null;
+}
+
+
+export interface MyProject {
+  id: string; titleHe: string; titleEn: string;
+  facultyId: string; status: string; degreeType: string;
+  enrolledStudentIds: string[]; applicationIds: string[];
+  academicYear: string; projectType: string;
+  descriptionHe: string; descriptionEn: string;
+  NumberOfStudents:number;
+}
+
+export interface Application {
+  id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
+  studentId: string; studentName: string; studentEmail: string;
+  transcriptUrl: string; cvUrl: string; coverNote: string;
+  status: string; submittedAt: any; degreeType: string;
 }

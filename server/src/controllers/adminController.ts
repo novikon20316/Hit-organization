@@ -3,6 +3,8 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { enrollStudentInProject } from '../services/projectEnrollment.js';
+import { checkDeletionEligibility, purgeAccount } from '../services/accountDeletion.js';
 
 const db = admin.firestore();
 
@@ -110,21 +112,6 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
-/**
- * 3. GET /api/admin/milestones
- * Fetches the global configuration of all milestones.
- */
-export const getAdminMilestones = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const snap = await db.collection('milestones').get();
-    const milestones = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    return res.status(200).json(milestones);
-  } catch (error: any) {
-    console.error('getAdminMilestones Error:', error);
-    return res.status(500).json({ message: 'Failed to fetch milestones.' });
-  }
-};
-
 // ==========================================
 // POST FUNCTIONS (6)
 // ==========================================
@@ -164,6 +151,10 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
  * Registers a new user directly into the system database.
  */
 export const createAdminUser = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
   try {
     const userData = req.body;
     const newUserRef = db.collection('users').doc(); // Alternatively, use their UID if linked to Firebase Auth
@@ -171,8 +162,6 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
     await newUserRef.set({
       ...userData,
       totp_enabled: false,       // becomes true after they complete setup2fa
-      totp_secret: null,         // filled in after setup2fa
-      totp_secret_temp: null,    // temporary during setup, cleared after
       totp_last_verified: null,
       isActive: true,
       createdAt: new Date().toISOString()
@@ -190,6 +179,10 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
  * Manually forces a student enrollment into a specific project.
  */
 export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
   const { id: projectId } = req.params;
   const { studentId } = req.body;
 
@@ -202,15 +195,18 @@ export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Respons
   }
   try {
     const projectRef = db.collection('projects').doc(projectId);
-    const snap = await projectRef.get();
+    const [projectSnap, studentSnap] = await Promise.all([
+      projectRef.get(),
+      db.collection('users').doc(studentId).get(),
+    ]);
 
-    if (!snap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!studentSnap.exists || studentSnap.data()?.hasActiveProject) {
+      return res.status(400).json({ message: 'Student not found or already assigned to a project.' });
+    }
 
-    await projectRef.update({
-      studentId: studentId,
-      status: 'enrolled',
-      updatedAt: new Date().toISOString()
-    });
+    const projectData = projectSnap.data()!;
+    await enrollStudentInProject(projectId, studentId, projectData.supervisorId, projectData.facultyId);
 
     return res.status(200).json({ success: true, message: 'Student officially enrolled.' });
   } catch (error: any) {
@@ -224,6 +220,10 @@ export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Respons
  * Changes a user's operational privileges (e.g., 'student' -> 'supervisor').
  */
 export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
   const { id: userId } = req.params;
   const { role } = req.body;
 
@@ -252,6 +252,10 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
  * Suspends or activates a user account.
  */
 export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
   const { id: userId } = req.params;
   const { isActive } = req.body;
 
@@ -277,27 +281,6 @@ export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Resp
   }
 };
 
-/**
- * 9. POST /api/admin/system/maintenance
- * Toggles a global maintenance lock flag on the database system configs.
- */
-export const toggleSystemMaintenance = async (req: AuthenticatedRequest, res: Response) => {
-  const { maintenanceActive } = req.body;
-
-  try {
-    // Assuming you have a 'system' collection and a 'settings' document
-    await db.collection('system').doc('settings').set({ 
-      maintenanceMode: maintenanceActive,
-      lastToggledAt: new Date().toISOString()
-    }, { merge: true });
-
-    return res.status(200).json({ success: true, message: `Maintenance mode is now ${maintenanceActive}.` });
-  } catch (error: any) {
-    console.error('toggleSystemMaintenance Error:', error);
-    return res.status(500).json({ message: 'Failed to toggle maintenance mode.' });
-  }
-};
-
 // ==========================================
 // DELETE FUNCTIONS (1)
 // ==========================================
@@ -307,6 +290,10 @@ export const toggleSystemMaintenance = async (req: AuthenticatedRequest, res: Re
  * Permanently removes a project from the system.
  */
 export const deleteAdminProject = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
   const { id: projectId } = req.params;
   if(!projectId || typeof projectId !== 'string'){
         return res.status(500).json({
@@ -346,17 +333,144 @@ export const disableUser2FA = async (req: AuthenticatedRequest, res: Response) =
   if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
 
   try {
-    await db.collection('users').doc(userId).update({
-      totp_enabled:      false,
-      totp_secret:       null,
-      totp_secret_temp:  null,
-      totp_last_verified: null,
-      updatedAt:         new Date().toISOString(),
-    });
+    await Promise.all([
+      db.collection('users').doc(userId).update({
+        totp_enabled:      false,
+        totp_last_verified: null,
+        updatedAt:         new Date().toISOString(),
+      }),
+      // Actual secret lives in the private subcollection now — must be cleared
+      // there too, or the old secret keeps working even though totp_enabled is false.
+      db.collection('users').doc(userId).collection('private').doc('totp').delete(),
+    ]);
 
     return res.status(200).json({ success: true, message: '2FA disabled for user.' });
   } catch (error: any) {
     console.error('disableUser2FA error:', error);
     return res.status(500).json({ message: 'Failed to disable 2FA.' });
+  }
+};
+
+/**
+ * POST /api/admin/users/:id/erase
+ * Permanently deletes a user's Firebase Auth account + Firestore data —
+ * system_admin only. Immediate, no grace period (matches existing admin-
+ * action conventions like deleteAdminProject/toggleUserStatusAdmin). Runs
+ * the same eligibility check as self-service deletion — an admin can't
+ * bypass it either, to avoid orphaning a supervisor's active students, a
+ * student's own active project, or an unfinished defense-grading assignment.
+ */
+export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  const role = req.user?.role;
+  const roles = req.user?.roles ?? [];
+  const isAuthorized = role === 'system_admin' || roles.includes('system_admin');
+  if (!isAuthorized) {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  const { id: userId } = req.params;
+  if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+
+  try {
+    const result = await checkDeletionEligibility(userId);
+    if (!result.eligible) {
+      return res.status(409).json({ message: result.reason });
+    }
+
+    await purgeAccount(userId);
+    return res.status(200).json({ success: true, message: 'User erased.' });
+  } catch (error: any) {
+    console.error('eraseUserBySystemAdmin error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to erase user.' });
+  }
+};
+
+/**
+ * GET /api/admin/defense-access-grants?status=expired
+ * Lists defense-day access grants, optionally filtered by their CURRENT
+ * (computed) status — the stored `status` field can be stale since nothing
+ * flips it at midnight, so we recompute before filtering.
+ */
+export const listDefenseAccessGrants = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  try {
+    const { status: statusFilter } = req.query;
+    const snap = await db.collection('defenseAccessGrants').get();
+    const now = new Date();
+
+    const grants = snap.docs
+      .map((d) => {
+        const g = d.data();
+        const activatesAt = new Date(g.activatesAt);
+        const effectiveExpiresAt = g.status === 'admin_extended' && g.adminExtension?.newExpiresAt
+          ? new Date(g.adminExtension.newExpiresAt)
+          : new Date(g.expiresAt);
+        const computedStatus = now < activatesAt ? 'not_yet_active' : now > effectiveExpiresAt ? 'expired' : 'active';
+        return { id: d.id, ...g, computedStatus };
+      })
+      .filter((g) => !statusFilter || g.computedStatus === statusFilter);
+
+    return res.status(200).json({ grants });
+  } catch (error: any) {
+    console.error('listDefenseAccessGrants error:', error);
+    return res.status(500).json({ message: 'Failed to load defense access grants.' });
+  }
+};
+
+/**
+ * POST /api/admin/defense-access-grants/:grantCode/extend
+ * The "they missed the defense-day window" recovery path — only usable once
+ * a grant has actually expired, per the requirement that this is a recovery
+ * action, not a way to pre-extend an active window.
+ * Body: { newExpiresAtISO: string, reason?: string }
+ */
+export const extendDefenseAccessGrant = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  const { grantCode } = req.params;
+  const { newExpiresAtISO, reason } = req.body;
+  const adminUid = req.user!.uid;
+
+  if (!grantCode || typeof grantCode !== 'string') {
+    return res.status(400).json({ message: 'Missing grantCode.' });
+  }
+  if (!newExpiresAtISO || isNaN(new Date(newExpiresAtISO).getTime())) {
+    return res.status(400).json({ message: 'newExpiresAtISO must be a valid ISO date string.' });
+  }
+
+  try {
+    const grantRef = db.collection('defenseAccessGrants').doc(grantCode);
+    const grantSnap = await grantRef.get();
+    if (!grantSnap.exists) return res.status(404).json({ message: 'Access grant not found.' });
+    const grant = grantSnap.data()!;
+
+    const now = new Date();
+    const currentExpiresAt = grant.status === 'admin_extended' && grant.adminExtension?.newExpiresAt
+      ? new Date(grant.adminExtension.newExpiresAt)
+      : new Date(grant.expiresAt);
+    if (now <= currentExpiresAt) {
+      return res.status(400).json({ message: 'This grant has not expired yet — extension is only for missed windows.' });
+    }
+
+    await grantRef.update({
+      status: 'admin_extended',
+      adminExtension: {
+        extendedBy: adminUid,
+        extendedAt: now.toISOString(),
+        newExpiresAt: newExpiresAtISO,
+        reason: reason ?? '',
+      },
+      accessLog: [...(grant.accessLog ?? []), { action: 'admin_extended', timestamp: now.toISOString() }],
+    });
+
+    return res.status(200).json({ success: true, message: 'Access grant extended.' });
+  } catch (error: any) {
+    console.error('extendDefenseAccessGrant error:', error);
+    return res.status(500).json({ message: 'Failed to extend access grant.' });
   }
 };

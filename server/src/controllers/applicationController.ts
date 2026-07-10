@@ -28,7 +28,7 @@ export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =
         // 4. Query your applications collection for this student's pending applications
         const applicationsSnapshot = await db.collection('applications')
             .where('studentId', '==', studentId)
-            .where('status', '==', ['applied', 'meeting_requested'])
+            .where('status', 'in', ['applied', 'meeting_requested'])
             .get();
 
         // 5. Format the documents into a clean array
@@ -130,7 +130,7 @@ export const withdrawApplication = async(req:AuthenticatedRequest,res:Response) 
         })
     }
     try{
-        const applyRef = db.collection("application").doc(id);
+        const applyRef = db.collection('applications').doc(id);
         const applySnap = await applyRef.get();
 
         if (!applySnap.exists) {

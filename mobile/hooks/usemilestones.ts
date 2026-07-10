@@ -35,9 +35,6 @@ export function useMilestones(options: Options = {}) {
         setMilestones(response?.milestones || []);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch academic roadmap.');
-        console.log("Axios Base URL:", err.config?.baseURL);
-        console.log("Axios Full URL:", err.config?.url);
-        console.log("Axios Params:", err.config?.params);
       } finally {
         setLoading(false);
       }
@@ -49,7 +46,11 @@ export function useMilestones(options: Options = {}) {
   }, [projectId, supervisorId, studentId, facultyId, statusFilterSerialized]);
 
   // All your derived UI helper metrics (progress, overdue counts) remain exactly the same!
-  const completedCount = milestones.filter((m) => m.status === 'completed').length;
+  // 'coordinator_approved' is the actual completion status the server sets
+  // (coordinatorController.ts) — 'completed' alone is never written anywhere.
+  const completedCount = milestones.filter(
+    (m) => m.status === 'coordinator_approved' || m.status === 'completed'
+  ).length;
   const progress = milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0;
 
   return { milestones, loading, error, progress };

@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { 
+import {
   getExaminerDashboard,
   updateGrading,
-  getList
+  getList,
+  submitDefenseDates,
 } from '../controllers/examinerController.js';
 import {verifyToken } from '../middleware/auth.js';
 
@@ -14,6 +15,7 @@ router.get('/get-list', verifyToken, getList)
 
 
 router.post('/milestones/:id/grade', verifyToken, updateGrading)
+router.post('/milestones/:milestoneId/defense-dates', verifyToken, submitDefenseDates)
 
 
 export default router;

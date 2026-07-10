@@ -69,15 +69,21 @@ export default function ExaminerHome() {
  
   const uid = auth.currentUser?.uid;
  
-  // ── 🆕 Unified Backend Dashboard Fetch Function ───────────────────────────
+  // ── Candidate defense dates being composed for a given milestone ─────────
+  const [dateDrafts, setDateDrafts] = useState<Record<string, string>>({});
+  const [submittingDates, setSubmittingDates] = useState<Record<string, boolean>>({});
+
+  // ── Dashboard fetch — no uid in the URL, the server reads it from the
+  //    auth token (see examinerController.getExaminerDashboard) ────────────
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      // 🚀 The server handles examiner name lookup, notifications count, and milestone stitching in ONE call.
-      const dashboardRes = await apiClient.get(`/api/examiner/${uid}/dashboard`).catch(e => { console.error('❌ profile failed:', e.response?.status, e.response?.config?.url); throw e; });
-      console.log(dashboardRes.data)
-      setExaminerName(dashboardRes.data.examinerName || '');
-      setAssignments(dashboardRes.data.assignments || []);///// NEED TO CHANGE THIS BECAUSE THAT IS NOT EXISTS
+      const [profileRes, dashboardRes] = await Promise.all([
+        apiClient.get('/api/users/profile').catch(e => { console.error('❌ profile failed:', e.response?.status, e.response?.config?.url); throw e; }),
+        apiClient.get('/api/examiner/dashboard').catch(e => { console.error('❌ dashboard failed:', e.response?.status, e.response?.config?.url); throw e; }),
+      ]);
+      setExaminerName(profileRes.data?.displayName || '');
+      setAssignments(dashboardRes.data.milestones || []);
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
       Alert.alert(
@@ -118,7 +124,48 @@ export default function ExaminerHome() {
  
   const totalScore = () =>
     GRADING_CRITERIA.reduce((sum, c) => sum + (parseFloat(scores[c.key] || '0')), 0);
- 
+
+  // ── Submit candidate defense dates ────────────────────────────────────────
+  // Window/Sun-Thu validation is enforced server-side too — this is just a
+  // fast client-side check so typos don't round-trip needlessly.
+  const isMyDefensePanel = (m: AssignedMilestone) =>
+    (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
+
+  const handleSubmitDates = async (m: AssignedMilestone) => {
+    const raw = (dateDrafts[m.id] || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (raw.length === 0) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין לפחות תאריך אחד' : 'Enter at least one date');
+      return;
+    }
+    const invalid = raw.filter((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d));
+    if (invalid.length > 0) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? `פורמט לא תקין: ${invalid.join(', ')} (YYYY-MM-DD)` : `Invalid format: ${invalid.join(', ')} (YYYY-MM-DD)`
+      );
+      return;
+    }
+    try {
+      setSubmittingDates((prev) => ({ ...prev, [m.id]: true }));
+      const res = await apiClient.post(`/api/examiner/milestones/${m.id}/defense-dates`, { candidateDates: raw });
+      if (res.data.matched) {
+        Alert.alert('✅', lang === 'he' ? `נמצא תאריך משותף: ${res.data.matchedDate}` : `Common date found: ${res.data.matchedDate}`);
+      } else if (res.data.conflict) {
+        Alert.alert(
+          lang === 'he' ? 'לא נמצא תאריך משותף' : 'No common date',
+          lang === 'he' ? 'הרכז/ת עודכן/ה ותפתור/תפתור את ההתנגשות.' : 'The coordinator has been notified and will resolve this.'
+        );
+      } else {
+        Alert.alert('✅', lang === 'he' ? 'התאריכים נשלחו — ממתין לבוחן/ת השני/ה' : 'Dates submitted — waiting on the other examiner');
+      }
+      await fetchDashboardData();
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to submit candidate dates');
+    } finally {
+      setSubmittingDates((prev) => ({ ...prev, [m.id]: false }));
+    }
+  };
+
   // ── Submit grade (unchanged) ────────────────────────────────────────────
   const handleSubmitGrade = async () => {
     if (!selected || !uid) return;
@@ -310,7 +357,51 @@ export default function ExaminerHome() {
                         </Text>
                       </View>
                     )}
- 
+
+                    {/* Defense date submission — only while a window is open
+                        and this examiner hasn't been resolved out of the round */}
+                    {m.status === 'awaiting_defense_date' && isMyDefensePanel(m) && (
+                      <View style={{ marginTop: 10, padding: 12, borderRadius: 10, backgroundColor: '#FFFBEB' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309', marginBottom: 6 }}>
+                          📅 {lang === 'he' ? 'בחר תאריכים אפשריים להגנה' : 'Choose your available defense dates'}
+                        </Text>
+                        {m.dateMatching && (
+                          <Text style={{ fontSize: 12, color: '#92400E', marginBottom: 6 }}>
+                            {lang === 'he' ? 'בטווח' : 'Within'} {' '}
+                            {new Date(m.dateMatching.windowStart._seconds ? m.dateMatching.windowStart._seconds * 1000 : m.dateMatching.windowStart).toLocaleDateString()}
+                            {' – '}
+                            {new Date(m.dateMatching.windowEnd._seconds ? m.dateMatching.windowEnd._seconds * 1000 : m.dateMatching.windowEnd).toLocaleDateString()}
+                            {' · '}{lang === 'he' ? 'ראשון–חמישי בלבד' : 'Sun-Thu only'}
+                          </Text>
+                        )}
+                        <TextInput
+                          style={styles.scoreInput as any}
+                          value={dateDrafts[m.id] || ''}
+                          onChangeText={(v) => setDateDrafts((prev) => ({ ...prev, [m.id]: v }))}
+                          placeholder="YYYY-MM-DD, YYYY-MM-DD"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <Pressable
+                          style={[styles.gradeBtn, { backgroundColor: '#F59E0B', marginTop: 8 }, submittingDates[m.id] && { opacity: 0.6 }]}
+                          onPress={() => handleSubmitDates(m)}
+                          disabled={!!submittingDates[m.id]}
+                        >
+                          {submittingDates[m.id]
+                            ? <ActivityIndicator color="#fff" />
+                            : <Text style={styles.gradeBtnText}>{lang === 'he' ? 'שלח תאריכים' : 'Submit dates'}</Text>
+                          }
+                        </Pressable>
+                      </View>
+                    )}
+
+                    {m.status === 'date_conflict' && (
+                      <View style={{ marginTop: 10, padding: 12, borderRadius: 10, backgroundColor: '#FEF2F2' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#B91C1C' }}>
+                          ⚠️ {lang === 'he' ? 'לא נמצא תאריך משותף — הרכז/ת פותר/ת' : 'No common date found — coordinator resolving'}
+                        </Text>
+                      </View>
+                    )}
+
                     {/* Grade weights */}
                     {m.gradeWeights && (
                       <View style={styles.weightsRow}>

@@ -12,33 +12,19 @@ import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { apiClient } from '@/src/api/apiClient';
+import {
+  HIT_FACULTIES,
+  getFacultyByKey,
+  getFilteredPrograms,
+  PROGRAM_DEGREE_LENGTHS,
+} from '@/constants/faculties';
+import type { DegreeLevel, Program } from '@/types';
 
 type FloatingInputProps = TextInputProps & {
   placeholder: string;
   isRtl: boolean;
 };
 
-const DEGREE_LENGTHS: Record<string, number> = {
-  computer_science: 3,
-  electrical: 4,
-  software: 3,
-  industrial: 4,
-  mechanical: 4,
-  learning_technology: 3,
-  default: 4,
-};
-
-type DegreeType = 'bachelors' | 'masters';
-type Major = keyof typeof DEGREE_LENGTHS;
-
-const MAJORS: Array<{ id: Major; he: string; en: string; years: number }> = [
-  { id: 'computer_science',    he: 'מדעי המחשב',            en: 'Computer Science',       years: 3 },
-  { id: 'electrical',          he: 'הנדסת חשמל ואלקטרוניקה',  en: 'Electrical Engineering', years: 4 },
-  { id: 'software',            he: 'הנדסת תוכנה',             en: 'Software Engineering',   years: 3 },
-  { id: 'industrial',          he: 'הנדסת תעשייה וניהול',      en: 'Industrial Engineering', years: 4 },
-  { id: 'mechanical',          he: 'הנדסה מכנית',             en: 'Mechanical Engineering', years: 4 },
-  { id: 'learning_technology', he: 'טכנולוגיות למידה',        en: 'Learning Technology',    years: 3 },
-];
 const s = StyleSheet.create({
   // ... existing styles ...
   label: {
@@ -157,23 +143,30 @@ export default function ProfileSetup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [studentId, setStudentId] = useState('');
-  const [faculty, setFaculty] = useState<Major>('computer_science');
+  const [faculty, setFaculty] = useState<string | null>(null);
   const [showFacultyModal, setShowFacultyModal] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   // const [studentId,   setStudentId]   = useState(''); // For future use
-  const [degreeType,  setDegreeType]  = useState<DegreeType | null>(null);
-  const [major,       setMajor]       = useState<Major | null>(null);
+  // Which specific program ROW was picked (e.g. 'msc_cs') — used only to
+  // drive the UI (highlighting, degree level, year count). The value actually
+  // sent to the server is selectedProgram.slug, not this key — see handleSave.
+  const [programKey, setProgramKey] = useState<string | null>(null);
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
   const [saving,      setSaving]      = useState(false);
 
   const isRtl = lang === 'he';
-  const selectedMajorData = MAJORS.find((m) => m.id === major);
+  const selectedFacultyData = faculty ? getFacultyByKey(faculty) : undefined;
+  const facultyPrograms: Program[] = faculty ? getFilteredPrograms(faculty, 'both') : [];
+  const selectedProgram = facultyPrograms.find((p) => p.key === programKey);
+  // The degree type (bachelors/masters) is inherent to the chosen program —
+  // no separate "degree type" step needed.
+  const degreeType: DegreeLevel | null = selectedProgram?.level ?? null;
 
   const yearOptions: number[] = (() => {
-    if (!degreeType) return [];
-    if (degreeType === 'masters') return [1, 2];
-    if (!major || !selectedMajorData) return [1, 2, 3, 4];
-    return Array.from({ length: selectedMajorData.years }, (_, i) => i + 1);
+    if (!selectedProgram) return [];
+    if (selectedProgram.level === 'masters') return [1, 2];
+    const years = PROGRAM_DEGREE_LENGTHS[selectedProgram.slug] ?? PROGRAM_DEGREE_LENGTHS.default;
+    return Array.from({ length: years }, (_, i) => i + 1);
   })();
 
   // Validation: Ensure Name and Phone are filled along with academic details
@@ -207,7 +200,7 @@ export default function ProfileSetup() {
           facultyId: faculty,
           degreeType: degreeType,
           yearOfStudy: yearOfStudy,
-          major: faculty,
+          major: selectedProgram?.slug ?? null,
           studentId: studentId,
           hasActiveProject: false,
           expoPushToken: null,
@@ -216,6 +209,7 @@ export default function ProfileSetup() {
           profileComplete: true,
           language: lang,
           additionalRoles: [],
+          isEligibleForProcess: false,
         },
         {
           headers: {
@@ -261,14 +255,14 @@ export default function ProfileSetup() {
 
   const passwordCheck = getPasswordStrength(password);
 
-  const canSave = 
-    displayName.trim().length > 1 && 
-    phoneNumber.length >= 9 && 
+  const canSave =
+    displayName.trim().length > 1 &&
+    phoneNumber.length >= 9 &&
     email.includes('@') &&
     isValidStudentId(studentId) &&      // ← added
     passwordCheck.valid &&              // ← added
-    degreeType && 
-    major && 
+    faculty &&
+    programKey &&
     yearOfStudy;
   
   return (
@@ -426,55 +420,33 @@ export default function ProfileSetup() {
                 fontSize: 16,
                 color: '#333',
               }}>
-                {MAJORS.find(m => m.id === faculty)?.[lang] || faculty}
+                {selectedFacultyData ? selectedFacultyData.label[lang] : (lang === 'he' ? 'בחר פקולטה' : 'Select a faculty')}
               </Text>
               <Text style={{ fontSize: 12, color: '#8899BB' }}>▼</Text>
             </View>
           </Pressable>
-        {/* --- Degree type --- */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
-            {lang === 'he' ? '1. סוג תואר' : '1. Degree Type'}
-          </Text>
-          <View style={[s.optionRow, !isRtl && s.rowReverse]}>
-            {([
-              { id: 'bachelors', he: 'תואר ראשון', en: "Bachelor's", emoji: '🎓' },
-              { id: 'masters',   he: 'תואר שני',   en: "Master's",   emoji: '🏛️' },
-            ] as const).map((d) => (
-              <Pressable
-                key={d.id}
-                style={[s.bigOption, degreeType === d.id && s.bigOptionActive]}
-                onPress={() => { setDegreeType(d.id); setMajor(null); setYearOfStudy(null); }}
-              >
-                <Text style={s.bigOptionEmoji}>{d.emoji}</Text>
-                <Text style={[s.bigOptionText, degreeType === d.id && s.bigOptionTextActive]}>
-                  {lang === 'he' ? d.he : d.en}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-        
-        {/* --- Major --- */}
-        {degreeType && (
+
+        {/* --- Degree / program (the faculty determines which programs show up; each
+             program already carries its own bachelors/masters level) --- */}
+        {faculty && (
           <View style={s.section}>
             <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
-              {lang === 'he' ? '2. מגמה / חוג' : '2. Major / Department'}
+              {lang === 'he' ? '1. תואר / מגמה' : '1. Degree / Program'}
             </Text>
             <View style={s.majorGrid}>
-              {MAJORS.map((m) => (
+              {facultyPrograms.map((p) => (
                 <Pressable
-                  key={m.id}
-                  style={[s.majorOption, major === m.id && s.majorOptionActive]}
-                  onPress={() => { setMajor(m.id); setYearOfStudy(null); }}
+                  key={p.key}
+                  style={[s.majorOption, programKey === p.key && s.majorOptionActive]}
+                  onPress={() => { setProgramKey(p.key); setYearOfStudy(null); }}
                 >
-                  <Text style={[s.majorText, major === m.id && s.majorTextActive, isRtl && s.textRight]}>
-                    {lang === 'he' ? m.he : m.en}
+                  <Text style={[s.majorText, programKey === p.key && s.majorTextActive, isRtl && s.textRight]}>
+                    {p.label[lang]}
                   </Text>
-                  <Text style={[s.majorYears, major === m.id && s.majorYearsActive]}>
-                    {degreeType === 'masters'
-                      ? (lang === 'he' ? '2 שנות לימוד' : '2 years')
-                      : (lang === 'he' ? `${m.years} שנות לימוד` : `${m.years} years`)}
+                  <Text style={[s.majorYears, programKey === p.key && s.majorYearsActive]}>
+                    {p.level === 'masters'
+                      ? (lang === 'he' ? 'תואר שני' : "Master's")
+                      : (lang === 'he' ? 'תואר ראשון' : "Bachelor's")}
                   </Text>
                 </Pressable>
               ))}
@@ -483,19 +455,18 @@ export default function ProfileSetup() {
         )}
 
         {/* --- Year of study --- */}
-        {major && (
+        {programKey && (
           <View style={s.section}>
             <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
-              {lang === 'he' ? '3. שנת לימוד נוכחית' : '3. Current Year of Study'}
+              {lang === 'he' ? '2. שנת לימוד נוכחית' : '2. Current Year of Study'}
             </Text>
 
             <View style={[s.yearRow, isRtl && s.rowReverse]}>
               {yearOptions.map((yr) => {
+                const totalYears = yearOptions.length;
                 const isFinalYear = degreeType === 'masters'
                   ? yr === 1
-                  : selectedMajorData
-                    ? yr >= (selectedMajorData.years === 4 ? 3 : selectedMajorData.years)
-                    : false;
+                  : yr >= (totalYears === 4 ? 3 : totalYears);
                 return (
                   <Pressable
                     key={yr}
@@ -584,11 +555,11 @@ export default function ProfileSetup() {
               </Text>
 
               <ScrollView showsVerticalScrollIndicator={false}>
-                {MAJORS.map((item) => {
-                  const isSelected = item.id === faculty;
+                {HIT_FACULTIES.map((item) => {
+                  const isSelected = item.key === faculty;
                   return (
                     <Pressable
-                      key={item.id}
+                      key={item.key}
                       style={{
                         paddingVertical: 14,
                         paddingHorizontal: 16,
@@ -599,8 +570,10 @@ export default function ProfileSetup() {
                         marginBottom: 6,
                       }}
                       onPress={() => {
-                        setFaculty(item.id); // 🚀 Sets the faculty state correctly!
-                        setShowFacultyModal(false); // Closes the picker list automatically
+                        setFaculty(item.key);
+                        setProgramKey(null);
+                        setYearOfStudy(null);
+                        setShowFacultyModal(false);
                       }}
                     >
                       <Text style={{
@@ -609,7 +582,7 @@ export default function ProfileSetup() {
                         color: isSelected ? '#2E86FF' : '#444',
                         textAlign: lang === 'he' ? 'right' : 'left'
                       }}>
-                        {lang === 'he' ? item.he : item.en}
+                        {item.label[lang]}
                       </Text>
                     </Pressable>
                   );

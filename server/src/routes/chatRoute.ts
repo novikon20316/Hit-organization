@@ -6,14 +6,16 @@ import { markChatNotificationsAsRead,
     getChatDashboard,
     getChatMeta,
     deleteChat,
-    getChatMessages 
+    getChatMessages,
+    sendDirectMessage,
  } from '../controllers/chatController.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
 
 // Secure authorization gates
-router.get('/:chatId/messages', verifyToken, getChatMessages )
+router.get('/:chatId/messages',  verifyToken, getChatMessages )
+router.post('/:chatId/messages', verifyToken, sendDirectMessage)
 router.get('/:chatId/meta',  verifyToken, getChatMeta)
 router.get('/candidates',    verifyToken, getChatCandidates);
 router.get('/dashboard',     verifyToken, getChatDashboard);

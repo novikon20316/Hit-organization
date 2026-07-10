@@ -281,6 +281,7 @@
     "mpath": "^0.9.0",
     "mquery": "^6.0.0",
     "ms": "^2.1.3",
+    "multer": "^2.2.0",
     "mz": "^2.7.0",
     "nanoid": "^3.3.11",
     "negotiator": "^1.0.0",
@@ -453,6 +454,7 @@
     "write-file-atomic": "^4.0.2",
     "ws": "^8.19.0",
     "xcode": "^3.0.1",
+    "xlsx": "^0.18.5",
     "xml2js": "^0.6.0",
     "xmlbuilder": "^15.1.1",
     "y18n": "^5.0.8",
@@ -472,6 +474,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
     "@types/node": "^25.6.0",
     "@types/qrcode": "^1.5.6",
     "@types/speakeasy": "^2.0.10",

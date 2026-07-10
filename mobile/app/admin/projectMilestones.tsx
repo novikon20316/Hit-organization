@@ -14,14 +14,27 @@ interface Milestone {
   status: string;
 }
 
+// Canonical milestone sequence — Firestore returns docs in no particular
+// order, so sort explicitly rather than trusting query result order.
+const MILESTONE_TYPE_ORDER: Record<string, number> = {
+  research_proposal: 0,
+  progress_report: 1,
+  final_report: 2,
+  defense: 3,
+};
+
+// 'coordinator_approved' is the only completion status any server code path
+// actually sets (coordinatorController.ts). Other statuses in the type union
+// ('graded', 'both_examiners_graded', 'completed', ...) are aspirational —
+// nothing writes them yet, so treating them as "done" would be speculative.
+const DONE_STATUSES = new Set(['coordinator_approved']);
+
 export default function ProjectMilestonesScreen() {
     const { projectId, lang } = useLocalSearchParams();
     const [loading, setLoading] = useState(true);
     const [milestones, setMilestones] = useState<Milestone[]>([]);
     const total = milestones.length;
-    const completed = milestones.filter(
-    (m) => m.status === 'done' || m.status === 'completed'
-    ).length;
+    const completed = milestones.filter((m) => DONE_STATUSES.has(m.status)).length;
 
     const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
   useEffect(() => {
@@ -31,8 +44,11 @@ export default function ProjectMilestonesScreen() {
       try {
         // 🚀 REPLACED: Call your clean backend routing pipeline
         const response = await apiClient.get(`/api/projects/${projectId}/milestones`);
-        const fetchedMilestones = response.data?.milestones || [];
-        setMilestones(fetchedMilestones);
+        const fetchedMilestones: Milestone[] = response.data?.milestones || [];
+        const sorted = [...fetchedMilestones].sort(
+          (a, b) => (MILESTONE_TYPE_ORDER[a.type] ?? 99) - (MILESTONE_TYPE_ORDER[b.type] ?? 99)
+        );
+        setMilestones(sorted);
       } catch (err) {
         console.error("Error fetching milestones:", err);
       } finally {

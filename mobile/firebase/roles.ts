@@ -1,24 +1,412 @@
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../src/firebase/firebase';
+import { Timestamp } from 'firebase/firestore';
+// firebase/roles.ts
+// Single source of truth for:
+//   • Role string literals (must match Firestore `users.role` field)
+//   • Permission matrix (what each role can do)
+//   • Route guard helpers (used in _layout.tsx / screen guards)
+//   • User document factory (for creating new users programmatically)
+//   • External examiner token helpers (no Auth account needed)
+
+import { AppRole, FacultyId } from '@/components/i18n';
+
 // ─────────────────────────────────────────────────────────────────────────────
-// HOW TO CREATE YOUR SYSTEM ADMIN USER IN FIRESTORE
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Step 1: Log in with your admin email in the app (creates the Firebase Auth user)
-// Step 2: Copy the UID from the console log (🔥 AUTH STATE — UID: xxxxxx)
-// Step 3: Go to Firebase Console → Firestore → users collection
-// Step 4: Create a document with ID = that UID
-// Step 5: Paste the fields below
-//
-// OR use the dev button in your login screen to run the script at the bottom.
+// ROLE CONSTANTS
+// These string literals MUST match exactly what is stored in Firestore.
+// External examiners are NOT a role — they use tokenised links.
 // ─────────────────────────────────────────────────────────────────────────────
 
+export const ROLES = {
+  STUDENT:               'student',
+  SUPERVISOR:            'supervisor',
+  SECONDARY_SUPERVISOR:  'secondary_supervisor',
+  COORDINATOR:           'coordinator',
+  FACULTY_ADMIN:         'faculty_admin',
+  PROGRAM_HEAD:          'program_head',
+  PROJECT_COORDINATOR:   'project_coordinator',
+  GRAD_SCHOOL_HEAD:      'grad_school_head',
+  INTERNAL_EXAMINER:     'internal_examiner',
+  SYSTEM_ADMIN:          'system_admin',
+} as const satisfies Record<string, AppRole>;
 
-// ─── EXACT document to create in Firestore ───────────────────────────────────
-// Collection: users
-// Document ID: <your Firebase Auth UID>
+// All non-student, non-examiner staff roles
+export const STAFF_ROLES: AppRole[] = [
+  'supervisor',
+  'secondary_supervisor',
+  'coordinator',
+  'faculty_admin',
+  'program_head',
+  'project_coordinator',
+  'grad_school_head',
+  'internal_examiner',
+  'system_admin',
+];
 
+// Roles that can approve at grad-school level
+export const GRAD_SCHOOL_APPROVERS: AppRole[] = [
+  'grad_school_head',
+  'system_admin',
+];
+
+// Roles that have cross-faculty visibility — these are created with
+// facultyId 'all' and are exempt from the "must pick a faculty" requirement
+// when a system_admin creates their account.
+export const CROSS_FACULTY_ROLES: AppRole[] = [
+  'grad_school_head',
+  'internal_examiner',
+  'system_admin',
+  'project_coordinator',
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PERMISSION MATRIX
+// Each key is an action; value is the set of roles allowed to perform it.
+// Use hasPermission() at runtime rather than checking roles directly.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type Permission =
+  // Project / process
+  | 'create_project'
+  | 'publish_project'
+  | 'apply_to_project'
+  | 'view_all_projects'
+  | 'view_own_project'
+  | 'view_faculty_projects'
+  // Student process file
+  | 'open_process_file'
+  | 'close_process_file'
+  | 'view_process_file'
+  | 'edit_process_status'
+  | 'pause_process_clock'
+  // Milestones
+  | 'submit_milestone'
+  | 'grade_milestone'
+  | 'approve_milestone_coordinator'
+  | 'approve_milestone_grad_school'
+  | 'reopen_milestone'
+  | 'override_deadline'
+  // Proposals & documents
+  | 'submit_proposal'
+  | 'approve_proposal_supervisor'
+  | 'approve_proposal_faculty'
+  | 'approve_proposal_grad_school'
+  // Supervisor management
+  | 'assign_supervisor'
+  | 'approve_supervisor'
+  | 'propose_supervisor'
+  // Examiners
+  | 'propose_examiners'
+  | 'approve_examiners_faculty'
+  | 'approve_examiners_grad_school'
+  | 'send_examiner_invitation'
+  | 'view_examiner_database'
+  | 'edit_examiner_database'
+  // Grades
+  | 'enter_grade'
+  | 'approve_grade_coordinator'
+  | 'approve_grade_grad_school'
+  | 'change_grade_after_approval'
+  | 'transfer_grade_to_maklol'
+  | 'view_all_grades'
+  // Templates
+  | 'view_templates'
+  | 'create_template'
+  | 'edit_template'
+  | 'approve_template_grad_school'
+  // Reports
+  | 'view_faculty_reports'
+  | 'view_cross_faculty_reports'
+  | 'export_reports'
+  // Admin
+  | 'manage_users'
+  | 'manage_system_config'
+  | 'view_audit_log'
+  | 'toggle_maintenance'
+  // Chat
+  | 'send_message'
+  | 'view_own_messages';
+
+export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
+  // ── Project ───────────────────────────────────────────────────────────────
+  create_project:               ['supervisor', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  publish_project:              ['supervisor', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  apply_to_project:             ['student'],
+  view_all_projects:            ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'system_admin'],
+  view_own_project:             ['student', 'supervisor', 'secondary_supervisor'],
+  view_faculty_projects:        ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'internal_examiner'],
+
+  // ── Student process file ──────────────────────────────────────────────────
+  open_process_file:            ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  close_process_file:           ['coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'],
+  view_process_file:            ['supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  edit_process_status:          ['coordinator', 'faculty_admin', 'program_head', 'system_admin'],
+  pause_process_clock:          ['coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'],
+
+  // ── Milestones ────────────────────────────────────────────────────────────
+  submit_milestone:             ['student'],
+  grade_milestone:              ['supervisor', 'secondary_supervisor', 'internal_examiner'],
+  approve_milestone_coordinator:['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  approve_milestone_grad_school:['grad_school_head', 'system_admin'],
+  reopen_milestone:             ['coordinator', 'faculty_admin', 'program_head', 'system_admin'],
+  override_deadline:            ['coordinator', 'faculty_admin', 'program_head', 'system_admin'],
+
+  // ── Proposals & documents ─────────────────────────────────────────────────
+  submit_proposal:              ['student'],
+  approve_proposal_supervisor:  ['supervisor', 'secondary_supervisor'],
+  approve_proposal_faculty:     ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator'],
+  approve_proposal_grad_school: ['grad_school_head', 'system_admin'],
+
+  // ── Supervisor management ─────────────────────────────────────────────────
+  assign_supervisor:            ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  approve_supervisor:           ['grad_school_head', 'system_admin'],
+  propose_supervisor:           ['student', 'supervisor'],
+
+  // ── Examiners ─────────────────────────────────────────────────────────────
+  propose_examiners:            ['supervisor', 'secondary_supervisor'],
+  approve_examiners_faculty:    ['coordinator', 'faculty_admin', 'program_head'],
+  approve_examiners_grad_school:['grad_school_head', 'system_admin'],
+  send_examiner_invitation:     ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  view_examiner_database:       ['supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  edit_examiner_database:       ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'system_admin'],
+
+  // ── Grades ────────────────────────────────────────────────────────────────
+  enter_grade:                  ['supervisor', 'secondary_supervisor', 'internal_examiner'],
+  approve_grade_coordinator:    ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator'],
+  approve_grade_grad_school:    ['grad_school_head', 'system_admin'],
+  change_grade_after_approval:  ['grad_school_head', 'system_admin'],
+  transfer_grade_to_maklol:     ['coordinator', 'faculty_admin', 'grad_school_head', 'system_admin'],
+  view_all_grades:              ['coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'],
+
+  // ── Templates ─────────────────────────────────────────────────────────────
+  view_templates:               ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'system_admin'],
+  create_template:              ['faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  edit_template:                ['faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  approve_template_grad_school: ['grad_school_head', 'system_admin'],
+
+  // ── Reports ───────────────────────────────────────────────────────────────
+  view_faculty_reports:         ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  view_cross_faculty_reports:   ['grad_school_head', 'system_admin'],
+  export_reports:               ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'system_admin'],
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+  manage_users:                 ['faculty_admin', 'system_admin'],
+  manage_system_config:         ['system_admin'],
+  view_audit_log:               ['coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'],
+  toggle_maintenance:           ['system_admin'],
+
+  // ── Chat ──────────────────────────────────────────────────────────────────
+  send_message:                 ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  view_own_messages:            ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'internal_examiner', 'system_admin'],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RUNTIME HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Check if a role has a given permission */
+export function hasPermission(role: AppRole | undefined, permission: Permission): boolean {
+  if (!role) return false;
+  if (role === 'system_admin') return true; // system_admin bypasses all checks
+  return PERMISSION_MAP[permission]?.includes(role) ?? false;
+}
+
+/** Check if a role is a staff role (non-student) */
+export function isStaff(role: AppRole | undefined): boolean {
+  if (!role) return false;
+  return STAFF_ROLES.includes(role);
+}
+
+/** Check if a role has cross-faculty access */
+export function isCrossFaculty(role: AppRole | undefined): boolean {
+  if (!role) return false;
+  return CROSS_FACULTY_ROLES.includes(role);
+}
+
+/** Check if role can approve at grad-school level */
+export function isGradSchoolApprover(role: AppRole | undefined): boolean {
+  if (!role) return false;
+  return GRAD_SCHOOL_APPROVERS.includes(role);
+}
+
+/**
+ * Determine the home route for a given role.
+ * Used in _layout.tsx after login to redirect to the correct dashboard.
+ */
+export function getHomeRoute(role: AppRole | undefined): string {
+  switch (role) {
+    case 'student':              return '/student/home';
+    case 'supervisor':           return '/supervisor/dashboard';
+    case 'secondary_supervisor': return '/supervisor/dashboard';
+    case 'coordinator':          return '/coordinator/home';
+    case 'faculty_admin':        return '/faculty_admin/dashboard';
+    case 'program_head':         return '/program_head/dashboard';
+    case 'project_coordinator':  return '/project_coordinator/dashboard';
+    case 'grad_school_head':     return '/grad_school_head/dashboard';
+    case 'internal_examiner':    return '/examinor/home';
+    case 'system_admin':         return '/admin/panel';
+    default:                     return '/(auth)/login';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FIRESTORE USER DOCUMENT SHAPE
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface UserDoc {
+  uid: string;
+  email: string;
+  displayName: string;
+  displayNameHe: string;
+  displayNameEn: string;
+  role: AppRole;
+  facultyId: FacultyId;
+  additionalRoles: AppRole[];
+  // Student-only fields (null for staff)
+  degreeType: 'bachelors' | 'masters' | null;
+  yearOfStudy: number | null;
+  studentId: string | null;
+  major: string | null;
+  // Supervisor-only
+  supervisorId?: string | null;     // for students: who is their supervisor
+  activeProjectId?: string | null;
+  // Flags
+  isActive: boolean;
+  profileComplete: boolean;
+  hasActiveProject: boolean;
+  // Preferences
+  language: 'he' | 'en';
+  expoPushToken: string | null;
+  // Timestamps (Firestore Timestamp)
+  createdAt?: unknown;
+  lastLoginAt?: unknown;
+  isEligibleForProcess: boolean;
+}
+
+/**
+ * Factory — creates the minimal Firestore user document for a given role.
+ * Pass the result to setDoc(doc(db, 'users', uid), createUserDoc(...))
+ */
+export function createUserDoc(
+  uid: string,
+  email: string,
+  role: AppRole,
+  facultyId: FacultyId,
+  displayNameHe: string,
+  displayNameEn: string,
+  extra: Partial<UserDoc> = {}
+): Omit<UserDoc, 'createdAt' | 'lastLoginAt'> {
+  return {
+    uid,
+    email,
+    displayName: displayNameHe,
+    displayNameHe,
+    displayNameEn,
+    role,
+    facultyId,
+    additionalRoles: [],
+    degreeType: null,
+    yearOfStudy: null,
+    studentId: null,
+    major: null,
+    isActive: true,
+    profileComplete: false,
+    hasActiveProject: false,
+    language: 'he',
+    expoPushToken: null,
+    isEligibleForProcess: false,
+    ...extra,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXTERNAL EXAMINER TOKEN
+// External examiners do NOT have a Firebase Auth account.
+// They receive a tokenised link: /examiner-access?token=<uuid>
+// The token is stored in Firestore: examinerTokens/{token}
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExaminerTokenStatus =
+  | 'pending'     // sent, not yet opened
+  | 'accepted'    // examiner accepted the assignment
+  | 'declined'    // examiner declined
+  | 'submitted'   // opinion submitted
+  | 'expired';    // past deadline or manually revoked
+
+export interface ExaminerTokenDoc {
+  token: string;               // UUID, used as Firestore doc ID
+  milestoneId: string;         // which milestone/judgment this covers
+  projectId: string;
+  studentId: string;
+  studentName: string;
+  thesisTitle: string;
+  thesisUrl: string;           // Firebase Storage download URL for the thesis file
+  // Examiner identity (no Firebase UID)
+  examinerName: string;
+  examinerEmail: string;
+  examinerInstitution: string;
+  examinerLanguage: 'he' | 'en';
+  // Token lifecycle
+  status: ExaminerTokenStatus;
+  createdAt: Timestamp | null;
+  expiresAt: Timestamp | null;  // default: createdAt + 30 days
+  acceptedAt?: Timestamp | null;
+  declinedAt?: Timestamp | null;
+  submittedAt?: Timestamp | null;
+  declineReason?: string;
+  // Access log
+  accessLog: Array<{
+    action: 'opened' | 'downloaded_thesis' | 'accepted' | 'declined' | 'submitted_opinion';
+    timestamp: Timestamp | null;
+  }>;
+  // Opinion data (filled when status === 'submitted')
+  opinion?: Record<string, unknown>;
+  opinionVisible: boolean;     // whether student can see the opinion
+  opinionAnonymous: boolean;   // whether student can see the name
+}
+
+/**
+ * Build the deep-link URL for an external examiner.
+ * In Expo / React Native use Linking.openURL() or expo-router href.
+ */
+export function buildExaminerLink(token: string, baseUrl = 'https://your-app.example.com'): string {
+  return `${baseUrl}/examiner-access?token=${token}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VALID ENUM VALUES (keep in sync with Firestore and i18n)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const VALID_ROLES: AppRole[] = [
+  'student',
+  'supervisor',
+  'secondary_supervisor',
+  'coordinator',
+  'faculty_admin',
+  'program_head',
+  'project_coordinator',
+  'grad_school_head',
+  'internal_examiner',
+  'system_admin',
+];
+
+export const VALID_FACULTY_IDS: FacultyId[] = [
+  'sciences',
+  'electrical',
+  'industrial',
+  'learning_tech',
+  'medical_tech',
+  'design',
+  'data_science',
+  'all',
+];
+
+export function isValidRole(value: unknown): value is AppRole {
+  return typeof value === 'string' && VALID_ROLES.includes(value as AppRole);
+}
+
+export function isValidFacultyId(value: unknown): value is FacultyId {
+  return typeof value === 'string' && VALID_FACULTY_IDS.includes(value as FacultyId);
+}
+// ─── Quick-create documents for other roles (copy as needed) ─────────────────
 const ADMIN_USER_DOC = {
   // ── Identity ────────────────────────────────────────────────────────────────
   uid:             "PASTE_YOUR_UID_HERE",     // must match the document ID
@@ -46,6 +434,7 @@ const ADMIN_USER_DOC = {
   isActive:        true,
   profileComplete: true,
   hasActiveProject:false,
+  isEligibleForProcess: false,
 
   // ── Preferences ─────────────────────────────────────────────────────────────
   language:        "he",                      // "he" or "en"
@@ -58,9 +447,6 @@ const ADMIN_USER_DOC = {
   // lastLoginAt:<Timestamp>
 };
 
-
-// ─── Quick-create documents for other roles (copy as needed) ─────────────────
-
 const SUPERVISOR_DOC = {
   uid:             "SUPERVISOR_UID",
   email:           "supervisor@hit.ac.il",
@@ -68,7 +454,7 @@ const SUPERVISOR_DOC = {
   displayNameHe:   "ד\"ר ישראל ישראלי",
   displayNameEn:   "Dr. Israel Israeli",
   role:            "supervisor",             // ← must be exactly this string
-  facultyId:       "computer_science",       // must match a key in FACULTY_COLORS
+  facultyId:       "sciences",                // must match a key in FACULTY_COLORS
   additionalRoles: [],
   degreeType:      null,
   yearOfStudy:     null,
@@ -88,7 +474,7 @@ const COORDINATOR_DOC = {
   displayNameHe:   "רכז הפרויקטים",
   displayNameEn:   "Project Coordinator",
   role:            "coordinator",            // ← must be exactly this string
-  facultyId:       "computer_science",
+  facultyId:       "sciences",
   additionalRoles: [],
   degreeType:      null,
   yearOfStudy:     null,
@@ -108,11 +494,11 @@ const STUDENT_DOC = {
   displayNameHe:   "דוד כהן",
   displayNameEn:   "David Cohen",
   role:            "student",                // ← must be exactly this string
-  facultyId:       "computer_science",
+  facultyId:       "sciences",
   additionalRoles: [],
   degreeType:      "bachelors",              // "bachelors" or "masters"
   yearOfStudy:     3,                        // number: 1, 2, 3, or 4
-  major:           "computer_science",       // must match a key in DEGREE_LENGTHS
+  major:           "computer_science",         // degree-program slug — must match a key in PROGRAM_DEGREE_LENGTHS
   studentId:       null,                     // "123456789" if you add it later
   isActive:        true,
   profileComplete: true,
@@ -128,7 +514,7 @@ const EXAMINER_DOC = {
   displayNameHe:   "פרופ' שרה לוי",
   displayNameEn:   "Prof. Sarah Levi",
   role:            "examiner",               // ← must be exactly this string
-  facultyId:       "computer_science",
+  facultyId:       "sciences",
   additionalRoles: [],
   degreeType:      null,
   yearOfStudy:     null,
@@ -148,7 +534,7 @@ const EXAMINER_DOC = {
 // It creates the correct doc for whoever is currently logged in.
 
 
-
+/*
 export async function createAdminUserDoc() {
   const user = auth.currentUser;
   if (!user) {
@@ -206,7 +592,7 @@ export async function createCoordinator() {
 
       role: 'coordinator',
 
-      facultyId: 'computer_science',
+      facultyId: 'sciences',
 
       additionalRoles: [],
 
@@ -275,7 +661,7 @@ export async function createExaminer() {
     console.error('❌ Error creating coordinator:', e);
   }
 };
-
+*/
 // ─── Valid role values (copy exactly — case sensitive) ────────────────────────
 //
 //   "student"
@@ -287,12 +673,13 @@ export async function createExaminer() {
 //
 // ─── Valid facultyId values ───────────────────────────────────────────────────
 //
-//   "computer_science"
+//   "sciences"
 //   "electrical"
-//   "software"
 //   "industrial"
-//   "mechanical"
-//   "learning_technology"
-//   "all"              ← system_admin / Examiner only
+//   "learning_tech"
+//   "medical_tech"
+//   "design"
+//   "data_science"
+//   "all"              ← CROSS_FACULTY_ROLES only (system_admin, project_coordinator, grad_school_head, internal_examiner)
 //
 // ─────────────────────────────────────────────────────────────────────────────

@@ -11,8 +11,8 @@ import { useRouter } from 'expo-router';
 import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sharedStyles } from '@/constants';
-import { NewProjectModal } from '@/components/modals';
-import { GradingCriterion, AppUser } from '@/types'
+import { NewProjectModal, RecommendedExaminerModal } from '@/components/modals';
+import { GradingCriterion, AppUser, MyProject, Application } from '@/types'
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 // Adjust this import path to match your firebase config file location
@@ -28,26 +28,21 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface MyProject {
-  id: string; titleHe: string; titleEn: string;
-  facultyId: string; status: string; degreeType: string;
-  enrolledStudentIds: string[]; applicationIds: string[];
-  academicYear: string; projectType: string;
-  descriptionHe: string; descriptionEn: string;
-  NumberOfStudents:number;
-}
-
-interface Application {
-  id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
-  studentId: string; studentName: string; studentEmail: string;
-  transcriptUrl: string; cvUrl: string; coverNote: string;
-  status: string; submittedAt: any; degreeType: string;
-}
-
 interface PendingMilestone {
   id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
   type: string; status: string; studentNames: string[]; dueDate: any; submittedAt: any;
   fileUrls: string[]; submissionNote: string; facultyId: string;
+}
+
+interface Examiner {
+  type: 'internal' | 'external';
+  internalUserId?: string;
+  name: string;
+  email: string;
+  institution: string;
+  expertise: string;
+  priority: 1 | 2 | 3;
+  notes: string;
 }
 
 // ─── Milestone type labels ────────────────────────────────────────────────────
@@ -72,7 +67,7 @@ export default function SupervisorHome() {
   const [supervisorId,   setSupervisorId]   = useState('');  
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loading,        setLoading]        = useState(true);
-  const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines'>('projects');
+  const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines' | 'recommend'>('projects');
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
   const [deadlines, setDeadlines] = useState<any[]>([]);
@@ -88,6 +83,7 @@ export default function SupervisorHome() {
   const [newDegree,   setNewDegree]   = useState<'bachelors' | 'masters' | 'both'>('bachelors');
   const [newType,     setNewType]     = useState<'project' | 'thesis'>('project');
   const [newSkills,   setNewSkills]   = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState('');
   const [creating,    setCreating]    = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
   const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
@@ -113,6 +109,17 @@ export default function SupervisorHome() {
   const [editDescHe,      setEditDescHe]      = useState('');
   const [editDescEn,      setEditDescEn]      = useState('');
   const [editSkills,      setEditSkills]      = useState('');
+  // ── Recommend examiners modal ─────────────────────────────────────────────
+  const [recommendModal, setRecommendModal]   = useState(false);
+  const [selectedProjectForRec, setSelectedProjectForRec] = useState<MyProject | null>(null);
+  const [recExaminers, setRecExaminers]       = useState<[] | Examiner[]>([]);
+  const [extName,        setExtName]        = useState('');
+  const [extEmail,       setExtEmail]       = useState('');
+  const [extInstitution, setExtInstitution] = useState('');
+  const [extExpertise,   setExtExpertise]   = useState('');
+  const [internalUsers, setInternalUsers]     = useState<AppUser[]>([]);
+  const [recSubmitting, setRecSubmitting]     = useState(false);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
   // ── Firestore unsubscribe refs (cleanup on unmount) ───────────────────────
   const unsubNotificationsRef = useRef<(() => void) | null>(null);
   const unsubApplicationsRef  = useRef<(() => void) | null>(null);
@@ -133,7 +140,6 @@ export default function SupervisorHome() {
   const fetchDashboardData = async () => {
     try {
       const res = await apiClient.get('/api/supervisor/dashboard');
-      console.log('🧪 Dashboard response:', JSON.stringify(res.data));
       setSupervisorName(res.data.supervisorName);
       setFacultyId(res.data.facultyId);
       setSupervisorId(res.data.supervisorId);
@@ -152,7 +158,11 @@ export default function SupervisorHome() {
       }
     } catch (err) {
       Alert.alert('Error', 'Failed to load dashboard data.');
-    } finally {
+    }try {
+      const recRes = await apiClient.get('/api/supervisor/examiner-recommendations');
+      setRecommendations(recRes.data.recommendations ?? []);
+    } catch (_) { /* non-fatal */ }
+     finally {
       setLoading(false);
     }
   };
@@ -167,6 +177,13 @@ export default function SupervisorHome() {
       unsubGradingRef.current?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (!supervisorId) return;
+    apiClient.get('/api/examiner/get-list')
+      .then(res => setInternalUsers(res.data ?? []))
+      .catch(() => {});
+  }, [supervisorId]);
 
   useEffect(() => {
     if (activeTab !== 'deadlines' || !supervisorId) return;
@@ -270,32 +287,6 @@ export default function SupervisorHome() {
 
     return () => unsub(); // ✅ cleanup always returned
   }, [supervisorId, myProjects]);
-
-  useEffect(() => {
-    if (!supervisorId) return;
-
-    console.log('🔍 Debug: supervisorId =', supervisorId);
-
-    // Test 1: Can we read the collection at all?
-    const rawQuery = query(
-      collection(db, 'applications'),
-      where('supervisorId', '==', supervisorId),
-    );
-
-    const unsub = onSnapshot(
-      rawQuery,
-      (snap) => {
-        console.log('✅ Raw query hit, total docs:', snap.docs.length);
-        snap.docs.forEach(d => {
-          console.log('📄 Doc ID:', d.id);
-          console.log('📄 Doc data:', JSON.stringify(d.data()));
-        });
-      },
-      (err) => console.error('❌ Raw query error:', err.code, err.message),
-    );
-
-    return () => unsub();
-  }, [supervisorId]);
 
   // ── Firestore: real-time projects listener ────────────────────────────────
   useEffect(() => {
@@ -407,16 +398,46 @@ export default function SupervisorHome() {
         projectInfo: projectFile,
         NumberOfStudents: maxStudents,
         requiredSkills: newSkills.split(',').map(s => s.trim()).filter(Boolean),
+        prerequisites: newPrerequisites.split(',').map(s => s.trim()).filter(Boolean),
         facultyId,
         gradingCriteria,
       });
       setShowNewProject(false);
+      setNewPrerequisites('');
       fetchDashboardData();
       Alert.alert('✅', 'Project published successfully!');
     } catch (e) {
       Alert.alert('Error', 'Failed to create project.');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleSubmitRecommendation = async () => {
+    if (!selectedProjectForRec || recExaminers.length === 0) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש לבחור פרויקט ולהוסיף לפחות בוחן אחד' : 'Select a project and add at least one examiner'
+      );
+      return;
+    }
+    setRecSubmitting(true);
+    try {
+      await apiClient.post('/api/supervisor/examiner-recommendations', {
+        projectId: selectedProjectForRec.id,
+        projectTitleHe: selectedProjectForRec.titleHe,
+        projectTitleEn: selectedProjectForRec.titleEn,
+        recommendedExaminers: recExaminers,
+      });
+      Alert.alert('✅', tx('examinerRecommendSent', lang));
+      setRecommendModal(false);
+      setRecExaminers([]);
+      setSelectedProjectForRec(null);
+      fetchDashboardData();
+    } catch (err) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', 'Failed to send recommendation.');
+    } finally {
+      setRecSubmitting(false);
     }
   };
 
@@ -592,6 +613,7 @@ export default function SupervisorHome() {
           { key: 'projects',     heLabel: 'פרויקטים',  enLabel: 'Projects',     badge: myProjects.length    },
           { key: 'applications', heLabel: 'מועמדויות',  enLabel: 'Applications', badge: applications.length  },
           { key: 'grading',      heLabel: 'מתן ציונים', enLabel: 'Grading',      badge: pendingGrades.length },
+          { key: 'recommend', heLabel: 'המלצת בוחנים', enLabel: 'Recommend Examiners', badge: 0 },
         ] as const).map((tab) => (
           <Pressable
             key={tab.key}
@@ -744,7 +766,6 @@ export default function SupervisorHome() {
             )}
           </>
         )}
-
         {/* ════ APPLICATIONS TAB ════ */}
         {activeTab === 'applications' && (
           <>
@@ -996,7 +1017,69 @@ export default function SupervisorHome() {
             )}
           </>
         )}
+        {/* ════ RECOMMENDED EXAMINERS TAB ════ */}
+        {activeTab === 'recommend' && (
+          <>
+            {/* Button to open new recommendation modal */}
+            <Pressable
+              style={styles.addBtn}
+              onPress={() => {
+                if (myProjects.length === 0) {
+                  Alert.alert(
+                    lang === 'he' ? 'אין פרויקטים' : 'No Projects',
+                    lang === 'he' ? 'אין לך פרויקטים פעילים להמלצת בוחנים' : 'You have no active projects to recommend examiners for'
+                  );
+                  return;
+                }
+                setRecommendModal(true);
+              }}
+            >
+              <Text style={styles.addBtnText}>
+                + {tx('recommendExaminers', lang)}
+              </Text>
+            </Pressable>
 
+            {/* Existing recommendations list */}
+            {recommendations.length === 0 ? (
+              <EmptyState emoji="👥" text={lang === 'he' ? 'טרם שלחת המלצות בוחנים' : 'No examiner recommendations sent yet'} />
+            ) : (
+              recommendations.map((rec: any) => (
+                <View key={rec.id} style={styles.appCard}>
+                  <Text style={[styles.appProjectLabel, isRtl && styles.textRight]}>
+                    📁 {lang === 'he' ? rec.projectTitleHe : rec.projectTitleEn}
+                  </Text>
+                  <View style={{
+                    alignSelf: isRtl ? 'flex-end' : 'flex-start',
+                    backgroundColor:
+                      rec.status === 'approved' ? '#ECFDF5' :
+                      rec.status === 'rejected' ? '#FEF2F2' : '#FFF7ED',
+                    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginTop: 6,
+                  }}>
+                    <Text style={{
+                      fontSize: 12, fontWeight: '700',
+                      color:
+                        rec.status === 'approved' ? '#10B981' :
+                        rec.status === 'rejected' ? '#EF4444' : '#F59E0B',
+                    }}>
+                      {rec.status === 'approved' ? tx('examinerRecommendApproved', lang) :
+                      rec.status === 'rejected' ? tx('examinerRecommendRejected', lang) :
+                      tx('examinerRecommendPending', lang)}
+                    </Text>
+                  </View>
+                  <Text style={[styles.cardMeta, isRtl && styles.textRight, { marginTop: 6 }]}>
+                    👥 {rec.recommendedExaminers?.length ?? 0}{' '}
+                    {lang === 'he' ? 'בוחנים הומלצו' : 'examiners recommended'}
+                  </Text>
+                  {rec.coordinatorNote ? (
+                    <Text style={[styles.cardMeta, isRtl && styles.textRight]}>
+                      💬 {rec.coordinatorNote}
+                    </Text>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </>
+        )}
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -1012,6 +1095,7 @@ export default function SupervisorHome() {
         descHe={newDescHe}     setDescHe={setNewDescHe}
         descEn={newDescEn}     setDescEn={setNewDescEn}
         skills={newSkills}     setSkills={setNewSkills}
+        prerequisites={newPrerequisites} setPrerequisites={setNewPrerequisites}
         faculty={facultyId}    setFaculty={setFacultyId}
         degree={newDegree}     setDegree={setNewDegree}
         type={newType}         setType={setNewType}
@@ -1158,6 +1242,24 @@ export default function SupervisorHome() {
           </ScrollView>
         </View>
       </Modal>
+
+      <RecommendedExaminerModal
+        recommendModal={recommendModal}
+        setRecommendModal={setRecommendModal}
+        lang={lang}
+        isRtl={isRtl}
+        extName={extName} setExtName={setExtName}
+        extEmail={extEmail} setExtEmail={setExtEmail}
+        extInstitution={extInstitution} setExtInstitution={setExtInstitution}
+        extExpertise={extExpertise} setExtExpertise={setExtExpertise} 
+        selectedProjectForRec={selectedProjectForRec} setSelectedProjectForRec={setSelectedProjectForRec}
+        recExaminers={recExaminers} setRecExaminers={setRecExaminers}
+        internalUsers={internalUsers} 
+        myProjects={myProjects}
+        recSubmitting={recSubmitting} 
+        handleSubmitRecommendation={handleSubmitRecommendation}
+        styles={styles}
+      />
     </SafeAreaView>
   );
 }

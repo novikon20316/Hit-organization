@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import admin from 'firebase-admin';
+import { submitCandidateDatesAndResolve, examinerKeyOf } from '../services/defenseScheduling.js';
 
 const db = admin.firestore();
 
@@ -46,6 +47,7 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           projectId: milestoneData.projectId,
           projectTitleHe,
           projectTitleEn,
+          facultyId: milestoneData.facultyId || '',
           type: milestoneData.type,
           status: milestoneData.status,
           studentNames: milestoneData.studentNames || [],
@@ -58,6 +60,14 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           examiner2Score: milestoneData.examiner2Score || null,
           examiner1GradeId: milestoneData.examiner1GradeId || null,
           examiner2GradeId: milestoneData.examiner2GradeId || null,
+          gradeWeights: milestoneData.gradeWeights || null,
+          milestoneHistory: milestoneData.milestoneHistory || [],
+          defenseDate: milestoneData.dueDate?.toDate?.().toISOString?.() ?? null,
+          defenseRoom: milestoneData.defenseRoom ?? null,
+          defenseBuilding: milestoneData.defenseBuilding ?? null,
+          defenseTime: milestoneData.defenseTime ?? null,
+          defensePanel: milestoneData.defensePanel ?? [],
+          dateMatching: milestoneData.dateMatching ?? null,
         };
       })
     );
@@ -99,6 +109,11 @@ export const updateGrading = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(404).json({ message: 'Target milestone record not found.' });
     }
 
+    const examinerIds: string[] = milestoneSnap.data()?.examinerIds ?? [];
+    if (!examinerIds.includes(examinerUid)) {
+      return res.status(403).json({ message: 'Forbidden: not an assigned examiner for this milestone.' });
+    }
+
     console.log(`📡 Examiner (${examinerUid}) submitting grade for milestone: ${milestoneId}`);
 
     await milestoneRef.update({
@@ -122,11 +137,46 @@ export const updateGrading = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
+/**
+ * POST /api/examiner/milestones/:milestoneId/defense-dates
+ * Internal examiner submits their candidate defense dates. Delegates to the
+ * shared defenseScheduling service so internal and external examiners are
+ * resolved through the exact same matching logic.
+ * Body: { candidateDates: string[] }  (ISO 'YYYY-MM-DD', Sun-Thu only)
+ */
+export const submitDefenseDates = async (req: AuthenticatedRequest, res: Response) => {
+  const { milestoneId } = req.params;
+  const { candidateDates } = req.body;
+  const examinerUid = req.user?.uid;
+
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: 'Missing required milestoneId parameter.' });
+  }
+  if (!examinerUid) {
+    return res.status(401).json({ message: 'Unauthorized: Unable to verify examiner credentials.' });
+  }
+
+  try {
+    const examinerKey = examinerKeyOf({ type: 'internal', ref: examinerUid });
+    const result = await submitCandidateDatesAndResolve(milestoneId, examinerKey, candidateDates);
+    return res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    console.error('submitDefenseDates error:', error);
+    return res.status(400).json({ message: error.message || 'Failed to submit candidate dates.' });
+  }
+};
+
 export const getList = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const examinersSnap = await db.collection('users').where('role', '==', 'examiner').get();
+    // Internal examiners are app users whose `roles` array includes
+    // 'internal_examiner' (see VALID_ROLES) — not a literal role of 'examiner'.
+    const examinersSnap = await db.collection('users')
+      .where('roles', 'array-contains', 'internal_examiner')
+      .get();
     const examiners = examinersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.status(200).json({ examiners });
+    // Both call sites (coordinator/home.tsx, supervisor/dashboard.tsx) expect
+    // res.data to be the array itself, not wrapped in { examiners }.
+    res.status(200).json(examiners);
   } catch (error) {
     console.error('Failed to fetch examiners:', error);
     res.status(500).json({ message: 'Internal server error' });

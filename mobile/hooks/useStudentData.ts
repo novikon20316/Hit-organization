@@ -21,6 +21,10 @@ export function useStudentData() {
   const [studentDegree,      setStudentDegree]      = useState<DegreeType>('bachelors');
   const [studentFaculty,     setStudentFaculty]     = useState('');
   const [error,              setError]              = useState<string | null>(null);
+  const [studentYearOfStudy, setStudentYearOfStudy] = useState<number | null>(null);
+  // Placeholder until per-student course history is tracked in the app —
+  // defaults to empty, so any project with prerequisites shows as not-yet-qualified.
+  const [studentCompletedCourses, setStudentCompletedCourses] = useState<string[]>([]);
 
   // ── Track all active unsubscribe functions in a ref so they survive re-renders
   const unsubProposals  = useRef<(() => void) | null>(null);
@@ -56,7 +60,16 @@ export function useStudentData() {
       setStudentName(userData.displayName || '');
       setStudentDegree(degree);
       setStudentFaculty(userData.facultyId || '');
-
+      setStudentYearOfStudy(userData.yearOfStudy ?? null);
+      setStudentCompletedCourses(userData.completedCourses ?? []);
+      // The eligibility gate (based on current year-of-study) decides whether
+      // a student may BROWSE/APPLY to new projects — it must never block a
+      // student who already has an active project. isEligibleForProcess is
+      // computed once at signup and can go stale as a student progresses
+      // into a later year (e.g. a master's student moving from year 1 to
+      // year 2 while still finishing their thesis), so check hasActiveProject
+      // first and only fall back to the eligibility gate when there's
+      // nothing already in progress to show.
       if (userData.hasActiveProject && userData.activeProjectId) {
         // --- CASE A: Active Project ---
         try {
@@ -75,6 +88,10 @@ export function useStudentData() {
           console.error('Failed to load active project:', e);
           setStudentState('no_project');
         }
+      } else if (!userData.isEligibleForProcess) {
+        // No active project, and not yet in the eligible year — show the
+        // "not eligible yet" info screen rather than an empty browse list.
+        setStudentState('ineligible');
       } else {
         // --- CASE B: Check for Pending Applications ---
         const appsRes = await apiClient.get('/api/applications/pending');
@@ -235,6 +252,8 @@ export function useStudentData() {
             supervisorScore:data.supervisorScore ?? null,
             defenseDate:    data.defenseDate?.toDate?.()?.toISOString() ?? null,
             defenseRoom:    data.defenseRoom     ?? null,
+            defenseBuilding:data.defenseBuilding ?? null,
+            defenseTime:    data.defenseTime     ?? null,
             examinerNames:  data.examinerNames   ?? [],
           } as Milestone;
         });
@@ -270,6 +289,8 @@ export function useStudentData() {
   return {
     studentState,
     studentName,
+    studentYearOfStudy,
+    studentCompletedCourses,
     proposals,
     activeProject,
     milestones,

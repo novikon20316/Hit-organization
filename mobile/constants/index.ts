@@ -1,3 +1,4 @@
 export * from './theme';
 export * from './styles';
 export * from './labels';
+export * from './faculties';

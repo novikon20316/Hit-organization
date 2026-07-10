@@ -324,7 +324,15 @@ export default function NotificationsScreen() {
   }, [userRole]);
 
   const handleTapNotif = async (notif: Notif) => {
-    if (!notif.isRead) await apiClient.markNotificationRead(notif.id);
+    // Marking as read is a non-critical side effect — a failure here must
+    // never block navigation, which is the actual point of tapping a notification.
+    if (!notif.isRead) {
+      try {
+        await apiClient.markNotificationRead(notif.id);
+      } catch (err) {
+        console.error('Failed to mark notification as read:', err);
+      }
+    }
     refresh();
     switch (notif.type) {
       case 'new_message':

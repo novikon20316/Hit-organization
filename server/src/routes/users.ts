@@ -7,7 +7,10 @@ import {
   updatePushToken,
   getUserProfile,
   syncData,
-  getFullFirestore
+  getFullFirestore,
+  changePassword,
+  requestAccountDeletion,
+  cancelAccountDeletion,
 } from '../controllers/userController.js'
 console.log("🔥 Loading user routes...");
 const router = Router();
@@ -19,6 +22,9 @@ router.post('/sync', verifyTokenOnly , syncData);
 router.get('/profile', verifyToken, getUserProfile)
 router.post('/update-push-token', verifyToken, updatePushToken)
 router.post('/logout', verifyToken, logout)
+router.post('/change-password', verifyToken, changePassword)
+router.post('/delete-account/request', verifyToken, requestAccountDeletion)
+router.post('/delete-account/cancel', verifyToken, cancelAccountDeletion)
 
 
 export default router;

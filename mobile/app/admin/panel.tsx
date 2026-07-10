@@ -9,14 +9,17 @@ import {
   TextInput,
   Alert,
   Switch,
+  Modal,
 } from 'react-native';
 import { AppUser, GradingCriterion, SystemStats, UserRecord, ProjectRecord, MilestoneRecord } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
+import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
 import { auth } from '../../src/firebase/firebase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import type { Lang } from '../../components/i18n';
+import type { Lang, AppRole } from '../../components/i18n';
+import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
 import {
   TopBar,
   StatCard,
@@ -27,7 +30,8 @@ import {
 } from '../../components/shared';
 import { adminPanelStyles } from '../../constants/styles';
 import {ROLE_LABELS} from '../../constants';
-import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal} from '@/components/modals';
+import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal} from '@/components/modals';
+import FloatingActionMenu from '@/components/FloatingActionMenu';
 
 export default function PanelScreen() {
   const router = useRouter();
@@ -39,14 +43,25 @@ export default function PanelScreen() {
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState('');
   const [showNewUser, setShowNewUser] = useState(false);
+  const [exportingUsers, setExportingUsers] = useState(false);
+  const [importingStaff, setImportingStaff] = useState(false);
 
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones'
+    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess'
   >('overview');
+
+  // ── Expired defense-day access grants (external examiners who missed their
+  //    day-of window) — system_admin can grant a longer recovery window ────
+  const [defenseGrants, setDefenseGrants] = useState<any[]>([]);
+  const [loadingDefenseGrants, setLoadingDefenseGrants] = useState(false);
+  const [extendGrantCode, setExtendGrantCode] = useState<string | null>(null);
+  const [extendNewDate, setExtendNewDate] = useState('');
+  const [extendReason, setExtendReason] = useState('');
+  const [extendingGrant, setExtendingGrant] = useState(false);
 
   const [userSearch, setUserSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState('all');
@@ -71,10 +86,22 @@ export default function PanelScreen() {
   const [newUserStudentId,  setNewUserStudentId]  = useState('');
 // -----------------------------------------------------------------------------
   const [maintenanceModal, setMaintenanceModal] = useState(false);
+  const [academicCalendarModal, setAcademicCalendarModal] = useState(false);
+  const [academicCalendarLoading, setAcademicCalendarLoading] = useState(false);
+  const [fallMonth, setFallMonth]     = useState('11');
+  const [fallDay, setFallDay]         = useState('1');
+  const [springMonth, setSpringMonth] = useState('3');
+  const [springDay, setSpringDay]     = useState('1');
   const [maintenanceTitle, setMaintenanceTitle] = useState('');
-  const [maintenanceDays, setMaintenanceDays] = useState(0);
-  const [maintenanceHours, setMaintenanceHours] = useState(0);
-  const [maintenanceMinutes, setMaintenanceMinutes] = useState(0);
+  const [warnDays, setWarnDays]       = useState(0);
+  const [warnHours, setWarnHours]     = useState(2);
+  const [warnMinutes, setWarnMinutes] = useState(0);
+
+  const [durDays, setDurDays]         = useState(0);
+  const [durHours, setDurHours]       = useState(4);
+  const [durMinutes, setDurMinutes]   = useState(0);
+  const [blockedRoles, setBlockedRoles] = useState<string[]>([]);
+  const [broadcastEnabled, setBroadcastEnabled] = useState(true);
   // ── New project modal state ───────────────────────────────────────────────
   const [newProjectFaculty, setNewProjectFaculty] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
@@ -85,6 +112,7 @@ export default function PanelScreen() {
   const [newDegree,   setNewDegree]   = useState<'bachelors' | 'masters'>('bachelors');
   const [newType,     setNewType]     = useState<'project' | 'thesis'>('project');
   const [newSkills,   setNewSkills]   = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState('');
   const [creating,    setCreating]    = useState(false);
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
@@ -97,6 +125,9 @@ export default function PanelScreen() {
   const [addStudentProject, setAddStudentProject] = useState<ProjectRecord | null>(null);
   const [studentSearch, setStudentSearch] = useState('');
   const [addingStudent, setAddingStudent] = useState(false);
+  // ── Schedule defense state ─────────────────────────────────────────────────────
+  const [defenseProject, setDefenseProject] = useState<ProjectRecord | null>(null);
+  const [schedulingDefense, setSchedulingDefense] = useState(false);
   //-----------------------------------------------------------------------------------
   const unsubUsersRef      = useRef<(() => void) | null>(null);
   const unsubProjectsRef   = useRef<(() => void) | null>(null);
@@ -129,6 +160,14 @@ export default function PanelScreen() {
       setMilestones(dataMatrix.data.milestones || []);
     } catch (err) {
       console.error("Critical Admin Matrix Sync Fault:", err);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'טעינת לוח הבקרה נכשלה.' : 'Failed to load the dashboard.',
+        [
+          { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
+          { text: lang === 'he' ? 'נסה שוב' : 'Retry', onPress: () => fetchAllDashboardData() },
+        ],
+      );
     } finally {
       setLoading(false);
     }
@@ -178,6 +217,48 @@ export default function PanelScreen() {
     };
     if (showNewProject) fetchSupervisors();
   }, [newProjectFaculty, showNewProject]);
+
+  // ── Defense-day access grants — external examiners who missed their window ──
+  useEffect(() => {
+    if (activeTab !== 'defenseAccess') return;
+    const fetchExpiredGrants = async () => {
+      try {
+        setLoadingDefenseGrants(true);
+        const res = await apiClient.get('/api/admin/defense-access-grants', { params: { status: 'expired' } });
+        setDefenseGrants(res.data.grants || []);
+      } catch (err) {
+        console.error('Error loading defense access grants:', err);
+      } finally {
+        setLoadingDefenseGrants(false);
+      }
+    };
+    fetchExpiredGrants();
+  }, [activeTab]);
+
+  const handleExtendGrant = async () => {
+    if (!extendGrantCode || !extendNewDate.trim()) return;
+    const parsed = new Date(extendNewDate.trim());
+    if (isNaN(parsed.getTime())) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'תאריך לא תקין' : 'Invalid date');
+      return;
+    }
+    try {
+      setExtendingGrant(true);
+      await apiClient.post(`/api/admin/defense-access-grants/${extendGrantCode}/extend`, {
+        newExpiresAtISO: parsed.toISOString(),
+        reason: extendReason.trim(),
+      });
+      Alert.alert('✅', lang === 'he' ? 'הגישה הוארכה בהצלחה' : 'Access extended successfully');
+      setExtendGrantCode(null);
+      setExtendNewDate('');
+      setExtendReason('');
+      setDefenseGrants((prev) => prev.filter((g) => g.code !== extendGrantCode));
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to extend access');
+    } finally {
+      setExtendingGrant(false);
+    }
+  };
 
   const handleAddStudentToProject = async (user: UserRecord) => {
     if (!addStudentProject) return;
@@ -249,7 +330,8 @@ export default function PanelScreen() {
       );
       return;
     }
-    if (!newUserFaculty) {
+    const isCrossFaculty = CROSS_FACULTY_ROLES.includes(newUserRole as AppRole);
+    if (!isCrossFaculty && !newUserFaculty) {
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty'
@@ -258,19 +340,22 @@ export default function PanelScreen() {
     }
 
     setCreatingUser(true);
-    
+
     try {
       const isStudent = newUserRole === 'student';
 
       // ── 2. Send Clean Parameters to the Server ──────────────────────────
-      // Let the Node.js server handle building the Firestore defaults 
+      // Let the Node.js server handle building the Firestore defaults
       // (like language: 'he', additionalRoles: [], creating the initial notification, etc.)
       await apiClient.post('/api/admin/users/create', {
         displayName:     newUserName.trim(),
         email:           newUserEmail.trim().toLowerCase(),
         phoneNumber:     newUserPhone.trim() || null,
         role:            newUserRole,
-        facultyId:       newUserFaculty,
+        // Cross-faculty roles (system_admin, project_coordinator, grad_school_head,
+        // internal_examiner) are college-wide by definition — never scope them to
+        // whatever faculty happened to be selected in the picker.
+        facultyId:       isCrossFaculty ? 'all' : newUserFaculty,
         
         // Student-specific fields passed dynamically
         degreeType:  isStudent ? newUserDegree : null,
@@ -313,6 +398,57 @@ export default function PanelScreen() {
     }
   };
 
+  // ── Import / export users (Excel) ───────────────────────────────────────────
+  const showImportSummary = (summary: ImportSummary) => {
+    const failedLines = summary.details
+      .filter((d) => d.status === 'failed')
+      .map((d) => `#${d.row} ${d.email || '—'}: ${d.reason}`)
+      .slice(0, 10)
+      .join('\n');
+
+    Alert.alert(
+      lang === 'he' ? '📥 תוצאות ייבוא' : '📥 Import Results',
+      lang === 'he'
+        ? `נוצרו: ${summary.created}\nדולגו: ${summary.skipped}\nנכשלו: ${summary.failed}\nמתוך ${summary.totalRows} שורות` +
+          (failedLines ? `\n\n${failedLines}` : '')
+        : `Created: ${summary.created}\nSkipped: ${summary.skipped}\nFailed: ${summary.failed}\nof ${summary.totalRows} rows` +
+          (failedLines ? `\n\n${failedLines}` : '')
+    );
+  };
+
+  const handleExportUsers = async () => {
+    setExportingUsers(true);
+    try {
+      await exportUsers('admin');
+    } catch (e: any) {
+      console.error('Export users error:', e);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'ייצוא המשתמשים נכשל' : 'Failed to export users'
+      );
+    } finally {
+      setExportingUsers(false);
+    }
+  };
+
+  const handleImportStaff = async () => {
+    setImportingStaff(true);
+    try {
+      const summary = await pickAndImportStaff('admin');
+      if (!summary) return; // user cancelled the picker
+      showImportSummary(summary);
+      fetchAllDashboardData();
+    } catch (e: any) {
+      console.error('Import staff error:', e);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'ייבוא הסגל נכשל' : 'Failed to import staff')
+      );
+    } finally {
+      setImportingStaff(false);
+    }
+  };
+
   // ── Create project ─────────────────────────────────────────────────────────
   const handleCreateProject = async () => {
     if (!selectedSupervisor || !newTitleHe.trim() || !newTitleEn.trim() || !newProjectFaculty) {
@@ -333,12 +469,14 @@ export default function PanelScreen() {
         projectType: newType,
         maxStudents: maxStudents,
         requiredSkills: newSkills.split(',').map((s) => s.trim()).filter(Boolean),
+        prerequisites: newPrerequisites.split(',').map((s) => s.trim()).filter(Boolean),
         gradingCriteria,
       });
 
       setShowNewProject(false);
       setNewTitleHe(''); setNewTitleEn('');
       setNewDescHe(''); setNewDescEn('');
+      setNewPrerequisites('');
       setNewSkills('');
 
       Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
@@ -369,6 +507,28 @@ export default function PanelScreen() {
     ]);
   };
 
+  const handleScheduleDefense = async (fields: { time: string; room: string; building: string }) => {
+    if (!defenseProject) return;
+    if (!fields.time || !fields.room || !fields.building) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש למלא שעה, חדר ובניין' : 'Time, room, and building are all required',
+      );
+      return;
+    }
+    try {
+      setSchedulingDefense(true);
+      await apiClient.post(`/api/admin/projects/${defenseProject.id}/assign-defense`, fields);
+      Alert.alert('✅', lang === 'he' ? 'פרטי ההגנה נשמרו בהצלחה' : 'Defense logistics saved successfully');
+      setDefenseProject(null);
+      fetchAllDashboardData();
+    } catch (e: any) {
+      Alert.alert('Error', e.response?.data?.message || 'Failed to save defense logistics');
+    } finally {
+      setSchedulingDefense(false);
+    }
+  };
+
   const stats: SystemStats = useMemo(() => {
     return {
       totalUsers: users.length,
@@ -380,23 +540,41 @@ export default function PanelScreen() {
     };
   }, [users, projects, milestones]);
 
-  const groupedMilestones = Object.values(
+  // Raw milestone docs don't carry the project title or student names —
+  // those live on the project/user documents, so join them in here rather
+  // than reading fields that never exist on the milestone itself.
+  const projectsById = useMemo(() => {
+    const map: Record<string, ProjectRecord> = {};
+    projects.forEach((p) => { map[p.id] = p; });
+    return map;
+  }, [projects]);
+
+  const userNamesById = useMemo(() => {
+    const map: Record<string, string> = {};
+    users.forEach((u) => { map[u.id] = u.displayName; });
+    return map;
+  }, [users]);
+
+  const groupedMilestones = useMemo(() => Object.values(
     milestones.reduce((acc: any, milestone) => {
       const key = milestone.projectId;
       if (!acc[key]) {
+        const project = projectsById[key];
+        const studentNames = (project?.enrolledStudentIds ?? [])
+          .map((sid: string) => userNamesById[sid] ?? sid);
         acc[key] = {
           projectId: milestone.projectId,
-          projectTitleHe: milestone.projectTitleHe,
-          projectTitleEn: milestone.projectTitleEn,
-          facultyId: milestone.facultyId,
-          studentNames: milestone.studentNames || [],
+          projectTitleHe: project?.titleHe ?? milestone.projectTitleHe ?? '',
+          projectTitleEn: project?.titleEn ?? milestone.projectTitleEn ?? '',
+          facultyId: project?.facultyId ?? milestone.facultyId ?? '',
+          studentNames,
           milestones: [],
         };
       }
       acc[key].milestones.push(milestone);
       return acc;
     }, {})
-  );
+  ), [milestones, projectsById, userNamesById]);
 
   const filteredUsers = users.filter((u) => {
     const q = userSearch.toLowerCase();
@@ -452,24 +630,86 @@ export default function PanelScreen() {
     }
   };
 
+  const eraseUser = (userId: string, userName: string) => {
+    Alert.alert(
+      lang === 'he' ? 'מחיקת משתמש לצמיתות' : 'Permanently erase user',
+      lang === 'he'
+        ? `פעולה זו תמחק את ${userName} ואת כל הנתונים שלו לצמיתות. לא ניתן לבטל. להמשיך?`
+        : `This will permanently delete ${userName} and all their data. This cannot be undone. Continue?`,
+      [
+        { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
+        {
+          text: lang === 'he' ? 'מחק לצמיתות' : 'Erase permanently',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiClient.post(`/api/admin/users/${userId}/erase`);
+              setUsers(prev => prev.filter(u => u.id !== userId));
+              Alert.alert('✅', lang === 'he' ? 'המשתמש נמחק' : 'User erased');
+            } catch (e: any) {
+              Alert.alert(
+                lang === 'he' ? 'שגיאה' : 'Error',
+                e.response?.data?.message || (lang === 'he' ? 'מחיקת המשתמש נכשלה' : 'Failed to erase user'),
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const saveMaintenance = async () => {
     try {
-      const shutdownTime =
-        Date.now() +
-        maintenanceDays * 24 * 60 * 60 * 1000 +
-        maintenanceHours * 60 * 60 * 1000 +
-        maintenanceMinutes * 60 * 1000;
+      const warnMs =
+        warnDays * 86_400_000 + warnHours * 3_600_000 + warnMinutes * 60_000;
+      const durMs =
+        durDays  * 86_400_000 + durHours  * 3_600_000 + durMinutes  * 60_000;
 
-      // 🚀 Replaced direct backend database injection with automated secure gateway routing logic
-      await apiClient.post('/api/admin/system/maintenance', {
-        title: maintenanceTitle,
-        shutdownAt: shutdownTime,
-      });
+    await apiClient.post('/api/admin/system/maintenance', {
+      title: maintenanceTitle.trim() || 'Scheduled Maintenance',
+      shutdownAt:        Date.now() + warnMs,   // when the app shuts down
+      maintenanceDurMs:  durMs,                 // how long it stays down
+      broadcastEnabled,
+    });
 
       Alert.alert('Success', lang === 'he' ? 'מצב תחזוקה הופעל' : 'Maintenance mode activated');
       setMaintenanceModal(false);
     } catch (e) {
       console.log(e);
+    }
+  };
+
+  const openAcademicCalendar = async () => {
+    setAcademicCalendarModal(true);
+    setAcademicCalendarLoading(true);
+    try {
+      const res = await apiClient.get('/api/admin/academic-calendar');
+      setFallMonth(String(res.data.fallSemesterStartMonth));
+      setFallDay(String(res.data.fallSemesterStartDay));
+      setSpringMonth(String(res.data.springSemesterStartMonth));
+      setSpringDay(String(res.data.springSemesterStartDay));
+    } catch (e) {
+      Alert.alert('Error', lang === 'he' ? 'טעינת לוח השנה נכשלה' : 'Failed to load the academic calendar');
+    } finally {
+      setAcademicCalendarLoading(false);
+    }
+  };
+
+  const saveAcademicCalendar = async () => {
+    try {
+      setAcademicCalendarLoading(true);
+      await apiClient.put('/api/admin/academic-calendar', {
+        fallSemesterStartMonth: Number(fallMonth),
+        fallSemesterStartDay: Number(fallDay),
+        springSemesterStartMonth: Number(springMonth),
+        springSemesterStartDay: Number(springDay),
+      });
+      Alert.alert('✅', lang === 'he' ? 'לוח השנה עודכן' : 'Academic calendar updated');
+      setAcademicCalendarModal(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.response?.data?.message || (lang === 'he' ? 'עדכון לוח השנה נכשל' : 'Failed to update the academic calendar'));
+    } finally {
+      setAcademicCalendarLoading(false);
     }
   };
 
@@ -539,6 +779,10 @@ export default function PanelScreen() {
           {
             key: 'milestones',
             label: lang === 'he' ? 'אבני דרך' : 'Milestones',
+          },
+          {
+            key: 'defenseAccess',
+            label: lang === 'he' ? 'גישת הגנה' : 'Defense Access',
           },
         ].map((tab) => (
           <Pressable
@@ -643,19 +887,19 @@ export default function PanelScreen() {
                   );
                 })}
             </View>
+            <Pressable
+              style={[styles.submitBtn, { marginTop: 14 }]}
+              onPress={() => router.push('/Info-files' as any)}
+            >
+              <Text style={styles.submitBtnText}>
+                📎 {lang === 'he' ? 'ניהול מסמכים לסטודנטים' : 'Manage Student Info Files'}
+              </Text>
+            </Pressable>
           </>
         )}
 
         {activeTab === 'users' && (
           <>
-            <Pressable
-                style={[styles.submitBtn, { marginBottom: 14 }]}
-                onPress={() => setShowNewUser(true)}
-              >
-              <Text style={styles.submitBtnText}>
-                ➕ {lang === 'he' ? 'הוסף משתמש' : 'Add User'}
-              </Text>
-            </Pressable>
             <View style={styles.searchBox}>
               <TextInput
                 placeholder={
@@ -760,6 +1004,15 @@ export default function PanelScreen() {
                     <Pressable style={styles.editBtn} onPress={() => openEditUser(u)}>
                       <Text style={styles.editBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
                     </Pressable>
+
+                    <Pressable
+                      style={[styles.editBtn, { backgroundColor: '#FEF2F2', borderColor: '#EF4444' }]}
+                      onPress={() => eraseUser(u.id, u.displayName)}
+                    >
+                      <Text style={[styles.editBtnText, { color: '#EF4444' }]}>
+                        🗑️ {lang === 'he' ? 'מחק' : 'Erase'}
+                      </Text>
+                    </Pressable>
                   </View>
                 </View>
               );
@@ -809,6 +1062,15 @@ export default function PanelScreen() {
                 >
                   <Text style={styles.addStudentBtnText}>
                     👤➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.addStudentBtn}
+                  onPress={() => setDefenseProject(p)}
+                >
+                  <Text style={styles.addStudentBtnText}>
+                    🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}
                   </Text>
                 </Pressable>
 
@@ -876,7 +1138,8 @@ export default function PanelScreen() {
 
                   {/* Students */}
                   <Text style={styles.projectMeta}>
-                    👤 {project.studentNames.join(', ')}
+                    👤 {project.studentNames.length} {lang === 'he' ? 'סטודנטים' : 'students'}
+                    {project.studentNames.length > 0 ? ` — ${project.studentNames.join(', ')}` : ''}
                   </Text>
 
                   {/* Stats */}
@@ -922,8 +1185,163 @@ export default function PanelScreen() {
           </>
         )}
 
+        {activeTab === 'defenseAccess' && (
+          <>
+            <Text style={styles.sectionTitle}>
+              {lang === 'he'
+                ? 'בוחנים חיצוניים שהחמיצו את חלון הגישה ביום ההגנה'
+                : 'External examiners who missed their defense-day access window'}
+            </Text>
+            {loadingDefenseGrants ? (
+              <ActivityIndicator size="large" color="#8B5CF6" />
+            ) : defenseGrants.length === 0 ? (
+              <Text style={styles.projectMeta}>
+                {lang === 'he' ? 'אין בקשות הארכה ממתינות' : 'No pending extension requests'}
+              </Text>
+            ) : (
+              defenseGrants.map((g) => (
+                <View key={g.code} style={styles.projectMilestoneCard}>
+                  <Text style={styles.projectTitle}>{g.examinerName}</Text>
+                  <Text style={styles.projectMeta}>📧 {g.examinerEmail}</Text>
+                  <Text style={styles.projectMeta}>
+                    📅 {lang === 'he' ? 'תאריך הגנה:' : 'Defense date:'} {g.defenseDateISO}
+                  </Text>
+                  {extendGrantCode === g.code ? (
+                    <View style={{ marginTop: 10 }}>
+                      <TextInput
+                        style={adminPanelStyles.input}
+                        value={extendNewDate}
+                        onChangeText={setExtendNewDate}
+                        placeholder={lang === 'he' ? 'תוקף חדש (ISO)' : 'New expiry (ISO date)'}
+                      />
+                      <TextInput
+                        style={[adminPanelStyles.input, { marginTop: 8 }]}
+                        value={extendReason}
+                        onChangeText={setExtendReason}
+                        placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
+                      />
+                      <Pressable
+                        style={[styles.submitBtn, extendingGrant && { opacity: 0.6 }]}
+                        onPress={handleExtendGrant}
+                        disabled={extendingGrant}
+                      >
+                        {extendingGrant
+                          ? <ActivityIndicator color="#fff" />
+                          : <Text style={styles.submitBtnText}>{lang === 'he' ? 'אשר הארכה' : 'Confirm extension'}</Text>
+                        }
+                      </Pressable>
+                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setExtendGrantCode(null)}>
+                        <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable
+                      style={[styles.submitBtn, { marginTop: 10 }]}
+                      onPress={() => { setExtendGrantCode(g.code); setExtendNewDate(''); setExtendReason(''); }}
+                    >
+                      <Text style={styles.submitBtnText}>
+                        {lang === 'he' ? '🔓 הארך גישה' : '🔓 Extend access'}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              ))
+            )}
+          </>
+        )}
+
         <View style={{ height: 80 }} />
       </ScrollView>
+
+      <FloatingActionMenu
+        lang={lang}
+        isRtl={isRtl}
+        corner="bottom-right"
+        actions={[
+          { key: 'add', icon: '➕', label: lang === 'he' ? 'הוסף משתמש' : 'Add User', onPress: () => { setActiveTab('users'); setShowNewUser(true); } },
+          { key: 'import', icon: '📥', label: lang === 'he' ? 'ייבוא סגל' : 'Import Staff', onPress: handleImportStaff, loading: importingStaff },
+          { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Excel', onPress: handleExportUsers, loading: exportingUsers },
+          { key: 'calendar', icon: '📅', label: lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar', onPress: openAcademicCalendar },
+        ]}
+      />
+
+      {/* Academic calendar settings — the two admin-editable semester start
+          dates consumed by the graduation-based auto-deletion sweep (see
+          server/src/services/accountDeletion.ts). Summer's start/end are
+          fixed, not configurable here — see that file's comments. */}
+      <Modal visible={academicCalendarModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setAcademicCalendarModal(false)}>
+        <View style={{ flex: 1, backgroundColor: '#fff', padding: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800' }}>
+              📅 {lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar'}
+            </Text>
+            <Pressable onPress={() => setAcademicCalendarModal(false)}>
+              <Text style={{ fontSize: 20, color: '#64748B' }}>✕</Text>
+            </Pressable>
+          </View>
+
+          {academicCalendarLoading ? (
+            <ActivityIndicator size="large" color="#2E86FF" />
+          ) : (
+            <>
+              <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>
+                {lang === 'he'
+                  ? 'סמסטר הקיץ קבוע (יולי–ספטמבר). התאריכים הבאים משמשים גם לחישוב מחיקת חשבון אוטומטית לסטודנטים שסיימו את משך הלימודים.'
+                  : "Summer semester is fixed (July–September). These dates also feed the automatic graduation-based account-deletion check."}
+              </Text>
+
+              <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 6 }}>
+                {lang === 'he' ? 'תחילת סמסטר סתיו' : 'Fall semester start'}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                <TextInput
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12 }}
+                  value={fallMonth}
+                  onChangeText={setFallMonth}
+                  keyboardType="numeric"
+                  placeholder={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'}
+                />
+                <TextInput
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12 }}
+                  value={fallDay}
+                  onChangeText={setFallDay}
+                  keyboardType="numeric"
+                  placeholder={lang === 'he' ? 'יום' : 'Day'}
+                />
+              </View>
+
+              <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 6 }}>
+                {lang === 'he' ? 'תחילת סמסטר אביב' : 'Spring semester start'}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
+                <TextInput
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12 }}
+                  value={springMonth}
+                  onChangeText={setSpringMonth}
+                  keyboardType="numeric"
+                  placeholder={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'}
+                />
+                <TextInput
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12 }}
+                  value={springDay}
+                  onChangeText={setSpringDay}
+                  keyboardType="numeric"
+                  placeholder={lang === 'he' ? 'יום' : 'Day'}
+                />
+              </View>
+
+              <Pressable
+                style={{ backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                onPress={saveAcademicCalendar}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
+                  {lang === 'he' ? 'שמור' : 'Save'}
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </Modal>
 
       <NewProjectModal
         visible={showNewProject}
@@ -944,6 +1362,9 @@ export default function PanelScreen() {
 
         skills={newSkills}
         setSkills={setNewSkills}
+
+        prerequisites={newPrerequisites}
+        setPrerequisites={setNewPrerequisites}
 
         faculty={newProjectFaculty}
         setFaculty={setNewProjectFaculty}
@@ -1015,19 +1436,23 @@ export default function PanelScreen() {
 
         title={maintenanceTitle}
         setTitle={setMaintenanceTitle}
-
-        days={maintenanceDays}
-        setDays={setMaintenanceDays}
-
-        hours={maintenanceHours}
-        setHours={setMaintenanceHours}
-
-        minutes={maintenanceMinutes}
-        setMinutes={setMaintenanceMinutes}
-
+        warnDays={warnDays}
+        setWarnDays={setWarnDays}
+        warnHours={warnHours}
+        setWarnHours={setWarnHours}
+        warnMinutes={warnMinutes}
+        setWarnMinutes={setWarnMinutes}
+        durDays={durDays}
+        setDurDays={setDurDays}
+        durHours={durHours}
+        setDurHours={setDurHours}
+        durMinutes={durMinutes}
+        setDurMinutes={setDurMinutes}
+        broadcastEnabled={broadcastEnabled}
+        setBroadcastEnabled={setBroadcastEnabled}
+        blockedRoles={blockedRoles}
+        setBlockedRoles={setBlockedRoles}
         onSave={saveMaintenance}
-
-        styles={styles}
       />
       {/* ── Add Student to Project Modal ── */}
       <AddStudentToProjectModal
@@ -1049,6 +1474,16 @@ export default function PanelScreen() {
 
         onAddStudent={handleAddStudentToProject}
         getFacultyColor={getFacultyColor}
+      />
+      {/* ── Schedule Defense Modal ── */}
+      <ScheduleDefenseModal
+        visible={!!defenseProject}
+        project={defenseProject}
+        lang={lang}
+        isRtl={isRtl}
+        saving={schedulingDefense}
+        onClose={() => setDefenseProject(null)}
+        onSave={handleScheduleDefense}
       />
       <NewUserModal
         visible={showNewUser}

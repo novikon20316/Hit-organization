@@ -17,12 +17,16 @@ interface Props {
   isRtl:    boolean;
   studentDegree: 'bachelors' | 'masters';
   appliedProjectIds: string[];
+  // Placeholder until per-student course history is tracked in the app —
+  // defaults to []. Until then, any project with prerequisites listed shows
+  // as not-yet-qualified, since we can't confirm the student has completed them.
+  completedCourses?: string[];
 }
 
 type DegreeFilter = 'all' | 'bachelors' | 'masters';
 type TypeFilter   = 'all' | 'project' | 'thesis';
 
-export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds }: Props) {
+export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds, completedCourses = [] }: Props) {
   // Inside BrowseProjects component, add at the top:
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);  
   const [search,       setSearch]       = useState('');
@@ -72,6 +76,10 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       return textOk && degreeOk && typeOk;
     });
   }, [proposals, search, degreeFilter, typeFilter, lang]);
+
+  // ── Prerequisite/qualification check ──────────────────────────────────────
+  const getMissingCourses = (p: ProjectProposal): string[] =>
+    (p.prerequisites ?? []).filter((course) => !completedCourses.includes(course));
 
   // ── File picker ────────────────────────────────────────────────────────────
   const pickFile = async (type: 'transcript' | 'cv') => {
@@ -373,25 +381,44 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                           </Text>
                         </Pressable>
                       ) : null}
-                      {/* Apply button */}
+                      {/* Apply / qualification-request button */}
                       {appliedProjectIds.includes(p.id) ? (
                         <View style={[styles.applyBtn, { backgroundColor: '#E2E8F0' }]}>
                           <Text style={[styles.applyBtnText, { color: '#94A3B8' }]}>
                             {lang === 'he' ? '✓ כבר הגשת מועמדות' : '✓ Already Applied'}
                           </Text>
                         </View>
-                      ) : (
-                        <Pressable
-                          style={styles.applyBtn}
-                          onPress={(e) => {
-                            e.stopPropagation?.();
-                            setSelected(p);
-                            setShowApply(true);
-                          }}
-                        >
-                          <Text style={styles.applyBtnText}>{tx('applyBtn', lang)}</Text>
-                        </Pressable>
-                      )}
+                      ) : (() => {
+                        const missingCourses = getMissingCourses(p);
+                        const isQualified = missingCourses.length === 0;
+                        return (
+                          <>
+                            <Pressable
+                              style={[styles.applyBtn, !isQualified && { backgroundColor: '#E2E8F0' }]}
+                              disabled={!isQualified}
+                              onPress={(e) => {
+                                e.stopPropagation?.();
+                                setSelected(p);
+                                setShowApply(true);
+                              }}
+                            >
+                              <Text style={[styles.applyBtnText, !isQualified && { color: '#94A3B8' }]}>
+                                {tx('applyBtn', lang)}
+                              </Text>
+                            </Pressable>
+                            {!isQualified && (
+                              <Text style={{
+                                color: '#DC2626', fontSize: 12, marginTop: 6,
+                                textAlign: isRtl ? 'right' : 'left',
+                              }}>
+                                {lang === 'he'
+                                  ? `אינך זכאי/ת לביצוע פרויקט/תזה זה. עליך ללמוד את: ${missingCourses.join(', ')}`
+                                  : `You are not qualified to do this project/thesis. You had to study ${missingCourses.join(', ')}`}
+                              </Text>
+                            )}
+                          </>
+                        );
+                      })()}
                     </View>
                   )}
                 </Pressable>

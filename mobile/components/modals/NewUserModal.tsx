@@ -11,6 +11,7 @@ import {
 
 import { ROLE_LABELS } from '../../constants'; // adjust path if needed
 import { FACULTY_COLORS } from '../../components/shared'; // adjust path if needed
+import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
 
 type Lang = 'he' | 'en';
 
@@ -168,20 +169,28 @@ export default function NewUserModal({
           {lang === 'he' ? 'פקולטה' : 'Faculty'}
         </Text>
 
-        {Object.entries(FACULTY_COLORS)
-          .filter(([k]) => k !== 'default')
-          .map(([fid, fc]) => (
-            <Pressable
-              key={fid}
-              style={[
-                styles.facultyPickerBtn,
-                newUserFaculty === fid && { backgroundColor: fc.primary },
-              ]}
-              onPress={() => setNewUserFaculty(fid)}
-            >
-              <Text>{fc.label[lang]}</Text>
-            </Pressable>
-          ))}
+        {CROSS_FACULTY_ROLES.includes(newUserRole as any) ? (
+          <Text style={{ opacity: 0.7 }}>
+            {lang === 'he'
+              ? 'תפקיד זה חוצה פקולטות — יוגדר אוטומטית לצפייה בכל הפקולטות.'
+              : 'This role is cross-faculty — it will automatically see all faculties.'}
+          </Text>
+        ) : (
+          Object.entries(FACULTY_COLORS)
+            .filter(([k]) => k !== 'default' && k !== 'all')
+            .map(([fid, fc]) => (
+              <Pressable
+                key={fid}
+                style={[
+                  styles.facultyPickerBtn,
+                  newUserFaculty === fid && { backgroundColor: fc.primary },
+                ]}
+                onPress={() => setNewUserFaculty(fid)}
+              >
+                <Text>{fc.label[lang]}</Text>
+              </Pressable>
+            ))
+        )}
 
         {/* Student fields */}
         {newUserRole === 'student' && (

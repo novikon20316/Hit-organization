@@ -1,7 +1,7 @@
 // app/(tabs)/_layout.tsx
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, Alert } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient'; // 🚀 Added backend API client instance
@@ -16,6 +16,7 @@ const HIDDEN_TAB_ROUTES = [
   '/login',
   '/register',
   '/student/profile-setup',
+  '/account-deletion-pending',
 ];
 
 // ─── Known valid route prefixes — anything outside these is a 404 ─────────────
@@ -142,6 +143,17 @@ export default function TabLayout() {
           setRole(userRole);
           setLang(userData.language ?? 'he');
 
+          // Account is mid-grace-period (self-requested or auto-flagged as
+          // graduated) — every role gets routed to the same cancel/notice
+          // screen instead of their normal home, until they cancel or the
+          // scheduled purge runs.
+          if (userData.pendingDeletion) {
+            if (pathname !== '/account-deletion-pending') {
+              router.replace('/account-deletion-pending' as any);
+            }
+            return;
+          }
+
           const isAuthScreen = ['/', '/index', '/login', '/register'].includes(pathname);
           if (isAuthScreen) {
             router.replace((ROLE_ROUTES[userRole] ?? '/student/home') as any);
@@ -150,6 +162,12 @@ export default function TabLayout() {
       } catch (err) {
         console.error("Error loading user layout configurations:", err);
         setRole(null);
+        Alert.alert(
+          lang === 'he' ? 'שגיאה' : 'Error',
+          lang === 'he'
+            ? 'טעינת הפרופיל נכשלה. משוך לרענון או התחבר מחדש.'
+            : 'Failed to load your profile. Pull to refresh or sign in again.',
+        );
       } finally {
         setLoaded(true);
       }

@@ -2,6 +2,7 @@
 import React from "react";
 import {AppUser, GradingCriterion, DegreeLevel, Program, Faculty, UserRole }from '@/types'
 import { tx } from '../../components/i18n';
+import { HIT_FACULTIES, getFacultyByKey, getFilteredPrograms } from '../../constants/faculties';
 import {
   Modal, View, Text, ScrollView, Pressable,
   TextInput, ActivityIndicator, StyleSheet
@@ -25,82 +26,10 @@ export const DEFAULT_CRITERIA: GradingCriterion[] = [
   { key: 'writing',     label: 'Writing Quality',   maxScore: 20 },
 ];
 
-// ─── HIT Faculty & Program Data ───────────────────────────────────────────────
-
-export const HIT_FACULTIES: Faculty[] = [
-  {
-    key:   "sciences",
-    label: { he: "הפקולטה למדעים", en: "Faculty of Sciences" },
-    programs: [
-      { key: "bsc_cs",       label: { he: "B.Sc במדעי המחשב",                       en: "B.Sc in Computer Science"            }, level: "bachelors" },
-      { key: "bsc_math",     label: { he: "B.Sc במתמטיקה שימושית",                  en: "B.Sc in Applied Mathematics"         }, level: "bachelors" },
-      { key: "dual_math",    label: { he: "מסלול דו-תואר במתמטיקה שימושית",          en: "Dual Degree in Applied Mathematics"  }, level: "bachelors" },
-      { key: "msc_cs",       label: { he: "M.Sc במדעי המחשב (עם תזה)",              en: "M.Sc in Computer Science (with Thesis)"    }, level: "masters" },
-      { key: "msc_cs_notx",  label: { he: "M.Sc במדעי המחשב (ללא תזה)",             en: "M.Sc in Computer Science (without Thesis)" }, level: "masters" },
-      { key: "msc_ds",       label: { he: "M.Sc במדעי הנתונים (Data Science)",       en: "M.Sc in Data Science"                      }, level: "masters" },
-    ],
-  },
-  {
-    key:   "electrical",
-    label: { he: "הפקולטה להנדסת חשמל ואלקטרוניקה", en: "Faculty of Electrical & Electronics Engineering" },
-    programs: [
-      { key: "bsc_ee",  label: { he: "B.Sc בהנדסת חשמל ואלקטרוניקה", en: "B.Sc in Electrical & Electronics Engineering" }, level: "bachelors" },
-      { key: "msc_ee",  label: { he: "M.Sc בהנדסת חשמל ואלקטרוניקה", en: "M.Sc in Electrical & Electronics Engineering" }, level: "masters"   },
-    ],
-  },
-  {
-    key:   "industrial",
-    label: { he: "הפקולטה להנדסת תעשייה וניהול טכנולוגיה", en: "Faculty of Industrial Engineering & Technology Management" },
-    programs: [
-      { key: "bsc_ie",    label: { he: "B.Sc בהנדסת תעשייה וניהול", en: "B.Sc in Industrial Engineering & Management"  }, level: "bachelors" },
-      { key: "bsc_tm",    label: { he: "B.Sc בניהול טכנולוגיה",      en: "B.Sc in Technology Management"               }, level: "bachelors" },
-      { key: "msc_tm",    label: { he: "M.Sc בניהול טכנולוגיה",      en: "M.Sc in Technology Management"               }, level: "masters"   },
-    ],
-  },
-  {
-    key:   "learning_tech",
-    label: { he: "הפקולטה לטכנולוגיות למידה", en: "Faculty of Learning Technologies" },
-    programs: [
-      { key: "ba_lt",  label: { he: "B.A בטכנולוגיות למידה", en: "B.A in Learning Technologies" }, level: "bachelors" },
-      { key: "ma_lt",  label: { he: "M.A בטכנולוגיות למידה", en: "M.A in Learning Technologies" }, level: "masters"   },
-    ],
-  },
-  {
-    key:   "medical_tech",
-    label: { he: "הפקולטה לטכנולוגיות רפואיות", en: "Faculty of Medical Technologies" },
-    programs: [
-      { key: "bsc_dmt",   label: { he: "B.Sc בטכנולוגיות דיגיטליות ברפואה", en: "B.Sc in Digital Medical Technologies" }, level: "bachelors" },
-      { key: "pre_med",   label: { he: "מסלול Pre-Med (קדם-רפואה)",           en: "Pre-Med Track"                        }, level: "bachelors" },
-    ],
-  },
-  {
-    key:   "design",
-    label: { he: "הפקולטה לעיצוב", en: "Faculty of Design" },
-    programs: [
-      { key: "bdes_vc",  label: { he: "B.Des בעיצוב תקשורת חזותית",       en: "B.Des in Visual Communication Design" }, level: "bachelors" },
-      { key: "bdes_id",  label: { he: "B.Des בעיצוב תעשייתי",              en: "B.Des in Industrial Design"           }, level: "bachelors" },
-      { key: "bdes_int", label: { he: "B.Des בעיצוב פנים",                  en: "B.Des in Interior Design"             }, level: "bachelors" },
-      { key: "mdes",     label: { he: "M.Des בעיצוב לסביבה טכנולוגית",     en: "M.Des in Design for Technological Environments" }, level: "masters" },
-    ],
-  },
-
-];
-
-// Helper: get faculty object by key
-export function getFacultyByKey(key: string): Faculty | undefined {
-  return HIT_FACULTIES.find((f) => f.key === key);
-}
-
-// Helper: get filtered programs for a given faculty + degree level
-export function getFilteredPrograms(
-  facultyKey: string,
-  level: DegreeLevel | "both",
-): Program[] {
-  const faculty = getFacultyByKey(facultyKey);
-  if (!faculty) return [];
-  if (level === "both") return faculty.programs;
-  return faculty.programs.filter((p) => p.level === level);
-}
+// HIT_FACULTIES / getFacultyByKey / getFilteredPrograms now live in
+// constants/faculties.ts (shared with student signup) — re-exported here so
+// any existing external import of these names from this file keeps working.
+export { HIT_FACULTIES, getFacultyByKey, getFilteredPrograms };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -116,6 +45,7 @@ type Props = {
   descHe:  string; setDescHe:  (v: string) => void;
   descEn:  string; setDescEn:  (v: string) => void;
   skills:  string; setSkills:  (v: string) => void;
+  prerequisites: string; setPrerequisites: (v: string) => void;
 
   faculty?:    string;
   setFaculty?: (v: string) => void;
@@ -162,6 +92,7 @@ export default function NewProjectModal({
   titleHe, setTitleHe, titleEn, setTitleEn,
   descHe,  setDescHe,  descEn,  setDescEn,
   skills,  setSkills,
+  prerequisites, setPrerequisites,
   faculty, setFaculty,
   degree,  setDegree,
   type,    setType,
@@ -496,6 +427,24 @@ export default function NewProjectModal({
             </Pressable>
           ))}
         </View>
+
+        {/* ── Prerequisites ─────────────────────────────────────────────────────── */}
+        <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>
+          {lang === "he" ? "קורסי דרישת קדם" : "Prerequisites"}
+        </Text>
+        <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
+          {lang === "he"
+            ? "רשום את שמות הקורסים שהסטודנט חייב להשלים כדי להיות זכאי, מופרדים בפסיקים"
+            : "List the course names a student must have completed to be eligible, separated by commas"}
+        </Text>
+        <TextInput
+          style={[styles.input, styles.textarea, { textAlign: isRtl ? "right" : "left", marginBottom: 20 }]}
+          value={prerequisites}
+          onChangeText={setPrerequisites}
+          multiline
+          placeholder={lang === "he" ? "לדוגמה: מבני נתונים, אלגוריתמים" : "e.g. Data Structures, Algorithms"}
+          placeholderTextColor="#9BA8C0"
+        />
 
         {/* ── Supervisors (admin only) ─────────────────────────────────────────── */}
         {isAdmin && supervisors?.length ? (

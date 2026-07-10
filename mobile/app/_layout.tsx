@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { View, Text, ActivityIndicator, Alert, Platform } from 'react-native';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../src/firebase/firebase";
-import { getDoc, doc, Timestamp } from "firebase/firestore";
+import { getDoc, doc } from "firebase/firestore";
 import { apiClient } from "../src/api/apiClient";
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -13,6 +13,8 @@ import { useSafeKeepAwake } from '@/hooks/useSafeKeepAwake';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import { NotificationsProvider } from '../src/context/NotificationsContext';
+import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
+import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth
 
 // ─── Android notification channel ─────────────────────────────────────────────
 if (Platform.OS === 'android') {
@@ -40,7 +42,7 @@ Notifications.setNotificationHandler({
 const registerPushToken = async () => {
   try {
     if (!Device.isDevice) {
-      console.warn('⚠️ Push notifications require a physical device. Skipping token registration.');
+      console.warn('⚠️  Push notifications require a physical device. Skipping.');
       return;
     }
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -50,22 +52,25 @@ const registerPushToken = async () => {
       finalStatus = status;
     }
     if (finalStatus !== 'granted') {
-      console.warn('❌ Push notification permission denied by user.');
+      console.warn('❌ Push notification permission denied.');
       return;
     }
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
     if (!projectId) {
-      console.warn('⚠️ No EAS projectId found in app.config. Push token skipped.');
+      console.warn('⚠️  No EAS projectId found. Push token skipped.');
       return;
     }
     const token = await Notifications.getExpoPushTokenAsync({ projectId });
     await apiClient.post('/api/users/update-push-token', { token: token.data });
-    console.log('📲 Push token registered:', token.data);
   } catch (e) {
     console.warn('Push token registration failed:', e);
   }
 };
 
+// ─── Routes that do NOT require authentication ────────────────────────────────
+// Add every route that must be reachable without a Firebase Auth session.
+// ⚠️  examiner-access MUST be here — external examiners arrive via a link
+//     and have no Firebase account.
 const authRoutes = new Set<string>([
   '/',
   '/index',
@@ -79,59 +84,69 @@ const authRoutes = new Set<string>([
   '/(auth)/resetPass',
   '/(auth)/verify2fa',
   '/(auth)/setup2fa',
+  '/changePassword',
+  '/(auth)/changePassword',
+  '/examiner-access',       // ← external examiner token link (no Auth required)
+  '/maintenance',           // ← accessible before role is known
 ]);
 
 // ─── Root layout ──────────────────────────────────────────────────────────────
 export default function RootLayout() {
-  const router = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
   useSafeKeepAwake();
+
   const [loading, setLoading] = useState(true);
   type RouterTarget = Parameters<typeof router.replace>[0];
   const [pendingRedirect, setPendingRedirect] = useState<RouterTarget | null>(null);
 
-  // ── Refs so the auth effect never needs to re-run ──────────────────────────
-  const pathnameRef          = useRef(pathname);
-  const scheduleRedirectRef  = useRef<((target: RouterTarget) => void) | null>(null);
-  const pushTokenRegistered  = useRef(false);
+  const checkMaintenance        = useMaintenanceCheck();
+  const pathnameRef             = useRef(pathname);
+  const scheduleRedirectRef     = useRef<((target: RouterTarget) => void) | null>(null);
+  const pushTokenRegistered     = useRef(false);
+  const initialAuthCheckedRef   = useRef(false);
 
-  // Keep pathnameRef current on every render
-  useEffect(() => {
-    pathnameRef.current = pathname;
-  }, [pathname]);
+  useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
 
   // ── Redirect state machine ─────────────────────────────────────────────────
   useEffect(() => {
     if (!pendingRedirect) return;
-    if (pathname === pendingRedirect) {
-      setPendingRedirect(null);
-      return;
-    }
+    if (pathname === pendingRedirect) { setPendingRedirect(null); return; }
     router.replace(pendingRedirect);
   }, [pathname, pendingRedirect, router]);
 
   const scheduleRedirect = useCallback((target: RouterTarget) => {
-    if (pathname === target) return;
+    if (pathname === target)        return;
     if (pendingRedirect === target) return;
     setPendingRedirect(target);
   }, [pathname, pendingRedirect]);
 
-  // Keep scheduleRedirectRef current
-  useEffect(() => {
-    scheduleRedirectRef.current = scheduleRedirect;
-  }, [scheduleRedirect]);
+  useEffect(() => { scheduleRedirectRef.current = scheduleRedirect; }, [scheduleRedirect]);
 
-  // ── Auth state → role-based routing (runs ONCE) ────────────────────────────
+  // ── Auth state → role-based routing ───────────────────────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      // Always read from refs — never from closure
-      const currentPathname   = pathnameRef.current;
-      const redirect          = scheduleRedirectRef.current!;
+      const currentPathname = pathnameRef.current;
+      const redirect        = scheduleRedirectRef.current!;
 
+      // ── Force the login screen on every app launch ─────────────────────────
+      // Firebase persists the auth session across restarts, so a returning
+      // user would otherwise skip the login screen entirely and land
+      // straight on /verify2fa (or their dashboard). Sign out once per app
+      // lifetime so 2FA/home routing only ever happens as the result of an
+      // explicit login submitted from the login screen.
+      if (!initialAuthCheckedRef.current) {
+        initialAuthCheckedRef.current = true;
+        if (user) {
+          await auth.signOut();
+          return; // onAuthStateChanged fires again below with user === null
+        }
+      }
+
+      // ── Unauthenticated ────────────────────────────────────────────────────
       if (!user) {
-        console.log('No user, pathname =', currentPathname);
+        // Let the examiner-access screen handle itself (public route)
         if (!authRoutes.has(currentPathname)) {
-          console.log('Redirecting to login');
           redirect('/(auth)/login');
         }
         setLoading(false);
@@ -139,6 +154,7 @@ export default function RootLayout() {
       }
 
       try {
+        // ── Fetch user record from backend ─────────────────────────────────
         let userData = null;
         for (let attempt = 1; attempt <= 5; attempt++) {
           try {
@@ -147,7 +163,6 @@ export default function RootLayout() {
             break;
           } catch (err: any) {
             if (err?.response?.status === 404 && attempt < 5) {
-              console.log(`⏳ /me attempt ${attempt} — retrying...`);
               await new Promise(resolve => setTimeout(resolve, 1000));
             } else {
               throw err;
@@ -155,63 +170,88 @@ export default function RootLayout() {
           }
         }
 
-        if (!userData) {
-          redirect('/(auth)/login');
+        if (!userData) { redirect('/(auth)/login'); setLoading(false); return; }
+
+        const role = userData.role as string;
+
+        // ── Forced password change (accounts created via Excel import) ──────
+        // Takes priority over everything below, including the 2FA gate.
+        const latestPathnameForPwGate = pathnameRef.current;
+        const alreadyChangingPassword =
+          latestPathnameForPwGate === '/changePassword' ||
+          latestPathnameForPwGate === '/(auth)/changePassword';
+
+        if (userData.mustChangePassword && !alreadyChangingPassword) {
+          redirect('/(auth)/changePassword' as any);
           setLoading(false);
           return;
         }
 
-        const role = userData.role;
-
-        // ✅ Push token — register only once per app session
+        // ── Push token (once per session) ──────────────────────────────────
         if (!pushTokenRegistered.current) {
           pushTokenRegistered.current = true;
-          await registerPushToken();
+          registerPushToken(); // fire-and-forget — don't block routing
         }
 
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        // ── 2FA gate ────────────────────────────────────────────────────────
+        const userSnap       = await getDoc(doc(db, 'users', user.uid));
+        if (!auth.currentUser) { setLoading(false); return; }
 
-        // Guard: user may have signed out while getDoc was in-flight
-        if (!auth.currentUser) {
+        const firestoreData  = userSnap.data();
+        const totpEnabled    = firestoreData?.totp_enabled ?? false;
+
+        const latestPathname   = pathnameRef.current;
+        console.log('latestPathname:', latestPathname);
+        const alreadyVerifying = latestPathname === '/verify2fa' || latestPathname === '/(auth)/verify2fa';
+        const alreadyOnSetup   = latestPathname === '/setup2fa'  || latestPathname === '/(auth)/setup2fa';
+
+        // SECURITY: this handler must NEVER navigate the user away from
+        // verify2fa/setup2fa. That is exclusively verify2fa.tsx's (and the
+        // recovery modal's) own job, driven by an actual successful
+        // /api/auth/2fa/validate or /verify call — never by re-reading
+        // Firestore here. A prior version of this guard tried to use
+        // `totp_last_verified` (whether verification happened "today") to
+        // decide it was safe to fall through to the redirect-home branch
+        // below — but that flag is calendar-day-scoped and set by ANY past
+        // successful verification, not just the current login. Once it was
+        // set once in a day, every subsequent fresh login satisfied it and
+        // skipped 2FA entirely. There is no Firestore-derived signal that
+        // safely distinguishes "verified just now, in this exact flow" from
+        // "verified at some earlier point today" — so this handler simply
+        // never acts on these two routes at all, full stop.
+        if (alreadyVerifying || alreadyOnSetup) {
           setLoading(false);
           return;
         }
 
-        const firestoreData = userDoc.data();
-        const totpEnabled   = firestoreData?.totp_enabled ?? false;
-
-        const lastVerified  = firestoreData?.totp_last_verified as Timestamp | null;
-        const verifiedToday = lastVerified
-          ? lastVerified.toDate().toDateString() === new Date().toDateString()
-          : false;
-
-        // Re-read pathname from ref — it may have changed during awaits
-        const latestPathname  = pathnameRef.current;
-        const alreadyVerifying = latestPathname === '/(auth)/verify2fa';
-        const alreadyOnSetup   = latestPathname === '/(auth)/setup2fa';
-
-        if (totpEnabled && !verifiedToday && !alreadyVerifying && !alreadyOnSetup) {
+        if (totpEnabled && authRoutes.has(latestPathname)) {
           redirect('/(auth)/verify2fa' as any);
           setLoading(false);
           return;
         }
 
+        // ── Only redirect if the user is currently on an auth/public route ──
+        // This prevents overwriting deep-links (e.g. a coordinator navigating
+        // to a student's process file directly).
         if (authRoutes.has(latestPathname)) {
-          redirect(
-            role === 'system_admin'  ? '/admin/panel'
-            : role === 'faculty_admin' ? '/faculty_admin/dashboard'
-            : role === 'coordinator'   ? '/coordinator/home'
-            : role === 'supervisor'    ? '/supervisor/dashboard'
-            : role === 'student'       ? '/student/home'
-            : role === 'examiner'      ? '/examinor/home'
-            : '/(auth)/login'
-          );
+          const maintenance = await checkMaintenance(role);
+
+          if (maintenance.blocked) {
+            redirect({
+              pathname: '/maintenance',
+              params: { title: maintenance.title, endsAt: maintenance.endsAt ?? '' },
+            } as any);
+          } else {
+            // getHomeRoute() from roles.ts covers ALL roles including new ones
+            redirect(getHomeRoute(role as any) as any);
+          }
         }
+
         setLoading(false);
 
       } catch (err: any) {
-        console.error('Auth state exception caught:', err);
-        if (err?.message === 'Network Error' || !err.response) {
+        console.error('Auth state error:', err);
+        if (err?.message === 'Network Error' || !err?.response) {
           Alert.alert(
             'Network Connection Error / שגיאת חיבור',
             'There is a problem with the internet connection.\n\nישנה בעיה בחיבור לאינטרנט.'
@@ -224,12 +264,12 @@ export default function RootLayout() {
     });
 
     return unsub;
-  }, []); // ← empty — runs once only, reads live values via refs
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Notification listeners ─────────────────────────────────────────────────
   useEffect(() => {
     const notifListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('🔔 Foreground notification received:', notification);
+      console.log('🔔 Foreground notification:', notification);
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
@@ -248,12 +288,10 @@ export default function RootLayout() {
       }, 500);
     });
 
-    return () => {
-      notifListener.remove();
-      responseListener.remove();
-    };
+    return () => { notifListener.remove(); responseListener.remove(); };
   }, [router]);
 
+  // ── Loading splash ─────────────────────────────────────────────────────────
   if (loading) {
     return (
       <SafeAreaProvider>

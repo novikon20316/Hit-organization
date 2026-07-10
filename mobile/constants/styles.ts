@@ -810,18 +810,32 @@ export const coordinatorHomeStyles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#E8E0FF',
   },
   tab: {
-    flex: 1, paddingVertical: 14, alignItems: 'center',
-    flexDirection: 'row', justifyContent: 'center', gap: 6,
+    flex: 1, paddingVertical: 14, paddingHorizontal: 4, alignItems: 'center',
+    justifyContent: 'center',
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   tabActive:      { borderBottomColor: '#8B5CF6' },
-  tabText:        { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
+  tabText:        { fontSize: 13, fontWeight: '600', color: '#9CA3AF', textAlign: 'center' },
   tabTextActive:  { color: '#8B5CF6' },
+  // Stacked below the label (not inline beside it) — with 5 tabs sharing the
+  // screen width, a badge competing for row space with a long label (e.g.
+  // "Examiner Recs" / "המלצות בוחנים") squeezed right up against the text.
+  // Stacking vertically keeps it clear of the text regardless of label length.
   badge: {
-    backgroundColor: '#8B5CF6', borderRadius: 8, minWidth: 18, height: 18,
-    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4,
+    marginTop: 4,
+    backgroundColor: '#8B5CF6', borderRadius: 8, minWidth: 16, height: 16,
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3,
   },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  badgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+
+  sortRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  sortChip: {
+    flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 8,
+    alignItems: 'center', borderWidth: 1, borderColor: '#E0E7FF',
+  },
+  sortChipActive: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
+  sortChipText: { fontSize: 12, fontWeight: '700', color: '#6B7280' },
+  sortChipTextActive: { color: '#fff' },
 
   card: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16,

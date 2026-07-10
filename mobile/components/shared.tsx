@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import type { Lang } from './i18n';
 import { NotificationBell } from './NotificationBell';
 import { apiClient } from '../src/api/apiClient';
+import DeleteAccountModal from './modals/DeleteAccountModal';
 
 // ─── Faculty / Department color palette ───────────────────────────────────────
 export const FACULTY_COLORS: Record<string, {
@@ -50,6 +51,16 @@ export const FACULTY_COLORS: Record<string, {
     light:   '#FDF2F8',
     label:   { he: 'הפקולטה לעיצוב', en: 'Faculty of Design' },
   },
+  data_science: {
+    primary: '#0EA5E9',
+    light:   '#F0F9FF',
+    label:   { he: 'המחלקה למדעי הנתונים', en: 'Department of Data Science' },
+  },
+  all: {
+    primary: '#334155',
+    light:   '#F8FAFC',
+    label:   { he: 'כל הפקולטות', en: 'All Faculties' },
+  },
   default: {
     primary: '#64748B',
     light:   '#F1F5F9',
@@ -68,6 +79,9 @@ export const ROLE_ACCENT = {
   system_admin:{ bg: '#FEF2F2', text: '#EF4444', label: { he: 'מנהל מערכת',   en: 'System Admin'} },
   coordinator: { bg: '#ECFDF5', text: '#10B981', label: { he: 'רכז פרויקטים', en: 'Coordinator' } },
   faculty_admin:{ bg: '#ECFEFF', text: '#06B6D4', label: { he: 'מנהל פקולטה', en: 'Faculty Admin'} },
+  grad_school_head:{ bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש בית ספר',  en: 'Grad School Head'} },
+  program_head: { bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש תוכנית',    en: 'Program Head'} },
+  project_coordinator: { bg: '#FFF7ED', text: '#F97316', label: { he: 'רכז תוכנית',    en: 'Project Coordinator'} },
 };
 
 // ─── 2FA Security Modal ───────────────────────────────────────────────────────
@@ -288,8 +302,16 @@ export function TopBar({
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
   const [securityModal, setSecurityModal] = useState(false);
+  const [deleteAccountModal, setDeleteAccountModal] = useState(false);
 
   const handleSignOut = async () => {
+    onBeforeSignOut?.();
+    await signOut(auth);
+    setTimeout(() => router.replace('/(auth)/login'), 100);
+  };
+
+  const handleAccountDeletionRequested = async () => {
+    setDeleteAccountModal(false);
     onBeforeSignOut?.();
     await signOut(auth);
     setTimeout(() => router.replace('/(auth)/login'), 100);
@@ -334,6 +356,15 @@ export function TopBar({
             </Pressable>
           )}
 
+          {/* 🗑️ Delete account — visible to ALL roles, same home as 2FA/security */}
+          <Pressable
+            style={tb.iconBtn}
+            onPress={() => setDeleteAccountModal(true)}
+            accessibilityLabel="Delete account"
+          >
+            <Text style={tb.iconBtnText}>🗑️</Text>
+          </Pressable>
+
           <NotificationBell />
 
           <Pressable style={tb.signOutBtn} onPress={handleSignOut}>
@@ -349,6 +380,13 @@ export function TopBar({
         visible={securityModal}
         onClose={() => setSecurityModal(false)}
         lang={lang}
+      />
+
+      <DeleteAccountModal
+        visible={deleteAccountModal}
+        onClose={() => setDeleteAccountModal(false)}
+        lang={lang}
+        onRequested={handleAccountDeletionRequested}
       />
     </>
   );

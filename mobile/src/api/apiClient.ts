@@ -29,6 +29,10 @@ function getBaseUrl(): string {
 const SERVER_URL = getBaseUrl();
 console.log(`[ApiClient] Using base URL: ${SERVER_URL}`);
 
+export function getApiBaseUrl(): string {
+  return SERVER_URL;
+}
+
 
 class ApiClient {
   private api: AxiosInstance;
@@ -154,17 +158,6 @@ class ApiClient {
         transformRequest: (data) => data,
       }
     );
-    return response.data;
-  }
-
-  async gradeMilestone(payload: {
-    projectId:     string;
-    milestoneType: 'proposal' | 'progress_report' | 'final_thesis';
-    scores:        Record<string, number>;
-    feedback:      string;
-    approved:      boolean;
-  }) {
-    const response = await this.api.post('/api/milestones/grade', payload);
     return response.data;
   }
 

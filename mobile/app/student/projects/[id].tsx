@@ -70,7 +70,7 @@ export default function ProjectPage() {
 
     try {
       setSubmitting(milestoneId);
-      const response = await apiClient.post(`/api/student/projects/${id}/milestones/${milestoneId}/submit`, { text });
+      const response = await apiClient.post(`/api/projects/student/projects/${id}/milestones/${milestoneId}/submit`, { text });
       
       setProject({ ...project, milestones: response.data.milestones });
       Alert.alert('Success', 'Milestone submitted!');

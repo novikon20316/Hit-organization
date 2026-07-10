@@ -10,8 +10,19 @@ export default function Setup2FA() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
 
+  const loadQrCode = async () => {
+    try {
+      setError('');
+      const res = await apiClient.post('/api/auth/2fa/setup');
+      setQrCode(res.data.qrCode);
+    } catch (err) {
+      console.error('Failed to load 2FA QR code:', err);
+      setError('Failed to load the QR code. Please try again.');
+    }
+  };
+
   useEffect(() => {
-    apiClient.post('/api/auth/2fa/setup').then(res => setQrCode(res.data.qrCode));
+    loadQrCode();
   }, []);
 
   const handleVerify = async () => {
@@ -48,6 +59,11 @@ export default function Setup2FA() {
       <Text style={styles.title}>Set Up 2FA</Text>
       <Text style={styles.subtitle}>Scan this QR code with Google Authenticator or Authy</Text>
       {qrCode && <Image source={{ uri: qrCode }} style={styles.qr} />}
+      {!qrCode && error ? (
+        <TouchableOpacity style={styles.button} onPress={loadQrCode}>
+          <Text style={styles.buttonText}>Retry</Text>
+        </TouchableOpacity>
+      ) : null}
       <TextInput
         style={styles.input}
         placeholder="Enter 6-digit code"

@@ -8,6 +8,12 @@ export type NotificationType =
   | 'milestone_deadline_1d'
   | 'broadcast'
   | 'new_message'
+  | 'account_created'
+  | 'examiner_access_link'
+  | 'defense_dates_requested'
+  | 'defense_date_matched'
+  | 'defense_day_access_link'
+  | 'totp_recovery_code'
   | 'general';
 
 interface EmailTemplate {
@@ -154,6 +160,114 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
         ${d.preview || ''}
       </blockquote>
       <p>Log in to view and reply.</p>
+    `,
+  },
+
+  account_created: {
+    subjectHe: '🎓 חשבונך במערכת נוצר',
+    subjectEn: '🎓 Your Account Has Been Created',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>נוצר עבורך חשבון במערכת ניהול פרויקטי הגמר.</p>
+      <p>אימייל: <strong>${d.email || ''}</strong><br/>
+      סיסמה זמנית: <strong>${d.tempPassword || ''}</strong></p>
+      ${d.appLinkIos || d.appLinkAndroid ? `
+      <p>הורד את האפליקציה:<br/>
+      ${d.appLinkIos ? `<a href="${d.appLinkIos}">📱 iPhone (App Store)</a><br/>` : ''}
+      ${d.appLinkAndroid ? `<a href="${d.appLinkAndroid}">🤖 Android (Google Play)</a>` : ''}
+      </p>` : ''}
+      <p><strong>בכניסה הראשונה תתבקש להחליף את הסיסמה הזמנית — זהו שלב חובה.</strong></p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>An account has been created for you in the Final Projects Management System.</p>
+      <p>Email: <strong>${d.email || ''}</strong><br/>
+      Temporary password: <strong>${d.tempPassword || ''}</strong></p>
+      ${d.appLinkIos || d.appLinkAndroid ? `
+      <p>Download the app:<br/>
+      ${d.appLinkIos ? `<a href="${d.appLinkIos}">📱 iPhone (App Store)</a><br/>` : ''}
+      ${d.appLinkAndroid ? `<a href="${d.appLinkAndroid}">🤖 Android (Google Play)</a>` : ''}
+      </p>` : ''}
+      <p><strong>On your first login you'll be required to change this temporary password — this step is mandatory.</strong></p>
+    `,
+  },
+
+  examiner_access_link: {
+    subjectHe: '🔎 הוזמנת לשמש כבוחן חיצוני',
+    subjectEn: '🔎 You Have Been Invited as an External Examiner',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>הוזמנת לשמש כבוחן חיצוני עבור העבודה <strong>"${d.thesisTitle || ''}"</strong>${d.studentName ? ` של ${d.studentName}` : ''}.</p>
+      <p><a href="${d.link || ''}">לחץ כאן לצפייה בפרטים ולמענה</a></p>
+      <p>הקישור אישי וחד-פעמי — אין צורך בהרשמה, סיסמה או חשבון במערכת.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>You have been invited to serve as an external examiner for <strong>"${d.thesisTitle || ''}"</strong>${d.studentName ? ` by ${d.studentName}` : ''}.</p>
+      <p><a href="${d.link || ''}">Tap here to view details and respond</a></p>
+      <p>This link is personal and one-time — no signup, password, or account is required.</p>
+    `,
+  },
+
+  defense_dates_requested: {
+    subjectHe: '📅 נדרשת בחירת תאריכים להגנה',
+    subjectEn: '📅 Defense date selection required',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>שובצת כבוחן/ת בהגנה. יש להיכנס לקישור השיפוט שקיבלת ולבחור תאריכים אפשריים להגנה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>You have been assigned as a defense examiner. Please open your review link and submit your available defense dates.</p>
+    `,
+  },
+
+  defense_date_matched: {
+    subjectHe: '✅ נקבע מועד הגנה',
+    subjectEn: '✅ Defense date set',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>נקבע מועד הגנה בתאריך <strong>${d.date || ''}</strong>.</p>
+      <p>השעה, החדר והבניין ייקבעו בהמשך על ידי הרכז.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>A defense date has been set: <strong>${d.date || ''}</strong>.</p>
+      <p>Time, room, and building will follow from the coordinator.</p>
+    `,
+  },
+
+  defense_day_access_link: {
+    subjectHe: '🔑 קישור גישה ליום ההגנה',
+    subjectEn: '🔑 Your defense-day access link',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>קישור זה יעניק לך גישה לאפליקציה ביום ההגנה בלבד — <strong>${d.date || ''}</strong>, עד חצות.</p>
+      <p><a href="${d.link || ''}">לחץ כאן לגישה ביום ההגנה</a></p>
+      <p>לאחר חצות הקישור לא יהיה תקף. אם לא הספקת להתחבר, פנה לרכז הפקולטה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>This link grants app access only on the day of the defense — <strong>${d.date || ''}</strong>, until midnight.</p>
+      <p><a href="${d.link || ''}">Tap here for defense-day access</a></p>
+      <p>After midnight this link stops working. If you missed the window, contact the faculty coordinator.</p>
+    `,
+  },
+
+  totp_recovery_code: {
+    subjectHe: '🔑 קוד שחזור לאימות דו-שלבי',
+    subjectEn: '🔑 Two-Factor Recovery Code',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>קיבלנו בקשה לאיפוס האימות הדו-שלבי בחשבונך. קוד האימות שלך הוא:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;margin:20px 0">${d.code || ''}</p>
+      <p>הקוד תקף ל-10 דקות. אם לא ביקשת זאת, התעלם מהודעה זו — האימות הדו-שלבי בחשבונך לא ישתנה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>We received a request to reset two-factor authentication on your account. Your recovery code is:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;margin:20px 0">${d.code || ''}</p>
+      <p>This code expires in 10 minutes. If you didn't request this, ignore this email — your 2FA setup will not change.</p>
     `,
   },
 

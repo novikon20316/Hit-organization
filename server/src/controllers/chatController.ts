@@ -17,8 +17,8 @@ const parseUserRow = (doc: admin.firestore.DocumentSnapshot) => {
   };
 };
 
-export const sendDirectMessage = async (req: Request, res: Response) => {
-  const uid = (req as any).user?.uid; // 🔒 Securely verified Sender ID from your middleware token
+export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid; // 🔒 Securely verified Sender ID from your middleware token
   const { chatId } = req.params;
   const { text } = req.body;
   if(!chatId || typeof chatId !== 'string'){
@@ -26,7 +26,21 @@ export const sendDirectMessage = async (req: Request, res: Response) => {
         message: "Error... Wrong ChatId"
     })
   }
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+
   try {
+    // Look up the conversation FIRST and confirm the sender is actually a
+    // participant — otherwise any authenticated user could post into (and get
+    // notified about) any other two users' private chat by guessing chatId.
+    const chatRef  = db.collection('chats').doc(chatId);
+    const chatSnap = await chatRef.get();
+    if (!chatSnap.exists) return res.status(404).json({ message: 'Chat not found.' });
+
+    const participants: string[] = chatSnap.data()?.participants || [];
+    if (!participants.includes(uid)) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+
     const batch = db.batch(); // Process operations atomically
 
     // 1. Create and stage the new message document
@@ -38,15 +52,12 @@ export const sendDirectMessage = async (req: Request, res: Response) => {
     });
 
     // 2. Update parent chat window thread overview timestamps
-    const chatRef = db.collection('chats').doc(chatId);
     batch.update(chatRef, {
       lastMessage: text,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // 3. Look up the conversation participant to target the correct recipient
-    const chatSnap = await chatRef.get();
-    const participants: string[] = chatSnap.data()?.participants || [];
+    // 3. Target the other participant as the recipient
     const recipientId = participants.find(id => id !== uid);
 
     if (recipientId) {

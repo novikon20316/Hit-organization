@@ -39,6 +39,10 @@ const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string; icon: 
   examiners_assigned:   { color: '#6366F1', bg: '#EEF2FF', icon: '👥' },
   examiner_graded:      { color: '#10B981', bg: '#ECFDF5', icon: '🎓' },
   both_examiners_graded:{ color: '#10B981', bg: '#ECFDF5', icon: '🎓' },
+  awaiting_defense_date:{ color: '#F59E0B', bg: '#FFFBEB', icon: '📅' },
+  date_conflict:        { color: '#EF4444', bg: '#FEF2F2', icon: '⚠️' },
+  defense_date_set:     { color: '#6366F1', bg: '#EEF2FF', icon: '📌' },
+  scheduled:            { color: '#10B981', bg: '#ECFDF5', icon: '🎓' },
   completed:            { color: '#10B981', bg: '#ECFDF5', icon: '🏁' },
 };
 
@@ -284,7 +288,6 @@ export default function ActiveDashboard({
                   })()}
                 </Text>
                 {actionableNextMilestone?.type === 'defense' && (() => {
-                  console.log('🎓 Defense milestone data:', JSON.stringify(actionableNextMilestone, null, 2));
                   const m = actionableNextMilestone;
                   
                   const defenseDate = m.defenseDate
@@ -299,11 +302,7 @@ export default function ActiveDashboard({
                       })
                     : (lang === 'he' ? 'טרם נקבע' : 'Not set yet');
 
-                  const formattedTime = defenseDate
-                    ? defenseDate.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US', {
-                        hour: '2-digit', minute: '2-digit', hour12: false,
-                      })
-                    : (lang === 'he' ? 'טרם נקבע' : 'Not set yet');
+                  const notSetYet = lang === 'he' ? 'טרם נקבע' : 'Not set yet';
 
                   const rows = [
                     {
@@ -320,12 +319,15 @@ export default function ActiveDashboard({
                     },
                     {
                       label: lang === 'he' ? 'שעה' : 'Time',
-                      value: formattedTime,
+                      value: m.defenseTime ?? notSetYet,
+                    },
+                    {
+                      label: lang === 'he' ? 'בניין' : 'Building',
+                      value: m.defenseBuilding ?? notSetYet,
                     },
                     {
                       label: lang === 'he' ? 'חדר' : 'Room',
-                      // TODO: replace with `${m.buildingNumber} → ${m.roomNumber}` when available
-                      value: m.defenseRoom ?? (lang === 'he' ? 'טרם נקבע' : 'Not set yet'),
+                      value: m.defenseRoom ?? notSetYet,
                     },
                   ];
 
@@ -481,6 +483,10 @@ export default function ActiveDashboard({
                                 examiners_assigned:   'נבחרו בוחנים',
                                 examiner_graded:      'נוקד ע"י בוחן',
                                 both_examiners_graded:'שני בוחנים ניקדו',
+                                awaiting_defense_date:'ממתין לתאריך הגנה',
+                                date_conflict:        'לא נמצא תאריך משותף',
+                                defense_date_set:      'תאריך הגנה נקבע',
+                                scheduled:            'הגנה נקבעה',
                                 coordinator_approved: 'אושר ע"י רכז',
                                 completed:            'הושלם',
                               }[m.status])
@@ -492,6 +498,10 @@ export default function ActiveDashboard({
                                 examiners_assigned:   'Examiners Assigned',
                                 examiner_graded:      'Examiner Graded',
                                 both_examiners_graded:'Both Examiners Graded',
+                                awaiting_defense_date:'Awaiting Defense Date',
+                                date_conflict:        'No Common Date',
+                                defense_date_set:      'Defense Date Set',
+                                scheduled:            'Defense Scheduled',
                                 coordinator_approved: 'Coordinator Approved',
                                 completed:            'Completed',
                               }[m.status])
