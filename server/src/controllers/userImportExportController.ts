@@ -7,7 +7,7 @@ import { Response, RequestHandler } from 'express';
 import multer from 'multer';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { importUsersFromBuffer, importStaffFromBuffer, buildUsersExportBuffer } from '../services/userImportExport.js';
+import { importUsersFromBuffer, importStaffFromBuffer, buildUsersExportBuffer, COORDINATOR_IMPORTABLE_ROLES } from '../services/userImportExport.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 export const uploadExcelFileMiddleware: RequestHandler = upload.single('file') as unknown as RequestHandler;
@@ -93,7 +93,11 @@ export const importUsersCoordinator = async (req: AuthenticatedRequest, res: Res
   if (!file) return res.status(400).json({ message: 'No file uploaded.' });
 
   try {
-    const summary = await importUsersFromBuffer(file.buffer, { restrictFacultyId: facultyId, lang: 'he' });
+    const summary = await importUsersFromBuffer(file.buffer, {
+      restrictFacultyId: facultyId,
+      restrictAssignableRoles: COORDINATOR_IMPORTABLE_ROLES,
+      lang: 'he',
+    });
     return res.status(200).json({ success: true, summary });
   } catch (error: any) {
     console.error('importUsersCoordinator error:', error);

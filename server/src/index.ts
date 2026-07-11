@@ -22,6 +22,8 @@ import facultyTemplateRoutes from './routes/facultyTemplates.js';
 import examinerAccessRoutes from './routes/examinerAccess.js';
 import gradSchoolHeadRoutes from './routes/gradSchoolHead.js';
 import programHeadRoutes from './routes/programHead.js';
+import loginSecurityRoutes from './routes/loginSecurity.js';
+import legalRoutes from './routes/legal.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
@@ -55,11 +57,13 @@ cloudinary.config({
 
 app.use((req, res, next) => {
   console.log(`📥 Incoming: ${req.method} ${req.url}`);
-  console.log(`📦 Headers:`, req.headers.authorization); 
   next();
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+// PUBLIC, unauthenticated — required by Google Play's Data Safety / store
+// listing review, which needs a reachable privacy policy URL.
+app.use(legalRoutes);
 app.use('/api/users',         userRoutes);
 app.use('/api/milestones',    milestoneRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -73,6 +77,10 @@ app.use('/api/student',       studentRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/staff',         staffRoutes);
 app.use('/api/auth',          authRoutes);
+// PUBLIC — no verifyToken. A failed login has no token to attach; identity
+// comes from independently re-verifying the password, or from the one-time
+// incident code itself. See routes/loginSecurity.ts.
+app.use('/api/auth',          loginSecurityRoutes);
 app.use('/api/examiner',      examinerRoutes);
 // Mounted at /api root — its own route paths already include the full
 // segments (/system/maintenance-status, /admin/system/maintenance).

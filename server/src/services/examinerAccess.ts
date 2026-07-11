@@ -67,7 +67,7 @@ export interface CreateExternalExaminerAccessParams {
  */
 export async function createExternalExaminerAccess(
   params: CreateExternalExaminerAccessParams
-): Promise<{ token: string; link: string }> {
+): Promise<{ token: string; link: string; emailSent: boolean }> {
   const code = await generateUniqueCode('examinerTokens');
 
   const reviewDays = params.reviewDays ?? 30;
@@ -96,6 +96,11 @@ export async function createExternalExaminerAccess(
   const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || ''; // TODO: set once the app has a public web/deep-link URL
   const link = `${baseUrl}/examiner-access?token=${encodeURIComponent(code)}`;
 
+  // This link is the ONLY channel an external examiner has (no app account,
+  // no in-app bell) — a dropped send here previously still reported success
+  // up to assignExaminersAndNotify, since only the doc write was checked.
+  // Surface it so the caller can bucket into externalFailed instead.
+  let emailSent = true;
   try {
     await sendNotificationEmail({
       toEmail: params.examinerEmail,
@@ -110,9 +115,10 @@ export async function createExternalExaminerAccess(
     });
   } catch (emailError) {
     console.error(`Examiner access email failed for ${params.examinerEmail}:`, emailError);
+    emailSent = false;
   }
 
-  return { token: code, link };
+  return { token: code, link, emailSent };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -159,7 +165,7 @@ export async function assignExaminersAndNotify(
     }
 
     try {
-      const { token } = await createExternalExaminerAccess({
+      const { token, emailSent } = await createExternalExaminerAccess({
         examinerName: examiner.name,
         examinerEmail: examiner.email,
         examinerInstitution: examiner.institution ?? '',
@@ -170,7 +176,13 @@ export async function assignExaminersAndNotify(
         thesisTitle: context.thesisTitle,
         thesisUrl: context.thesisUrl ?? '',
       });
-      externalNotified.push({ name: examiner.name, email: examiner.email, token });
+      if (emailSent) {
+        externalNotified.push({ name: examiner.name, email: examiner.email, token });
+      } else {
+        // Token/grant doc exists (so the link would still work if manually
+        // resent), but the examiner was never actually emailed it.
+        externalFailed.push({ name: examiner.name, email: examiner.email, reason: 'Failed to send access-link email.' });
+      }
     } catch (error: any) {
       externalFailed.push({ name: examiner.name, email: examiner.email, reason: error.message || 'Unknown error' });
     }

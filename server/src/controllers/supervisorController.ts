@@ -129,7 +129,10 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
 export const createSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized access.' });
- 
+  if (!['supervisor', 'secondary_supervisor'].includes(req.user?.role ?? '')) {
+    return res.status(403).json({ message: 'Access denied: supervisors only.' });
+  }
+
   try {
     const {
       titleHe, titleEn, descriptionHe, descriptionEn,
@@ -380,10 +383,21 @@ export const gradeMilestone = async (req: AuthenticatedRequest, res: Response) =
 };
 
 // ─── PUT /api/supervisor/projects/:id ────────────────────────────────────────
+// Only fields the mobile "edit project" form actually sends — a blind
+// `{...req.body}` spread previously let a supervisor overwrite anything on
+// their own project doc, including facultyId/supervisorId/status/enrolledStudentIds.
+const EDITABLE_PROJECT_FIELDS = [
+  'titleHe', 'titleEn', 'descriptionHe', 'descriptionEn',
+  'degreeType', 'projectType', 'requiredSkills',
+] as const;
+
 export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   const { id: projectId } = req.params;
-  const updateData = req.body;
+  const updateData: Record<string, unknown> = {};
+  for (const field of EDITABLE_PROJECT_FIELDS) {
+    if (req.body?.[field] !== undefined) updateData[field] = req.body[field];
+  }
 
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
   if (!projectId || typeof projectId !== 'string')

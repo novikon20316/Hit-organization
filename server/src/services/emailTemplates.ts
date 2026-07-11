@@ -14,6 +14,9 @@ export type NotificationType =
   | 'defense_date_matched'
   | 'defense_day_access_link'
   | 'totp_recovery_code'
+  | 'login_security_alert'
+  | 'temp_password_issued'
+  | 'suspicious_login_admin_alert'
   | 'general';
 
 interface EmailTemplate {
@@ -268,6 +271,79 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>We received a request to reset two-factor authentication on your account. Your recovery code is:</p>
       <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;margin:20px 0">${d.code || ''}</p>
       <p>This code expires in 10 minutes. If you didn't request this, ignore this email — your 2FA setup will not change.</p>
+    `,
+  },
+
+  login_security_alert: {
+    subjectHe: '⚠️ ניסיונות התחברות כושלים בחשבונך',
+    subjectEn: '⚠️ Repeated failed login attempts on your account',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>זיהינו 3 ניסיונות התחברות כושלים בחשבונך (<strong>${d.email || ''}</strong>):</p>
+      <ul>
+        <li>מתי: ${d.dateTime || ''}</li>
+        <li>כתובת IP: ${d.ip || ''}</li>
+        ${d.location ? `<li>מיקום משוער: ${d.location}</li>` : ''}
+      </ul>
+      <p>מסיבות אבטחה השבתנו זמנית את האפשרות להתחבר לחשבון. אנא ציין האם זה היה אתה:</p>
+      <p><a href="${d.link || ''}">לחץ כאן לענות</a></p>
+      <p>אם זה היית אתה, נשלח לך סיסמה זמנית להתחברות. אם לא, נתרה במנהל המערכת ונשאיר את החשבון מושבת.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>We detected 3 failed login attempts on your account (<strong>${d.email || ''}</strong>):</p>
+      <ul>
+        <li>When: ${d.dateTime || ''}</li>
+        <li>IP address: ${d.ip || ''}</li>
+        ${d.location ? `<li>Approximate location: ${d.location}</li>` : ''}
+      </ul>
+      <p>For security, we've temporarily disabled sign-in on this account. Please tell us whether this was you:</p>
+      <p><a href="${d.link || ''}">Tap here to respond</a></p>
+      <p>If it was you, we'll send a temporary password to log in with. If not, we'll alert a system administrator and keep the account disabled.</p>
+    `,
+  },
+
+  temp_password_issued: {
+    subjectHe: '🔑 סיסמה זמנית לחשבונך',
+    subjectEn: '🔑 Temporary password for your account',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>כפי שביקשת, הפעלנו מחדש את חשבונך עם סיסמה זמנית:</p>
+      <p style="font-size:20px;font-weight:bold;letter-spacing:2px;text-align:center;margin:20px 0">${d.tempPassword || ''}</p>
+      <p>התחבר עם הסיסמה הזו — תתבקש מיד לבחור סיסמה חדשה, ולא ניתן יהיה להמשיך להשתמש באפליקציה לפני כן.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>As requested, we've re-enabled your account with a temporary password:</p>
+      <p style="font-size:20px;font-weight:bold;letter-spacing:2px;text-align:center;margin:20px 0">${d.tempPassword || ''}</p>
+      <p>Log in with this password — you'll be required to choose a new one immediately, and won't be able to use the app until you do.</p>
+    `,
+  },
+
+  suspicious_login_admin_alert: {
+    subjectHe: '🚨 ניסיון התחברות חשוד — נדרשת תשומת לב',
+    subjectEn: '🚨 Suspicious login attempt — needs attention',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>בעל חשבון דיווח שניסיון התחברות שזוהה לחשבונו <strong>לא</strong> בוצע על ידו. פרטי הניסיון:</p>
+      <ul>
+        <li>כתובת אימייל שנוסתה: ${d.attemptedEmail || ''}</li>
+        <li>מתי: ${d.dateTime || ''}</li>
+        <li>כתובת IP: ${d.ip || ''}</li>
+        ${d.location ? `<li>מיקום משוער: ${d.location}</li>` : ''}
+      </ul>
+      <p>החשבון נותר מושבת עד לבדיקה ידנית. היכנס לפאנל הניהול לפרטים נוספים ולשחזור הגישה במידת הצורך.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>An account owner reported that a detected login attempt was <strong>not</strong> them. Attempt details:</p>
+      <ul>
+        <li>Email attempted: ${d.attemptedEmail || ''}</li>
+        <li>When: ${d.dateTime || ''}</li>
+        <li>IP address: ${d.ip || ''}</li>
+        ${d.location ? `<li>Approximate location: ${d.location}</li>` : ''}
+      </ul>
+      <p>The account remains disabled pending manual review. Open the admin panel for further detail and to restore access if needed.</p>
     `,
   },
 

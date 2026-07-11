@@ -64,8 +64,22 @@ export const getUserProfile = async (req: AuthenticatedRequest, res: Response) =
 };
 
 // ─── POST /api/users/sync ─────────────────────────────────────────────────────
+// Self-service signup sync only — the client is an unprivileged, freshly
+// authenticated Firebase user at this point. newUid must match the caller's
+// own verified uid (no writing/overwriting other accounts), and role is
+// hard-locked to 'student' since every other role is provisioned via admin
+// import (see createImportedUserAccount in services/userImportExport.ts),
+// never through this endpoint.
 export const syncData = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    // The ID token's own email_verified claim, set by Firebase Auth — not
+    // something the client body can spoof. Registration must not create the
+    // Firestore profile (and thus the working account) until the user has
+    // confirmed the email address they signed up with.
+    if (!req.user?.emailVerified) {
+      return res.status(403).json({ error: 'Please verify your email before completing registration.' });
+    }
+
     const {
       newUid, email, displayName, displayNameHe, displayNameEn,
       role, facultyId, degreeType, yearOfStudy, major, studentId,
@@ -75,9 +89,12 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields: newUid, email, role.' });
     }
 
-    const validRoles = ['student', 'supervisor', 'examiner', 'coordinator', 'faculty_admin', 'system_admin'];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({ error: `Invalid role: ${role}` });
+    if (newUid !== req.user?.uid) {
+      return res.status(403).json({ error: 'newUid must match the authenticated user.' });
+    }
+
+    if (role !== 'student') {
+      return res.status(403).json({ error: 'This endpoint may only provision student accounts.' });
     }
 
     // Mirrors CROSS_FACULTY_ROLES in mobile/firebase/roles.ts — keep in sync.
@@ -255,15 +272,52 @@ export const logout = async (req: AuthenticatedRequest, res: Response) => {
 // ─── POST /api/users/change-password ─────────────────────────────────────────
 // Used both for voluntary password changes and the forced first-login change
 // after an account was created via Excel import (see mustChangePassword flag
-// set by createImportedUserAccount in services/userImportExport.ts).
+// set by createImportedUserAccount in services/userImportExport.ts). The only
+// live call site today is right after a fresh login (login.tsx / the
+// mustChangePassword redirect in _layout.tsx), so authTime is always fresh
+// there — requiring it closes off a stolen-but-valid older token permanently
+// changing (and locking the real owner out of) the account.
+const PASSWORD_CHANGE_REAUTH_MAX_AGE_SECONDS = 5 * 60;
+
+// system_admin accounts are the highest-value target in this system, so they
+// get a stricter policy than everyone else's 6-character minimum. Checked
+// against req.user's CURRENT role/roles at call time — matches the same
+// "is this effectively a system_admin" pattern used elsewhere (e.g.
+// disableUser2FA's authorization check).
+const SYSTEM_ADMIN_PASSWORD_MIN_LENGTH = 12;
+const SYSTEM_ADMIN_PASSWORD_SYMBOL_RE = /[^A-Za-z0-9]/;
+
+function validateSystemAdminPassword(password: string): string | null {
+  if (password.length < SYSTEM_ADMIN_PASSWORD_MIN_LENGTH) {
+    return `System admin passwords must be at least ${SYSTEM_ADMIN_PASSWORD_MIN_LENGTH} characters.`;
+  }
+  if (!/[A-Z]/.test(password)) return 'System admin passwords must include at least one uppercase letter.';
+  if (!/[a-z]/.test(password)) return 'System admin passwords must include at least one lowercase letter.';
+  if (!/[0-9]/.test(password)) return 'System admin passwords must include at least one digit.';
+  if (!SYSTEM_ADMIN_PASSWORD_SYMBOL_RE.test(password)) {
+    return 'System admin passwords must include at least one symbol.';
+  }
+  return null;
+}
+
 export const changePassword = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
+    const authTime = req.user?.authTime;
     if (!uid) return res.status(401).json({ error: 'Unauthorized.' });
+    if (!authTime || (Date.now() / 1000 - authTime) > PASSWORD_CHANGE_REAUTH_MAX_AGE_SECONDS) {
+      return res.status(403).json({ error: 'Please log in again before changing your password.' });
+    }
 
     const { newPassword } = req.body;
     if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
+
+    const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
+    if (isSystemAdmin) {
+      const policyError = validateSystemAdminPassword(newPassword);
+      if (policyError) return res.status(400).json({ error: policyError });
     }
 
     await auth.updateUser(uid, { password: newPassword });

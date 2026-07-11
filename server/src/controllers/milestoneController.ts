@@ -9,7 +9,22 @@ import { v2 as cloudinary } from 'cloudinary';
 const db = admin.firestore();
 
 // ── Multer setup (memory storage — files available as buffers) ────────────────
-const upload = multer({ storage: multer.memoryStorage() });
+const ALLOWED_MILESTONE_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/zip',
+  'image/png',
+  'image/jpeg',
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, ALLOWED_MILESTONE_MIME_TYPES.has(file.mimetype));
+  },
+});
 export const uploadMiddleware: RequestHandler = upload.array('files') as unknown as RequestHandler;
 
 
@@ -338,7 +353,16 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
 };
 
 // ─── Initialize roadmap ───────────────────────────────────────────────────────
+const ROADMAP_INIT_ROLES = [
+  'supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator',
+  'faculty_admin', 'program_head', 'grad_school_head', 'system_admin',
+];
+
 export const initializeRoadMap = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user?.role || !ROADMAP_INIT_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+
   try {
     const { projectId, studentIds, facultyId, supervisorId } = req.body;
  

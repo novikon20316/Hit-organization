@@ -16,6 +16,10 @@ export interface AuthenticatedRequest extends Request {
     // by account-deletion's "require a recent reauthentication" check; no
     // other route relies on this.
     authTime: number;
+    // From the ID token's own email_verified claim (set by Firebase Auth
+    // itself, not Firestore) — used by syncData to refuse to create the
+    // Firestore profile until the user has confirmed their email.
+    emailVerified: boolean;
   };
 }
 
@@ -51,7 +55,6 @@ export const verifyToken = async (
 
 
     const userData = userDoc.data();
-    console.log("User Data:", userData);
     if (!userData?.isActive) {
       return res.status(403).json({ error: 'Account has been disabled.' });
     }
@@ -63,6 +66,7 @@ export const verifyToken = async (
       facultyId: userData.facultyId ?? 'sciences',
       roles:     userData.roles     ?? ['student'],
       authTime:  decodedToken.auth_time,
+      emailVerified: decodedToken.email_verified ?? false,
     };
 
     return next();
@@ -101,6 +105,7 @@ export const verifyTokenOnly = async (
       facultyId: 'sciences',
       roles:     ['student'],
       authTime:  decodedToken.auth_time,
+      emailVerified: decodedToken.email_verified ?? false,
     };
     return next();
   } catch (error: any) {

@@ -102,6 +102,9 @@ export const getAdminProjectMilestones = async (req: AuthenticatedRequest, res: 
  * Fetches all users currently registered with the 'supervisor' role.
  */
 export const getSupervisorsList = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
   try {
     const snap = await db.collection('users').where('role', '==', 'supervisor').get();
     const supervisors = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -121,6 +124,9 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
  * Force-creates a new project from the admin panel.
  */
 export const createAdminProject = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
   try {
     const projectData = req.body;
     const newProjectRef = db.collection('projects').doc();
@@ -269,10 +275,21 @@ export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Resp
     })
   }
   try {
-    await db.collection('users').doc(userId).update({ 
+    await db.collection('users').doc(userId).update({
       isActive: isActive,
       updatedAt: new Date().toISOString()
     });
+
+    // Reactivating also clears the Auth-level `disabled` flag — the only
+    // recovery path for an account the login-security flow locked (an
+    // unresolved 3-failed-attempts incident) and the owner never responded
+    // to. Without this an admin could flip isActive back on here and the
+    // account would still be unable to sign in at all.
+    if (isActive) {
+      await admin.auth().updateUser(userId, { disabled: false }).catch((err) => {
+        console.error(`Failed to clear Auth-level disabled flag for ${userId}:`, err);
+      });
+    }
 
     return res.status(200).json({ success: true, message: `User status updated to ${isActive ? 'Active' : 'Suspended'}.` });
   } catch (error: any) {

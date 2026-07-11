@@ -301,6 +301,9 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
 export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const coordinatorId = req.user?.uid;
   if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+  }
 
   try {
     const coordinatorSnap = await db.collection('users').doc(coordinatorId).get();

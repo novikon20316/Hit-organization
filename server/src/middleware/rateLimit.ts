@@ -40,3 +40,15 @@ export const examinerAccessLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests. Please try again later.' },
 });
+
+// Login-security endpoints are unauthenticated by necessity — a failed login
+// has no token to key on, and the confirm/deny link is only ever clicked by
+// someone who isn't signed in. Also protects the report endpoint's live call
+// out to Google's Identity Toolkit from being hammered.
+export const loginSecurityLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' },
+});

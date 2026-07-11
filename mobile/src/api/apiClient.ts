@@ -188,6 +188,26 @@ class ApiClient {
     const response = await this.api.patch(`/api/notifications/${notificationId}/read`);
     return response.data;
   }
+
+  // ─── 4. LOGIN SECURITY ENDPOINTS ─────────────────────────────────────────
+  // All three are public/unauthenticated server-side (see server/src/routes/
+  // loginSecurity.ts) — a failed login has no token to attach.
+
+  /** Called right after catching a client-side wrong-password error. */
+  async reportFailedLogin(email: string, password: string): Promise<{ locked: boolean }> {
+    const response = await this.api.post('/api/auth/report-failed-login', { email, password });
+    return response.data;
+  }
+
+  async getLoginSecurityIncident(code: string) {
+    const response = await this.api.get(`/api/auth/login-security/${encodeURIComponent(code)}`);
+    return response.data;
+  }
+
+  async confirmLoginSecurityIncident(code: string, decision: 'owner' | 'attacker') {
+    const response = await this.api.post(`/api/auth/login-security/${encodeURIComponent(code)}/confirm`, { decision });
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

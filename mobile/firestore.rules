@@ -187,15 +187,31 @@ service cloud.firestore {
           'coordinator', 'faculty_admin', 'program_head',
           'project_coordinator', 'system_admin'
         ];
-      allow update: if (
+      // Was `... || true` — that trailing clause made this unconditionally
+      // permit ANY update, by ANYONE, unauthenticated, to ANY field on ANY
+      // examiner token doc: fake opinions/scores, resurrecting an
+      // expired/declined token back to pending, redirecting thesisUrl to a
+      // different file. External examiners have no Firebase Auth account by
+      // design (see mobile/src/firebase/examinerTokens.ts), so this can't
+      // require isSignedIn() — the token itself (the doc ID) is their
+      // capability. The real fix is narrowing WHAT an anonymous holder can
+      // write to exactly the fields/values examinerTokens.ts's client
+      // functions actually use (status/acceptedAt/declinedAt/declineReason/
+      // submittedAt/opinion/accessLog, and only forward status transitions),
+      // never touching thesisUrl/studentId/examinerEmail/expiresAt/etc.
+      allow update: if
         (isSignedIn() &&
           role(userDoc()) in [
             'coordinator', 'faculty_admin', 'program_head',
             'project_coordinator', 'grad_school_head', 'system_admin'
-        	]
+          ]
         ) ||
-        true
-      );
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ['status', 'acceptedAt', 'declinedAt', 'declineReason', 'submittedAt', 'opinion', 'accessLog']
+          ) &&
+          request.resource.data.status in ['accepted', 'declined', 'submitted', resource.data.status]
+        );
 			allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -245,6 +261,17 @@ service cloud.firestore {
       // Audit entries are written by Cloud Functions only.
       // Direct client writes are blocked.
       allow write: if false;
+    }
+
+    // Failed-login security incidents — server-mediated only. Every step
+    // (checking status, confirming/denying) goes through the Express API
+    // (services/loginSecurity.ts) via the Admin SDK, which bypasses rules
+    // entirely, so denying all client access here doesn't break the feature;
+    // it just stops any signed-in (or, since login can be failing, even
+    // unauthenticated) client from reading or tampering with an incident
+    // directly.
+    match /loginSecurityIncidents/{code} {
+      allow read, write: if false;
     }
 
 

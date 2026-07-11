@@ -87,7 +87,9 @@ const authRoutes = new Set<string>([
   '/changePassword',
   '/(auth)/changePassword',
   '/examiner-access',       // ← external examiner token link (no Auth required)
+  '/login-security',        // ← failed-login confirm/deny link (account is disabled at this point)
   '/maintenance',           // ← accessible before role is known
+  '/privacy-policy',        // ← linked from signup, must be reachable pre-login
 ]);
 
 // ─── Root layout ──────────────────────────────────────────────────────────────
@@ -170,7 +172,18 @@ export default function RootLayout() {
           }
         }
 
-        if (!userData) { redirect('/(auth)/login'); setLoading(false); return; }
+        if (!userData) {
+          // Expected while a freshly-created account is still sitting on
+          // signup's email-verification step — the Firestore profile isn't
+          // written until verification completes (see signup.tsx). Let that
+          // screen keep driving its own flow instead of yanking the user to
+          // login mid-verification.
+          const onSignup = currentPathname === '/signup' || currentPathname === '/(auth)/signup';
+          if (onSignup) { setLoading(false); return; }
+          redirect('/(auth)/login');
+          setLoading(false);
+          return;
+        }
 
         const role = userData.role as string;
 

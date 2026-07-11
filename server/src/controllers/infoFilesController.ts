@@ -8,8 +8,28 @@ import { v2 as cloudinary } from 'cloudinary';
 
 const db = admin.firestore();
 
+// Mounted under both /api/admin/info-files and /api/coordinator/info-files —
+// gate to exactly those two roles rather than trusting verifyToken alone.
+const INFO_FILE_ROLES = ['system_admin', 'coordinator'];
+
 // ── Multer setup (memory storage — same pattern as milestoneController) ───────
-const upload = multer({ storage: multer.memoryStorage() });
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/png',
+  'image/jpeg',
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, ALLOWED_MIME_TYPES.has(file.mimetype));
+  },
+});
 export const uploadInfoFileMiddleware: RequestHandler = upload.single('file') as unknown as RequestHandler;
 
 // ─── POST /api/admin/info-files ───────────────────────────────────────────────
@@ -17,6 +37,9 @@ export const uploadInfoFileMiddleware: RequestHandler = upload.single('file') as
 export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uploaderId = req.user?.uid;
   if (!uploaderId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !INFO_FILE_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied.' });
+  }
 
   try {
     const file = (req as any).file as Express.Multer.File | undefined;
@@ -82,6 +105,9 @@ export const deleteInfoFile = async (req: AuthenticatedRequest, res: Response) =
   const uploaderId = req.user?.uid;
   const { id } = req.params;
   if (!uploaderId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !INFO_FILE_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied.' });
+  }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid file id.' });
   try {
     await db.collection('infoFiles').doc(id).delete();

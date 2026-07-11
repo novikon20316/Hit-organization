@@ -4,10 +4,15 @@ import axios from 'axios';
 import {
   View, Text, Pressable, StyleSheet, ScrollView,Modal,
   ActivityIndicator, Alert, TextInput,
-  Keyboard, TextInputProps 
+  Keyboard, TextInputProps
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
-import { createUserWithEmailAndPassword } from 'firebase/auth'
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  type User,
+} from 'firebase/auth'
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
@@ -24,6 +29,34 @@ type FloatingInputProps = TextInputProps & {
   placeholder: string;
   isRtl: boolean;
 };
+
+// Creates the Firebase Auth account, or — if the email is already registered
+// (e.g. the user closed the app after creating the account but before
+// verifying/syncing) — signs back into that same pending account instead of
+// failing outright. `alreadyVerified` tells the caller whether the
+// Firestore profile sync can happen immediately or must wait for the
+// verification-email step.
+async function getOrCreateAuthUser(
+  email: string,
+  password: string
+): Promise<{ user: User; alreadyVerified: boolean }> {
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    return { user: cred.user, alreadyVerified: false };
+  } catch (e: any) {
+    if (e.code !== 'auth/email-already-in-use') throw e;
+
+    let cred;
+    try {
+      cred = await signInWithEmailAndPassword(auth, email, password);
+    } catch {
+      throw Object.assign(new Error('email-in-use-mismatched-password'), {
+        code: 'auth/email-in-use-mismatched-password',
+      });
+    }
+    return { user: cred.user, alreadyVerified: cred.user.emailVerified };
+  }
+}
 
 const s = StyleSheet.create({
   // ... existing styles ...
@@ -153,6 +186,9 @@ export default function ProfileSetup() {
   const [programKey, setProgramKey] = useState<string | null>(null);
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
   const [saving,      setSaving]      = useState(false);
+  const [stage,       setStage]       = useState<'form' | 'verify'>('form');
+  const [resending,   setResending]   = useState(false);
+  const pendingUserRef = useRef<User | null>(null);
 
   const isRtl = lang === 'he';
   const selectedFacultyData = faculty ? getFacultyByKey(faculty) : undefined;
@@ -172,6 +208,60 @@ export default function ProfileSetup() {
   // Validation: Ensure Name and Phone are filled along with academic details
  
 
+  // Writes the Firestore profile — only ever called once the account's email
+  // is verified (either just now, or found already-verified on a resumed
+  // signup). Firebase issues the ID token's email_verified claim itself, and
+  // the server independently re-checks it, so this can't be bypassed by
+  // skipping straight to this call.
+  const finishRegistration = async (user: User) => {
+    const idToken = await user.getIdToken(true); // force refresh so email_verified is current
+    let expoPushToken: string | null = null;
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status === 'granted') {
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        expoPushToken = tokenData.data;
+      }
+    } catch (e) {
+      console.warn('Could not get push token during registration:', e);
+      // Non-fatal — _layout.tsx will retry on next login
+    }
+    const response = await apiClient.post('/api/users/sync', {
+        newUid: user.uid,
+        email: email,
+        role: 'student',
+        facultyId: faculty,
+        degreeType: degreeType,
+        yearOfStudy: yearOfStudy,
+        major: selectedProgram?.slug ?? null,
+        studentId: studentId,
+        hasActiveProject: false,
+        expoPushToken: null,
+        displayName,
+        isActive: true,
+        profileComplete: true,
+        language: lang,
+        additionalRoles: [],
+        isEligibleForProcess: false,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+      }
+    );
+
+    if (!response.data?.success) {
+      throw new Error('Sync failed: ' + (response.data?.message ?? 'unknown error'));
+    }
+
+    console.log("✅ Sync confirmed, navigating to login");
+    // Small buffer so Firestore propagation completes before onAuthStateChanged fires on login
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    router.replace('/(auth)/login');
+  };
+
   const handleSave = async () => {
     if (!canSave || !email || !password) {
       Alert.alert("Error", "Please fill all fields.");
@@ -179,63 +269,77 @@ export default function ProfileSetup() {
     }
     setSaving(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const user = userCredential.user;
-      const idToken = await user.getIdToken();
-      let expoPushToken: string | null = null;
-      try {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status === 'granted') {
-          const tokenData = await Notifications.getExpoPushTokenAsync();
-          expoPushToken = tokenData.data;
-        }
-      } catch (e) {
-        console.warn('Could not get push token during registration:', e);
-        // Non-fatal — _layout.tsx will retry on next login
-      }
-      const response = await apiClient.post('/api/users/sync', {
-          newUid: user.uid,
-          email: email,
-          role: 'student',
-          facultyId: faculty,
-          degreeType: degreeType,
-          yearOfStudy: yearOfStudy,
-          major: selectedProgram?.slug ?? null,
-          studentId: studentId,
-          hasActiveProject: false,
-          expoPushToken: null,
-          displayName,
-          isActive: true,
-          profileComplete: true,
-          language: lang,
-          additionalRoles: [],
-          isEligibleForProcess: false,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-        }
-      );
+      const { user, alreadyVerified } = await getOrCreateAuthUser(email.trim(), password);
 
-      if (!response.data?.success) {
-        throw new Error('Sync failed: ' + (response.data?.message ?? 'unknown error'));
+      if (alreadyVerified) {
+        // Resuming a signup where the email was already confirmed but the
+        // Firestore sync never completed (e.g. a network drop right at the
+        // end) — finish it now instead of sending another verification email.
+        await finishRegistration(user);
+        return;
       }
 
-      console.log("✅ Sync confirmed, navigating to login");
-      // Small buffer so Firestore propagation completes before onAuthStateChanged fires on login
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      router.replace('/(auth)/login');
+      pendingUserRef.current = user;
+      await sendEmailVerification(user);
+      setStage('verify');
 
     } catch (e: any) {
       console.error("Registration Error:", e);
       let msg = e.message;
-      if (e.code === 'auth/email-already-in-use') msg = "This email is already registered.";
+      if (e.code === 'auth/email-already-in-use' || e.code === 'auth/email-in-use-mismatched-password') {
+        msg = lang === 'he'
+          ? 'כתובת האימייל כבר רשומה. אם זה החשבון שלך, התחבר או אפס סיסמה.'
+          : "This email is already registered. If it's yours, log in or reset your password.";
+      }
       if (e.code === 'auth/weak-password') msg = "Password is too weak.";
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleContinueAfterVerify = async () => {
+    const user = pendingUserRef.current ?? auth.currentUser;
+    if (!user) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'אנא התחל מחדש את ההרשמה.' : 'Please restart signup.');
+      setStage('form');
+      return;
+    }
+    setSaving(true);
+    try {
+      await user.reload();
+      if (!user.emailVerified) {
+        Alert.alert(
+          lang === 'he' ? 'עדיין לא מאומת' : 'Not verified yet',
+          lang === 'he'
+            ? 'בדוק את תיבת הדואר שלך (כולל ספאם) ולחץ על קישור האימות.'
+            : 'Check your inbox (including spam) and click the verification link.'
+        );
+        return;
+      }
+      await finishRegistration(user);
+    } catch (e: any) {
+      console.error('Verify-continue error:', e);
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e.message ?? 'Something went wrong.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    const user = pendingUserRef.current ?? auth.currentUser;
+    if (!user) return;
+    setResending(true);
+    try {
+      await sendEmailVerification(user);
+      Alert.alert(
+        lang === 'he' ? 'נשלח' : 'Sent',
+        lang === 'he' ? 'מייל האימות נשלח שוב.' : 'Verification email resent.'
+      );
+    } catch (e: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e.message ?? 'Could not resend email.');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -264,13 +368,73 @@ export default function ProfileSetup() {
     faculty &&
     programKey &&
     yearOfStudy;
-  
+
+  if (stage === 'verify') {
+    return (
+      <SafeAreaView style={s.root}>
+        <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+          <View style={[s.langRow, isRtl && s.rowReverse]}>
+            <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+              <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
+            </Pressable>
+          </View>
+
+          <View style={s.hero}>
+            <Text style={s.heroEmoji}>📧</Text>
+            <Text style={[s.heroTitle, s.textCenter]}>
+              {lang === 'he' ? 'אמת את כתובת האימייל שלך' : 'Verify your email'}
+            </Text>
+            <Text style={[s.heroSub, s.textCenter]}>
+              {lang === 'he'
+                ? `שלחנו קישור אימות לכתובת ${email}. לחץ על הקישור ואז חזור לכאן.`
+                : `We sent a verification link to ${email}. Click the link, then come back here.`}
+            </Text>
+          </View>
+
+          <Pressable
+            style={[s.saveBtn, saving && { opacity: 0.5 }]}
+            onPress={handleContinueAfterVerify}
+            disabled={saving}
+          >
+            {saving
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={s.saveBtnText}>
+                  {lang === 'he' ? "אימתתי — המשך" : "I've verified — Continue"}
+                </Text>
+            }
+          </Pressable>
+
+          <Pressable
+            style={{ marginTop: 18, alignItems: 'center' }}
+            onPress={handleResendEmail}
+            disabled={resending}
+          >
+            <Text style={{ color: '#2E86FF', fontWeight: '700', fontSize: 14 }}>
+              {resending
+                ? (lang === 'he' ? 'שולח...' : 'Sending...')
+                : (lang === 'he' ? 'שלח שוב את מייל האימות' : 'Resend verification email')}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={{ marginTop: 24, alignItems: 'center' }}
+            onPress={() => setStage('form')}
+          >
+            <Text style={{ color: '#8899BB', fontSize: 13 }}>
+              {lang === 'he' ? '← חזור לטופס' : '← Back to form'}
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.root}>
-      <ScrollView 
-        contentContainerStyle={s.content} 
+      <ScrollView
+        contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled" 
+        keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={Keyboard.dismiss}
       >
 
@@ -510,6 +674,17 @@ export default function ProfileSetup() {
                 {lang === 'he' ? 'שמור והמשך →' : 'Save & Continue →'}
               </Text>
           }
+        </Pressable>
+
+        <Pressable
+          style={{ marginTop: 16, alignItems: 'center' }}
+          onPress={() => router.push('/privacy-policy' as any)}
+        >
+          <Text style={{ color: '#8899BB', fontSize: 12, textAlign: 'center' }}>
+            {lang === 'he'
+              ? 'בהרשמה אתה מסכים למדיניות הפרטיות שלנו'
+              : 'By signing up, you agree to our Privacy Policy'}
+          </Text>
         </Pressable>
 
         <View style={{ height: 40 }} />

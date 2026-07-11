@@ -14,15 +14,31 @@ const MILESTONE_PROGRESS: Record<string, number> = {
   defense:           100,
 };
 
+const STAFF_ROLES = [
+  'supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator',
+  'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
+];
+
 // ─── Get student project ──────────────────────────────────────────────────────
 export const getStudentProject = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const requester = req.user;
+  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid projectId' });
 
   try {
     const snap = await db.collection('projects').doc(id).get();
     if (!snap.exists) return res.status(404).json({ message: 'Project not found' });
-    return res.status(200).json({ id: snap.id, ...snap.data() });
+
+    const project = snap.data()!;
+    const isOwnProject =
+      project.supervisorId === requester.uid ||
+      (project.enrolledStudentIds ?? []).includes(requester.uid);
+    if (!isOwnProject && !STAFF_ROLES.includes(requester.role)) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+
+    return res.status(200).json({ id: snap.id, ...project });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to load project' });
   }
@@ -132,13 +148,24 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
 export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Response) => {
   const { milestoneId } = req.params;
   const { fileUrls, submissionNote } = req.body;
+  const studentId = req.user?.uid;
 
+  if (!studentId) return res.status(401).json({ message: 'Unauthorized.' });
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid milestoneId' });
   }
 
   try {
-    await db.collection('milestones').doc(milestoneId).update({
+    const milestoneRef  = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found' });
+
+    const studentIds: string[] = milestoneSnap.data()?.studentIds ?? [];
+    if (!studentIds.includes(studentId)) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+
+    await milestoneRef.update({
       status:         'submitted',
       submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
       fileUrls:       fileUrls       ?? [],
@@ -153,7 +180,14 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
 export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
   try {
     // Extract the query parameters sent by the frontend
-    const { status, facultyId, degreeType } = req.query;
+    const { facultyId, degreeType } = req.query;
+    // Default to 'active' so an omitted filter doesn't dump draft/archived
+    // projects to whoever calls this. Only staff roles may opt out with
+    // status=all — a student passing that should still only see active ones.
+    const canSeeAllStatuses = STAFF_ROLES.includes(req.user?.role ?? '');
+    const status = (canSeeAllStatuses && req.query.status === 'all')
+      ? undefined
+      : (req.query.status ?? 'active');
 
     // Start with a reference to the projects collection
     let projectsQuery: FirebaseFirestore.Query = db.collection('projects');

@@ -26,11 +26,25 @@ export const getNotificationInboxSummary = async (req: AuthenticatedRequest, res
   }
 };
 
+// No confirmed live caller in the mobile app today, but it's a real,
+// deployed, authenticated-only route that let any signed-in user push a
+// fully attacker-controlled title/body/deep-link to any other user — a
+// phishing/impersonation vector. Restricted to staff-tier roles as
+// defense-in-depth until an actual caller/use case is defined.
+const NOTIFICATION_DISPATCH_ROLES = [
+  'supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator',
+  'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
+];
+
 /**
  * POST /api/notifications/trigger
  */
 export const triggerNotificationDispatch = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user?.role || !NOTIFICATION_DISPATCH_ROLES.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
     const { recipientUid, title, body, data } = req.body;
 
     // Missing fields is a caller mistake → keep 400

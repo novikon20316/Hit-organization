@@ -46,7 +46,7 @@ export const VALID_FACULTIES = [
   'all',
 ];
 
-function generateTempPassword(): string {
+export function generateTempPassword(): string {
   const rand = crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
   return `${rand.slice(0, 10)}Aa1!`;
 }
@@ -173,9 +173,17 @@ export interface ImportSummary {
  * When `restrictFacultyId` is set (coordinator import), rows for other faculties
  * are skipped — not failed — and reported individually.
  */
+// Faculty-scoped coordinators may only mint faculty-level operational staff
+// through bulk import — never another coordinator/admin/cross-faculty role.
+// Without this, a coordinator's Excel import was the same class of
+// privilege-escalation bug already fixed for updateUserRoleAdmin/
+// updateUserPermissions, just reachable via a spreadsheet cell instead of a
+// direct API call.
+export const COORDINATOR_IMPORTABLE_ROLES = ['supervisor', 'secondary_supervisor', 'internal_examiner'];
+
 export async function importUsersFromBuffer(
   buffer: Buffer,
-  opts: { restrictFacultyId?: string; lang?: 'he' | 'en' } = {}
+  opts: { restrictFacultyId?: string; restrictAssignableRoles?: string[]; lang?: 'he' | 'en' } = {}
 ): Promise<ImportSummary> {
   const rows    = parseWorkbookRows(buffer);
   const details: ImportRowResult[] = [];
@@ -203,6 +211,13 @@ export async function importUsersFromBuffer(
         details.push({
           row: rowNumber, email, status: 'failed',
           reason: 'Students register themselves in the app — they cannot be imported via file',
+        });
+        continue;
+      }
+      if (opts.restrictAssignableRoles && !opts.restrictAssignableRoles.includes(role)) {
+        details.push({
+          row: rowNumber, email, status: 'failed',
+          reason: `Role "${role}" is not assignable via this import — allowed: ${opts.restrictAssignableRoles.join(', ')}`,
         });
         continue;
       }

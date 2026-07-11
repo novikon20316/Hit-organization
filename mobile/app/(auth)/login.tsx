@@ -19,6 +19,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/src/firebase/firebase";
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
+import { apiClient } from '@/src/api/apiClient';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -38,9 +39,31 @@ export default function LoginScreen() {
     try {
       const firebaseUser = await signInWithEmailAndPassword(auth, email, password);
 
+      // Registration doesn't write the Firestore profile until the email is
+      // verified (see signup.tsx) — an unverified sign-in has no profile to
+      // route by, so stop here instead of falling through with an empty role.
+      if (!firebaseUser.user.emailVerified) {
+        await auth.signOut();
+        setError(
+          'Please verify your email before logging in. Check your inbox (and spam folder) for the verification link we sent during signup.'
+        );
+        return;
+      }
+
       const userDoc  = await getDoc(doc(db, 'users', firebaseUser.user.uid));
       const userData = userDoc.data();
-      const role     = userData?.role ?? '';
+
+      if (!userData) {
+        // Email verified, but the profile sync never completed (e.g. the app
+        // closed at exactly the wrong moment). Signing up again with the same
+        // email/password will detect the verified pending account and finish
+        // the sync instead of creating a duplicate.
+        await auth.signOut();
+        setError('Your email is verified, but your profile setup didn\'t finish. Please sign up again to complete it.');
+        return;
+      }
+
+      const role = userData?.role ?? '';
 
       // ── Forced password change (accounts created via Excel import) ────────
       // Takes priority over the 2FA check below — a temp password must be
@@ -90,7 +113,22 @@ export default function LoginScreen() {
         err.code === 'auth/invalid-credential' ||
         err.code === 'auth/wrong-password'
       ) {
-        setError('Incorrect email or password.');
+        // Server independently re-verifies against Firebase itself before
+        // counting this — see services/loginSecurity.ts. Only after 3
+        // confirmed-wrong attempts does it disable the account and email a
+        // "was this you?" link, which `locked` reflects here.
+        try {
+          const { locked } = await apiClient.reportFailedLogin(email, password);
+          setError(
+            locked
+              ? 'Too many incorrect attempts. Check your email to verify this was you.'
+              : 'Incorrect email or password.'
+          );
+        } catch {
+          setError('Incorrect email or password.');
+        }
+      } else if (err.code === 'auth/user-disabled') {
+        setError('This account is temporarily locked pending a security check. Check your email for next steps.');
       } else if (err.code === 'auth/user-not-found') {
         setError('No account found with this email.');
       } else {

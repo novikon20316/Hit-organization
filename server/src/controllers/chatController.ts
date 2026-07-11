@@ -17,6 +17,48 @@ const parseUserRow = (doc: admin.firestore.DocumentSnapshot) => {
   };
 };
 
+// Shared eligibility resolver — same relationship rules getChatCandidates uses
+// to DISPLAY contacts also gate who findOrCreateDirectChat will let you actually
+// message. Returns 'all' for system_admin, otherwise a concrete set of allowed
+// partner uids (empty set for any role with no defined relationship, e.g. a
+// role getChatCandidates itself doesn't branch on — deny by default).
+async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> {
+  const meSnap = await db.collection('users').doc(uid).get();
+  if (!meSnap.exists) return new Set();
+
+  const me = meSnap.data() || {};
+  const myRole = me.role ?? '';
+  const myFaculty = me.facultyId ?? '';
+  const activeProjectId = me.activeProjectId ?? null;
+
+  if (myRole === 'system_admin') return 'all';
+
+  if (myRole === 'faculty_admin') {
+    const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
+    return new Set(snap.docs.filter((d) => d.id !== uid).map((d) => d.id));
+  }
+
+  if (myRole === 'supervisor') {
+    const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
+    return new Set(appsSnap.docs.map((d) => d.data().studentId as string));
+  }
+
+  if (myRole === 'student') {
+    const ids = new Set<string>();
+    if (activeProjectId) {
+      const projSnap = await db.collection('projects').doc(activeProjectId).get();
+      const supId = projSnap.data()?.supervisorId;
+      if (supId) ids.add(supId);
+    } else {
+      const appsSnap = await db.collection('applications').where('studentId', '==', uid).get();
+      appsSnap.docs.forEach((d) => ids.add(d.data().supervisorId as string));
+    }
+    return ids;
+  }
+
+  return new Set();
+}
+
 export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid; // 🔒 Securely verified Sender ID from your middleware token
   const { chatId } = req.params;
@@ -194,13 +236,21 @@ export const sendBroadcastNotification = async (req: Request, res: Response) => 
 export const findOrCreateDirectChat = async (req: Request, res: Response) => {
   const uid = (req as any).user?.uid;
   const { recipientId } = req.body;
-  const db = admin.firestore();
 
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
   if (!recipientId) {
     return res.status(400).json({ message: 'Missing target participant allocation key' });
   }
 
   try {
+    // Same relationship rules getChatCandidates uses to decide who's shown as a
+    // contact — without this, any authenticated user could message any other
+    // user by uid regardless of role/faculty/application relationship.
+    const eligible = await getEligiblePartnerIds(uid);
+    if (eligible !== 'all' && !eligible.has(recipientId)) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+
     // Audit check: Check if an active direct channel footprint already links these two users
     const existingSnap = await db.collection('chats')
       .where('participants', 'array-contains', uid)
