@@ -228,21 +228,40 @@ export async function reportFailedLogin(
   const userData = userDoc.data();
   const lang: 'he' | 'en' = userData?.language === 'en' ? 'en' : 'he';
   const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || ''; // same public deep-link base as examinerAccess.ts
+  if (!baseUrl) {
+    console.error(
+      `login_security_alert for ${email}: EXAMINER_ACCESS_BASE_URL is unset — the "click here to respond" ` +
+      `link in this email will be missing its domain and won't work.`
+    );
+  }
   const link = `${baseUrl}/login-security?code=${encodeURIComponent(code)}`;
 
-  await sendNotificationEmail({
-    toEmail: email,
-    type: 'login_security_alert',
-    lang,
-    data: {
-      name: userData?.displayName || '',
-      email,
-      dateTime: formatDateTime(now.toISOString(), lang),
-      ip,
-      location: formatLocation(location),
-      link,
-    },
-  }).catch((err) => console.error('Failed to send login_security_alert email:', err));
+  // Previously: a bare `.catch(console.error)` — a delivery failure vanished
+  // into a server log nobody was watching, with no way to tell afterward
+  // that the account got disabled but the owner was never actually notified.
+  // Persisting the outcome on the incident doc makes that diagnosable.
+  try {
+    await sendNotificationEmail({
+      toEmail: email,
+      type: 'login_security_alert',
+      lang,
+      data: {
+        name: userData?.displayName || '',
+        email,
+        dateTime: formatDateTime(now.toISOString(), lang),
+        ip,
+        location: formatLocation(location),
+        link,
+      },
+    });
+    await db.collection('loginSecurityIncidents').doc(code).update({ emailDelivery: 'sent' });
+  } catch (err: any) {
+    console.error(`Failed to send login_security_alert email for incident ${code}:`, err);
+    await db.collection('loginSecurityIncidents').doc(code).update({
+      emailDelivery: 'failed',
+      emailDeliveryError: String(err?.message ?? err),
+    }).catch(() => {}); // best-effort — never let a logging write mask the original failure
+  }
 
   return { locked: true };
 }
