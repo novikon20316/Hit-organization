@@ -86,21 +86,25 @@ export const getMyFeedback = async (req: AuthenticatedRequest, res: Response) =>
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
 
   try {
+    // Sorted in memory rather than via Firestore orderBy — an equality filter
+    // plus orderBy on a different field needs a composite index, and this
+    // collection is small per-user, so there's no need to provision one.
     const snap = await db.collection('feedbackMessages')
       .where('userId', '==', uid)
-      .orderBy('createdAt', 'desc')
       .get();
 
-    const messages = snap.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        text: data.text,
-        classification: data.classification,
-        status: data.status ?? null,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-      };
-    });
+    const messages = snap.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          text: data.text,
+          classification: data.classification,
+          status: data.status ?? null,
+          createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        };
+      })
+      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
 
     return res.status(200).json({ messages });
   } catch (error: any) {
@@ -116,26 +120,31 @@ export const getAdminFeedback = async (req: AuthenticatedRequest, res: Response)
   }
 
   try {
+    // Sorted in memory rather than via Firestore orderBy — see getMyFeedback
+    // above for why (equality filters + orderBy on a different field needs a
+    // composite index this collection has no need to provision).
     let query: FirebaseFirestore.Query = db.collection('feedbackMessages').where('classification', '==', 'real');
     const status = req.query.status;
     if (status === 'open' || status === 'resolved') {
       query = query.where('status', '==', status);
     }
-    const snap = await query.orderBy('createdAt', 'desc').get();
+    const snap = await query.get();
 
-    const messages = snap.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        userId: data.userId,
-        userName: data.userName,
-        role: data.role,
-        text: data.text,
-        aiReasoning: data.aiReasoning ?? null,
-        status: data.status ?? 'open',
-        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-      };
-    });
+    const messages = snap.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          userId: data.userId,
+          userName: data.userName,
+          role: data.role,
+          text: data.text,
+          aiReasoning: data.aiReasoning ?? null,
+          status: data.status ?? 'open',
+          createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        };
+      })
+      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
 
     return res.status(200).json({ messages });
   } catch (error: any) {
