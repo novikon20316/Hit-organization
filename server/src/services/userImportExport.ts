@@ -72,6 +72,13 @@ async function createImportedUserAccount(params: {
     email: params.email,
     password: tempPassword,
     displayName: params.displayNameHe,
+    // Staff accounts are provisioned directly by a trusted system_admin
+    // (from an HR export or staff roster with already-confirmed emails),
+    // not self-registered — login.tsx's emailVerified gate exists for
+    // self-signup students, not these. Without this, every imported
+    // account would be locked out on first login with "please verify your
+    // email," with no verification email ever having been sent to trigger.
+    emailVerified: true,
   });
 
   await db.collection('users').doc(authUser.uid).set({

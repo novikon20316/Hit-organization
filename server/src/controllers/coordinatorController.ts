@@ -356,8 +356,20 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
       const pid  = data.projectId;
       const project = projectsById[pid];
 
+      // Raw milestone docs have no studentNames of their own (that's derived
+      // from the project's enrolledStudentIds) — compute it once here so
+      // every milestone nested under project.milestones[] has it, not just
+      // the ones that make it into pendingMilestones below. The Defenses tab
+      // (coordinator/home.tsx) reads milestone.studentNames off every bucket
+      // sourced from project.milestones[], including ones that never touch
+      // pendingMilestones (stuck-pending, awaiting-date, scheduled-upcoming,
+      // expired-ungraded) — omitting it crashed that tab with "Cannot read
+      // property 'join' of undefined".
+      const studentNames = (project?.enrolledStudentIds ?? [])
+        .map((id: string) => usersById[id] ?? id);
+
       if (!milestonesByProject[pid]) milestonesByProject[pid] = [];
-      milestonesByProject[pid].push({ id: doc.id, ...data });
+      milestonesByProject[pid].push({ id: doc.id, ...data, studentNames });
 
       // ── pendingMilestones: submitted, supervisor_graded, graded, or coordinator_approved ──
       if (
@@ -366,9 +378,6 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
         data.status === 'graded' ||
         data.status === 'coordinator_approved'
       ) {
-        const studentNames = (project?.enrolledStudentIds ?? [])
-          .map((id: string) => usersById[id] ?? id);
-
         pendingMilestones.push({
           id:               doc.id,
           projectId:        pid,
