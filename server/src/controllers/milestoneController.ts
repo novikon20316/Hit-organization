@@ -5,6 +5,8 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
+import { logAuditEvent } from '../services/auditLog.js';
+import { deriveProcessType, getActiveMilestonesFor } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -142,14 +144,14 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
 };
 
 // PUT /api/milestones/:id
-// Lets a coordinator/faculty_admin/system_admin adjust a pending milestone's
-// due date — mirrors Milestonetimeline.tsx's own canCoordinatorAdjust gate.
-// Modeled on defenseScheduling.ts's finalizeMatchedDate: validate role, write
-// the update, notify the enrolled student(s). Does NOT accept an arbitrary
-// `status` from the body — the client only ever sends the hardcoded 'pending',
-// and passing through arbitrary values would let this endpoint bypass the
-// transactional coordinatorApproveMilestone/coordinatorRejectMilestone flows.
-const UPDATE_MILESTONE_ROLES = ['coordinator', 'faculty_admin', 'system_admin'];
+// Lets a coordinator/faculty_admin/administrative_secretary/system_admin adjust
+// a milestone's due date — mirrors Milestonetimeline.tsx's own
+// canCoordinatorAdjust gate. Modeled on defenseScheduling.ts's
+// finalizeMatchedDate: validate role, write the update, notify the enrolled
+// student(s). Overriding is allowed regardless of the milestone's current
+// status — an emergency delay (illness, war, etc.) may need to push back a
+// deadline even for a milestone already submitted or approved.
+const UPDATE_MILESTONE_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'system_admin'];
 
 export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
@@ -163,10 +165,7 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
     return res.status(403).json({ message: 'You do not have permission to update this milestone.' });
   }
 
-  const { dueDate, status } = req.body;
-  if (status !== undefined && status !== 'pending') {
-    return res.status(400).json({ message: "Only status 'pending' is accepted on this endpoint." });
-  }
+  const { dueDate, reason } = req.body;
   if (!dueDate) {
     return res.status(400).json({ message: 'Missing dueDate.' });
   }
@@ -183,10 +182,22 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
       return res.status(404).json({ message: 'Milestone not found.' });
     }
     const milestoneData = milestoneSnap.data()!;
+    const previousDueDate = milestoneData.dueDate ?? null;
 
     await milestoneRef.update({
       dueDate: admin.firestore.Timestamp.fromDate(parsedDate),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logAuditEvent({
+      userId: req.user!.uid,
+      userRole: role,
+      action: 'deadline_overridden',
+      entityType: 'milestone',
+      entityId: id,
+      oldValue: { dueDate: previousDueDate?.toDate?.()?.toISOString?.() ?? previousDueDate },
+      newValue: { dueDate: parsedDate.toISOString() },
+      explanation: typeof reason === 'string' ? reason : undefined,
     });
 
     // Notification failures must never mask the due-date update above, which
@@ -219,12 +230,135 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
   }
 };
 
-const MILESTONE_TEMPLATES = [
-  { type: 'research_proposal', nameHe: 'הצעת מחקר', nameEn: 'Research Proposal', days: 30 },
-  { type: 'progress_report', nameHe: 'דו"ח התקדמות', nameEn: 'Progress Report', days: 120 },
-  { type: 'final_report', nameHe: 'דו"ח מסכם', nameEn: 'Final Report', days: 210 },
-  { type: 'defense', nameHe: 'בחינת הגנה', nameEn: 'Defense Exam', days: 240 }
-];
+// PUT /api/milestones/bulk-due-date
+// Same permission/override rules as updateMilestoneByCoordinator above, but
+// shifts one due date across every matching milestone at once — for
+// faculty-wide delays (holidays, illness, war, etc.) instead of one project
+// at a time. Body: { projectIds: string[], milestoneType?: string, dueDate: string, reason: string }.
+// milestoneType narrows to one milestone type (e.g. "final_report"); omitted,
+// every milestone across the given projects is shifted.
+export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res: Response) => {
+  const role = req.user?.role;
+  const roles = req.user?.roles ?? [];
+
+  if (!role || !(UPDATE_MILESTONE_ROLES.includes(role) || roles.some((r) => UPDATE_MILESTONE_ROLES.includes(r)))) {
+    return res.status(403).json({ message: 'You do not have permission to bulk-update milestones.' });
+  }
+
+  const { projectIds, milestoneType, dueDate, reason } = req.body;
+  if (!Array.isArray(projectIds) || projectIds.length === 0) {
+    return res.status(400).json({ message: 'projectIds must be a non-empty array.' });
+  }
+  if (!dueDate) {
+    return res.status(400).json({ message: 'Missing dueDate.' });
+  }
+  const parsedDate = new Date(dueDate);
+  if (isNaN(parsedDate.getTime())) {
+    return res.status(400).json({ message: 'Invalid dueDate.' });
+  }
+
+  try {
+    // Firestore 'in' queries cap at 30 values — chunk projectIds accordingly.
+    const CHUNK_SIZE = 30;
+    const chunks: string[][] = [];
+    for (let i = 0; i < projectIds.length; i += CHUNK_SIZE) {
+      chunks.push(projectIds.slice(i, i + CHUNK_SIZE));
+    }
+
+    const snaps = await Promise.all(chunks.map((chunk) => {
+      let q: FirebaseFirestore.Query = db.collection('milestones').where('projectId', 'in', chunk);
+      if (typeof milestoneType === 'string' && milestoneType) {
+        q = q.where('type', '==', milestoneType);
+      }
+      return q.get();
+    }));
+    const docs = snaps.flatMap((s) => s.docs);
+
+    if (docs.length === 0) {
+      return res.status(404).json({ message: 'No matching milestones found.' });
+    }
+
+    const affected = docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ref: doc.ref,
+        projectId: data.projectId as string | undefined,
+        studentIds: (data.studentIds ?? []) as string[],
+        nameHe: data.nameHe as string | undefined,
+        nameEn: data.nameEn as string | undefined,
+        type: data.type as string | undefined,
+        previousDueDate: data.dueDate ?? null,
+      };
+    });
+
+    // Firestore batches cap at 500 writes — chunk into multiple batches.
+    const BATCH_LIMIT = 450;
+    let batch = db.batch();
+    let opsInBatch = 0;
+    const commits: Promise<unknown>[] = [];
+    for (const m of affected) {
+      batch.update(m.ref, {
+        dueDate: admin.firestore.Timestamp.fromDate(parsedDate),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      opsInBatch++;
+      if (opsInBatch >= BATCH_LIMIT) {
+        commits.push(batch.commit());
+        batch = db.batch();
+        opsInBatch = 0;
+      }
+    }
+    if (opsInBatch > 0) commits.push(batch.commit());
+    await Promise.all(commits);
+
+    await Promise.all(affected.map((m) =>
+      logAuditEvent({
+        userId: req.user!.uid,
+        userRole: role,
+        action: 'deadline_overridden',
+        entityType: 'milestone',
+        entityId: m.id,
+        oldValue: { dueDate: m.previousDueDate?.toDate?.()?.toISOString?.() ?? m.previousDueDate },
+        newValue: { dueDate: parsedDate.toISOString() },
+        explanation: typeof reason === 'string' ? reason : undefined,
+      })
+    ));
+
+    // Notification failures must never mask the due-date updates above, which
+    // have already committed by this point — same defensive pattern as
+    // updateMilestoneByCoordinator.
+    try {
+      await Promise.all(affected.flatMap((m) =>
+        m.studentIds.map((studentId) =>
+          db.collection('notifications').add({
+            recipientId: studentId,
+            type: 'milestone_date_adjusted',
+            titleHe: 'תאריך יעד עודכן 📅',
+            titleEn: 'Milestone Due Date Updated 📅',
+            bodyHe: `תאריך היעד עבור "${m.nameHe ?? m.type}" עודכן.`,
+            bodyEn: `The due date for "${m.nameEn ?? m.type}" was updated.`,
+            isRead: false,
+            relatedProjectId: m.projectId ?? null,
+            relatedMilestoneId: m.id,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+        )
+      ));
+    } catch (notifyError) {
+      console.error('Failed to notify students of bulk due-date change:', notifyError);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Updated ${affected.length} milestone(s).`,
+      updatedCount: affected.length,
+    });
+  } catch (error: any) {
+    console.error('bulkUpdateMilestoneDueDates error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to bulk-update milestones.' });
+  }
+};
 
 export const approveMilestone = async (req:AuthenticatedRequest, res:Response) => {
   const { milestoneId } = req.params;
@@ -271,7 +405,7 @@ export const approveMilestone = async (req:AuthenticatedRequest, res:Response) =
 // Cross-faculty / faculty-manager taxonomy mirrors firestore.rules' isCrossFaculty()
 // / isFacultyManager() helpers — keep in sync with mobile/firestore.rules.
 const MILESTONE_QUERY_CROSS_FACULTY_ROLES = ['grad_school_head', 'internal_examiner', 'system_admin'];
-const MILESTONE_QUERY_FACULTY_MANAGER_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator'];
+const MILESTONE_QUERY_FACULTY_MANAGER_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary'];
 
 // GET /api/milestones  — fetch milestones by query params
 export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Response) => {
@@ -354,7 +488,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
 
 // ─── Initialize roadmap ───────────────────────────────────────────────────────
 const ROADMAP_INIT_ROLES = [
-  'supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator',
+  'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
   'faculty_admin', 'program_head', 'grad_school_head', 'system_admin',
 ];
 
@@ -365,17 +499,26 @@ export const initializeRoadMap = async (req: AuthenticatedRequest, res: Response
 
   try {
     const { projectId, studentIds, facultyId, supervisorId } = req.body;
- 
+
     if (!projectId || !studentIds || !supervisorId || !facultyId) {
       return res.status(400).json({ error: 'Missing required fields: projectId, studentIds, supervisorId, facultyId.' });
     }
 
+    // Same faculty-configurable workflow-template lookup used by the live
+    // enrollment path (services/projectEnrollment.ts) — see
+    // services/workflowTemplates.ts. Falls back to the app's long-standing
+    // defaults if this faculty/process type has no approved template yet.
+    const projectSnap = await db.collection('projects').doc(projectId).get();
+    const projectData = projectSnap.data() ?? {};
+    const processType = deriveProcessType(projectData.degreeType, projectData.projectType);
+    const milestoneTemplates = await getActiveMilestonesFor(facultyId, processType);
+
     const batch    = db.batch();
     const baseDate = new Date();
 
-    for (const template of MILESTONE_TEMPLATES) {
+    for (const template of milestoneTemplates) {
       const dueDate = new Date();
-      dueDate.setDate(baseDate.getDate() + template.days);
+      dueDate.setDate(baseDate.getDate() + template.dueDaysFromStart);
 
       const milestoneRef = db.collection('milestones').doc();
       batch.set(milestoneRef, {
@@ -392,12 +535,12 @@ export const initializeRoadMap = async (req: AuthenticatedRequest, res: Response
         supervisorScore: null,
         finalGrade:      null,
         fileUrls:        [],
-        examinerIds:     [],
-        examiner1Score:  null,
-        examiner2Score:  null,
+        ...(template.requiresExaminers
+          ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
+          : {}),
       });
     }
- 
+
     await batch.commit();
     return res.status(200).json({ success: true, message: 'Roadmap initialized.' });
   } catch (error: any) {

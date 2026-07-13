@@ -63,9 +63,18 @@ export default function ExaminerAccessScreen() {
   // Token & loading state
   const [phase, setPhase]        = useState<
     'loading' | 'invalid' | 'expired' | 'pending' |
-    'accepted' | 'submitted' | 'declined' | 'error'
+    'accepted' | 'submitted' | 'declined' | 'error' | 'otp_required'
   >('loading');
   const [tokenDoc, setTokenDoc]  = useState<ExaminerTokenDoc | null>(null);
+
+  // Second-factor: a one-time code emailed to the examiner, required before
+  // the token document (and everything behind it) becomes readable — see
+  // firestore.rules' examinerTokens `allow get` condition.
+  const [otpCode, setOtpCode]       = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpSent, setOtpSent]       = useState(false);
+  const [otpErrorMsg, setOtpErrorMsg] = useState('');
 
   // Accept/Decline flow
   const [declining, setDeclining]          = useState(false);
@@ -149,13 +158,59 @@ export default function ExaminerAccessScreen() {
 
       // Record the open action (fire-and-forget — don't block the UI)
       recordTokenOpened(token).catch(() => {});
-    } catch (e) {
+    } catch (e: any) {
+      // A denied read means the second-factor code hasn't been verified yet
+      // (see firestore.rules) — that's the expected first-visit state, not
+      // an error. Anything else (network, unexpected) falls through to the
+      // generic error phase.
+      if (e?.code === 'permission-denied') {
+        setPhase('otp_required');
+        return;
+      }
       console.error('examiner-access: load error', e);
       setPhase('error');
     }
   }, [token]);
 
   useEffect(() => { loadToken(); }, [loadToken]);
+
+  // ── Second-factor: request / verify one-time email code ───────────────────
+  const handleRequestOtp = async () => {
+    if (!token) return;
+    setOtpErrorMsg('');
+    setOtpSending(true);
+    try {
+      await apiClient.post(`/api/examiner-access/${token}/request-otp`);
+      setOtpSent(true);
+    } catch (e: any) {
+      setOtpErrorMsg(
+        e.response?.data?.message ||
+        L('שליחת הקוד נכשלה. נסה שוב.', 'Failed to send the code. Please try again.')
+      );
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!token || !otpCode.trim()) return;
+    setOtpErrorMsg('');
+    setOtpVerifying(true);
+    try {
+      await apiClient.post(`/api/examiner-access/${token}/verify-otp`, { code: otpCode.trim() });
+      setOtpCode('');
+      setOtpSent(false);
+      setPhase('loading');
+      await loadToken();
+    } catch (e: any) {
+      setOtpErrorMsg(
+        e.response?.data?.message ||
+        L('קוד שגוי. נסה שוב.', 'Incorrect code. Please try again.')
+      );
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
 
   // ── Accept ─────────────────────────────────────────────────────────────────
   const handleAccept = async () => {
@@ -292,6 +347,80 @@ export default function ExaminerAccessScreen() {
               'The link you received is invalid. Please contact the faculty coordinator for a new link.',
             )}
           </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── One-time email code (second factor) ────────────────────────────────────
+  if (phase === 'otp_required') {
+    return (
+      <SafeAreaView style={s.root}>
+        <LangToggle lang={lang} onToggle={() => setLang(l => l === 'he' ? 'en' : 'he')} />
+        <View style={s.centered}>
+          <Text style={s.errorEmoji}>🔐</Text>
+          <Text style={s.errorTitle}>
+            {L('אימות נוסף נדרש', 'Additional Verification Required')}
+          </Text>
+          <Text style={s.errorSub}>
+            {L(
+              'לפני הצפייה בפרטים, עלינו לוודא שאתה אכן הבוחן שהוזמן. לחץ לשליחת קוד לכתובת המייל שלך.',
+              'Before viewing the details, we need to confirm you are the invited examiner. Tap to send a code to your email.',
+            )}
+          </Text>
+
+          {!otpSent ? (
+            <Pressable
+              style={[s.btnPrimary, otpSending && s.btnDisabled, { marginTop: 20 }]}
+              onPress={handleRequestOtp}
+              disabled={otpSending}
+            >
+              {otpSending
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={s.btnPrimaryText}>✉️ {L('שלח קוד למייל', 'Send code to my email')}</Text>
+              }
+            </Pressable>
+          ) : (
+            <View style={{ width: '100%', marginTop: 20 }}>
+              <Text style={s.fieldLabel}>
+                {L('הזן את הקוד שנשלח למייל שלך', 'Enter the code sent to your email')}
+              </Text>
+              <TextInput
+                style={s.scoreInput}
+                value={otpCode}
+                onChangeText={setOtpCode}
+                keyboardType="number-pad"
+                placeholder="123456"
+                placeholderTextColor="#9CA3AF"
+                maxLength={6}
+              />
+              <Pressable
+                style={[s.btnPrimary, (otpVerifying || !otpCode.trim()) && s.btnDisabled, { marginTop: 12 }]}
+                onPress={handleVerifyOtp}
+                disabled={otpVerifying || !otpCode.trim()}
+              >
+                {otpVerifying
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={s.btnPrimaryText}>{L('אמת קוד', 'Verify Code')}</Text>
+                }
+              </Pressable>
+              <Pressable
+                style={s.btnGhost}
+                onPress={handleRequestOtp}
+                disabled={otpSending}
+              >
+                <Text style={s.btnGhostText}>
+                  {otpSending
+                    ? L('שולח...', 'Sending...')
+                    : L('שלח קוד חדש', 'Resend code')}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {!!otpErrorMsg && (
+            <Text style={[s.errorSub, { color: '#DC2626', marginTop: 12 }]}>{otpErrorMsg}</Text>
+          )}
         </View>
       </SafeAreaView>
     );

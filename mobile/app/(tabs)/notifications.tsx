@@ -11,6 +11,7 @@ import type { Lang } from '../../components/i18n';
 import NewChatSheet from '../message/new';
 import { apiClient } from '../../src/api/apiClient';
 import { useNotifications } from '../../src/context/NotificationsContext';
+import FeedbackChat from '../../components/FeedbackChat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -195,7 +196,7 @@ export default function NotificationsScreen() {
   const unsubChatsRef  = useRef<(() => void) | null>(null);
 
   const [lang,             setLang]             = useState<Lang>('he');
-  const [activeTab,        setActiveTab]        = useState<'notifs' | 'chats'>('notifs');
+  const [activeTab,        setActiveTab]        = useState<'notifs' | 'chats' | 'feedback'>('notifs');
   const [notifications,    setNotifications]    = useState<Notif[]>([]);
   const [chats,            setChats]            = useState<ChatRow[]>([]);
   const [loadingNotifs,    setLoadingNotifs]    = useState(true);
@@ -313,13 +314,17 @@ export default function NotificationsScreen() {
     unsubNotifsRef.current?.();
     unsubChatsRef.current?.();
     switch (userRole) {
-      case 'student':       router.replace('/student/home');           break;
-      case 'supervisor':    router.replace('/supervisor/dashboard');    break;
-      case 'examiner':      router.replace('/examinor/home');           break;
-      case 'coordinator':   router.replace('/coordinator/home');        break;
-      case 'faculty_admin': router.replace('/faculty_admin/dashboard'); break;
-      case 'system_admin':  router.replace('/admin/panel');             break;
-      default:              router.replace('/(auth)/login');
+      case 'student':              router.replace('/student/home');           break;
+      case 'supervisor':
+      case 'secondary_supervisor': router.replace('/supervisor/dashboard');    break;
+      case 'internal_examiner':    router.replace('/examinor/home');           break;
+      case 'coordinator':          router.replace('/coordinator/home');        break;
+      case 'faculty_admin':        router.replace('/faculty_admin/dashboard'); break;
+      case 'program_head':         router.replace('/program_head/program_head_dashboard'); break;
+      case 'administrative_secretary':  router.replace('/administrative_secretary/administrative_secretary_dashboard'); break;
+      case 'grad_school_head':     router.replace('/grad_school_head/grad_school_head_dashboard'); break;
+      case 'system_admin':         router.replace('/admin/panel');             break;
+      default:                     router.replace('/(auth)/login');
     }
   }, [userRole]);
 
@@ -417,8 +422,8 @@ export default function NotificationsScreen() {
         <View style={[s.headerCenter, isRtl && s.alignRight]}>
           <Text style={s.headerTitle}>
             {lang === 'he'
-              ? (activeTab === 'notifs' ? 'התראות' : 'הודעות')
-              : (activeTab === 'notifs' ? 'Notifications' : 'Messages')}
+              ? (activeTab === 'notifs' ? 'התראות' : activeTab === 'chats' ? 'הודעות' : 'משוב')
+              : (activeTab === 'notifs' ? 'Notifications' : activeTab === 'chats' ? 'Messages' : 'Feedback')}
           </Text>
           {activeTab === 'notifs' && unreadCount > 0 && (
             <View style={s.unreadBadge}><Text style={s.unreadBadgeText}>{unreadCount}</Text></View>
@@ -454,6 +459,18 @@ export default function NotificationsScreen() {
             {unreadChats > 0 ? ` (${unreadChats})` : ''}
           </Text>
         </Pressable>
+        {/* Permanent feedback/bug-report chat — every role except system_admin,
+            who reviews real feedback in the admin panel instead. */}
+        {userRole !== 'system_admin' && (
+          <Pressable
+            style={[s.tabBtn, activeTab === 'feedback' && s.tabBtnActive]}
+            onPress={() => setActiveTab('feedback')}
+          >
+            <Text style={[s.tabBtnText, activeTab === 'feedback' && s.tabBtnTextActive]}>
+              🗨️ {lang === 'he' ? 'משוב' : 'Feedback'}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* ══ NOTIFICATIONS TAB ══ */}
@@ -556,6 +573,11 @@ export default function NotificationsScreen() {
             <Text style={s.fabText}>+</Text>
           </Pressable>
         </>
+      )}
+
+      {/* ══ FEEDBACK TAB ══ */}
+      {activeTab === 'feedback' && userRole !== 'system_admin' && (
+        <FeedbackChat lang={lang} />
       )}
 
       {/* ── New chat sheet ── */}

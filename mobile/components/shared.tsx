@@ -81,7 +81,7 @@ export const ROLE_ACCENT = {
   faculty_admin:{ bg: '#ECFEFF', text: '#06B6D4', label: { he: 'מנהל פקולטה', en: 'Faculty Admin'} },
   grad_school_head:{ bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש בית ספר',  en: 'Grad School Head'} },
   program_head: { bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש תוכנית',    en: 'Program Head'} },
-  project_coordinator: { bg: '#FFF7ED', text: '#F97316', label: { he: 'רכז תוכנית',    en: 'Project Coordinator'} },
+  administrative_secretary: { bg: '#FFF7ED', text: '#F97316', label: { he: 'מזכירה אדמיניסטרטיבית',    en: 'Administrative Secretary'} },
 };
 
 // ─── 2FA Security Modal ───────────────────────────────────────────────────────

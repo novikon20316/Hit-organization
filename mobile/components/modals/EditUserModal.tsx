@@ -13,15 +13,20 @@ import { FACULTY_COLORS } from '../../components/shared';
 type RoleLabels = Record<string, Record<string, string>>;
 type FacultyColors = Record<string, { primary: string; light?: string; label: Record<string, string> }>;
 
-// Roles that can be added as additional (secondary) roles.
-// Primary roles like 'student' and 'system_admin' are excluded —
-// they don't make sense as an extra role on top of another.
+// Roles that can be added as additional (secondary) roles — restricted to
+// values other code actually treats as additive (checked via a `roles`
+// array-contains query or getEffectiveRoles()-style union), per
+// accountDeletion.ts, examinerController.getList, userImportExportController.ts.
+// Primary-only roles like 'student', 'program_head', 'grad_school_head', and
+// 'system_admin' are excluded — no code treats them as grantable on top of
+// another role.
 const ADDITIONAL_ROLE_OPTIONS = [
   'supervisor',
+  'secondary_supervisor',
+  'coordinator',
   'faculty_admin',
-  'head_of_masters',
-  'head_of_bachelors',
-  'committee_member',
+  'administrative_secretary',
+  'internal_examiner',
 ];
 
 type Props = {

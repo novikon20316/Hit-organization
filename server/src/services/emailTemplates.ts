@@ -10,6 +10,7 @@ export type NotificationType =
   | 'new_message'
   | 'account_created'
   | 'examiner_access_link'
+  | 'examiner_otp_code'
   | 'defense_dates_requested'
   | 'defense_date_matched'
   | 'defense_day_access_link'
@@ -209,6 +210,23 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>You have been invited to serve as an external examiner for <strong>"${d.thesisTitle || ''}"</strong>${d.studentName ? ` by ${d.studentName}` : ''}.</p>
       <p><a href="${d.link || ''}">Tap here to view details and respond</a></p>
       <p>This link is personal and one-time — no signup, password, or account is required.</p>
+    `,
+  },
+
+  examiner_otp_code: {
+    subjectHe: '🔐 קוד אימות לגישת בוחן',
+    subjectEn: '🔐 Examiner Access Verification Code',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>קוד האימות שלך לצפייה בפרטי השיפוט הוא:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;margin:20px 0">${d.code || ''}</p>
+      <p>הקוד תקף ל-10 דקות. אם לא ביקשת קוד זה, ניתן להתעלם מהודעה זו.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>Your verification code to view the review details is:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;margin:20px 0">${d.code || ''}</p>
+      <p>This code expires in 10 minutes. If you did not request it, you can safely ignore this email.</p>
     `,
   },
 

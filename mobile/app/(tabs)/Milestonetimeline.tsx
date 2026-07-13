@@ -42,7 +42,7 @@ export interface MilestoneData {
   fileUrls:      string[];
 }
 
-export type ViewerRole = 'student' | 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'system_admin';
+export type ViewerRole = 'student' | 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'system_admin';
 
 interface Props {
   milestones:    MilestoneData[];
@@ -88,6 +88,7 @@ function MilestoneCard({
   const [expanded, setExpanded] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [newDateText, setNewDateText] = useState('');
+  const [reasonText, setReasonText] = useState('');
   const [savingDate, setSavingDate] = useState(false);
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
   // 'coordinator_approved' is the actual completion status the server sets
@@ -100,11 +101,16 @@ function MilestoneCard({
   const isLast      = index === total - 1;
   const isDefense   = milestone.type === 'defense';
 
+  // Overriding is allowed regardless of the milestone's current status — an
+  // emergency delay (illness, war, etc.) may need to push back a deadline
+  // even for a milestone already submitted or approved. Mirrors
+  // UPDATE_MILESTONE_ROLES in milestoneController.ts.
   const canCoordinatorAdjust = (
     viewerRole === 'coordinator' ||
     viewerRole === 'faculty_admin' ||
+    viewerRole === 'administrative_secretary' ||
     viewerRole === 'system_admin'
-  ) && milestone.status === 'pending';
+  );
 
   const handleSaveDate = async (milestoneId: string) => {
     if (!newDateText.trim()) return;
@@ -114,11 +120,12 @@ function MilestoneCard({
       setSavingDate(true);
       await apiClient.put(`/api/milestones/${milestoneId}`, {
         dueDate: parsed.toISOString(),
-        status: 'pending',
+        reason: reasonText.trim() || undefined,
       });
       onAdjustDate?.(milestone, parsed);
       setShowDatePicker(false);
       setNewDateText('');
+      setReasonText('');
     } finally {
       setSavingDate(false);
     }
@@ -349,6 +356,14 @@ function MilestoneCard({
             <Text style={mc.modalHint}>
               {lang === 'he' ? 'פורמט: שנה-חודש-יום' : 'Format: YYYY-MM-DD'}
             </Text>
+            <TextInput
+              style={mc.modalInput}
+              value={reasonText}
+              onChangeText={setReasonText}
+              placeholder={lang === 'he' ? 'סיבת השינוי (אופציונלי)' : 'Reason for change (optional)'}
+              placeholderTextColor="#9BA8C0"
+              textAlign={isRtl ? 'right' : 'left'}
+            />
             <View style={mc.modalBtns}>
               <Pressable style={mc.modalCancelBtn} onPress={() => setShowDatePicker(false)}>
                 <Text style={mc.modalCancelText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>

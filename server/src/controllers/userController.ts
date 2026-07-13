@@ -1,11 +1,12 @@
 // src/routes/users.ts
 
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { Timestamp } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
 import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js';
 import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
 import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../services/accountDeletion.js';
+import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
 
 function computeIsEligible(
   degreeType: string | null,
@@ -63,6 +64,27 @@ export const getUserProfile = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
+// ─── POST /api/users/verify-eligibility ───────────────────────────────────────
+// PUBLIC — no Firebase Auth account exists yet at this point in the signup
+// flow (see mobile/app/(auth)/signup.tsx, called before createUserWithEmailAndPassword).
+// This is a fail-fast UX check only; syncData below re-checks the same thing
+// authoritatively (right before the Firestore profile is written) and is the
+// real gate — this endpoint existing or being skipped can't bypass that.
+export const verifyStudentEligibility = async (req: Request, res: Response) => {
+  const { studentId, facultyId, degreeType, major } = req.body;
+  if (!studentId || !facultyId || !degreeType) {
+    return res.status(400).json({ eligible: false, message: 'Missing studentId, facultyId, or degreeType.' });
+  }
+
+  try {
+    const result = await checkStudentEligibility(studentId, facultyId, degreeType, major);
+    return res.status(200).json({ eligible: result.eligible, message: result.reason });
+  } catch (error: any) {
+    console.error('verifyStudentEligibility error:', error);
+    return res.status(500).json({ eligible: false, message: 'Failed to verify eligibility.' });
+  }
+};
+
 // ─── POST /api/users/sync ─────────────────────────────────────────────────────
 // Self-service signup sync only — the client is an unprivileged, freshly
 // authenticated Firebase user at this point. newUid must match the caller's
@@ -98,7 +120,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Mirrors CROSS_FACULTY_ROLES in mobile/firebase/roles.ts — keep in sync.
-    const CROSS_FACULTY_ROLES = ['system_admin', 'project_coordinator', 'grad_school_head', 'internal_examiner'];
+    const CROSS_FACULTY_ROLES = ['system_admin', 'administrative_secretary', 'grad_school_head', 'internal_examiner'];
     const isCrossFaculty = CROSS_FACULTY_ROLES.includes(role);
 
     const validFaculties = [
@@ -112,6 +134,14 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'facultyId is required for this role.' });
     }
     const resolvedFacultyId = isCrossFaculty ? 'all' : facultyId;
+
+    // Authoritative gate — the public verify-eligibility endpoint the client
+    // calls before this is only a fail-fast UX check; this is what actually
+    // decides whether the account gets created. See services/studentRoster.ts.
+    const eligibility = await checkStudentEligibility(studentId, resolvedFacultyId, degreeType, major);
+    if (!eligibility.eligible) {
+      return res.status(403).json({ error: eligibility.reason || 'You are not on the approved students list for this faculty and degree.' });
+    }
 
     const isEligibleForProcess = computeIsEligible(
       degreeType,
@@ -154,6 +184,16 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     };
 
     await userRef.set(firestoreUserDoc, { merge: true });
+
+    // Locks the roster entry so this ID can't be reused by a second account.
+    // Best-effort: the profile above is already written and correct even if
+    // this fails — it would just leave the roster entry reusable, which a
+    // coordinator can review manually rather than the student being blocked.
+    try {
+      await markRosterEntryUsed(studentId, resolvedFacultyId, degreeType, newUid);
+    } catch (rosterErr) {
+      console.error(`syncData: failed to mark roster entry used for ${newUid}:`, rosterErr);
+    }
 
     return res.status(200).json({ success: true, user: firestoreUserDoc });
   } catch (error: any) {

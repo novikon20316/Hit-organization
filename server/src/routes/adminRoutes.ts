@@ -30,6 +30,7 @@ import {
   importStaffAdmin,
   uploadExcelFileMiddleware,
 } from '../controllers/userImportExportController.js';
+import { importStudentRosterAdmin } from '../controllers/studentRosterController.js';
 import {
   getAcademicCalendarConfig,
   updateAcademicCalendarConfig,
@@ -66,6 +67,7 @@ router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense);
 router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile);
 router.post('/users/import', verifyToken, uploadExcelFileMiddleware, importUsersAdmin);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
+router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
 
 // PUT routes

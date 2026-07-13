@@ -17,6 +17,7 @@ import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { apiClient } from '@/src/api/apiClient';
+import { verifyStudentEligibility } from '@/src/api/studentRoster';
 import {
   HIT_FACULTIES,
   getFacultyByKey,
@@ -269,6 +270,28 @@ export default function ProfileSetup() {
     }
     setSaving(true);
     try {
+      // Fail fast, before any Firebase Auth account is created — the entered
+      // ID + chosen degree must be on the faculty's pre-uploaded roster (see
+      // server/src/services/studentRoster.ts). syncData re-checks this
+      // authoritatively later; this is purely so an ineligible registration
+      // doesn't leave behind a half-created account.
+      const eligibility = await verifyStudentEligibility({
+        studentId,
+        facultyId: faculty!,
+        degreeType: degreeType!,
+        major: selectedProgram?.slug ?? null,
+      });
+      if (!eligibility.eligible) {
+        Alert.alert(
+          lang === 'he' ? 'לא ניתן להירשם' : 'Cannot Register',
+          eligibility.message ||
+            (lang === 'he'
+              ? 'תעודת הזהות שהוזנה אינה נמצאת ברשימת הסטודנטים המאושרים. פנה לרכז הפקולטה שלך.'
+              : 'This ID number was not found on the approved students list. Please contact your faculty coordinator.')
+        );
+        return;
+      }
+
       const { user, alreadyVerified } = await getOrCreateAuthUser(email.trim(), password);
 
       if (alreadyVerified) {

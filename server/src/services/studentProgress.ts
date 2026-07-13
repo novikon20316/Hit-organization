@@ -26,6 +26,8 @@ export interface MilestoneDoc {
   examinerIds?: string[];
   examiner1Score?: number | null;
   examiner2Score?: number | null;
+  finalGrade?: number | null;
+  gradeApproved?: boolean;
   nameHe?: string;
   nameEn?: string;
   [key: string]: unknown;

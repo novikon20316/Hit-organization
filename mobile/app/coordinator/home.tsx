@@ -14,9 +14,11 @@ import { coordinatorHomeStyles } from '../../constants/styles';
 import {tx} from '../../components/i18n';
 import { apiClient } from '@/src/api/apiClient';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
+import { pickAndImportStudentRoster } from '@/src/api/studentRoster';
 import {PendingMilestone, Project, InProgressProject, ExaminerUser, AssignedMilestone, DefensePanelMember} from '@/types'
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
+import { BulkDueDateModal } from '@/components/modals';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -46,6 +48,7 @@ export default function CoordinatorHome() {
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
+  const [showBulkDueDate, setShowBulkDueDate] = useState(false);
   const [pendingMilestones, setPendingMilestones] = useState<PendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [inProgressProjects, setInProgressProjects] = useState<InProgressProject[]>([]);
@@ -99,6 +102,7 @@ export default function CoordinatorHome() {
   // Import / export roster (Excel) — scoped to this coordinator's own faculty
   const [exportingUsers,  setExportingUsers]  = useState(false);
   const [importingStaff,  setImportingStaff]  = useState(false);
+  const [importingRoster, setImportingRoster] = useState(false);
 
 
 
@@ -216,6 +220,38 @@ export default function CoordinatorHome() {
       );
     } finally {
       setImportingStaff(false);
+    }
+  };
+
+  // Uploads the pre-registration student roster for this coordinator's own
+  // faculty (see server/src/services/studentRoster.ts) — signup checks
+  // entered ID+degree against this before a student account can be created.
+  const handleImportStudentRoster = async () => {
+    setImportingRoster(true);
+    try {
+      const summary = await pickAndImportStudentRoster('coordinator');
+      if (!summary) return; // user cancelled the picker
+      const failedLines = summary.details
+        .filter((d) => d.status === 'failed')
+        .map((d) => `#${d.row} ${d.studentId || '—'}: ${d.reason}`)
+        .slice(0, 10)
+        .join('\n');
+      Alert.alert(
+        lang === 'he' ? '🎓 תוצאות ייבוא רשימת סטודנטים' : '🎓 Student Roster Import Results',
+        lang === 'he'
+          ? `נוספו: ${summary.imported}\nדולגו: ${summary.skipped}\nנכשלו: ${summary.failed}\nמתוך ${summary.totalRows} שורות` +
+            (failedLines ? `\n\n${failedLines}` : '')
+          : `Added: ${summary.imported}\nSkipped: ${summary.skipped}\nFailed: ${summary.failed}\nof ${summary.totalRows} rows` +
+            (failedLines ? `\n\n${failedLines}` : '')
+      );
+    } catch (e: any) {
+      console.error('Import student roster error:', e);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'ייבוא רשימת הסטודנטים נכשל' : 'Failed to import the student roster')
+      );
+    } finally {
+      setImportingRoster(false);
     }
   };
 
@@ -718,6 +754,24 @@ export default function CoordinatorHome() {
         isRtl={isRtl}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
       />
+
+      <Pressable
+        style={{ marginHorizontal: 16, marginTop: 4, marginBottom: 8, backgroundColor: '#EDE9FE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+        onPress={() => router.push('/WorkflowTemplateManager' as any)}
+      >
+        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
+          🧬 {lang === 'he' ? 'ניהול תבניות אבני דרך' : 'Manage Milestone Templates'}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#DBEAFE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+        onPress={() => router.push('/Reports' as any)}
+      >
+        <Text style={{ color: '#2E86FF', fontWeight: '700', fontSize: 13 }}>
+          📊 {lang === 'he' ? 'דוחות' : 'Reports'}
+        </Text>
+      </Pressable>
 
       <View style={styles.tabBar}>
         {([
@@ -1318,6 +1372,14 @@ export default function CoordinatorHome() {
 
         {activeTab === 'deadlines' && (
           <>
+            <Pressable
+              style={[styles.submitBtn, { marginBottom: 14 }]}
+              onPress={() => setShowBulkDueDate(true)}
+            >
+              <Text style={styles.submitBtnText}>
+                📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
+              </Text>
+            </Pressable>
             {loadingDeadlines ? (
               <ActivityIndicator size="large" />
             ) : deadlines.length === 0 ? (
@@ -1480,6 +1542,7 @@ export default function CoordinatorHome() {
         color="#8B5CF6"
         actions={[
           { key: 'import', icon: '📥', label: lang === 'he' ? 'ייבוא סגל' : 'Import Staff', onPress: handleImportStaff, loading: importingStaff },
+          { key: 'importRoster', icon: '🎓', label: lang === 'he' ? 'ייבוא רשימת סטודנטים' : 'Import Student Roster', onPress: handleImportStudentRoster, loading: importingRoster },
           { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Roster', onPress: handleExportUsers, loading: exportingUsers },
         ]}
       />
@@ -1841,6 +1904,13 @@ export default function CoordinatorHome() {
           </Pressable>
         </ScrollView>
       </Modal>
+
+      <BulkDueDateModal
+        visible={showBulkDueDate}
+        onClose={() => setShowBulkDueDate(false)}
+        lang={lang}
+        projects={projects.map((p) => ({ id: p.id, label: lang === 'he' ? p.titleHe : p.titleEn }))}
+      />
     </SafeAreaView>
   );
 }

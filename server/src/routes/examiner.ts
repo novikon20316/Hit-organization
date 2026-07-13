@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import {
   getExaminerDashboard,
-  updateGrading,
   getList,
   submitDefenseDates,
 } from '../controllers/examinerController.js';
@@ -14,7 +13,8 @@ router.get('/dashboard', verifyToken, getExaminerDashboard)
 router.get('/get-list', verifyToken, getList)
 
 
-router.post('/milestones/:id/grade', verifyToken, updateGrading)
+// Grading goes through POST /api/projects/milestones/:milestoneId/grade
+// (submitMilestoneGrade) — the same endpoint the supervisor UI uses.
 router.post('/milestones/:milestoneId/defense-dates', verifyToken, submitDefenseDates)
 
 

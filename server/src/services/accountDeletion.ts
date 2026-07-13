@@ -18,6 +18,14 @@ import { getAcademicCalendar } from './academicCalendar.js';
 // Provisional — neither store mandates a specific number.
 const GRACE_PERIOD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
+// Institutional data-retention requirement: a graduated student's record must
+// be kept for 7 years from their (estimated) graduation date — the deletion
+// countdown below must not even START before then. This is separate from
+// GRACE_PERIOD_MS, which is the short cancel-window once the countdown does
+// start (self-requested deletion is unaffected — the 7-year rule is specific
+// to the automatic graduation-triggered path).
+const RETENTION_YEARS_AFTER_GRADUATION = 7;
+
 export interface EligibilityResult {
   eligible: boolean;
   reason?: string;
@@ -168,6 +176,18 @@ export async function purgeDueAccounts(): Promise<void> {
 
   for (const doc of snap.docs) {
     try {
+      // Re-check eligibility right before purging — a dependency (new active
+      // project, new advisees, a newly-assigned ungraded defense) may have
+      // appeared at any point during the 14-day grace window. If so, cancel
+      // the scheduled deletion outright rather than purging anyway; the
+      // account returns to normal standing and, for graduated accounts, gets
+      // re-evaluated (and re-flagged if still eligible) on tomorrow's sweep.
+      const eligibility = await checkDeletionEligibility(doc.id);
+      if (!eligibility.eligible) {
+        await cancelDeletion(doc.id);
+        console.log(`purgeDueAccounts: cancelled scheduled deletion for ${doc.id} — no longer eligible (${eligibility.reason})`);
+        continue;
+      }
       await purgeAccount(doc.id);
       console.log(`purgeDueAccounts: purged ${doc.id}`);
     } catch (err) {
@@ -178,7 +198,7 @@ export async function purgeDueAccounts(): Promise<void> {
 
 // ── Automatic graduation-based flagging ─────────────────────────────────────
 
-function programLengthYearsFor(degreeType: string | null, major: string | null): number {
+export function programLengthYearsFor(degreeType: string | null, major: string | null): number {
   if (degreeType === 'masters') return 2; // matches computeIsEligible's masters year-1/year-2 rule
   return DEGREE_LENGTHS[major ?? 'default'] ?? DEGREE_LENGTHS.default ?? 4;
 }
@@ -219,8 +239,24 @@ export async function flagGraduatedStudents(): Promise<void> {
     if (!programStartDate) continue; // no anchor date at all — skip rather than guess
 
     const years = programLengthYearsFor(data.degreeType ?? null, data.major ?? null);
-    const eligibleDate = computeGraduationEligibleDate(programStartDate, years, calendar);
+    const graduationDate = computeGraduationEligibleDate(programStartDate, years, calendar);
+
+    // Retention requirement: don't even start the deletion countdown until
+    // 7 years after (estimated) graduation — the data must be kept until then.
+    const eligibleDate = new Date(graduationDate);
+    eligibleDate.setFullYear(eligibleDate.getFullYear() + RETENTION_YEARS_AFTER_GRADUATION);
     if (now < eligibleDate) continue;
+
+    // Never flag an account that still has an active dependency (active
+    // project, active advisees, ungraded defense, last system_admin) — the
+    // same guard requestAccountDeletion/eraseUserBySystemAdmin already
+    // enforce. Skipping (not flagging) means it's simply re-evaluated on
+    // tomorrow's sweep once the dependency clears.
+    const eligibility = await checkDeletionEligibility(doc.id);
+    if (!eligibility.eligible) {
+      console.log(`flagGraduatedStudents: skipping ${doc.id} — not eligible (${eligibility.reason})`);
+      continue;
+    }
 
     try {
       await requestDeletion(doc.id, 'graduated');

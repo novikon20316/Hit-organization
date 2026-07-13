@@ -309,78 +309,10 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
   }
 };
 
-// ─── POST /api/supervisor/milestones/:id/grade ────────────────────────────────
-export const gradeMilestone = async (req: AuthenticatedRequest, res: Response) => {
-  const supervisorId = req.user?.uid;
-  const { id: milestoneId } = req.params;
-  const { givenScore, comments } = req.body;
-
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!milestoneId || typeof milestoneId !== 'string')
-    return res.status(400).json({ message: 'Invalid milestoneId.' });
-
-  try {
-    const milestoneRef  = db.collection('milestones').doc(milestoneId);
-    const milestoneSnap = await milestoneRef.get();
-
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
-
-    const milestoneData = milestoneSnap.data()!;
-    if (milestoneData.supervisorId !== supervisorId)
-      return res.status(403).json({ message: 'Forbidden.' });
-
-    const projectId     = milestoneData.projectId ?? null;
-    const studentIds: string[] = milestoneData.studentIds ?? [];
-
-    await milestoneRef.update({
-      supervisorScore: Number(givenScore),
-      supervisorComment: comments ?? '',
-      status:    'supervisor_graded',
-      gradedAt:  admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // Fetch project title
-    let projectTitleHe = '';
-    let projectTitleEn = '';
-    if (projectId) {
-      const projSnap = await db.collection('projects').doc(projectId).get();
-      projectTitleHe = projSnap.data()?.titleHe ?? '';
-      projectTitleEn = projSnap.data()?.titleEn ?? '';
-    }
-
-    const milestoneNameHe = milestoneData.nameHe ?? milestoneData.type ?? '';
-    const milestoneNameEn = milestoneData.nameEn ?? milestoneData.type ?? '';
-
-    // ✅ Notify each student
-    await Promise.all(studentIds.map(async (studentId) => {
-      await createNotification({
-        recipientId:       studentId,
-        type:              'milestone_graded',
-        titleHe:           'אבן דרך קיבלה ציון ✏️',
-        titleEn:           'Milestone Graded ✏️',
-        bodyHe:            `המנחה נתן ציון לאבן הדרך "${milestoneNameHe}" בפרויקט "${projectTitleHe}". ציון: ${givenScore}.`,
-        bodyEn:            `Your supervisor graded "${milestoneNameEn}" in "${projectTitleEn}". Score: ${givenScore}.`,
-        relatedProjectId:  projectId,
-        relatedMilestoneId: milestoneId,
-      });
-
-      const token = await getUserPushToken(studentId);
-      if (token) {
-        await sendPushNotification(
-          token,
-          '✏️ Milestone Graded',
-          `"${milestoneNameEn}" received a score of ${givenScore}.`,
-          { projectId, milestoneId },
-        );
-      }
-    }));
-
-    return res.status(200).json({ success: true, message: 'Milestone graded successfully.' });
-  } catch (error: any) {
-    console.error('gradeMilestone Error:', error);
-    return res.status(500).json({ message: 'Failed to submit milestone grade.' });
-  }
-};
+// Grading goes through POST /api/projects/milestones/:milestoneId/grade
+// (submitMilestoneGrade) — this file previously had its own duplicate
+// gradeMilestone endpoint with no live caller; removed to avoid two
+// divergent code paths for the same action.
 
 // ─── PUT /api/supervisor/projects/:id ────────────────────────────────────────
 // Only fields the mobile "edit project" form actually sends — a blind

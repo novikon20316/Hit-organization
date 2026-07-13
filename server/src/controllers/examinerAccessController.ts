@@ -9,10 +9,57 @@ import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
 import { db } from '../config/firebase.js';
 import { submitCandidateDatesAndResolve, examinerKeyOf } from '../services/defenseScheduling.js';
+import { requestExaminerOtp, verifyExaminerOtp } from '../services/examinerAccess.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 const TZ = 'Asia/Jerusalem';
+
+/**
+ * POST /api/examiner-access/:token/request-otp
+ * Sends (or resends) a one-time email code — the second factor required
+ * before the token document becomes readable (see verifyOtp / firestore.rules).
+ */
+export const requestOtp = async (req: Request, res: Response) => {
+  const { token } = req.params;
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
+
+  try {
+    const { sent } = await requestExaminerOtp(token);
+    if (!sent) {
+      return res.status(502).json({ message: 'Failed to send the verification code. Please try again.' });
+    }
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    if (error.message === 'Invalid or unknown token.') {
+      return res.status(404).json({ message: error.message });
+    }
+    console.error('requestOtp error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+/**
+ * POST /api/examiner-access/:token/verify-otp
+ * Body: { code: string }
+ */
+export const verifyOtp = async (req: Request, res: Response) => {
+  const { token } = req.params;
+  const { code } = req.body;
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
+  if (!code || typeof code !== 'string') return res.status(400).json({ message: 'Missing code.' });
+
+  try {
+    const result = await verifyExaminerOtp(token, code);
+    if (!result.verified) {
+      return res.status(400).json({ message: result.reason || 'Verification failed.' });
+    }
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('verifyOtp error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
 
 /**
  * GET /api/examiner-access/:token/defense-dates

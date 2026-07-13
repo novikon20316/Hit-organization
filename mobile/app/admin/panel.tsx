@@ -16,6 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
+import { pickAndImportStudentRoster } from '@/src/api/studentRoster';
 import { auth } from '../../src/firebase/firebase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Lang, AppRole } from '../../components/i18n';
@@ -30,7 +31,7 @@ import {
 } from '../../components/shared';
 import { adminPanelStyles } from '../../constants/styles';
 import {ROLE_LABELS} from '../../constants';
-import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal} from '@/components/modals';
+import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal} from '@/components/modals';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 
 export default function PanelScreen() {
@@ -44,6 +45,7 @@ export default function PanelScreen() {
   const [adminName, setAdminName] = useState('');
   const [showNewUser, setShowNewUser] = useState(false);
   const [exportingUsers, setExportingUsers] = useState(false);
+  const [importingRoster, setImportingRoster] = useState(false);
   const [importingStaff, setImportingStaff] = useState(false);
 
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -51,8 +53,15 @@ export default function PanelScreen() {
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess'
+    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback'
   >('overview');
+
+  // ── Real feedback awaiting review — one-way (see feedbackController.ts);
+  //    system_admin reviews/resolves here instead of replying in-thread ──────
+  const [feedbackMessages, setFeedbackMessages] = useState<any[]>([]);
+  const [loadingFeedback, setLoadingFeedback] = useState(false);
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState<'open' | 'resolved'>('open');
+  const [resolvingFeedbackId, setResolvingFeedbackId] = useState<string | null>(null);
 
   // ── Expired defense-day access grants (external examiners who missed their
   //    day-of window) — system_admin can grant a longer recovery window ────
@@ -128,6 +137,7 @@ export default function PanelScreen() {
   // ── Schedule defense state ─────────────────────────────────────────────────────
   const [defenseProject, setDefenseProject] = useState<ProjectRecord | null>(null);
   const [schedulingDefense, setSchedulingDefense] = useState(false);
+  const [showBulkDueDate, setShowBulkDueDate] = useState(false);
   //-----------------------------------------------------------------------------------
   const unsubUsersRef      = useRef<(() => void) | null>(null);
   const unsubProjectsRef   = useRef<(() => void) | null>(null);
@@ -234,6 +244,35 @@ export default function PanelScreen() {
     };
     fetchExpiredGrants();
   }, [activeTab]);
+
+  // ── Feedback chat — real feedback awaiting review ────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'feedback') return;
+    const fetchFeedback = async () => {
+      try {
+        setLoadingFeedback(true);
+        const res = await apiClient.get('/api/feedback/admin', { params: { status: feedbackStatusFilter } });
+        setFeedbackMessages(res.data.messages || []);
+      } catch (err) {
+        console.error('Error loading feedback:', err);
+      } finally {
+        setLoadingFeedback(false);
+      }
+    };
+    fetchFeedback();
+  }, [activeTab, feedbackStatusFilter]);
+
+  const handleResolveFeedback = async (id: string) => {
+    try {
+      setResolvingFeedbackId(id);
+      await apiClient.patch(`/api/feedback/admin/${id}/resolve`);
+      setFeedbackMessages((prev) => prev.filter((f) => f.id !== id));
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to resolve feedback');
+    } finally {
+      setResolvingFeedbackId(null);
+    }
+  };
 
   const handleExtendGrant = async () => {
     if (!extendGrantCode || !extendNewDate.trim()) return;
@@ -352,7 +391,7 @@ export default function PanelScreen() {
         email:           newUserEmail.trim().toLowerCase(),
         phoneNumber:     newUserPhone.trim() || null,
         role:            newUserRole,
-        // Cross-faculty roles (system_admin, project_coordinator, grad_school_head,
+        // Cross-faculty roles (system_admin, administrative_secretary, grad_school_head,
         // internal_examiner) are college-wide by definition — never scope them to
         // whatever faculty happened to be selected in the picker.
         facultyId:       isCrossFaculty ? 'all' : newUserFaculty,
@@ -446,6 +485,38 @@ export default function PanelScreen() {
       );
     } finally {
       setImportingStaff(false);
+    }
+  };
+
+  // Uploads the pre-registration student roster (see server/src/services/
+  // studentRoster.ts) — signup checks entered ID+degree against this before
+  // a student account can be created.
+  const handleImportStudentRoster = async () => {
+    setImportingRoster(true);
+    try {
+      const summary = await pickAndImportStudentRoster('admin');
+      if (!summary) return; // user cancelled the picker
+      const failedLines = summary.details
+        .filter((d) => d.status === 'failed')
+        .map((d) => `#${d.row} ${d.studentId || '—'}: ${d.reason}`)
+        .slice(0, 10)
+        .join('\n');
+      Alert.alert(
+        lang === 'he' ? '🎓 תוצאות ייבוא רשימת סטודנטים' : '🎓 Student Roster Import Results',
+        lang === 'he'
+          ? `נוספו: ${summary.imported}\nדולגו: ${summary.skipped}\nנכשלו: ${summary.failed}\nמתוך ${summary.totalRows} שורות` +
+            (failedLines ? `\n\n${failedLines}` : '')
+          : `Added: ${summary.imported}\nSkipped: ${summary.skipped}\nFailed: ${summary.failed}\nof ${summary.totalRows} rows` +
+            (failedLines ? `\n\n${failedLines}` : '')
+      );
+    } catch (e: any) {
+      console.error('Import student roster error:', e);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'ייבוא רשימת הסטודנטים נכשל' : 'Failed to import the student roster')
+      );
+    } finally {
+      setImportingRoster(false);
     }
   };
 
@@ -784,6 +855,10 @@ export default function PanelScreen() {
             key: 'defenseAccess',
             label: lang === 'he' ? 'גישת הגנה' : 'Defense Access',
           },
+          {
+            key: 'feedback',
+            label: lang === 'he' ? 'משוב' : 'Feedback',
+          },
         ].map((tab) => (
           <Pressable
             key={tab.key}
@@ -947,7 +1022,7 @@ export default function PanelScreen() {
                   <View style={styles.userBottom}>
                     <View style={styles.roleBadge}>
                       <Text style={styles.roleBadgeText}>
-                        {ROLE_LABELS[u.role]?.[lang]}
+                        {ROLE_LABELS[u.role as AppRole]?.[lang] ?? u.role}
                       </Text>
                     </View>
 
@@ -1089,6 +1164,14 @@ export default function PanelScreen() {
 
         {activeTab === 'milestones' && (
           <>
+            <Pressable
+              style={[styles.submitBtn, { marginBottom: 14 }]}
+              onPress={() => setShowBulkDueDate(true)}
+            >
+              <Text style={styles.submitBtnText}>
+                📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
+              </Text>
+            </Pressable>
             {groupedMilestones
             .filter((g: any) => activeProjectIds.has(g.projectId))
             .map((project: any) => {
@@ -1250,6 +1333,64 @@ export default function PanelScreen() {
           </>
         )}
 
+        {activeTab === 'feedback' && (
+          <>
+            <Text style={styles.sectionTitle}>
+              {lang === 'he'
+                ? 'משוב אמיתי שהתקבל מהמשתמשים (חד-כיווני — לא ניתן להשיב בתוך הצ׳אט)'
+                : 'Real feedback from users (one-way — replies aren\'t sent back in-thread)'}
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {(['open', 'resolved'] as const).map((st) => (
+                <Pressable
+                  key={st}
+                  style={[styles.tab, feedbackStatusFilter === st && styles.tabActive]}
+                  onPress={() => setFeedbackStatusFilter(st)}
+                >
+                  <Text style={[styles.tabText, feedbackStatusFilter === st && styles.tabTextActive]}>
+                    {st === 'open'
+                      ? (lang === 'he' ? 'פתוח' : 'Open')
+                      : (lang === 'he' ? 'טופל' : 'Resolved')}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {loadingFeedback ? (
+              <ActivityIndicator size="large" color="#2E86FF" />
+            ) : feedbackMessages.length === 0 ? (
+              <Text style={styles.projectMeta}>
+                {lang === 'he' ? 'אין משוב להצגה' : 'No feedback to show'}
+              </Text>
+            ) : (
+              feedbackMessages.map((f) => (
+                <View key={f.id} style={styles.projectMilestoneCard}>
+                  <Text style={styles.projectTitle}>{f.userName} · {f.role}</Text>
+                  <Text style={[styles.projectMeta, { marginTop: 6 }]}>{f.text}</Text>
+                  {f.aiReasoning && (
+                    <Text style={[styles.projectMeta, { marginTop: 6, fontStyle: 'italic' }]}>
+                      🤖 {f.aiReasoning}
+                    </Text>
+                  )}
+                  {f.status !== 'resolved' && (
+                    <Pressable
+                      style={[styles.submitBtn, { marginTop: 10 }, resolvingFeedbackId === f.id && { opacity: 0.6 }]}
+                      onPress={() => handleResolveFeedback(f.id)}
+                      disabled={resolvingFeedbackId === f.id}
+                    >
+                      {resolvingFeedbackId === f.id
+                        ? <ActivityIndicator color="#fff" />
+                        : <Text style={styles.submitBtnText}>{lang === 'he' ? '✅ סמן כטופל' : '✅ Mark resolved'}</Text>
+                      }
+                    </Pressable>
+                  )}
+                </View>
+              ))
+            )}
+          </>
+        )}
+
         <View style={{ height: 80 }} />
       </ScrollView>
 
@@ -1260,6 +1401,7 @@ export default function PanelScreen() {
         actions={[
           { key: 'add', icon: '➕', label: lang === 'he' ? 'הוסף משתמש' : 'Add User', onPress: () => { setActiveTab('users'); setShowNewUser(true); } },
           { key: 'import', icon: '📥', label: lang === 'he' ? 'ייבוא סגל' : 'Import Staff', onPress: handleImportStaff, loading: importingStaff },
+          { key: 'importRoster', icon: '🎓', label: lang === 'he' ? 'ייבוא רשימת סטודנטים' : 'Import Student Roster', onPress: handleImportStudentRoster, loading: importingRoster },
           { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Excel', onPress: handleExportUsers, loading: exportingUsers },
           { key: 'calendar', icon: '📅', label: lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar', onPress: openAcademicCalendar },
         ]}
@@ -1485,6 +1627,14 @@ export default function PanelScreen() {
         onClose={() => setDefenseProject(null)}
         onSave={handleScheduleDefense}
       />
+      <BulkDueDateModal
+        visible={showBulkDueDate}
+        onClose={() => setShowBulkDueDate(false)}
+        lang={lang}
+        projects={projects.map((p) => ({ id: p.id, label: lang === 'he' ? p.titleHe : p.titleEn }))}
+        onSaved={fetchAllDashboardData}
+      />
+
       <NewUserModal
         visible={showNewUser}
         lang={lang}

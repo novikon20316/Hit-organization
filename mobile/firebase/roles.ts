@@ -22,7 +22,7 @@ export const ROLES = {
   COORDINATOR:           'coordinator',
   FACULTY_ADMIN:         'faculty_admin',
   PROGRAM_HEAD:          'program_head',
-  PROJECT_COORDINATOR:   'project_coordinator',
+  PROJECT_COORDINATOR:   'administrative_secretary',
   GRAD_SCHOOL_HEAD:      'grad_school_head',
   INTERNAL_EXAMINER:     'internal_examiner',
   SYSTEM_ADMIN:          'system_admin',
@@ -35,7 +35,7 @@ export const STAFF_ROLES: AppRole[] = [
   'coordinator',
   'faculty_admin',
   'program_head',
-  'project_coordinator',
+  'administrative_secretary',
   'grad_school_head',
   'internal_examiner',
   'system_admin',
@@ -54,7 +54,7 @@ export const CROSS_FACULTY_ROLES: AppRole[] = [
   'grad_school_head',
   'internal_examiner',
   'system_admin',
-  'project_coordinator',
+  'administrative_secretary',
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,24 +127,24 @@ export type Permission =
 
 export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
   // ── Project ───────────────────────────────────────────────────────────────
-  create_project:               ['supervisor', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
-  publish_project:              ['supervisor', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  create_project:               ['supervisor', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
+  publish_project:              ['supervisor', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
   apply_to_project:             ['student'],
-  view_all_projects:            ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'system_admin'],
+  view_all_projects:            ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'],
   view_own_project:             ['student', 'supervisor', 'secondary_supervisor'],
-  view_faculty_projects:        ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'internal_examiner'],
+  view_faculty_projects:        ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'internal_examiner'],
 
   // ── Student process file ──────────────────────────────────────────────────
-  open_process_file:            ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  open_process_file:            ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
   close_process_file:           ['coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'],
-  view_process_file:            ['supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  view_process_file:            ['supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
   edit_process_status:          ['coordinator', 'faculty_admin', 'program_head', 'system_admin'],
   pause_process_clock:          ['coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'],
 
   // ── Milestones ────────────────────────────────────────────────────────────
   submit_milestone:             ['student'],
   grade_milestone:              ['supervisor', 'secondary_supervisor', 'internal_examiner'],
-  approve_milestone_coordinator:['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  approve_milestone_coordinator:['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
   approve_milestone_grad_school:['grad_school_head', 'system_admin'],
   reopen_milestone:             ['coordinator', 'faculty_admin', 'program_head', 'system_admin'],
   override_deadline:            ['coordinator', 'faculty_admin', 'program_head', 'system_admin'],
@@ -152,11 +152,11 @@ export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
   // ── Proposals & documents ─────────────────────────────────────────────────
   submit_proposal:              ['student'],
   approve_proposal_supervisor:  ['supervisor', 'secondary_supervisor'],
-  approve_proposal_faculty:     ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator'],
+  approve_proposal_faculty:     ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary'],
   approve_proposal_grad_school: ['grad_school_head', 'system_admin'],
 
   // ── Supervisor management ─────────────────────────────────────────────────
-  assign_supervisor:            ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  assign_supervisor:            ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
   approve_supervisor:           ['grad_school_head', 'system_admin'],
   propose_supervisor:           ['student', 'supervisor'],
 
@@ -164,28 +164,28 @@ export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
   propose_examiners:            ['supervisor', 'secondary_supervisor'],
   approve_examiners_faculty:    ['coordinator', 'faculty_admin', 'program_head'],
   approve_examiners_grad_school:['grad_school_head', 'system_admin'],
-  send_examiner_invitation:     ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
-  view_examiner_database:       ['supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'internal_examiner', 'system_admin'],
-  edit_examiner_database:       ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'system_admin'],
+  send_examiner_invitation:     ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
+  view_examiner_database:       ['supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  edit_examiner_database:       ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'],
 
   // ── Grades ────────────────────────────────────────────────────────────────
   enter_grade:                  ['supervisor', 'secondary_supervisor', 'internal_examiner'],
-  approve_grade_coordinator:    ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator'],
+  approve_grade_coordinator:    ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary'],
   approve_grade_grad_school:    ['grad_school_head', 'system_admin'],
   change_grade_after_approval:  ['grad_school_head', 'system_admin'],
   transfer_grade_to_maklol:     ['coordinator', 'faculty_admin', 'grad_school_head', 'system_admin'],
   view_all_grades:              ['coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'],
 
   // ── Templates ─────────────────────────────────────────────────────────────
-  view_templates:               ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'system_admin'],
-  create_template:              ['faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
-  edit_template:                ['faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  view_templates:               ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'],
+  create_template:              ['faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
+  edit_template:                ['faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
   approve_template_grad_school: ['grad_school_head', 'system_admin'],
 
   // ── Reports ───────────────────────────────────────────────────────────────
-  view_faculty_reports:         ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'],
+  view_faculty_reports:         ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
   view_cross_faculty_reports:   ['grad_school_head', 'system_admin'],
-  export_reports:               ['coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'system_admin'],
+  export_reports:               ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'],
 
   // ── Admin ─────────────────────────────────────────────────────────────────
   manage_users:                 ['faculty_admin', 'system_admin'],
@@ -194,8 +194,8 @@ export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
   toggle_maintenance:           ['system_admin'],
 
   // ── Chat ──────────────────────────────────────────────────────────────────
-  send_message:                 ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'internal_examiner', 'system_admin'],
-  view_own_messages:            ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  send_message:                 ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  view_own_messages:            ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -239,7 +239,7 @@ export function getHomeRoute(role: AppRole | undefined): string {
     case 'coordinator':          return '/coordinator/home';
     case 'faculty_admin':        return '/faculty_admin/dashboard';
     case 'program_head':         return '/program_head/dashboard';
-    case 'project_coordinator':  return '/project_coordinator/dashboard';
+    case 'administrative_secretary':  return '/administrative_secretary/dashboard';
     case 'grad_school_head':     return '/grad_school_head/dashboard';
     case 'internal_examiner':    return '/examinor/home';
     case 'system_admin':         return '/admin/panel';
@@ -382,7 +382,7 @@ export const VALID_ROLES: AppRole[] = [
   'coordinator',
   'faculty_admin',
   'program_head',
-  'project_coordinator',
+  'administrative_secretary',
   'grad_school_head',
   'internal_examiner',
   'system_admin',
@@ -680,6 +680,6 @@ export async function createExaminer() {
 //   "medical_tech"
 //   "design"
 //   "data_science"
-//   "all"              ← CROSS_FACULTY_ROLES only (system_admin, project_coordinator, grad_school_head, internal_examiner)
+//   "all"              ← CROSS_FACULTY_ROLES only (system_admin, administrative_secretary, grad_school_head, internal_examiner)
 //
 // ─────────────────────────────────────────────────────────────────────────────

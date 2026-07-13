@@ -14,6 +14,7 @@ import crypto from 'crypto';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
+import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 
@@ -91,6 +92,9 @@ export async function createExternalExaminerAccess(
     opinionVisible: true,
     opinionAnonymous: false,
     accessLog: [],
+    // Second factor — not verified until the examiner completes the
+    // request-otp/verify-otp round trip. See firestore.rules' `allow get`.
+    otpVerified: false,
   });
 
   const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || ''; // TODO: set once the app has a public web/deep-link URL
@@ -119,6 +123,113 @@ export async function createExternalExaminerAccess(
   }
 
   return { token: code, link, emailSent };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Second factor — a one-time numeric code emailed to the examiner, required
+// before the examinerTokens/{token} document becomes readable at all (see
+// firestore.rules' `allow get` condition: `resource.data.otpVerified == true`).
+// Link-possession alone was previously the sole credential; this adds
+// "prove you control examinerEmail" on top, without requiring a Firebase
+// Auth account (external examiners still have none).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OTP_LENGTH = 6;
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_MAX_ATTEMPTS = 5;
+
+function generateNumericOtp(): string {
+  const bytes = crypto.randomBytes(OTP_LENGTH);
+  let code = '';
+  for (let i = 0; i < OTP_LENGTH; i++) {
+    code += (bytes[i]! % 10).toString();
+  }
+  return code;
+}
+
+function hashOtp(code: string): string {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+/**
+ * Generates a fresh OTP, stores its hash + expiry on the token doc (admin
+ * SDK — bypasses the same rules this is meant to gate), and emails it.
+ * Safe to call repeatedly ("resend") — each call replaces the prior code.
+ */
+export async function requestExaminerOtp(token: string): Promise<{ sent: boolean }> {
+  const tokenRef = db.collection('examinerTokens').doc(token);
+  const tokenSnap = await tokenRef.get();
+  if (!tokenSnap.exists) {
+    throw new Error('Invalid or unknown token.');
+  }
+  const tokenDoc = tokenSnap.data()!;
+
+  const code = generateNumericOtp();
+  await tokenRef.update({
+    otpHash: hashOtp(code),
+    otpExpiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(),
+    otpAttempts: 0,
+  });
+
+  try {
+    await sendNotificationEmail({
+      toEmail: tokenDoc.examinerEmail,
+      type: 'examiner_otp_code',
+      lang: tokenDoc.examinerLanguage ?? 'he',
+      data: { name: tokenDoc.examinerName ?? '', code },
+    });
+    return { sent: true };
+  } catch (emailError) {
+    console.error(`Examiner OTP email failed for ${tokenDoc.examinerEmail}:`, emailError);
+    return { sent: false };
+  }
+}
+
+export interface VerifyExaminerOtpResult {
+  verified: boolean;
+  reason?: string;
+}
+
+/**
+ * Verifies a submitted code against the stored hash. On success, flips
+ * `otpVerified: true` (admin SDK) — the field the Firestore rule checks —
+ * and clears the OTP fields so a stale hash can't be reused. Attempts are
+ * capped per-token (not per-IP) so this can't be brute-forced by rotating
+ * source IPs the way a pure rate-limiter could be.
+ */
+export async function verifyExaminerOtp(token: string, code: string): Promise<VerifyExaminerOtpResult> {
+  const tokenRef = db.collection('examinerTokens').doc(token);
+  const tokenSnap = await tokenRef.get();
+  if (!tokenSnap.exists) {
+    return { verified: false, reason: 'Invalid or unknown token.' };
+  }
+  const tokenDoc = tokenSnap.data()!;
+
+  if (tokenDoc.otpVerified === true) {
+    return { verified: true };
+  }
+  if (!tokenDoc.otpHash || !tokenDoc.otpExpiresAt) {
+    return { verified: false, reason: 'No code has been requested yet.' };
+  }
+  if ((tokenDoc.otpAttempts ?? 0) >= OTP_MAX_ATTEMPTS) {
+    return { verified: false, reason: 'Too many attempts. Request a new code.' };
+  }
+  if (new Date(tokenDoc.otpExpiresAt).getTime() < Date.now()) {
+    return { verified: false, reason: 'Code expired. Request a new one.' };
+  }
+
+  if (hashOtp(code) !== tokenDoc.otpHash) {
+    await tokenRef.update({ otpAttempts: admin.firestore.FieldValue.increment(1) });
+    return { verified: false, reason: 'Incorrect code.' };
+  }
+
+  await tokenRef.update({
+    otpVerified: true,
+    otpHash: admin.firestore.FieldValue.delete(),
+    otpExpiresAt: admin.firestore.FieldValue.delete(),
+    otpAttempts: admin.firestore.FieldValue.delete(),
+  });
+  return { verified: true };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

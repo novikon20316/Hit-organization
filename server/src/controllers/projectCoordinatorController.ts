@@ -3,15 +3,15 @@ import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 
 const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
-const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['project_coordinator', 'system_admin'];
+const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
 
 /**
  * GET /api/project-coordinator/:uid/dashboard
  * Same faculty-scoped data and permissions as the `coordinator` role's own
  * dashboard (see getCoordinatorDashboard in coordinatorController.ts) — the
- * `project_coordinator` role is the department secretary, who manages the
+ * `administrative_secretary` role is the department secretary, who manages the
  * same bachelor's/master's project groups within their faculty. Reshaped
- * into "groups" to match project_coordinator_dashboard.tsx.
+ * into "groups" to match administrative_secretary_dashboard.tsx.
  */
 export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;

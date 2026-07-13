@@ -81,63 +81,6 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
 };
 
 /**
- * POST /api/examiner/milestones/:milestoneId/grade
- * FIX 1: route param renamed from :projectId to :milestoneId to match the
- *         frontend call: /api/examiner/milestones/${selected.id}/grade
- * FIX 2: now writes grading data onto the milestone document (not the project),
- *         which is consistent with how supervisorController grades milestones.
- */
-export const updateGrading = async (req: AuthenticatedRequest, res: Response) => {
-  const { milestoneId } = req.params; // <-- FIXED: was const { projectId } = req.params
-
-  const { Totalscores, totalScore, comments, criteria } = req.body;
-  const examinerUid = req.user?.uid;
-
-  if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Missing required milestoneId parameter.' });
-  }
-
-  if (!examinerUid) {
-    return res.status(401).json({ message: 'Unauthorized: Unable to verify examiner credentials.' });
-  }
-
-  try {
-    const milestoneRef = db.collection('milestones').doc(milestoneId); // <-- FIXED: was projects
-    const milestoneSnap = await milestoneRef.get();
-
-    if (!milestoneSnap.exists) {
-      return res.status(404).json({ message: 'Target milestone record not found.' });
-    }
-
-    const examinerIds: string[] = milestoneSnap.data()?.examinerIds ?? [];
-    if (!examinerIds.includes(examinerUid)) {
-      return res.status(403).json({ message: 'Forbidden: not an assigned examiner for this milestone.' });
-    }
-
-    console.log(`📡 Examiner (${examinerUid}) submitting grade for milestone: ${milestoneId}`);
-
-    await milestoneRef.update({
-      [`examinerGrading.${examinerUid}`]: {
-        totalScore: totalScore !== undefined ? Number(totalScore) : null,
-        breakdownScores: Totalscores || null,
-        criteriaMapping: criteria || null,
-        comments: comments || '',
-        gradedAt: new Date().toISOString(),
-      },
-      lastGradingActivity: new Date().toISOString(),
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Examiner grading evaluations updated successfully.',
-    });
-  } catch (error) {
-    console.error('Failed to update examiner grades:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-/**
  * POST /api/examiner/milestones/:milestoneId/defense-dates
  * Internal examiner submits their candidate defense dates. Delegates to the
  * shared defenseScheduling service so internal and external examiners are

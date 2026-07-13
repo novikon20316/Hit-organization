@@ -32,7 +32,7 @@ export const getNotificationInboxSummary = async (req: AuthenticatedRequest, res
 // phishing/impersonation vector. Restricted to staff-tier roles as
 // defense-in-depth until an actual caller/use case is defined.
 const NOTIFICATION_DISPATCH_ROLES = [
-  'supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator',
+  'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
   'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
 ];
 

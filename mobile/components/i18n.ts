@@ -779,7 +779,7 @@ export type AppRole =
   | 'coordinator'
   | 'faculty_admin'
   | 'program_head'
-  | 'project_coordinator'
+  | 'administrative_secretary'
   | 'grad_school_head'
   | 'internal_examiner'
   | 'system_admin';
@@ -791,7 +791,7 @@ export const ROLE_LABELS: Record<AppRole, { he: string; en: string }> = {
   coordinator:           { he: 'רכז פקולטה',                        en: 'Faculty Coordinator' },
   faculty_admin:         { he: 'ראש מנהל פקולטה',                   en: 'Faculty Admin Head' },
   program_head:          { he: 'ראש תוכנית תואר שני',               en: "Master's Program Head" },
-  project_coordinator:   { he: 'מרכז פרויקטים',                     en: 'Project Coordinator' },
+  administrative_secretary:   { he: 'מזכירה אדמיניסטרטיבית',                     en: 'Administrative Secretary' },
   grad_school_head:      { he: 'ראש בית הספר ללימודי מוסמכים',      en: 'Graduate School Head' },
   internal_examiner:     { he: 'בוחן פנימי',                        en: 'Internal Examiner' },
   system_admin:          { he: 'מנהל מערכת',                        en: 'System Admin' },

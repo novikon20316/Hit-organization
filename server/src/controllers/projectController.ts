@@ -4,6 +4,8 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import admin from 'firebase-admin';
+import { logAuditEvent } from '../services/auditLog.js';
+import { computeWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 
 const db = admin.firestore();
 
@@ -15,7 +17,7 @@ const MILESTONE_PROGRESS: Record<string, number> = {
 };
 
 const STAFF_ROLES = [
-  'supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator',
+  'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
   'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
 ];
 
@@ -51,7 +53,13 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   // Destructure the detailed grading criteria and grade from your mobile client payload
   const { givenScore, comments, projectId, criteria } = req.body;
 
-  const grade = (criteria.clarity + criteria.methodology + criteria.feasibility + criteria.innovation + criteria.writing)
+  // criteria is optional — an examiner grading via their own rubric sends
+  // only givenScore, with no criteria breakdown at all.
+  const grade = criteria
+    ? (Number(criteria.clarity) || 0) + (Number(criteria.methodology) || 0) +
+      (Number(criteria.feasibility) || 0) + (Number(criteria.innovation) || 0) +
+      (Number(criteria.writing) || 0)
+    : undefined;
   // Fallback to extract the final score from either property name safely
   const finalScore = givenScore !== undefined && givenScore !== null ? givenScore : grade;
 
@@ -76,23 +84,28 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     };
 
     let graderRole = '';
+    let scoreField = '';
 
     if (uid === supervisorId) {
       graderRole = 'supervisor';
-      updatePayload.supervisorScore    = Number(givenScore);
-      updatePayload.supervisorComments = comments?.trim() ?? '';
-      updatePayload.status             = 'supervisor_graded';
+      scoreField = 'supervisorScore';
+      updatePayload.supervisorScore   = Number(givenScore);
+      updatePayload.supervisorComment = comments?.trim() ?? '';
+      updatePayload.status            = 'supervisor_graded';
     } else if (examinerIds[0] === uid) {
       graderRole = 'examiner1';
+      scoreField = 'examiner1Score';
       updatePayload.examiner1Score    = Number(givenScore);
       updatePayload.examiner1Comments = comments?.trim() ?? '';
     } else if (examinerIds[1] === uid) {
       graderRole = 'examiner2';
+      scoreField = 'examiner2Score';
       updatePayload.examiner2Score    = Number(givenScore);
       updatePayload.examiner2Comments = comments?.trim() ?? '';
     } else {
       return res.status(403).json({ message: 'Not authorized to grade this milestone' });
     }
+    const previousScore = data[scoreField] ?? null;
 
     // Check if all graders are done
     const next = { ...data, ...updatePayload };
@@ -104,6 +117,29 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     if (allDone) {
       updatePayload.status   = 'graded';
       updatePayload.gradedAt = admin.firestore.FieldValue.serverTimestamp();
+      // Real weighted final grade — previously nothing ever computed or wrote
+      // this field. Uses the milestone's own gradeWeights if configured,
+      // otherwise a sensible default split by examiner count.
+      updatePayload.finalGrade = computeWeightedFinalGrade(
+        {
+          supervisorScore: next.supervisorScore,
+          examiner1Score: next.examiner1Score,
+          examiner2Score: next.examiner2Score,
+        },
+        examinerIds.length,
+        data.gradeWeights ?? null,
+      );
+
+      // Group projects: layer each student's individual component (if a
+      // supervisor/examiner already recorded one via submitIndividualGrade)
+      // on top of the shared group grade — see computeFinalGradeByStudent.
+      const studentIds: string[] = data.studentIds ?? [];
+      updatePayload.finalGradeByStudent = computeFinalGradeByStudent(
+        studentIds,
+        updatePayload.finalGrade,
+        data.individualScores ?? null,
+        data.individualWeight ?? DEFAULT_INDIVIDUAL_WEIGHT,
+      );
     }
     const gradeDocumentPayload = {
       milestoneId,
@@ -134,13 +170,101 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
 
     await batch.commit();
 
-    return res.status(200).json({ 
-      success: true, 
-      status: updatePayload.status ?? data.status 
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? graderRole,
+      action: previousScore !== null ? 'grade_changed' : 'grade_entered',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { [scoreField]: previousScore },
+      newValue: { [scoreField]: Number(givenScore) },
+    });
+
+    return res.status(200).json({
+      success: true,
+      status: updatePayload.status ?? data.status
     });
   } catch (error) {
     console.error('submitMilestoneGrade error:', error);
     return res.status(500).json({ message: 'Failed to submit grade' });
+  }
+};
+
+// ─── Submit individual (per-student) grade component — group projects ────────
+// Spec: alongside the shared group components, a group project allows personal
+// components (e.g. the oral defense's individual impression) so members of the
+// same group can end up with different final grades. This layers a per-student
+// score on top of whatever group score submitMilestoneGrade already computed,
+// without touching the single-student ("individual project") grading path.
+export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { milestoneId } = req.params;
+  const { studentId, score, comments } = req.body;
+
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: 'Invalid milestoneId' });
+  }
+  if (!studentId || typeof studentId !== 'string') {
+    return res.status(400).json({ message: 'Invalid studentId' });
+  }
+  const numericScore = Number(score);
+  if (!Number.isFinite(numericScore) || numericScore < 0 || numericScore > 100) {
+    return res.status(400).json({ message: 'score must be a number between 0 and 100' });
+  }
+
+  try {
+    const milestoneRef  = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found' });
+
+    const data: any = milestoneSnap.data() ?? {};
+    const examinerIds: string[] = data.examinerIds ?? [];
+    const studentIds: string[]  = data.studentIds ?? [];
+
+    const isGrader = uid === data.supervisorId || examinerIds.includes(uid);
+    if (!isGrader) {
+      return res.status(403).json({ message: 'Not authorized to grade this milestone' });
+    }
+    if (!studentIds.includes(studentId)) {
+      return res.status(400).json({ message: 'studentId is not part of this milestone' });
+    }
+
+    const updatePayload: Record<string, any> = {
+      [`individualScores.${studentId}`]: numericScore,
+      [`individualComments.${studentId}`]: (comments ?? '').toString().trim(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    // If the shared group grade is already finalized, recompute every
+    // student's blended grade immediately — otherwise it's picked up the
+    // next time submitMilestoneGrade finishes the group scoring.
+    if (data.finalGrade != null) {
+      const nextIndividualScores = { ...(data.individualScores ?? {}), [studentId]: numericScore };
+      updatePayload.finalGradeByStudent = computeFinalGradeByStudent(
+        studentIds,
+        data.finalGrade,
+        nextIndividualScores,
+        data.individualWeight ?? DEFAULT_INDIVIDUAL_WEIGHT,
+      );
+    }
+
+    await milestoneRef.update(updatePayload);
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? '',
+      action: 'grade_entered',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { [`individualScores.${studentId}`]: data.individualScores?.[studentId] ?? null },
+      newValue: { [`individualScores.${studentId}`]: numericScore },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('submitIndividualGrade error:', error);
+    return res.status(500).json({ message: 'Failed to submit individual grade' });
   }
 };
 
@@ -286,11 +410,15 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
           ? Math.round((completedCount / studentMilestones.length) * 100) 
           : 0;
 
-        // Map milestones to match the exact keys expected by the expanded frontend rows
+        // Map milestones to match the exact keys expected by the expanded frontend rows.
+        // Group projects: a student's own finalGradeByStudent entry (set once their
+        // individual component is recorded — see computeFinalGradeByStudent) takes
+        // priority over the shared group finalGrade, so members of the same group
+        // can show different grades even though the milestone itself is one document.
         const formattedMilestones = studentMilestones.map((m: any) => ({
           type: m.type,
           status: m.status,
-          supervisorScore: m.grade || m.finalGrade || null 
+          supervisorScore: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? m.supervisorScore ?? null
         }));
 
         return {

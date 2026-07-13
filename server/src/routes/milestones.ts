@@ -7,6 +7,7 @@ import {
   initializeRoadMap,
   uploadMiddleware,
   updateMilestoneByCoordinator,
+  bulkUpdateMilestoneDueDates,
 } from '../controllers/milestoneController.js'
 const router = Router();
 
@@ -19,7 +20,10 @@ router.get('/', verifyToken, getMilestonesByQuery);
 router.get('/:projectId/milestones', verifyToken, getMilestonesByQuery);
 // POST /api/milestones/:milestoneId/submit — student submits a milestone
 router.post('/:milestoneId/submit', verifyToken, uploadMiddleware, submitMilestone)
-// PUT /api/milestones/:id — coordinator/faculty_admin/system_admin adjusts a milestone's due date
+// PUT /api/milestones/bulk-due-date — coordinator/faculty_admin/administrative_secretary/system_admin
+// shifts a due date across every milestone matching a set of projects (+ optional type)
+router.put('/bulk-due-date', verifyToken, bulkUpdateMilestoneDueDates)
+// PUT /api/milestones/:id — coordinator/faculty_admin/administrative_secretary/system_admin adjusts a milestone's due date
 router.put('/:id', verifyToken, updateMilestoneByCoordinator)
 
 

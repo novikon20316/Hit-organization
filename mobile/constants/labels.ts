@@ -1,12 +1,7 @@
 
-export const ROLE_LABELS: Record<string, { he: string; en: string }> = {
-  student: { he: 'סטודנט', en: 'Student' },
-  supervisor: { he: 'מנחה', en: 'Supervisor' },
-  examiner: { he: 'בוחן', en: 'Examiner' },
-  coordinator: { he: 'רכז', en: 'Coordinator' },
-  faculty_admin: { he: 'מנהל פקולטה', en: 'Faculty Admin' },
-  system_admin: { he: 'מנהל מערכת', en: 'System Admin' },
-};
+// Canonical, complete role label map — re-exported so every existing importer
+// of ROLE_LABELS picks up all 10 real roles instead of a stale 6-entry subset.
+export { ROLE_LABELS } from '../components/i18n';
 
 export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר', en: 'Research Proposal' },

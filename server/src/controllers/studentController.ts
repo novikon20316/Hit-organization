@@ -6,9 +6,23 @@ import { db } from '../config/firebase.js';
 // Mirrors the taxonomy used elsewhere this session (firestore.rules'
 // isStaffRole, projectController.ts's STAFF_ROLES) — kept in sync.
 const STAFF_ROLES = [
-  'supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator',
+  'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
   'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
 ];
+
+// Static resource — same template for every masters-thesis student, so it's
+// a hardcoded Cloudinary URL rather than a Firestore-backed upload flow.
+const THESIS_TEMPLATE_URL =
+  'https://res.cloudinary.com/dp7stlfas/raw/upload/v1783850174/thesis-templates/HIT_Masters_Thesis_Template.dotx';
+const THESIS_TEMPLATE_FILENAME = 'HIT_Masters_Template.dotx';
+
+export const getThesisTemplate = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  return res.status(200).json({
+    url: THESIS_TEMPLATE_URL,
+    fileName: THESIS_TEMPLATE_FILENAME,
+  });
+};
 
 export const getStudentProject = async (req: AuthenticatedRequest, res: Response) => {
   try {

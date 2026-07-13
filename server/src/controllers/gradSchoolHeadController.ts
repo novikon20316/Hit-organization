@@ -10,6 +10,7 @@
 // mobile/app/grad_school_head/grad_school_head_dashboard.tsx's DashboardData
 // interface — field names here must match it exactly.
 
+import admin from 'firebase-admin';
 import { Response } from 'express';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
@@ -20,14 +21,17 @@ import {
   urgencyFromAge,
   MilestoneDoc,
 } from '../services/studentProgress.js';
+import { transferGradeToMichlol } from '../services/gradeEngine.js';
+import { logAuditEvent } from '../services/auditLog.js';
 
 const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
 
 // Of the 6 pendingApprovals types the frontend supports (supervisor, proposal,
-// thesis, examiners, final_grade, template), only 'examiners' and 'template'
-// have a real backing collection/status today — see project_faculty_taxonomy-
-// adjacent research this session. The other 4 always come back empty; no
-// schema/status exists for them yet, so nothing is invented here.
+// thesis, examiners, final_grade, template), 'examiners', 'template', and now
+// 'final_grade' (computed final grade on a defense milestone awaiting this
+// role's sign-off — see the gradeApproved field and approveFinalGrade below)
+// have real backing data. 'supervisor', 'proposal', and 'thesis' still have
+// no schema/status of their own; nothing is invented for those here.
 
 export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
@@ -225,6 +229,27 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
           urgency: urgencyFromAge(data.createdAt),
         };
       }),
+      // A computed final grade (see submitMilestoneGrade → computeWeightedFinalGrade)
+      // on a defense milestone, awaiting this role's approval before it can be
+      // transferred to Michlol — see approveFinalGrade below.
+      ...Object.entries(milestonesByProject).flatMap(([projectId, milestones]) => {
+        const defenseMilestone = milestones.find((m) => m.type === 'defense');
+        if (!defenseMilestone) return [];
+        if (defenseMilestone.finalGrade == null || defenseMilestone.gradeApproved) return [];
+        const project = projectsById[projectId];
+        const studentName = (project?.enrolledStudentIds ?? [])
+          .map((sid: string) => usersById[sid] ?? 'Unknown')
+          .join(', ') || 'Unknown';
+        return [{
+          id: defenseMilestone.id,
+          type: 'final_grade' as const,
+          studentName,
+          facultyId: project?.facultyId ?? '',
+          title: `${project?.titleHe || project?.titleEn || ''} — ${defenseMilestone.finalGrade}`,
+          submittedAt: defenseMilestone.gradedAt?.toDate?.()?.toISOString?.() ?? '',
+          urgency: urgencyFromAge(defenseMilestone.gradedAt),
+        }];
+      }),
     ];
 
     return res.status(200).json({
@@ -243,5 +268,96 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
   } catch (error: any) {
     console.error('getGradSchoolHeadDashboard error:', error);
     return res.status(500).json({ message: 'Failed to load grad school head dashboard.' });
+  }
+};
+
+/**
+ * POST /api/grad-school-head/milestones/:id/approve-grade
+ * Grad-school-head sign-off on a computed final grade for a thesis defense
+ * milestone — previously entirely unimplemented (see the comment at the top
+ * of this file). On success, stubs the transfer to Michlol (no live
+ * integration exists yet — see services/gradeEngine.ts) and notifies the
+ * student(s) whose grade was approved.
+ */
+export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to approve grades.' });
+  }
+
+  const { id: milestoneId } = req.params;
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: 'Invalid milestoneId.' });
+  }
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+
+    const milestone = milestoneSnap.data()!;
+    if (milestone.type !== 'defense') {
+      return res.status(400).json({ message: 'Only defense/final-grade milestones can be approved here.' });
+    }
+    if (milestone.finalGrade == null) {
+      return res.status(400).json({ message: 'No final grade has been computed for this milestone yet.' });
+    }
+    if (milestone.gradeApproved) {
+      return res.status(400).json({ message: 'This grade has already been approved.' });
+    }
+
+    await milestoneRef.update({
+      gradeApproved: true,
+      gradeApprovedBy: uid,
+      gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user.role,
+      action: 'final_grade_approved',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { gradeApproved: false },
+      newValue: { gradeApproved: true, finalGrade: milestone.finalGrade },
+    });
+
+    const studentIds: string[] = milestone.studentIds ?? [];
+    const transfer = await transferGradeToMichlol({
+      milestoneId,
+      projectId: milestone.projectId ?? '',
+      studentIds,
+      finalGrade: milestone.finalGrade,
+    });
+
+    await milestoneRef.update({
+      michlolTransferStatus: transfer.transferred ? 'transferred' : 'failed',
+      michlolTransferredAt: transfer.transferredAt,
+    });
+
+    try {
+      await Promise.all(studentIds.map((studentId) =>
+        db.collection('notifications').add({
+          recipientId: studentId,
+          type: 'final_grade_approved',
+          titleHe: '🎓 הציון הסופי אושר',
+          titleEn: '🎓 Final Grade Approved',
+          bodyHe: `הציון הסופי שלך (${milestone.finalGrade}) אושר על ידי ראש בית הספר ללימודי מוסמכים והועבר למכלול.`,
+          bodyEn: `Your final grade (${milestone.finalGrade}) has been approved by the grad school head and transferred to Michlol.`,
+          isRead: false,
+          relatedProjectId: milestone.projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      ));
+    } catch (notifyErr) {
+      console.error(`approveFinalGrade: failed to notify students for milestone ${milestoneId}:`, notifyErr);
+    }
+
+    return res.status(200).json({ success: true, message: 'Final grade approved and transferred to Michlol.' });
+  } catch (error: any) {
+    console.error('approveFinalGrade error:', error);
+    return res.status(500).json({ message: 'Failed to approve final grade.' });
   }
 };

@@ -5,6 +5,8 @@ import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount } from '../services/accountDeletion.js';
+import { VALID_ROLES } from '../services/userImportExport.js';
+import { logAuditEvent } from '../services/auditLog.js';
 
 const db = admin.firestore();
 
@@ -231,9 +233,17 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
   }
 
   const { id: userId } = req.params;
-  const { role } = req.body;
+  const { role, roles } = req.body;
 
   if (!role) return res.status(400).json({ message: 'Missing role parameter.' });
+  if (!VALID_ROLES.includes(role)) {
+    return res.status(400).json({ message: `Invalid role: ${role}` });
+  }
+  if (roles !== undefined) {
+    if (!Array.isArray(roles) || !roles.every((r: string) => VALID_ROLES.includes(r))) {
+      return res.status(400).json({ message: 'Invalid roles array.' });
+    }
+  }
   if(!userId || typeof userId !== 'string'){
     return res.status(500).json({
         success:false,
@@ -241,9 +251,28 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
     })
   }
   try {
-    await db.collection('users').doc(userId).update({ 
+    const beforeSnap = await db.collection('users').doc(userId).get();
+    const before = beforeSnap.data();
+
+    await db.collection('users').doc(userId).update({
       role: role,
+      // Additional roles (e.g. secondary_supervisor on top of supervisor) —
+      // previously collected by the Edit User modal but silently dropped here.
+      roles: Array.isArray(roles) ? roles : admin.firestore.FieldValue.delete(),
       updatedAt: new Date().toISOString()
+    });
+
+    // Privilege changes are exactly the kind of action this app's prior
+    // security audits have flagged as needing a trail — log after the write
+    // commits so a logging failure can never block the role change itself.
+    await logAuditEvent({
+      userId: req.user!.uid,
+      userRole: req.user!.role,
+      action: 'role_changed',
+      entityType: 'user',
+      entityId: userId,
+      oldValue: { role: before?.role ?? null, roles: before?.roles ?? [] },
+      newValue: { role, roles: Array.isArray(roles) ? roles : [] },
     });
 
     return res.status(200).json({ success: true, message: `User role updated to ${role}.` });

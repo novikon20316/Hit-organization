@@ -102,9 +102,8 @@ export default function ExaminerHome() {
  
   // ── Helpers (unchanged) ─────────────────────────────────────────────────
   const alreadyGraded = (m: AssignedMilestone): boolean => {
-    const myIndex = m.examinerIds[0] === uid ? 0 : 1;
-    const myGrading = (m as any).examinerGrading?.[uid ?? ''];
-    return !!myGrading?.gradedAt;
+    const isExaminer1 = m.examinerIds[0] === uid;
+    return isExaminer1 ? m.examiner1Score !== null : m.examiner2Score !== null;
   };
 
   function isBeforeDefense(defenseDate: string | null): boolean {
@@ -183,65 +182,24 @@ export default function ExaminerHome() {
       }
     }
  
-    const score       = totalScore();
-    const isExaminer1 = selected.examinerIds[0] === uid;
+    const score = totalScore();
     try {
       setSubmitting(true);
-      
-      // 🚀 Send the raw data to the server to handle the secure database writes
-      await apiClient.post(`/api/examiner/milestones/${selected.id}/grade`, {
+
+      // Goes through the shared grading endpoint (the same one the
+      // supervisor UI uses) — the examiner's own rubric doesn't share field
+      // names with the supervisor's, so this sends only the already-computed
+      // total, no criteria breakdown.
+      await apiClient.post(`/api/projects/milestones/${selected.id}/grade`, {
         projectId: selected.projectId,
-        Totalscores: score,
-        totalScore: totalScore(),
+        givenScore: score,
         comments,
-        criteria: GRADING_CRITERIA
       });
 
       Alert.alert(
-        lang === 'he' ? '✅ הצלחה' : '✅ Success', 
+        lang === 'he' ? '✅ הצלחה' : '✅ Success',
         lang === 'he' ? 'הציון נשמר בהצלחה' : 'Grade submitted successfully'
       );
-      /*
-      const otherScore = isExaminer1 ? selected.examiner2Score : selected.examiner1Score;
-      const bothGraded = otherScore !== null;
- 
-      const milestoneUpdate: Record<string, any> = {
-        [isExaminer1 ? 'examiner1Score'       : 'examiner2Score']:       score,
-        [isExaminer1 ? 'examiner1GradeId'     : 'examiner2GradeId']:     gradeRef.id,
-        [isExaminer1 ? 'examiner1SubmittedAt' : 'examiner2SubmittedAt']: serverTimestamp(),
-      };
- 
-      if (bothGraded && selected.gradeWeights && selected.supervisorScore !== null) {
-        const e1Score = isExaminer1 ? score : (selected.examiner1Score ?? score);
-        const e2Score = isExaminer1 ? (selected.examiner2Score ?? score) : score;
-        const finalGrade = calculateFinalGrade({
-          supervisorScore: selected.supervisorScore,
-          examiner1Score:  e1Score,
-          examiner2Score:  e2Score,
-          weights:         selected.gradeWeights,
-        });
-        milestoneUpdate.status     = 'both_examiners_graded';
-        milestoneUpdate.finalGrade = finalGrade;
- 
-        for (const studentId of selected.studentIds) {
-          await addDoc(collection(db, 'notifications'), {
-            recipientId: studentId,
-            type:        'final_grade_ready',
-            titleHe:     '🎓 ציון סופי זמין',
-            titleEn:     '🎓 Final Grade Ready',
-            bodyHe:      `הציון הסופי שלך הוא: ${finalGrade}`,
-            bodyEn:      `Your final grade is: ${finalGrade}`,
-            relatedProjectId:   selected.projectId,
-            relatedMilestoneId: selected.id,
-            isRead:      false,
-            createdAt:   serverTimestamp(),
-          });
-        }
-      } else {
-        milestoneUpdate.status = 'examiner_graded';
-      }
- 
-      await updateDoc(doc(db, 'milestones', selected.id), milestoneUpdate);*/
       setGradeModal(false);
       await fetchDashboardData();
     } catch (e) {

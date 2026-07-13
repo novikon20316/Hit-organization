@@ -42,7 +42,7 @@ const CANONICAL_VALUES = new Set([
 // Roles that should always end up with facultyId 'all' — mirrors
 // CROSS_FACULTY_ROLES in mobile/firebase/roles.ts.
 const CROSS_FACULTY_ROLES = new Set([
-  'system_admin', 'project_coordinator', 'grad_school_head', 'internal_examiner',
+  'system_admin', 'administrative_secretary', 'grad_school_head', 'internal_examiner',
 ]);
 
 interface CollectionPlan {

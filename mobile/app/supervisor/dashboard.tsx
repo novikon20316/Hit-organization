@@ -30,7 +30,7 @@ import {
 
 interface PendingMilestone {
   id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
-  type: string; status: string; studentNames: string[]; dueDate: any; submittedAt: any;
+  type: string; status: string; studentNames: string[]; studentIds: string[]; dueDate: any; submittedAt: any;
   fileUrls: string[]; submissionNote: string; facultyId: string;
 }
 
@@ -96,6 +96,9 @@ export default function SupervisorHome() {
     clarity: '', methodology: '', feasibility: '', innovation: '', writing: '',
   });
   const [gradeComment, setGradeComment] = useState('');
+  // Group projects only: per-student personal component (e.g. individual oral-exam
+  // impression), entered alongside the shared group score — keyed by studentId.
+  const [individualScores, setIndividualScores] = useState<Record<string, string>>({});
 
   // ── Edit project modal ────────────────────────────────────────────────────
   const [projectModal,    setProjectModal]    = useState(false);
@@ -365,6 +368,7 @@ export default function SupervisorHome() {
             type:           data.type           ?? '',
             status:         data.status         ?? '',
             studentNames,
+            studentIds,
             fileUrls:       data.fileUrls       ?? [],
             submissionNote: data.submissionNote ?? '',
             facultyId:      data.facultyId      ?? '',
@@ -478,6 +482,18 @@ export default function SupervisorHome() {
           writing: Number(criteria.writing) || 0,
         },
       });
+      // Group projects: layer each student's individual component on top of the
+      // shared group score just submitted above (see submitIndividualGrade).
+      const groupStudentIds = (activeMilestone as PendingMilestone).studentIds ?? [];
+      for (const sid of groupStudentIds) {
+        const raw = individualScores[sid];
+        if (raw === undefined || raw.trim() === '') continue;
+        await apiClient.post(`/api/projects/milestones/${activeMilestone.id}/individual-grade`, {
+          studentId: sid,
+          score: Number(raw),
+        });
+      }
+
       if (res.status === 200 || res.status === 201 || res.data?.success) {
         Alert.alert(lang === 'he' ? 'הצלחה' : 'Success', lang === 'he' ? 'הציון נשמר!' : 'Grade submitted!');
         setGradeModal(false);
@@ -485,6 +501,7 @@ export default function SupervisorHome() {
       }
       setGradeModal(false);
       setGradeComment('');
+      setIndividualScores({});
       fetchDashboardData(); // refresh grading list from API
     } catch (error: any) {
       console.error("❌ Network or Execution catch block error:", error);
@@ -861,6 +878,30 @@ export default function SupervisorHome() {
                           ) : null}
                         </View>
 
+                        {/* AI CV-vs-prerequisites screening */}
+                        {app.aiScreening && (
+                          <View style={[
+                            styles.coverNote,
+                            {
+                              backgroundColor: app.aiScreening.verdict === 'strong_fit' ? '#ECFDF5'
+                                : app.aiScreening.verdict === 'partial_fit' ? '#FFFBEB'
+                                : app.aiScreening.verdict === 'weak_fit' ? '#FEF2F2'
+                                : '#F1F5F9',
+                            },
+                          ]}>
+                            <Text style={[styles.cardMeta, isRtl && styles.textRight, { fontWeight: '700', marginBottom: 4 }]}>
+                              🤖 {lang === 'he' ? 'התאמת קורות חיים לדרישות:' : 'CV-vs-prerequisites fit:'}{' '}
+                              {app.aiScreening.verdict === 'strong_fit' ? (lang === 'he' ? 'התאמה גבוהה' : 'Strong fit')
+                                : app.aiScreening.verdict === 'partial_fit' ? (lang === 'he' ? 'התאמה חלקית' : 'Partial fit')
+                                : app.aiScreening.verdict === 'weak_fit' ? (lang === 'he' ? 'התאמה חלשה' : 'Weak fit')
+                                : (lang === 'he' ? 'לא ניתן להעריך' : 'Unable to assess')}
+                            </Text>
+                            <Text style={[styles.coverNoteText, isRtl && styles.textRight]}>
+                              {app.aiScreening.reasoning}
+                            </Text>
+                          </View>
+                        )}
+
                         {/* Decision buttons */}
                         <View style={[styles.decisionRow, isRtl && styles.rowReverse]}>
                           <Pressable
@@ -1003,6 +1044,7 @@ export default function SupervisorHome() {
                             setActiveMilestone(m);
                             setGradeComment('');
                             setCriteria({ clarity: '', methodology: '', feasibility: '', innovation: '', writing: '' });
+                            setIndividualScores({});
                             setGradeMilestone(m);
                             setGradeModal(true);
                           }}
@@ -1161,6 +1203,31 @@ export default function SupervisorHome() {
                 />
               </View>
             ))}
+
+            {/* Group projects only: personal component per student, on top of the
+                shared group score above — final grades can differ within the group. */}
+            {gradeMilestone && gradeMilestone.studentIds.length > 1 && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                  {lang === 'he' ? 'ציון אישי (לצד הציון הקבוצתי)' : 'Individual grade (on top of the group score)'}
+                </Text>
+                {gradeMilestone.studentIds.map((sid, idx) => (
+                  <View key={sid} style={{ marginBottom: 8 }}>
+                    <Text style={[styles.gradeStudents, isRtl && styles.textRight]}>
+                      👤 {gradeMilestone.studentNames[idx] ?? sid}
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      placeholder={lang === 'he' ? 'ציון אישי 0–100 (אופציונלי)' : 'Individual score 0–100 (optional)'}
+                      placeholderTextColor="#9BA8C0"
+                      value={individualScores[sid] ?? ''}
+                      onChangeText={(v) => setIndividualScores({ ...individualScores, [sid]: v })}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
 
             <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
               {lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}

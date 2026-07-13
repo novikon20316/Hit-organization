@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  Modal, TextInput, ActivityIndicator,
+  Modal, TextInput, ActivityIndicator, Linking,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
@@ -66,6 +66,27 @@ export default function ActiveDashboard({
   const [expandedGrades,   setExpandedGrades]   = useState<Record<string, boolean>>({});
   const [loadingDetail, setLoadingDetail] = useState<Record<string, boolean>>({});
   const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+
+  // Only masters students writing an actual thesis (not a masters project) see
+  // the thesis template download — driven off the project doc's own
+  // degreeType/projectType rather than a separately-threaded student profile
+  // field, since both are already present on `project`.
+  const isMastersThesis = project.degreeType === 'masters' && project.projectType === 'thesis';
+
+  const handleDownloadThesisTemplate = async () => {
+    try {
+      setDownloadingTemplate(true);
+      const res = await apiClient.get('/api/student/thesis-template');
+      const url = res.data?.url;
+      if (url) await Linking.openURL(url);
+    } catch (e) {
+      console.error('Failed to open thesis template:', e);
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
   // ─── Milestone unlock logic ────────────────────────────────────────────────
   // A milestone is "unlocked" (ready to interact with) when all previous ones
   // have status === 'coordinator_approved' OR 'completed'.
@@ -417,6 +438,33 @@ export default function ActiveDashboard({
                 {lang === 'he' ? project.descriptionHe : project.descriptionEn}
               </Text>
             </View>
+
+            {/* Thesis template — masters-thesis students only */}
+            {isMastersThesis && (
+              <View style={styles.descCard}>
+                <Text style={[styles.descTitle, isRtl && styles.textRight]}>
+                  📄 {lang === 'he' ? 'תבנית לתזה' : 'Thesis Template'}
+                </Text>
+                <Text style={[styles.descBody, isRtl && styles.textRight]}>
+                  {lang === 'he'
+                    ? 'תבנית ה-Word הרשמית לכתיבת עבודת התזה שלך.'
+                    : 'The official Word template for writing your thesis.'}
+                </Text>
+                <Pressable
+                  style={[thesisTemplateStyles.downloadBtn, downloadingTemplate && { opacity: 0.6 }]}
+                  onPress={handleDownloadThesisTemplate}
+                  disabled={downloadingTemplate}
+                >
+                  {downloadingTemplate
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : (
+                      <Text style={thesisTemplateStyles.downloadBtnText}>
+                        ⬇ {lang === 'he' ? 'הורדת התבנית' : 'Download Template'}
+                      </Text>
+                    )}
+                </Pressable>
+              </View>
+            )}
           </>
         )}
 
@@ -892,6 +940,21 @@ export default function ActiveDashboard({
 }
 
 const styles = ActivateDashboardStyles;
+
+const thesisTemplateStyles = StyleSheet.create({
+  downloadBtn: {
+    marginTop:       12,
+    backgroundColor: '#2E86FF',
+    borderRadius:    10,
+    paddingVertical: 12,
+    alignItems:      'center',
+  },
+  downloadBtnText: {
+    color:      '#fff',
+    fontWeight: '700',
+    fontSize:   14,
+  },
+});
 
 const breakdownStyles = StyleSheet.create({
   container: {

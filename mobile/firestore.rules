@@ -27,7 +27,7 @@ service cloud.firestore {
       return u.get('facultyId', '');
     }
     function isStaffRole(u) {
-      return role(u) in ['supervisor', 'secondary_supervisor', 'coordinator', 'project_coordinator', 'program_head', 'internal_examiner',
+      return role(u) in ['supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary', 'program_head', 'internal_examiner',
                          'faculty_admin', 'grad_school_head', 'system_admin'];
     }
     // Roles with cross-faculty (or "all") access
@@ -38,7 +38,7 @@ service cloud.firestore {
     // Roles that manage a single faculty
     function isFacultyManager(u) {
       return role(u) in [
-        'coordinator', 'faculty_admin', 'program_head', 'project_coordinator'
+        'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary'
       ];
     }
 
@@ -77,9 +77,9 @@ service cloud.firestore {
         isStaffRole(userDoc())
       );
       allow create: if isSignedIn() &&
-        role(userDoc()) in ['supervisor', 'faculty_admin', 'system_admin', 'program_head', 'project_coordinator'];
+        role(userDoc()) in ['supervisor', 'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary'];
       allow update: if isSignedIn() &&
-        role(userDoc()) in ['supervisor', 'coordinator', 'faculty_admin', 'system_admin', 'program_head', 'project_coordinator'];
+        role(userDoc()) in ['supervisor', 'coordinator', 'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary'];
       allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
     }
 
@@ -105,7 +105,7 @@ service cloud.firestore {
         resource.data.get('secondarySupervisorId', '') == request.auth.uid ||
         request.auth.uid in resource.data.get('examinerIds', []) ||
         // Role check (1 get() call) — for coordinators/admins
-        role(userDoc()) in ['system_admin', 'coordinator', 'faculty_admin', 'program_head', 'project_coordinator', 'grad_school_head',
+        role(userDoc()) in ['system_admin', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head',
           'internal_examiner']
       );
       allow create: if isSignedIn() && isStaffRole(userDoc());
@@ -114,7 +114,7 @@ service cloud.firestore {
         request.auth.uid in resource.data.get('studentIds', []) ||
         // Role check (1 get() call)
         role(userDoc()) in ['supervisor', 'secondary_supervisor', 'coordinator', 'internal_examiner',
-                            'faculty_admin', 'system_admin', 'program_head', 'project_coordinator', 'grad_school_head']
+                            'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary', 'grad_school_head']
       );
     }
 
@@ -124,7 +124,7 @@ service cloud.firestore {
         resource.data.graderId == request.auth.uid ||
         resource.data.studentId == request.auth.uid ||
         role(userDoc()) in ['coordinator', 'faculty_admin', 'program_head',
-          'project_coordinator', 'grad_school_head', 'system_admin']
+          'administrative_secretary', 'grad_school_head', 'system_admin']
       );
       allow create: if isSignedIn() &&
         role(userDoc()) in ['supervisor', 'internal_examiner', 'system_admin'];
@@ -146,14 +146,14 @@ service cloud.firestore {
 			allow create: if isSignedIn() && (
       	role(userDoc()) in [
           'coordinator', 'faculty_admin', 'program_head',
-          'project_coordinator', 'system_admin'
+          'administrative_secretary', 'system_admin'
         ]
       );
       allow update: if isSignedIn() && (
       	resource.data.studentId == request.auth.uid ||
         role(userDoc()) in [
           'coordinator', 'faculty_admin', 'program_head',
-          'project_coordinator', 'grad_school_head', 'system_admin'
+          'administrative_secretary', 'grad_school_head', 'system_admin'
         ]
       );
       allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
@@ -166,26 +166,37 @@ service cloud.firestore {
       );
 			allow create: if isSignedIn() &&
         role(userDoc()) in [
-          'faculty_admin', 'program_head', 'project_coordinator', 'system_admin'
+          'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'
         ];
 			allow update: if isSignedIn() &&
         role(userDoc()) in [
-          'faculty_admin', 'program_head', 'project_coordinator',
+          'faculty_admin', 'program_head', 'administrative_secretary',
           'grad_school_head', 'system_admin'
         ];
 			allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
     }
     // ─────────────────────────────────────────────────────────────────────────
     match /examinerTokens/{token} {
-    	// Get-by-known-token is intentionally public (the token itself is the secret —
-    	// external examiners have no Firebase account). List must stay denied, or
+    	// Get-by-known-token used to be unconditionally public (the token itself
+    	// was the only secret). Now requires the second-factor email code to
+    	// have been verified first (see server/src/services/examinerAccess.ts's
+    	// requestExaminerOtp/verifyExaminerOtp, called from the public
+    	// /api/examiner-access/:token/request-otp and /verify-otp endpoints) —
+    	// link possession alone no longer reveals the document's contents.
+    	// Staff can still always read directly. List must stay denied, or
     	// anyone could enumerate every issued token with an unfiltered collection scan.
-    	allow get: if true;
+    	allow get: if resource.data.otpVerified == true ||
+        (isSignedIn() &&
+          role(userDoc()) in [
+            'coordinator', 'faculty_admin', 'program_head',
+            'administrative_secretary', 'grad_school_head', 'system_admin'
+          ]
+        );
     	allow list: if false;
     	allow create: if isSignedIn() &&
         role(userDoc()) in [
           'coordinator', 'faculty_admin', 'program_head',
-          'project_coordinator', 'system_admin'
+          'administrative_secretary', 'system_admin'
         ];
       // Was `... || true` — that trailing clause made this unconditionally
       // permit ANY update, by ANYONE, unauthenticated, to ANY field on ANY
@@ -199,14 +210,19 @@ service cloud.firestore {
       // functions actually use (status/acceptedAt/declinedAt/declineReason/
       // submittedAt/opinion/accessLog, and only forward status transitions),
       // never touching thesisUrl/studentId/examinerEmail/expiresAt/etc.
+      // The anonymous branch additionally requires otpVerified == true —
+      // the request-otp/verify-otp endpoints (server, admin SDK) are the
+      // only way to flip that field, so an anonymous writer must have
+      // already passed the second factor before touching anything here.
       allow update: if
         (isSignedIn() &&
           role(userDoc()) in [
             'coordinator', 'faculty_admin', 'program_head',
-            'project_coordinator', 'grad_school_head', 'system_admin'
+            'administrative_secretary', 'grad_school_head', 'system_admin'
           ]
         ) ||
         (
+          resource.data.otpVerified == true &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
             ['status', 'acceptedAt', 'declinedAt', 'declineReason', 'submittedAt', 'opinion', 'accessLog']
           ) &&
@@ -220,12 +236,12 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         role(userDoc()) in [
           'coordinator', 'faculty_admin', 'program_head',
-          'project_coordinator', 'grad_school_head', 'system_admin'
+          'administrative_secretary', 'grad_school_head', 'system_admin'
         ];
       allow update: if isSignedIn() &&
         role(userDoc()) in [
           'coordinator', 'faculty_admin', 'program_head',
-          'project_coordinator', 'grad_school_head', 'system_admin'
+          'administrative_secretary', 'grad_school_head', 'system_admin'
         ];
       allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
 
@@ -274,6 +290,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Permanent feedback chat (see server/src/controllers/feedbackController.ts).
+    // Server-mediated only — every operation (submit, AI classification,
+    // erase-if-noise, admin review, resolve) goes through the Express API via
+    // the Admin SDK, which bypasses rules entirely, so denying all client
+    // access here doesn't break the feature; it just stops a signed-in client
+    // from reading/writing another user's feedback (or a not-yet-classified
+    // message) directly.
+    match /feedbackMessages/{feedbackId} {
+      allow read, write: if false;
+    }
+
 
     // ─── Chats ───────────────────────────────────────────────────────────────
     match /chats/{chatId} {
@@ -308,7 +335,7 @@ service cloud.firestore {
         return (
           me.role == 'system_admin'
           || me.role in ['coordinator', 'faculty_admin', 'program_head',
-                         'project_coordinator', 'grad_school_head']
+                         'administrative_secretary', 'grad_school_head']
           || (me.role == 'faculty_admin' && other.facultyId == me.facultyId)
           || (me.role in ['supervisor', 'secondary_supervisor']
               && other.role == 'student'

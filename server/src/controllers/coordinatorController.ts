@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { assignExaminersAndNotify, ExaminerAssignmentInput } from '../services/examinerAccess.js';
+import { logAuditEvent } from '../services/auditLog.js';
 import {
   initDefenseScheduling,
   resolveKeepExaminers,
@@ -74,7 +75,7 @@ interface ProjectDocument {
 // resolution) — same role set already used by assignDefense below. None of these
 // checked role at all before; any authenticated user (including a student) could
 // reach them with just a valid login token.
-const COORDINATOR_ROLES = ['coordinator', 'project_coordinator', 'system_admin'];
+const COORDINATOR_ROLES = ['coordinator', 'administrative_secretary', 'system_admin'];
 
 /**
  * POST /api/coordinator/projects/:projectId/assign-examiners
@@ -470,6 +471,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
 
+  let previousStatus: string | undefined;
   try {
     await db.runTransaction(async (transaction) => {
       const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -481,6 +483,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
 
       const milestone = milestoneSnap.data()!;
       const { projectId, supervisorId } = milestone;
+      previousStatus = milestone.status;
 
       // Resolve student IDs — stored as array on milestones
       const studentIds: string[] = milestone.studentIds ?? [];
@@ -529,6 +532,16 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
       }
     });
 
+    await logAuditEvent({
+      userId: coordinatorId,
+      userRole: req.user?.role ?? 'coordinator',
+      action: 'milestone_approved',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { status: previousStatus ?? null },
+      newValue: { status: 'coordinator_approved' },
+    });
+
     return res.status(200).json({ success: true, message: 'Milestone approved by coordinator.' });
   } catch (error: any) {
     console.error('coordinatorApproveMilestone error:', error);
@@ -561,6 +574,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
     return res.status(400).json({ message: 'A rejection reason is required.' });
   }
 
+  let previousStatus: string | undefined;
   try {
     await db.runTransaction(async (transaction) => {
       const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -573,6 +587,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
       const milestone = milestoneSnap.data()!;
       const { projectId, supervisorId } = milestone;
       const studentIds: string[] = milestone.studentIds ?? [];
+      previousStatus = milestone.status;
 
       // 1. Revert milestone to pending so it can be resubmitted
       transaction.update(milestoneRef, {
@@ -619,6 +634,17 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
       }
     });
 
+    await logAuditEvent({
+      userId: coordinatorId,
+      userRole: req.user?.role ?? 'coordinator',
+      action: 'milestone_rejected',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { status: previousStatus ?? null },
+      newValue: { status: 'rejected' },
+      explanation: reason,
+    });
+
     return res.status(200).json({ success: true, message: 'Milestone rejected.' });
   } catch (error: any) {
     console.error('coordinatorRejectMilestone error:', error);
@@ -634,7 +660,7 @@ export const DEFENSE_ALLOWED_BUILDINGS = ['1', '2', '3', '4', '5', '6', '7', '8'
 /**
  * POST /api/coordinator/projects/:projectId/assign-defense
  * (also mounted at /api/project-coordinator/... and /api/admin/... for the
- * project_coordinator and system_admin roles — same handler, same rules)
+ * administrative_secretary and system_admin roles — same handler, same rules)
  * Sets time/room/building for a defense whose DATE has already been locked
  * in by the examiner date-matching flow (services/defenseScheduling.ts) —
  * the coordinator no longer picks the date here, only the logistics.

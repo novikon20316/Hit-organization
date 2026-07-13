@@ -16,6 +16,7 @@
  */
 
 import type { Timestamp } from 'firebase/firestore';
+import type { AppRole } from '../components/i18n';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. PRIMITIVES & ENUMS
@@ -30,18 +31,10 @@ export type ProjectType = 'project' | 'thesis';
 /**
  * All roles a user can hold.
  * A user has one primary `role` and an optional `roles[]` array for additional
- * roles (e.g. a supervisor who is also a committee_member).
+ * roles (e.g. a supervisor who is also an internal_examiner).
+ * Canonical source: AppRole in components/i18n.ts.
  */
-export type UserRole =
-  | 'student'
-  | 'supervisor'
-  | 'examiner'
-  | 'coordinator'
-  | 'faculty_admin'
-  | 'system_admin'
-  | 'head_of_masters'
-  | 'head_of_bachelors'
-  | 'committee_member';
+export type UserRole = AppRole;
 
 /**
  * All possible statuses a milestone can pass through.
@@ -206,6 +199,8 @@ export interface ProjectDocument {
   enrolledStudentIds: string[];
   maxStudents: number;
   skills?: string;
+  requiredSkills?: string[];
+  prerequisites?: string[];
   program?: string | null;
   gradingCriteria?: GradingCriterion[];
   projectInfoFileUrl?: string | null;
@@ -608,6 +603,8 @@ export interface ActiveProject {
   academicYear:  string;
   semesterStart: string | null;
   status:        string;
+  degreeType?:   string;  // 'bachelors' | 'masters' | 'both'
+  projectType?:  string;  // 'project' | 'thesis'
 }
 
 export interface Milestone {
@@ -664,4 +661,9 @@ export interface Application {
   studentId: string; studentName: string; studentEmail: string;
   transcriptUrl: string; cvUrl: string; coverNote: string;
   status: string; submittedAt: any; degreeType: string;
+  aiScreening?: {
+    verdict: 'strong_fit' | 'partial_fit' | 'weak_fit' | 'unable_to_assess';
+    reasoning: string;
+    generatedAt: string;
+  };
 }

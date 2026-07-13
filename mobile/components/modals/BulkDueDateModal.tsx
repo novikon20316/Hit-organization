@@ -1,0 +1,251 @@
+// components/modals/BulkDueDateModal.tsx
+//
+// Lets coordinator / administrative_secretary / system_admin shift one due
+// date across many projects' milestones at once — for faculty-wide delays
+// (holidays, illness, war, etc.) instead of adjusting one milestone at a
+// time. Calls PUT /api/milestones/bulk-due-date (see bulkUpdateMilestoneDueDates
+// in server/src/controllers/milestoneController.ts).
+
+import React, { useState } from 'react';
+import {
+  Modal, View, Text, ScrollView, Pressable,
+  TextInput, ActivityIndicator, Alert, StyleSheet,
+} from 'react-native';
+import { apiClient } from '../../src/api/apiClient';
+import type { Lang } from '../i18n';
+
+const MILESTONE_TYPE_OPTIONS: Array<{ value: string; he: string; en: string }> = [
+  { value: '',                 he: 'כל אבני הדרך',    en: 'All milestone types' },
+  { value: 'research_proposal', he: 'הצעת מחקר',       en: 'Research Proposal' },
+  { value: 'progress_report',   he: 'דו"ח התקדמות',    en: 'Progress Report' },
+  { value: 'final_report',      he: 'דו"ח מסכם',       en: 'Final Report' },
+  { value: 'defense',           he: 'הגנה',            en: 'Defense' },
+];
+
+export interface BulkDueDateProjectOption {
+  id: string;
+  label: string;
+}
+
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  lang: Lang;
+  projects: BulkDueDateProjectOption[];
+  onSaved?: () => void;
+}
+
+export default function BulkDueDateModal({ visible, onClose, lang, projects, onSaved }: Props) {
+  const isRtl = lang === 'he';
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [milestoneType, setMilestoneType] = useState('');
+  const [dueDateText, setDueDateText] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => {
+    setSelectedIds([]);
+    setMilestoneType('');
+    setDueDateText('');
+    setReason('');
+  };
+
+  const handleClose = () => { reset(); onClose(); };
+
+  const toggleProject = (id: string) => {
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const handleSubmit = async () => {
+    if (selectedIds.length === 0) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש לבחור לפחות פרויקט אחד' : 'Select at least one project',
+      );
+      return;
+    }
+    const parsed = new Date(dueDateText.trim());
+    if (!dueDateText.trim() || isNaN(parsed.getTime())) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש להזין תאריך יעד תקין' : 'Enter a valid due date',
+      );
+      return;
+    }
+    if (!reason.trim()) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש לציין סיבה לשינוי' : 'A reason for the change is required',
+      );
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await apiClient.put('/api/milestones/bulk-due-date', {
+        projectIds: selectedIds,
+        milestoneType: milestoneType || undefined,
+        dueDate: parsed.toISOString(),
+        reason: reason.trim(),
+      });
+      Alert.alert(
+        '✅',
+        lang === 'he'
+          ? `${res.data.updatedCount ?? ''} אבני דרך עודכנו בהצלחה`
+          : `${res.data.updatedCount ?? ''} milestone(s) updated successfully`,
+      );
+      onSaved?.();
+      handleClose();
+    } catch (e: any) {
+      Alert.alert('Error', e.response?.data?.message || (lang === 'he' ? 'העדכון נכשל' : 'Update failed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <ScrollView style={s.root} contentContainerStyle={s.content}>
+        <Text style={[s.title, isRtl && s.textRight]}>
+          📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Due-Date Update'}
+        </Text>
+        <Text style={[s.subtitle, isRtl && s.textRight]}>
+          {lang === 'he'
+            ? 'לשימוש בעיכובים כלליים (חגים, מלחמה, כוח עליון וכו׳) — ניתן לעדכן אבני דרך שאינן במצב "ממתין" בלבד.'
+            : 'For general delays (holidays, war, force majeure, etc.) — can update milestones regardless of their current status.'}
+        </Text>
+
+        <Text style={[s.fieldLabel, isRtl && s.textRight]}>
+          {lang === 'he' ? 'בחר פרויקטים' : 'Select projects'}
+        </Text>
+        <View style={s.projectList}>
+          {projects.length === 0 ? (
+            <Text style={s.emptyText}>{lang === 'he' ? 'אין פרויקטים להצגה' : 'No projects available'}</Text>
+          ) : (
+            projects.map((p) => {
+              const isActive = selectedIds.includes(p.id);
+              return (
+                <Pressable
+                  key={p.id}
+                  style={[s.projectRow, isActive && s.projectRowActive]}
+                  onPress={() => toggleProject(p.id)}
+                >
+                  <View style={[s.checkbox, isActive && s.checkboxActive]}>
+                    {isActive && <Text style={s.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={[s.projectRowText, isActive && s.projectRowTextActive]} numberOfLines={1}>
+                    {p.label}
+                  </Text>
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+        {selectedIds.length > 0 && (
+          <Pressable onPress={() => setSelectedIds(projects.map((p) => p.id))}>
+            <Text style={s.selectAll}>{lang === 'he' ? 'בחר את כל הפרויקטים' : 'Select all projects'}</Text>
+          </Pressable>
+        )}
+
+        <Text style={[s.fieldLabel, isRtl && s.textRight]}>
+          {lang === 'he' ? 'סוג אבן דרך' : 'Milestone type'}
+        </Text>
+        <View style={s.chipRow}>
+          {MILESTONE_TYPE_OPTIONS.map((opt) => (
+            <Pressable
+              key={opt.value}
+              style={[s.chip, milestoneType === opt.value && s.chipActive]}
+              onPress={() => setMilestoneType(opt.value)}
+            >
+              <Text style={[s.chipText, milestoneType === opt.value && s.chipTextActive]}>
+                {lang === 'he' ? opt.he : opt.en}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={[s.fieldLabel, isRtl && s.textRight]}>
+          {lang === 'he' ? 'תאריך יעד חדש' : 'New due date'}
+        </Text>
+        <TextInput
+          style={[s.input, isRtl && s.textRight]}
+          value={dueDateText}
+          onChangeText={setDueDateText}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor="#9CA3AF"
+        />
+
+        <Text style={[s.fieldLabel, isRtl && s.textRight]}>
+          {lang === 'he' ? 'סיבה (נדרש)' : 'Reason (required)'}
+        </Text>
+        <TextInput
+          style={[s.input, s.inputMultiline, isRtl && s.textRight]}
+          value={reason}
+          onChangeText={setReason}
+          multiline
+          placeholder={lang === 'he' ? 'לדוגמה: עיכוב עקב מצב מלחמה' : 'e.g. Delay due to wartime disruption'}
+          placeholderTextColor="#9CA3AF"
+        />
+
+        <Pressable style={[s.submitBtn, saving && s.submitBtnDisabled]} onPress={handleSubmit} disabled={saving}>
+          {saving
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.submitBtnText}>{lang === 'he' ? 'עדכן תאריכים' : 'Update Due Dates'}</Text>
+          }
+        </Pressable>
+
+        <Pressable style={s.cancelBtn} onPress={handleClose}>
+          <Text style={s.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+        </Pressable>
+      </ScrollView>
+    </Modal>
+  );
+}
+
+const s = StyleSheet.create({
+  root:     { flex: 1, backgroundColor: '#F8FAFC' },
+  content:  { padding: 20, paddingBottom: 60 },
+  title:    { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 6 },
+  subtitle: { fontSize: 12, color: '#64748B', marginBottom: 18, lineHeight: 18 },
+  textRight:{ textAlign: 'right' },
+
+  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, marginTop: 6 },
+
+  projectList: { marginBottom: 8, gap: 8 },
+  projectRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#fff',
+  },
+  projectRowActive:    { borderColor: '#2E86FF', backgroundColor: '#EBF3FF' },
+  projectRowText:      { flex: 1, fontSize: 13, color: '#334155' },
+  projectRowTextActive:{ color: '#1A5FCC', fontWeight: '600' },
+  checkbox: {
+    width: 18, height: 18, borderRadius: 5, borderWidth: 2,
+    borderColor: '#9BA8C0', alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxActive: { borderColor: '#2E86FF', backgroundColor: '#2E86FF' },
+  checkmark:      { color: '#fff', fontSize: 11, fontWeight: '700' },
+  emptyText:      { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 12 },
+  selectAll:      { fontSize: 12, color: '#2E86FF', fontWeight: '600', marginBottom: 12 },
+
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  chip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  chipActive:     { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
+  chipText:       { fontSize: 12, fontWeight: '600', color: '#475569' },
+  chipTextActive: { color: '#fff' },
+
+  input: {
+    borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
+    padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff', marginBottom: 4,
+  },
+  inputMultiline: { minHeight: 70, textAlignVertical: 'top' },
+
+  submitBtn:         { backgroundColor: '#F59E0B', borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 20, marginBottom: 10 },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },
+  cancelBtn:         { padding: 12, alignItems: 'center' },
+  cancelBtnText:     { color: '#64748B', fontSize: 15 },
+});

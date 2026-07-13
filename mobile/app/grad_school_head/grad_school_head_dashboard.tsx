@@ -98,6 +98,7 @@ export default function GradSchoolHeadDashboard() {
   const [activeTab, setActiveTab]  = useState<
     'approvals' | 'overview' | 'stuck' | 'examiners'
   >('approvals');
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const uid = auth.currentUser?.uid;
 
@@ -121,6 +122,25 @@ export default function GradSchoolHeadDashboard() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const onRefresh = () => { setRefreshing(true); fetchData(); };
+
+  // Final-grade approvals go straight to a real endpoint — see
+  // server/src/controllers/gradSchoolHeadController.ts's approveFinalGrade.
+  // (Other approval types below still route to /admin/panel — unchanged,
+  // out of scope for this addition.)
+  const handleApproveFinalGrade = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/grad-school-head/milestones/${item.id}/approve-grade`);
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'אישור הציון נכשל' : 'Failed to approve the grade'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -147,6 +167,24 @@ export default function GradSchoolHeadDashboard() {
         isRtl={lang === 'he'}
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
       />
+
+      <Pressable
+        style={{ marginHorizontal: 16, marginTop: 4, marginBottom: 8, backgroundColor: '#EDE9FE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+        onPress={() => router.push('/WorkflowTemplateManager' as any)}
+      >
+        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
+          🧬 {lang === 'he' ? 'ניהול תבניות אבני דרך' : 'Manage Milestone Templates'}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#DBEAFE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+        onPress={() => router.push('/Reports' as any)}
+      >
+        <Text style={{ color: '#2E86FF', fontWeight: '700', fontSize: 13 }}>
+          📊 {lang === 'he' ? 'דוחות' : 'Reports'}
+        </Text>
+      </Pressable>
 
       {/* Stats strip */}
       <View style={s.statsStrip}>
@@ -204,18 +242,34 @@ export default function GradSchoolHeadDashboard() {
                   </View>
                   <Text style={s.cardTitle}>{item.studentName}</Text>
                   <Text style={s.cardSub}>{item.title}</Text>
-                  <View style={s.actionRow}>
-                    <Pressable style={s.btnApprove} onPress={() =>
-                      router.push({ pathname: '/admin/panel', params: { approvalId: item.id } } as any)
-                    }>
-                      <Text style={s.btnApproveText}>✅ {tx('approve', lang)}</Text>
-                    </Pressable>
-                    <Pressable style={s.btnReturn} onPress={() =>
-                      router.push({ pathname: '/admin/panel', params: { approvalId: item.id, action: 'return' } } as any)
-                    }>
-                      <Text style={s.btnReturnText}>↩ {tx('returnForRevision', lang)}</Text>
-                    </Pressable>
-                  </View>
+                  {item.type === 'final_grade' ? (
+                    <View style={s.actionRow}>
+                      <Pressable
+                        style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
+                        onPress={() => handleApproveFinalGrade(item)}
+                        disabled={approvingId === item.id}
+                      >
+                        <Text style={s.btnApproveText}>
+                          {approvingId === item.id
+                            ? (lang === 'he' ? 'מאשר...' : 'Approving...')
+                            : `✅ ${tx('gradeApproved', lang)}`}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <View style={s.actionRow}>
+                      <Pressable style={s.btnApprove} onPress={() =>
+                        router.push({ pathname: '/admin/panel', params: { approvalId: item.id } } as any)
+                      }>
+                        <Text style={s.btnApproveText}>✅ {tx('approve', lang)}</Text>
+                      </Pressable>
+                      <Pressable style={s.btnReturn} onPress={() =>
+                        router.push({ pathname: '/admin/panel', params: { approvalId: item.id, action: 'return' } } as any)
+                      }>
+                        <Text style={s.btnReturnText}>↩ {tx('returnForRevision', lang)}</Text>
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
               ))
             )}

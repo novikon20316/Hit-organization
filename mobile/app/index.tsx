@@ -29,6 +29,7 @@ export default function Index() {
             setRedirectPath("/student/home");
             break;
           case "supervisor":
+          case "secondary_supervisor":
             setRedirectPath("/supervisor/dashboard");
             break;
           case "system_admin":
@@ -38,7 +39,19 @@ export default function Index() {
           case "coordinator":
             setRedirectPath("/coordinator/home");
             break;
-          case "examiner":
+          case "faculty_admin":
+            setRedirectPath("/faculty_admin/dashboard");
+            break;
+          case "program_head":
+            setRedirectPath("/program_head/program_head_dashboard");
+            break;
+          case "administrative_secretary":
+            setRedirectPath("/administrative_secretary/administrative_secretary_dashboard");
+            break;
+          case "grad_school_head":
+            setRedirectPath("/grad_school_head/grad_school_head_dashboard");
+            break;
+          case "internal_examiner":
             setRedirectPath("/examinor/home");
             break;
           default:

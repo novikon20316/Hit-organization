@@ -6,6 +6,7 @@ import NewProjectModal from './NewProjectModal';
 import RecommendedExaminerModal from './RecommendedExaminerModal';
 import ScheduleDefenseModal from './ScheduleDefenseModal';
 import DeleteAccountModal from './DeleteAccountModal';
+import BulkDueDateModal from './BulkDueDateModal';
 
 export {
     NewUserModal,
@@ -16,4 +17,5 @@ export {
     RecommendedExaminerModal,
     ScheduleDefenseModal,
     DeleteAccountModal,
+    BulkDueDateModal,
 }

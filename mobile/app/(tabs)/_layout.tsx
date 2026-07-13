@@ -17,26 +17,35 @@ const HIDDEN_TAB_ROUTES = [
   '/register',
   '/student/profile-setup',
   '/account-deletion-pending',
+  '/WorkflowTemplateManager',
+  '/Reports',
 ];
 
 // ─── Known valid route prefixes — anything outside these is a 404 ─────────────
 const KNOWN_PREFIXES = [
   '/student/',
   '/supervisor/',
-  '/examiner/',
+  '/examinor/',
   '/coordinator/',
   '/faculty_admin/',
+  '/program_head/',
+  '/administrative_secretary/',
+  '/grad_school_head/',
   '/admin/',
   '/notifications',
 ];
 
 const ROLE_ROUTES: Record<string, string> = {
-  student:       '/student/home',
-  supervisor:    '/supervisor/home',
-  coordinator:   '/coordinator/home',
-  examiner:      '/examiner/home',
-  faculty_admin: '/faculty_admin/dashboard',
-  system_admin:  '/admin/panel',
+  student:              '/student/home',
+  supervisor:           '/supervisor/home',
+  secondary_supervisor: '/supervisor/home',
+  coordinator:          '/coordinator/home',
+  internal_examiner:    '/examinor/home',
+  faculty_admin:        '/faculty_admin/dashboard',
+  program_head:         '/program_head/program_head_dashboard',
+  administrative_secretary:  '/administrative_secretary/administrative_secretary_dashboard',
+  grad_school_head:     '/grad_school_head/grad_school_head_dashboard',
+  system_admin:         '/admin/panel',
 };
 
 function isKnownRoute(pathname: string): boolean {
@@ -60,8 +69,12 @@ const ROLE_TABS: Record<string, Array<{
     { name: 'supervisor/home',  iconActive: '📋', iconInactive: '📋', labelHe: 'פרויקטים', labelEn: 'Projects'  },
     { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
-  examiner: [
-    { name: 'examiner/home',    iconActive: '✏️', iconInactive: '✏️', labelHe: 'הגנות',    labelEn: 'Defenses'  },
+  secondary_supervisor: [
+    { name: 'supervisor/home',  iconActive: '📋', iconInactive: '📋', labelHe: 'פרויקטים', labelEn: 'Projects'  },
+    { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
+  ],
+  internal_examiner: [
+    { name: 'examinor/home',   iconActive: '✏️', iconInactive: '✏️', labelHe: 'הגנות',    labelEn: 'Defenses'  },
     { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   coordinator: [
@@ -71,6 +84,18 @@ const ROLE_TABS: Record<string, Array<{
   faculty_admin: [
     { name: 'faculty_admin/home', iconActive: '⚙️', iconInactive: '⚙️', labelHe: 'ניהול',  labelEn: 'Admin'     },
     { name: 'notifications',      iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות', labelEn: 'Alerts'    },
+  ],
+  program_head: [
+    { name: 'program_head/program_head_dashboard', iconActive: '🎓', iconInactive: '🎓', labelHe: 'לוח בקרה', labelEn: 'Dashboard' },
+    { name: 'notifications',                        iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
+  ],
+  administrative_secretary: [
+    { name: 'administrative_secretary/administrative_secretary_dashboard', iconActive: '📊', iconInactive: '📊', labelHe: 'לוח בקרה', labelEn: 'Dashboard' },
+    { name: 'notifications',                                      iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
+  ],
+  grad_school_head: [
+    { name: 'grad_school_head/grad_school_head_dashboard', iconActive: '🏛️', iconInactive: '🏛️', labelHe: 'לוח בקרה', labelEn: 'Dashboard' },
+    { name: 'notifications',                                iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   system_admin: [
     { name: 'admin/home',       iconActive: '🛡️', iconInactive: '🛡️', labelHe: 'מערכת',   labelEn: 'System'    },

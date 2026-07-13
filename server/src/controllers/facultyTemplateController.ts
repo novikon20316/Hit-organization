@@ -16,6 +16,7 @@
 import admin from 'firebase-admin';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { logAuditEvent } from '../services/auditLog.js';
 
 const db = admin.firestore();
 
@@ -368,6 +369,17 @@ export const approveTemplateProposal = async (req: AuthenticatedRequest, res: Re
 
     await batch.commit();
 
+    await logAuditEvent({
+      userId: uid,
+      userRole: callerRole,
+      action: 'template_proposal_approved',
+      entityType: 'facultyTemplate',
+      entityId: templateId,
+      oldValue: { status: 'pending' },
+      newValue: { status: 'approved' },
+      explanation: note,
+    });
+
     return res.status(200).json({ success: true, message: 'Proposal approved.' });
   } catch (error: any) {
     console.error('approveTemplateProposal error:', error);
@@ -450,6 +462,17 @@ export const rejectTemplateProposal = async (req: AuthenticatedRequest, res: Res
     }
 
     await batch.commit();
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: callerRole,
+      action: 'template_proposal_rejected',
+      entityType: 'facultyTemplate',
+      entityId: templateId,
+      oldValue: { status: 'pending' },
+      newValue: { status: 'rejected' },
+      explanation: reason,
+    });
 
     return res.status(200).json({ success: true, message: 'Proposal rejected.' });
   } catch (error: any) {

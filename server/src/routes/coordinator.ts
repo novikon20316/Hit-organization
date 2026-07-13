@@ -18,6 +18,7 @@ import {
   importStaffCoordinator,
   uploadExcelFileMiddleware,
 } from '../controllers/userImportExportController.js';
+import { importStudentRosterCoordinator } from '../controllers/studentRosterController.js';
 
 const router = Router();
 
@@ -35,6 +36,7 @@ router.post('/projects/:projectId/progress', verifyToken, assignDefense) // TODO
 router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile);
 router.post('/users/import', verifyToken, uploadExcelFileMiddleware, importUsersCoordinator);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffCoordinator);
+router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterCoordinator);
 router.delete('/info-files/:id', verifyToken, deleteInfoFile);
 
 export default router;

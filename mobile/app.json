@@ -76,7 +76,7 @@
       "eas": {
         "projectId": "a969028f-f207-42fe-881f-2a6f3cb6760e"
       },
-      "apiUrl": "http://10.100.102.22:5000"
+      "apiUrl": "https://hit-organization.onrender.com"
     },
     "owner": "dorno"
   }

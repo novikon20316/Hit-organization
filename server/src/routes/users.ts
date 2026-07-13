@@ -2,6 +2,7 @@
 
 import { Router, Response } from 'express';
 import { verifyToken, verifyTokenOnly  } from '../middleware/auth.js';
+import { loginSecurityLimiter } from '../middleware/rateLimit.js';
 import {
   logout,
   updatePushToken,
@@ -11,6 +12,7 @@ import {
   changePassword,
   requestAccountDeletion,
   cancelAccountDeletion,
+  verifyStudentEligibility,
 } from '../controllers/userController.js'
 console.log("🔥 Loading user routes...");
 const router = Router();
@@ -19,6 +21,9 @@ const router = Router();
 // Returns the full Firestore user document for the authenticated user.
 router.get('/me', verifyToken, getFullFirestore);
 router.post('/sync', verifyTokenOnly , syncData);
+// PUBLIC — called before the Firebase Auth account is created (see signup.tsx).
+// Rate-limited like the other unauthenticated-by-necessity endpoints.
+router.post('/verify-eligibility', loginSecurityLimiter, verifyStudentEligibility);
 router.get('/profile', verifyToken, getUserProfile)
 router.post('/update-push-token', verifyToken, updatePushToken)
 router.post('/logout', verifyToken, logout)

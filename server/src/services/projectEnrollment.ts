@@ -9,13 +9,7 @@
 
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-
-const MILESTONE_TEMPLATES = [
-  { type: 'research_proposal', nameHe: 'הצעת מחקר',    nameEn: 'Research Proposal', days: 30  },
-  { type: 'progress_report',   nameHe: 'דו"ח התקדמות', nameEn: 'Progress Report',   days: 120 },
-  { type: 'final_report',      nameHe: 'דו"ח מסכם',    nameEn: 'Final Report',      days: 210 },
-  { type: 'defense',           nameHe: 'בחינת הגנה',   nameEn: 'Defense Exam',      days: 240 },
-];
+import { deriveProcessType, getActiveMilestonesFor } from './workflowTemplates.js';
 
 export async function enrollStudentInProject(
   projectId: string,
@@ -25,6 +19,19 @@ export async function enrollStudentInProject(
 ): Promise<void> {
   const studentRef = db.collection('users').doc(studentId);
   const projectRef = db.collection('projects').doc(projectId);
+
+  // Which milestone list to use is the faculty's own currently-approved
+  // workflow template for this project's process type (msc_thesis /
+  // msc_project / bsc_project) — see services/workflowTemplates.ts — falling
+  // back to the same defaults this app has always used if none is approved
+  // yet. Read outside the transaction below: degreeType/projectType are set
+  // once at project creation and never change concurrently with enrollment,
+  // and the template itself isn't part of the invariant that transaction
+  // protects (hasActiveProject), so it doesn't need transactional consistency.
+  const projectSnapForTemplate = await projectRef.get();
+  const projectDataForTemplate = projectSnapForTemplate.data() ?? {};
+  const processType = deriveProcessType(projectDataForTemplate.degreeType, projectDataForTemplate.projectType);
+  const milestoneTemplates = await getActiveMilestonesFor(facultyId, processType);
 
   // Wrapped in a transaction: the three callers (supervisor approving an
   // application, admin manual assignment, faculty-admin manual assignment)
@@ -56,9 +63,9 @@ export async function enrollStudentInProject(
     });
 
     const baseDate = new Date();
-    for (const t of MILESTONE_TEMPLATES) {
+    for (const t of milestoneTemplates) {
       const dueDate = new Date();
-      dueDate.setDate(baseDate.getDate() + t.days);
+      dueDate.setDate(baseDate.getDate() + t.dueDaysFromStart);
       const milestoneRef = db.collection('milestones').doc();
       transaction.set(milestoneRef, {
         projectId, studentIds: [studentId], supervisorId, facultyId,
@@ -68,10 +75,11 @@ export async function enrollStudentInProject(
         createdAt:       admin.firestore.FieldValue.serverTimestamp(),
         finalGrade:      null, fileUrls: [],
         supervisorScore: null,
-        // Examiner/defense-panel fields only ever make sense on the 'defense'
-        // milestone — writing them onto research_proposal/progress_report/
-        // final_report just leaves permanent dead clutter on those docs.
-        ...(t.type === 'defense'
+        // Examiner/defense-panel fields only make sense on a milestone the
+        // template marked as requiring examiners — writing them onto e.g.
+        // research_proposal/progress_report otherwise just leaves permanent
+        // dead clutter on those docs.
+        ...(t.requiresExaminers
           ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
           : {}),
       });

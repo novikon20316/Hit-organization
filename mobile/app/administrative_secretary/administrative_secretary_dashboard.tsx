@@ -1,5 +1,5 @@
-// app/project_coordinator/dashboard.tsx
-// Dashboard for מרכז פרויקטים (Project Coordinator).
+// app/administrative_secretary/administrative_secretary_dashboard.tsx
+// Dashboard for מזכירה אדמיניסטרטיבית (Administrative Secretary).
 // Manages bachelor's and master's project groups:
 // open groups, assign students, schedule defenses, track submissions.
 
@@ -17,6 +17,7 @@ import { TopBar, getFacultyColor } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { createExaminerToken } from '@/src/firebase/createExaminerToken';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
+import { BulkDueDateModal } from '@/components/modals';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -333,6 +334,7 @@ export default function ProjectCoordinatorDashboard() {
   const [searchText, setSearchText] = useState('');
   const [examinerModalGroup, setExaminerModalGroup] = useState<ProjectGroup | null>(null);
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
+  const [showBulkDueDate, setShowBulkDueDate] = useState(false);
 
   const uid  = auth.currentUser?.uid ?? '';
 
@@ -342,7 +344,7 @@ export default function ProjectCoordinatorDashboard() {
       const res = await apiClient.get(`/api/project-coordinator/${uid}/dashboard`);
       setData(res.data);
     } catch (e: any) {
-      console.error('project_coordinator dashboard error:', e);
+      console.error('administrative_secretary dashboard error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
@@ -383,7 +385,7 @@ export default function ProjectCoordinatorDashboard() {
     <SafeAreaView style={s.root}>
       <TopBar
         name={data?.coordinatorName ?? ''}
-        role="project_coordinator"
+        role="administrative_secretary"
         lang={lang}
         isRtl={lang === 'he'}
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
@@ -409,6 +411,14 @@ export default function ProjectCoordinatorDashboard() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Search + filters */}
+        <Pressable
+          style={[s.filterChip, { alignSelf: 'flex-start', backgroundColor: '#FFF7ED', borderColor: '#F59E0B', marginBottom: 10 }]}
+          onPress={() => setShowBulkDueDate(true)}
+        >
+          <Text style={[s.filterChipText, { color: '#92400E' }]}>
+            📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
+          </Text>
+        </Pressable>
         <TextInput
           style={s.searchInput}
           value={searchText}
@@ -552,6 +562,14 @@ export default function ProjectCoordinatorDashboard() {
         group={defenseModalGroup}
         lang={lang}
         onClose={() => setDefenseModalGroup(null)}
+        onSaved={fetchData}
+      />
+
+      <BulkDueDateModal
+        visible={showBulkDueDate}
+        onClose={() => setShowBulkDueDate(false)}
+        lang={lang}
+        projects={(data?.groups ?? []).map((g) => ({ id: g.id, label: g.projectTitle }))}
         onSaved={fetchData}
       />
     </SafeAreaView>

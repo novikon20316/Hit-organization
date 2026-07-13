@@ -1,6 +1,7 @@
 import admin from 'firebase-admin'
 import { AuthenticatedRequest } from '../middleware/auth.js'
 import { Response } from 'express'
+import { screenApplication } from '../services/cvScreeningService.js'
 
 const db = admin.firestore();
 
@@ -106,6 +107,19 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         supervisorNote: null,
         meetingDate:    null,
         });
+
+        // Best-effort, time-bounded — a screening failure must never block or
+        // fail the student's application submission (see cvScreeningService.ts).
+        try {
+            const aiScreening = await screenApplication({
+                cvUrl: cvUrl ?? '',
+                prerequisites: projectData.prerequisites ?? [],
+                requiredSkills: projectData.requiredSkills ?? [],
+            });
+            await newApplicationRef.update({ aiScreening });
+        } catch (screeningError) {
+            console.error(`CV screening failed for application ${newApplicationRef.id}:`, screeningError);
+        }
 
         return res.status(201).json({ success: true, message: 'Application submitted successfully.' });
     } catch (error) {

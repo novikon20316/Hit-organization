@@ -4,6 +4,7 @@ import {
   getStudentProject,
   submitStudentMilestone,
   submitMilestoneGrade,
+  submitIndividualGrade,
   getProjects,
   getActiveProjects
 } from '../controllers/projectController.js';
@@ -11,6 +12,7 @@ const router = Router();
 
 router.get('/', verifyToken, getProjects)
 router.post('/milestones/:milestoneId/grade', verifyToken, submitMilestoneGrade);
+router.post('/milestones/:milestoneId/individual-grade', verifyToken, submitIndividualGrade);
 router.get('/ActiveProjects', verifyToken, getActiveProjects);
 // Student Interfaces
 router.get('/student/projects/:id', verifyToken, getStudentProject);
