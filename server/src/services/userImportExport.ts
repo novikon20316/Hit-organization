@@ -328,6 +328,15 @@ const STAFF_UNIT_TO_FACULTY: Record<string, string> = {
   'הנדסת חשמל ואלקטרוניקה': 'electrical',
 };
 
+/** 9-digit placeholder ID for rows the HR export left blank — real Israeli ID numbers are 9 digits. */
+function generatePlaceholderIdNumber(taken: Set<string>): string {
+  let candidate: string;
+  do {
+    candidate = String(Math.floor(100000000 + Math.random() * 900000000));
+  } while (taken.has(candidate));
+  return candidate;
+}
+
 function resolveStaffFaculty(rawUnit: string): { facultyId: string | null; inactive: boolean; cleanUnit: string } {
   const trimmed  = (rawUnit || '').trim();
   const inactive = trimmed.startsWith('לא פעיל');
@@ -353,14 +362,16 @@ export async function importStaffFromBuffer(
   for (let i = 0; i < rows.length; i++) {
     const rowNumber = i + 2; // header occupies row 1
     const raw      = rows[i] ?? {};
-    const idNumber = String(raw['מס.זהות'] ?? '').trim();
+    const rawId    = String(raw['מס.זהות'] ?? '').trim();
     const email    = String(raw['דוא"ל'] ?? '').trim().toLowerCase();
 
     try {
-      if (!idNumber) {
-        details.push({ row: rowNumber, email, status: 'failed', reason: 'Missing ID number (מס.זהות)' });
-        continue;
-      }
+      // Real HR exports always carry this — but a hand-built test file
+      // (or a genuinely incomplete HR record) might not. Rather than fail
+      // the row, mint a placeholder 9-digit ID so import can proceed; it's
+      // only ever used as a dedup key and stored on the profile, never
+      // validated as a real ID elsewhere.
+      const idNumber = rawId || generatePlaceholderIdNumber(seenIds);
 
       if (seenIds.has(idNumber)) {
         details.push({ row: rowNumber, email, status: 'skipped', reason: 'Duplicate row for this staff member in file' });

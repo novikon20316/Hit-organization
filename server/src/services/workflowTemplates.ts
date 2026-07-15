@@ -81,11 +81,16 @@ export async function getActiveMilestonesFor(facultyId: string, processType: Pro
 }
 
 export async function listWorkflowTemplates(facultyId: string): Promise<WorkflowTemplateDoc[]> {
+  // Sorted in memory rather than via .orderBy('createdAt') — combining that
+  // with the facultyId equality filter needs a composite index Firestore
+  // doesn't have here, which throws and turns into a 500 (same class of bug
+  // fixed for feedback-history queries).
   const snap = await db.collection(COLLECTION)
     .where('facultyId', '==', facultyId)
-    .orderBy('createdAt', 'desc')
     .get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as WorkflowTemplateDoc));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as WorkflowTemplateDoc))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
 }
 
 export async function proposeWorkflowTemplate(params: {
