@@ -65,6 +65,7 @@ async function createImportedUserAccount(params: {
   studentId: string | null;
   isEligibleForProcess: boolean;
   lang: 'he' | 'en';
+  phoneNumber?: string | null;
   extra?: Record<string, any>;
 }): Promise<void> {
   const tempPassword = generateTempPassword();
@@ -91,6 +92,7 @@ async function createImportedUserAccount(params: {
     roles: params.roles,
     facultyId: params.facultyId,
     additionalRoles: [],
+    phoneNumber: params.phoneNumber ?? null,
     degreeType: params.degreeType,
     yearOfStudy: params.yearOfStudy,
     major: params.major,
@@ -417,9 +419,12 @@ export async function importStaffFromBuffer(
       const emailLocalPart = email.split('@')[0] ?? email;
       const displayNameHe  = `${firstName} ${lastName}`.trim() || emailLocalPart;
       const displayNameEn  = String(raw['שם באנגלית'] ?? '').trim() || displayNameHe;
+      // Mobile preferred (more likely to reach them for in-app message
+      // notifications) — falls back to the landline/other phone column.
+      const phoneNumber    = String(raw['טלפון נייד'] ?? '').trim() || String(raw['טלפון'] ?? '').trim() || null;
 
       await createImportedUserAccount({
-        email, displayNameHe, displayNameEn,
+        email, displayNameHe, displayNameEn, phoneNumber,
         role: 'supervisor', roles: ['supervisor', 'internal_examiner'], facultyId,
         degreeType: null, major: null, yearOfStudy: null, studentId: null,
         isEligibleForProcess: false, lang,
