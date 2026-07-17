@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pendingDeletion", "order": "ASCENDING" },
+        { "fieldPath": "deletionScheduledFor", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
