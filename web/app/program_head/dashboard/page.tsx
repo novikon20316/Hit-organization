@@ -1,0 +1,258 @@
+'use client';
+
+// app/program_head/dashboard/page.tsx
+// Ported from mobile/app/program_head/program_head_dashboard.tsx. The whole
+// screen is backed by a single read-only endpoint (GET /api/program-head/:uid/dashboard) —
+// there's no approve/return/write endpoint anywhere in programHeadController.ts,
+// and mobile's own Approve/Return buttons on the Approvals tab have no
+// onPress at all. So this is a faithful, complete port: nothing is missing
+// relative to mobile, since mobile itself only ever displays this data.
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import { useRequireRole } from '@/hooks/useRequireRole';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { apiClient } from '@/lib/apiClient';
+import { getFacultyColor } from '@/lib/facultyColors';
+import type { AppRole } from '@/lib/roles';
+
+const PROGRAM_HEAD_ROLES: AppRole[] = ['program_head', 'system_admin'];
+
+interface StudentRow {
+  uid: string;
+  studentName: string;
+  trackType: 'thesis' | 'masters_project';
+  supervisorName: string;
+  currentMilestone: string;
+  daysInStage: number;
+  deadline: string | null;
+  isOverdue: boolean;
+  facultyId: string;
+}
+
+interface PendingApproval {
+  id: string;
+  type: string;
+  studentName: string;
+  description: string;
+  submittedAt: string;
+}
+
+interface SupervisorLoad {
+  supervisorName: string;
+  supervisorEmail: string;
+  activeStudents: number;
+}
+
+export default function ProgramHeadDashboardPage() {
+  const { loading: guardLoading, isAllowed } = useRequireRole(PROGRAM_HEAD_ROLES);
+  const { firebaseUser } = useAuth();
+  const { lang, t } = useLanguage();
+
+  const [tab, setTab] = useState<'students' | 'approvals' | 'supervisors'>('students');
+  const [headName, setHeadName] = useState('');
+  const [facultyId, setFacultyId] = useState('');
+  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const [supervisorLoads, setSupervisorLoads] = useState<SupervisorLoad[]>([]);
+  const [stats, setStats] = useState({ totalStudents: 0, activeStudents: 0, overdueCount: 0, pendingCount: 0 });
+  const [loadingData, setLoadingData] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  const [search, setSearch] = useState('');
+  const [filterOverdue, setFilterOverdue] = useState(false);
+  const [filterTrack, setFilterTrack] = useState<'all' | 'thesis' | 'masters_project'>('all');
+
+  const fetchDashboard = useCallback(async () => {
+    if (!firebaseUser) return;
+    try {
+      const data = await apiClient.getProgramHeadDashboard(firebaseUser.uid);
+      setHeadName(data.headName ?? '');
+      setFacultyId(data.facultyId ?? '');
+      setStudents((data.students ?? []) as StudentRow[]);
+      setApprovals(data.pendingApprovals ?? []);
+      setSupervisorLoads(data.supervisorLoads ?? []);
+      setStats(data.stats ?? { totalStudents: 0, activeStudents: 0, overdueCount: 0, pendingCount: 0 });
+      setLoadError('');
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data');
+    } finally {
+      setLoadingData(false);
+    }
+  }, [firebaseUser, lang]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
+    if (isAllowed) fetchDashboard();
+  }, [isAllowed, fetchDashboard]);
+
+  const filteredStudents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return students.filter((st) => {
+      const matchesSearch = !q || st.studentName.toLowerCase().includes(q) || st.supervisorName.toLowerCase().includes(q) || st.currentMilestone.toLowerCase().includes(q);
+      const matchesOverdue = !filterOverdue || st.isOverdue;
+      const matchesTrack = filterTrack === 'all' || st.trackType === filterTrack;
+      return matchesSearch && matchesOverdue && matchesTrack;
+    });
+  }, [students, search, filterOverdue, filterTrack]);
+
+  const facultyColor = getFacultyColor(facultyId);
+
+  if (guardLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-paper">
+        <p className="text-sm text-muted">…</p>
+      </div>
+    );
+  }
+
+  const tabs = [
+    { key: 'students' as const, label: lang === 'he' ? 'סטודנטים' : 'Students', badge: stats.totalStudents },
+    { key: 'approvals' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Approvals', badge: stats.pendingCount },
+    { key: 'supervisors' as const, label: lang === 'he' ? 'מנחים' : 'Supervisors', badge: 0 },
+  ];
+
+  return (
+    <DashboardShell
+      title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש תוכנית תואר שני' : "Master's Program Head"}
+      subtitle={lang === 'he' ? 'סטודנטים, אישורים ועומס הנחיה' : 'Students, approvals, and supervision load'}
+    >
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard value={stats.totalStudents} label={lang === 'he' ? 'סה"כ' : 'Total'} color={facultyColor} />
+        <StatCard value={stats.activeStudents} label={lang === 'he' ? 'פעילים' : 'Active'} color="var(--success)" />
+        <StatCard value={stats.overdueCount} label={lang === 'he' ? 'באיחור' : 'Overdue'} color="var(--danger)" />
+        <StatCard value={stats.pendingCount} label={lang === 'he' ? 'ממתינים' : 'Pending'} color="var(--accent)" />
+      </div>
+
+      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-line">
+        {tabs.map(({ key, label, badge }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+            }`}
+          >
+            {label}
+            {badge > 0 ? ` (${badge})` : ''}
+          </button>
+        ))}
+      </div>
+
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+
+      {loadingData ? (
+        <p className="text-sm text-muted">{t('loading')}</p>
+      ) : tab === 'students' ? (
+        <div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+            className="mb-3 w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+          />
+          <div className="mb-4 flex flex-wrap gap-1.5">
+            {(['all', 'thesis', 'masters_project'] as const).map((track) => (
+              <button
+                key={track}
+                type="button"
+                onClick={() => setFilterTrack(track)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                  filterTrack === track ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'
+                }`}
+              >
+                {track === 'all' ? t('all') : track === 'thesis' ? t('trackThesis') : t('trackMastersProject')}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setFilterOverdue((v) => !v)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                filterOverdue ? 'border-danger bg-danger text-white' : 'border-line bg-surface text-ink'
+              }`}
+            >
+              ⚠️ {lang === 'he' ? 'באיחור' : 'Overdue'}
+            </button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {filteredStudents.map((st) => (
+              <div
+                key={st.uid}
+                className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4"
+                style={{ '--rail-color': st.isOverdue ? 'var(--danger)' : facultyColor } as React.CSSProperties}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-ink">👤 {st.studentName}</p>
+                  {st.isOverdue && (
+                    <span className="rounded-full bg-danger-bg px-2 py-0.5 text-xs font-medium text-danger">⚠️ {t('overdue')}</span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted">👨‍🏫 {st.supervisorName}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  📍 {lang === 'he' ? 'שלב:' : 'Stage:'} {st.currentMilestone} · {st.daysInStage} {lang === 'he' ? 'ימים' : 'days'}
+                </p>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="rounded-full bg-paper px-2 py-0.5 text-xs text-ink">
+                    {st.trackType === 'thesis' ? t('trackThesis') : t('trackMastersProject')}
+                  </span>
+                  {st.deadline && (
+                    <span className="text-xs text-muted">
+                      📅 {t('deadline')}: {new Date(st.deadline).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {filteredStudents.length === 0 && <p className="text-sm text-muted">🎓 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}</p>}
+          </div>
+        </div>
+      ) : tab === 'approvals' ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {approvals.map((item) => (
+            <div key={item.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-ink">{item.studentName}</p>
+              <p className="mt-0.5 text-xs font-semibold text-accent">{item.type}</p>
+              <p className="mt-0.5 text-xs text-muted">{item.description}</p>
+              {item.submittedAt && (
+                <p className="mt-1 text-xs text-muted">{new Date(item.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>
+              )}
+            </div>
+          ))}
+          {approvals.length === 0 && <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין פריטים ממתינים' : 'Nothing pending'}</p>}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {supervisorLoads.map((sv, i) => (
+            <div key={i} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-ink">👨‍🏫 {sv.supervisorName}</p>
+              <p className="mt-0.5 text-xs text-muted" dir="ltr">
+                {sv.supervisorEmail}
+              </p>
+              <div className="mt-2">
+                <p className="text-xl font-semibold" style={{ color: facultyColor }}>
+                  {sv.activeStudents}
+                </p>
+                <p className="text-xs text-muted">{lang === 'he' ? 'מונחים פעילים' : 'Active advisees'}</p>
+              </div>
+            </div>
+          ))}
+          {supervisorLoads.length === 0 && <p className="text-sm text-muted">👨‍🏫 {lang === 'he' ? 'אין מנחים' : 'No supervisors'}</p>}
+        </div>
+      )}
+    </DashboardShell>
+  );
+}
+
+function StatCard({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
+      <div className="text-2xl font-semibold" style={{ color }}>
+        {value}
+      </div>
+      <div className="text-xs text-muted">{label}</div>
+    </div>
+  );
+}

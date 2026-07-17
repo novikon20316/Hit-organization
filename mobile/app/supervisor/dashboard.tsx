@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
+  View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert, Linking,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sharedStyles } from '@/constants';
+import { SupervisorExtraStyles } from '../../constants/styles';
 import { NewProjectModal, RecommendedExaminerModal } from '@/components/modals';
 import { GradingCriterion, AppUser, MyProject, Application } from '@/types'
 
@@ -194,7 +195,7 @@ export default function SupervisorHome() {
       try {
         setLoadingDeadlines(true);
         const res = await apiClient.get(`/api/staff/${supervisorId}/deadlines`);
-        setDeadlines(res.data.rows || []);
+        setDeadlines(res.data.deadlines || []);
       } catch (e) {
         console.error('Failed to load deadlines', e);
         Alert.alert('Error', 'Failed to load deadlines');
@@ -625,7 +626,7 @@ export default function SupervisorHome() {
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
           { key: 'projects',     heLabel: 'פרויקטים',  enLabel: 'Projects',     badge: myProjects.length    },
           { key: 'applications', heLabel: 'מועמדויות',  enLabel: 'Applications', badge: applications.length  },
@@ -637,7 +638,7 @@ export default function SupervisorHome() {
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.heLabel : tab.enLabel}
             </Text>
             {tab.badge > 0 && (
@@ -651,11 +652,11 @@ export default function SupervisorHome() {
           style={[styles.tab, activeTab === 'deadlines' && styles.tabActive]}
           onPress={() => setActiveTab('deadlines')}
         >
-          <Text style={[styles.tabText, activeTab === 'deadlines' && styles.tabTextActive]}>
+          <Text style={[styles.tabText, activeTab === 'deadlines' && styles.tabTextActive]} numberOfLines={1}>
             {lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}
           </Text>
         </Pressable>
-      </View>
+      </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
@@ -1340,10 +1341,6 @@ function EmptyState({ emoji, text }: { emoji: string; text: string }) {
   );
 }
 
-const es = StyleSheet.create({
-  wrap:  { alignItems: 'center', paddingTop: 50 },
-  emoji: { fontSize: 44, marginBottom: 12 },
-  text:  { fontSize: 15, color: '#8899BB' },
-});
+const es = SupervisorExtraStyles;
 
 const styles = sharedStyles;

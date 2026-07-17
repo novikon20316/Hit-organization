@@ -1,0 +1,70 @@
+'use client';
+
+// app/faculty_admin/dashboard/UserRow.tsx
+import { useState } from 'react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { apiClient } from '@/lib/apiClient';
+import { getRoleAccent, withAlpha } from '@/lib/facultyColors';
+import { roleLabel, type AppRole } from '@/lib/i18n';
+import type { FacultyAdminUserRecord } from './types';
+
+interface UserRowProps {
+  user: FacultyAdminUserRecord;
+  onChanged: () => void;
+  onEdit: (user: FacultyAdminUserRecord) => void;
+}
+
+export function UserRow({ user, onChanged, onEdit }: UserRowProps) {
+  const { lang } = useLanguage();
+  const roleColor = getRoleAccent(user.role);
+  const [toggling, setToggling] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleToggle = async () => {
+    setToggling(true);
+    setError('');
+    try {
+      await apiClient.toggleUserActiveFacultyAdmin(user.id, !user.isActive);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update status');
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ backgroundColor: roleColor }}>
+          {user.displayName.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-ink">{user.displayName}</p>
+          <p className="truncate text-xs text-muted" dir="ltr">
+            {user.email}
+          </p>
+        </div>
+        <label className="inline-flex shrink-0 cursor-pointer items-center gap-2">
+          <span className="text-xs text-muted">{user.isActive ? (lang === 'he' ? 'פעיל' : 'Active') : lang === 'he' ? 'מושבת' : 'Suspended'}</span>
+          <span className="relative inline-block h-5 w-9">
+            <input type="checkbox" checked={user.isActive} disabled={toggling} onChange={handleToggle} className="peer absolute h-0 w-0 opacity-0" />
+            <span className="absolute inset-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-disabled:opacity-60" />
+            <span className="absolute top-0.5 start-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4 rtl:peer-checked:-translate-x-4" />
+          </span>
+        </label>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: withAlpha(roleColor, 0.12), color: roleColor }}>
+          {roleLabel(user.role as AppRole, lang)}
+        </span>
+        <button type="button" onClick={() => onEdit(user)} className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary">
+          ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
+        </button>
+      </div>
+
+      {error && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{error}</p>}
+    </div>
+  );
+}

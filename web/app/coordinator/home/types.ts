@@ -1,0 +1,147 @@
+// app/coordinator/home/types.ts
+import type { FacultyId } from '@/lib/i18n';
+
+// ── Defense tab (mobile parity) ─────────────────────────────────────────────
+// See server/src/services/defenseScheduling.ts for how these get written.
+
+export interface DefensePanelMember {
+  type: 'internal' | 'external';
+  ref: string; // uid for internal, examinerTokens doc id for external
+  displayName: string;
+  email?: string;
+}
+
+// A defense milestone embedded inside a Project's `milestones` array (as
+// returned by getCoordinatorDashboard's `projects` and getActiveProjects).
+// `dueDate` carries the confirmed defense date once matched — it can arrive
+// as an ISO string, a client Timestamp, or an Admin-SDK `{_seconds}` object;
+// see parseServerDate in DefenseTab.tsx.
+export interface AssignedMilestone {
+  id: string;
+  type: string;
+  status:
+    | 'pending'
+    | 'awaiting_defense_date'
+    | 'date_conflict'
+    | 'defense_date_set'
+    | 'scheduled'
+    | 'completed'
+    | string;
+  studentNames: string[];
+  dueDate?: string | { toDate?: () => Date; _seconds?: number } | null;
+  defenseDate?: string | null;
+  defenseRoom?: string | null;
+  defenseTime?: string | null;
+  defensePanel?: DefensePanelMember[];
+  examinerGrading?: Record<string, { gradedAt?: string | null }>;
+}
+
+export interface Project {
+  id: string;
+  titleHe: string;
+  titleEn: string;
+  facultyId: FacultyId;
+  supervisorId?: string;
+  enrolledStudentIds?: string[];
+  examinerIds?: string[];
+  milestones?: AssignedMilestone[];
+}
+
+// ── In Progress tab ──────────────────────────────────────────────────────────
+export interface InProgressStudentMilestone {
+  type: string;
+  status: string;
+  supervisorScore: number | null;
+}
+
+export interface InProgressStudent {
+  id: string;
+  name: string;
+  progress: number;
+  milestones: InProgressStudentMilestone[];
+}
+
+export interface InProgressProject {
+  id: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: FacultyId;
+  supervisorName: string;
+  status: string;
+  students: InProgressStudent[];
+}
+
+// ── Deadlines tab ────────────────────────────────────────────────────────────
+// Shape is a raw milestone doc spread onto `{ id, deadline }` server-side
+// (see staffController.ts getDeadLines) — every field but `id` is optional.
+export interface CoordinatorDeadline {
+  id: string;
+  milestoneId?: string;
+  studentId?: string;
+  studentName?: string;
+  degreeType?: string;
+  yearOfStudy?: string;
+  projectTitle?: string;
+  milestoneName?: string;
+  daysLeft?: number | null;
+  class?: string;
+}
+
+export interface CoordinatorPendingMilestone {
+  id: string;
+  projectId: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  type: string;
+  status: string;
+  studentNames: string[];
+  studentIds: string[];
+  supervisorId: string;
+  supervisorName?: string;
+  supervisorScore: number | null;
+  supervisorComment?: string | null;
+  submissionNote?: string | null;
+  fileUrls?: string[];
+  facultyId: FacultyId;
+  // ── Defense-tab "setup" bucket extras (final_report already graded /
+  // coordinator_approved) — mostly empty until examiners get assigned, see
+  // DefenseTab.tsx's defenseSetups bucket.
+  examinerIds?: string[];
+  defenseDate?: string | null;
+  defenseRoom?: string | null;
+  milestoneGrades?: Array<{ type: string; score: number | null }>;
+}
+
+export interface ExaminerUser {
+  id: string;
+  displayName: string;
+  email: string;
+  facultyId: FacultyId;
+}
+
+export interface RecommendedExaminer {
+  priority: number;
+  type: 'internal' | 'external';
+  name: string;
+  email?: string;
+  institution?: string;
+  expertise?: string;
+  internalUserId?: string;
+}
+
+export interface ExaminerRecommendation {
+  id: string;
+  projectId: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  supervisorName: string;
+  recommendedExaminers: RecommendedExaminer[];
+}
+
+// Ported from the local MILESTONE_LABEL const in mobile/app/coordinator/home.tsx
+export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
+  research_proposal: { he: 'הצעת מחקר', en: 'Research Proposal' },
+  progress_report: { he: 'דו"ח התקדמות', en: 'Progress Report' },
+  final_report: { he: 'דו"ח מסכם', en: 'Final Report' },
+  defense: { he: 'הגנה', en: 'Defense' },
+};

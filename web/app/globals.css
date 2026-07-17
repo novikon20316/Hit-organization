@@ -1,26 +1,85 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — HIT Final Projects System (web)
+ * ────────────────────────────────────────────────
+ * Institutional, bilingual (Hebrew/English), used daily by students and
+ * nine different staff roles. Palette reads as "official paper + a seal",
+ * not generic SaaS blue: warm parchment background, deep academic navy for
+ * primary actions, a muted brass/gold used sparingly for the one accent that
+ * matters (the "role rail" — see .role-rail below).
+ *
+ * No dark-mode variant on purpose: this is a forms-and-records system, not a
+ * reading app — legibility and consistency across roles matter more than a
+ * dark theme, and every role screenshot/PDF export should look the same.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f7f6f2;
+  --surface: #ffffff;
+  --ink: #1c2333;
+  --muted: #6b7280;
+  --line: #e4e1d8;
+  --primary: #1e3a5f;
+  --primary-hover: #16304e;
+  --primary-ink: #ffffff;
+  --accent: #b8862e;
+  --accent-ink: #ffffff;
+  --success: #3f6b4c;
+  --success-bg: #eaf1ec;
+  --danger: #a8433a;
+  --danger-bg: #f7e9e7;
+  --radius: 12px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-ink: var(--primary-ink);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --font-sans: var(--font-plex);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--paper);
+  color: var(--ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-plex), system-ui, sans-serif;
+}
+
+/* Signature element: a thin colored rail marking "which role context you're
+   in" — set via --rail-color per role once dashboards exist. Uses a logical
+   property so it sits on the correct side automatically in RTL vs LTR
+   without any [dir] override. */
+.role-rail {
+  border-inline-start: 4px solid var(--rail-color, var(--accent));
+}
+
+/* Visible keyboard focus everywhere, once, instead of relying on each
+   component to remember it. */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

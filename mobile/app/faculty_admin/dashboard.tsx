@@ -8,7 +8,6 @@ import {
   Switch,
   Dimensions,
   Pressable,
-  StyleSheet,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +25,7 @@ import {
 } from '../../components/shared';
 import { GradingCriterion, AppUser, SystemStats, UserRecord, ProjectRecord, MilestoneRecord } from '@/types'
 import { ROLE_LABELS } from '../../constants';
+import { FacultyAdminDashboardStyles } from '../../constants/styles';
 
 import {
   NewUserModal,
@@ -118,7 +118,7 @@ export default function PanelScreen() {
       try {
         setLoadingDeadlines(true);
         const res = await apiClient.get(`/api/staff/${uid}/deadlines`);
-        setDeadlines(res.data.rows || []);
+        setDeadlines(res.data.deadlines || []);
       } catch (e) {
         console.error('Failed to load deadlines', e);
         Alert.alert('Error', 'Failed to load deadlines');
@@ -487,27 +487,4 @@ export default function PanelScreen() {
   );
 }
 
-const localStyles = StyleSheet.create({
-  tabBar: { padding: 10, backgroundColor: '#F3F4F6' },
-  tabLabel: { fontSize: 16, fontWeight: '600' },
-  deadlineRow: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  studentName: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  label: { fontSize: 13, fontWeight: '600', color: '#6B7280', marginBottom: 4 },
-  value: { fontSize: 13, fontWeight: '500', color: '#111827' },
-  small: { fontSize: 13, color: '#666', marginTop: 2 },
-  daysLeft: { fontSize: 18, fontWeight: '700' },
-});
+const localStyles = FacultyAdminDashboardStyles;

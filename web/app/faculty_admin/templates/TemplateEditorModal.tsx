@@ -1,0 +1,213 @@
+'use client';
+
+// app/faculty_admin/templates/TemplateEditorModal.tsx
+// Create/edit form for a faculty project template. The backend's `skills`
+// field is a flat string (see facultyTemplateController.ts), not an array —
+// this modal presents it as tag chips for a nicer editing experience, then
+// joins them back to a comma-separated string on save.
+
+import { useEffect, useState } from 'react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
+import { DEGREES, TYPES, type FacultyTemplate, type TemplateDegree, type TemplateType } from './types';
+
+interface TemplateEditorModalProps {
+  template: FacultyTemplate | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function parseSkills(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEditorModalProps) {
+  const { lang, t } = useLanguage();
+
+  const [titleHe, setTitleHe] = useState(template?.titleHe ?? '');
+  const [titleEn, setTitleEn] = useState(template?.titleEn ?? '');
+  const [descriptionHe, setDescriptionHe] = useState(template?.descriptionHe ?? '');
+  const [descriptionEn, setDescriptionEn] = useState(template?.descriptionEn ?? '');
+  const [skills, setSkills] = useState<string[]>(template ? parseSkills(template.skills ?? '') : []);
+  const [skillInput, setSkillInput] = useState('');
+  const [degree, setDegree] = useState<TemplateDegree>(template?.degree ?? 'bachelors');
+  const [type, setType] = useState<TemplateType>(template?.type ?? 'project');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Escape closes the modal, matching other modals in this app.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const addSkillFromInput = () => {
+    const value = skillInput.trim();
+    if (!value) return;
+    if (!skills.includes(value)) setSkills((prev) => [...prev, value]);
+    setSkillInput('');
+  };
+
+  const removeSkill = (skill: string) => {
+    setSkills((prev) => prev.filter((s) => s !== skill));
+  };
+
+  const handleSave = async () => {
+    if (!titleHe.trim() || !titleEn.trim()) {
+      setError(lang === 'he' ? 'יש להזין כותרת לתבנית (עברית ואנגלית)' : 'Please enter a template title (Hebrew and English)');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const payload = {
+        titleHe: titleHe.trim(),
+        titleEn: titleEn.trim(),
+        descriptionHe: descriptionHe.trim(),
+        descriptionEn: descriptionEn.trim(),
+        skills: skills.join(', '),
+        degree,
+        type,
+      };
+      if (template) {
+        await apiClient.updateFacultyTemplate(template.id, payload);
+      } else {
+        await apiClient.createFacultyTemplate(payload);
+      }
+      onSaved();
+      onClose();
+    } catch (err) {
+      const message = err instanceof ApiError || err instanceof SoftError ? err.message : lang === 'he' ? 'שמירת התבנית נכשלה' : 'Failed to save the template';
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-ink">
+            {template ? `✏️ ${lang === 'he' ? 'עריכת תבנית' : 'Edit Template'}` : `➕ ${lang === 'he' ? 'תבנית חדשה' : 'New Template'}`}
+          </h2>
+          <button type="button" onClick={onClose} className="text-lg text-muted hover:text-ink">
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3.5">
+          {/* Degree chips */}
+          <div>
+            <span className="mb-1.5 block text-sm font-medium text-ink">{t('degreeType')}</span>
+            <div className="flex gap-2">
+              {DEGREES.map((d) => (
+                <button
+                  key={d.key}
+                  type="button"
+                  onClick={() => setDegree(d.key)}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm font-medium ${
+                    degree === d.key ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                  }`}
+                >
+                  {lang === 'he' ? d.he : d.en}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Type chips */}
+          <div>
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג עבודה' : 'Work Type'}</span>
+            <div className="flex gap-2">
+              {TYPES.map((tp) => (
+                <button
+                  key={tp.key}
+                  type="button"
+                  onClick={() => setType(tp.key)}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm font-medium ${
+                    type === tp.key ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                  }`}
+                >
+                  {lang === 'he' ? tp.he : tp.en}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}</span>
+            <input dir="rtl" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} placeholder="כותרת הפרויקט" className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת (אנגלית)' : 'Title (English)'}</span>
+            <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} placeholder="Project title" className={inputCls} />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}</span>
+            <textarea dir="rtl" rows={3} value={descriptionHe} onChange={(e) => setDescriptionHe(e.target.value)} placeholder="תיאור הפרויקט" className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור (אנגלית)' : 'Description (English)'}</span>
+            <textarea dir="ltr" rows={3} value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} placeholder="Project description" className={inputCls} />
+          </label>
+
+          {/* Skills tag input */}
+          <div>
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כישורים נדרשים' : 'Required Skills'}</span>
+            <div className="flex flex-wrap gap-1.5 rounded-lg border border-line bg-paper p-2">
+              {skills.map((skill) => (
+                <span key={skill} className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                  {skill}
+                  <button type="button" onClick={() => removeSkill(skill)} className="text-primary hover:opacity-70" aria-label={`remove ${skill}`}>
+                    ✕
+                  </button>
+                </span>
+              ))}
+              <input
+                value={skillInput}
+                onChange={(e) => setSkillInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    addSkillFromInput();
+                  } else if (e.key === 'Backspace' && !skillInput && skills.length > 0) {
+                    setSkills((prev) => prev.slice(0, -1));
+                  }
+                }}
+                onBlur={addSkillFromInput}
+                placeholder={lang === 'he' ? 'הקלד ולחץ Enter...' : 'Type and press Enter...'}
+                className="min-w-[120px] flex-1 bg-transparent px-1 py-1 text-sm text-ink focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+
+          <div className="mt-1 flex justify-end gap-2">
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+              {t('cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            >
+              {saving ? t('saving') : t('save')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

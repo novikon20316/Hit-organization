@@ -30,10 +30,10 @@ export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => 
             ...(Array.isArray(staffData?.roles) ? staffData.roles : []),
         ];
         console.log('Fetching deadlines for staff member with roles:', userRoles);
-        const hasAccess = userRoles.some(role => ['supervisor', 'coordinator'].includes(role));
-        
+        const hasAccess = userRoles.some(role => ['supervisor', 'coordinator', 'faculty_admin'].includes(role));
+
         if (!hasAccess) {
-            return res.status(403).json({ error: 'Access denied: Not a supervisor or coordinator' });
+            return res.status(403).json({ error: 'Access denied: Not a supervisor, coordinator, or faculty_admin' });
         }
         let deadlinesSnapshot;
         const isFacultyAdminOrCoordinator = userRoles.some(role => ['faculty_admin', 'coordinator'].includes(role));

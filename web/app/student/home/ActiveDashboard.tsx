@@ -1,0 +1,359 @@
+'use client';
+
+// app/student/home/ActiveDashboard.tsx
+// Ported from mobile/app/(tabs)/Activedashboard.tsx.
+
+import { useState } from 'react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { apiClient } from '@/lib/apiClient';
+import { SubmitMilestoneModal } from './SubmitMilestoneModal';
+import {
+  MILESTONE_LABEL,
+  MILESTONE_ORDER,
+  STATUS_CONFIG,
+  STATUS_LABEL,
+  toDate,
+  daysUntil,
+  gradeColor,
+  type ActiveProject,
+  type Milestone,
+} from './types';
+
+interface ActiveDashboardProps {
+  project: ActiveProject;
+  milestones: Milestone[];
+  progress: number;
+  onChanged: () => void;
+}
+
+export function ActiveDashboard({ project, milestones, progress, onChanged }: ActiveDashboardProps) {
+  const { lang, t } = useLanguage();
+  const [tab, setTab] = useState<'overview' | 'milestones' | 'grades'>('overview');
+  const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+
+  const isMastersThesis = project.degreeType === 'masters' && project.projectType === 'thesis';
+
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      const res = await apiClient.getThesisTemplate();
+      if (res.url) window.open(res.url, '_blank');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
+  const isUnlocked = (m: Milestone): boolean => {
+    const idx = MILESTONE_ORDER.indexOf(m.type);
+    if (idx === 0) return true;
+    return milestones
+      .filter((prev) => MILESTONE_ORDER.indexOf(prev.type) < idx)
+      .every((prev) => prev.status === 'coordinator_approved' || prev.status === 'completed');
+  };
+
+  const actionableNextMilestone = milestones.find((m) => m.status === 'pending' && isUnlocked(m)) ?? null;
+  const overviewDisplayMilestone =
+    milestones.find((m) => (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status)) ?? actionableNextMilestone;
+  const isWaitingApproval = milestones.some((m) => (['graded', 'supervisor_graded'] as string[]).includes(m.status));
+
+  return (
+    <div>
+      <div className="mb-5 flex gap-1 border-b border-line">
+        {(['overview', 'milestones', 'grades'] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+            }`}
+          >
+            {key === 'overview'
+              ? lang === 'he' ? 'סקירה' : 'Overview'
+              : key === 'milestones'
+                ? lang === 'he' ? 'אבני דרך' : 'Milestones'
+                : lang === 'he' ? 'ציונים' : 'Grades'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <div className="grid gap-4">
+          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
+            <p className="text-base font-semibold text-ink">📁 {lang === 'he' ? project.titleHe : project.titleEn}</p>
+            <p className="mt-1 text-sm text-muted">
+              👨‍🏫 {project.supervisorName} · {project.academicYear}
+            </p>
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs text-muted">
+                <span>{lang === 'he' ? 'התקדמות' : 'Progress'}</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-paper">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="mt-1.5 text-xs text-muted">
+                {milestones.filter((m) => m.status === 'coordinator_approved').length} / {milestones.length}{' '}
+                {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
+              </p>
+            </div>
+          </div>
+
+          {overviewDisplayMilestone && (
+            <div className="role-rail rounded-[var(--radius)] bg-surface p-5" style={{ '--rail-color': 'var(--primary)' } as React.CSSProperties}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-ink">⚡ {lang === 'he' ? 'אבן הדרך הבאה' : 'Next Milestone'}</span>
+                {isWaitingApproval ? (
+                  <span className="rounded-full bg-[#FBF3E3] px-2.5 py-1 text-xs font-medium text-accent">
+                    {lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting approval'}
+                  </span>
+                ) : (
+                  (() => {
+                    const days = daysUntil(overviewDisplayMilestone.type === 'defense' ? overviewDisplayMilestone.defenseDate : overviewDisplayMilestone.dueDate);
+                    return days !== null ? (
+                      <span className="rounded-full bg-[#E9F0F5] px-2.5 py-1 text-xs font-medium text-[#3E6C8C]">
+                        {days} {lang === 'he' ? 'ימים' : 'days left'}
+                      </span>
+                    ) : null;
+                  })()
+                )}
+              </div>
+
+              <p className="mt-2 text-sm text-ink">
+                {(() => {
+                  const nextPending = milestones.find((m) => m.status === 'pending');
+                  const displayType = nextPending?.type ?? overviewDisplayMilestone.type;
+                  return MILESTONE_LABEL[displayType][lang];
+                })()}
+              </p>
+
+              {actionableNextMilestone?.type === 'defense' && (
+                <DefenseDetails milestone={actionableNextMilestone} />
+              )}
+
+              {actionableNextMilestone?.type !== 'defense' && (
+                <button
+                  type="button"
+                  disabled={!actionableNextMilestone || isWaitingApproval}
+                  onClick={() => actionableNextMilestone && setSubmitTarget(actionableNextMilestone)}
+                  className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-40"
+                >
+                  {isWaitingApproval ? (lang === 'he' ? 'ממתין לאישור סגל' : 'Awaiting Faculty Approval') : (lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone')}
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
+            <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'תיאור הפרויקט' : 'Project Description'}</p>
+            <p className="mt-1.5 text-sm text-muted">{lang === 'he' ? project.descriptionHe : project.descriptionEn}</p>
+          </div>
+
+          {isMastersThesis && (
+            <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
+              <p className="text-sm font-semibold text-ink">📄 {lang === 'he' ? 'תבנית לתזה' : 'Thesis Template'}</p>
+              <p className="mt-1.5 text-sm text-muted">
+                {lang === 'he' ? 'תבנית ה-Word הרשמית לכתיבת עבודת התזה שלך.' : 'The official Word template for writing your thesis.'}
+              </p>
+              <button
+                type="button"
+                onClick={handleDownloadTemplate}
+                disabled={downloadingTemplate}
+                className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              >
+                {downloadingTemplate ? '…' : `⬇ ${lang === 'he' ? 'הורדת התבנית' : 'Download Template'}`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'milestones' && (
+        <div className="grid gap-3">
+          <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'אבני הדרך שלך' : 'Your Milestones'}</p>
+          {milestones.map((m, index) => {
+            const unlocked = isUnlocked(m);
+            const cfg = STATUS_CONFIG[m.status] ?? { color: '#6B7280', bg: '#F1F0EC', icon: '🕐' };
+            const days = daysUntil(m.dueDate);
+            const label = MILESTONE_LABEL[m.type][lang];
+            const isDefense = m.type === 'defense';
+            const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
+            const isApprovedOrDone = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
+
+            return (
+              <div key={m.id} className="flex gap-3 rounded-[var(--radius)] border border-line bg-surface p-4">
+                <div className="flex flex-col items-center">
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                    style={{ backgroundColor: isApprovedOrDone ? 'var(--success)' : cfg.color }}
+                  >
+                    {isApprovedOrDone ? '✓' : index + 1}
+                  </span>
+                  {index < milestones.length - 1 && <span className="mt-1 w-px flex-1 bg-line" />}
+                </div>
+
+                <div className="flex-1 pb-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-ink">{label}</span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-xs font-medium"
+                      style={{ backgroundColor: isApprovedOrDone ? 'var(--success-bg)' : cfg.bg, color: isApprovedOrDone ? 'var(--success)' : cfg.color }}
+                    >
+                      {isApprovedOrDone ? '✅' : cfg.icon} {STATUS_LABEL[m.status]?.[lang] ?? m.status}
+                    </span>
+                  </div>
+
+                  {!unlocked ? (
+                    <p className="mt-1 text-xs text-muted">🔒 {lang === 'he' ? 'יש להשלים אבני דרך קודמות' : 'Need to complete previous milestones'}</p>
+                  ) : isApprovedOrDone ? (
+                    <p className="mt-1 text-xs font-medium text-success">
+                      ✅ {lang === 'he' ? 'אושר ע"י הרכז' : 'Approved by coordinator'}
+                      {m.finalGrade !== null && ` · ${t('grade')}: ${m.finalGrade}`}
+                    </p>
+                  ) : isSubmittedInReview ? (
+                    <p className="mt-1 text-xs font-medium text-accent">📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted">
+                      📅 {t('dueDate')} {toDate(m.dueDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {days !== null && m.status === 'pending' && unlocked && (
+                        <span className={days < 0 ? 'text-danger' : days <= 7 ? 'text-accent' : 'text-success'}>
+                          {' '}
+                          ({days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : `${days} ${lang === 'he' ? 'ימים' : 'days left'}`})
+                        </span>
+                      )}
+                    </p>
+                  )}
+
+                  {isDefense && m.defenseDate && (
+                    <div className="mt-2 grid gap-0.5 text-xs text-muted">
+                      <span>
+                        📅 {t('defenseDate')} {toDate(m.defenseDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
+                      {m.defenseRoom && (
+                        <span>
+                          🏫 {t('defenseRoom')} {m.defenseRoom}
+                        </span>
+                      )}
+                      {m.examinerNames?.length > 0 && (
+                        <span>
+                          👥 {t('examiners')} {m.examinerNames.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {isDefense && !m.defenseDate && <p className="mt-1 text-xs text-muted">{t('defenseNotScheduled')}</p>}
+
+                  {m.status === 'pending' && !isDefense && unlocked && !m.defenseDate && (
+                    <button
+                      type="button"
+                      onClick={() => setSubmitTarget(m)}
+                      className="mt-2 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+                    >
+                      {lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone'}
+                    </button>
+                  )}
+
+                  {m.fileUrls?.length > 0 && (
+                    <p className="mt-1.5 text-xs text-muted">
+                      📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים הוגשו' : 'files submitted'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === 'grades' && (
+        <div className="grid gap-3">
+          <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}</p>
+          {milestones.map((m) => {
+            const label = MILESTONE_LABEL[m.type][lang];
+            const grade = m.finalGrade ?? m.supervisorScore ?? null;
+            const hasGrade = typeof grade === 'number' && !isNaN(grade);
+            const isSubmittedState = !hasGrade && (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
+            const isGradeVisible = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
+            const gradeVisible = isGradeVisible && hasGrade;
+
+            return (
+              <div key={m.id} className="rounded-[var(--radius)] border border-line bg-surface p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-ink">{label}</span>
+                  {gradeVisible ? (
+                    <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: gradeColor(grade as number), backgroundColor: '#F1F0EC' }}>
+                      {grade}
+                    </span>
+                  ) : isSubmittedState ? (
+                    <span className="text-xs font-medium text-accent">📤 {lang === 'he' ? 'הוגש' : 'Submitted'}</span>
+                  ) : (
+                    <span className="text-xs text-muted">📭 {lang === 'he' ? 'טרם הוגש' : 'Not submitted yet'}</span>
+                  )}
+                </div>
+
+                {hasGrade ? (
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper">
+                    <div className="h-full rounded-full" style={{ width: `${grade}%`, backgroundColor: gradeColor(grade as number) }} />
+                  </div>
+                ) : isSubmittedState ? (
+                  <p className="mt-2 text-xs text-accent">⏳ {lang === 'he' ? 'ממתין לאישור ציון ע"י הרכז' : 'Awaiting grade approval by coordinator'}</p>
+                ) : null}
+              </div>
+            );
+          })}
+
+          {milestones.length > 0 && milestones.every((m) => m.finalGrade !== null) && (
+            <div className="rounded-[var(--radius)] border border-line bg-surface p-5 text-center">
+              <p className="text-sm text-muted">{t('finalGrade')}</p>
+              <p className="text-3xl font-bold text-ink">{Math.round(milestones.reduce((sum, m) => sum + (m.finalGrade ?? 0), 0) / milestones.length)}</p>
+              <p className="mt-1 text-xs text-muted">
+                {lang === 'he' ? '* הציון מחושב לפי המשקלים שנקבעו על ידי רכז הפרויקטים' : '* Grade calculated using weights set by the project coordinator'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {submitTarget && (
+        <SubmitMilestoneModal
+          key={submitTarget.id}
+          milestone={submitTarget}
+          projectId={project.id}
+          onClose={() => setSubmitTarget(null)}
+          onSubmitted={onChanged}
+        />
+      )}
+    </div>
+  );
+}
+
+function DefenseDetails({ milestone: m }: { milestone: Milestone }) {
+  const { lang, t } = useLanguage();
+  const notSetYet = lang === 'he' ? 'טרם נקבע' : 'Not set yet';
+  const defenseDate = toDate(m.defenseDate);
+  const formattedDate = defenseDate
+    ? defenseDate.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+    : notSetYet;
+
+  const rows = [
+    { label: lang === 'he' ? 'בוחן 1' : 'Examiner 1', value: m.examinerNames?.[0] ?? (lang === 'he' ? 'טרם שובץ' : 'Not assigned yet') },
+    { label: lang === 'he' ? 'בוחן 2' : 'Examiner 2', value: m.examinerNames?.[1] ?? (lang === 'he' ? 'טרם שובץ' : 'Not assigned yet') },
+    { label: lang === 'he' ? 'תאריך' : 'Date', value: formattedDate },
+    { label: t('time'), value: m.defenseTime ?? notSetYet },
+    { label: lang === 'he' ? 'בניין' : 'Building', value: m.defenseBuilding ?? notSetYet },
+    { label: lang === 'he' ? 'חדר' : 'Room', value: m.defenseRoom ?? notSetYet },
+  ];
+
+  return (
+    <div className="role-rail mt-3 grid gap-1.5 rounded-lg bg-[#EFEBF6] p-3.5" style={{ '--rail-color': '#6E5A99' } as React.CSSProperties}>
+      <p className="mb-1 text-xs font-semibold text-[#5B3E99]">🎓 {lang === 'he' ? 'פרטי ההגנה' : 'Defense Details'}</p>
+      {rows.map((row) => (
+        <div key={row.label} className="flex items-center justify-between border-b border-[#DCD3EE] py-1 last:border-0">
+          <span className="text-xs font-medium text-[#6E5A99]">{row.label}</span>
+          <span className="text-xs font-medium text-ink">{row.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}

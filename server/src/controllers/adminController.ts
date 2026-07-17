@@ -7,6 +7,7 @@ import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount } from '../services/accountDeletion.js';
 import { VALID_ROLES } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { VALID_MAJORS } from '../config/majors.js';
 
 const db = admin.firestore();
 
@@ -126,8 +127,12 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
  * Force-creates a new project from the admin panel.
  */
 export const createAdminProject = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  const role  = req.user?.role;
+  const roles = req.user?.roles ?? [];
+  const isAuthorized = role === 'faculty_admin' || role === 'system_admin' ||
+    roles.includes('faculty_admin') || roles.includes('system_admin');
+  if (!isAuthorized) {
+    return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
   }
   try {
     const projectData = req.body;
@@ -165,6 +170,14 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
 
   try {
     const userData = req.body;
+
+    // A student's major must always be one of the canonical program slugs —
+    // never free text or a facultyId fallback — since scope-matching (e.g.
+    // coordinator assignment by major) depends on it being reliable.
+    if (userData.role === 'student' && !VALID_MAJORS.has(userData.major)) {
+      return res.status(400).json({ message: `Invalid major: "${userData.major}"` });
+    }
+
     const newUserRef = db.collection('users').doc(); // Alternatively, use their UID if linked to Firebase Auth
 
     await newUserRef.set({
