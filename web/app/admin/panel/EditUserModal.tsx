@@ -9,6 +9,9 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel } from '@/lib/i18n';
+import { PermissionsEditorModal } from './PermissionsEditorModal';
+import { CoordinatorScopesModal } from './CoordinatorScopesModal';
+import type { ScopeRule, CoordinatorScope } from '@/lib/permissions';
 import type { AdminUserRecord } from './types';
 
 interface EditUserModalProps {
@@ -30,6 +33,19 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
   const [facultyId, setFacultyId] = useState<string>(user.facultyId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Granular permissions — UI only for now, not yet sent to the server (see
+  // lib/permissions.ts and PermissionsEditorModal). Mirrors mobile's
+  // panel.tsx: these live in component state and get threaded into
+  // PermissionsEditorModal/CoordinatorScopesModal, but are intentionally
+  // left out of handleSave's request body below.
+  const [permissionRules, setPermissionRules] = useState<ScopeRule[]>([]);
+  // Coordinator's own operational scope — same "UI only" caveat as above.
+  const [coordinatorScopes, setCoordinatorScopes] = useState<CoordinatorScope[]>([]);
+  const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
+  const [scopesModalOpen, setScopesModalOpen] = useState(false);
+
+  const showCoordinatorScopes = role === 'coordinator' || additionalRoles.includes('coordinator');
 
   const toggleAdditionalRole = (r: AppRole) => {
     setAdditionalRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
@@ -104,6 +120,36 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
               })}
             </div>
           </div>
+
+          {/* ── Granular Permissions (system_admin only) ── */}
+          <button
+            type="button"
+            onClick={() => setPermissionsModalOpen(true)}
+            className="flex items-center justify-between rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm font-medium text-ink hover:border-primary"
+          >
+            <span>🔐 {lang === 'he' ? 'הרשאות מפורטות' : 'Granular Permissions'}</span>
+            <span className="text-muted">
+              {permissionRules.length > 0
+                ? (lang === 'he' ? `${permissionRules.length} כללים ›` : `${permissionRules.length} rules ›`)
+                : '›'}
+            </span>
+          </button>
+
+          {/* ── Coordinator Scope (system_admin only, coordinator role only) ── */}
+          {showCoordinatorScopes && (
+            <button
+              type="button"
+              onClick={() => setScopesModalOpen(true)}
+              className="flex items-center justify-between rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm font-medium text-ink hover:border-primary"
+            >
+              <span>📋 {lang === 'he' ? 'היקף אחריות רכז' : 'Coordinator Scope'}</span>
+              <span className="text-muted">
+                {coordinatorScopes.length > 0
+                  ? (lang === 'he' ? `${coordinatorScopes.length} תחומים ›` : `${coordinatorScopes.length} scopes ›`)
+                  : '›'}
+              </span>
+            </button>
+          )}
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
@@ -122,6 +168,22 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
           </button>
         </div>
       </div>
+
+      <PermissionsEditorModal
+        open={permissionsModalOpen}
+        onClose={() => setPermissionsModalOpen(false)}
+        rules={permissionRules}
+        onChange={setPermissionRules}
+      />
+
+      {showCoordinatorScopes && (
+        <CoordinatorScopesModal
+          open={scopesModalOpen}
+          onClose={() => setScopesModalOpen(false)}
+          scopes={coordinatorScopes}
+          onChange={setCoordinatorScopes}
+        />
+      )}
     </div>
   );
 }

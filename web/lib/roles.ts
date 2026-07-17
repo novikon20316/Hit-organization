@@ -233,6 +233,9 @@ export interface UserDoc {
   /** Firestore Timestamp — arrives over the REST API as `{ _seconds,
    *  _nanoseconds }`, not a client Timestamp instance; parse defensively. */
   deletionScheduledFor?: unknown;
+  /** Mirrors mobile's post-login nudge condition (app/(auth)/login.tsx) —
+   *  when false/undefined, the user hasn't set up 2FA yet. */
+  totp_enabled?: boolean;
 }
 
 export const VALID_ROLES: AppRole[] = [

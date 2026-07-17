@@ -1,22 +1,17 @@
 'use client';
 
 // app/faculty_admin/dashboard/page.tsx
-// Ported from mobile/app/faculty_admin/dashboard.tsx — Overview, Users, and
-// Projects tabs. Two things mobile's own screen calls are left out here,
-// not because they're big, but because they don't actually work today:
+// Ported from mobile/app/faculty_admin/dashboard.tsx — Overview, Users,
+// Projects, and Deadlines tabs, plus "Post New Project".
 //
-// 1. "Post New Project" (handleCreateProject) posts to POST /api/admin/projects,
-//    which server/src/controllers/adminController.ts's createAdminProject
-//    gates to system_admin only — a faculty_admin hitting it gets a 403.
-// 2. The Deadlines tab calls GET /api/staff/:uid/deadlines. That handler's
-//    own access check only allows roles 'supervisor' or 'coordinator'
-//    through (faculty_admin isn't in that list, despite being handled later
-//    in the same function) — and even if it were, it returns { deadlines }
-//    while mobile reads res.data.rows, which is always undefined. Both bugs
-//    independently mean this tab has never actually shown data.
-//
-// Worth fixing server-side if this functionality matters — flagging instead
-// of quietly working around it so nothing here masks the real gap.
+// The latter two were originally left unbuilt because two server-side bugs
+// made them non-functional for this role: createAdminProject
+// (server/src/controllers/adminController.ts) gated POST /api/admin/projects
+// to system_admin only, and getDeadLines (server/src/controllers/
+// staffController.ts) excluded faculty_admin from GET /api/staff/:uid/deadlines'
+// role check. Both are now fixed — createAdminProject accepts faculty_admin
+// (via req.user.role or req.user.roles[]), and getDeadLines's role check
+// includes faculty_admin and returns faculty-wide deadlines for that role.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -27,29 +22,37 @@ import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
+import type { FacultyId } from '@/lib/i18n';
 import { UserRow } from './UserRow';
 import { EditUserModal } from './EditUserModal';
 import { ProjectCard } from './ProjectCard';
 import { EnrollStudentModal } from './EnrollStudentModal';
-import type { FacultyAdminUserRecord, FacultyAdminProjectRecord } from './types';
+import { NewProjectModal } from './NewProjectModal';
+import { DeadlinesTab } from './DeadlinesTab';
+import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline } from './types';
 
 const FACULTY_ADMIN_ROLES: AppRole[] = ['faculty_admin', 'system_admin'];
 
+type Tab = 'overview' | 'users' | 'projects' | 'deadlines';
+
 export default function FacultyAdminDashboardPage() {
-  const { loading: guardLoading, isAllowed } = useRequireRole(FACULTY_ADMIN_ROLES);
+  const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(FACULTY_ADMIN_ROLES);
   const { lang, t } = useLanguage();
 
-  const [tab, setTab] = useState<'overview' | 'users' | 'projects'>('overview');
+  const [tab, setTab] = useState<Tab>('overview');
   const [users, setUsers] = useState<FacultyAdminUserRecord[]>([]);
   const [projects, setProjects] = useState<FacultyAdminProjectRecord[]>([]);
   const [availableStudents, setAvailableStudents] = useState<FacultyAdminUserRecord[]>([]);
   const [supervisorCount, setSupervisorCount] = useState(0);
+  const [facultyId, setFacultyId] = useState<FacultyId>('all');
+  const [deadlines, setDeadlines] = useState<FacultyAdminDeadline[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
 
   const [editingUser, setEditingUser] = useState<FacultyAdminUserRecord | null>(null);
   const [enrollingProject, setEnrollingProject] = useState<FacultyAdminProjectRecord | null>(null);
+  const [showNewProject, setShowNewProject] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -58,13 +61,25 @@ export default function FacultyAdminDashboardPage() {
       setProjects((data.projects ?? []) as unknown as FacultyAdminProjectRecord[]);
       setAvailableStudents((data.availableStudents ?? []) as unknown as FacultyAdminUserRecord[]);
       setSupervisorCount((data.supervisors ?? []).length);
+      if (data.facultyId) setFacultyId(data.facultyId as FacultyId);
       setLoadError('');
+
+      // Non-fatal — deadlines failing to load shouldn't block the rest of
+      // the dashboard, same treatment as coordinator/supervisor's dashboards.
+      try {
+        if (firebaseUser) {
+          const dl = await apiClient.getStaffDeadlines(firebaseUser.uid);
+          setDeadlines((dl.deadlines ?? []) as unknown as FacultyAdminDeadline[]);
+        }
+      } catch {
+        setDeadlines([]);
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת לוח הבקרה נכשלה' : 'Failed to load the dashboard');
     } finally {
       setLoadingData(false);
     }
-  }, [lang]);
+  }, [lang, firebaseUser]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls happen after its awaited network call resolves, not synchronously in this effect
@@ -91,6 +106,15 @@ export default function FacultyAdminDashboardPage() {
       subtitle={lang === 'he' ? 'ניהול משתמשים ופרויקטים בפקולטה' : 'Managing users and projects in your faculty'}
       actions={
         <div className="flex items-center gap-2">
+          {tab === 'projects' && (
+            <button
+              type="button"
+              onClick={() => setShowNewProject(true)}
+              className="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            >
+              + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
+            </button>
+          )}
           <Link
             href="/faculty_admin/templates"
             className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
@@ -103,7 +127,7 @@ export default function FacultyAdminDashboardPage() {
       }
     >
       <div className="mb-5 flex gap-1 border-b border-line">
-        {(['overview', 'users', 'projects'] as const).map((key) => (
+        {(['overview', 'users', 'projects', 'deadlines'] as const).map((key) => (
           <button
             key={key}
             type="button"
@@ -112,7 +136,13 @@ export default function FacultyAdminDashboardPage() {
               tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
             }`}
           >
-            {key === 'overview' ? (lang === 'he' ? 'סקירה' : 'Overview') : key === 'users' ? (lang === 'he' ? 'משתמשים' : 'Users') : lang === 'he' ? 'פרויקטים' : 'Projects'}
+            {key === 'overview'
+              ? lang === 'he' ? 'סקירה' : 'Overview'
+              : key === 'users'
+                ? lang === 'he' ? 'משתמשים' : 'Users'
+                : key === 'projects'
+                  ? lang === 'he' ? 'פרויקטים' : 'Projects'
+                  : lang === 'he' ? 'מועדי הגשה' : 'Deadlines'}
           </button>
         ))}
       </div>
@@ -143,13 +173,15 @@ export default function FacultyAdminDashboardPage() {
           </div>
           {filteredUsers.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}
         </div>
-      ) : (
+      ) : tab === 'projects' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {projects.map((p) => (
             <ProjectCard key={p.id} project={p} onEnroll={setEnrollingProject} />
           ))}
           {projects.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין פרויקטים בפקולטה' : 'No projects in this faculty'}</p>}
         </div>
+      ) : (
+        <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchDashboard} />
       )}
 
       {editingUser && <EditUserModal key={editingUser.id} user={editingUser} onClose={() => setEditingUser(null)} onSaved={fetchDashboard} />}
@@ -161,6 +193,9 @@ export default function FacultyAdminDashboardPage() {
           onClose={() => setEnrollingProject(null)}
           onEnrolled={fetchDashboard}
         />
+      )}
+      {showNewProject && (
+        <NewProjectModal facultyId={facultyId} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
       )}
     </DashboardShell>
   );

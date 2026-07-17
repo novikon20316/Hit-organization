@@ -30,12 +30,24 @@ interface DashboardShellProps {
   onBeforeSignOut?: () => void | Promise<void>;
 }
 
+const TOTP_NUDGE_DISMISS_KEY = 'totpNudgeDismissedAt';
+
 export function DashboardShell({ title, subtitle, children, actions, onBeforeSignOut }: DashboardShellProps) {
   const router = useRouter();
   const { userData, logout } = useAuth();
   const { lang } = useLanguage();
   const railColor = getRoleAccent(userData?.role);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [totpNudgeDismissed, setTotpNudgeDismissed] = useState(
+    () => typeof window !== 'undefined' && sessionStorage.getItem(TOTP_NUDGE_DISMISS_KEY) === '1'
+  );
+
+  const dismissTotpNudge = () => {
+    setTotpNudgeDismissed(true);
+    sessionStorage.setItem(TOTP_NUDGE_DISMISS_KEY, '1');
+  };
+
+  const showTotpNudge = !!userData && !userData.totp_enabled && !totpNudgeDismissed;
 
   const handleLogout = async () => {
     try {
@@ -95,6 +107,34 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
           </div>
         </div>
       </header>
+
+      {showTotpNudge && (
+        <div className="border-b border-line bg-primary/10">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
+            <p className="text-sm text-ink">
+              {lang === 'he'
+                ? '🔐 לאבטחת החשבון שלך, מומלץ להפעיל אימות דו-שלבי (2FA) בהקדם האפשרי.'
+                : "🔐 For your account's security, it's recommended to enable two-factor authentication (2FA) as soon as possible."}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => router.push('/setup-2fa')}
+                className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+              >
+                {lang === 'he' ? 'הפעל עכשיו' : 'Enable Now'}
+              </button>
+              <button
+                type="button"
+                onClick={dismissTotpNudge}
+                className="rounded-full border border-line px-3 py-1 text-xs font-medium text-muted hover:text-ink"
+              >
+                {lang === 'he' ? 'מאוחר יותר' : 'Later'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">{children}</main>
 

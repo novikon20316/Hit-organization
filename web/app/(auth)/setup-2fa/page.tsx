@@ -1,9 +1,10 @@
 'use client';
 
 // app/(auth)/setup-2fa/page.tsx
-// Ported from mobile/app/(auth)/setup2fa.tsx. Not yet linked from anywhere
-// in the web app (mobile reaches it from an account-settings screen this
-// port doesn't have yet) — still worth having as a real, working route.
+// Ported from mobile/app/(auth)/setup2fa.tsx. Reachable via the "Enable Now"
+// button on DashboardShell's totp_enabled nudge banner (shown on every
+// dashboard page until 2FA is turned on or the user dismisses it for the
+// session) — mobile instead reaches it from a one-shot post-login Alert.
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';

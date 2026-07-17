@@ -4,10 +4,10 @@
 // Ported from mobile/app/(auth)/login.tsx. Same Firebase sign-in flow, same
 // gates in the same order (email verification → forced password change →
 // 2FA → maintenance → role redirect), same failed-login lockout reporting.
-// The only behavior intentionally left out for now is mobile's "you should
-// enable 2FA" nudge dialog after a successful login with 2FA off — that
-// wants a proper toast/banner component, which comes with the dashboard
-// shell, not the bare login page.
+// Mobile's "you should enable 2FA" nudge (a one-shot post-login Alert) is
+// reimplemented as a persistent dismissible banner in DashboardShell instead
+// — it fires on every dashboard page for as long as totp_enabled is false,
+// rather than only once right after this page redirects away.
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
