@@ -1,0 +1,41 @@
+# Render Blueprint for the Next.js web app (web/). The Express backend
+# (server/) is already deployed separately at hit-organization.onrender.com
+# and was created directly in the Render dashboard, not via this file —
+# intentionally NOT declared here so applying this blueprint can't touch it.
+#
+# To deploy: Render dashboard → New → Blueprint → connect this repo. Render
+# will detect this file and propose the single service below.
+services:
+  - type: web
+    name: hit-organization-web
+    runtime: node
+    rootDir: web
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -- -p $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      # Same backend both the mobile app and this repo's own
+      # .env.local.example already point at.
+      - key: NEXT_PUBLIC_API_URL
+        value: https://hit-organization.onrender.com
+      # Firebase web config — not secret (shipped in every client bundle by
+      # design; access control is Firestore rules + the server's verifyToken
+      # middleware). Values match the ones already baked into
+      # mobile/src/firebase/firebase.ts and web/lib/firebase.ts's fallback.
+      - key: NEXT_PUBLIC_FIREBASE_API_KEY
+        value: AIzaSyD7v2PB_ics4bDV346BxeIZjFvkbSHvjiM
+      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        value: hit-organization.firebaseapp.com
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        value: hit-organization
+      - key: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+        value: hit-organization.appspot.com
+      - key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        value: "432175584982"
+      - key: NEXT_PUBLIC_FIREBASE_APP_ID
+        value: "1:432175584982:web:b2c0a54e4309e4d3175b77"
+      - key: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+        value: G-TMNFYG6N67
