@@ -35,13 +35,41 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Shared by both redirect paths below so they can never disagree on
+  // where a signed-in user should land — see the useEffect just below this
+  // for why that used to matter: it used to jump straight to
+  // getHomeRoute(role) without checking mustChangePassword/totp_enabled/
+  // maintenance first, and since AuthContext's live Firestore listener
+  // often resolves faster than handleLogin's own re-fetch below, that
+  // effect would win the race and silently skip the forced password change
+  // for a brand-new temp-password account.
+  const redirectAfterAuth = async (data: UserDoc) => {
+    if (data.mustChangePassword) {
+      router.push('/change-password');
+      return;
+    }
+    if ((data as UserDoc & { totp_enabled?: boolean }).totp_enabled) {
+      router.push('/verify-2fa');
+      return;
+    }
+    const maintenance = await checkMaintenance(data.role);
+    if (maintenance.blocked) {
+      const params = new URLSearchParams({ title: maintenance.title, endsAt: maintenance.endsAt ?? '' });
+      router.replace(`/maintenance?${params.toString()}`);
+      return;
+    }
+    router.replace(getHomeRoute(data.role));
+  };
+
   // Already signed in (e.g. reopened tab with a live session) — skip
-  // straight to their dashboard instead of showing the login form.
+  // straight past the login form using the same gated decision as a fresh
+  // login, not just a blind role-based redirect.
   useEffect(() => {
     if (!authLoading && firebaseUser && userData?.role) {
-      router.replace(getHomeRoute(userData.role));
+      redirectAfterAuth(userData);
     }
-  }, [authLoading, firebaseUser, userData, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- redirectAfterAuth closes over router/checkMaintenance, which are stable for this component's lifetime; re-running only on the actual auth-state deps below is intentional
+  }, [authLoading, firebaseUser, userData]);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -86,25 +114,9 @@ export default function LoginPage() {
       }
 
       // Forced password change (accounts created via Excel import) takes
-      // priority over 2FA — a temp password must be replaced first.
-      if (data.mustChangePassword) {
-        router.push('/change-password');
-        return;
-      }
-
-      if ((data as UserDoc & { totp_enabled?: boolean }).totp_enabled) {
-        router.push('/verify-2fa');
-        return;
-      }
-
-      const maintenance = await checkMaintenance(data.role);
-      if (maintenance.blocked) {
-        const params = new URLSearchParams({ title: maintenance.title, endsAt: maintenance.endsAt ?? '' });
-        router.replace(`/maintenance?${params.toString()}`);
-        return;
-      }
-
-      router.replace(getHomeRoute(data.role));
+      // priority over 2FA — a temp password must be replaced first. Same
+      // decision tree the "already signed in" effect above uses.
+      await redirectAfterAuth(data);
     } catch (err) {
       const code = (err as AuthError)?.code;
       if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
