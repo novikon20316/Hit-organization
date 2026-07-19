@@ -25,6 +25,12 @@ interface EmailTemplate {
   subjectEn: string;
   bodyHe:    (data: Record<string, string>) => string;
   bodyEn:    (data: Record<string, string>) => string;
+  /** When true, buildEmailHtml sends BOTH language versions in one email
+   *  (Hebrew section, then English) instead of picking one via `lang` —
+   *  for account-creation mail, the recipient hasn't set a language
+   *  preference in the app yet, so there's no reliable single language
+   *  to pick. */
+  bilingual?: boolean;
 }
 
 export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
@@ -168,11 +174,12 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
   },
 
   account_created: {
-    subjectHe: '🎓 חשבונך במערכת נוצר',
-    subjectEn: '🎓 Your Account Has Been Created',
+    subjectHe: '🎓 מנהל המערכת של HIT הוסיף אותך למערכת פרויקטי הגמר',
+    subjectEn: '🎓 HIT\'s System Administrator Added You to the Projects & Thesis System',
+    bilingual: true,
     bodyHe: (d) => `
       <p>שלום ${d.name || ''},</p>
-      <p>נוצר עבורך חשבון במערכת ניהול פרויקטי הגמר.</p>
+      <p>מנהל המערכת (system_admin) של HIT הוסיף אותך למערכת ניהול פרויקטי הגמר ועבודות התזה.</p>
       <p>אימייל: <strong>${d.email || ''}</strong><br/>
       סיסמה זמנית: <strong>${d.tempPassword || ''}</strong></p>
       ${d.appLinkIos || d.appLinkAndroid ? `
@@ -184,7 +191,7 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     `,
     bodyEn: (d) => `
       <p>Hello ${d.name || ''},</p>
-      <p>An account has been created for you in the Final Projects Management System.</p>
+      <p>HIT's system administrator has added you to the Final Projects and Thesis Management System.</p>
       <p>Email: <strong>${d.email || ''}</strong><br/>
       Temporary password: <strong>${d.tempPassword || ''}</strong></p>
       ${d.appLinkIos || d.appLinkAndroid ? `
@@ -380,9 +387,24 @@ export function buildEmailHtml(
 ): { subject: string; html: string } {
   const template = EMAIL_TEMPLATES[type] ?? EMAIL_TEMPLATES.general;
   const isHe     = lang === 'he';
-  const subject  = isHe ? template.subjectHe : template.subjectEn;
-  const body     = isHe ? template.bodyHe(data) : template.bodyEn(data);
   const dir      = isHe ? 'rtl' : 'ltr';
+
+  // Bilingual templates (currently just account_created) send both
+  // languages in one email — the recipient hasn't set an in-app language
+  // preference yet at account-creation time, so there's no single language
+  // to reliably pick. `lang` still picks header/footer/dir for the overall
+  // document and which language section reads first.
+  const subject = template.bilingual
+    ? `${template.subjectHe} / ${template.subjectEn}`
+    : (isHe ? template.subjectHe : template.subjectEn);
+
+  const body = template.bilingual
+    ? `
+      <div dir="rtl" style="text-align:right;">${template.bodyHe(data)}</div>
+      <hr style="border:none; border-top:1px solid #E3E8F2; margin:24px 0;" />
+      <div dir="ltr" style="text-align:left;">${template.bodyEn(data)}</div>
+    `
+    : (isHe ? template.bodyHe(data) : template.bodyEn(data));
 
   const html = `
     <!DOCTYPE html>
@@ -404,13 +426,15 @@ export function buildEmailHtml(
     <body>
       <div class="wrapper">
         <div class="header">
-          <h1>${isHe ? 'מערכת ניהול פרויקטים' : 'Project Management System'}</h1>
+          <h1>${template.bilingual ? 'מערכת ניהול פרויקטים / Project Management System' : (isHe ? 'מערכת ניהול פרויקטים' : 'Project Management System')}</h1>
         </div>
         <div class="body">${body}</div>
         <div class="footer">
-          ${isHe
-            ? 'הודעה זו נשלחה אוטומטית — אין להשיב על מייל זה.'
-            : 'This is an automated message — please do not reply to this email.'}
+          ${template.bilingual
+            ? 'הודעה זו נשלחה אוטומטית — אין להשיב על מייל זה. / This is an automated message — please do not reply to this email.'
+            : (isHe
+                ? 'הודעה זו נשלחה אוטומטית — אין להשיב על מייל זה.'
+                : 'This is an automated message — please do not reply to this email.')}
         </div>
       </div>
     </body>
