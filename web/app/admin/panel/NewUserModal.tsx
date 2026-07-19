@@ -8,7 +8,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { CROSS_FACULTY_ROLES, VALID_ROLES, type AppRole } from '@/lib/roles';
-import { roleLabel, facultyLabel } from '@/lib/i18n';
+import { roleLabel, facultyLabel, tx } from '@/lib/i18n';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { HIT_FACULTIES } from '@/lib/faculties';
 
@@ -19,6 +19,19 @@ interface NewUserModalProps {
 }
 
 const SELECTABLE_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
+
+// Client-side convenience default only — purely cosmetic. The real
+// generate-if-blank behavior always happens server-side (generateTempPassword
+// in services/userImportExport.ts); this just gives the admin something
+// readable to start from if they click "Generate" instead of typing their own.
+function generateReadableTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < 10; i++) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `${out}Aa1!`;
+}
 
 export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
   const { lang } = useLanguage();
@@ -32,8 +45,15 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
   const [major, setMajor] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState('1');
   const [studentId, setStudentId] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Set once the create call succeeds — switches the modal into a success
+  // view showing the (server-resolved) temp password so the admin can copy
+  // it before dismissing. Matters most when they left the field blank.
+  const [created, setCreated] = useState<{ email: string; tempPassword: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const isStudent = role === 'student';
   const isCrossFaculty = CROSS_FACULTY_ROLES.includes(role);
@@ -55,7 +75,10 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
     setMajor('');
     setYearOfStudy('1');
     setStudentId('');
+    setTempPassword('');
     setError('');
+    setCreated(null);
+    setCopied(false);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -80,9 +103,10 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
     setSubmitting(true);
     setError('');
     try {
-      await apiClient.createAdminUser({
+      const trimmedEmail = email.trim().toLowerCase();
+      const result = await apiClient.createAdminUser({
         displayName: name.trim(),
-        email: email.trim().toLowerCase(),
+        email: trimmedEmail,
         phoneNumber: phone.trim() || null,
         role,
         facultyId: isCrossFaculty ? 'all' : facultyId,
@@ -90,10 +114,13 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
         yearOfStudy: isStudent ? parseInt(yearOfStudy, 10) || 1 : null,
         major: isStudent ? major : null,
         studentId: isStudent ? studentId.trim() || null : null,
+        tempPassword: tempPassword.trim() || undefined,
       });
-      reset();
       onCreated();
-      onClose();
+      // Keep the modal open to show the confirmation screen — reset() (and
+      // the actual close) only happens once the admin dismisses it, so a
+      // blank field's server-generated password isn't lost.
+      setCreated({ email: trimmedEmail, tempPassword: result.tempPassword });
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'יצירת המשתמש נכשלה' : 'Failed to create user');
     } finally {
@@ -101,7 +128,72 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
     }
   };
 
+  const handleDismissSuccess = () => {
+    reset();
+    onClose();
+  };
+
+  const handleCopyPassword = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(created.tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable/denied — the value is still visible on
+      // screen for the admin to select and copy manually.
+    }
+  };
+
   if (!open) return null;
+
+  if (created) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+          <h2 className="text-lg font-semibold text-ink">✅ {tx('adminUserCreatedTitle', lang)}</h2>
+
+          <div className="mt-4 grid gap-3 rounded-lg border border-line bg-paper p-4">
+            <div>
+              <span className="block text-xs font-medium text-muted">{lang === 'he' ? 'דוא"ל' : 'Email'}</span>
+              <span dir="ltr" className="block text-sm text-ink">{created.email}</span>
+            </div>
+            <div>
+              <span className="block text-xs font-medium text-muted">{lang === 'he' ? 'סיסמה זמנית' : 'Temporary Password'}</span>
+              <div className="mt-1 flex items-center gap-2">
+                <code dir="ltr" className="flex-1 rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink">
+                  {created.tempPassword}
+                </code>
+                <button
+                  type="button"
+                  onClick={handleCopyPassword}
+                  className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface"
+                >
+                  {copied ? tx('adminCopied', lang) : tx('adminCopyPassword', lang)}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-3 text-sm text-muted">
+            {lang === 'he'
+              ? 'המשתמש יתבקש להחליף את הסיסמה הזמנית בכניסה הראשונה.'
+              : 'The user will be required to change this temporary password on first login.'}
+          </p>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={handleDismissSuccess}
+              className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            >
+              {tx('adminDone', lang)}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -122,6 +214,26 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
 
           <Field label={lang === 'he' ? 'טלפון (אופציונלי)' : 'Phone (optional)'}>
             <input dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+          </Field>
+
+          <Field label={tx('adminTempPasswordLabel', lang)}>
+            <div className="flex gap-2">
+              <input
+                dir="ltr"
+                value={tempPassword}
+                onChange={(e) => setTempPassword(e.target.value)}
+                className={inputCls}
+                placeholder={tx('adminTempPasswordHelp', lang)}
+              />
+              <button
+                type="button"
+                onClick={() => setTempPassword(generateReadableTempPassword())}
+                className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-paper"
+              >
+                {tx('adminGeneratePassword', lang)}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-muted">{tx('adminTempPasswordHelp', lang)}</p>
           </Field>
 
           <Field label={lang === 'he' ? 'תפקיד' : 'Role'}>

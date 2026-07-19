@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
 import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js';
 import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
+import { VALID_MAJORS } from '../config/majors.js';
 import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../services/accountDeletion.js';
 import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
 
@@ -135,6 +136,13 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     }
     const resolvedFacultyId = isCrossFaculty ? 'all' : facultyId;
 
+    // major must always be one of the canonical program slugs — never free
+    // text or a silently-guessed default — since scope-matching (e.g.
+    // coordinator assignment by major) depends on it being reliable.
+    if (role === 'student' && !VALID_MAJORS.has(major)) {
+      return res.status(400).json({ error: `Invalid major: "${major}"` });
+    }
+
     // Authoritative gate — the public verify-eligibility endpoint the client
     // calls before this is only a fail-fast UX check; this is what actually
     // decides whether the account gets created. See services/studentRoster.ts.
@@ -163,7 +171,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 
       degreeType:   role === 'student' ? (degreeType  || 'bachelors') : null,
       yearOfStudy:  role === 'student' ? (Number(yearOfStudy) || 1)   : null,
-      major:        role === 'student' ? (major        || 'computer_science') : null,
+      major:        role === 'student' ? major : null,
       studentId:    role === 'student' ? (studentId    || null) : null,
       // Anchor for the automatic graduation-based deletion sweep (see
       // services/accountDeletion.ts). Defaults to signup time; system_admin
@@ -327,7 +335,7 @@ const PASSWORD_CHANGE_REAUTH_MAX_AGE_SECONDS = 5 * 60;
 const SYSTEM_ADMIN_PASSWORD_MIN_LENGTH = 12;
 const SYSTEM_ADMIN_PASSWORD_SYMBOL_RE = /[^A-Za-z0-9]/;
 
-function validateSystemAdminPassword(password: string): string | null {
+export function validateSystemAdminPassword(password: string): string | null {
   if (password.length < SYSTEM_ADMIN_PASSWORD_MIN_LENGTH) {
     return `System admin passwords must be at least ${SYSTEM_ADMIN_PASSWORD_MIN_LENGTH} characters.`;
   }

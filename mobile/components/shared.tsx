@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Modal, TextInput,
+  View, Text, Pressable, Modal, TextInput,
   ActivityIndicator, Image, Alert, Linking
 } from 'react-native';
 import { signOut } from 'firebase/auth';
@@ -14,6 +14,10 @@ import type { Lang } from './i18n';
 import { NotificationBell } from './NotificationBell';
 import { apiClient } from '../src/api/apiClient';
 import DeleteAccountModal from './modals/DeleteAccountModal';
+import {
+  TopBarStyles, StatCardStyles, SectionHeaderStyles, FacultyBadgeStyles,
+  StatusBadgeStyles, SecurityModalStyles,
+} from '../constants/styles';
 
 // ─── Faculty / Department color palette ───────────────────────────────────────
 export const FACULTY_COLORS: Record<string, {
@@ -73,16 +77,32 @@ export function getFacultyColor(facultyId: string) {
 }
 
 // ─── Role accent colors ───────────────────────────────────────────────────────
+// Every role gets its own hue so role badges/pickers are visually distinct at
+// a glance — not just a single accent (e.g. red) toggled on/off per option.
+// Explicit assignments per the user's spec: student=blue, coordinator=green,
+// administrative_secretary=purple, system_admin=red, supervisor=grey. The
+// remaining roles keep distinct hues that don't collide with these five.
 export const ROLE_ACCENT = {
-  supervisor:  { bg: '#EFF6FF', text: '#2E86FF', label: { he: 'מנחה',         en: 'Supervisor'  } },
-  examiner:    { bg: '#F5F3FF', text: '#8B5CF6', label: { he: 'בוחן',          en: 'Examiner'    } },
-  system_admin:{ bg: '#FEF2F2', text: '#EF4444', label: { he: 'מנהל מערכת',   en: 'System Admin'} },
-  coordinator: { bg: '#ECFDF5', text: '#10B981', label: { he: 'רכז פרויקטים', en: 'Coordinator' } },
-  faculty_admin:{ bg: '#ECFEFF', text: '#06B6D4', label: { he: 'מנהל פקולטה', en: 'Faculty Admin'} },
-  grad_school_head:{ bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש בית ספר',  en: 'Grad School Head'} },
-  program_head: { bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש תוכנית',    en: 'Program Head'} },
-  administrative_secretary: { bg: '#FFF7ED', text: '#F97316', label: { he: 'מזכירה אדמיניסטרטיבית',    en: 'Administrative Secretary'} },
+  student:              { bg: '#EFF6FF', text: '#2E86FF', label: { he: 'סטודנט',                 en: 'Student'                 } },
+  supervisor:            { bg: '#F1F5F9', text: '#64748B', label: { he: 'מנחה',                    en: 'Supervisor'              } },
+  secondary_supervisor:  { bg: '#EEF2FF', text: '#6366F1', label: { he: 'מנחה משני',                en: 'Secondary Supervisor'    } },
+  examiner:              { bg: '#F5F3FF', text: '#8B5CF6', label: { he: 'בוחן',                    en: 'Examiner'                } },
+  internal_examiner:     { bg: '#F5F3FF', text: '#8B5CF6', label: { he: 'בוחן פנימי',               en: 'Internal Examiner'       } },
+  system_admin:          { bg: '#FEF2F2', text: '#EF4444', label: { he: 'מנהל מערכת',              en: 'System Admin'            } },
+  coordinator:           { bg: '#ECFDF5', text: '#10B981', label: { he: 'רכז פרויקטים',            en: 'Coordinator'             } },
+  faculty_admin:         { bg: '#ECFEFF', text: '#06B6D4', label: { he: 'מנהל פקולטה',              en: 'Faculty Admin'           } },
+  grad_school_head:      { bg: '#F0FDFA', text: '#0D9488', label: { he: 'ראש בית ספר',              en: 'Grad School Head'        } },
+  program_head:          { bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש תוכנית',              en: 'Program Head'            } },
+  administrative_secretary: { bg: '#FAF5FF', text: '#9333EA', label: { he: 'מזכירה אדמיניסטרטיבית', en: 'Administrative Secretary'} },
 };
+
+const DEFAULT_ROLE_ACCENT = { bg: '#F1F5F9', text: '#64748B', label: { he: 'תפקיד', en: 'Role' } };
+
+// Safe lookup for arbitrary/unknown role strings (e.g. admin user lists,
+// role pickers) — falls back to a neutral gray instead of throwing/blank.
+export function getRoleAccent(role: string): { bg: string; text: string; label: { he: string; en: string } } {
+  return (ROLE_ACCENT as Record<string, typeof DEFAULT_ROLE_ACCENT>)[role] ?? DEFAULT_ROLE_ACCENT;
+}
 
 // ─── 2FA Security Modal ───────────────────────────────────────────────────────
 // Self-contained — handles setup and verify flows internally.
@@ -320,13 +340,14 @@ export function TopBar({
   return (
     <>
       <View style={[tb.bar, isRtl && tb.rowReverse]}>
-        {/* Left: avatar + name */}
+        {/* Left: avatar + name — flexShrink so a long name/role list can never
+            push the right-hand action row (sign-out included) off-screen */}
         <View style={[tb.left, isRtl && tb.rowReverse]}>
           <View style={[tb.avatar, { backgroundColor: accent.text }]}>
             <Text style={tb.avatarText}>{name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
           </View>
-          <View style={{ marginLeft: isRtl ? 0 : 10, marginRight: isRtl ? 10 : 0 }}>
-            <Text style={[tb.name, isRtl && tb.textRight]}>{name}</Text>
+          <View style={{ marginLeft: isRtl ? 0 : 10, marginRight: isRtl ? 10 : 0, flexShrink: 1, minWidth: 0 }}>
+            <Text style={[tb.name, isRtl && tb.textRight]} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
             <View style={[tb.roleBadge, { backgroundColor: accent.bg }]}>
               <Text style={[tb.roleText, { color: accent.text }]}>
                 {accent.label[lang]}
@@ -335,7 +356,9 @@ export function TopBar({
           </View>
         </View>
 
-        {/* Right: lang + security + bell + maintenance + sign out */}
+        {/* Right: lang + security + bell + maintenance + sign out — never
+            shrinks, so the sign-out button (last item, most items for
+            system_admin) never gets clipped at the screen edge */}
         <View style={[tb.right, isRtl && tb.rowReverse]}>
           <Pressable style={tb.langBtn} onPress={onToggleLang}>
             <Text style={tb.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
@@ -455,143 +478,15 @@ export const toDate = (val: Timestamp | string | null | undefined): Date | null 
 };
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const tb = StyleSheet.create({
-  bar: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1, borderBottomColor: '#E8EDF5',
-    elevation: 2,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4,
-  },
-  rowReverse: { flexDirection: 'row-reverse' },
-  textRight:  { textAlign: 'right' },
-  left:       { flexDirection: 'row', alignItems: 'center' },
-  right:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  avatar: {
-    width: 38, height: 38, borderRadius: 19,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  avatarText:  { color: '#fff', fontWeight: '700', fontSize: 16 },
-  name:        { fontSize: 14, fontWeight: '600', color: '#111' },
-  roleBadge:   { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginTop: 2, alignSelf: 'flex-start' },
-  roleText:    { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
-  langBtn: {
-    backgroundColor: '#F0F4FF', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: '#D0DEFF',
-  },
-  langText:  { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
-  iconBtn:   { padding: 4 },
-  iconBtnText: { fontSize: 18 },
-  signOutBtn: {
-    backgroundColor: '#FFF0F0', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: '#FFCDD2',
-  },
-  signOutText: { fontSize: 12, fontWeight: '600', color: '#D32F2F' },
-});
+const tb = TopBarStyles;
 
-const sc = StyleSheet.create({
-  card: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 14,
-    padding: 14, alignItems: 'center',
-    borderTopWidth: 3,
-    borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
-  },
-  emoji:      { fontSize: 24, marginBottom: 6 },
-  value:      { fontSize: 26, fontWeight: '900', marginBottom: 2 },
-  label:      { fontSize: 11, color: '#8899BB', fontWeight: '500', textAlign: 'center' },
-  labelRight: { textAlign: 'right' },
-});
+const sc = StatCardStyles;
 
-const sh = StyleSheet.create({
-  title: { fontSize: 15, fontWeight: '800', color: '#111', marginBottom: 12, marginTop: 4 },
-  right: { textAlign: 'right' },
-});
+const sh = SectionHeaderStyles;
 
-const fb = StyleSheet.create({
-  badge: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
-    borderWidth: 1, alignSelf: 'flex-start',
-  },
-  dot:  { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
-  text: { fontSize: 11, fontWeight: '600' },
-});
+const fb = FacultyBadgeStyles;
 
-const stb = StyleSheet.create({
-  badge: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3 },
-  text:  { fontSize: 11, fontWeight: '700' },
-});
+const stb = StatusBadgeStyles;
 
 // ─── Security Modal Styles ────────────────────────────────────────────────────
-const sm = StyleSheet.create({
-  root: {
-    flex: 1, backgroundColor: '#F0F4FF',
-  },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E0E8FF',
-  },
-  title:    { fontSize: 17, fontWeight: '700', color: '#111', flex: 1, textAlign: 'center' },
-  backBtn:  { padding: 4, minWidth: 60 },
-  backText: { fontSize: 14, color: '#2E86FF', fontWeight: '600' },
-  closeBtn: { padding: 4, minWidth: 60, alignItems: 'flex-end' },
-  closeText:{ fontSize: 18, color: '#8899BB' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  body:     { flex: 1, padding: 24 },
-  textRight:{ textAlign: 'right' },
-
-  // Status card
-  statusCard: {
-    borderRadius: 16, padding: 24, alignItems: 'center',
-    marginBottom: 24, borderWidth: 1,
-  },
-  statusCardOn:  { backgroundColor: '#ECFDF5', borderColor: '#10B981' },
-  statusCardOff: { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' },
-  statusIcon:    { fontSize: 48, marginBottom: 12 },
-  statusTitle:   { fontSize: 16, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
-  statusSub:     { fontSize: 13, color: '#667', textAlign: 'center', lineHeight: 20 },
-  adminNote:     { fontSize: 12, color: '#8899BB', textAlign: 'center', marginTop: 8 },
-
-  // Setup screen
-  setupTitle:    { fontSize: 17, fontWeight: '700', color: '#111', marginBottom: 8 },
-  setupSub:      { fontSize: 13, color: '#667', lineHeight: 20, marginBottom: 24 },
-  qr: {
-    width: 200, height: 200, alignSelf: 'center',
-    marginBottom: 24, borderRadius: 12,
-    borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  qrPlaceholder: {
-    width: 200, height: 200, alignSelf: 'center',
-    marginBottom: 24, borderRadius: 12,
-    backgroundColor: '#E0E8FF',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  codeLabel: { fontSize: 14, fontWeight: '600', color: '#334', marginBottom: 10 },
-  codeInput: {
-    borderWidth: 2, borderColor: '#2E86FF', borderRadius: 12,
-    padding: 16, fontSize: 28, letterSpacing: 10,
-    backgroundColor: '#fff', marginBottom: 12,
-  },
-  error: { color: '#E74C3C', fontSize: 13, textAlign: 'center', marginBottom: 10 },
-
-  // Buttons
-  primaryBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 12,
-    padding: 16, alignItems: 'center', marginTop: 8,
-  },
-  btnDisabled:    { backgroundColor: '#A0C4FF' },
-  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  openAuthBtn: {
-    backgroundColor: '#F0F4FF', borderRadius: 12, padding: 14,
-    alignItems: 'center', marginBottom: 16,
-    borderWidth: 1, borderColor: '#2E86FF',
-  },
-  openAuthText: { color: '#2E86FF', fontWeight: '700', fontSize: 14 },
-});
+const sm = SecurityModalStyles;

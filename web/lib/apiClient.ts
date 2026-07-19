@@ -331,8 +331,10 @@ export const apiClient = {
     yearOfStudy?: number | null;
     major?: string | null;
     studentId?: string | null;
+    /** Left blank to let the server auto-generate one via generateTempPassword(). */
+    tempPassword?: string;
   }) {
-    return request<{ success: boolean; id: string; message: string }>('/api/admin/users/create', {
+    return request<{ success: boolean; id: string; tempPassword: string; message: string }>('/api/admin/users/create', {
       method: 'POST',
       body: payload,
     });

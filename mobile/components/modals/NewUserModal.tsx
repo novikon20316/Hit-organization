@@ -10,10 +10,25 @@ import {
 } from 'react-native';
 
 import { ROLE_LABELS } from '../../constants'; // adjust path if needed
-import { FACULTY_COLORS } from '../../components/shared'; // adjust path if needed
+import { FACULTY_COLORS, getRoleAccent } from '../../components/shared'; // adjust path if needed
 import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
+import { getFilteredPrograms } from '../../constants/faculties';
 
 type Lang = 'he' | 'en';
+
+// Client-side convenience default only — purely cosmetic. The real
+// generate-if-blank behavior always happens server-side (generateTempPassword
+// in server/src/services/userImportExport.ts); this just gives the admin
+// something readable to start from if they tap "Generate" instead of typing
+// their own.
+function generateReadableTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < 10; i++) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `${out}Aa1!`;
+}
 
 interface Props {
   visible: boolean;
@@ -30,6 +45,7 @@ interface Props {
   newUserYear: string;
   newUserMajor: string;
   newUserStudentId: string;
+  newUserTempPassword: string;
 
   // setters
   setVisible: (v: boolean) => void;
@@ -42,6 +58,7 @@ interface Props {
   setNewUserYear: (v: string) => void;
   setNewUserMajor: (v: string) => void;
   setNewUserStudentId: (v: string) => void;
+  setNewUserTempPassword: (v: string) => void;
 
   // actions
   onCreate: () => void;
@@ -65,6 +82,7 @@ export default function NewUserModal({
   newUserYear,
   newUserMajor,
   newUserStudentId,
+  newUserTempPassword,
 
   setNewUserName,
   setNewUserEmail,
@@ -75,6 +93,7 @@ export default function NewUserModal({
   setNewUserYear,
   setNewUserMajor,
   setNewUserStudentId,
+  setNewUserTempPassword,
 
   onCreate,
   creating,
@@ -102,6 +121,7 @@ export default function NewUserModal({
               setNewUserYear('1');
               setNewUserMajor('');
               setNewUserStudentId('');
+              setNewUserTempPassword('');
             }}
           >
             <Text style={styles.modalClose}>✕</Text>
@@ -146,23 +166,66 @@ export default function NewUserModal({
           </View>
         ))}
 
+        {/* Temporary password (optional) */}
+        <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+          {lang === 'he' ? 'סיסמה זמנית (אופציונלי)' : 'Temporary Password (optional)'}
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            value={newUserTempPassword}
+            onChangeText={setNewUserTempPassword}
+            placeholder={lang === 'he' ? 'השאר ריק ליצירה אוטומטית' : 'Leave blank to auto-generate'}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Pressable
+            onPress={() => setNewUserTempPassword(generateReadableTempPassword())}
+            style={{
+              borderWidth: 1,
+              borderColor: '#CBD5E1',
+              borderRadius: 10,
+              paddingHorizontal: 14,
+              paddingVertical: 11,
+              backgroundColor: '#fff',
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
+              {lang === 'he' ? 'צור' : 'Generate'}
+            </Text>
+          </Pressable>
+        </View>
+        <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 4, marginBottom: 8 }}>
+          {lang === 'he'
+            ? 'השאר ריק כדי שהמערכת תיצור סיסמה זמנית אוטומטית'
+            : 'Leave blank and the system will auto-generate a temporary password'}
+        </Text>
+
         {/* Role */}
         <Text style={styles.sectionDivider}>
           {lang === 'he' ? 'תפקיד' : 'Role'}
         </Text>
 
-        {Object.entries(ROLE_LABELS).map(([role, label]) => (
-          <Pressable
-            key={role}
-            style={[
-              styles.roleOption,
-              newUserRole === role && styles.roleOptionActive,
-            ]}
-            onPress={() => setNewUserRole(role)}
-          >
-            <Text>{label[lang]}</Text>
-          </Pressable>
-        ))}
+        {Object.entries(ROLE_LABELS).map(([role, label]) => {
+          const accent = getRoleAccent(role);
+          const isActive = newUserRole === role;
+          return (
+            <Pressable
+              key={role}
+              style={[
+                styles.roleOption,
+                { flexDirection: 'row', alignItems: 'center', gap: 10 },
+                isActive && { backgroundColor: accent.bg, borderWidth: 1.5, borderColor: accent.text },
+              ]}
+              onPress={() => setNewUserRole(role)}
+            >
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: accent.text }} />
+              <Text style={isActive ? { color: accent.text, fontWeight: '700' } : undefined}>
+                {label[lang]}
+              </Text>
+            </Pressable>
+          );
+        })}
 
         {/* Faculty */}
         <Text style={styles.sectionDivider}>
@@ -185,7 +248,7 @@ export default function NewUserModal({
                   styles.facultyPickerBtn,
                   newUserFaculty === fid && { backgroundColor: fc.primary },
                 ]}
-                onPress={() => setNewUserFaculty(fid)}
+                onPress={() => { setNewUserFaculty(fid); setNewUserMajor(''); }}
               >
                 <Text>{fc.label[lang]}</Text>
               </Pressable>
@@ -205,6 +268,62 @@ export default function NewUserModal({
               onChangeText={setNewUserStudentId}
               placeholder="Student ID"
             />
+
+            {/* Degree level */}
+            <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 12 }]}>
+              {lang === 'he' ? 'תואר' : 'Degree Level'}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {(['bachelors', 'masters'] as const).map((d) => (
+                <Pressable
+                  key={d}
+                  style={[
+                    styles.facultyPickerBtn,
+                    { flex: 1 },
+                    newUserDegree === d && { backgroundColor: '#2E86FF' },
+                  ]}
+                  onPress={() => { setNewUserDegree(d); setNewUserMajor(''); }}
+                >
+                  <Text style={newUserDegree === d ? { color: '#fff' } : undefined}>
+                    {d === 'bachelors'
+                      ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's")
+                      : (lang === 'he' ? 'תואר שני' : "Master's")}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Major — validated picker (not free text), filtered to this
+                faculty + degree level so the stored value is always one of
+                constants/faculties.ts's canonical slugs. */}
+            {newUserFaculty && newUserDegree && (
+              <>
+                <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 12 }]}>
+                  {lang === 'he' ? 'מגמה *' : 'Major *'}
+                </Text>
+                {getFilteredPrograms(newUserFaculty, newUserDegree).map((program) => (
+                  <Pressable
+                    key={program.slug}
+                    style={[
+                      styles.facultyPickerBtn,
+                      newUserMajor === program.slug && { backgroundColor: '#2E86FF' },
+                    ]}
+                    onPress={() => setNewUserMajor(program.slug)}
+                  >
+                    <Text style={newUserMajor === program.slug ? { color: '#fff' } : undefined}>
+                      {program.label[lang]}
+                    </Text>
+                  </Pressable>
+                ))}
+                {getFilteredPrograms(newUserFaculty, newUserDegree).length === 0 && (
+                  <Text style={{ opacity: 0.7, fontSize: 12 }}>
+                    {lang === 'he'
+                      ? 'אין מגמות זמינות לתואר זה בפקולטה הנבחרת'
+                      : 'No programs available for this degree level in the selected faculty'}
+                  </Text>
+                )}
+              </>
+            )}
           </>
         )}
 

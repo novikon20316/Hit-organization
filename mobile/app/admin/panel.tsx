@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { AppUser, GradingCriterion, SystemStats, UserRecord, ProjectRecord, MilestoneRecord } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Clipboard from 'expo-clipboard';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
@@ -21,12 +22,14 @@ import { auth } from '../../src/firebase/firebase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Lang, AppRole } from '../../components/i18n';
 import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
+import type { ScopeRule, CoordinatorScope } from '../../constants/permissions';
 import {
   TopBar,
   StatCard,
   FacultyBadge,
   StatusBadge,
   getFacultyColor,
+  getRoleAccent,
   FACULTY_COLORS,
 } from '../../components/shared';
 import { adminPanelStyles } from '../../constants/styles';
@@ -47,6 +50,11 @@ export default function PanelScreen() {
   const [exportingUsers, setExportingUsers] = useState(false);
   const [importingRoster, setImportingRoster] = useState(false);
   const [importingStaff, setImportingStaff] = useState(false);
+  // Visible progress for the staff import — the FAB's own "loading" spinner
+  // is inside the pill that collapses the instant it's tapped, so it was
+  // never actually visible to the user during the (sometimes long, since
+  // every row awaits a real email send) upload+processing. See ImportProgressOverlay.
+  const [importProgress, setImportProgress] = useState<{ stage: 'uploading' | 'processing'; percent?: number } | null>(null);
 
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -81,6 +89,12 @@ export default function PanelScreen() {
   const [editRole, setEditRole] = useState('');
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [editFaculty, setEditFaculty] = useState('');
+  // Granular permissions — UI only for now, not yet sent to the server
+  // (see constants/permissions.ts and PermissionsEditorModal).
+  const [editPermissionRules, setEditPermissionRules] = useState<ScopeRule[]>([]);
+  // Coordinator's own operational scope — UI only for now, see
+  // constants/permissions.ts and CoordinatorScopesModal.
+  const [editCoordinatorScopes, setEditCoordinatorScopes] = useState<CoordinatorScope[]>([]);
   const [saving, setSaving] = useState(false);
   // ── New user modal state ───────────────────────────────────────────────────
   const [newUserName,    setNewUserName]    = useState('');
@@ -93,6 +107,7 @@ export default function PanelScreen() {
   const [newUserYear,       setNewUserYear]       = useState('1');
   const [newUserMajor,      setNewUserMajor]      = useState('');
   const [newUserStudentId,  setNewUserStudentId]  = useState('');
+  const [newUserTempPassword, setNewUserTempPassword] = useState('');
 // -----------------------------------------------------------------------------
   const [maintenanceModal, setMaintenanceModal] = useState(false);
   const [academicCalendarModal, setAcademicCalendarModal] = useState(false);
@@ -377,6 +392,16 @@ export default function PanelScreen() {
       );
       return;
     }
+    // major must be one of constants/faculties.ts's canonical slugs (picked
+    // via NewUserModal's program picker) — never a free-text/blank fallback,
+    // since scope-matching (e.g. coordinator assignment) depends on it.
+    if (newUserRole === 'student' && !newUserMajor.trim()) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש לבחור מגמה' : 'Please select a major'
+      );
+      return;
+    }
 
     setCreatingUser(true);
 
@@ -386,7 +411,7 @@ export default function PanelScreen() {
       // ── 2. Send Clean Parameters to the Server ──────────────────────────
       // Let the Node.js server handle building the Firestore defaults
       // (like language: 'he', additionalRoles: [], creating the initial notification, etc.)
-      await apiClient.post('/api/admin/users/create', {
+      const { data } = await apiClient.post<{ tempPassword: string }>('/api/admin/users/create', {
         displayName:     newUserName.trim(),
         email:           newUserEmail.trim().toLowerCase(),
         phoneNumber:     newUserPhone.trim() || null,
@@ -395,12 +420,15 @@ export default function PanelScreen() {
         // internal_examiner) are college-wide by definition — never scope them to
         // whatever faculty happened to be selected in the picker.
         facultyId:       isCrossFaculty ? 'all' : newUserFaculty,
-        
+
         // Student-specific fields passed dynamically
         degreeType:  isStudent ? newUserDegree : null,
         yearOfStudy: isStudent ? (parseInt(newUserYear) || 1) : null,
-        major:       isStudent ? (newUserMajor.trim() || newUserFaculty) : null,
+        major:       isStudent ? newUserMajor.trim() : null,
         studentId:   isStudent ? (newUserStudentId.trim() || null) : null,
+
+        // Left blank to let the server auto-generate one via generateTempPassword().
+        tempPassword: newUserTempPassword.trim() || undefined,
       });
 
       // ── 3. Reset All UI Fields Following Success ───────────────────────
@@ -414,15 +442,32 @@ export default function PanelScreen() {
       setNewUserYear('1');
       setNewUserMajor('');
       setNewUserStudentId('');
+      setNewUserTempPassword('');
 
+      // The temp password is only ever shown here — the admin must capture
+      // it now (or rely on the account_created email) since it's never
+      // stored in plaintext anywhere after this.
+      const createdTempPassword = data?.tempPassword;
       Alert.alert(
         '✅',
-        lang === 'he'
+        (lang === 'he'
           ? `המשתמש ${newUserName} נוצר בהצלחה`
-          : `User ${newUserName} created successfully`
+          : `User ${newUserName} created successfully`) +
+          (createdTempPassword
+            ? `\n\n${lang === 'he' ? 'סיסמה זמנית' : 'Temporary password'}: ${createdTempPassword}`
+            : ''),
+        createdTempPassword
+          ? [
+              {
+                text: lang === 'he' ? 'העתק סיסמה' : 'Copy password',
+                onPress: () => { Clipboard.setStringAsync(createdTempPassword); },
+              },
+              { text: lang === 'he' ? 'סגור' : 'Close', style: 'cancel' },
+            ]
+          : undefined
       );
 
-      // 💡 Pro-tip: Trigger your parent state dashboard refresh function 
+      // 💡 Pro-tip: Trigger your parent state dashboard refresh function
       // here if you want the user list component to instantly show the new addition:
       fetchAllDashboardData();
 
@@ -472,19 +517,27 @@ export default function PanelScreen() {
 
   const handleImportStaff = async () => {
     setImportingStaff(true);
+    setImportProgress({ stage: 'uploading', percent: 0 });
     try {
-      const summary = await pickAndImportStaff('admin');
+      const summary = await pickAndImportStaff('admin', (stage, percent) => setImportProgress({ stage, percent }));
       if (!summary) return; // user cancelled the picker
       showImportSummary(summary);
       fetchAllDashboardData();
     } catch (e: any) {
       console.error('Import staff error:', e);
+      const timedOut = e.code === 'ECONNABORTED';
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
-        e.response?.data?.message || (lang === 'he' ? 'ייבוא הסגל נכשל' : 'Failed to import staff')
+        e.response?.data?.message
+          || (timedOut
+            ? (lang === 'he'
+                ? 'התגובה מהשרת התעכבה — ייתכן שחלק מהמשתמשים נוצרו בכל זאת. בדוק ברשימת המשתמשים לפני ניסיון חוזר.'
+                : "The server took too long to respond — some users may have been created anyway. Check the users list before retrying.")
+            : (lang === 'he' ? 'ייבוא הסגל נכשל' : 'Failed to import staff'))
       );
     } finally {
       setImportingStaff(false);
+      setImportProgress(null);
     }
   };
 
@@ -667,6 +720,10 @@ export default function PanelScreen() {
     setEditRole(user.role);
     setEditRoles(user.roles?.length ? user.roles : [user.role]); // ← ADD
     setEditFaculty(user.facultyId);
+    // Not persisted server-side yet, so there's nothing to load per-user —
+    // always starts fresh. See constants/permissions.ts.
+    setEditPermissionRules([]);
+    setEditCoordinatorScopes([]);
     setUserModal(true);
   };
 
@@ -833,7 +890,11 @@ export default function PanelScreen() {
         </Text>
       </View>
 
-      <View style={styles.tabsContainer}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabsContainer}
+      >
         {[
           {
             key: 'overview',
@@ -873,12 +934,26 @@ export default function PanelScreen() {
                 styles.tabText,
                 activeTab === tab.key && styles.tabTextActive,
               ]}
+              numberOfLines={1}
             >
               {tab.label}
             </Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
+
+      {activeTab === 'users' && (
+        <View style={styles.searchBox}>
+          <TextInput
+            placeholder={
+              lang === 'he' ? 'חפש משתמש...' : 'Search user...'
+            }
+            value={userSearch}
+            onChangeText={setUserSearch}
+            style={styles.searchInput}
+          />
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -975,19 +1050,9 @@ export default function PanelScreen() {
 
         {activeTab === 'users' && (
           <>
-            <View style={styles.searchBox}>
-              <TextInput
-                placeholder={
-                  lang === 'he' ? 'חפש משתמש...' : 'Search user...'
-                }
-                value={userSearch}
-                onChangeText={setUserSearch}
-                style={styles.searchInput}
-              />
-            </View>
-
             {filteredUsers.map((u) => {
               const fc = getFacultyColor(u.facultyId);
+              const rc = getRoleAccent(u.role);
 
               return (
                 <View key={u.id} style={styles.userCard}>
@@ -1020,8 +1085,8 @@ export default function PanelScreen() {
                   </View>
 
                   <View style={styles.userBottom}>
-                    <View style={styles.roleBadge}>
-                      <Text style={styles.roleBadgeText}>
+                    <View style={[styles.roleBadge, { backgroundColor: rc.bg }]}>
+                      <Text style={[styles.roleBadgeText, { color: rc.text }]}>
                         {ROLE_LABELS[u.role as AppRole]?.[lang] ?? u.role}
                       </Text>
                     </View>
@@ -1568,6 +1633,12 @@ export default function PanelScreen() {
         roles={editRoles}
         setRoles={setEditRoles}
 
+        permissionRules={editPermissionRules}
+        setPermissionRules={setEditPermissionRules}
+
+        coordinatorScopes={editCoordinatorScopes}
+        setCoordinatorScopes={setEditCoordinatorScopes}
+
         styles={styles}
       />
 
@@ -1650,6 +1721,7 @@ export default function PanelScreen() {
         newUserYear={newUserYear}
         newUserMajor={newUserMajor}
         newUserStudentId={newUserStudentId}
+        newUserTempPassword={newUserTempPassword}
 
         setVisible={setShowNewUser}
         setNewUserName={setNewUserName}
@@ -1661,10 +1733,43 @@ export default function PanelScreen() {
         setNewUserYear={setNewUserYear}
         setNewUserMajor={setNewUserMajor}
         setNewUserStudentId={setNewUserStudentId}
+        setNewUserTempPassword={setNewUserTempPassword}
 
         onCreate={handleCreateUser}
         creating={creatingUser}
       />
+
+      {/* Visible upload/processing progress — a plain absolutely-positioned
+          overlay (not tucked inside the FAB, which collapses the instant
+          it's tapped and would hide any indicator placed there) so the
+          admin has actual feedback while a multi-row import (each row does
+          a real awaited email send) is still working. */}
+      {importProgress && (
+        <View
+          pointerEvents="auto"
+          style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(17,24,39,0.45)',
+            alignItems: 'center', justifyContent: 'center',
+            zIndex: 100,
+          }}
+        >
+          <View style={{
+            backgroundColor: '#fff', borderRadius: 20, paddingVertical: 28, paddingHorizontal: 32,
+            alignItems: 'center', minWidth: 220,
+          }}>
+            <ActivityIndicator size="large" color="#7C3AED" />
+            <Text style={{ marginTop: 14, fontSize: 15, fontWeight: '700', color: '#111' }}>
+              {importProgress.stage === 'uploading'
+                ? (lang === 'he' ? `מעלה קובץ... ${importProgress.percent ?? 0}%` : `Uploading file... ${importProgress.percent ?? 0}%`)
+                : (lang === 'he' ? 'מעבד ויוצר משתמשים...' : 'Processing & creating users...')}
+            </Text>
+            <Text style={{ marginTop: 6, fontSize: 12, color: '#8899BB', textAlign: 'center' }}>
+              {lang === 'he' ? 'נא לא לסגור את האפליקציה' : 'Please don’t close the app'}
+            </Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

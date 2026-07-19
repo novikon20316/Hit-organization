@@ -5,9 +5,11 @@ import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount } from '../services/accountDeletion.js';
-import { VALID_ROLES } from '../services/userImportExport.js';
+import { VALID_ROLES, generateTempPassword } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS } from '../config/majors.js';
+import { sendNotificationEmail } from '../services/emailService.js';
+import { validateSystemAdminPassword } from './userController.js';
 
 const db = admin.firestore();
 
@@ -161,7 +163,12 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
 
 /**
  * 5. POST /api/admin/users/create
- * Registers a new user directly into the system database.
+ * Registers a new user — creates the Firebase Auth account (Firestore doc ID
+ * IS the Auth UID, matching every other part of this codebase that looks
+ * users up by req.user.uid) with either an admin-supplied temporary password
+ * or an auto-generated one, then emails the temp password and forces a
+ * change on first login. Mirrors services/userImportExport.ts's
+ * createImportedUserAccount — see that function for the reference pattern.
  */
 export const createAdminUser = async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'system_admin') {
@@ -169,7 +176,17 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
   }
 
   try {
-    const userData = req.body;
+    // tempPassword is never persisted to Firestore — split it out of the
+    // spread so an admin-supplied plaintext password can't leak into the
+    // user doc.
+    const { tempPassword: requestedTempPassword, ...userData } = req.body;
+
+    if (!userData.email || typeof userData.email !== 'string') {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+    if (!userData.displayName || typeof userData.displayName !== 'string') {
+      return res.status(400).json({ message: 'Display name is required.' });
+    }
 
     // A student's major must always be one of the canonical program slugs —
     // never free text or a facultyId fallback — since scope-matching (e.g.
@@ -178,17 +195,71 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
       return res.status(400).json({ message: `Invalid major: "${userData.major}"` });
     }
 
-    const newUserRef = db.collection('users').doc(); // Alternatively, use their UID if linked to Firebase Auth
+    let tempPassword: string;
+    if (requestedTempPassword) {
+      if (typeof requestedTempPassword !== 'string' || requestedTempPassword.length < 6) {
+        return res.status(400).json({ message: 'Temporary password must be at least 6 characters.' });
+      }
+      // system_admin accounts are the highest-value target in this system —
+      // same stricter policy userController.ts's changePassword enforces.
+      if (userData.role === 'system_admin') {
+        const policyError = validateSystemAdminPassword(requestedTempPassword);
+        if (policyError) return res.status(400).json({ message: policyError });
+      }
+      tempPassword = requestedTempPassword;
+    } else {
+      tempPassword = generateTempPassword();
+    }
 
-    await newUserRef.set({
+    let authUser;
+    try {
+      authUser = await admin.auth().createUser({
+        email: userData.email,
+        password: tempPassword,
+        displayName: userData.displayName,
+        // Admin-provisioned accounts are trusted (created directly by
+        // system_admin) — not self-registered, so login.tsx's
+        // emailVerified gate (meant for self-signup students) doesn't
+        // apply here. Without this every admin-created account would be
+        // locked out on first login with "please verify your email."
+        emailVerified: true,
+      });
+    } catch (authError: any) {
+      if (authError?.code === 'auth/email-already-exists') {
+        return res.status(409).json({ message: 'A user with this email already exists.' });
+      }
+      throw authError;
+    }
+
+    await db.collection('users').doc(authUser.uid).set({
       ...userData,
+      uid: authUser.uid,
       totp_enabled: false,       // becomes true after they complete setup2fa
       totp_last_verified: null,
       isActive: true,
+      mustChangePassword: true, // enforced in-app on first login — see /api/users/change-password
       createdAt: new Date().toISOString()
     });
 
-    return res.status(201).json({ success: true, id: newUserRef.id, message: 'User created.' });
+    try {
+      await sendNotificationEmail({
+        toEmail: userData.email,
+        type: 'account_created',
+        lang: userData.language === 'en' ? 'en' : 'he',
+        data: {
+          name: userData.displayName,
+          email: userData.email,
+          tempPassword,
+          // TODO: set once the app is published on each store
+          appLinkIos:     process.env.APP_LINK_URL_IOS     || '',
+          appLinkAndroid: process.env.APP_LINK_URL_ANDROID || '',
+        },
+      });
+    } catch (emailError) {
+      console.error(`Welcome email failed for ${userData.email}:`, emailError);
+    }
+
+    return res.status(201).json({ success: true, id: authUser.uid, tempPassword, message: 'User created.' });
   } catch (error: any) {
     console.error('createAdminUser Error:', error);
     return res.status(500).json({ message: 'Failed to create user.' });
