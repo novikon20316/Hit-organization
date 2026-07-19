@@ -8,6 +8,7 @@ import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
 import { VALID_MAJORS } from '../config/majors.js';
 import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../services/accountDeletion.js';
 import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
+import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
 
 function computeIsEligible(
   degreeType: string | null,
@@ -110,6 +111,16 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 
     if (!newUid || !email || !role) {
       return res.status(400).json({ error: 'Missing required fields: newUid, email, role.' });
+    }
+
+    // Students may only self-register with an @gmail.com or @my.hit.ac.il
+    // address — real deliverability is already proven above (emailVerified
+    // requires clicking Firebase's confirmation link), this just restricts
+    // WHICH domains are acceptable in the first place. Client-side signup
+    // pages enforce this too (before creating the Firebase Auth account at
+    // all), this is defense-in-depth for anyone hitting the API directly.
+    if (!isAllowedStudentEmailDomain(email)) {
+      return res.status(400).json({ error: `Email must be an @${STUDENT_ALLOWED_EMAIL_DOMAINS.join(' or @')} address.` });
     }
 
     if (newUid !== req.user?.uid) {

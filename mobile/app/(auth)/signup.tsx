@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import * as Notifications from 'expo-notifications'
 import axios from 'axios';
 import {
-  View, Text, Pressable, StyleSheet, ScrollView,Modal,
+  View, Text, Pressable, ScrollView,Modal,
   ActivityIndicator, Alert, TextInput,
   Keyboard, TextInputProps
 } from 'react-native';
@@ -25,6 +25,7 @@ import {
   PROGRAM_DEGREE_LENGTHS,
 } from '@/constants/faculties';
 import type { DegreeLevel, Program } from '@/types';
+import { SignupStyles } from '../../constants/styles';
 
 type FloatingInputProps = TextInputProps & {
   placeholder: string;
@@ -59,80 +60,20 @@ async function getOrCreateAuthUser(
   }
 }
 
-const s = StyleSheet.create({
-  // ... existing styles ...
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#445',
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1.5,
-    borderColor: '#E0E8FF',
-    fontSize: 16,
-    color: '#111',
-  },
-  // Keep the rest of your styles unchanged
-  root:     { flex: 1, backgroundColor: '#F0F4FF' },
-  content: { padding: 20 },
-  rowReverse: { flexDirection: 'row-reverse' },
-  textRight:  { textAlign: 'right' },
-  textCenter: { textAlign: 'center' },
-  langRow:  { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
-  langBtn: {
-    backgroundColor: '#EFF6FF', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: '#D0DEFF',
-  },
-  langText: { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
-  hero:       { alignItems: 'center', marginBottom: 32 },
-  heroEmoji: { fontSize: 56, marginBottom: 12 },
-  heroTitle: { fontSize: 26, fontWeight: '900', color: '#111', marginBottom: 8 },
-  heroSub:    { fontSize: 14, color: '#8899BB', lineHeight: 20, textAlign: 'center' },
-  section:      { marginBottom: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 14 },
-  optionRow:     { flexDirection: 'row', gap: 12 },
-  bigOption: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 18,
-    alignItems: 'center', borderWidth: 2, borderColor: '#E0E8FF',
-  },
-  bigOptionActive:     { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
-  bigOptionEmoji:      { fontSize: 32, marginBottom: 8 },
-  bigOptionText:       { fontSize: 14, fontWeight: '700', color: '#8899BB', textAlign: 'center' },
-  bigOptionTextActive:{ color: '#2E86FF' },
-  majorGrid:    { gap: 8 },
-  majorOption: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    borderWidth: 1.5, borderColor: '#E0E8FF',
-  },
-  majorOptionActive:  { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
-  majorText:          { fontSize: 14, fontWeight: '600', color: '#445', marginBottom: 2 },
-  majorTextActive:    { color: '#2E86FF' },
-  majorYears:         { fontSize: 11, color: '#9BA8C0' },
-  majorYearsActive:   { color: '#60A5FA' },
-  yearRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  yearOption: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    alignItems: 'center', borderWidth: 1.5, borderColor: '#E0E8FF',
-    minWidth: '45%', flex: 1,
-  },
-  yearOptionActive:      { borderColor: '#2E86FF', backgroundColor: '#EFF6FF' },
-  yearOptionFinal:       { borderColor: '#10B981', borderStyle: 'dashed' },
-  yearOptionFinalActive: { backgroundColor: '#ECFDF5', borderStyle: 'solid' },
-  yearNum:               { fontSize: 15, fontWeight: '700', color: '#445', marginBottom: 4 },
-  yearNumActive:         { color: '#2E86FF' },
-  saveBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 16, paddingVertical: 16,
-    alignItems: 'center', marginTop: 8,
-    shadowColor: '#2E86FF', shadowOpacity: 0.35, shadowRadius: 12, elevation: 5,
-  },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
-});
+// Mirrors server/src/services/emailValidation.ts's STUDENT_ALLOWED_EMAIL_DOMAINS
+// — checked here too so a student never gets as far as creating a Firebase
+// Auth account (and receiving a verification email) with a domain the
+// backend will reject anyway at the sync step.
+const STUDENT_ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'my.hit.ac.il'];
+
+function isAllowedStudentEmailDomain(value: string): boolean {
+  const at = value.lastIndexOf('@');
+  if (at === -1) return false;
+  const domain = value.slice(at + 1).trim().toLowerCase();
+  return STUDENT_ALLOWED_EMAIL_DOMAINS.includes(domain);
+}
+
+const s = SignupStyles;
 
   const FloatingInput = ({ placeholder, isRtl, ...props }: FloatingInputProps) => {
     const [isFocused, setIsFocused] = useState(false);
@@ -385,7 +326,7 @@ export default function ProfileSetup() {
   const canSave =
     displayName.trim().length > 1 &&
     phoneNumber.length >= 9 &&
-    email.includes('@') &&
+    isAllowedStudentEmailDomain(email) &&
     isValidStudentId(studentId) &&      // ← added
     passwordCheck.valid &&              // ← added
     faculty &&
@@ -500,6 +441,13 @@ export default function ProfileSetup() {
             autoCapitalize="none"
             isRtl={isRtl}
           />
+          {email.length > 0 && !isAllowedStudentEmailDomain(email) && (
+            <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
+              {lang === 'he'
+                ? `יש להשתמש בכתובת ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' או ')} בלבד`
+                : `Must be an ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ')} address`}
+            </Text>
+          )}
 
           <FloatingInput
             placeholder={lang === 'he' ? 'מספר טלפון' : 'Phone Number'}

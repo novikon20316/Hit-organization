@@ -17,6 +17,19 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 
 const SELECTABLE_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
 
+// Mirrors server/src/services/emailValidation.ts's STUDENT_ALLOWED_EMAIL_DOMAINS
+// — checked here too so a student never gets as far as creating a Firebase
+// Auth account (and receiving a verification email) with a domain the
+// backend will reject anyway at the sync step.
+const STUDENT_ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'my.hit.ac.il'];
+
+function isAllowedStudentEmailDomain(value: string): boolean {
+  const at = value.lastIndexOf('@');
+  if (at === -1) return false;
+  const domain = value.slice(at + 1).trim().toLowerCase();
+  return STUDENT_ALLOWED_EMAIL_DOMAINS.includes(domain);
+}
+
 function isValidStudentId(id: string): boolean {
   return /^\d{9}$/.test(id);
 }
@@ -90,7 +103,7 @@ export default function SignupPage() {
   const canSave = Boolean(
     displayName.trim().length > 1 &&
       phoneNumber.length >= 9 &&
-      email.includes('@') &&
+      isAllowedStudentEmailDomain(email) &&
       isValidStudentId(studentId) &&
       passwordCheck.valid &&
       facultyId &&
@@ -280,6 +293,13 @@ export default function SignupPage() {
 
               <Field label={lang === 'he' ? 'דוא"ל' : 'Email'}>
                 <input type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} required />
+                {email.length > 0 && !isAllowedStudentEmailDomain(email) && (
+                  <p className="mt-1 text-xs text-danger">
+                    {lang === 'he'
+                      ? `יש להשתמש בכתובת ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' או ')} בלבד`
+                      : `Must be an ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ')} address`}
+                  </p>
+                )}
               </Field>
 
               <Field label={lang === 'he' ? 'מספר תעודת זהות (9 ספרות)' : 'Student ID (9 digits)'}>

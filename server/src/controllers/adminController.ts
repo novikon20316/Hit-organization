@@ -8,6 +8,7 @@ import { checkDeletionEligibility, purgeAccount } from '../services/accountDelet
 import { VALID_ROLES, generateTempPassword } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
+import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { validateSystemAdminPassword } from './userController.js';
 
@@ -204,6 +205,17 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
 
     if (!userData.email || typeof userData.email !== 'string') {
       return res.status(400).json({ message: 'Email is required.' });
+    }
+    if (!isValidEmailFormat(userData.email)) {
+      return res.status(400).json({ message: `Invalid email format: "${userData.email}"` });
+    }
+    // Not restricted to a fixed domain allowlist (unlike student self-signup)
+    // since staff/supervisors can have any real institutional or personal
+    // address — instead verify the domain can actually receive mail at all,
+    // catching typos (e.g. "gnail.com") before they waste a welcome email
+    // send and confuse whoever's expecting the new account to work.
+    if (!(await domainHasMailServer(userData.email))) {
+      return res.status(400).json({ message: `This email's domain doesn't appear to accept mail: "${userData.email}"` });
     }
     if (!userData.displayName || typeof userData.displayName !== 'string') {
       return res.status(400).json({ message: 'Display name is required.' });
