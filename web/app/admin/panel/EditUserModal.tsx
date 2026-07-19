@@ -4,14 +4,14 @@
 // Ported from mobile's EditUserModal + panel.tsx's handleSaveUser. Same
 // endpoint, same payload: { role, roles, facultyId } via role-update.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel } from '@/lib/i18n';
 import { PermissionsEditorModal } from './PermissionsEditorModal';
 import { CoordinatorScopesModal } from './CoordinatorScopesModal';
-import type { ScopeRule, CoordinatorScope } from '@/lib/permissions';
+import { majorsForFaculty, type ScopeRule, type CoordinatorScope } from '@/lib/permissions';
 import type { AdminUserRecord } from './types';
 
 interface EditUserModalProps {
@@ -31,6 +31,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
     user.roles?.length ? user.roles.filter((r) => r !== user.role) : []
   );
   const [facultyId, setFacultyId] = useState<string>(user.facultyId);
+  const [assignedMajors, setAssignedMajors] = useState<string[]>(user.assignedMajors ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -46,9 +47,24 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
   const [scopesModalOpen, setScopesModalOpen] = useState(false);
 
   const showCoordinatorScopes = role === 'coordinator' || additionalRoles.includes('coordinator');
+  const isSupervisorLike =
+    role === 'supervisor' || additionalRoles.includes('supervisor') || role === 'secondary_supervisor' || additionalRoles.includes('secondary_supervisor');
+
+  // Deduped across degree levels — same helper the coordinator-scope UI uses.
+  const assignedMajorOptions = useMemo(() => majorsForFaculty(facultyId), [facultyId]);
 
   const toggleAdditionalRole = (r: AppRole) => {
     setAdditionalRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
+  };
+
+  const toggleAssignedMajor = (slug: string) => {
+    setAssignedMajors((prev) => (prev.includes(slug) ? prev.filter((m) => m !== slug) : [...prev, slug]));
+  };
+
+  const handleFacultyChange = (value: string) => {
+    setFacultyId(value);
+    const validSlugs = new Set(majorsForFaculty(value).map((m) => m.slug));
+    setAssignedMajors((prev) => prev.filter((m) => validSlugs.has(m)));
   };
 
   const handleSave = async () => {
@@ -59,6 +75,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
         role,
         roles: [role, ...additionalRoles.filter((r) => r !== role)],
         facultyId,
+        assignedMajors: isSupervisorLike ? assignedMajors : undefined,
       });
       onSaved();
       onClose();
@@ -89,7 +106,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
 
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
-            <select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls}>
+            <select value={facultyId} onChange={(e) => handleFacultyChange(e.target.value)} className={inputCls}>
               {VALID_FACULTY_IDS.map((id) => (
                 <option key={id} value={id}>
                   {facultyLabel(id, lang)}
@@ -97,6 +114,39 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
               ))}
             </select>
           </label>
+
+          {isSupervisorLike && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'מגמות משויכות (אופציונלי)' : 'Assigned Majors (optional)'}
+              </span>
+              <p className="mb-1.5 text-xs text-muted">
+                {lang === 'he'
+                  ? 'ללא בחירה — המנחה יהיה משויך לכל המגמות בפקולטה.'
+                  : 'Leave unselected to allow all majors in the faculty.'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {assignedMajorOptions.map((m) => {
+                  const checked = assignedMajors.includes(m.slug);
+                  return (
+                    <button
+                      key={m.slug}
+                      type="button"
+                      onClick={() => toggleAssignedMajor(m.slug)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                      }`}
+                    >
+                      {m.label[lang]}
+                    </button>
+                  );
+                })}
+                {assignedMajorOptions.length === 0 && (
+                  <span className="text-xs text-muted">{lang === 'he' ? 'אין מגמות לפקולטה זו' : 'No majors for this faculty'}</span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <span className="mb-1.5 block text-sm font-medium text-ink">

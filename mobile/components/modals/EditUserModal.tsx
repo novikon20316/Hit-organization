@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Modal,
   View,
@@ -6,9 +6,13 @@ import {
   ScrollView,
   Pressable,
   ActivityIndicator,
-  StyleSheet,
 } from "react-native";
-import { FACULTY_COLORS } from '../../components/shared';
+import { FACULTY_COLORS, getRoleAccent } from '../../components/shared';
+import { EditUserModalExtraStyles } from '../../constants/styles';
+import PermissionsEditorModal from './PermissionsEditorModal';
+import CoordinatorScopesModal from './CoordinatorScopesModal';
+import { majorsForFaculty } from '../../constants/permissions';
+import type { ScopeRule, CoordinatorScope } from '../../constants/permissions';
 
 type RoleLabels = Record<string, Record<string, string>>;
 type FacultyColors = Record<string, { primary: string; light?: string; label: Record<string, string> }>;
@@ -50,6 +54,26 @@ type Props = {
   onSave:   () => void;
   saving?:  boolean;
 
+  // Granular permissions (system_admin only) — optional so callers that
+  // don't wire this up (e.g. faculty_admin/dashboard.tsx's own Edit User
+  // flow) simply don't get the button. See constants/permissions.ts.
+  permissionRules?:    ScopeRule[];
+  setPermissionRules?: (rules: ScopeRule[]) => void;
+
+  // Coordinator's own operational scope (system_admin only) — same
+  // optional-prop pattern as permissionRules above; only shown when the
+  // user being edited actually holds the coordinator role.
+  coordinatorScopes?:    CoordinatorScope[];
+  setCoordinatorScopes?: (scopes: CoordinatorScope[]) => void;
+
+  // Majors restriction for supervisor/secondary_supervisor roles — optional
+  // so callers that don't wire this up (e.g. faculty_admin/dashboard.tsx's
+  // own Edit User flow) simply don't get the field. Unlike permissionRules/
+  // coordinatorScopes above, this one IS sent to the server for real — see
+  // adminController.ts's updateUserRoleAdmin.
+  assignedMajors?:    string[];
+  setAssignedMajors?: (majors: string[]) => void;
+
   styles: any;
 };
 
@@ -61,8 +85,20 @@ export default function EditUserModal({
   faculty, setFaculty,
   roleLabels, facultyColors,
   onSave, saving,
+  permissionRules, setPermissionRules,
+  coordinatorScopes, setCoordinatorScopes,
+  assignedMajors, setAssignedMajors,
   styles,
 }: Props) {
+  const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
+  const [scopesModalVisible, setScopesModalVisible] = useState(false);
+  const showPermissions = permissionRules !== undefined && !!setPermissionRules;
+  const showCoordinatorScopes =
+    coordinatorScopes !== undefined && !!setCoordinatorScopes && (role === 'coordinator' || roles.includes('coordinator'));
+  const showAssignedMajors =
+    assignedMajors !== undefined && !!setAssignedMajors &&
+    (role === 'supervisor' || role === 'secondary_supervisor' ||
+      roles.includes('supervisor') || roles.includes('secondary_supervisor'));
 
   const toggleAdditionalRole = (r: string) => {
     if (r === role) return; // can't remove the primary role this way
@@ -96,21 +132,30 @@ export default function EditUserModal({
             {lang === "he" ? "תפקיד ראשי" : "Primary Role"}
           </Text>
 
-          {Object.entries(roleLabels).map(([r, label]) => (
-            <Pressable
-              key={r}
-              style={[styles.roleOption, role === r && styles.roleOptionActive]}
-              onPress={() => {
-                setRole(r);
-                // Keep primary in roles array, remove old primary
-                setRoles([r, ...roles.filter((x) => x !== role && x !== r)]);
-              }}
-            >
-              <Text style={[styles.roleOptionText, role === r && styles.roleOptionTextActive]}>
-                {label[lang]}
-              </Text>
-            </Pressable>
-          ))}
+          {Object.entries(roleLabels).map(([r, label]) => {
+            const accent = getRoleAccent(r);
+            const isActive = role === r;
+            return (
+              <Pressable
+                key={r}
+                style={[
+                  styles.roleOption,
+                  editStyles.roleOptionRow,
+                  isActive && { backgroundColor: accent.bg, borderWidth: 1.5, borderColor: accent.text },
+                ]}
+                onPress={() => {
+                  setRole(r);
+                  // Keep primary in roles array, remove old primary
+                  setRoles([r, ...roles.filter((x) => x !== role && x !== r)]);
+                }}
+              >
+                <View style={[editStyles.roleDot, { backgroundColor: accent.text }]} />
+                <Text style={[styles.roleOptionText, isActive && { color: accent.text }]}>
+                  {label[lang]}
+                </Text>
+              </Pressable>
+            );
+          })}
 
           {/* ── Additional Roles ── */}
           <View style={editStyles.sectionHeader}>
@@ -182,12 +227,88 @@ export default function EditUserModal({
               <Pressable
                 key={fid}
                 style={[styles.facultyOption, faculty === fid && styles.facultyOptionActive]}
-                onPress={() => setFaculty(fid)}
+                onPress={() => { setFaculty(fid); setAssignedMajors?.([]); }}
               >
                 <View style={[styles.facultyDot, { backgroundColor: fc.primary }]} />
                 <Text>{fc.label[lang]}</Text>
               </Pressable>
             ))}
+
+          {/* ── Assigned Majors (supervisor / secondary_supervisor only) ── */}
+          {showAssignedMajors && (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                {lang === "he" ? "מגמות משויכות (אופציונלי)" : "Assigned Majors (optional)"}
+              </Text>
+              <Text style={editStyles.hint}>
+                {lang === "he"
+                  ? "השאר ריק כדי לאפשר גישה לכל המגמות בפקולטה"
+                  : "Leave empty to allow all majors in the faculty"}
+              </Text>
+              {majorsForFaculty(faculty).map((m) => {
+                const isSelected = assignedMajors!.includes(m.slug);
+                return (
+                  <Pressable
+                    key={m.slug}
+                    style={[editStyles.additionalRoleBtn, isSelected && editStyles.additionalRoleBtnActive]}
+                    onPress={() =>
+                      setAssignedMajors!(
+                        isSelected
+                          ? assignedMajors!.filter((s) => s !== m.slug)
+                          : [...assignedMajors!, m.slug]
+                      )
+                    }
+                  >
+                    <View style={[editStyles.checkbox, isSelected && editStyles.checkboxActive]}>
+                      {isSelected && <Text style={editStyles.checkmark}>✓</Text>}
+                    </View>
+                    <Text style={[editStyles.additionalRoleText, isSelected && editStyles.additionalRoleTextActive]}>
+                      {m.label[lang]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              {majorsForFaculty(faculty).length === 0 && (
+                <Text style={editStyles.hint}>
+                  {lang === "he" ? "בחר פקולטה תחילה" : "Select a faculty first"}
+                </Text>
+              )}
+            </>
+          )}
+
+          {/* ── Granular Permissions (system_admin only) ── */}
+          {showPermissions && (
+            <Pressable
+              style={[editStyles.additionalRoleBtn, { marginTop: 16, justifyContent: 'space-between' }]}
+              onPress={() => setPermissionsModalVisible(true)}
+            >
+              <Text style={editStyles.additionalRoleText}>
+                🔐 {lang === "he" ? "הרשאות מפורטות" : "Granular Permissions"}
+              </Text>
+              <Text style={editStyles.clearAllText}>
+                {(permissionRules ?? []).length > 0
+                  ? (lang === "he" ? `${permissionRules!.length} כללים ›` : `${permissionRules!.length} rules ›`)
+                  : '›'}
+              </Text>
+            </Pressable>
+          )}
+
+          {/* ── Coordinator Scope (system_admin only, coordinator role only) ── */}
+          {showCoordinatorScopes && (
+            <Pressable
+              style={[editStyles.additionalRoleBtn, { marginTop: 12, justifyContent: 'space-between' }]}
+              onPress={() => setScopesModalVisible(true)}
+            >
+              <Text style={editStyles.additionalRoleText}>
+                📋 {lang === "he" ? "היקף אחריות רכז" : "Coordinator Scope"}
+              </Text>
+              <Text style={editStyles.clearAllText}>
+                {(coordinatorScopes ?? []).length > 0
+                  ? (lang === "he" ? `${coordinatorScopes!.length} תחומים ›` : `${coordinatorScopes!.length} scopes ›`)
+                  : '›'}
+              </Text>
+            </Pressable>
+          )}
 
           {/* ── Save ── */}
           <Pressable style={[styles.submitBtn, { marginTop: 24 }]} onPress={onSave}>
@@ -200,100 +321,29 @@ export default function EditUserModal({
           </Pressable>
 
         </ScrollView>
+
+        {showPermissions && (
+          <PermissionsEditorModal
+            visible={permissionsModalVisible}
+            onClose={() => setPermissionsModalVisible(false)}
+            lang={lang}
+            rules={permissionRules ?? []}
+            onChange={setPermissionRules!}
+          />
+        )}
+
+        {showCoordinatorScopes && (
+          <CoordinatorScopesModal
+            visible={scopesModalVisible}
+            onClose={() => setScopesModalVisible(false)}
+            lang={lang}
+            scopes={coordinatorScopes ?? []}
+            onChange={setCoordinatorScopes!}
+          />
+        )}
       </View>
     </Modal>
   );
 }
 
-const editStyles = StyleSheet.create({
-  sectionHeader: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-    marginTop:      16,
-  },
-  clearAllText: {
-    fontSize:   13,
-    color:      '#EF4444',
-    fontWeight: '600',
-  },
-  hint: {
-    fontSize:     12,
-    color:        '#8899BB',
-    marginBottom: 10,
-    marginTop:    2,
-  },
-  additionalRoleBtn: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: 14,
-    paddingVertical:   11,
-    borderRadius:      12,
-    borderWidth:       1.5,
-    borderColor:       '#D0DEFF',
-    backgroundColor:   '#F8FAFF',
-    marginBottom:      8,
-    gap:               10,
-  },
-  additionalRoleBtnActive: {
-    borderColor:     '#2E86FF',
-    backgroundColor: '#EBF3FF',
-  },
-  checkbox: {
-    width:           20,
-    height:          20,
-    borderRadius:    6,
-    borderWidth:     2,
-    borderColor:     '#9BA8C0',
-    alignItems:      'center',
-    justifyContent:  'center',
-  },
-  checkboxActive: {
-    borderColor:     '#2E86FF',
-    backgroundColor: '#2E86FF',
-  },
-  checkmark: {
-    color:      '#fff',
-    fontSize:   12,
-    fontWeight: '700',
-  },
-  additionalRoleText: {
-    fontSize:   14,
-    color:      '#374151',
-    fontWeight: '500',
-  },
-  additionalRoleTextActive: {
-    color:      '#1A5FCC',
-    fontWeight: '600',
-  },
-  summaryBox: {
-    marginTop:       10,
-    padding:         12,
-    backgroundColor: '#F0F7FF',
-    borderRadius:    12,
-    borderWidth:     1,
-    borderColor:     '#C7DCFF',
-  },
-  summaryLabel: {
-    fontSize:     12,
-    color:        '#5577AA',
-    fontWeight:   '600',
-    marginBottom: 8,
-  },
-  summaryChips: {
-    flexDirection: 'row',
-    flexWrap:      'wrap',
-    gap:           6,
-  },
-  chip: {
-    backgroundColor: '#2E86FF',
-    borderRadius:    20,
-    paddingHorizontal: 10,
-    paddingVertical:   4,
-  },
-  chipText: {
-    color:      '#fff',
-    fontSize:   12,
-    fontWeight: '600',
-  },
-});
+const editStyles = EditUserModalExtraStyles;

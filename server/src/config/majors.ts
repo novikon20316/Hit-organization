@@ -21,3 +21,22 @@ export const VALID_MAJORS = new Set([
   'design_for_technological_environment',
   'data_science',
 ]);
+
+// Mirror of mobile/constants/faculties.ts / web/lib/faculties.ts's
+// HIT_FACULTIES → programs mapping, flattened to just the major slugs per
+// faculty — used to validate a supervisor's assignedMajors (and a
+// project's major) actually belong to the faculty they're being set on,
+// not just that the slug exists somewhere in the whole institution.
+export const MAJORS_BY_FACULTY: Record<string, string[]> = {
+  sciences: ['computer_science', 'applied_mathematics'],
+  electrical: ['electrical_engineering'],
+  industrial: ['industrial_engineering_management', 'technology_management'],
+  learning_tech: ['instructional_technologies'],
+  medical_tech: ['digital_medical_technologies'],
+  design: ['industrial_design', 'interior_design', 'visual_communication_design', 'design_for_technological_environment'],
+  data_science: ['data_science'],
+};
+
+export function majorsForFaculty(facultyId: string): string[] {
+  return MAJORS_BY_FACULTY[facultyId] ?? [];
+}

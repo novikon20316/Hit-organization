@@ -10,11 +10,13 @@
 // since that's an admin-only concern this project's web port doesn't need
 // yet). Calls the already-existing apiClient.createSupervisorProject.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { apiClient } from '@/lib/apiClient';
+import { majorsForFaculty } from '@/lib/permissions';
 import type { FacultyId } from '@/lib/i18n';
 import { GRADING_CRITERIA } from './types';
 
@@ -34,6 +36,7 @@ const DEFAULT_CRITERIA: GradingCriterionInput[] = GRADING_CRITERIA.map((c) => ({
 
 export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectModalProps) {
   const { lang, t } = useLanguage();
+  const { userData } = useAuth();
   const [titleHe, setTitleHe] = useState('');
   const [titleEn, setTitleEn] = useState('');
   const [descHe, setDescHe] = useState('');
@@ -44,8 +47,18 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
   const [prerequisites, setPrerequisites] = useState('');
   const [numberOfStudents, setNumberOfStudents] = useState(1);
   const [criteria, setCriteria] = useState<GradingCriterionInput[]>(DEFAULT_CRITERIA);
+  const [major, setMajor] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // The signed-in supervisor's own restriction (see lib/roles.ts's UserDoc)
+  // — empty/unset means unrestricted, matching the backend's default.
+  const ownAssignedMajors = useMemo(() => userData?.assignedMajors ?? [], [userData?.assignedMajors]);
+  const isMajorRestricted = ownAssignedMajors.length > 0;
+  const majorOptions = useMemo(() => {
+    const all = majorsForFaculty(facultyId);
+    return isMajorRestricted ? all.filter((m) => ownAssignedMajors.includes(m.slug)) : all;
+  }, [facultyId, isMajorRestricted, ownAssignedMajors]);
 
   const totalMax = criteria.reduce((sum, c) => sum + (Number(c.maxScore) || 0), 0);
 
@@ -72,6 +85,10 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
       setError(lang === 'he' ? 'לכל קריטריון חייב להיות שם' : 'Every criterion needs a name');
       return;
     }
+    if (isMajorRestricted && !major) {
+      setError(lang === 'he' ? 'יש לבחור מגמה' : 'Please select a major');
+      return;
+    }
     setSaving(true);
     try {
       await apiClient.createSupervisorProject({
@@ -86,6 +103,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         NumberOfStudents: numberOfStudents,
         facultyId,
         gradingCriteria: criteria,
+        ...(major ? { major } : {}),
       });
       onCreated();
       onClose();
@@ -133,6 +151,28 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
               🔒 {facultyLabel(facultyId, lang)}
             </span>
           </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">
+              {lang === 'he' ? `מגמה / תוכנית${isMajorRestricted ? ' *' : ' (אופציונלי)'}` : `Major/Program${isMajorRestricted ? ' *' : ' (optional)'}`}
+            </span>
+            <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} required={isMajorRestricted}>
+              {!isMajorRestricted && (
+                <option value="">{lang === 'he' ? 'ללא הגבלה — כל המגמות' : 'No restriction — all majors'}</option>
+              )}
+              {isMajorRestricted && !major && <option value="">{lang === 'he' ? 'בחר מגמה' : 'Select major'}</option>}
+              {majorOptions.map((m) => (
+                <option key={m.slug} value={m.slug}>
+                  {m.label[lang]}
+                </option>
+              ))}
+            </select>
+            {isMajorRestricted && (
+              <p className="mt-1 text-xs text-muted">
+                {lang === 'he' ? 'אתה מוגבל למגמות מסוימות בפקולטה שלך.' : "You're restricted to specific majors in your faculty."}
+              </p>
+            )}
+          </label>
 
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מספר סטודנטים' : 'Number of Students'}</span>

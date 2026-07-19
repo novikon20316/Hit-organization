@@ -9,11 +9,12 @@
 // the program picker only feeds `selectedProgram`, which likewise never
 // makes it into the request body — neither is real functionality to port.
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { facultyLabel } from '@/lib/i18n';
+import { majorsForFaculty } from '@/lib/permissions';
 import type { GradingCriterion } from './types';
 
 const DEFAULT_CRITERIA: GradingCriterion[] = [
@@ -29,6 +30,10 @@ const SELECTABLE_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
 interface SupervisorOption {
   id: string;
   displayName: string;
+  /** Present when that supervisor is restricted to specific majors within
+   *  their own faculty — see server/src/controllers/adminController.ts.
+   *  Absent/empty means unrestricted. */
+  assignedMajors?: string[];
 }
 
 interface NewProjectModalProps {
@@ -57,8 +62,21 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   const [skills, setSkills] = useState('');
   const [prerequisites, setPrerequisites] = useState('');
   const [criteria, setCriteria] = useState<GradingCriterion[]>(DEFAULT_CRITERIA);
+  const [major, setMajor] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const selectedSupervisor = supervisors.find((s) => s.id === supervisorId);
+  const supervisorAssignedMajors = useMemo(() => selectedSupervisor?.assignedMajors ?? [], [selectedSupervisor]);
+
+  // Scoped to the selected supervisor's own restriction when they have one;
+  // otherwise every major of the chosen faculty. Either way this is just a
+  // client-side narrowing convenience — the server re-validates regardless
+  // (createAdminProject in adminController.ts).
+  const majorOptions = useMemo(() => {
+    const all = majorsForFaculty(facultyId);
+    return supervisorAssignedMajors.length > 0 ? all.filter((m) => supervisorAssignedMajors.includes(m.slug)) : all;
+  }, [facultyId, supervisorAssignedMajors]);
 
   useEffect(() => {
     if (!open) return;
@@ -107,6 +125,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
     setSkills('');
     setPrerequisites('');
     setCriteria(DEFAULT_CRITERIA);
+    setMajor('');
     setError('');
   };
 
@@ -132,6 +151,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
         requiredSkills: skills.split(',').map((s) => s.trim()).filter(Boolean),
         prerequisites: prerequisites.split(',').map((s) => s.trim()).filter(Boolean),
         gradingCriteria: criteria,
+        ...(major ? { major } : {}),
       });
       reset();
       onCreated();
@@ -165,7 +185,15 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
           </Field>
 
           <Field label={lang === 'he' ? 'פקולטה *' : 'Faculty *'}>
-            <select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls} required>
+            <select
+              value={facultyId}
+              onChange={(e) => {
+                setFacultyId(e.target.value);
+                setMajor('');
+              }}
+              className={inputCls}
+              required
+            >
               <option value="">{lang === 'he' ? 'בחר פקולטה' : 'Select faculty'}</option>
               {SELECTABLE_FACULTIES.map((id) => (
                 <option key={id} value={id}>
@@ -176,7 +204,16 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
           </Field>
 
           <Field label={lang === 'he' ? 'מנחה *' : 'Supervisor *'}>
-            <select value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)} className={inputCls} required disabled={loadingSupervisors}>
+            <select
+              value={supervisorId}
+              onChange={(e) => {
+                setSupervisorId(e.target.value);
+                setMajor('');
+              }}
+              className={inputCls}
+              required
+              disabled={loadingSupervisors}
+            >
               <option value="">{loadingSupervisors ? '…' : lang === 'he' ? 'בחר מנחה' : 'Select supervisor'}</option>
               {supervisors.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -184,6 +221,22 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
                 </option>
               ))}
             </select>
+          </Field>
+
+          <Field label={lang === 'he' ? 'מגמה / תוכנית (אופציונלי)' : 'Major/Program (optional)'}>
+            <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} disabled={!facultyId}>
+              <option value="">{lang === 'he' ? 'ללא הגבלה — כל המגמות' : 'No restriction — all majors'}</option>
+              {majorOptions.map((m) => (
+                <option key={m.slug} value={m.slug}>
+                  {m.label[lang]}
+                </option>
+              ))}
+            </select>
+            {supervisorAssignedMajors.length > 0 && (
+              <p className="mt-1 text-xs text-muted">
+                {lang === 'he' ? 'המנחה שנבחר מוגבל למגמות מסוימות.' : 'The selected supervisor is restricted to specific majors.'}
+              </p>
+            )}
           </Field>
 
           <div className="grid grid-cols-2 gap-4">

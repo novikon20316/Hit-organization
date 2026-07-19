@@ -11,6 +11,7 @@ import { CROSS_FACULTY_ROLES, VALID_ROLES, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel, tx } from '@/lib/i18n';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { HIT_FACULTIES } from '@/lib/faculties';
+import { majorsForFaculty } from '@/lib/permissions';
 
 interface NewUserModalProps {
   open: boolean;
@@ -45,6 +46,7 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
   const [major, setMajor] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState('1');
   const [studentId, setStudentId] = useState('');
+  const [assignedMajors, setAssignedMajors] = useState<string[]>([]);
   const [tempPassword, setTempPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -57,6 +59,7 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
 
   const isStudent = role === 'student';
   const isCrossFaculty = CROSS_FACULTY_ROLES.includes(role);
+  const isSupervisorLike = role === 'supervisor' || role === 'secondary_supervisor';
 
   const majorOptions = useMemo(() => {
     const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
@@ -64,6 +67,14 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
     const seen = new Set<string>();
     return faculty.programs.filter((p) => p.level === degreeType && !seen.has(p.slug) && seen.add(p.slug));
   }, [facultyId, degreeType]);
+
+  // Deduped across degree levels — unlike majorOptions above, which is
+  // filtered per degree level for the student major picker.
+  const assignedMajorOptions = useMemo(() => majorsForFaculty(facultyId), [facultyId]);
+
+  const toggleAssignedMajor = (slug: string) => {
+    setAssignedMajors((prev) => (prev.includes(slug) ? prev.filter((m) => m !== slug) : [...prev, slug]));
+  };
 
   const reset = () => {
     setName('');
@@ -75,6 +86,7 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
     setMajor('');
     setYearOfStudy('1');
     setStudentId('');
+    setAssignedMajors([]);
     setTempPassword('');
     setError('');
     setCreated(null);
@@ -115,6 +127,7 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
         major: isStudent ? major : null,
         studentId: isStudent ? studentId.trim() || null : null,
         tempPassword: tempPassword.trim() || undefined,
+        assignedMajors: isSupervisorLike ? assignedMajors : undefined,
       });
       onCreated();
       // Keep the modal open to show the confirmation screen — reset() (and
@@ -253,6 +266,7 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
                 onChange={(e) => {
                   setFacultyId(e.target.value);
                   setMajor('');
+                  setAssignedMajors([]);
                 }}
                 className={inputCls}
               >
@@ -264,6 +278,40 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
                 ))}
               </select>
             </Field>
+          )}
+
+          {isSupervisorLike && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'מגמות משויכות (אופציונלי)' : 'Assigned Majors (optional)'}
+              </span>
+              <p className="mb-1.5 text-xs text-muted">
+                {lang === 'he'
+                  ? 'ללא בחירה — המנחה יהיה משויך לכל המגמות בפקולטה.'
+                  : 'Leave unselected to allow all majors in the faculty.'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {assignedMajorOptions.map((m) => {
+                  const checked = assignedMajors.includes(m.slug);
+                  return (
+                    <button
+                      key={m.slug}
+                      type="button"
+                      onClick={() => toggleAssignedMajor(m.slug)}
+                      disabled={!facultyId}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${
+                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                      }`}
+                    >
+                      {m.label[lang]}
+                    </button>
+                  );
+                })}
+                {facultyId && assignedMajorOptions.length === 0 && (
+                  <span className="text-xs text-muted">{lang === 'he' ? 'אין מגמות לפקולטה זו' : 'No majors for this faculty'}</span>
+                )}
+              </div>
+            </div>
           )}
 
           {isStudent && (

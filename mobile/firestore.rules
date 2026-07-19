@@ -69,11 +69,25 @@ service cloud.firestore {
       }
     }
 
+    // A project's optional `major` field (set when its supervisor is
+    // restricted to specific majors via assignedMajors — see
+    // server/src/controllers/supervisorController.ts's createSupervisorProject)
+    // narrows which students may even see it, not just apply to it. Missing/
+    // empty major means open to every major, unchanged from before this field
+    // existed. Written as its own function (one `let`, one get()) rather than
+    // composing role(userDoc()) + a second call, matching this file's existing
+    // "exactly 1 get() per match block" cost discipline noted above.
+    function studentCanReadProjectByMajor(res) {
+      let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return u.role == 'student' && res.data.get('status', '') == 'active' &&
+        (res.data.get('major', '') == '' || res.data.get('major', '') == u.get('major', ''));
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     match /projects/{projectId} {
       allow read: if isSignedIn() && (
         request.auth.uid in resource.data.get('enrolledStudentIds', []) ||
-        (role(userDoc()) == 'student' && resource.data.get('status', '') == 'active') ||
+        studentCanReadProjectByMajor(resource) ||
         isStaffRole(userDoc())
       );
       allow create: if isSignedIn() &&

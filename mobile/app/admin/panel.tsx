@@ -23,6 +23,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Lang, AppRole } from '../../components/i18n';
 import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
 import type { ScopeRule, CoordinatorScope } from '../../constants/permissions';
+import { getProgramByKey } from '../../constants/faculties';
 import {
   TopBar,
   StatCard,
@@ -95,6 +96,9 @@ export default function PanelScreen() {
   // Coordinator's own operational scope — UI only for now, see
   // constants/permissions.ts and CoordinatorScopesModal.
   const [editCoordinatorScopes, setEditCoordinatorScopes] = useState<CoordinatorScope[]>([]);
+  // Majors restriction (supervisor / secondary_supervisor only) — unlike the
+  // two above, this one IS persisted server-side (see updateUserRoleAdmin).
+  const [editAssignedMajors, setEditAssignedMajors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   // ── New user modal state ───────────────────────────────────────────────────
   const [newUserName,    setNewUserName]    = useState('');
@@ -108,6 +112,10 @@ export default function PanelScreen() {
   const [newUserMajor,      setNewUserMajor]      = useState('');
   const [newUserStudentId,  setNewUserStudentId]  = useState('');
   const [newUserTempPassword, setNewUserTempPassword] = useState('');
+  // Optional majors restriction for supervisor/secondary_supervisor roles —
+  // empty = unrestricted (all majors in the faculty). See
+  // constants/permissions.ts's majorsForFaculty.
+  const [newUserAssignedMajors, setNewUserAssignedMajors] = useState<string[]>([]);
 // -----------------------------------------------------------------------------
   const [maintenanceModal, setMaintenanceModal] = useState(false);
   const [academicCalendarModal, setAcademicCalendarModal] = useState(false);
@@ -427,6 +435,14 @@ export default function PanelScreen() {
         major:       isStudent ? newUserMajor.trim() : null,
         studentId:   isStudent ? (newUserStudentId.trim() || null) : null,
 
+        // Optional majors restriction — only meaningful for supervisor /
+        // secondary_supervisor roles; empty/omitted = unrestricted (all
+        // majors in the faculty). Validated server-side too — see
+        // adminController.ts's createAdminUser.
+        assignedMajors: ['supervisor', 'secondary_supervisor'].includes(newUserRole)
+          ? newUserAssignedMajors
+          : undefined,
+
         // Left blank to let the server auto-generate one via generateTempPassword().
         tempPassword: newUserTempPassword.trim() || undefined,
       });
@@ -443,6 +459,7 @@ export default function PanelScreen() {
       setNewUserMajor('');
       setNewUserStudentId('');
       setNewUserTempPassword('');
+      setNewUserAssignedMajors([]);
 
       // The temp password is only ever shown here — the admin must capture
       // it now (or rely on the account_created email) since it's never
@@ -595,6 +612,12 @@ export default function PanelScreen() {
         requiredSkills: newSkills.split(',').map((s) => s.trim()).filter(Boolean),
         prerequisites: newPrerequisites.split(',').map((s) => s.trim()).filter(Boolean),
         gradingCriteria,
+        // Optional single-major restriction — selectedProgram holds a
+        // level-specific program *key* (e.g. "bsc_cs"), but the backend's
+        // `major` field expects the canonical subject *slug* (e.g.
+        // "computer_science"), so resolve through getProgramByKey. Omitted
+        // = open to every major in the faculty (today's default).
+        major: selectedProgram ? getProgramByKey(selectedProgram)?.slug : undefined,
       });
 
       setShowNewProject(false);
@@ -602,6 +625,7 @@ export default function PanelScreen() {
       setNewDescHe(''); setNewDescEn('');
       setNewPrerequisites('');
       setNewSkills('');
+      setSelectedProgram(null);
 
       Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
       fetchAllDashboardData();
@@ -724,6 +748,9 @@ export default function PanelScreen() {
     // always starts fresh. See constants/permissions.ts.
     setEditPermissionRules([]);
     setEditCoordinatorScopes([]);
+    // Unlike the two above, assignedMajors IS persisted server-side, so it
+    // loads from the actual user doc (see UserRecord.assignedMajors).
+    setEditAssignedMajors(user.assignedMajors ?? []);
     setUserModal(true);
   };
 
@@ -733,8 +760,12 @@ export default function PanelScreen() {
       setSaving(true);
       await apiClient.post(`/api/admin/users/${editUser.id}/role-update`, {
         role:      editRole,
-        roles:     editRoles,     
+        roles:     editRoles,
         facultyId: editFaculty,
+        // Only meaningfully persisted server-side when role is supervisor /
+        // secondary_supervisor (see updateUserRoleAdmin) — sent unconditionally
+        // here since the server already gates on role.
+        assignedMajors: editAssignedMajors,
       });
       Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
       setUserModal(false);
@@ -1639,6 +1670,9 @@ export default function PanelScreen() {
         coordinatorScopes={editCoordinatorScopes}
         setCoordinatorScopes={setEditCoordinatorScopes}
 
+        assignedMajors={editAssignedMajors}
+        setAssignedMajors={setEditAssignedMajors}
+
         styles={styles}
       />
 
@@ -1722,6 +1756,7 @@ export default function PanelScreen() {
         newUserMajor={newUserMajor}
         newUserStudentId={newUserStudentId}
         newUserTempPassword={newUserTempPassword}
+        newUserAssignedMajors={newUserAssignedMajors}
 
         setVisible={setShowNewUser}
         setNewUserName={setNewUserName}
@@ -1734,6 +1769,7 @@ export default function PanelScreen() {
         setNewUserMajor={setNewUserMajor}
         setNewUserStudentId={setNewUserStudentId}
         setNewUserTempPassword={setNewUserTempPassword}
+        setNewUserAssignedMajors={setNewUserAssignedMajors}
 
         onCreate={handleCreateUser}
         creating={creatingUser}

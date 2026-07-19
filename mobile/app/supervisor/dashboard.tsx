@@ -14,6 +14,7 @@ import { sharedStyles } from '@/constants';
 import { SupervisorExtraStyles } from '../../constants/styles';
 import { NewProjectModal, RecommendedExaminerModal } from '@/components/modals';
 import { GradingCriterion, AppUser, MyProject, Application } from '@/types'
+import { getProgramByKey } from '../../constants/faculties';
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 // Adjust this import path to match your firebase config file location
@@ -76,6 +77,10 @@ export default function SupervisorHome() {
 
   // ── New project modal ─────────────────────────────────────────────────────
   const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
+  // This supervisor's own majors restriction (assignedMajors, set by
+  // system_admin) — empty means unrestricted (every major of their
+  // faculty). Fetched from their own profile alongside the dashboard data.
+  const [supervisorAssignedMajors, setSupervisorAssignedMajors] = useState<string[]>([]);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newTitleHe,  setNewTitleHe]  = useState('');
   const [newTitleEn,  setNewTitleEn]  = useState('');
@@ -165,6 +170,13 @@ export default function SupervisorHome() {
     }try {
       const recRes = await apiClient.get('/api/supervisor/examiner-recommendations');
       setRecommendations(recRes.data.recommendations ?? []);
+    } catch (_) { /* non-fatal */ }
+    try {
+      // Own profile doc — carries assignedMajors when system_admin has
+      // restricted this supervisor to specific majors (see NewUserModal /
+      // EditUserModal). Not returned by /api/supervisor/dashboard itself.
+      const profileRes = await apiClient.get('/api/users/profile');
+      setSupervisorAssignedMajors(profileRes.data?.assignedMajors ?? []);
     } catch (_) { /* non-fatal */ }
      finally {
       setLoading(false);
@@ -391,6 +403,21 @@ export default function SupervisorHome() {
       Alert.alert('Error', 'Title in both languages is required');
       return;
     }
+    // selectedProgram holds a level-specific program *key* (e.g. "bsc_cs");
+    // the backend's `major` field expects the canonical subject *slug*
+    // (e.g. "computer_science") — resolve through getProgramByKey.
+    const major = selectedProgram ? getProgramByKey(selectedProgram)?.slug : undefined;
+    // A supervisor restricted to specific majors must pick one of them —
+    // an unrestricted supervisor may leave it blank (open to all majors).
+    if (supervisorAssignedMajors.length > 0 && !major) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he'
+          ? 'יש לבחור מגמה מתוך המגמות המשויכות אליך'
+          : 'You must select one of your assigned majors'
+      );
+      return;
+    }
     setCreating(true);
     try {
       await apiClient.post('/api/supervisor/projects', {
@@ -406,13 +433,17 @@ export default function SupervisorHome() {
         prerequisites: newPrerequisites.split(',').map(s => s.trim()).filter(Boolean),
         facultyId,
         gradingCriteria,
+        // Optional single-major restriction — omitted means open to every
+        // major in the faculty (today's default, unchanged).
+        ...(major ? { major } : {}),
       });
       setShowNewProject(false);
       setNewPrerequisites('');
+      setSelectedProgram(null);
       fetchDashboardData();
       Alert.alert('✅', 'Project published successfully!');
-    } catch (e) {
-      Alert.alert('Error', 'Failed to create project.');
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to create project.');
     } finally {
       setCreating(false);
     }
@@ -1155,6 +1186,7 @@ export default function SupervisorHome() {
         setGradingCriteria={setGradingCriteria}
         selectedProgram={selectedProgram}
         setSelectedProgram={setSelectedProgram}
+        restrictedMajors={supervisorAssignedMajors}
         currentUser={currentUser ?? undefined}
         pickFile={(b) => pickFile(b)}
         styles={styles}

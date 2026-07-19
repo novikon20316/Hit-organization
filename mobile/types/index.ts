@@ -411,6 +411,10 @@ export interface UserRecord {
   isActive: boolean;
   totp_enabled?: boolean;
   totp_last_verified?: any;
+  // Optional majors restriction (supervisor / secondary_supervisor only) —
+  // omitted/empty means unrestricted (every major in their faculty). See
+  // constants/permissions.ts's majorsForFaculty for the slug source of truth.
+  assignedMajors?: string[];
 }
 
 /**
@@ -590,6 +594,10 @@ export interface ProjectProposal {
   status:        string;
   academicYear:  string;
   projectFileUrl: string | null;
+  // Optional single-major restriction set by the supervisor at project-
+  // creation time (constants/faculties.ts slug). Omitted/empty = open to
+  // every major in the project's faculty — the pre-existing default.
+  major?:        string;
 }
 
 export interface ActiveProject {

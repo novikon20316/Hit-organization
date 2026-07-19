@@ -20,6 +20,7 @@ export function useStudentData() {
   const [studentName,        setStudentName]        = useState('');
   const [studentDegree,      setStudentDegree]      = useState<DegreeType>('bachelors');
   const [studentFaculty,     setStudentFaculty]     = useState('');
+  const [studentMajor,       setStudentMajor]       = useState('');
   const [error,              setError]              = useState<string | null>(null);
   const [studentYearOfStudy, setStudentYearOfStudy] = useState<number | null>(null);
   // Placeholder until per-student course history is tracked in the app —
@@ -60,6 +61,7 @@ export function useStudentData() {
       setStudentName(userData.displayName || '');
       setStudentDegree(degree);
       setStudentFaculty(userData.facultyId || '');
+      setStudentMajor(userData.major || '');
       setStudentYearOfStudy(userData.yearOfStudy ?? null);
       setStudentCompletedCourses(userData.completedCourses ?? []);
       // The eligibility gate (based on current year-of-study) decides whether
@@ -143,10 +145,17 @@ export function useStudentData() {
     const unsub = onSnapshot(
       q,
       async (snapshot) => {
-        const rawProjects = snapshot.docs.map(d => ({
+        const allProjects = snapshot.docs.map(d => ({
           id: d.id,
           ...d.data()
         })) as ProjectProposal[];
+
+        // A project's major (if set) restricts it to students of that exact
+        // major — empty/missing major stays open to everyone in the faculty,
+        // unchanged from today's default. This mirrors firestore.rules'
+        // studentCanReadProjectByMajor (the real enforcement boundary); this
+        // filter is just the client-side browse-list UX on top of it.
+        const rawProjects = allProjects.filter(p => !p.major || p.major === studentMajor);
 
         const supervisorIds = [...new Set(
           rawProjects
@@ -182,7 +191,7 @@ export function useStudentData() {
     unsubProposals.current = unsub;
 
     return () => cancel(unsubProposals);
-  }, [studentState, studentFaculty, studentDegree]);
+  }, [studentState, studentFaculty, studentDegree, studentMajor]);
 
   // ── EFFECT 3: User doc listener (watches hasActiveProject flag) ───────────
   useEffect(() => {

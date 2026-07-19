@@ -74,6 +74,17 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         const projectData = projectSnap.data() ?? {};
         const studentData = studentSnap.data() ?? {};
 
+        // A project restricted to a specific major (set by a supervisor whose
+        // own assignedMajors narrows them to it — see supervisorController.ts's
+        // createSupervisorProject) rejects applicants from other majors. This
+        // is the real access-control boundary for the feature — the browse
+        // query/UI filter is just a convenience; a student could otherwise
+        // reach this endpoint directly with any projectId. No major on the
+        // project means open to every major, unchanged from today.
+        if (projectData.major && studentData.major !== projectData.major) {
+        return res.status(403).json({ success: false, message: 'This project is not open to your major.' });
+        }
+
         // ✅ Duplicate application check
         const existing = await db.collection('applications')
         .where('studentId', '==', studentId)

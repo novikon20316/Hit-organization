@@ -13,6 +13,12 @@ import { ROLE_LABELS } from '../../constants'; // adjust path if needed
 import { FACULTY_COLORS, getRoleAccent } from '../../components/shared'; // adjust path if needed
 import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
 import { getFilteredPrograms } from '../../constants/faculties';
+import { majorsForFaculty } from '../../constants/permissions';
+
+// Roles that can optionally be restricted to a subset of their faculty's
+// majors (see constants/permissions.ts's majorsForFaculty) — mirrors the
+// server's own check in adminController.createAdminUser/updateUserRoleAdmin.
+const MAJOR_RESTRICTABLE_ROLES = ['supervisor', 'secondary_supervisor'];
 
 type Lang = 'he' | 'en';
 
@@ -46,6 +52,10 @@ interface Props {
   newUserMajor: string;
   newUserStudentId: string;
   newUserTempPassword: string;
+  // Optional majors restriction for supervisor/secondary_supervisor roles —
+  // empty = unrestricted (all majors in the faculty). See
+  // constants/permissions.ts's majorsForFaculty.
+  newUserAssignedMajors: string[];
 
   // setters
   setVisible: (v: boolean) => void;
@@ -59,6 +69,7 @@ interface Props {
   setNewUserMajor: (v: string) => void;
   setNewUserStudentId: (v: string) => void;
   setNewUserTempPassword: (v: string) => void;
+  setNewUserAssignedMajors: (v: string[]) => void;
 
   // actions
   onCreate: () => void;
@@ -83,6 +94,7 @@ export default function NewUserModal({
   newUserMajor,
   newUserStudentId,
   newUserTempPassword,
+  newUserAssignedMajors,
 
   setNewUserName,
   setNewUserEmail,
@@ -94,6 +106,7 @@ export default function NewUserModal({
   setNewUserMajor,
   setNewUserStudentId,
   setNewUserTempPassword,
+  setNewUserAssignedMajors,
 
   onCreate,
   creating,
@@ -122,6 +135,7 @@ export default function NewUserModal({
               setNewUserMajor('');
               setNewUserStudentId('');
               setNewUserTempPassword('');
+              setNewUserAssignedMajors([]);
             }}
           >
             <Text style={styles.modalClose}>✕</Text>
@@ -248,11 +262,52 @@ export default function NewUserModal({
                   styles.facultyPickerBtn,
                   newUserFaculty === fid && { backgroundColor: fc.primary },
                 ]}
-                onPress={() => { setNewUserFaculty(fid); setNewUserMajor(''); }}
+                onPress={() => { setNewUserFaculty(fid); setNewUserMajor(''); setNewUserAssignedMajors([]); }}
               >
                 <Text>{fc.label[lang]}</Text>
               </Pressable>
             ))
+        )}
+
+        {/* Assigned Majors (optional) — restricts a supervisor /
+            secondary_supervisor to specific majors within their faculty;
+            empty = unrestricted (all majors), matching today's implicit
+            default. Validated server-side too — see adminController.ts's
+            createAdminUser. */}
+        {MAJOR_RESTRICTABLE_ROLES.includes(newUserRole) && newUserFaculty && (
+          <>
+            <Text style={styles.sectionDivider}>
+              {lang === 'he' ? 'מגמות משויכות (אופציונלי)' : 'Assigned Majors (optional)'}
+            </Text>
+            <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8 }}>
+              {lang === 'he'
+                ? 'השאר ריק כדי לאפשר גישה לכל המגמות בפקולטה'
+                : 'Leave empty to allow all majors in the faculty'}
+            </Text>
+            {majorsForFaculty(newUserFaculty).map((m) => {
+              const isSelected = newUserAssignedMajors.includes(m.slug);
+              return (
+                <Pressable
+                  key={m.slug}
+                  style={[
+                    styles.facultyPickerBtn,
+                    isSelected && { backgroundColor: '#2E86FF' },
+                  ]}
+                  onPress={() =>
+                    setNewUserAssignedMajors(
+                      isSelected
+                        ? newUserAssignedMajors.filter((s) => s !== m.slug)
+                        : [...newUserAssignedMajors, m.slug]
+                    )
+                  }
+                >
+                  <Text style={isSelected ? { color: '#fff' } : undefined}>
+                    {m.label[lang]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </>
         )}
 
         {/* Student fields */}

@@ -7,7 +7,7 @@ import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount } from '../services/accountDeletion.js';
 import { VALID_ROLES, generateTempPassword } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
-import { VALID_MAJORS } from '../config/majors.js';
+import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { validateSystemAdminPassword } from './userController.js';
 
@@ -138,6 +138,27 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
   }
   try {
     const projectData = req.body;
+
+    // A project's major is optional — omitted means open to every major in
+    // its faculty (today's implicit behavior, unchanged for existing
+    // projects with no major field). If set, it must be a real program of
+    // the project's own faculty, and — if a supervisor is being assigned —
+    // within that supervisor's own assignedMajors restriction, if they have
+    // one. Enforced for real by applyApplication + firestore.rules.
+    if (projectData.major) {
+      const validForFaculty = majorsForFaculty(projectData.facultyId);
+      if (!validForFaculty.includes(projectData.major)) {
+        return res.status(400).json({ message: `Invalid major "${projectData.major}" for faculty "${projectData.facultyId}".` });
+      }
+      if (projectData.supervisorId) {
+        const supervisorSnap = await db.collection('users').doc(projectData.supervisorId).get();
+        const supervisorMajors: string[] = supervisorSnap.data()?.assignedMajors ?? [];
+        if (supervisorMajors.length > 0 && !supervisorMajors.includes(projectData.major)) {
+          return res.status(400).json({ message: `Major "${projectData.major}" is outside this supervisor's assigned majors.` });
+        }
+      }
+    }
+
     const newProjectRef = db.collection('projects').doc();
 
     await newProjectRef.set({
@@ -193,6 +214,23 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
     // coordinator assignment by major) depends on it being reliable.
     if (userData.role === 'student' && !VALID_MAJORS.has(userData.major)) {
       return res.status(400).json({ message: `Invalid major: "${userData.major}"` });
+    }
+
+    // Supervisors/secondary_supervisors can optionally be restricted to a
+    // subset of their faculty's majors — an empty/omitted list means
+    // unrestricted (all majors in the faculty), matching today's implicit
+    // behavior. Enforced for real at project-creation time (createSupervisorProject/
+    // createAdminProject) and at application time (applyApplication).
+    if (['supervisor', 'secondary_supervisor'].includes(userData.role)) {
+      const assignedMajors = Array.isArray(userData.assignedMajors) ? userData.assignedMajors : [];
+      const validForFaculty = majorsForFaculty(userData.facultyId);
+      const invalid = assignedMajors.filter((m: unknown) => typeof m !== 'string' || !validForFaculty.includes(m));
+      if (invalid.length > 0) {
+        return res.status(400).json({ message: `Invalid major(s) for faculty "${userData.facultyId}": ${invalid.join(', ')}` });
+      }
+      userData.assignedMajors = assignedMajors;
+    } else {
+      delete userData.assignedMajors;
     }
 
     let tempPassword: string;
@@ -317,7 +355,7 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
   }
 
   const { id: userId } = req.params;
-  const { role, roles } = req.body;
+  const { role, roles, facultyId, assignedMajors } = req.body;
 
   if (!role) return res.status(400).json({ message: 'Missing role parameter.' });
   if (!VALID_ROLES.includes(role)) {
@@ -334,6 +372,22 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
         message:"projectId is not good"
     })
   }
+
+  // Supervisors/secondary_supervisors can optionally be restricted to a
+  // subset of their (possibly just-changed) faculty's majors — same
+  // validation/semantics as createAdminUser. Only meaningful alongside a
+  // facultyId, so validate against whatever facultyId this request is
+  // actually setting.
+  let resolvedAssignedMajors: string[] | undefined;
+  if (['supervisor', 'secondary_supervisor'].includes(role)) {
+    resolvedAssignedMajors = Array.isArray(assignedMajors) ? assignedMajors : [];
+    const validForFaculty = majorsForFaculty(facultyId);
+    const invalid = resolvedAssignedMajors.filter((m: unknown) => typeof m !== 'string' || !validForFaculty.includes(m));
+    if (invalid.length > 0) {
+      return res.status(400).json({ message: `Invalid major(s) for faculty "${facultyId}": ${invalid.join(', ')}` });
+    }
+  }
+
   try {
     const beforeSnap = await db.collection('users').doc(userId).get();
     const before = beforeSnap.data();
@@ -343,6 +397,11 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       // Additional roles (e.g. secondary_supervisor on top of supervisor) —
       // previously collected by the Edit User modal but silently dropped here.
       roles: Array.isArray(roles) ? roles : admin.firestore.FieldValue.delete(),
+      // facultyId was collected by the Edit User modal but never actually
+      // persisted here until now — needed so a supervisor's assignedMajors
+      // (below) always corresponds to their real, saved faculty.
+      ...(typeof facultyId === 'string' && facultyId ? { facultyId } : {}),
+      assignedMajors: resolvedAssignedMajors ?? admin.firestore.FieldValue.delete(),
       updatedAt: new Date().toISOString()
     });
 

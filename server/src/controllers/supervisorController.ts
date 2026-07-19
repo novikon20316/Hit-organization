@@ -2,6 +2,7 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
+import { majorsForFaculty } from '../config/majors.js';
 
 const db = admin.firestore();
 
@@ -140,12 +141,13 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       NumberOfStudents, requiredSkills, facultyId,
       gradingCriteria, // ← NEW: array of { key, label, maxScore }
       prerequisites, // ← courses a student must have completed to be eligible
+      major, // ← optional; omitted means open to every major in the faculty
     } = req.body;
- 
+
     if (!titleHe?.trim() || !titleEn?.trim()) {
       return res.status(400).json({ message: 'Title in both languages is required.' });
     }
- 
+
     // Validate criteria if provided — must sum to 100
     if (gradingCriteria && Array.isArray(gradingCriteria)) {
       const total = gradingCriteria.reduce(
@@ -157,9 +159,27 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
         });
       }
     }
- 
+
+    const resolvedFacultyId = facultyId ?? req.user?.facultyId ?? '';
+
+    // A supervisor restricted to specific majors (assignedMajors, set by
+    // system_admin) can only post projects within that restriction; an
+    // unrestricted supervisor (empty/no assignedMajors) can pick any major
+    // of their own faculty, or omit it entirely to stay open to all majors.
+    if (major) {
+      const validForFaculty = majorsForFaculty(resolvedFacultyId);
+      if (!validForFaculty.includes(major)) {
+        return res.status(400).json({ message: `Invalid major "${major}" for faculty "${resolvedFacultyId}".` });
+      }
+      const supervisorSnap = await db.collection('users').doc(supervisorId).get();
+      const supervisorMajors: string[] = supervisorSnap.data()?.assignedMajors ?? [];
+      if (supervisorMajors.length > 0 && !supervisorMajors.includes(major)) {
+        return res.status(403).json({ message: `You're only assigned to post projects in: ${supervisorMajors.join(', ')}.` });
+      }
+    }
+
     const newProjectRef = db.collection('projects').doc();
- 
+
     await newProjectRef.set({
       titleHe,
       titleEn,
@@ -171,7 +191,8 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       NumberOfStudents:   NumberOfStudents   ?? 1,
       requiredSkills:     requiredSkills     ?? [],
       prerequisites:      Array.isArray(prerequisites) ? prerequisites : [],
-      facultyId:          facultyId          ?? req.user?.facultyId ?? '',
+      facultyId:          resolvedFacultyId,
+      ...(major ? { major } : {}),
       supervisorId,
       projectId:          newProjectRef.id,
       enrolledStudentIds: [],

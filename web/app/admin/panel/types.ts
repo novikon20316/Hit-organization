@@ -16,6 +16,10 @@ export interface AdminUserRecord {
   isActive: boolean;
   totp_enabled?: boolean;
   mustChangePassword?: boolean;
+  /** Restricts a supervisor/secondary_supervisor to specific majors within
+   *  their faculty. Empty/unset means unrestricted (all majors in their
+   *  faculty) — see server/src/controllers/adminController.ts. */
+  assignedMajors?: string[];
 }
 
 export interface GradingCriterion {

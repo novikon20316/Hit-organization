@@ -37,6 +37,11 @@ export interface ProjectProposal {
   status: string;
   academicYear: string;
   projectFileUrl: string | null;
+  /** Optional single major within facultyId — set when the project's
+   *  supervisor is restricted via assignedMajors (see
+   *  server/src/controllers/supervisorController.ts's createSupervisorProject).
+   *  Missing/empty means open to every major in the faculty. */
+  major?: string;
 }
 
 export interface ActiveProject {

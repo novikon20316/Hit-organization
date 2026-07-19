@@ -236,6 +236,11 @@ export interface UserDoc {
   /** Mirrors mobile's post-login nudge condition (app/(auth)/login.tsx) —
    *  when false/undefined, the user hasn't set up 2FA yet. */
   totp_enabled?: boolean;
+  /** Only meaningful for supervisor/secondary_supervisor — restricts them to
+   *  specific majors within their own facultyId. Empty/unset means
+   *  unrestricted (all majors in their faculty). See
+   *  server/src/controllers/adminController.ts. */
+  assignedMajors?: string[];
 }
 
 export const VALID_ROLES: AppRole[] = [

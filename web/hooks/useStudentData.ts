@@ -22,6 +22,7 @@ export function useStudentData() {
   const [studentName, setStudentName] = useState('');
   const [studentDegree, setStudentDegree] = useState<DegreeType>('bachelors');
   const [studentFaculty, setStudentFaculty] = useState('');
+  const [studentMajor, setStudentMajor] = useState('');
   const [studentYearOfStudy, setStudentYearOfStudy] = useState<number | null>(null);
   const [studentCompletedCourses, setStudentCompletedCourses] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export function useStudentData() {
         displayName?: string;
         degreeType?: DegreeType;
         facultyId?: string;
+        major?: string | null;
         yearOfStudy?: number | null;
         completedCourses?: string[];
         hasActiveProject?: boolean;
@@ -67,6 +69,7 @@ export function useStudentData() {
       setStudentName(userData.displayName || '');
       setStudentDegree(degree);
       setStudentFaculty(userData.facultyId || '');
+      setStudentMajor(userData.major || '');
       setStudentYearOfStudy(userData.yearOfStudy ?? null);
       setStudentCompletedCourses(userData.completedCourses ?? []);
 
@@ -127,7 +130,15 @@ export function useStudentData() {
     const unsub = onSnapshot(
       q,
       async (snapshot) => {
-        const rawProjects = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as ProjectProposal[];
+        // Client-side convenience filter only — the real enforcement is
+        // server/rules-side (applicationController.ts's applyApplication and
+        // firestore.rules's studentCanReadProjectByMajor already gate this
+        // for real; a student could otherwise still reach a mismatched
+        // project's data directly). No major on the project means open to
+        // every major, unchanged from before this field existed.
+        const rawProjects = snapshot.docs
+          .map((d) => ({ id: d.id, ...d.data() }) as ProjectProposal)
+          .filter((p) => !p.major || p.major === studentMajor);
 
         const supervisorIds = [...new Set(rawProjects.filter((p) => p.supervisorId && !p.supervisorName).map((p) => p.supervisorId))];
 
@@ -152,7 +163,7 @@ export function useStudentData() {
 
     unsubProposals.current = unsub;
     return () => cancel(unsubProposals);
-  }, [studentState, studentFaculty, studentDegree]);
+  }, [studentState, studentFaculty, studentDegree, studentMajor]);
 
   // ── EFFECT 3: user-doc listener (watches hasActiveProject flag) ───────────
   useEffect(() => {

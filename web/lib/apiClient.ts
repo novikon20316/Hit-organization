@@ -333,6 +333,9 @@ export const apiClient = {
     studentId?: string | null;
     /** Left blank to let the server auto-generate one via generateTempPassword(). */
     tempPassword?: string;
+    /** Only meaningful when role is supervisor/secondary_supervisor — see
+     *  adminController.ts's createAdminUser. Omitted/empty = unrestricted. */
+    assignedMajors?: string[];
   }) {
     return request<{ success: boolean; id: string; tempPassword: string; message: string }>('/api/admin/users/create', {
       method: 'POST',
@@ -340,7 +343,10 @@ export const apiClient = {
     });
   },
 
-  async updateUserRoleAdmin(userId: string, payload: { role: string; roles?: string[]; facultyId?: string }) {
+  async updateUserRoleAdmin(
+    userId: string,
+    payload: { role: string; roles?: string[]; facultyId?: string; assignedMajors?: string[] }
+  ) {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${userId}/role-update`, {
       method: 'POST',
       body: payload,
@@ -377,6 +383,9 @@ export const apiClient = {
     requiredSkills: string[];
     prerequisites: string[];
     gradingCriteria?: Array<{ key: string; label: string; maxScore: number }>;
+    /** Optional single major within facultyId — see adminController.ts's
+     *  createAdminProject. Omitted = open to every major in the faculty. */
+    major?: string;
   }) {
     return request<{ success: boolean; id: string; message: string }>('/api/admin/projects', { method: 'POST', body: payload });
   },
@@ -753,6 +762,11 @@ export const apiClient = {
     NumberOfStudents: number;
     facultyId: string;
     gradingCriteria?: Array<{ key: string; label: string; maxScore: number }>;
+    /** Optional single major within facultyId, validated server-side against
+     *  the calling supervisor's own assignedMajors restriction (if any) — see
+     *  supervisorController.ts's createSupervisorProject. Omitted = open to
+     *  every major in the faculty. */
+    major?: string;
   }) {
     return request<{ success: boolean; projectId: string; message?: string }>('/api/supervisor/projects', {
       method: 'POST',

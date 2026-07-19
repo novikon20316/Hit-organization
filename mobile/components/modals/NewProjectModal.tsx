@@ -5,8 +5,9 @@ import { tx } from '../../components/i18n';
 import { HIT_FACULTIES, getFacultyByKey, getFilteredPrograms } from '../../constants/faculties';
 import {
   Modal, View, Text, ScrollView, Pressable,
-  TextInput, ActivityIndicator, StyleSheet
+  TextInput, ActivityIndicator
 } from "react-native";
+import { NewProjectModalStyles, CriteriaModalStyles } from '../../constants/styles';
 
 // Returns true if the user holds a given role (checks both roles[] and the
 // legacy single role field so old data keeps working)
@@ -59,6 +60,13 @@ type Props = {
   selectedProgram?:    string | null;
   setSelectedProgram?: (v: string | null) => void;
 
+  // Supervisor's own majors restriction (assignedMajors, slugs — see
+  // constants/permissions.ts's majorsForFaculty), when the caller is a
+  // supervisor posting their own project. Undefined/empty = unrestricted:
+  // every major of the faculty stays selectable, plus an explicit "no
+  // restriction" option. Not used in admin mode.
+  restrictedMajors?: string[];
+
   supervisors?:           AppUser[];
   selectedSupervisor?:    AppUser | null;
   setSelectedSupervisor?: (s: AppUser) => void;
@@ -97,6 +105,7 @@ export default function NewProjectModal({
   degree,  setDegree,
   type,    setType,
   selectedProgram, setSelectedProgram,
+  restrictedMajors,
   supervisors, selectedSupervisor, setSelectedSupervisor, setShowConfirm,
   onCreate, creating,
   maxStudents, setMaxStudents,
@@ -173,7 +182,17 @@ export default function NewProjectModal({
     ? getFilteredPrograms(effectiveFaculty, degree)
     : [];
 
-  const showProgramPicker = availablePrograms.length > 0;
+  // A supervisor restricted to specific majors (restrictedMajors, set by
+  // system_admin) only sees those within the picker and must pick one;
+  // an unrestricted supervisor (or admin, who is never restricted here)
+  // sees every program for the faculty + degree, plus an explicit
+  // "no restriction" option below.
+  const isMajorRestricted = isSupervisor && !!restrictedMajors && restrictedMajors.length > 0;
+  const visiblePrograms: Program[] = isMajorRestricted
+    ? availablePrograms.filter((p) => restrictedMajors!.includes(p.slug))
+    : availablePrograms;
+
+  const showProgramPicker = visiblePrograms.length > 0;
 
   const shouldShowClassSelection =
     hasOnlySupervisorRole && effectiveFaculty && !showProgramPicker;
@@ -329,7 +348,21 @@ export default function NewProjectModal({
               {lang === "he" ? "מסלול לימודים *" : "Study Program *"}
             </Text>
 
-            {availablePrograms.map((p) => {
+            {isSupervisor && !isMajorRestricted && (
+              <Pressable
+                style={[programStyles.programBtn, selectedProgram === null && programStyles.programBtnActive]}
+                onPress={() => setSelectedProgram?.(null)}
+              >
+                <View style={[programStyles.programRadio, selectedProgram === null && programStyles.programRadioActive]}>
+                  {selectedProgram === null && <View style={programStyles.programRadioDot} />}
+                </View>
+                <Text style={[programStyles.programBtnText, selectedProgram === null && programStyles.programBtnTextActive]}>
+                  {lang === "he" ? "ללא הגבלה — פתוח לכל המגמות" : "No restriction — open to all majors"}
+                </Text>
+              </Pressable>
+            )}
+
+            {visiblePrograms.map((p) => {
               const isSelected = selectedProgram === p.key;
               return (
                 <Pressable
@@ -361,7 +394,8 @@ export default function NewProjectModal({
 
               {(
                 getFacultyByKey(currentUser?.facultyId ?? "")?.programs || []
-              ).map((p) => {
+              ).filter((p) => !isMajorRestricted || restrictedMajors!.includes(p.slug))
+                .map((p) => {
                 const isSelected = selectedProgram === p.key;
 
                 return (
@@ -556,210 +590,8 @@ export default function NewProjectModal({
 
 // ─── Program picker styles ────────────────────────────────────────────────────
 
-const programStyles = StyleSheet.create({
-  facultyList: {
-    gap:          8,
-    marginBottom: 16,
-  },
-  facultyBtn: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: 14,
-    paddingVertical:   10,
-    borderRadius:      12,
-    borderWidth:       1.5,
-    borderColor:       '#D0DEFF',
-    backgroundColor:   '#F8FAFF',
-    gap:               8,
-  },
-  facultyDot: {
-    width:        10,
-    height:       10,
-    borderRadius: 5,
-  },
-  facultyBtnText: {
-    fontSize:   14,
-    color:      '#374151',
-    fontWeight: '500',
-    flexShrink: 1,
-  },
-  section: {
-    marginTop:       12,
-    marginBottom:    8,
-    backgroundColor: '#F8FAFF',
-    borderRadius:    16,
-    padding:         16,
-    borderWidth:     1,
-    borderColor:     '#E0E8FF',
-  },
-  sectionTitle: {
-    fontSize:   15,
-    fontWeight: '700',
-    color:      '#111827',
-  },
-  programBtn: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: 14,
-    paddingVertical:   11,
-    borderRadius:      12,
-    borderWidth:       1.5,
-    borderColor:       '#D0DEFF',
-    backgroundColor:   '#fff',
-    marginBottom:      8,
-    gap:               10,
-  },
-  programBtnActive: {
-    borderColor:     '#2E86FF',
-    backgroundColor: '#EBF3FF',
-  },
-  programBtnText: {
-    fontSize:   14,
-    color:      '#374151',
-    fontWeight: '500',
-    flexShrink: 1,
-  },
-  programBtnTextActive: {
-    color:      '#1A5FCC',
-    fontWeight: '600',
-  },
-  programRadio: {
-    width:           18,
-    height:          18,
-    borderRadius:    9,
-    borderWidth:     2,
-    borderColor:     '#9BA8C0',
-    alignItems:      'center',
-    justifyContent:  'center',
-  },
-  programRadioActive: {
-    borderColor: '#2E86FF',
-  },
-  programRadioDot: {
-    width:           8,
-    height:          8,
-    borderRadius:    4,
-    backgroundColor: '#2E86FF',
-  },
-  supervisorFacultyBadge: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    alignSelf:         'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical:   10,
-    borderRadius:      12,
-    borderWidth:       1.5,
-    gap:               8,
-    marginBottom:      16,
-  },
-  supervisorFacultyText: {
-    fontSize:   14,
-    fontWeight: '600',
-  },
-  supervisorFacultyLock: {
-    fontSize: 13,
-    marginLeft: 2,
-  },
-  emptyHint: {
-    padding:         12,
-    backgroundColor: '#FFFBEB',
-    borderRadius:    10,
-    borderWidth:     1,
-    borderColor:     '#FDE68A',
-    marginBottom:    12,
-  },
-  emptyHintText: {
-    fontSize: 13,
-    color:    '#92400E',
-  },
-});
+const programStyles = NewProjectModalStyles;
 
 // ─── Criteria section styles ──────────────────────────────────────────────────
 
-const criteriaStyles = StyleSheet.create({
-  section: {
-    marginTop:        20,
-    marginBottom:     8,
-    backgroundColor:  '#F8FAFF',
-    borderRadius:     16,
-    padding:          16,
-    borderWidth:      1,
-    borderColor:      '#E0E8FF',
-  },
-  sectionHeader: {
-    flexDirection:    'row',
-    justifyContent:  'space-between',
-    alignItems:       'center',
-    marginBottom:     12,
-  },
-  sectionTitle: {
-    fontSize:   15,
-    fontWeight: '700',
-    color:      '#111827',
-  },
-  totalBadge: {
-    paddingHorizontal: 10,
-    paddingVertical:   4,
-    borderRadius:      20,
-  },
-  totalBadgeText: {
-    fontSize:   12,
-    fontWeight: '700',
-  },
-  warning: {
-    fontSize:     12,
-    color:        '#EF4444',
-    marginBottom: 10,
-    fontWeight:   '600',
-  },
-  criterionRow: {
-    flexDirection: 'row',
-    alignItems:    'flex-end',
-    marginBottom:  10,
-  },
-  criterionLabel: {
-    fontSize:     11,
-    color:        '#8899BB',
-    fontWeight:   '600',
-    marginBottom: 4,
-  },
-  criterionInput: {
-    backgroundColor:   '#fff',
-    borderRadius:      10,
-    borderWidth:       1,
-    borderColor:       '#D0DEFF',
-    paddingHorizontal: 10,
-    paddingVertical:   8,
-    fontSize:          14,
-    color:             '#111',
-  },
-  removeBtn: {
-    marginLeft:      8,
-    marginBottom:    2,
-    width:           32,
-    height:          36,
-    borderRadius:    10,
-    backgroundColor: '#FEE2E2',
-    justifyContent:  'center',
-    alignItems:      'center',
-  },
-  removeBtnText: {
-    color:      '#EF4444',
-    fontWeight: '700',
-    fontSize:   14,
-  },
-  addBtn: {
-    marginTop:       8,
-    paddingVertical: 10,
-    borderRadius:    12,
-    borderWidth:     1,
-    borderColor:     '#2E86FF',
-    borderStyle:     'dashed',
-    alignItems:      'center',
-  },
-  addBtnText: {
-    color:      '#2E86FF',
-    fontWeight: '700',
-    fontSize:   14,
-  },
-});
+const criteriaStyles = CriteriaModalStyles;
