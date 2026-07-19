@@ -17,10 +17,13 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.16.0
-      # Same backend both the mobile app and this repo's own
-      # .env.local.example already point at.
+      # Backend URL — updated after the original hit-organization.onrender.com
+      # backend service had to be recreated (a stale Render/GitHub connection
+      # made it un-deployable); the new backend service landed on this URL
+      # instead. Mobile's own config still points at the old URL and needs
+      # updating separately if/when that matters.
       - key: NEXT_PUBLIC_API_URL
-        value: https://hit-organization.onrender.com
+        value: https://hit-organization-web-f8rb.onrender.com
       # Firebase web config — not secret (shipped in every client bundle by
       # design; access control is Firestore rules + the server's verifyToken
       # middleware). Values match the ones already baked into

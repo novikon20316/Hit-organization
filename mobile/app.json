@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "HIT Projects",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -28,6 +28,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -76,7 +77,7 @@
       "eas": {
         "projectId": "a969028f-f207-42fe-881f-2a6f3cb6760e"
       },
-      "apiUrl": "https://hit-organization.onrender.com"
+      "apiUrl": "https://hit-organization-web-f8rb.onrender.com"
     },
     "owner": "dorno"
   }
