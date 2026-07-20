@@ -87,6 +87,18 @@ export interface CoordinatorDeadline {
   class?: string;
 }
 
+export interface MilestoneRevision {
+  version: number;
+  fileUrls: string[];
+  submissionNote: string;
+  submittedAt: string | null;
+  status: string;
+  decision: 'approved' | 'rejected' | null;
+  decisionReason: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
+
 export interface CoordinatorPendingMilestone {
   id: string;
   projectId: string;
@@ -102,6 +114,7 @@ export interface CoordinatorPendingMilestone {
   supervisorComment?: string | null;
   submissionNote?: string | null;
   fileUrls?: string[];
+  revisionHistory?: MilestoneRevision[];
   facultyId: FacultyId;
   // ── Defense-tab "setup" bucket extras (final_report already graded /
   // coordinator_approved) — mostly empty until examiners get assigned, see

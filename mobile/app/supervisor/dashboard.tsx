@@ -540,7 +540,11 @@ export default function SupervisorHome() {
       console.error("❌ Response Details:", error?.response?.data || "No response data available");
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'שגיאה בשמירת הציון' : 'Failed to submit grade.'
+        // Surfaces the server's message when there is one — in particular the
+        // post-approval grade lock (see projectController.ts submitMilestoneGrade)
+        // returns a specific 409 explaining an authorized unlock is needed first,
+        // which a generic fallback here would otherwise hide.
+        error?.response?.data?.message || (lang === 'he' ? 'שגיאה בשמירת הציון' : 'Failed to submit grade.')
       );
     } finally {
       setSubmitting(false);

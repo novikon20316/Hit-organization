@@ -202,6 +202,12 @@ class ApiClient {
     const response = await this.api.post(`/api/auth/login-security/${encodeURIComponent(code)}/confirm`, { decision });
     return response.data;
   }
+
+  // ─── 5. GRADE HISTORY — read-only over `grades` + `auditLog` ─────────────
+  async getProjectGradeHistory(projectId: string) {
+    const response = await this.api.get(`/api/grades/history/${projectId}`);
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

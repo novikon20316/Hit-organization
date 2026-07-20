@@ -34,6 +34,7 @@ const MILESTONE_LABEL: Record<MilestoneType, { he: string; en: string }> = {
 const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string; icon: string }> = {
   pending:              { color: '#8899BB', bg: '#F0F4FF', icon: '🕐' },
   submitted:            { color: '#F59E0B', bg: '#FFFBEB', icon: '📤' },
+  rejected:             { color: '#EF4444', bg: '#FEF2F2', icon: '❌' },
   supervisor_graded:    { color: '#3B82F6', bg: '#EFF6FF', icon: '👨‍🏫' },
   graded:               { color: '#3B82F6', bg: '#EFF6FF', icon: '👨‍🏫' },
   coordinator_approved: { color: '#8B5CF6', bg: '#F5F3FF', icon: '✅' },
@@ -527,6 +528,7 @@ export default function ActiveDashboard({
                             ? ({
                                 pending:              'ממתין',
                                 submitted:            'הוגש',
+                                rejected:             'הוחזר לתיקון',
                                 supervisor_graded:    'נוקד ע"י מנחה',
                                 graded:               'נוקד ע"י מנחה',
                                 examiners_assigned:   'נבחרו בוחנים',
@@ -542,6 +544,7 @@ export default function ActiveDashboard({
                             : ({
                                 pending:              'Pending',
                                 submitted:            'Submitted',
+                                rejected:             'Returned for revision',
                                 supervisor_graded:    'Supervisor Graded',
                                 graded:               'Supervisor Graded',
                                 examiners_assigned:   'Examiners Assigned',
@@ -579,6 +582,10 @@ export default function ActiveDashboard({
                       // "Submitted" replaces the due date
                       <Text style={[{ fontSize: 13, color: '#F59E0B', fontWeight: '600', marginTop: 4 }, isRtl && styles.textRight]}>
                         📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}
+                      </Text>
+                    ) : normalizedStatus === 'rejected' ? (
+                      <Text style={[{ fontSize: 13, color: '#EF4444', fontWeight: '600', marginTop: 4 }, isRtl && styles.textRight]}>
+                        ↩ {lang === 'he' ? 'הוחזר לתיקון — יש להגיש גרסה מתוקנת' : 'Returned for revision — please resubmit a corrected version'}
                       </Text>
                     ) : (
                       // Normal due date row (pending + unlocked)
@@ -633,21 +640,57 @@ export default function ActiveDashboard({
                       </Text>
                     )}
 
+                    {/* Coordinator's rejection reason — shown so the student knows
+                        what to fix before resubmitting. */}
+                    {normalizedStatus === 'rejected' && m.rejectionReason && (
+                      <View style={{ backgroundColor: '#FEF2F2', borderRadius: 8, padding: 10, marginTop: 8 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>
+                          {lang === 'he' ? 'סיבת ההחזרה:' : 'Reason for return:'}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 2 }}>{m.rejectionReason}</Text>
+                      </View>
+                    )}
+
                     {/* ── Submit button ──
-                        Show ONLY when:
-                        • status is 'pending'
+                        Show when:
+                        • status is 'pending' OR 'rejected' (resubmission after a
+                          coordinator return — previously this was 'pending'-only,
+                          which left a rejected milestone with no way to resubmit)
                         • not the defense milestone
                         • milestone is unlocked (previous was coordinator_approved/completed)
                     */}
-                    {m.status === 'pending' && !isDefense && unlocked && !m.defenseDate && (
+                    {(m.status === 'pending' || normalizedStatus === 'rejected') && !isDefense && unlocked && !m.defenseDate && (
                       <Pressable
-                        style={styles.milestoneSubmitBtn}
+                        style={[styles.milestoneSubmitBtn, normalizedStatus === 'rejected' && { backgroundColor: '#EF4444' }]}
                         onPress={() => openSubmit(m)}
                       >
                         <Text style={styles.milestoneSubmitBtnText}>
-                          {tx('submitMilestone', lang)}
+                          {normalizedStatus === 'rejected'
+                            ? (lang === 'he' ? 'הגש גרסה מתוקנת' : 'Submit Corrected Version')
+                            : tx('submitMilestone', lang)}
                         </Text>
                       </Pressable>
+                    )}
+
+                    {/* Submission history — preserves earlier rejected rounds so
+                        nothing gets silently overwritten on resubmission. */}
+                    {(m as any).revisionHistory?.length > 0 && (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280' }}>
+                          🕘 {lang === 'he' ? `היסטוריית הגשות (${(m as any).revisionHistory.length})` : `Submission History (${(m as any).revisionHistory.length})`}
+                        </Text>
+                        {(m as any).revisionHistory.map((rev: any) => (
+                          <View key={rev.version} style={{ backgroundColor: '#F9FAFB', borderRadius: 8, padding: 8, marginTop: 4 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#374151' }}>
+                              {lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}
+                              {rev.decision === 'rejected' ? (lang === 'he' ? ' · נדחתה' : ' · Rejected') : ''}
+                            </Text>
+                            {rev.decisionReason && (
+                              <Text style={{ fontSize: 11, color: '#EF4444', marginTop: 2 }}>{rev.decisionReason}</Text>
+                            )}
+                          </View>
+                        ))}
+                      </View>
                     )}
 
                     {/* Submitted files count */}

@@ -24,8 +24,15 @@ export type AuditAction =
   | 'template_proposal_approved'
   | 'template_proposal_rejected'
   | 'final_grade_approved'
+  | 'grade_approval_reverted'
   | 'workflow_template_approved'
-  | 'workflow_template_rejected';
+  | 'workflow_template_rejected'
+  | 'examiner_access_granted'
+  | 'examiner_document_viewed'
+  | 'examiner_dates_submitted'
+  | 'clock_paused'
+  | 'clock_resumed'
+  | 'track_changed';
 
 export interface AuditLogEntry {
   userId: string;

@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -55,12 +55,23 @@ interface ExaminerLoad {
   overdue:       number;
 }
 
+interface ApprovedFinalGrade {
+  id: string;
+  studentName: string;
+  facultyId: string;
+  title: string;
+  finalGrade: number;
+  approvedAt: string;
+  michlolTransferStatus: string | null;
+}
+
 interface DashboardData {
   headName:          string;
   pendingApprovals:  PendingApproval[];
   processSummaries:  ProcessSummary[];
   stuckStudents:     StuckStudent[];
   examinerLoad:      ExaminerLoad[];
+  approvedFinalGrades: ApprovedFinalGrade[];
   stats: {
     totalMasters:      number;
     pendingCount:      number;
@@ -97,9 +108,12 @@ export default function GradSchoolHeadDashboard() {
   const [refreshing, setRefreshing]= useState(false);
   const [data, setData]            = useState<DashboardData | null>(null);
   const [activeTab, setActiveTab]  = useState<
-    'approvals' | 'overview' | 'stuck' | 'examiners'
+    'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades'
   >('approvals');
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [unlockTargetId, setUnlockTargetId] = useState<string | null>(null);
+  const [unlockReason, setUnlockReason] = useState('');
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
   const uid = auth.currentUser?.uid;
 
@@ -143,6 +157,24 @@ export default function GradSchoolHeadDashboard() {
     }
   };
 
+  const handleUnlockGrade = async (milestoneId: string) => {
+    if (!unlockReason.trim()) return;
+    setUnlockingId(milestoneId);
+    try {
+      await apiClient.post(`/api/grad-school-head/milestones/${milestoneId}/unlock-grade`, { reason: unlockReason.trim() });
+      setUnlockTargetId(null);
+      setUnlockReason('');
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'פתיחת הציון נכשלה' : 'Failed to unlock the grade'),
+      );
+    } finally {
+      setUnlockingId(null);
+    }
+  };
+
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -157,6 +189,7 @@ export default function GradSchoolHeadDashboard() {
     { key: 'overview'  as const, he: 'סקירה כללית',     en: 'Overview',  badge: 0 },
     { key: 'stuck'     as const, he: 'תקועים',          en: 'Stuck',     badge: data?.stuckStudents.length ?? 0 },
     { key: 'examiners' as const, he: 'עומס בוחנים',     en: 'Examiners', badge: 0 },
+    { key: 'grades'    as const, he: 'ציונים מאושרים',  en: 'Approved Grades', badge: 0 },
   ];
 
   return (
@@ -352,6 +385,59 @@ export default function GradSchoolHeadDashboard() {
                       </View>
                     ))}
                   </View>
+                </View>
+              ))
+            )}
+          </>
+        )}
+
+        {/* ── APPROVED FINAL GRADES (unlock for correction) ── */}
+        {activeTab === 'grades' && (
+          <>
+            {(data?.approvedFinalGrades.length ?? 0) === 0 ? (
+              <EmptyState emoji="📭" text={lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'} />
+            ) : (
+              data!.approvedFinalGrades.map(g => (
+                <View key={g.id} style={[s.card, { borderLeftColor: '#10B981' }]}>
+                  <Text style={s.cardTitle}>{g.studentName}</Text>
+                  <Text style={s.cardSub}>{g.title}</Text>
+                  <Text style={s.cardSub}>
+                    {lang === 'he' ? 'ציון סופי:' : 'Final grade:'} {g.finalGrade}
+                    {g.michlolTransferStatus === 'transferred' ? (lang === 'he' ? ' · הועבר למכלול ✅' : ' · Transferred to Michlol ✅') : ''}
+                  </Text>
+
+                  {unlockTargetId === g.id ? (
+                    <View style={{ marginTop: 10 }}>
+                      <TextInput
+                        value={unlockReason}
+                        onChangeText={setUnlockReason}
+                        placeholder={lang === 'he' ? 'סיבת פתיחת הציון לתיקון (חובה)' : 'Reason for unlocking (required)'}
+                        multiline
+                        style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 60, fontSize: 13, textAlignVertical: 'top' }}
+                      />
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                        <Pressable
+                          style={[s.btnReturn, { flex: 1, backgroundColor: unlockReason.trim() ? '#EF4444' : '#FCA5A5' }]}
+                          onPress={() => handleUnlockGrade(g.id)}
+                          disabled={!unlockReason.trim() || unlockingId === g.id}
+                        >
+                          <Text style={[s.btnReturnText, { color: '#fff' }]}>
+                            {unlockingId === g.id ? (lang === 'he' ? 'פותח...' : 'Unlocking...') : (lang === 'he' ? 'אשר פתיחה' : 'Confirm Unlock')}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={[s.btnReturn, { flex: 1 }]}
+                          onPress={() => { setUnlockTargetId(null); setUnlockReason(''); }}
+                        >
+                          <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : (
+                    <Pressable style={[s.btnReturn, { marginTop: 10 }]} onPress={() => setUnlockTargetId(g.id)}>
+                      <Text style={s.btnReturnText}>🔓 {lang === 'he' ? 'פתח לתיקון' : 'Unlock for Correction'}</Text>
+                    </Pressable>
+                  )}
                 </View>
               ))
             )}

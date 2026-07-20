@@ -4,6 +4,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { auth, db } from '../config/firebase.js';
+import type { ScopeRule, CoordinatorScope } from '../config/permissionScopes.js';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -20,6 +21,12 @@ export interface AuthenticatedRequest extends Request {
     // itself, not Firestore) — used by syncData to refuse to create the
     // Firestore profile until the user has confirmed their email.
     emailVerified: boolean;
+    // Granular per-user permission grants and a coordinator's own operational
+    // scope — see config/permissionScopes.ts and services/scopeAuthorization.ts.
+    // Always an array (never undefined) so callers can check .length/.some()
+    // without a null-check; empty means no grants beyond the account's role.
+    permissionRules: ScopeRule[];
+    coordinatorScopes: CoordinatorScope[];
   };
 }
 
@@ -67,6 +74,8 @@ export const verifyToken = async (
       roles:     userData.roles     ?? ['student'],
       authTime:  decodedToken.auth_time,
       emailVerified: decodedToken.email_verified ?? false,
+      permissionRules:   userData.permissionRules   ?? [],
+      coordinatorScopes: userData.coordinatorScopes ?? [],
     };
 
     return next();
@@ -106,6 +115,8 @@ export const verifyTokenOnly = async (
       roles:     ['student'],
       authTime:  decodedToken.auth_time,
       emailVerified: decodedToken.email_verified ?? false,
+      permissionRules:   [],
+      coordinatorScopes: [],
     };
     return next();
   } catch (error: any) {

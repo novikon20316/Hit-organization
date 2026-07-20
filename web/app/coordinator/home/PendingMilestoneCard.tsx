@@ -116,6 +116,61 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
               </div>
             </div>
           )}
+
+          {m.revisionHistory && m.revisionHistory.length > 0 && (
+            <div className="rounded-lg bg-paper p-2.5">
+              <p className="mb-1.5 text-xs font-semibold text-ink">
+                {lang === 'he' ? `🕘 היסטוריית הגשות (${m.revisionHistory.length})` : `🕘 Submission History (${m.revisionHistory.length})`}
+              </p>
+              <div className="grid gap-2">
+                {m.revisionHistory.map((rev) => (
+                  <div key={rev.version} className="rounded-md border border-line bg-surface p-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-ink">
+                        {lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}
+                      </span>
+                      {rev.decision && (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                          style={
+                            rev.decision === 'rejected'
+                              ? { backgroundColor: 'var(--danger-bg)', color: 'var(--danger)' }
+                              : { backgroundColor: 'var(--success-bg)', color: 'var(--success)' }
+                          }
+                        >
+                          {rev.decision === 'rejected'
+                            ? (lang === 'he' ? '❌ נדחתה' : '❌ Rejected')
+                            : (lang === 'he' ? '✅ אושרה' : '✅ Approved')}
+                        </span>
+                      )}
+                    </div>
+                    {rev.submissionNote && <p className="mt-1 text-xs text-muted">📝 {rev.submissionNote}</p>}
+                    {rev.decisionReason && (
+                      <p className="mt-1 text-xs text-danger">
+                        {lang === 'he' ? 'סיבת דחייה: ' : 'Rejection reason: '}
+                        {rev.decisionReason}
+                      </p>
+                    )}
+                    {rev.fileUrls.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {rev.fileUrls.map((url, i) => (
+                          <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-full border border-line px-2 py-0.5 text-[10px] text-ink hover:border-primary hover:text-primary"
+                          >
+                            📄 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

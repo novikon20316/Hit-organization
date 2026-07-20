@@ -55,6 +55,15 @@ interface ExaminerLoad {
   pending: number;
   overdue: number;
 }
+interface ApprovedFinalGrade {
+  id: string;
+  studentName: string;
+  facultyId: string;
+  title: string;
+  finalGrade: number;
+  approvedAt: string;
+  michlolTransferStatus: string | null;
+}
 
 const APPROVAL_TYPE_LABEL: Record<ApprovalType, { he: string; en: string }> = {
   supervisor: { he: 'אישור מנחה', en: 'Supervisor Approval' },
@@ -76,16 +85,20 @@ export default function GradSchoolHeadDashboardPage() {
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
 
-  const [tab, setTab] = useState<'approvals' | 'overview' | 'stuck' | 'examiners'>('approvals');
+  const [tab, setTab] = useState<'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades'>('approvals');
   const [headName, setHeadName] = useState('');
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [processSummaries, setProcessSummaries] = useState<ProcessSummary[]>([]);
   const [stuckStudents, setStuckStudents] = useState<StuckStudent[]>([]);
   const [examinerLoad, setExaminerLoad] = useState<ExaminerLoad[]>([]);
+  const [approvedFinalGrades, setApprovedFinalGrades] = useState<ApprovedFinalGrade[]>([]);
   const [stats, setStats] = useState({ totalMasters: 0, pendingCount: 0, stuckCount: 0, completedThisYear: 0 });
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [unlockTargetId, setUnlockTargetId] = useState<string | null>(null);
+  const [unlockReason, setUnlockReason] = useState('');
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -96,6 +109,7 @@ export default function GradSchoolHeadDashboardPage() {
       setProcessSummaries(data.processSummaries ?? []);
       setStuckStudents(data.stuckStudents ?? []);
       setExaminerLoad(data.examinerLoad ?? []);
+      setApprovedFinalGrades(data.approvedFinalGrades ?? []);
       setStats(data.stats ?? { totalMasters: 0, pendingCount: 0, stuckCount: 0, completedThisYear: 0 });
       setLoadError('');
     } catch (err) {
@@ -122,6 +136,21 @@ export default function GradSchoolHeadDashboardPage() {
     }
   };
 
+  const handleUnlockGrade = async (milestoneId: string) => {
+    if (!unlockReason.trim()) return;
+    setUnlockingId(milestoneId);
+    try {
+      await apiClient.unlockFinalGrade(milestoneId, unlockReason.trim());
+      setUnlockTargetId(null);
+      setUnlockReason('');
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'פתיחת הציון נכשלה' : 'Failed to unlock the grade');
+    } finally {
+      setUnlockingId(null);
+    }
+  };
+
   if (guardLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper">
@@ -135,6 +164,7 @@ export default function GradSchoolHeadDashboardPage() {
     { key: 'overview' as const, label: lang === 'he' ? 'סקירה כללית' : 'Overview', badge: 0 },
     { key: 'stuck' as const, label: lang === 'he' ? 'תקועים' : 'Stuck', badge: stuckStudents.length },
     { key: 'examiners' as const, label: lang === 'he' ? 'עומס בוחנים' : 'Examiners', badge: 0 },
+    { key: 'grades' as const, label: lang === 'he' ? 'ציונים מאושרים' : 'Approved Grades', badge: 0 },
   ];
 
   return (
@@ -242,7 +272,7 @@ export default function GradSchoolHeadDashboardPage() {
           ))}
           {stuckStudents.length === 0 && <p className="text-sm text-muted">🎉 {lang === 'he' ? 'אין סטודנטים תקועים' : 'No stuck students'}</p>}
         </div>
-      ) : (
+      ) : tab === 'examiners' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {examinerLoad.map((ex, i) => (
             <div
@@ -260,6 +290,60 @@ export default function GradSchoolHeadDashboardPage() {
             </div>
           ))}
           {examinerLoad.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין בוחנים פעילים' : 'No active examiners'}</p>}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {approvedFinalGrades.map((g) => (
+            <div key={g.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--success)' } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-ink">{g.studentName}</p>
+              <p className="mt-0.5 text-xs text-muted">{g.title}</p>
+              <p className="mt-1 text-xs text-muted">
+                {lang === 'he' ? 'ציון סופי:' : 'Final grade:'} <span className="font-semibold text-ink">{g.finalGrade}</span>
+                {g.approvedAt && ` · ${new Date(g.approvedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}`}
+              </p>
+              {g.michlolTransferStatus === 'transferred' && (
+                <p className="mt-0.5 text-xs text-success">✅ {lang === 'he' ? 'הועבר למכלול' : 'Transferred to Michlol'}</p>
+              )}
+
+              {unlockTargetId === g.id ? (
+                <div className="mt-3 grid gap-2">
+                  <textarea
+                    rows={2}
+                    value={unlockReason}
+                    onChange={(e) => setUnlockReason(e.target.value)}
+                    placeholder={lang === 'he' ? 'סיבת פתיחת הציון לתיקון (חובה)' : 'Reason for unlocking this grade (required)'}
+                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleUnlockGrade(g.id)}
+                      disabled={!unlockReason.trim() || unlockingId === g.id}
+                      className="flex-1 rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                    >
+                      {unlockingId === g.id ? (lang === 'he' ? 'פותח...' : 'Unlocking...') : lang === 'he' ? 'אשר פתיחה' : 'Confirm Unlock'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setUnlockTargetId(null); setUnlockReason(''); }}
+                      className="flex-1 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-muted hover:bg-paper"
+                    >
+                      {lang === 'he' ? 'ביטול' : 'Cancel'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setUnlockTargetId(g.id)}
+                  className="mt-3 w-full rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger hover:bg-danger-bg"
+                >
+                  🔓 {lang === 'he' ? 'פתח לתיקון' : 'Unlock for Correction'}
+                </button>
+              )}
+            </div>
+          ))}
+          {approvedFinalGrades.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'}</p>}
         </div>
       )}
     </DashboardShell>

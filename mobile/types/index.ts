@@ -43,6 +43,7 @@ export type UserRole = AppRole;
 export type MilestoneStatus =
   | 'pending'
   | 'submitted'
+  | 'rejected'               // coordinator returned it for revision — student resubmits
   | 'supervisor_graded'
   | 'graded'
   | 'coordinator_approved'
@@ -512,6 +513,18 @@ export interface MilestoneRecord {
   studentNames: string[];
 }
 
+export interface MilestoneRevision {
+  version: number;
+  fileUrls: string[];
+  submissionNote: string;
+  submittedAt: string | null;
+  status: string;
+  decision: 'approved' | 'rejected' | null;
+  decisionReason: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
+
 export interface PendingMilestone {
   id: string;
   projectId: string;
@@ -526,7 +539,8 @@ export interface PendingMilestone {
   supervisorComment?: string;
   fileUrls?: string[];
   submissionNote?: string;
-  
+  revisionHistory?: MilestoneRevision[];
+
   examinerIds: string[];
   examiner1Score: number | null;
   examiner2Score: number | null;
@@ -652,6 +666,8 @@ export interface Milestone {
   examinerNames: string[];
   examinerIds: string[];
   supervisorScore?: number | null;
+  rejectionReason?: string | null;
+  revisionHistory?: MilestoneRevision[];
 }
 
 export interface PendingApplication {

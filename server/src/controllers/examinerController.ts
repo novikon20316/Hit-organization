@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { submitCandidateDatesAndResolve, examinerKeyOf } from '../services/defenseScheduling.js';
+import { logAuditEvent } from '../services/auditLog.js';
 
 const db = admin.firestore();
 
@@ -42,6 +43,31 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           }
         }
 
+        // Cross-milestone summary ("grades & files by milestone") for this
+        // examiner's expanded card — mobile/app/examinor/home.tsx has always
+        // read this off milestoneHistory, but nothing ever wrote it, so it
+        // was always empty. Computed here from the sibling milestones of the
+        // same project rather than stored, since it's just a projection of
+        // data that already lives on those other milestone docs.
+        let milestoneHistory: Array<{ type: string; supervisorScore: number | null; supervisorComment: string; fileUrls: string[]; status: string }> = [];
+        if (milestoneData.projectId) {
+          const siblingsSnap = await db.collection('milestones')
+            .where('projectId', '==', milestoneData.projectId)
+            .get();
+          milestoneHistory = siblingsSnap.docs
+            .filter((d) => d.id !== milestoneDoc.id)
+            .map((d) => {
+              const sib = d.data();
+              return {
+                type: sib.type,
+                supervisorScore: sib.supervisorScore ?? null,
+                supervisorComment: sib.supervisorComment ?? '',
+                fileUrls: sib.fileUrls ?? [],
+                status: sib.status,
+              };
+            });
+        }
+
         return {
           id: milestoneDoc.id,
           projectId: milestoneData.projectId,
@@ -61,7 +87,8 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           examiner1GradeId: milestoneData.examiner1GradeId || null,
           examiner2GradeId: milestoneData.examiner2GradeId || null,
           gradeWeights: milestoneData.gradeWeights || null,
-          milestoneHistory: milestoneData.milestoneHistory || [],
+          milestoneHistory,
+          revisionHistory: milestoneData.revisionHistory ?? [],
           defenseDate: milestoneData.dueDate?.toDate?.().toISOString?.() ?? null,
           defenseRoom: milestoneData.defenseRoom ?? null,
           defenseBuilding: milestoneData.defenseBuilding ?? null,
@@ -102,6 +129,14 @@ export const submitDefenseDates = async (req: AuthenticatedRequest, res: Respons
   try {
     const examinerKey = examinerKeyOf({ type: 'internal', ref: examinerUid });
     const result = await submitCandidateDatesAndResolve(milestoneId, examinerKey, candidateDates);
+    await logAuditEvent({
+      userId: examinerUid,
+      userRole: req.user?.role ?? 'internal_examiner',
+      action: 'examiner_dates_submitted',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      newValue: { candidateDates },
+    });
     return res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     console.error('submitDefenseDates error:', error);

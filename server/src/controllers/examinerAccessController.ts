@@ -10,6 +10,7 @@ import timezone from 'dayjs/plugin/timezone.js';
 import { db } from '../config/firebase.js';
 import { submitCandidateDatesAndResolve, examinerKeyOf } from '../services/defenseScheduling.js';
 import { requestExaminerOtp, verifyExaminerOtp } from '../services/examinerAccess.js';
+import { logAuditEvent } from '../services/auditLog.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -54,6 +55,13 @@ export const verifyOtp = async (req: Request, res: Response) => {
     if (!result.verified) {
       return res.status(400).json({ message: result.reason || 'Verification failed.' });
     }
+    await logAuditEvent({
+      userId: token,
+      userRole: 'external_examiner',
+      action: 'examiner_access_granted',
+      entityType: 'examinerToken',
+      entityId: token,
+    });
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('verifyOtp error:', error);
@@ -127,6 +135,14 @@ export const submitExternalDefenseDates = async (req: Request, res: Response) =>
 
     const examinerKey = examinerKeyOf({ type: 'external', ref: token });
     const result = await submitCandidateDatesAndResolve(tokenDoc.milestoneId, examinerKey, candidateDates);
+    await logAuditEvent({
+      userId: token,
+      userRole: 'external_examiner',
+      action: 'examiner_dates_submitted',
+      entityType: 'milestone',
+      entityId: tokenDoc.milestoneId,
+      newValue: { candidateDates },
+    });
     return res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     console.error('submitExternalDefenseDates error:', error);
@@ -161,9 +177,22 @@ export const getDefenseAccessStatus = async (req: Request, res: Response) => {
           ? 'expired'
           : 'active';
 
+    const isFirstOpen = !(grant.accessLog && grant.accessLog.length > 0);
+
     await grantSnap.ref.update({
       accessLog: [...(grant.accessLog ?? []), { action: 'opened', timestamp: new Date().toISOString() }],
     });
+
+    if (status === 'active' && isFirstOpen) {
+      await logAuditEvent({
+        userId: grantCode,
+        userRole: 'external_examiner',
+        action: 'examiner_document_viewed',
+        entityType: 'defenseAccessGrant',
+        entityId: grantCode,
+        newValue: { projectId: grant.projectId, milestoneId: grant.milestoneId },
+      });
+    }
 
     if (status !== 'active') {
       return res.status(200).json({

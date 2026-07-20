@@ -19,6 +19,7 @@ import {PendingMilestone, Project, InProgressProject, ExaminerUser, AssignedMile
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal } from '@/components/modals';
+import { ClockPauseControl } from '@/components/ClockPauseControl';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -1236,6 +1237,8 @@ export default function CoordinatorHome() {
           <Text style={[styles.cardMeta, !isRtl && styles.textRight]}>
             👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {p.supervisorName}
           </Text>
+
+          <ClockPauseControl projectId={p.id} lang={lang} />
 
           {/* ── Only display the nested student content if the main card is expanded ── */}
           {expandedCards[p.id] && (

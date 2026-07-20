@@ -2,8 +2,15 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
+import { VALID_ROLES } from '../services/userImportExport.js';
+import { hasActionGrant, withinCoordinatorScope } from '../services/scopeAuthorization.js';
 
 const FACULTY_ADMIN_ROLES = ['faculty_admin', 'system_admin'];
+
+// Roles that already sit above faculty_admin in the privilege hierarchy — a
+// faculty_admin (via role or a delegated 'edit_users' grant) may never grant
+// or modify one of these, only system_admin can.
+const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head'];
 
 const db = admin.firestore();
 
@@ -79,8 +86,37 @@ export const updateUserPermissions = async (req: AuthenticatedRequest, res: Resp
   if (typeof userId !== 'string' || !userId || !role || !facultyId) {
     return res.status(400).json({ message: 'Malformed update request items' });
   }
+  if (!VALID_ROLES.includes(role)) {
+    return res.status(400).json({ message: `Invalid role: ${role}` });
+  }
+
+  const isSystemAdmin = req.user.role === 'system_admin';
+  if (!isSystemAdmin && ADMIN_TIER_ROLES.includes(role)) {
+    return res.status(403).json({ message: 'faculty_admin cannot grant an admin-tier role.' });
+  }
 
   try {
+    const targetSnap = await db.collection('users').doc(userId).get();
+    if (!targetSnap.exists) return res.status(404).json({ message: 'User not found.' });
+    const target = targetSnap.data()!;
+
+    // Previously unscoped entirely — a faculty_admin could edit any user in
+    // any faculty and reassign them anywhere. Confine to their own faculty
+    // (matching toggleUserActive's existing precedent) unless a delegated
+    // edit_users grant covers both the user's current AND requested scope.
+    if (!isSystemAdmin) {
+      if (ADMIN_TIER_ROLES.includes(target.role)) {
+        return res.status(403).json({ message: 'Cannot modify an admin-tier account.' });
+      }
+      const currentScope = { facultyId: target.facultyId, major: target.major };
+      const newScope = { facultyId, major: target.major };
+      const withinOwnFaculty = target.facultyId === req.user.facultyId && facultyId === req.user.facultyId;
+      const delegateGranted = hasActionGrant(req.user, 'edit_users', currentScope) && hasActionGrant(req.user, 'edit_users', newScope);
+      if (!withinOwnFaculty && !delegateGranted) {
+        return res.status(403).json({ message: 'Cannot modify a user outside your assigned scope.' });
+      }
+    }
+
     await db.collection('users').doc(userId).update({
       role,
       facultyId,
@@ -117,6 +153,14 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
     }
 
     const pData = pSnap.data()!;
+
+    // Previously unscoped — a faculty_admin from any faculty could enroll a
+    // student into a project belonging to a different faculty.
+    const enrollScope = { facultyId: pData.facultyId, major: pData.major, degreeLevel: pData.degreeType, processType: pData.projectType };
+    if (!withinCoordinatorScope(req.user, enrollScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', enrollScope)) {
+      return res.status(403).json({ message: 'This project is outside your assigned scope.' });
+    }
+
     await enrollStudentInProject(projectId, studentId, pData.supervisorId, pData.facultyId);
 
     return res.status(200).json({ success: true });

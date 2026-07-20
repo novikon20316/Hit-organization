@@ -6,13 +6,23 @@
 
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import type { MilestoneSpec } from './types';
+import type { GradingComponentSpec, MilestoneSpec } from './types';
+
+function emptyComponent(): GradingComponentSpec {
+  return { key: `c_${Math.random().toString(36).slice(2, 8)}`, labelHe: '', labelEn: '', maxScore: 20, weight: 20, hasComment: true, visibleToStudent: true };
+}
 
 interface MilestoneRowModalProps {
   open: boolean;
   editing: MilestoneSpec | null;
   onCancel: () => void;
-  onSave: (values: { nameHe: string; nameEn: string; dueDaysFromStart: number; requiresExaminers: boolean }) => void;
+  onSave: (values: {
+    nameHe: string;
+    nameEn: string;
+    dueDaysFromStart: number;
+    requiresExaminers: boolean;
+    gradingComponents: GradingComponentSpec[];
+  }) => void;
 }
 
 export function MilestoneRowModal({ open, editing, onCancel, onSave }: MilestoneRowModalProps) {
@@ -21,9 +31,17 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
   const [nameEn, setNameEn] = useState(editing?.nameEn ?? '');
   const [days, setDays] = useState(String(editing?.dueDaysFromStart ?? 90));
   const [requiresExaminers, setRequiresExaminers] = useState(editing?.requiresExaminers ?? false);
+  const [components, setComponents] = useState<GradingComponentSpec[]>(editing?.gradingComponents ?? []);
   const [error, setError] = useState('');
 
   if (!open) return null;
+
+  const updateComponent = (idx: number, patch: Partial<GradingComponentSpec>) => {
+    setComponents((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  };
+  const removeComponent = (idx: number) => setComponents((prev) => prev.filter((_, i) => i !== idx));
+
+  const weightSum = components.reduce((sum, c) => sum + (Number(c.weight) || 0), 0);
 
   const handleSave = () => {
     if (!nameHe.trim() || !nameEn.trim()) {
@@ -35,7 +53,23 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
       setError(lang === 'he' ? 'מספר ימים לא תקין' : 'Invalid number of days');
       return;
     }
-    onSave({ nameHe: nameHe.trim(), nameEn: nameEn.trim(), dueDaysFromStart: parsedDays, requiresExaminers });
+    if (components.length > 0) {
+      if (components.some((c) => !c.labelHe.trim() || !c.labelEn.trim())) {
+        setError(lang === 'he' ? 'יש להזין שם לכל מרכיב ציון (עברית ואנגלית)' : 'Enter a name for every grading component (Hebrew and English)');
+        return;
+      }
+      if (weightSum !== 100) {
+        setError(lang === 'he' ? `סכום המשקלים חייב להיות 100 (כרגע ${weightSum})` : `Component weights must sum to 100 (currently ${weightSum})`);
+        return;
+      }
+    }
+    onSave({
+      nameHe: nameHe.trim(),
+      nameEn: nameEn.trim(),
+      dueDaysFromStart: parsedDays,
+      requiresExaminers,
+      gradingComponents: components,
+    });
   };
 
   const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
@@ -69,6 +103,95 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
               className="h-4 w-4 accent-[var(--primary)]"
             />
           </label>
+
+          <div className="rounded-lg border border-line bg-paper p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-ink">
+                {lang === 'he' ? 'מרכיבי ציון' : 'Grading components'}
+                {components.length > 0 && <span className="ms-1 text-xs text-muted">({weightSum}/100)</span>}
+              </span>
+              <button
+                type="button"
+                onClick={() => setComponents((prev) => [...prev, emptyComponent()])}
+                className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+              >
+                ＋ {t('add')}
+              </button>
+            </div>
+
+            {components.length === 0 ? (
+              <p className="mt-2 text-xs text-muted">
+                {lang === 'he' ? 'ללא מרכיבים מוגדרים — ישמש מד ברירת המחדל.' : 'No components defined — falls back to the default rubric.'}
+              </p>
+            ) : (
+              <div className="mt-2 grid gap-2">
+                {components.map((c, idx) => (
+                  <div key={c.key} className="rounded-md border border-line bg-surface p-2.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        dir="rtl"
+                        value={c.labelHe}
+                        onChange={(e) => updateComponent(idx, { labelHe: e.target.value })}
+                        placeholder={lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}
+                        className="w-full rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                      />
+                      <input
+                        dir="ltr"
+                        value={c.labelEn}
+                        onChange={(e) => updateComponent(idx, { labelEn: e.target.value })}
+                        placeholder={lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}
+                        className="w-full rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                      />
+                      <button type="button" onClick={() => removeComponent(idx)} className="shrink-0 px-1 text-sm" aria-label="remove">
+                        🗑️
+                      </button>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-3">
+                      <label className="flex items-center gap-1 text-xs text-muted">
+                        {lang === 'he' ? 'ניקוד מקסימלי' : 'Max score'}
+                        <input
+                          type="number"
+                          min={0}
+                          value={c.maxScore}
+                          onChange={(e) => updateComponent(idx, { maxScore: Number(e.target.value) })}
+                          className="w-16 rounded-md border border-line bg-paper px-1.5 py-0.5 text-xs text-ink"
+                        />
+                      </label>
+                      <label className="flex items-center gap-1 text-xs text-muted">
+                        {lang === 'he' ? 'משקל %' : 'Weight %'}
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={c.weight}
+                          onChange={(e) => updateComponent(idx, { weight: Number(e.target.value) })}
+                          className="w-16 rounded-md border border-line bg-paper px-1.5 py-0.5 text-xs text-ink"
+                        />
+                      </label>
+                      <label className="flex items-center gap-1 text-xs text-muted">
+                        <input
+                          type="checkbox"
+                          checked={c.hasComment}
+                          onChange={(e) => updateComponent(idx, { hasComment: e.target.checked })}
+                          className="h-3.5 w-3.5 accent-[var(--primary)]"
+                        />
+                        {lang === 'he' ? 'שדה הערה' : 'Comment field'}
+                      </label>
+                      <label className="flex items-center gap-1 text-xs text-muted">
+                        <input
+                          type="checkbox"
+                          checked={c.visibleToStudent}
+                          onChange={(e) => updateComponent(idx, { visibleToStudent: e.target.checked })}
+                          className="h-3.5 w-3.5 accent-[var(--primary)]"
+                        />
+                        {lang === 'he' ? 'גלוי לסטודנט' : 'Visible to student'}
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
 

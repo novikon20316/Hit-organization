@@ -10,6 +10,7 @@ import {
   resolveReplaceExaminer,
   type DefensePanelMember,
 } from '../services/defenseScheduling.js';
+import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
 
 /**
  * Builds the 2-member defense panel from an assignExaminersAndNotify() result
@@ -118,6 +119,11 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
     }
     const project = projectSnap.data()!;
 
+    const assignScope = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+    if (!withinCoordinatorScope(req.user, assignScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', assignScope)) {
+      return res.status(403).json({ message: 'This project is outside your assigned scope.' });
+    }
+
     let thesisUrl = '';
     if (typeof milestoneId === 'string' && milestoneId) {
       const milestoneSnap = await db.collection('milestones').doc(milestoneId).get();
@@ -166,14 +172,29 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
  * coordinator's own faculty. Called by coordinator/home.tsx.
  */
 export const getCoordinatorExaminerRecommendations = async (req: AuthenticatedRequest, res: Response) => {
+  // Previously missing entirely — any authenticated user with a facultyId
+  // (including a student) could reach this. Bring it in line with its
+  // sibling coordinator endpoints.
+  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+  }
   const facultyId = req.user?.facultyId;
   if (!facultyId) return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
 
   try {
-    const snap = await db.collection('examinerRecommendations')
-      .where('facultyId', '==', facultyId)
-      .where('status', '==', 'pending')
-      .get();
+    // Narrow to the coordinator's assigned coordinatorScopes' faculties when
+    // configured (see scopeAuthorization.ts) — otherwise falls back to their
+    // own facultyId, same as before. A scope covering 'all' faculties means
+    // no facultyId filter at all.
+    const scopeFacultyIds = req.user.coordinatorScopes.length
+      ? Array.from(new Set(req.user.coordinatorScopes.map((s) => s.facultyId)))
+      : [facultyId];
+
+    let query: FirebaseFirestore.Query = db.collection('examinerRecommendations').where('status', '==', 'pending');
+    if (!scopeFacultyIds.includes('all')) {
+      query = query.where('facultyId', 'in', scopeFacultyIds.slice(0, 10));
+    }
+    const snap = await query.get();
 
     const recommendations = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     return res.status(200).json({ recommendations });
@@ -212,6 +233,11 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
     const projectSnap = await db.collection('projects').doc(projectId).get();
     if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
     const project = projectSnap.data()!;
+
+    const approveScope = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+    if (!withinCoordinatorScope(req.user, approveScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', approveScope)) {
+      return res.status(403).json({ message: 'This recommendation is outside your assigned scope.' });
+    }
 
     const studentSnaps = await Promise.all(
       (project.enrolledStudentIds ?? []).map((sid: string) => db.collection('users').doc(sid).get())
@@ -275,6 +301,12 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
     const recRef  = db.collection('examinerRecommendations').doc(id);
     const recSnap = await recRef.get();
     if (!recSnap.exists) return res.status(404).json({ message: 'Recommendation not found.' });
+    const rec = recSnap.data()!;
+
+    const rejectScope = (await resolveProjectScope(rec.projectId)) ?? { facultyId: rec.facultyId ?? '' };
+    if (!withinCoordinatorScope(req.user, rejectScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', rejectScope)) {
+      return res.status(403).json({ message: 'This recommendation is outside your assigned scope.' });
+    }
 
     await recRef.update({
       status:    'rejected',
@@ -392,6 +424,7 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
           supervisorComment: data.supervisorComment ?? null,
           submissionNote:    data.submissionNote    ?? null,
           fileUrls:          data.fileUrls          ?? [],
+          revisionHistory:   data.revisionHistory   ?? [],
 
           studentNames,
           studentIds:        project?.enrolledStudentIds ?? [],
@@ -478,6 +511,14 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   }
   if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
+  }
+
+  const approveMilestoneScope = await resolveMilestoneScope(milestoneId);
+  if (!approveMilestoneScope) {
+    return res.status(404).json({ message: 'Milestone not found.' });
+  }
+  if (!withinCoordinatorScope(req.user, approveMilestoneScope) && !hasActionGrant(req.user, 'approve_milestones', approveMilestoneScope)) {
+    return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
   }
 
   let previousStatus: string | undefined;
@@ -581,6 +622,14 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   }
   if (!reason || typeof reason !== 'string') {
     return res.status(400).json({ message: 'A rejection reason is required.' });
+  }
+
+  const rejectMilestoneScope = await resolveMilestoneScope(milestoneId);
+  if (!rejectMilestoneScope) {
+    return res.status(404).json({ message: 'Milestone not found.' });
+  }
+  if (!withinCoordinatorScope(req.user, rejectMilestoneScope) && !hasActionGrant(req.user, 'approve_milestones', rejectMilestoneScope)) {
+    return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
   }
 
   let previousStatus: string | undefined;
@@ -689,6 +738,13 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
   }
   if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
     return res.status(403).json({ message: 'You do not have permission to set defense logistics.' });
+  }
+  const defenseScope = await resolveProjectScope(projectId);
+  if (!defenseScope) {
+    return res.status(404).json({ message: 'Project not found.' });
+  }
+  if (!withinCoordinatorScope(req.user, defenseScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', defenseScope)) {
+    return res.status(403).json({ message: 'This project is outside your assigned scope.' });
   }
   if (!time || !room || !building) {
     return res.status(400).json({ message: 'time, room, and building are all required.' });
@@ -835,6 +891,13 @@ export const resolveDefenseDateConflict = async (req: AuthenticatedRequest, res:
   }
   if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
+  }
+  const conflictScope = await resolveMilestoneScope(milestoneId);
+  if (!conflictScope) {
+    return res.status(404).json({ message: 'Milestone not found.' });
+  }
+  if (!withinCoordinatorScope(req.user, conflictScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', conflictScope)) {
+    return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
   }
 
   try {

@@ -3,7 +3,7 @@
 // Shared timeline component — works for student, supervisor, coordinator, admin.
 // Props control which actions are visible per role.
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toDate } from '@/components/shared';
 import {
   View, Text, Pressable,
@@ -45,6 +45,28 @@ export interface MilestoneData {
 
 export type ViewerRole = 'student' | 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'system_admin';
 
+// Read-only mirror of server/src/controllers/gradeHistoryController.ts's response —
+// see also web/components/GradeHistoryPanel.tsx for the same shape ported to web.
+export interface GradeEntry {
+  id: string;
+  graderId: string;
+  graderRole: string;
+  comments: string;
+  submittedAt: string | null;
+  grading: Record<string, number> | null;
+}
+export interface AuditEntry {
+  id: string;
+  action: string;
+  explanation: string | null;
+  timestamp: string | null;
+}
+export interface MilestoneGradeHistory {
+  milestoneId: string;
+  grades: GradeEntry[];
+  auditTrail: AuditEntry[];
+}
+
 interface Props {
   milestones:    MilestoneData[];
   lang:          Lang;
@@ -58,6 +80,8 @@ interface Props {
   onExaminerGrade?:      (milestone: MilestoneData) => void;
   onScheduleDefense?:    (milestone: MilestoneData) => void;
   onAdjustDate?:         (milestone: MilestoneData, newDate: Date) => void;
+  /** Read-only, keyed by milestoneId — see fetch in the main component below. */
+  gradeHistoryByMilestone?: Record<string, MilestoneGradeHistory>;
 }
 
 // ─── Status display config ────────────────────────────────────────────────────
@@ -81,6 +105,7 @@ function MilestoneCard({
   milestone, index, total, lang, isRtl, viewerRole,
   onStudentSubmit, onSupervisorGrade, onCoordinatorApprove,
   onExaminerGrade, onScheduleDefense, onAdjustDate,
+  gradeHistoryByMilestone,
 }: {
   milestone: MilestoneData;
   index: number; total: number;
@@ -327,6 +352,29 @@ function MilestoneCard({
                 </Text>
               </Pressable>
             )}
+
+            {/* Grade history — read-only, from server/src/controllers/gradeHistoryController.ts */}
+            {(() => {
+              const history = gradeHistoryByMilestone?.[milestone.id];
+              if (!history || (history.grades.length === 0 && history.auditTrail.length === 0)) return null;
+              return (
+                <View style={mc.gradeHistorySection}>
+                  <Text style={[mc.chainTitle, isRtl && mc.textRight]}>
+                    {lang === 'he' ? 'היסטוריית ציונים:' : 'Grade History:'}
+                  </Text>
+                  {history.grades.map((g) => (
+                    <Text key={g.id} style={[mc.gradeHistoryLine, isRtl && mc.textRight]}>
+                      {g.graderRole} — {g.grading?.total ?? '—'}{g.comments ? ` · ${g.comments}` : ''}
+                    </Text>
+                  ))}
+                  {history.auditTrail.map((a) => (
+                    <Text key={a.id} style={[mc.gradeHistoryLine, isRtl && mc.textRight]}>
+                      {a.action}{a.timestamp ? ` — ${new Date(a.timestamp).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}` : ''}
+                    </Text>
+                  ))}
+                </View>
+              );
+            })()}
           </View>
         )}
 
@@ -397,6 +445,21 @@ export default function MilestoneTimeline({
   onStudentSubmit, onSupervisorGrade, onCoordinatorApprove,
   onExaminerGrade, onScheduleDefense, onAdjustDate,
 }: Props) {
+  const [gradeHistoryByMilestone, setGradeHistoryByMilestone] = useState<Record<string, MilestoneGradeHistory>>({});
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    apiClient.getProjectGradeHistory(projectId)
+      .then((res: { milestones: MilestoneGradeHistory[] }) => {
+        if (cancelled) return;
+        const byId: Record<string, MilestoneGradeHistory> = {};
+        (res.milestones ?? []).forEach((m) => { byId[m.milestoneId] = m; });
+        setGradeHistoryByMilestone(byId);
+      })
+      .catch((err: unknown) => console.error('Failed to load grade history:', err));
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   if (milestones.length === 0) {
     return (
@@ -456,6 +519,7 @@ export default function MilestoneTimeline({
             onExaminerGrade={onExaminerGrade}
             onScheduleDefense={onScheduleDefense}
             onAdjustDate={onAdjustDate}
+            gradeHistoryByMilestone={gradeHistoryByMilestone}
           />
         ))}
       </View>

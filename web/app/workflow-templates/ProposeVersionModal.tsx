@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { MilestoneRowModal } from './MilestoneRowModal';
-import { emptyMilestone, processTypeLabel, type MilestoneSpec, type ProcessType } from './types';
+import { emptyMilestone, processTypeLabel, type GradingComponentSpec, type MilestoneSpec, type ProcessType } from './types';
 
 interface ProposeVersionModalProps {
   processType: ProcessType;
@@ -37,7 +37,7 @@ export function ProposeVersionModal({ processType, initialMilestones, onClose, o
     setRowModalOpen(true);
   };
 
-  const handleSaveRow = (values: { nameHe: string; nameEn: string; dueDaysFromStart: number; requiresExaminers: boolean }) => {
+  const handleSaveRow = (values: { nameHe: string; nameEn: string; dueDaysFromStart: number; requiresExaminers: boolean; gradingComponents: GradingComponentSpec[] }) => {
     if (editingRow) {
       setMilestones((prev) => prev.map((m) => (m === editingRow ? { ...m, ...values } : m)));
     } else {
@@ -106,6 +106,9 @@ export function ProposeVersionModal({ processType, initialMilestones, onClose, o
                 <p className="mt-0.5 text-xs text-muted">
                   📅 {lang === 'he' ? `יום ${ms.dueDaysFromStart}` : `Day ${ms.dueDaysFromStart}`}
                   {ms.requiresExaminers ? ` · 👥 ${lang === 'he' ? 'בוחנים' : 'Examiners'}` : ''}
+                  {ms.gradingComponents && ms.gradingComponents.length > 0
+                    ? ` · 📊 ${ms.gradingComponents.length} ${lang === 'he' ? 'מרכיבי ציון' : 'grading components'}`
+                    : ''}
                 </p>
               </div>
               <div className="flex shrink-0 gap-1">

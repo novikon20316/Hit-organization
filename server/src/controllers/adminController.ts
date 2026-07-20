@@ -8,6 +8,13 @@ import { checkDeletionEligibility, purgeAccount } from '../services/accountDelet
 import { VALID_ROLES, generateTempPassword } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
+import { validateScopeRule, validateCoordinatorScope, type ScopeRule, type CoordinatorScope } from '../config/permissionScopes.js';
+import { hasActionGrant } from '../services/scopeAuthorization.js';
+
+// Roles that already sit above faculty_admin in the privilege hierarchy — a
+// delegate acting via a permissionRules grant (rather than being system_admin
+// themselves) may never create/promote/erase one of these accounts.
+const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head'];
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { validateSystemAdminPassword } from './userController.js';
@@ -140,6 +147,24 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
   try {
     const projectData = req.body;
 
+    // Previously unscoped — facultyId came straight from the request body, so
+    // a faculty_admin could plant a project in a faculty other than their
+    // own. Confine to their own faculty unless an explicit add_projects
+    // grant covers the requested scope.
+    const isSystemAdmin = role === 'system_admin' || roles.includes('system_admin');
+    if (!isSystemAdmin) {
+      const requestedScope = {
+        facultyId: projectData.facultyId,
+        major: projectData.major,
+        degreeLevel: projectData.degreeType,
+        processType: projectData.projectType,
+      };
+      const withinOwnFaculty = projectData.facultyId === req.user?.facultyId;
+      if (!withinOwnFaculty && !hasActionGrant(req.user, 'add_projects', requestedScope)) {
+        return res.status(403).json({ message: 'Cannot create a project outside your assigned scope.' });
+      }
+    }
+
     // A project's major is optional — omitted means open to every major in
     // its faculty (today's implicit behavior, unchanged for existing
     // projects with no major field). If set, it must be a real program of
@@ -193,9 +218,7 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
  * createImportedUserAccount — see that function for the reference pattern.
  */
 export const createAdminUser = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
-  }
+  const isSystemAdmin = req.user?.role === 'system_admin';
 
   try {
     // tempPassword is never persisted to Firestore — split it out of the
@@ -243,6 +266,21 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
       userData.assignedMajors = assignedMajors;
     } else {
       delete userData.assignedMajors;
+    }
+
+    // Previously system_admin-only with no delegation path at all. A
+    // non-system_admin may only reach here via an explicit add_users grant
+    // (see scopeAuthorization.ts) scoped to the new account's facultyId/major
+    // — and may never create an admin-tier account that way, regardless of
+    // what their grant claims to cover.
+    if (!isSystemAdmin) {
+      if (ADMIN_TIER_ROLES.includes(userData.role)) {
+        return res.status(403).json({ message: 'Access denied: system_admin only.' });
+      }
+      const requestedScope = { facultyId: userData.facultyId, major: userData.major };
+      if (!hasActionGrant(req.user, 'add_users', requestedScope)) {
+        return res.status(403).json({ message: 'Access denied: system_admin only.' });
+      }
     }
 
     let tempPassword: string;
@@ -362,12 +400,10 @@ export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Respons
  * Changes a user's operational privileges (e.g., 'student' -> 'supervisor').
  */
 export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
-  }
+  const isSystemAdmin = req.user?.role === 'system_admin';
 
   const { id: userId } = req.params;
-  const { role, roles, facultyId, assignedMajors } = req.body;
+  const { role, roles, facultyId, assignedMajors, permissionRules, coordinatorScopes } = req.body;
 
   if (!role) return res.status(400).json({ message: 'Missing role parameter.' });
   if (!VALID_ROLES.includes(role)) {
@@ -383,6 +419,47 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
         success:false,
         message:"projectId is not good"
     })
+  }
+
+  // Previously system_admin-only with no delegation path. A delegate acting
+  // via a permissionRules 'edit_users' grant (checked below, once the
+  // target's current facultyId/major is known) may never touch the granular
+  // grant fields themselves — that would let them hand out arbitrary scoped
+  // permissions, including to themselves — nor grant an admin-tier role.
+  if (!isSystemAdmin) {
+    if (permissionRules !== undefined || coordinatorScopes !== undefined) {
+      return res.status(403).json({ message: 'Only system_admin may modify granular permissions.' });
+    }
+    if (ADMIN_TIER_ROLES.includes(role)) {
+      return res.status(403).json({ message: 'Cannot grant an admin-tier role.' });
+    }
+  }
+
+  // Granular per-user permission grants and a coordinator's own operational
+  // scope — see lib/permissions.ts (web) / constants/permissions.ts (mobile)
+  // and server/src/services/scopeAuthorization.ts for how these get enforced.
+  let resolvedPermissionRules: ScopeRule[] | undefined;
+  if (permissionRules !== undefined) {
+    if (!Array.isArray(permissionRules)) {
+      return res.status(400).json({ message: 'Invalid permissionRules: expected an array.' });
+    }
+    for (const rule of permissionRules) {
+      const error = validateScopeRule(rule);
+      if (error) return res.status(400).json({ message: `Invalid permission rule: ${error}` });
+    }
+    resolvedPermissionRules = permissionRules as ScopeRule[];
+  }
+
+  let resolvedCoordinatorScopes: CoordinatorScope[] | undefined;
+  if (coordinatorScopes !== undefined) {
+    if (!Array.isArray(coordinatorScopes)) {
+      return res.status(400).json({ message: 'Invalid coordinatorScopes: expected an array.' });
+    }
+    for (const scope of coordinatorScopes) {
+      const error = validateCoordinatorScope(scope);
+      if (error) return res.status(400).json({ message: `Invalid coordinator scope: ${error}` });
+    }
+    resolvedCoordinatorScopes = coordinatorScopes as CoordinatorScope[];
   }
 
   // Supervisors/secondary_supervisors can optionally be restricted to a
@@ -404,6 +481,19 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
     const beforeSnap = await db.collection('users').doc(userId).get();
     const before = beforeSnap.data();
 
+    if (!isSystemAdmin) {
+      if (!before) return res.status(404).json({ message: 'User not found.' });
+      if (ADMIN_TIER_ROLES.includes(before.role)) {
+        return res.status(403).json({ message: 'Cannot modify an admin-tier account.' });
+      }
+      const currentScope = { facultyId: before.facultyId, major: before.major };
+      const newFacultyId = typeof facultyId === 'string' && facultyId ? facultyId : before.facultyId;
+      const newScope = { facultyId: newFacultyId, major: before.major };
+      if (!hasActionGrant(req.user, 'edit_users', currentScope) || !hasActionGrant(req.user, 'edit_users', newScope)) {
+        return res.status(403).json({ message: 'Cannot modify a user outside your assigned scope.' });
+      }
+    }
+
     await db.collection('users').doc(userId).update({
       role: role,
       // Additional roles (e.g. secondary_supervisor on top of supervisor) —
@@ -414,6 +504,8 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       // (below) always corresponds to their real, saved faculty.
       ...(typeof facultyId === 'string' && facultyId ? { facultyId } : {}),
       assignedMajors: resolvedAssignedMajors ?? admin.firestore.FieldValue.delete(),
+      permissionRules: resolvedPermissionRules?.length ? resolvedPermissionRules : admin.firestore.FieldValue.delete(),
+      coordinatorScopes: resolvedCoordinatorScopes?.length ? resolvedCoordinatorScopes : admin.firestore.FieldValue.delete(),
       updatedAt: new Date().toISOString()
     });
 
@@ -426,8 +518,18 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       action: 'role_changed',
       entityType: 'user',
       entityId: userId,
-      oldValue: { role: before?.role ?? null, roles: before?.roles ?? [] },
-      newValue: { role, roles: Array.isArray(roles) ? roles : [] },
+      oldValue: {
+        role: before?.role ?? null,
+        roles: before?.roles ?? [],
+        permissionRuleCount: (before?.permissionRules ?? []).length,
+        coordinatorScopeCount: (before?.coordinatorScopes ?? []).length,
+      },
+      newValue: {
+        role,
+        roles: Array.isArray(roles) ? roles : [],
+        permissionRuleCount: resolvedPermissionRules?.length ?? 0,
+        coordinatorScopeCount: resolvedCoordinatorScopes?.length ?? 0,
+      },
     });
 
     return res.status(200).json({ success: true, message: `User role updated to ${role}.` });
@@ -491,9 +593,7 @@ export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Resp
  * Permanently removes a project from the system.
  */
 export const deleteAdminProject = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
-  }
+  const isSystemAdmin = req.user?.role === 'system_admin';
 
   const { id: projectId } = req.params;
   if(!projectId || typeof projectId !== 'string'){
@@ -507,6 +607,14 @@ export const deleteAdminProject = async (req: AuthenticatedRequest, res: Respons
     const snap = await projectRef.get();
 
     if (!snap.exists) return res.status(404).json({ message: 'Project not found.' });
+
+    if (!isSystemAdmin) {
+      const project = snap.data()!;
+      const scope = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+      if (!hasActionGrant(req.user, 'delete_projects', scope)) {
+        return res.status(403).json({ message: 'Access denied: system_admin only.' });
+      }
+    }
 
     await projectRef.delete();
 
@@ -564,15 +672,25 @@ export const disableUser2FA = async (req: AuthenticatedRequest, res: Response) =
 export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Response) => {
   const role = req.user?.role;
   const roles = req.user?.roles ?? [];
-  const isAuthorized = role === 'system_admin' || roles.includes('system_admin');
-  if (!isAuthorized) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
-  }
+  const isSystemAdmin = role === 'system_admin' || roles.includes('system_admin');
 
   const { id: userId } = req.params;
   if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
 
   try {
+    if (!isSystemAdmin) {
+      const targetSnap = await db.collection('users').doc(userId).get();
+      if (!targetSnap.exists) return res.status(404).json({ message: 'User not found.' });
+      const target = targetSnap.data()!;
+      if (ADMIN_TIER_ROLES.includes(target.role)) {
+        return res.status(403).json({ message: 'Access denied: system_admin only.' });
+      }
+      const scope = { facultyId: target.facultyId, major: target.major };
+      if (!hasActionGrant(req.user, 'delete_users', scope)) {
+        return res.status(403).json({ message: 'Access denied: system_admin only.' });
+      }
+    }
+
     const result = await checkDeletionEligibility(userId);
     if (!result.eligible) {
       return res.status(409).json({ message: result.reason });

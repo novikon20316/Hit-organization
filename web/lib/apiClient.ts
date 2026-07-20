@@ -977,6 +977,7 @@ export const apiClient = {
       facultyId: string;
       students: Array<{
         uid: string;
+        projectId: string;
         studentName: string;
         trackType: 'thesis' | 'masters_project';
         supervisorName: string;
@@ -986,6 +987,7 @@ export const apiClient = {
         daysInStage: number;
         deadline: string | null;
         isOverdue: boolean;
+        isActivelyPaused: boolean;
         facultyId: string;
       }>;
       pendingApprovals: Array<{ id: string; type: string; studentName: string; description: string; submittedAt: string }>;
@@ -1061,12 +1063,29 @@ export const apiClient = {
       }>;
       stuckStudents: Array<{ studentName: string; supervisorName: string; facultyId: string; currentMilestone: string; daysInStage: number; trackType: string }>;
       examinerLoad: Array<{ examinerName: string; institution: string; activeReviews: number; pending: number; overdue: number }>;
+      approvedFinalGrades: Array<{
+        id: string;
+        studentName: string;
+        facultyId: string;
+        title: string;
+        finalGrade: number;
+        approvedAt: string;
+        michlolTransferStatus: string | null;
+      }>;
       stats: { totalMasters: number; pendingCount: number; stuckCount: number; completedThisYear: number };
     }>(`/api/grad-school-head/${uid}/dashboard`, { method: 'GET' });
   },
 
   async approveFinalGrade(milestoneId: string) {
     return request<{ success: boolean; message: string }>(`/api/grad-school-head/milestones/${milestoneId}/approve-grade`, { method: 'POST' });
+  },
+
+  /** Reopens an already-approved final grade for correction — requires a reason. */
+  async unlockFinalGrade(milestoneId: string, reason: string) {
+    return request<{ success: boolean; message: string }>(`/api/grad-school-head/milestones/${milestoneId}/unlock-grade`, {
+      method: 'POST',
+      body: { reason },
+    });
   },
 
   // ─── 13. INTERNAL EXAMINER ──────────────────────────────────────────────────
@@ -1124,4 +1143,84 @@ export const apiClient = {
       waitingOnOtherExaminer?: boolean;
     }>(`/api/examiner-access/${encodeURIComponent(token)}/defense-dates`, { method: 'POST', body: { candidateDates } });
   },
+
+  // ─── 17. GRADE HISTORY — read-only over `grades` + `auditLog`; access
+  // matches getStudentProject (own project as student/supervisor, or any
+  // staff role) ────────────────────────────────────────────────────────────
+  async getProjectGradeHistory(projectId: string) {
+    return request<{
+      milestones: Array<{
+        milestoneId: string;
+        type: string | null;
+        status: string | null;
+        finalGrade: number | null;
+        finalGradeByStudent: Record<string, number> | null;
+        gradeApproved: boolean;
+        gradeApprovedBy: string | null;
+        gradeApprovedAt: string | null;
+        grades: Array<{
+          id: string;
+          graderId: string;
+          graderRole: string;
+          comments: string;
+          isFinalized: boolean;
+          submittedAt: string | null;
+          grading: Record<string, number> | null;
+        }>;
+        auditTrail: Array<{
+          id: string;
+          action: string;
+          userId: string;
+          userRole: string;
+          oldValue: unknown;
+          newValue: unknown;
+          explanation: string | null;
+          timestamp: string | null;
+        }>;
+      }>;
+    }>(`/api/grades/history/${projectId}`, { method: 'GET' });
+  },
+
+  // ─── 18. DEADLINE-CLOCK PAUSE — leave / reserve duty / maternity / illness;
+  // coordinator, faculty_admin, program_head, administrative_secretary,
+  // system_admin (matches CLOCK_PAUSE_ROLES in clockPauseController.ts) ──────
+  async getClockPauseState(projectId: string) {
+    return request<{
+      activeClockPause: ClockPause | null;
+      clockPauseHistory: ClockPause[];
+    }>(`/api/projects/${projectId}/clock-pause`, { method: 'GET' });
+  },
+
+  async pauseProjectClock(projectId: string, reason: ClockPauseReason, note?: string) {
+    return request<{ success: boolean; pause: ClockPause }>(`/api/projects/${projectId}/clock-pause`, {
+      method: 'POST',
+      body: { reason, note },
+    });
+  },
+
+  async resumeProjectClock(projectId: string) {
+    return request<{ success: boolean; pause: ClockPause }>(`/api/projects/${projectId}/clock-resume`, { method: 'POST' });
+  },
+
+  // ─── 19. TRACK CHANGE (thesis ↔ project) — coordinator, faculty_admin,
+  // program_head, administrative_secretary, system_admin (matches
+  // TRACK_CHANGE_ROLES in trackChangeController.ts) ──────────────────────────
+  async changeProjectTrack(projectId: string, newTrack: 'thesis' | 'project', reason?: string) {
+    return request<{ success: boolean; oldProjectId: string; newProjectId: string }>(
+      `/api/projects/${projectId}/track-change`,
+      { method: 'POST', body: { newTrack, reason } },
+    );
+  },
 };
+
+export type ClockPauseReason = 'reserve_duty' | 'illness' | 'maternity_paternity' | 'other';
+
+export interface ClockPause {
+  id: string;
+  reason: ClockPauseReason;
+  note: string | null;
+  pausedBy: string;
+  pausedAt: string;
+  resumedBy: string | null;
+  resumedAt: string | null;
+}

@@ -7,6 +7,8 @@ import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
 import { deriveProcessType, getActiveMilestonesFor } from '../services/workflowTemplates.js';
+import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
+import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 
 const db = admin.firestore();
 
@@ -94,11 +96,17 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         return res.status(400).json({ message: 'Previous milestones must be completed before submitting this one.' });
     }
 
+    // Preserve the outgoing round (its file(s), note, and whatever decision
+    // was made on it) before it gets overwritten below — see
+    // services/milestoneRevisions.ts.
+    const archiveUpdate = buildRevisionArchiveUpdate(milestoneData);
+
     await milestoneRef.update({
       status:         'submitted',
       submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
       fileUrls,
       submissionNote: note,
+      ...(archiveUpdate ?? {}),
     });
 
     // ── Notify supervisor ───────────────────────────────────────────────────
@@ -163,6 +171,14 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
   }
   if (!role || !(UPDATE_MILESTONE_ROLES.includes(role) || roles.some((r) => UPDATE_MILESTONE_ROLES.includes(r)))) {
     return res.status(403).json({ message: 'You do not have permission to update this milestone.' });
+  }
+
+  const updateScope = await resolveMilestoneScope(id);
+  if (!updateScope) {
+    return res.status(404).json({ message: 'Milestone not found.' });
+  }
+  if (!withinCoordinatorScope(req.user, updateScope) && !hasActionGrant(req.user, 'approve_milestones', updateScope)) {
+    return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
   }
 
   const { dueDate, reason } = req.body;

@@ -28,6 +28,8 @@ export interface MilestoneDoc {
   examiner2Score?: number | null;
   finalGrade?: number | null;
   gradeApproved?: boolean;
+  gradeApprovedAt?: FirebaseFirestore.Timestamp | null;
+  michlolTransferStatus?: string | null;
   nameHe?: string;
   nameEn?: string;
   [key: string]: unknown;
@@ -38,9 +40,39 @@ export interface MilestoneProgress {
   daysInStage: number;
   isOverdue: boolean;
   isStuck: boolean;
+  isActivelyPaused: boolean;
 }
 
 const DONE_STATUSES = new Set(['coordinator_approved', 'completed']);
+
+// ─── Deadline-clock pause (leave / reserve duty / maternity / illness) ────────
+// See services/clockPause.ts for the read/write side (stored on the project
+// doc as activeClockPause + clockPauseHistory). Passed in here as a plain
+// array so this function stays a pure calculation with no Firestore reads of
+// its own — same reasoning as the rest of this file.
+export type ClockPauseReason = 'reserve_duty' | 'illness' | 'maternity_paternity' | 'other';
+
+export interface ClockPause {
+  id: string;
+  reason: ClockPauseReason;
+  note?: string | null;
+  pausedBy: string;
+  pausedAt: FirebaseFirestore.Timestamp;
+  resumedBy?: string | null;
+  resumedAt?: FirebaseFirestore.Timestamp | null;
+}
+
+/** Sum of each pause's overlap with [windowStartMs, windowEndMs] — an
+ *  unresumed pause's open end is clamped to windowEndMs (i.e. "now"). */
+function totalPausedMs(pauses: ClockPause[], windowStartMs: number, windowEndMs: number): number {
+  return pauses.reduce((sum, p) => {
+    const pauseStart = p.pausedAt.toDate().getTime();
+    const pauseEnd = p.resumedAt?.toDate?.().getTime() ?? windowEndMs;
+    const overlapStart = Math.max(pauseStart, windowStartMs);
+    const overlapEnd = Math.min(pauseEnd, windowEndMs);
+    return sum + Math.max(0, overlapEnd - overlapStart);
+  }, 0);
+}
 
 /**
  * `daysInStage`'s reference point is the most specific "entered this state"
@@ -59,7 +91,7 @@ function stageEnteredAt(milestone: MilestoneDoc): FirebaseFirestore.Timestamp | 
   );
 }
 
-export function computeMilestoneProgress(milestones: MilestoneDoc[]): MilestoneProgress {
+export function computeMilestoneProgress(milestones: MilestoneDoc[], clockPauses: ClockPause[] = []): MilestoneProgress {
   const ordered = milestones
     .slice()
     .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
@@ -68,23 +100,30 @@ export function computeMilestoneProgress(milestones: MilestoneDoc[]): MilestoneP
     ordered.find((m) => !DONE_STATUSES.has(m.status)) ?? ordered[ordered.length - 1] ?? null;
 
   if (!current) {
-    return { current: null, daysInStage: 0, isOverdue: false, isStuck: false };
+    return { current: null, daysInStage: 0, isOverdue: false, isStuck: false, isActivelyPaused: false };
   }
 
   const now = Date.now();
   const enteredAt = stageEnteredAt(current);
+  const enteredAtMs = enteredAt ? enteredAt.toDate().getTime() : now;
+  const pausedMs = totalPausedMs(clockPauses, enteredAtMs, now);
   const daysInStage = enteredAt
-    ? Math.floor((now - enteredAt.toDate().getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.max(0, Math.floor((now - enteredAtMs - pausedMs) / (1000 * 60 * 60 * 24)))
     : 0;
 
+  // An unresumed pause freezes the clock outright, regardless of how the
+  // subtracted-time math above works out — no escalation while on leave.
+  const isActivelyPaused = clockPauses.some((p) => !p.resumedAt);
+
   const isOverdue =
+    !isActivelyPaused &&
     current.status === 'pending' &&
     !!current.dueDate?.toDate &&
     current.dueDate.toDate().getTime() < now;
 
-  const isStuck = daysInStage > STUCK_THRESHOLD_DAYS && !DONE_STATUSES.has(current.status);
+  const isStuck = !isActivelyPaused && daysInStage > STUCK_THRESHOLD_DAYS && !DONE_STATUSES.has(current.status);
 
-  return { current, daysInStage, isOverdue, isStuck };
+  return { current, daysInStage, isOverdue, isStuck, isActivelyPaused };
 }
 
 /**

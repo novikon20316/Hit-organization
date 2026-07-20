@@ -27,12 +27,16 @@ import programHeadRoutes from './routes/programHead.js';
 import loginSecurityRoutes from './routes/loginSecurity.js';
 import legalRoutes from './routes/legal.js';
 import feedbackRoutes from './routes/feedback.js';
+import gradeHistoryRoutes from './routes/gradeHistory.js';
+import clockPauseRoutes from './routes/clockPause.js';
+import trackChangeRoutes from './routes/trackChange.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
 import { getStudentStatusOptions } from './controllers/studentStatusController.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
+import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders } from './services/notificationScheduler.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 
 
@@ -102,6 +106,9 @@ app.use('/api/program-head', programHeadRoutes);
 // PUBLIC — no verifyToken. External examiners have no Firebase Auth account;
 // identity comes from the token/grant code itself. See routes/examinerAccess.ts.
 app.use('/api/examiner-access', examinerAccessRoutes);
+app.use('/api/grades',        gradeHistoryRoutes);
+app.use('/api/projects',      clockPauseRoutes);
+app.use('/api/projects',      trackChangeRoutes);
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error('Unhandled error:', err.stack);
@@ -131,6 +138,15 @@ setInterval(() => {
 setInterval(() => {
   flagGraduatedStudents().catch((err) => console.error('flagGraduatedStudents sweep failed:', err));
 }, ONE_DAY_MS);
+// Deadline/escalation notifications — see services/notificationScheduler.ts.
+// Hourly (not daily) so a reminder fires promptly once its threshold is
+// crossed; per-doc dedup flags keep repeated runs from resending it.
+setInterval(() => {
+  sendMilestoneDeadlineReminders().catch((err) => console.error('sendMilestoneDeadlineReminders sweep failed:', err));
+}, ONE_HOUR_MS);
+setInterval(() => {
+  sendExaminerDeadlineReminders().catch((err) => console.error('sendExaminerDeadlineReminders sweep failed:', err));
+}, ONE_HOUR_MS);
 
 // ─── 0.0.0.0 lets physical devices reach the server on local network ──────────
 app.listen(PORT, '0.0.0.0', () => {

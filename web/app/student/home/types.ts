@@ -8,6 +8,7 @@ export type MilestoneType = 'research_proposal' | 'progress_report' | 'final_rep
 export type MilestoneStatus =
   | 'pending'
   | 'submitted'
+  | 'rejected'
   | 'supervisor_graded'
   | 'graded'
   | 'coordinator_approved'
@@ -59,6 +60,18 @@ export interface ActiveProject {
   projectType?: string;
 }
 
+export interface MilestoneRevision {
+  version: number;
+  fileUrls: string[];
+  submissionNote: string;
+  submittedAt: string | null;
+  status: string;
+  decision: 'approved' | 'rejected' | null;
+  decisionReason: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
+
 export interface Milestone {
   id: string;
   type: MilestoneType;
@@ -74,6 +87,8 @@ export interface Milestone {
   defenseTime?: string | null;
   examinerNames: string[];
   examinerIds: string[];
+  rejectionReason?: string | null;
+  revisionHistory?: MilestoneRevision[];
 }
 
 export interface PendingApplication {
@@ -103,6 +118,7 @@ export const MILESTONE_ORDER: MilestoneType[] = ['research_proposal', 'progress_
 export const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string; icon: string }> = {
   pending: { color: '#6B7280', bg: '#F1F0EC', icon: '🕐' },
   submitted: { color: '#B8862E', bg: '#FBF3E3', icon: '📤' },
+  rejected: { color: '#A8433A', bg: 'var(--danger-bg)', icon: '❌' },
   supervisor_graded: { color: '#3E6C8C', bg: '#E9F0F5', icon: '👨‍🏫' },
   graded: { color: '#3E6C8C', bg: '#E9F0F5', icon: '👨‍🏫' },
   coordinator_approved: { color: '#6E5A99', bg: '#EFEBF6', icon: '✅' },
@@ -119,6 +135,7 @@ export const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string;
 export const STATUS_LABEL: Record<MilestoneStatus, { he: string; en: string }> = {
   pending: { he: 'ממתין', en: 'Pending' },
   submitted: { he: 'הוגש', en: 'Submitted' },
+  rejected: { he: 'הוחזר לתיקון', en: 'Returned for revision' },
   supervisor_graded: { he: 'נוקד ע"י מנחה', en: 'Supervisor Graded' },
   graded: { he: 'נוקד ע"י מנחה', en: 'Supervisor Graded' },
   examiners_assigned: { he: 'נבחרו בוחנים', en: 'Examiners Assigned' },

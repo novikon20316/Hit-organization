@@ -15,6 +15,17 @@
 export type ProcessType = 'msc_thesis' | 'msc_project' | 'bsc_project';
 export type TemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';
 
+// Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
+export interface GradingComponentSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  maxScore: number;
+  weight: number;
+  hasComment: boolean;
+  visibleToStudent: boolean;
+}
+
 export interface MilestoneSpec {
   type: string;
   nameHe: string;
@@ -22,6 +33,9 @@ export interface MilestoneSpec {
   order: number;
   dueDaysFromStart: number;
   requiresExaminers: boolean;
+  /** Optional — see GradingComponentSpec's comment server-side: schema and
+   *  editor exist now, the grading UI itself doesn't read this yet. */
+  gradingComponents?: GradingComponentSpec[];
 }
 
 export interface WorkflowTemplateDoc {

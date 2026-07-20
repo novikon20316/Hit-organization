@@ -26,6 +26,24 @@ export function deriveProcessType(degreeType: string | null | undefined, project
   return 'bsc_project';
 }
 
+// P1 backlog item #8 — grading rubric components, per-milestone and
+// per-faculty/track, instead of the fixed clarity/feasibility/innovation/
+// methodology/writing array hardcoded in projectController.ts's
+// submitMilestoneGrade. Schema only for now: reading this into the actual
+// grading endpoints is deferred (that controller is mid-refactor elsewhere),
+// but the template editor UI (web/app/workflow-templates) already lets a
+// faculty define these per milestone, so they're captured and versioned
+// starting now rather than lost.
+export interface GradingComponentSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  maxScore: number;
+  weight: number;
+  hasComment: boolean;
+  visibleToStudent: boolean;
+}
+
 export interface WorkflowMilestoneSpec {
   type: string;
   nameHe: string;
@@ -33,6 +51,9 @@ export interface WorkflowMilestoneSpec {
   order: number;
   dueDaysFromStart: number;
   requiresExaminers: boolean;
+  /** Optional — omitted/empty means this milestone still uses the hardcoded
+   *  default rubric until the grading endpoints are wired to read this. */
+  gradingComponents?: GradingComponentSpec[];
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';

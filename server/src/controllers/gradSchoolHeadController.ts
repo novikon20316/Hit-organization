@@ -23,6 +23,7 @@ import {
 } from '../services/studentProgress.js';
 import { transferGradeToMichlol } from '../services/gradeEngine.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { hasActionGrant, resolveProjectScope } from '../services/scopeAuthorization.js';
 
 const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
 
@@ -252,12 +253,35 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
       }),
     ];
 
+    // ── Already-approved final grades — surfaced so an approval can be
+    // unlocked for correction (see revertFinalGradeApproval below) without
+    // needing a separate lookup screen. Only defense milestones actually
+    // carry gradeApproved, so this list is naturally small/recent.
+    const approvedFinalGrades = Object.entries(milestonesByProject).flatMap(([projectId, milestones]) => {
+      const defenseMilestone = milestones.find((m) => m.type === 'defense');
+      if (!defenseMilestone || defenseMilestone.finalGrade == null || !defenseMilestone.gradeApproved) return [];
+      const project = projectsById[projectId];
+      const studentName = (project?.enrolledStudentIds ?? [])
+        .map((sid: string) => usersById[sid] ?? 'Unknown')
+        .join(', ') || 'Unknown';
+      return [{
+        id: defenseMilestone.id,
+        studentName,
+        facultyId: project?.facultyId ?? '',
+        title: project?.titleHe || project?.titleEn || '',
+        finalGrade: defenseMilestone.finalGrade,
+        approvedAt: defenseMilestone.gradeApprovedAt?.toDate?.()?.toISOString?.() ?? '',
+        michlolTransferStatus: defenseMilestone.michlolTransferStatus ?? null,
+      }];
+    });
+
     return res.status(200).json({
       headName: userData.displayName ?? '',
       pendingApprovals,
       processSummaries,
       stuckStudents,
       examinerLoad,
+      approvedFinalGrades,
       stats: {
         totalMasters: projectsSnap.size,
         pendingCount: pendingApprovals.length,
@@ -282,14 +306,17 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
 export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role)) {
-    return res.status(403).json({ message: 'You do not have permission to approve grades.' });
-  }
 
   const { id: milestoneId } = req.params;
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid milestoneId.' });
   }
+
+  // grad_school_head is intentionally cross-faculty (facultyId 'all') — kept
+  // as-is. A non-grad_school_head user may still act here via an explicit
+  // approve_grades grant scoped to this milestone's project (checked below,
+  // once the milestone/project scope is known).
+  const hasRoleAccess = !!req.user?.role && GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role);
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -297,6 +324,14 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
     if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
 
     const milestone = milestoneSnap.data()!;
+
+    if (!hasRoleAccess) {
+      const scope = (await resolveProjectScope(milestone.projectId)) ?? { facultyId: milestone.facultyId ?? '' };
+      if (!hasActionGrant(req.user, 'approve_grades', scope)) {
+        return res.status(403).json({ message: 'You do not have permission to approve grades.' });
+      }
+    }
+
     if (milestone.type !== 'defense') {
       return res.status(400).json({ message: 'Only defense/final-grade milestones can be approved here.' });
     }
@@ -315,7 +350,7 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
 
     await logAuditEvent({
       userId: uid,
-      userRole: req.user.role,
+      userRole: req.user?.role ?? 'grad_school_head',
       action: 'final_grade_approved',
       entityType: 'milestone',
       entityId: milestoneId,
@@ -359,5 +394,96 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
   } catch (error: any) {
     console.error('approveFinalGrade error:', error);
     return res.status(500).json({ message: 'Failed to approve final grade.' });
+  }
+};
+
+/**
+ * POST /api/grad-school-head/milestones/:id/unlock-grade
+ * Body: { reason: string }
+ *
+ * Reopens an already-approved final grade for correction. Required so
+ * submitMilestoneGrade/submitIndividualGrade's post-approval lock (see
+ * projectController.ts) has a legitimate, audited way through it — a grade
+ * change after approval must never be silent, so a reason is mandatory and
+ * the grader-facing endpoints stay locked until this runs.
+ */
+export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+
+  const { id: milestoneId } = req.params;
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: 'Invalid milestoneId.' });
+  }
+  const { reason } = req.body;
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ message: 'A reason is required to unlock an approved grade.' });
+  }
+
+  const hasRoleAccess = !!req.user?.role && GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role);
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+
+    const milestone = milestoneSnap.data()!;
+
+    if (!hasRoleAccess) {
+      const scope = (await resolveProjectScope(milestone.projectId)) ?? { facultyId: milestone.facultyId ?? '' };
+      if (!hasActionGrant(req.user, 'approve_grades', scope)) {
+        return res.status(403).json({ message: 'You do not have permission to unlock this grade.' });
+      }
+    }
+    if (!milestone.gradeApproved) {
+      return res.status(400).json({ message: 'This grade is not currently approved.' });
+    }
+
+    await milestoneRef.update({
+      gradeApproved: false,
+      gradeApprovedBy: admin.firestore.FieldValue.delete(),
+      gradeApprovedAt: admin.firestore.FieldValue.delete(),
+      michlolTransferStatus: admin.firestore.FieldValue.delete(),
+      michlolTransferredAt: admin.firestore.FieldValue.delete(),
+      gradeUnlockReason: reason,
+      gradeUnlockedBy: uid,
+      gradeUnlockedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? 'grad_school_head',
+      action: 'grade_approval_reverted',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { gradeApproved: true, finalGrade: milestone.finalGrade },
+      newValue: { gradeApproved: false },
+      explanation: reason,
+    });
+
+    const studentIds: string[] = milestone.studentIds ?? [];
+    try {
+      await Promise.all(studentIds.map((studentId) =>
+        db.collection('notifications').add({
+          recipientId: studentId,
+          type: 'general',
+          titleHe: 'הציון הסופי נפתח לתיקון',
+          titleEn: 'Final grade reopened for correction',
+          bodyHe: `הציון הסופי שלך נפתח לתיקון על ידי ראש בית הספר ללימודי מוסמכים. סיבה: ${reason}`,
+          bodyEn: `Your final grade was reopened for correction by the grad school head. Reason: ${reason}`,
+          isRead: false,
+          relatedProjectId: milestone.projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      ));
+    } catch (notifyErr) {
+      console.error(`revertFinalGradeApproval: failed to notify students for milestone ${milestoneId}:`, notifyErr);
+    }
+
+    return res.status(200).json({ success: true, message: 'Grade unlocked for correction.' });
+  } catch (error: any) {
+    console.error('revertFinalGradeApproval error:', error);
+    return res.status(500).json({ message: 'Failed to unlock grade.' });
   }
 };

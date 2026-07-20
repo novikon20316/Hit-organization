@@ -6,6 +6,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { logAuditEvent } from '../services/auditLog.js';
 import { computeWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
+import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 
 const db = admin.firestore();
 
@@ -47,6 +48,14 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
 };
 
 // ─── Submit milestone grade ───────────────────────────────────────────────────
+// Deliberately NOT wired to the granular edit_grades grant (see
+// services/scopeAuthorization.ts): the score field written (supervisorScore
+// vs examiner1Score vs examiner2Score) is derived from WHICH assigned grader
+// uid matches, not a role/grant — a delegate submitting under someone else's
+// slot would mislabel the grades collection's audit trail (graderId would be
+// the delegate, but the field/graderRole would claim to be the actual
+// supervisor/examiner). Correcting a grade on someone's behalf needs its own
+// designed "override" path, not a silent reuse of this identity-dispatch one.
 export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Response) => {
   const uid         = (req as any).user?.uid;
   const { milestoneId } = req.params;
@@ -78,6 +87,16 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     const data        = milestoneSnap.data() || {};
     const supervisorId= data.supervisorId;
     const examinerIds: string[] = data.examinerIds ?? [];
+
+    // Once a grad-school-head has signed off on the computed final grade
+    // (gradSchoolHeadController.ts's approveFinalGrade), it must not be
+    // silently overwritten — a real edit needs an authorized, reasoned
+    // unlock first (see revertFinalGradeApproval), which resets this flag.
+    if (data.gradeApproved) {
+      return res.status(409).json({
+        message: 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.',
+      });
+    }
 
     const updatePayload: Record<string, any> = {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -226,6 +245,14 @@ export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Resp
     if (!isGrader) {
       return res.status(403).json({ message: 'Not authorized to grade this milestone' });
     }
+    // Same lock as submitMilestoneGrade — an individual component can't be
+    // adjusted post-approval without an authorized unlock either, since it
+    // feeds directly into finalGradeByStudent.
+    if (data.gradeApproved) {
+      return res.status(409).json({
+        message: 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.',
+      });
+    }
     if (!studentIds.includes(studentId)) {
       return res.status(400).json({ message: 'studentId is not part of this milestone' });
     }
@@ -284,16 +311,22 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
     const milestoneSnap = await milestoneRef.get();
     if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found' });
 
-    const studentIds: string[] = milestoneSnap.data()?.studentIds ?? [];
+    const milestoneData = milestoneSnap.data() ?? {};
+    const studentIds: string[] = milestoneData.studentIds ?? [];
     if (!studentIds.includes(studentId)) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
+
+    // Preserve the outgoing round before it's overwritten — see
+    // services/milestoneRevisions.ts.
+    const archiveUpdate = buildRevisionArchiveUpdate(milestoneData);
 
     await milestoneRef.update({
       status:         'submitted',
       submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
       fileUrls:       fileUrls       ?? [],
       submissionNote: submissionNote ?? '',
+      ...(archiveUpdate ?? {}),
     });
     return res.status(200).json({ success: true });
   } catch (error) {

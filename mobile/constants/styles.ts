@@ -2860,6 +2860,10 @@ export const MilestoneCardStyles = StyleSheet.create({
   chainText:      { fontSize: 12, color: '#8899BB', flex: 1 },
   chainTextDone:  { color: '#10B981', fontWeight: '600' },
 
+  // Grade history (read-only)
+  gradeHistorySection: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F0F4FF' },
+  gradeHistoryLine:    { fontSize: 12, color: '#8899BB', marginBottom: 4 },
+
   // Action buttons
   actionBtn: {
     backgroundColor: '#2E86FF', borderRadius: 12,

@@ -16,11 +16,14 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import type { AppRole } from '@/lib/roles';
+import { ClockPauseControl } from '@/components/ClockPauseControl';
+import { TrackChangeControl } from '@/components/TrackChangeControl';
 
 const PROGRAM_HEAD_ROLES: AppRole[] = ['program_head', 'system_admin'];
 
 interface StudentRow {
   uid: string;
+  projectId: string;
   studentName: string;
   trackType: 'thesis' | 'masters_project';
   supervisorName: string;
@@ -28,6 +31,7 @@ interface StudentRow {
   daysInStage: number;
   deadline: string | null;
   isOverdue: boolean;
+  isActivelyPaused: boolean;
   facultyId: string;
 }
 
@@ -204,6 +208,8 @@ export default function ProgramHeadDashboardPage() {
                     </span>
                   )}
                 </div>
+                <ClockPauseControl projectId={st.projectId} />
+                <TrackChangeControl projectId={st.projectId} />
               </div>
             ))}
             {filteredStudents.length === 0 && <p className="text-sm text-muted">🎓 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}</p>}

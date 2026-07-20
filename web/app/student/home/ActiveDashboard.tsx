@@ -52,7 +52,8 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
       .every((prev) => prev.status === 'coordinator_approved' || prev.status === 'completed');
   };
 
-  const actionableNextMilestone = milestones.find((m) => m.status === 'pending' && isUnlocked(m)) ?? null;
+  const actionableNextMilestone =
+    milestones.find((m) => (m.status === 'pending' || m.status === 'rejected') && isUnlocked(m)) ?? null;
   const overviewDisplayMilestone =
     milestones.find((m) => (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status)) ?? actionableNextMilestone;
   const isWaitingApproval = milestones.some((m) => (['graded', 'supervisor_graded'] as string[]).includes(m.status));
@@ -122,7 +123,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
 
               <p className="mt-2 text-sm text-ink">
                 {(() => {
-                  const nextPending = milestones.find((m) => m.status === 'pending');
+                  const nextPending = milestones.find((m) => m.status === 'pending' || m.status === 'rejected');
                   const displayType = nextPending?.type ?? overviewDisplayMilestone.type;
                   return MILESTONE_LABEL[displayType][lang];
                 })()}
@@ -180,6 +181,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
             const isDefense = m.type === 'defense';
             const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
             const isApprovedOrDone = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
+            const isRejected = m.status === 'rejected';
 
             return (
               <div key={m.id} className="flex gap-3 rounded-[var(--radius)] border border-line bg-surface p-4">
@@ -213,6 +215,10 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                     </p>
                   ) : isSubmittedInReview ? (
                     <p className="mt-1 text-xs font-medium text-accent">📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}</p>
+                  ) : isRejected ? (
+                    <p className="mt-1 text-xs font-medium text-danger">
+                      ↩ {lang === 'he' ? 'הוחזר לתיקון — יש להגיש גרסה מתוקנת' : 'Returned for revision — please resubmit a corrected version'}
+                    </p>
                   ) : (
                     <p className="mt-1 text-xs text-muted">
                       📅 {t('dueDate')} {toDate(m.dueDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -244,13 +250,24 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                   )}
                   {isDefense && !m.defenseDate && <p className="mt-1 text-xs text-muted">{t('defenseNotScheduled')}</p>}
 
-                  {m.status === 'pending' && !isDefense && unlocked && !m.defenseDate && (
+                  {isRejected && m.rejectionReason && (
+                    <div className="mt-2 rounded-lg bg-danger-bg p-2.5">
+                      <p className="text-xs font-semibold text-danger">{lang === 'he' ? 'סיבת ההחזרה:' : 'Reason for return:'}</p>
+                      <p className="mt-0.5 text-xs text-danger">{m.rejectionReason}</p>
+                    </div>
+                  )}
+
+                  {(m.status === 'pending' || isRejected) && !isDefense && unlocked && !m.defenseDate && (
                     <button
                       type="button"
                       onClick={() => setSubmitTarget(m)}
-                      className="mt-2 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+                      className={`mt-2 rounded-full px-3 py-1.5 text-xs font-semibold hover:opacity-90 ${
+                        isRejected ? 'bg-danger text-white' : 'bg-primary text-primary-ink'
+                      }`}
                     >
-                      {lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone'}
+                      {isRejected
+                        ? (lang === 'he' ? 'הגש גרסה מתוקנת' : 'Submit Corrected Version')
+                        : (lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone')}
                     </button>
                   )}
 
@@ -258,6 +275,31 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                     <p className="mt-1.5 text-xs text-muted">
                       📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים הוגשו' : 'files submitted'}
                     </p>
+                  )}
+
+                  {m.revisionHistory && m.revisionHistory.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs font-medium text-muted hover:text-ink">
+                        {lang === 'he' ? `🕘 היסטוריית הגשות (${m.revisionHistory.length})` : `🕘 Submission History (${m.revisionHistory.length})`}
+                      </summary>
+                      <div className="mt-1.5 grid gap-1.5">
+                        {m.revisionHistory.map((rev) => (
+                          <div key={rev.version} className="rounded-md border border-line bg-paper p-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-ink">
+                                {lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}
+                              </span>
+                              {rev.decision === 'rejected' && (
+                                <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-medium text-danger">
+                                  {lang === 'he' ? '❌ נדחתה' : '❌ Rejected'}
+                                </span>
+                              )}
+                            </div>
+                            {rev.decisionReason && <p className="mt-1 text-xs text-danger">{rev.decisionReason}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   )}
                 </div>
               </div>

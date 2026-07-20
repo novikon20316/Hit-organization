@@ -11,6 +11,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { MILESTONE_LABEL, type InProgressProject } from './types';
+import { ClockPauseControl } from '@/components/ClockPauseControl';
+import { TrackChangeControl } from '@/components/TrackChangeControl';
 
 interface InProgressTabProps {
   projects: InProgressProject[];
@@ -66,6 +68,9 @@ export function InProgressTab({ projects }: InProgressTabProps) {
                 👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {p.supervisorName}
               </p>
             </button>
+
+            <ClockPauseControl projectId={p.id} />
+            <TrackChangeControl projectId={p.id} />
 
             {isOpen && (
               <div className="mt-3 grid gap-3 border-t border-line pt-3">

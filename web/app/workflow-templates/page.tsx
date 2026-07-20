@@ -157,6 +157,9 @@ export default function WorkflowTemplatesPage() {
                       <p className="text-xs text-muted">
                         📅 {lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`}
                         {m.requiresExaminers ? ` · 👥 ${lang === 'he' ? 'בוחנים' : 'Examiners'}` : ''}
+                        {m.gradingComponents && m.gradingComponents.length > 0
+                          ? ` · 📊 ${m.gradingComponents.length} ${lang === 'he' ? 'מרכיבי ציון' : 'grading components'}`
+                          : ''}
                       </p>
                     </div>
                   </div>

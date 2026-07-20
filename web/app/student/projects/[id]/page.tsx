@@ -20,6 +20,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { MilestoneTimeline, type MilestoneData } from '@/components/MilestoneTimeline';
+import { GradeHistoryPanel } from '@/components/GradeHistoryPanel';
 import { SubmitMilestoneModal } from '@/app/student/home/SubmitMilestoneModal';
 import { MILESTONE_ORDER, type ActiveProject, type Milestone } from '@/app/student/home/types';
 
@@ -111,6 +112,8 @@ export default function StudentProjectDetailPage() {
             projectId={projectId}
             onStudentSubmit={(milestone) => setSubmitTarget(milestone as unknown as Milestone)}
           />
+
+          <GradeHistoryPanel projectId={projectId} />
         </div>
       )}
 

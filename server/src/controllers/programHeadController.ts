@@ -64,6 +64,7 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
 
     const students: Array<{
       uid: string;
+      projectId: string;
       studentName: string;
       trackType: 'thesis' | 'masters_project';
       supervisorName: string;
@@ -73,6 +74,7 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
       daysInStage: number;
       deadline: string | null;
       isOverdue: boolean;
+      isActivelyPaused: boolean;
       facultyId: string;
     }> = [];
 
@@ -83,7 +85,11 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
     projectsSnap.docs.forEach((doc) => {
       const data = doc.data();
       const projectMilestones = milestonesByProject[doc.id] ?? [];
-      const progress = computeMilestoneProgress(projectMilestones);
+      const clockPauses = [
+        ...(data.activeClockPause ? [data.activeClockPause] : []),
+        ...(data.clockPauseHistory ?? []),
+      ];
+      const progress = computeMilestoneProgress(projectMilestones, clockPauses);
       const supervisorName = data.supervisorId ? (usersById[data.supervisorId]?.name ?? 'Unknown') : 'Unassigned';
       const isActive = data.status === 'active' || data.status === 'in_progress';
 
@@ -97,6 +103,7 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
 
         students.push({
           uid: sid,
+          projectId: doc.id,
           studentName: usersById[sid]?.name ?? 'Unknown',
           trackType: trackTypeOf(data.projectType),
           supervisorName,
@@ -106,6 +113,7 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
           daysInStage: progress.daysInStage,
           deadline: progress.current?.dueDate?.toDate?.()?.toISOString?.() ?? null,
           isOverdue: progress.isOverdue,
+          isActivelyPaused: progress.isActivelyPaused,
           facultyId,
         });
       });
