@@ -72,63 +72,68 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
         className="role-rail border-b border-line bg-surface"
         style={{ '--rail-color': railColor } as React.CSSProperties}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link
-            href={getHomeRoute(userData?.role)}
-            title={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition-opacity hover:opacity-80 sm:flex-initial"
-          >
-            <Image src="/hit-logo.png" alt="HIT" width={32} height={19} className="h-6 w-auto shrink-0 object-contain" />
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold leading-tight text-ink">{title}</h1>
-              {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
-            </div>
-          </Link>
+        <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
+          <div className="flex items-center justify-between gap-4">
+            <Link
+              href={getHomeRoute(userData?.role)}
+              title={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition-opacity hover:opacity-80 sm:flex-initial"
+            >
+              <Image src="/hit-logo.png" alt="HIT" width={32} height={19} className="h-6 w-auto shrink-0 object-contain" />
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-semibold leading-tight text-ink">{title}</h1>
+                {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
+              </div>
+            </Link>
 
-          <div className="flex shrink-0 items-center gap-3">
-            <NotificationBell />
+            <div className="flex shrink-0 items-center gap-3">
+              <NotificationBell />
 
-            {/* Desktop: everything inline, unchanged. */}
-            <div className="hidden items-center gap-3 sm:flex">
-              {actions}
-              <LanguageToggle />
-              {userData && (
-                <div className="flex items-center gap-2">
-                  <span
-                    className="rounded-full px-2.5 py-1 text-xs font-medium"
-                    style={{ backgroundColor: `${railColor}1F`, color: railColor }}
-                  >
-                    {roleLabel(userData.role as AppRole, lang)}
-                  </span>
-                  <span className="text-sm text-ink">{lang === 'he' ? userData.displayNameHe : userData.displayNameEn}</span>
-                </div>
-              )}
+              {/* Mobile: everything below folds into this hamburger toggle. */}
               <button
                 type="button"
-                onClick={() => setShowDeleteAccount(true)}
-                title={lang === 'he' ? 'מחיקת חשבון' : 'Delete Account'}
-                className="rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-danger hover:text-danger"
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label={lang === 'he' ? 'תפריט' : 'Menu'}
+                aria-expanded={menuOpen}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink sm:hidden"
               >
-                🗑️
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink transition-colors hover:border-danger hover:text-danger"
-              >
-                {lang === 'he' ? 'יציאה' : 'Sign Out'}
+                <span className="text-lg leading-none">{menuOpen ? '✕' : '☰'}</span>
               </button>
             </div>
+          </div>
 
-            {/* Mobile: everything above folds into this hamburger toggle. */}
+          {/* Desktop: on its own row (not squeezed against the logo) and
+           *  wrapping — this keeps growing as more pages add their own
+           *  action link, and a non-wrapping row here was pushing Sign Out
+           *  off-screen entirely once there were enough of them. */}
+          <div className="mt-2 hidden flex-wrap items-center gap-3 sm:flex">
+            {actions}
+            <LanguageToggle />
+            {userData && (
+              <div className="flex items-center gap-2">
+                <span
+                  className="rounded-full px-2.5 py-1 text-xs font-medium"
+                  style={{ backgroundColor: `${railColor}1F`, color: railColor }}
+                >
+                  {roleLabel(userData.role as AppRole, lang)}
+                </span>
+                <span className="text-sm text-ink">{lang === 'he' ? userData.displayNameHe : userData.displayNameEn}</span>
+              </div>
+            )}
             <button
               type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-label={lang === 'he' ? 'תפריט' : 'Menu'}
-              aria-expanded={menuOpen}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink sm:hidden"
+              onClick={() => setShowDeleteAccount(true)}
+              title={lang === 'he' ? 'מחיקת חשבון' : 'Delete Account'}
+              className="rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-danger hover:text-danger"
             >
-              <span className="text-lg leading-none">{menuOpen ? '✕' : '☰'}</span>
+              🗑️
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink transition-colors hover:border-danger hover:text-danger"
+            >
+              {lang === 'he' ? 'יציאה' : 'Sign Out'}
             </button>
           </div>
         </div>
