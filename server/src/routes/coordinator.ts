@@ -12,6 +12,7 @@ import {
 } from '../controllers/coordinatorController.js';
 import {verifyToken } from '../middleware/auth.js';
 import { uploadInfoFile, uploadInfoFileMiddleware, deleteInfoFile } from '../controllers/infoFilesController.js';
+import { createFacultyContent, deleteFacultyContent } from '../controllers/facultyContentController.js';
 import {
   exportUsersCoordinator,
   importUsersCoordinator,
@@ -34,9 +35,11 @@ router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense)
 router.post('/milestones/:milestoneId/resolve-date-conflict', verifyToken, resolveDefenseDateConflict)
 router.post('/projects/:projectId/progress', verifyToken, assignDefense) // TODO: wire to correct controller
 router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile);
+router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/users/import', verifyToken, uploadExcelFileMiddleware, importUsersCoordinator);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffCoordinator);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterCoordinator);
 router.delete('/info-files/:id', verifyToken, deleteInfoFile);
+router.delete('/faculty-content/:id', verifyToken, deleteFacultyContent);
 
 export default router;

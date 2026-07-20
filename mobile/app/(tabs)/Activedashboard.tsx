@@ -1,5 +1,5 @@
 // student/screens/ActiveDashboard.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   Modal, TextInput, ActivityIndicator, Linking,
@@ -69,6 +69,20 @@ export default function ActiveDashboard({
   const [loadingDetail, setLoadingDetail] = useState<Record<string, boolean>>({});
   const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [announcements, setAnnouncements] = useState<Array<{ id: string; titleHe: string; titleEn: string; bodyHe: string; bodyEn: string }>>([]);
+
+  // Running faculty/college announcements (requirements doc section 15) —
+  // shown here too, not just the ineligible-state student/info.tsx screen,
+  // so already-enrolled students also see them.
+  useEffect(() => {
+    let cancelled = false;
+    apiClient.get('/api/faculty-content')
+      .then((res) => {
+        if (!cancelled) setAnnouncements((res.data.items ?? []).filter((c: any) => c.type === 'announcement'));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Only masters students writing an actual thesis (not a masters project) see
   // the thesis template download — driven off the project doc's own
@@ -240,6 +254,20 @@ export default function ActiveDashboard({
         {/* ══════════════ OVERVIEW TAB ══════════════ */}
         {activeTab === 'overview' && (
           <>
+            {announcements.map((a) => (
+              <View key={a.id} style={{
+                backgroundColor: '#FFFBEB', borderRadius: 16, padding: 16,
+                borderWidth: 1, borderColor: '#FDE68A', marginBottom: 12,
+              }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#92400E', marginBottom: 4, textAlign: isRtl ? 'right' : 'left' }}>
+                  📣 {lang === 'he' ? (a.titleHe || a.titleEn) : (a.titleEn || a.titleHe)}
+                </Text>
+                <Text style={{ fontSize: 13, color: '#78350F', lineHeight: 19, textAlign: isRtl ? 'right' : 'left' }}>
+                  {lang === 'he' ? (a.bodyHe || a.bodyEn) : (a.bodyEn || a.bodyHe)}
+                </Text>
+              </View>
+            ))}
+
             {/* Project card */}
             <View style={styles.projectCard}>
               <View style={[styles.projectCardHeader, isRtl && styles.rowReverse]}>

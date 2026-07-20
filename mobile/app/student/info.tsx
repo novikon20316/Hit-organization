@@ -22,6 +22,15 @@ interface InfoFile {
   fileName: string;
 }
 
+interface FacultyContentItem {
+  id: string;
+  type: 'procedure' | 'announcement';
+  titleHe: string;
+  titleEn: string;
+  bodyHe: string;
+  bodyEn: string;
+}
+
 interface Props {
   lang: Lang;
   isRtl: boolean;
@@ -33,13 +42,18 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
   const isBachelor = studentDegree === 'bachelors';
 
   const [files, setFiles]           = useState<InfoFile[]>([]);
+  const [content, setContent]       = useState<FacultyContentItem[]>([]);
   const [filesLoading, setFilesLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchFiles = useCallback(async () => {
     try {
-      const res = await apiClient.get('/api/info-files');
-      setFiles(res.data.files ?? []);
+      const [filesRes, contentRes] = await Promise.all([
+        apiClient.get('/api/info-files'),
+        apiClient.get('/api/faculty-content'),
+      ]);
+      setFiles(filesRes.data.files ?? []);
+      setContent(contentRes.data.items ?? []);
     } catch (e) {
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
@@ -57,6 +71,9 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
     setRefreshing(true);
     fetchFiles();
   };
+
+  const announcements = content.filter((c) => c.type === 'announcement');
+  const procedures = content.filter((c) => c.type === 'procedure');
 
   const handleOpen = async (url: string) => {
     if (!url) return;
@@ -88,6 +105,20 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
           {tx('studentNotEligibleSub', lang)}
         </Text>
       </View>
+
+      {announcements.map((a) => (
+        <View key={a.id} style={{
+          backgroundColor: '#FFFBEB', borderRadius: 16, padding: 16,
+          borderWidth: 1, borderColor: '#FDE68A', marginBottom: 12,
+        }}>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: '#92400E', marginBottom: 4, textAlign: isRtl ? 'right' : 'left' }}>
+            📣 {lang === 'he' ? (a.titleHe || a.titleEn) : (a.titleEn || a.titleHe)}
+          </Text>
+          <Text style={{ fontSize: 13, color: '#78350F', lineHeight: 19, textAlign: isRtl ? 'right' : 'left' }}>
+            {lang === 'he' ? (a.bodyHe || a.bodyEn) : (a.bodyEn || a.bodyHe)}
+          </Text>
+        </View>
+      ))}
 
       {/* Info card: track-specific */}
       <View style={{
@@ -184,6 +215,27 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
           ))
         )}
       </View>
+
+      {procedures.length > 0 && (
+        <View style={{
+          backgroundColor: '#fff', borderRadius: 16, padding: 20,
+          borderWidth: 1, borderColor: '#E0E8FF', marginTop: 16,
+        }}>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: '#111', marginBottom: 14, textAlign: isRtl ? 'right' : 'left' }}>
+            {lang === 'he' ? '📘 נהלים' : '📘 Procedures'}
+          </Text>
+          {procedures.map((p) => (
+            <View key={p.id} style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#111', textAlign: isRtl ? 'right' : 'left' }}>
+                {lang === 'he' ? (p.titleHe || p.titleEn) : (p.titleEn || p.titleHe)}
+              </Text>
+              <Text style={{ fontSize: 13, color: '#374151', lineHeight: 19, marginTop: 2, textAlign: isRtl ? 'right' : 'left' }}>
+                {lang === 'he' ? (p.bodyHe || p.bodyEn) : (p.bodyEn || p.bodyHe)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }

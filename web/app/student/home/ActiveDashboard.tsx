@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { SubmitMilestoneModal } from './SubmitMilestoneModal';
+import { AnnouncementsBanner } from './AnnouncementsBanner';
 import {
   MILESTONE_LABEL,
   MILESTONE_ORDER,
@@ -81,6 +82,8 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
 
       {tab === 'overview' && (
         <div className="grid gap-4">
+          <AnnouncementsBanner />
+
           <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
             <p className="text-base font-semibold text-ink">📁 {lang === 'he' ? project.titleHe : project.titleEn}</p>
             <p className="mt-1 text-sm text-muted">

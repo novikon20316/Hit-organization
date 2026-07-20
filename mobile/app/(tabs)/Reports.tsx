@@ -121,6 +121,76 @@ function displayValue(v: any): string {
   return String(v);
 }
 
+// ─── Extra filters (backend already supports all of these — see
+// services/reports.ts's ReportFilters — this screen just wasn't exposing
+// them yet). Kept behind a "More filters" toggle so the default screen
+// stays as compact as before. ──────────────────────────────────────────────
+const DEGREE_TYPES = ['bachelors', 'masters'] as const;
+const PROJECT_TYPES = ['project', 'thesis'] as const;
+const MILESTONE_TYPES = ['research_proposal', 'progress_report', 'final_report', 'defense'] as const;
+const PROCESS_STATUSES = ['active', 'in_progress', 'completed', 'withdrawn', 'admin_closed'] as const;
+const CROSS_FACULTY_ROLES = ['grad_school_head', 'system_admin'];
+
+const DEGREE_TYPE_LABEL: Record<string, { he: string; en: string }> = {
+  bachelors: { he: 'תואר ראשון', en: 'Bachelor’s' },
+  masters: { he: 'תואר שני', en: 'Master’s' },
+};
+const PROJECT_TYPE_LABEL: Record<string, { he: string; en: string }> = {
+  project: { he: 'פרויקט', en: 'Project' },
+  thesis: { he: 'תזה', en: 'Thesis' },
+};
+const MILESTONE_TYPE_LABEL: Record<string, { he: string; en: string }> = {
+  research_proposal: { he: 'הצעת מחקר', en: 'Proposal' },
+  progress_report: { he: 'דו"ח התקדמות', en: 'Progress' },
+  final_report: { he: 'דו"ח מסכם', en: 'Final Report' },
+  defense: { he: 'הגנה', en: 'Defense' },
+};
+const PROCESS_STATUS_LABEL: Record<string, { he: string; en: string }> = {
+  active: { he: 'פעיל', en: 'Active' },
+  in_progress: { he: 'בתהליך', en: 'In Progress' },
+  completed: { he: 'הושלם', en: 'Completed' },
+  withdrawn: { he: 'פרש/ה', en: 'Withdrawn' },
+  admin_closed: { he: 'נסגר מנהלתית', en: 'Admin Closed' },
+};
+const FACULTY_LABEL: Record<string, { he: string; en: string }> = {
+  sciences: { he: 'מדעים', en: 'Sciences' },
+  electrical: { he: 'הנדסת חשמל', en: 'Electrical Eng.' },
+  industrial: { he: 'הנדסת תעשייה', en: 'Industrial Eng.' },
+  learning_tech: { he: 'טכנולוגיות למידה', en: 'Learning Tech' },
+  medical_tech: { he: 'טכנולוגיות רפואיות', en: 'Medical Tech' },
+  design: { he: 'עיצוב', en: 'Design' },
+  data_science: { he: 'מדעי הנתונים', en: 'Data Science' },
+};
+
+function FilterPillRow({
+  options, value, onChange, labelFor,
+}: {
+  options: readonly string[];
+  value: string;
+  onChange: (v: string) => void;
+  labelFor: (v: string) => string;
+}) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 8 }}>
+      {options.map((opt) => (
+        <Pressable
+          key={opt}
+          onPress={() => onChange(value === opt ? '' : opt)}
+          style={{
+            borderWidth: 1.5, borderColor: value === opt ? '#2E86FF' : '#D0DEFF',
+            backgroundColor: value === opt ? '#2E86FF' : '#fff',
+            borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6,
+          }}
+        >
+          <Text style={{ color: value === opt ? '#fff' : '#2E86FF', fontWeight: '600', fontSize: 12 }}>
+            {labelFor(opt)}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Reports() {
@@ -133,6 +203,15 @@ export default function Reports() {
   const [activeReport, setActiveReport] = useState<ReportType>('full-status');
   const [startYear, setStartYear] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [degreeType, setDegreeType] = useState('');
+  const [projectType, setProjectType] = useState('');
+  const [milestoneType, setMilestoneType] = useState('');
+  const [processStatus, setProcessStatus] = useState('');
+  const [facultyId, setFacultyId] = useState('');
+  const [advisorId, setAdvisorId] = useState('');
+  const [examinerId, setExaminerId] = useState('');
+  const [examinerOptions, setExaminerOptions] = useState<Array<{ id: string; displayName: string }>>([]);
 
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -140,6 +219,7 @@ export default function Reports() {
   const [meta, setMeta] = useState<{ threshold?: number } | null>(null);
 
   const uid = auth.currentUser?.uid;
+  const isCrossFaculty = !!userRole && CROSS_FACULTY_ROLES.includes(userRole);
 
   useEffect(() => {
     if (!uid) return;
@@ -154,9 +234,25 @@ export default function Reports() {
     })();
   }, [uid]);
 
+  // Examiner dropdown source — internal examiners only (external examiners
+  // have no uid to filter defense.examinerIds by, see services/reports.ts).
+  useEffect(() => {
+    if (!uid) return;
+    apiClient.get('/api/examiner/get-list')
+      .then(res => setExaminerOptions((res.data ?? []).map((u: any) => ({ id: u.id, displayName: u.displayName ?? u.id }))))
+      .catch(() => setExaminerOptions([]));
+  }, [uid]);
+
   const filters = {
     startYear: startYear ? Number(startYear) : undefined,
     overdueOnly: overdueOnly || undefined,
+    degreeType: degreeType || undefined,
+    projectType: projectType || undefined,
+    milestoneType: milestoneType || undefined,
+    processStatus: processStatus || undefined,
+    facultyId: isCrossFaculty && facultyId ? facultyId : undefined,
+    advisorId: advisorId || undefined,
+    examinerId: examinerId || undefined,
   };
 
   const load = useCallback(async () => {
@@ -179,7 +275,7 @@ export default function Reports() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, activeReport, startYear, overdueOnly, lang]);
+  }, [uid, activeReport, startYear, overdueOnly, degreeType, projectType, milestoneType, processStatus, facultyId, advisorId, examinerId, isCrossFaculty, lang]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -239,6 +335,43 @@ export default function Reports() {
           <Switch value={overdueOnly} onValueChange={setOverdueOnly} trackColor={{ true: '#2E86FF' }} />
         </View>
       </View>
+
+      <Pressable onPress={() => setShowMoreFilters(v => !v)} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        <Text style={{ fontSize: 12, fontWeight: '600', color: '#2E86FF' }}>
+          {showMoreFilters ? (lang === 'he' ? '▲ פחות מסננים' : '▲ Fewer filters') : (lang === 'he' ? '▼ עוד מסננים' : '▼ More filters')}
+        </Text>
+      </Pressable>
+
+      {showMoreFilters && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          {isCrossFaculty && (
+            <FilterPillRow
+              options={Object.keys(FACULTY_LABEL)}
+              value={facultyId}
+              onChange={setFacultyId}
+              labelFor={(v) => FACULTY_LABEL[v]?.[lang] ?? v}
+            />
+          )}
+          <FilterPillRow options={DEGREE_TYPES} value={degreeType} onChange={setDegreeType} labelFor={(v) => DEGREE_TYPE_LABEL[v][lang]} />
+          <FilterPillRow options={PROJECT_TYPES} value={projectType} onChange={setProjectType} labelFor={(v) => PROJECT_TYPE_LABEL[v][lang]} />
+          <FilterPillRow options={MILESTONE_TYPES} value={milestoneType} onChange={setMilestoneType} labelFor={(v) => MILESTONE_TYPE_LABEL[v][lang]} />
+          <FilterPillRow options={PROCESS_STATUSES} value={processStatus} onChange={setProcessStatus} labelFor={(v) => PROCESS_STATUS_LABEL[v][lang]} />
+          {examinerOptions.length > 0 && (
+            <FilterPillRow
+              options={examinerOptions.map((e) => e.id)}
+              value={examinerId}
+              onChange={setExaminerId}
+              labelFor={(id) => examinerOptions.find((e) => e.id === id)?.displayName ?? id}
+            />
+          )}
+          <TextInput
+            style={{ borderWidth: 1.5, borderColor: '#D0DEFF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, backgroundColor: '#fff' }}
+            value={advisorId}
+            onChangeText={setAdvisorId}
+            placeholder={lang === 'he' ? 'מזהה מנחה' : 'Advisor ID'}
+          />
+        </View>
+      )}
 
       {/* Export button */}
       <Pressable

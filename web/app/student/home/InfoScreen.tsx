@@ -17,6 +17,15 @@ interface InfoFile {
   fileName: string;
 }
 
+interface FacultyContentItem {
+  id: string;
+  type: 'procedure' | 'announcement';
+  titleHe: string;
+  titleEn: string;
+  bodyHe: string;
+  bodyEn: string;
+}
+
 interface InfoScreenProps {
   studentDegree?: string;
 }
@@ -25,14 +34,17 @@ export function InfoScreen({ studentDegree }: InfoScreenProps) {
   const { lang, t } = useLanguage();
   const isBachelor = studentDegree === 'bachelors';
   const [files, setFiles] = useState<InfoFile[]>([]);
+  const [content, setContent] = useState<FacultyContentItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    apiClient
-      .getInfoFiles()
-      .then((res) => {
-        if (!cancelled) setFiles(res.files ?? []);
+    Promise.all([apiClient.getInfoFiles(), apiClient.getFacultyContent()])
+      .then(([filesRes, contentRes]) => {
+        if (!cancelled) {
+          setFiles(filesRes.files ?? []);
+          setContent(contentRes.items ?? []);
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -42,6 +54,9 @@ export function InfoScreen({ studentDegree }: InfoScreenProps) {
       cancelled = true;
     };
   }, []);
+
+  const announcements = content.filter((c) => c.type === 'announcement');
+  const procedures = content.filter((c) => c.type === 'procedure');
 
   const steps = isBachelor
     ? [
@@ -65,6 +80,17 @@ export function InfoScreen({ studentDegree }: InfoScreenProps) {
         <p className="mb-1.5 text-base font-bold text-ink">{t('studentNotEligibleTitle')}</p>
         <p className="text-sm text-muted">{t('studentNotEligibleSub')}</p>
       </div>
+
+      {announcements.length > 0 && (
+        <div className="mb-4 grid gap-2">
+          {announcements.map((a) => (
+            <div key={a.id} className="rounded-[var(--radius)] border border-accent bg-[#FBF3E3] p-4">
+              <p className="text-sm font-semibold text-ink">📣 {lang === 'he' ? a.titleHe || a.titleEn : a.titleEn || a.titleHe}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{lang === 'he' ? a.bodyHe || a.bodyEn : a.bodyEn || a.bodyHe}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mb-4 rounded-[var(--radius)] border border-line bg-surface p-5">
         <p className="mb-2 text-lg">📘</p>
@@ -118,6 +144,20 @@ export function InfoScreen({ studentDegree }: InfoScreenProps) {
           </div>
         )}
       </div>
+
+      {procedures.length > 0 && (
+        <div className="mt-4 rounded-[var(--radius)] border border-line bg-surface p-5">
+          <p className="mb-3 text-sm font-semibold text-ink">📘 {lang === 'he' ? 'נהלים' : 'Procedures'}</p>
+          <div className="grid gap-3">
+            {procedures.map((p) => (
+              <div key={p.id}>
+                <p className="text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{lang === 'he' ? p.bodyHe || p.bodyEn : p.bodyEn || p.bodyHe}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

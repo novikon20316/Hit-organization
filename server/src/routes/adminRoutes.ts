@@ -24,6 +24,7 @@ import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
 import { assignDefense } from '../controllers/coordinatorController.js';
 import { uploadInfoFile, uploadInfoFileMiddleware, deleteInfoFile } from '../controllers/infoFilesController.js';
+import { createFacultyContent, deleteFacultyContent } from '../controllers/facultyContentController.js';
 import {
   exportUsersAdmin,
   importUsersAdmin,
@@ -69,6 +70,7 @@ router.post('/users/:id/disable-2fa', verifyToken, disableUser2FA);
 router.post('/defense-access-grants/:grantCode/extend', verifyToken, extendDefenseAccessGrant);
 router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense);
 router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile);
+router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/users/import', verifyToken, uploadExcelFileMiddleware, importUsersAdmin);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
@@ -83,5 +85,6 @@ router.put('/student-statuses', verifyToken, updateStudentStatusOptions);
 
 // DELETE routes
 router.delete('/info-files/:id', verifyToken, deleteInfoFile);
+router.delete('/faculty-content/:id', verifyToken, deleteFacultyContent);
 router.delete('/projects/:id', verifyToken, deleteAdminProject);
 export default router;

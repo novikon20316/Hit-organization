@@ -43,7 +43,20 @@ interface InfoFile {
   degreeTypes: string[];
 }
 
-function scopeSummary(f: InfoFile, lang: 'he' | 'en'): string {
+interface FacultyContentItem {
+  id: string;
+  type: 'procedure' | 'announcement';
+  titleHe: string;
+  titleEn: string;
+  bodyHe: string;
+  bodyEn: string;
+  facultyIds: string[];
+  majors: string[];
+  degreeTypes: string[];
+  createdAt: string | null;
+}
+
+function scopeSummary(f: { facultyIds: string[]; majors: string[]; degreeTypes: string[] }, lang: 'he' | 'en'): string {
   const parts: string[] = [];
   if (f.facultyIds?.length) parts.push(f.facultyIds.map((id) => facultyLabel(id as FacultyId, lang)).join(', '));
   if (f.majors?.length) {
@@ -78,6 +91,23 @@ export default function InfoFilesPage() {
   const [deletingFile, setDeletingFile] = useState<InfoFile | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // ── Faculty procedures / announcements — free-text companion to the file
+  // uploads above (requirements doc section 15). Separate scope state from
+  // the file-upload form so filling one form doesn't leak into the other.
+  const [contentItems, setContentItems] = useState<FacultyContentItem[]>([]);
+  const [contentType, setContentType] = useState<'procedure' | 'announcement'>('announcement');
+  const [contentTitleHe, setContentTitleHe] = useState('');
+  const [contentTitleEn, setContentTitleEn] = useState('');
+  const [contentBodyHe, setContentBodyHe] = useState('');
+  const [contentBodyEn, setContentBodyEn] = useState('');
+  const [contentScopeFacultyIds, setContentScopeFacultyIds] = useState<string[]>([]);
+  const [contentScopeMajors, setContentScopeMajors] = useState<string[]>([]);
+  const [contentScopeDegreeTypes, setContentScopeDegreeTypes] = useState<string[]>([]);
+  const [posting, setPosting] = useState(false);
+  const [contentError, setContentError] = useState('');
+  const [deletingContent, setDeletingContent] = useState<FacultyContentItem | null>(null);
+  const [deletingContentBusy, setDeletingContentBusy] = useState(false);
+
   // Visibility scoping — each empty means unrestricted for that axis (the
   // file stays visible to everyone along that dimension). A student must
   // match ALL three non-empty axes to see the file; enforced server-side in
@@ -89,11 +119,11 @@ export default function InfoFilesPage() {
   // Cascades to just the selected faculties' majors once any are picked —
   // otherwise the full cross-faculty list, since a major on its own is a
   // valid (if unusual) restriction too.
-  const availableMajors = useMemo(() => {
-    if (scopeFacultyIds.length === 0) return ALL_MAJORS;
+  const availableMajorsFor = (facultyIds: string[]) => {
+    if (facultyIds.length === 0) return ALL_MAJORS;
     const seen = new Set<string>();
     const out: typeof ALL_MAJORS = [];
-    for (const facultyId of scopeFacultyIds) {
+    for (const facultyId of facultyIds) {
       for (const m of majorsForFaculty(facultyId)) {
         if (seen.has(m.slug)) continue;
         seen.add(m.slug);
@@ -101,24 +131,31 @@ export default function InfoFilesPage() {
       }
     }
     return out;
-  }, [scopeFacultyIds]);
+  };
+
+  const availableMajors = useMemo(() => availableMajorsFor(scopeFacultyIds), [scopeFacultyIds]);
+  const contentAvailableMajors = useMemo(() => availableMajorsFor(contentScopeFacultyIds), [contentScopeFacultyIds]);
 
   const toggleIn = (list: string[], value: string, setList: (v: string[]) => void) => {
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   };
 
-  const toggleFaculty = (facultyId: string) => {
-    const next = scopeFacultyIds.includes(facultyId)
-      ? scopeFacultyIds.filter((v) => v !== facultyId)
-      : [...scopeFacultyIds, facultyId];
-    setScopeFacultyIds(next);
-    // Drop any selected major that no longer belongs to the (now narrower)
-    // set of faculties, so the stored scope never silently contradicts itself.
+  // Shared by both the file-upload and content-composer scope pickers — drops
+  // any selected major that no longer belongs to the (now narrower) set of
+  // faculties, so the stored scope never silently contradicts itself.
+  const makeToggleFaculty = (
+    facultyIds: string[], setFacultyIds: (v: string[]) => void, setMajors: (fn: (prev: string[]) => string[]) => void,
+  ) => (facultyId: string) => {
+    const next = facultyIds.includes(facultyId) ? facultyIds.filter((v) => v !== facultyId) : [...facultyIds, facultyId];
+    setFacultyIds(next);
     const validSlugs = new Set(
       next.length === 0 ? ALL_MAJORS.map((m) => m.slug) : next.flatMap((f) => majorsForFaculty(f).map((m) => m.slug))
     );
-    setScopeMajors((prev) => prev.filter((m) => validSlugs.has(m)));
+    setMajors((prev) => prev.filter((m) => validSlugs.has(m)));
   };
+
+  const toggleFaculty = makeToggleFaculty(scopeFacultyIds, setScopeFacultyIds, setScopeMajors);
+  const toggleContentFaculty = makeToggleFaculty(contentScopeFacultyIds, setContentScopeFacultyIds, setContentScopeMajors);
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -135,6 +172,71 @@ export default function InfoFilesPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchFiles' setState calls happen after its awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchFiles();
   }, [isAllowed, fetchFiles]);
+
+  const fetchContent = useCallback(async () => {
+    try {
+      const res = await apiClient.getFacultyContent();
+      setContentItems(res.items ?? []);
+    } catch {
+      setContentError(lang === 'he' ? 'טעינת התוכן נכשלה' : 'Failed to load content');
+    }
+  }, [lang]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchContent's setState calls happen after its awaited network call resolves, not synchronously in this effect
+    if (isAllowed) fetchContent();
+  }, [isAllowed, fetchContent]);
+
+  const handlePostContent = async () => {
+    if (!contentTitleHe.trim() && !contentTitleEn.trim()) {
+      setContentError(lang === 'he' ? 'יש להזין כותרת' : 'Please enter a title');
+      return;
+    }
+    if (!contentBodyHe.trim() && !contentBodyEn.trim()) {
+      setContentError(lang === 'he' ? 'יש להזין תוכן' : 'Please enter body text');
+      return;
+    }
+    setPosting(true);
+    setContentError('');
+    try {
+      await apiClient.createFacultyContent({
+        type: contentType,
+        titleHe: contentTitleHe.trim(),
+        titleEn: contentTitleEn.trim(),
+        bodyHe: contentBodyHe.trim(),
+        bodyEn: contentBodyEn.trim(),
+        facultyIds: contentScopeFacultyIds,
+        majors: contentScopeMajors,
+        degreeTypes: contentScopeDegreeTypes,
+      });
+      setContentTitleHe('');
+      setContentTitleEn('');
+      setContentBodyHe('');
+      setContentBodyEn('');
+      setContentScopeFacultyIds([]);
+      setContentScopeMajors([]);
+      setContentScopeDegreeTypes([]);
+      await fetchContent();
+    } catch (err) {
+      setContentError(err instanceof Error ? err.message : lang === 'he' ? 'הפרסום נכשל' : 'Failed to post');
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const handleDeleteContent = async () => {
+    if (!deletingContent) return;
+    setDeletingContentBusy(true);
+    try {
+      await apiClient.deleteFacultyContent(deletingContent.id);
+      setContentItems((prev) => prev.filter((c) => c.id !== deletingContent.id));
+      setDeletingContent(null);
+    } catch {
+      setContentError(lang === 'he' ? 'המחיקה נכשלה' : 'Delete failed');
+    } finally {
+      setDeletingContentBusy(false);
+    }
+  };
 
   const handleUpload = async () => {
     if (!pickedFile) {
@@ -336,6 +438,159 @@ export default function InfoFilesPage() {
         busy={deleting}
         onConfirm={handleDelete}
         onCancel={() => setDeletingFile(null)}
+      />
+
+      {/* ── Faculty procedures / announcements ──────────────────────────── */}
+      <div className="mb-6 mt-8 rounded-[var(--radius)] border border-line bg-surface p-5">
+        <p className="mb-3 text-sm font-semibold text-ink">
+          📢 {lang === 'he' ? 'נהלים והודעות שוטפות' : 'Procedures & Announcements'}
+        </p>
+
+        <div className="mb-3 flex gap-1.5">
+          {(['announcement', 'procedure'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setContentType(v)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                contentType === v ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+              }`}
+            >
+              {v === 'announcement' ? (lang === 'he' ? '📣 הודעה' : '📣 Announcement') : (lang === 'he' ? '📘 נוהל' : '📘 Procedure')}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת בעברית' : 'Title (Hebrew)'}</span>
+            <input dir="rtl" value={contentTitleHe} onChange={(e) => setContentTitleHe(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת באנגלית' : 'Title (English)'}</span>
+            <input dir="ltr" value={contentTitleEn} onChange={(e) => setContentTitleEn(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תוכן בעברית' : 'Body (Hebrew)'}</span>
+            <textarea dir="rtl" rows={3} value={contentBodyHe} onChange={(e) => setContentBodyHe(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תוכן באנגלית' : 'Body (English)'}</span>
+            <textarea dir="ltr" rows={3} value={contentBodyEn} onChange={(e) => setContentBodyEn(e.target.value)} className={inputCls} />
+          </label>
+        </div>
+
+        <div className="mt-4 grid gap-3 rounded-lg border border-line bg-paper p-3">
+          <p className="text-xs font-medium text-muted">
+            {lang === 'he' ? '🎯 חשיפה (אופציונלי) — השאר ריק כדי להציג לכולם' : '🎯 Visibility (optional) — leave blank to show everyone'}
+          </p>
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {SELECTABLE_FACULTIES.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => toggleContentFaculty(id)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    contentScopeFacultyIds.includes(id) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                  }`}
+                >
+                  {facultyLabel(id, lang)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'מגמה' : 'Major'}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {contentAvailableMajors.map((m) => (
+                <button
+                  key={m.slug}
+                  type="button"
+                  onClick={() => toggleIn(contentScopeMajors, m.slug, setContentScopeMajors)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    contentScopeMajors.includes(m.slug) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                  }`}
+                >
+                  {m.label[lang]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {DEGREE_TYPES.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => toggleIn(contentScopeDegreeTypes, d, setContentScopeDegreeTypes)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    contentScopeDegreeTypes.includes(d) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                  }`}
+                >
+                  {d === 'bachelors' ? (lang === 'he' ? "תואר ראשון" : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {contentError && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{contentError}</p>}
+
+        <button
+          type="button"
+          onClick={handlePostContent}
+          disabled={posting}
+          className="mt-3 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+        >
+          {posting ? '…' : lang === 'he' ? 'פרסם' : 'Post'}
+        </button>
+      </div>
+
+      <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'נהלים והודעות שפורסמו' : 'Published procedures & announcements'}</p>
+
+      {contentItems.length === 0 ? (
+        <p className="text-sm text-muted">{lang === 'he' ? 'אין תוכן עדיין' : 'Nothing published yet'}</p>
+      ) : (
+        <div className="grid gap-2">
+          {contentItems.map((c) => (
+            <div key={c.id} className="rounded-[var(--radius)] border border-line bg-surface p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{c.type === 'announcement' ? '📣' : '📘'}</span>
+                    <span className="truncate text-sm font-medium text-ink">{lang === 'he' ? c.titleHe || c.titleEn : c.titleEn || c.titleHe}</span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-muted">{lang === 'he' ? c.bodyHe || c.bodyEn : c.bodyEn || c.bodyHe}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{scopeSummary(c, lang)}</span>
+                <button type="button" onClick={() => setDeletingContent(c)} className="shrink-0 px-2 py-1 text-sm font-semibold text-danger hover:opacity-70">
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!deletingContent}
+        title={lang === 'he' ? 'מחיקת תוכן' : 'Delete content'}
+        message={
+          deletingContent
+            ? lang === 'he'
+              ? `האם למחוק את "${deletingContent.titleHe || deletingContent.titleEn}"?`
+              : `Delete "${deletingContent.titleEn || deletingContent.titleHe}"?`
+            : ''
+        }
+        confirmLabel={lang === 'he' ? 'מחק' : 'Delete'}
+        cancelLabel={t('cancel')}
+        destructive
+        busy={deletingContentBusy}
+        onConfirm={handleDeleteContent}
+        onCancel={() => setDeletingContent(null)}
       />
     </DashboardShell>
   );
