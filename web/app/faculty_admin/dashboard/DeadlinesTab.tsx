@@ -18,6 +18,8 @@
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { BulkDueDateModal } from '@/components/BulkDueDateModal';
+import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import type { FacultyAdminDeadline, FacultyAdminProjectRecord } from './types';
 
 interface DeadlinesTabProps {
@@ -32,6 +34,8 @@ export function DeadlinesTab({ deadlines, projects, onSaved }: DeadlinesTabProps
 
   return (
     <div>
+      <ExceptionalActionQueue />
+      <ExaminerEscalationPanel />
       <button
         type="button"
         onClick={() => setShowBulk(true)}

@@ -66,7 +66,15 @@ export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModa
         dueDate: parsed.toISOString(),
         reason: reason.trim(),
       });
-      setResult(lang === 'he' ? `✅ ${res.updatedCount ?? ''} אבני דרך עודכנו בהצלחה` : `✅ ${res.updatedCount ?? ''} milestone(s) updated successfully`);
+      if (res.pendingApproval) {
+        // coordinator/administrative_secretary — needs program_head/faculty_admin
+        // sign-off before it actually takes effect (P1 #12).
+        setResult(lang === 'he'
+          ? '⏳ הבקשה נשלחה לאישור ראש התוכנית/הפקולטה ותיושם רק לאחר אישור.'
+          : '⏳ This request was sent for program-head/faculty-admin approval and will only take effect once approved.');
+      } else {
+        setResult(lang === 'he' ? `✅ ${res.updatedCount ?? ''} אבני דרך עודכנו בהצלחה` : `✅ ${res.updatedCount ?? ''} milestone(s) updated successfully`);
+      }
       onSaved?.();
       setTimeout(onClose, 1200);
     } catch (err) {

@@ -34,6 +34,7 @@ interface DefenseAccessInfo {
   room?: string | null;
   building?: string | null;
   time?: string | null;
+  onlineDefenseLink?: string | null;
 }
 
 function DefenseAccessContent() {
@@ -122,6 +123,17 @@ function DefenseAccessContent() {
         <InfoRow label={t('defenseRoom')} value={info?.room ?? notSet} />
         <InfoRow label={t('defenseBuilding')} value={info?.building ?? notSet} />
       </div>
+
+      {info?.onlineDefenseLink && (
+        <a
+          href={info.onlineDefenseLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+        >
+          💻 {lang === 'he' ? 'הצטרפות להגנה המקוונת' : 'Join the online defense'}
+        </a>
+      )}
 
       <p className="mt-4 text-xs text-muted">{t('defenseAccessFootnote')}</p>
     </div>

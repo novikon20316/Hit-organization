@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { toDate } from '@/components/shared';
 import {
   View, Text, Pressable,
-  Modal, TextInput, ActivityIndicator,
+  Modal, TextInput, ActivityIndicator, Linking, Alert,
 } from 'react-native';
 import { Timestamp } from 'firebase/firestore';
 import { apiClient } from '../../src/api/apiClient';
@@ -39,6 +39,7 @@ export interface MilestoneData {
   defenseRoom:   string | null;
   defenseBuilding?: string | null;
   defenseTime?:  string | null;
+  onlineDefenseLink?: string | null;
   finalGrade:    number | null;
   fileUrls:      string[];
 }
@@ -139,16 +140,27 @@ function MilestoneCard({
   );
 
   const handleSaveDate = async (milestoneId: string) => {
-    if (!newDateText.trim()) return;
+    if (!newDateText.trim() || !reasonText.trim()) return;
     const parsed = new Date(newDateText);
     if (isNaN(parsed.getTime())) return;
     try {
       setSavingDate(true);
-      await apiClient.put(`/api/milestones/${milestoneId}`, {
+      const res = await apiClient.put(`/api/milestones/${milestoneId}`, {
         dueDate: parsed.toISOString(),
-        reason: reasonText.trim() || undefined,
+        reason: reasonText.trim(),
       });
-      onAdjustDate?.(milestone, parsed);
+      if (res.data.pendingApproval) {
+        // coordinator/administrative_secretary — needs program_head/faculty_admin
+        // sign-off before it actually takes effect (P1 #12).
+        Alert.alert(
+          '⏳',
+          lang === 'he'
+            ? 'הבקשה נשלחה לאישור ראש התוכנית/הפקולטה ותיושם רק לאחר אישור.'
+            : 'This request was sent for program-head/faculty-admin approval and will only take effect once approved.',
+        );
+      } else {
+        onAdjustDate?.(milestone, parsed);
+      }
       setShowDatePicker(false);
       setNewDateText('');
       setReasonText('');
@@ -227,7 +239,7 @@ function MilestoneCard({
           {canCoordinatorAdjust && (
             <Text
               style={mc.adjustBtn}
-              onPress={(e) => { e.stopPropagation?.(); setShowDatePicker(true); }}
+              onPress={(e) => { e.stopPropagation?.(); setSelectedMilestoneId(milestone.id); setShowDatePicker(true); }}
             >
               {'  '}✏️ {lang === 'he' ? 'שנה תאריך' : 'Adjust'}
             </Text>
@@ -264,6 +276,14 @@ function MilestoneCard({
               {milestone.defenseBuilding ? `  |  🏢 ${milestone.defenseBuilding}` : ''}
               {milestone.defenseRoom ? `  |  🏛️ ${milestone.defenseRoom}` : ''}
             </Text>
+            {milestone.onlineDefenseLink && (
+              <Text
+                style={[mc.defenseBannerText, { textDecorationLine: 'underline' }, isRtl && mc.textRight]}
+                onPress={() => Linking.openURL(milestone.onlineDefenseLink!)}
+              >
+                💻 {lang === 'he' ? 'הצטרפות מקוונת' : 'Join online'}
+              </Text>
+            )}
           </View>
         )}
 
@@ -409,7 +429,7 @@ function MilestoneCard({
               style={mc.modalInput}
               value={reasonText}
               onChangeText={setReasonText}
-              placeholder={lang === 'he' ? 'סיבת השינוי (אופציונלי)' : 'Reason for change (optional)'}
+              placeholder={lang === 'he' ? 'סיבת השינוי (נדרש)' : 'Reason for change (required)'}
               placeholderTextColor="#9BA8C0"
               textAlign={isRtl ? 'right' : 'left'}
             />

@@ -25,6 +25,7 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
   const [time, setTime] = useState('');
   const [room, setRoom] = useState('');
   const [building, setBuilding] = useState('');
+  const [onlineDefenseLink, setOnlineDefenseLink] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,7 +37,12 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
     setSaving(true);
     setError('');
     try {
-      await apiClient.assignDefenseLogistics('coordinator', project.id, { time: time.trim(), room: room.trim(), building });
+      await apiClient.assignDefenseLogistics('coordinator', project.id, {
+        time: time.trim(),
+        room: room.trim(),
+        building,
+        ...(onlineDefenseLink.trim() ? { onlineDefenseLink: onlineDefenseLink.trim() } : {}),
+      });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'שמירת פרטי ההגנה נכשלה' : 'Failed to save defense logistics');
@@ -78,6 +84,18 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
           <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'בניין' : 'Building'}</span>
           <DefenseBuildingPicker value={building} onChange={setBuilding} />
         </div>
+
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
+          </span>
+          <input
+            value={onlineDefenseLink}
+            onChange={(e) => setOnlineDefenseLink(e.target.value)}
+            placeholder="https://zoom.us/j/..."
+            className={inputCls}
+          />
+        </label>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
 

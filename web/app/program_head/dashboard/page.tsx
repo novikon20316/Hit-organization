@@ -18,6 +18,7 @@ import { getFacultyColor } from '@/lib/facultyColors';
 import type { AppRole } from '@/lib/roles';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { TrackChangeControl } from '@/components/TrackChangeControl';
+import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 
 const PROGRAM_HEAD_ROLES: AppRole[] = ['program_head', 'system_admin'];
 
@@ -217,6 +218,9 @@ export default function ProgramHeadDashboardPage() {
         </div>
       ) : tab === 'approvals' ? (
         <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <ExceptionalActionQueue />
+          </div>
           {approvals.map((item) => (
             <div key={item.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
               <p className="text-sm font-semibold text-ink">{item.studentName}</p>

@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { BulkDueDateModal } from '@/components/BulkDueDateModal';
+import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import type { CoordinatorDeadline, Project } from './types';
 
 interface DeadlinesTabProps {
@@ -23,6 +24,7 @@ export function DeadlinesTab({ deadlines, projects, onSaved }: DeadlinesTabProps
 
   return (
     <div>
+      <ExaminerEscalationPanel />
       <button
         type="button"
         onClick={() => setShowBulk(true)}

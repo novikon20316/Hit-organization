@@ -18,6 +18,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
+import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 
 const GRAD_SCHOOL_HEAD_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
 
@@ -99,6 +101,8 @@ export default function GradSchoolHeadDashboardPage() {
   const [unlockTargetId, setUnlockTargetId] = useState<string | null>(null);
   const [unlockReason, setUnlockReason] = useState('');
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
+  const [examinerRejectTargetId, setExaminerRejectTargetId] = useState<string | null>(null);
+  const [examinerRejectReason, setExaminerRejectReason] = useState('');
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -131,6 +135,33 @@ export default function GradSchoolHeadDashboardPage() {
       await fetchDashboard();
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'אישור הציון נכשל' : 'Failed to approve the grade');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleApproveExaminers = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.approveExaminerRecommendationFinal(item.id);
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'אישור רשימת הבוחנים נכשל' : 'Failed to approve the examiner list');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectExaminers = async (id: string) => {
+    if (!examinerRejectReason.trim()) return;
+    setApprovingId(id);
+    try {
+      await apiClient.rejectExaminerRecommendationFinal(id, examinerRejectReason.trim());
+      setExaminerRejectTargetId(null);
+      setExaminerRejectReason('');
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'דחיית רשימת הבוחנים נכשלה' : 'Failed to reject the examiner list');
     } finally {
       setApprovingId(null);
     }
@@ -207,6 +238,9 @@ export default function GradSchoolHeadDashboardPage() {
         <p className="text-sm text-muted">{t('loading')}</p>
       ) : tab === 'approvals' ? (
         <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <ExceptionalActionQueue />
+          </div>
           {approvals.map((item) => (
             <div
               key={item.id}
@@ -231,6 +265,38 @@ export default function GradSchoolHeadDashboardPage() {
                 >
                   {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${t('gradeApproved')}`}
                 </button>
+              ) : item.type === 'examiners' ? (
+                <>
+                  <p className="mt-2 text-xs text-muted">
+                    {lang === 'he' ? 'רשימת בוחנים לתזת מוסמכים — אושרה ע"י הרכז, ממתינה לאישורך' : 'Master\'s thesis examiner list — coordinator-approved, awaiting your sign-off'}
+                  </p>
+                  {examinerRejectTargetId === item.id && (
+                    <input
+                      value={examinerRejectReason}
+                      onChange={(e) => setExaminerRejectReason(e.target.value)}
+                      placeholder={lang === 'he' ? 'סיבת הדחייה' : 'Rejection reason'}
+                      className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                    />
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => (examinerRejectTargetId === item.id ? handleRejectExaminers(item.id) : setExaminerRejectTargetId(item.id))}
+                      disabled={approvingId === item.id}
+                      className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger disabled:opacity-60"
+                    >
+                      {examinerRejectTargetId === item.id ? (lang === 'he' ? 'שלח דחייה' : 'Submit rejection') : (lang === 'he' ? 'דחה' : 'Reject')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApproveExaminers(item)}
+                      disabled={approvingId === item.id}
+                      className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                    >
+                      {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                    </button>
+                  </div>
+                </>
               ) : (
                 <p className="mt-3 text-xs italic text-muted">
                   {lang === 'he' ? 'לצפייה ואישור, יש לפתוח את פאנל הניהול' : 'View and act on this from the admin panel'}
@@ -274,6 +340,9 @@ export default function GradSchoolHeadDashboardPage() {
         </div>
       ) : tab === 'examiners' ? (
         <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <ExaminerEscalationPanel />
+          </div>
           {examinerLoad.map((ex, i) => (
             <div
               key={i}

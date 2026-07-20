@@ -10,7 +10,7 @@
 // access on its own.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
@@ -29,6 +29,7 @@ interface DefenseAccessInfo {
   room?: string | null;
   building?: string | null;
   time?: string | null;
+  onlineDefenseLink?: string | null;
 }
 
 export default function DefenseAccessScreen() {
@@ -123,6 +124,12 @@ export default function DefenseAccessScreen() {
           <InfoRow label={L('חדר', 'Room')} value={info?.room ?? L('טרם נקבע', 'Not set yet')} />
           <InfoRow label={L('בניין', 'Building')} value={info?.building ?? L('טרם נקבע', 'Not set yet')} />
         </View>
+
+        {info?.onlineDefenseLink && (
+          <Pressable style={s.card} onPress={() => Linking.openURL(info.onlineDefenseLink!)}>
+            <Text style={[s.title, { fontSize: 16 }]}>💻 {L('הצטרפות להגנה המקוונת', 'Join the online defense')}</Text>
+          </Pressable>
+        )}
 
         <Text style={s.footnote}>
           {L('גישה זו תקפה עד חצות היום.', 'This access is valid until midnight tonight.')}

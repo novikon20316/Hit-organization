@@ -32,7 +32,15 @@ export type AuditAction =
   | 'examiner_dates_submitted'
   | 'clock_paused'
   | 'clock_resumed'
-  | 'track_changed';
+  | 'track_changed'
+  | 'exceptional_action_requested'
+  | 'exceptional_action_approved'
+  | 'exceptional_action_rejected'
+  | 'examiner_approval_requested'
+  | 'examiner_approval_decided'
+  | 'revision_decision_recorded'
+  | 'next_examiner_promoted'
+  | 'examiner_reminder_sent';
 
 export interface AuditLogEntry {
   userId: string;

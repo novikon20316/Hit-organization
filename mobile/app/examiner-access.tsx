@@ -64,7 +64,7 @@ export default function ExaminerAccessScreen() {
   // Token & loading state
   const [phase, setPhase]        = useState<
     'loading' | 'invalid' | 'expired' | 'pending' |
-    'accepted' | 'submitted' | 'declined' | 'error' | 'otp_required'
+    'accepted' | 'submitted' | 'declined' | 'superseded' | 'error' | 'otp_required'
   >('loading');
   const [tokenDoc, setTokenDoc]  = useState<ExaminerTokenDoc | null>(null);
 
@@ -152,6 +152,7 @@ export default function ExaminerAccessScreen() {
 
       if (status === 'expired')   { setPhase('expired');   return; }
       if (status === 'declined')  { setPhase('declined');  return; }
+      if (status === 'superseded') { setPhase('superseded'); return; }
       if (status === 'submitted') { setPhase('submitted'); return; }
       if (status === 'accepted')  { setPhase('accepted'); loadDefenseDateStatus(); return; }
       // default: 'pending'
@@ -458,6 +459,25 @@ export default function ExaminerAccessScreen() {
             {L(
               'דחית את בקשת השיפוט. הרכז יפנה אליך אם יש שאלות.',
               'You have declined this review assignment. The coordinator will reach out if needed.',
+            )}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Superseded (promoted to a replacement examiner) ─────────────────────────
+  if (phase === 'superseded') {
+    return (
+      <SafeAreaView style={s.root}>
+        <LangToggle lang={lang} onToggle={() => setLang(l => l === 'he' ? 'en' : 'he')} />
+        <View style={s.centered}>
+          <Text style={s.errorEmoji}>🔄</Text>
+          <Text style={s.errorTitle}>{L('המשימה הועברה לבוחן אחר', 'This assignment was reassigned')}</Text>
+          <Text style={s.errorSub}>
+            {L(
+              'שיפוט העבודה הועבר לבוחן אחר. אין צורך בפעולה נוספת מצדך.',
+              'This review was reassigned to another examiner. No further action is needed from you.',
             )}
           </Text>
         </View>

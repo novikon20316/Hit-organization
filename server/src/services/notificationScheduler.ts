@@ -18,6 +18,7 @@
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
+import { promoteNextExaminer } from './examinerEscalation.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -130,22 +131,33 @@ async function escalateOverdueExaminerToCoordinators(
 
 /**
  * Run on a schedule (see index.ts). Reminds an external examiner whose
- * review window is closing, and — once genuinely overdue — escalates to the
- * faculty's coordinators so a human can chase or reassign manually (no
- * automatic reassignment is implemented; per spec, that stays a coordinator
- * decision).
+ * review window is closing; once genuinely overdue OR declined, escalates to
+ * the faculty's coordinators AND best-effort auto-promotes the next examiner
+ * (see services/examinerEscalation.ts, P1 backlog item #6) — an internal
+ * examiner in the same faculty takes over automatically when one's
+ * available, otherwise the escalation notification says a human needs to
+ * pick one (no automatic *external* replacement — that always needs a
+ * coordinator's name/email/institution input).
  */
 export async function sendExaminerDeadlineReminders(): Promise<void> {
   const now = Date.now();
-  const snap = await db.collection('examinerTokens').where('status', 'in', ['pending', 'accepted']).get();
+  const snap = await db.collection('examinerTokens').where('status', 'in', ['pending', 'accepted', 'declined']).get();
 
   for (const doc of snap.docs) {
     const t = doc.data();
-    const expiresAt: Date | null = t.expiresAt ? new Date(t.expiresAt) : null;
-    if (!expiresAt) continue;
-    const msLeft = expiresAt.getTime() - now;
 
     try {
+      if (t.status === 'declined') {
+        if (t.declineHandledAt) continue;
+        await promoteNextExaminer(doc.id, 'system', 'system');
+        await doc.ref.update({ declineHandledAt: admin.firestore.FieldValue.serverTimestamp() });
+        continue;
+      }
+
+      const expiresAt: Date | null = t.expiresAt ? new Date(t.expiresAt) : null;
+      if (!expiresAt) continue;
+      const msLeft = expiresAt.getTime() - now;
+
       if (msLeft <= 7 * DAY_MS && msLeft > 0 && !t.warningReminderSentAt) {
         try {
           const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || '';
@@ -169,6 +181,8 @@ export async function sendExaminerDeadlineReminders(): Promise<void> {
       } else if (msLeft <= 0 && !t.overdueEscalatedAt) {
         await escalateOverdueExaminerToCoordinators(doc.id, t);
         await doc.ref.update({ overdueEscalatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        await promoteNextExaminer(doc.id, 'system', 'system').catch((err) =>
+          console.error(`sendExaminerDeadlineReminders: auto-promote failed for overdue token ${doc.id}:`, err));
       }
     } catch (err) {
       console.error(`sendExaminerDeadlineReminders: failed for token ${doc.id}:`, err);

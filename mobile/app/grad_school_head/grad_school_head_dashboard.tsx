@@ -14,6 +14,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { TopBar } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { GradSchoolHeadDashboardStyles } from '../../constants/styles';
+import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,8 @@ export default function GradSchoolHeadDashboard() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [unlockTargetId, setUnlockTargetId] = useState<string | null>(null);
   const [unlockReason, setUnlockReason] = useState('');
+  const [examinerRejectTargetId, setExaminerRejectTargetId] = useState<string | null>(null);
+  const [examinerRejectReason, setExaminerRejectReason] = useState('');
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
   const uid = auth.currentUser?.uid;
@@ -151,6 +154,42 @@ export default function GradSchoolHeadDashboard() {
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         e.response?.data?.message || (lang === 'he' ? 'אישור הציון נכשל' : 'Failed to approve the grade'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  // P1 #5 — second sign-off for msc_thesis examiner lists a coordinator
+  // already approved. See gradSchoolHeadController.ts's
+  // approveExaminerRecommendationFinal/rejectExaminerRecommendationFinal.
+  const handleApproveExaminers = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/grad-school-head/examiner-recommendations/${item.id}/approve`);
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'אישור רשימת הבוחנים נכשל' : 'Failed to approve the examiner list'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectExaminers = async (item: PendingApproval) => {
+    if (!examinerRejectReason.trim()) return;
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/grad-school-head/examiner-recommendations/${item.id}/reject`, { reason: examinerRejectReason.trim() });
+      setExaminerRejectTargetId(null);
+      setExaminerRejectReason('');
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'דחיית רשימת הבוחנים נכשלה' : 'Failed to reject the examiner list'),
       );
     } finally {
       setApprovingId(null);
@@ -261,6 +300,7 @@ export default function GradSchoolHeadDashboard() {
         {/* ── PENDING APPROVALS ── */}
         {activeTab === 'approvals' && (
           <>
+            <ExceptionalActionQueue lang={lang} />
             {(data?.pendingApprovals.length ?? 0) === 0 ? (
               <EmptyState emoji="✅" text={lang === 'he' ? 'אין פריטים הממתינים לאישורך' : 'Nothing pending your approval'} />
             ) : (
@@ -290,6 +330,54 @@ export default function GradSchoolHeadDashboard() {
                         </Text>
                       </Pressable>
                     </View>
+                  ) : item.type === 'examiners' ? (
+                    examinerRejectTargetId === item.id ? (
+                      <View style={{ marginTop: 10 }}>
+                        <TextInput
+                          value={examinerRejectReason}
+                          onChangeText={setExaminerRejectReason}
+                          placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
+                          multiline
+                          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                          <Pressable
+                            style={[s.btnReturn, { flex: 1, backgroundColor: examinerRejectReason.trim() ? '#EF4444' : '#FCA5A5' }]}
+                            onPress={() => handleRejectExaminers(item)}
+                            disabled={!examinerRejectReason.trim() || approvingId === item.id}
+                          >
+                            <Text style={[s.btnReturnText, { color: '#fff' }]}>
+                              {lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[s.btnReturn, { flex: 1 }]}
+                            onPress={() => { setExaminerRejectTargetId(null); setExaminerRejectReason(''); }}
+                          >
+                            <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={s.actionRow}>
+                        <Pressable
+                          style={s.btnReturn}
+                          onPress={() => setExaminerRejectTargetId(item.id)}
+                          disabled={approvingId === item.id}
+                        >
+                          <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
+                          onPress={() => handleApproveExaminers(item)}
+                          disabled={approvingId === item.id}
+                        >
+                          <Text style={s.btnApproveText}>
+                            {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )
                   ) : (
                     <View style={s.actionRow}>
                       <Pressable style={s.btnApprove} onPress={() =>

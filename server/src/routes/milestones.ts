@@ -9,6 +9,7 @@ import {
   updateMilestoneByCoordinator,
   bulkUpdateMilestoneDueDates,
 } from '../controllers/milestoneController.js'
+import { submitRevisionDecision, getExaminerOpinions } from '../controllers/revisionDecisionController.js';
 const router = Router();
 
 
@@ -25,6 +26,11 @@ router.post('/:milestoneId/submit', verifyToken, uploadMiddleware, submitMilesto
 router.put('/bulk-due-date', verifyToken, bulkUpdateMilestoneDueDates)
 // PUT /api/milestones/:id — coordinator/faculty_admin/administrative_secretary/system_admin adjusts a milestone's due date
 router.put('/:id', verifyToken, updateMilestoneByCoordinator)
+// GET /api/milestones/:milestoneId/examiner-opinions — read-only, feeds the decision UI
+router.get('/:milestoneId/examiner-opinions', verifyToken, getExaminerOpinions)
+// POST /api/milestones/:milestoneId/revision-decision — advisor/coordinator decides
+// proceed_to_defense/require_corrections/re_judge/add_examiner after examiner opinions are in
+router.post('/:milestoneId/revision-decision', verifyToken, submitRevisionDecision)
 
 
 export default router;

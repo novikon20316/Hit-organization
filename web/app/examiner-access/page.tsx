@@ -81,6 +81,10 @@ function ExaminerAccessContent() {
         setPhase('declined');
         return;
       }
+      if (status === 'superseded') {
+        setPhase('superseded');
+        return;
+      }
       if (status === 'submitted') {
         setPhase('submitted');
         return;
@@ -200,6 +204,17 @@ function ExaminerAccessContent() {
         <span className="text-4xl">✋</span>
         <h1 className="mt-2 text-xl font-semibold text-ink">{t('examinerDeclined')}</h1>
         <p className="mt-2 text-sm text-muted">{t('examinerDeclinedBody')}</p>
+      </div>
+    );
+  }
+
+  // ── Superseded (promoted to a replacement examiner) ─────────────────────
+  if (phase === 'superseded') {
+    return (
+      <div className="max-w-sm text-center">
+        <span className="text-4xl">🔄</span>
+        <h1 className="mt-2 text-xl font-semibold text-ink">{t('examinerSuperseded')}</h1>
+        <p className="mt-2 text-sm text-muted">{t('examinerSupersededBody')}</p>
       </div>
     );
   }

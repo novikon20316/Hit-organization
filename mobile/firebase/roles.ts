@@ -329,7 +329,8 @@ export type ExaminerTokenStatus =
   | 'accepted'    // examiner accepted the assignment
   | 'declined'    // examiner declined
   | 'submitted'   // opinion submitted
-  | 'expired';    // past deadline or manually revoked
+  | 'expired'     // past deadline or manually revoked
+  | 'superseded'; // replaced by a promoted next examiner after decline/timeout — see server/src/services/examinerEscalation.ts
 
 export interface ExaminerTokenDoc {
   token: string;               // UUID, used as Firestore doc ID

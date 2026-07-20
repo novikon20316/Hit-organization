@@ -24,6 +24,8 @@ import {
 import { transferGradeToMichlol } from '../services/gradeEngine.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, resolveProjectScope } from '../services/scopeAuthorization.js';
+import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../services/examinerAccess.js';
+import { openDefenseSchedulingIfPanelReady } from '../services/defenseScheduling.js';
 
 const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
 
@@ -33,6 +35,12 @@ const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
 // role's sign-off — see the gradeApproved field and approveFinalGrade below)
 // have real backing data. 'supervisor', 'proposal', and 'thesis' still have
 // no schema/status of their own; nothing is invented for those here.
+//
+// 'examiners' here specifically means "coordinator already approved, msc_thesis
+// only, now awaiting this role's second sign-off" (status: 'coordinator_approved'
+// — see coordinatorController.ts's approveExaminerRecommendation, P1 #5). Plain
+// 'pending' recommendations haven't even reached the coordinator's own approval
+// yet and don't belong on this queue.
 
 export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
@@ -49,7 +57,7 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
     const [projectsSnap, milestonesSnap, examinerRecsSnap, templatesSnap] = await Promise.all([
       db.collection('projects').where('degreeType', '==', 'masters').get(),
       db.collection('milestones').get(),
-      db.collection('examinerRecommendations').where('status', '==', 'pending').get(),
+      db.collection('examinerRecommendations').where('status', '==', 'coordinator_approved').get(),
       db.collection('facultyTemplates').where('status', '==', 'pending').get(),
     ]);
 
@@ -485,5 +493,145 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
   } catch (error: any) {
     console.error('revertFinalGradeApproval error:', error);
     return res.status(500).json({ message: 'Failed to unlock grade.' });
+  }
+};
+
+/**
+ * POST /api/grad-school-head/examiner-recommendations/:id/approve
+ *
+ * P1 backlog item #5 — second, cross-faculty sign-off for msc_thesis examiner
+ * lists a coordinator already approved (status: 'coordinator_approved' — see
+ * coordinatorController.ts's approveExaminerRecommendation, which routes
+ * msc_thesis recommendations here instead of sending invitations directly).
+ * This is the step that actually assigns internal examiners and emails
+ * external ones.
+ */
+export const approveExaminerRecommendationFinal = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to approve examiner lists.' });
+  }
+  const { id } = req.params;
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
+
+  try {
+    const recRef = db.collection('examinerRecommendations').doc(id);
+    const recSnap = await recRef.get();
+    if (!recSnap.exists) return res.status(404).json({ message: 'Recommendation not found.' });
+    const rec = recSnap.data()!;
+
+    if (rec.status !== 'coordinator_approved') {
+      return res.status(400).json({ message: `This recommendation is not awaiting grad-school-head approval (status: ${rec.status}).` });
+    }
+
+    const projectId = rec.projectId;
+    const projectSnap = await db.collection('projects').doc(projectId).get();
+    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    const project = projectSnap.data()!;
+
+    const studentSnaps = await Promise.all(
+      (project.enrolledStudentIds ?? []).map((sid: string) => db.collection('users').doc(sid).get())
+    );
+    const studentName = studentSnaps.map((s) => s.data()?.displayName).filter(Boolean).join(', ');
+
+    const examinerInputs: ExaminerAssignmentInput[] = (rec.recommendedExaminers ?? []).map((ex: any) =>
+      ex.type === 'internal'
+        ? { type: 'internal' as const, uid: ex.internalUserId }
+        : { type: 'external' as const, name: ex.name, email: ex.email, institution: ex.institution }
+    );
+
+    const result = await assignExaminersAndNotify(examinerInputs, {
+      projectId,
+      thesisTitle: rec.projectTitleHe || rec.projectTitleEn || project.titleHe || '',
+      studentName,
+      lang: 'he',
+    });
+
+    await db.collection('projects').doc(projectId).update({
+      examinerIds: result.internalUids,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await openDefenseSchedulingIfPanelReady(projectId, result);
+
+    await recRef.update({
+      status: 'approved',
+      decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+      decidedBy: uid,
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user.role,
+      action: 'examiner_approval_decided',
+      entityType: 'examinerRecommendation',
+      entityId: id,
+      newValue: { decision: 'approved', projectId },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Examiner list approved — invitations sent.',
+      internalAssigned: result.internalUids,
+      externalNotified: result.externalNotified,
+      externalFailed: result.externalFailed,
+    });
+  } catch (error: any) {
+    console.error('approveExaminerRecommendationFinal error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to approve examiner list.' });
+  }
+};
+
+/**
+ * POST /api/grad-school-head/examiner-recommendations/:id/reject
+ * Body: { reason: string }
+ * No examiners are assigned — sends the request back to the coordinator,
+ * who can propose a different list via assign-examiners.
+ */
+export const rejectExaminerRecommendationFinal = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to reject examiner lists.' });
+  }
+  const { id } = req.params;
+  const { reason } = req.body;
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ message: 'A reason is required to reject an examiner list.' });
+  }
+
+  try {
+    const recRef = db.collection('examinerRecommendations').doc(id);
+    const recSnap = await recRef.get();
+    if (!recSnap.exists) return res.status(404).json({ message: 'Recommendation not found.' });
+    const rec = recSnap.data()!;
+
+    if (rec.status !== 'coordinator_approved') {
+      return res.status(400).json({ message: `This recommendation is not awaiting grad-school-head approval (status: ${rec.status}).` });
+    }
+
+    await recRef.update({
+      status: 'rejected',
+      decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+      decidedBy: uid,
+      rejectionReason: reason,
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user.role,
+      action: 'examiner_approval_decided',
+      entityType: 'examinerRecommendation',
+      entityId: id,
+      newValue: { decision: 'rejected', projectId: rec.projectId },
+      explanation: reason,
+    });
+
+    return res.status(200).json({ success: true, message: 'Examiner list rejected.' });
+  } catch (error: any) {
+    console.error('rejectExaminerRecommendationFinal error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to reject examiner list.' });
   }
 };

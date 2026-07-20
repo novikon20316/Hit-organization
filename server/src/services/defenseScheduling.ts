@@ -109,6 +109,43 @@ async function findDefenseMilestoneRef(projectId: string) {
   return snap.docs[0]!.ref;
 }
 
+/**
+ * Builds the 2-member defense panel from an assignExaminersAndNotify() result
+ * and opens the defense date-matching window for it. Only fires once exactly
+ * 2 examiners were assigned — a defense panel is always 2 people; assignments
+ * of 1 (e.g. re-assigning a single examiner) don't start scheduling.
+ *
+ * Shared between coordinatorController.ts's single-tier approval path and
+ * gradSchoolHeadController.ts's msc_thesis second-tier approval (P1 #5) —
+ * moved here from coordinatorController.ts so both can call it without a
+ * cross-controller import.
+ */
+export async function openDefenseSchedulingIfPanelReady(
+  projectId: string,
+  result: { internalUids: string[]; externalNotified: Array<{ name: string; email: string; token: string }> },
+): Promise<void> {
+  const internalMembers: DefensePanelMember[] = await Promise.all(
+    result.internalUids.map(async (uid) => {
+      const userSnap = await db.collection('users').doc(uid).get();
+      return { type: 'internal' as const, ref: uid, displayName: userSnap.data()?.displayName ?? 'Unknown' };
+    }),
+  );
+  const externalMembers: DefensePanelMember[] = result.externalNotified.map((e) => ({
+    type: 'external' as const, ref: e.token, displayName: e.name, email: e.email,
+  }));
+  const panel = [...internalMembers, ...externalMembers];
+
+  if (panel.length !== 2) return;
+
+  try {
+    await initDefenseScheduling(projectId, panel);
+  } catch (error) {
+    // Most commonly: no 'defense' milestone exists yet for this project.
+    // Don't fail the examiner-assignment request over it — log for follow-up.
+    console.error(`Failed to open defense scheduling for project ${projectId}:`, error);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Opening the window — called once a 2-person defense panel is confirmed.
 // ─────────────────────────────────────────────────────────────────────────────

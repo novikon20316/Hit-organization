@@ -9,6 +9,8 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { deriveProcessType, getActiveMilestonesFor } from '../services/workflowTemplates.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
+import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
+import { requestExceptionalAction } from '../services/exceptionalActions.js';
 
 const db = admin.firestore();
 
@@ -160,6 +162,13 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
 // status — an emergency delay (illness, war, etc.) may need to push back a
 // deadline even for a milestone already submitted or approved.
 const UPDATE_MILESTONE_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'system_admin'];
+// P1 backlog item #12 — these two roles previously acted unilaterally
+// (deadline_overridden was only ever audit-logged AFTER the write went
+// through). They now need documented program_head/faculty_admin/system_admin
+// sign-off first — see services/exceptionalActions.ts. faculty_admin/
+// system_admin keep acting immediately: gating a senior role's own action
+// behind its own approval would be circular.
+const EXCEPTIONAL_ACTION_GATED_ROLES = ['coordinator', 'administrative_secretary'];
 
 export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
@@ -192,54 +201,28 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
   }
 
   try {
-    const milestoneRef = db.collection('milestones').doc(id);
-    const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) {
-      return res.status(404).json({ message: 'Milestone not found.' });
-    }
-    const milestoneData = milestoneSnap.data()!;
-    const previousDueDate = milestoneData.dueDate ?? null;
-
-    await milestoneRef.update({
-      dueDate: admin.firestore.Timestamp.fromDate(parsedDate),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    await logAuditEvent({
-      userId: req.user!.uid,
-      userRole: role,
-      action: 'deadline_overridden',
-      entityType: 'milestone',
-      entityId: id,
-      oldValue: { dueDate: previousDueDate?.toDate?.()?.toISOString?.() ?? previousDueDate },
-      newValue: { dueDate: parsedDate.toISOString() },
-      explanation: typeof reason === 'string' ? reason : undefined,
-    });
-
-    // Notification failures must never mask the due-date update above, which
-    // has already committed by this point — same defensive pattern as
-    // maybeOpenDefenseScheduling() in coordinatorController.ts.
-    const studentIds: string[] = milestoneData.studentIds ?? [];
-    try {
-      await Promise.all(studentIds.map((studentId) =>
-        db.collection('notifications').add({
-          recipientId: studentId,
-          type: 'milestone_date_adjusted',
-          titleHe: 'תאריך יעד עודכן 📅',
-          titleEn: 'Milestone Due Date Updated 📅',
-          bodyHe: `תאריך היעד עבור "${milestoneData.nameHe ?? milestoneData.type}" עודכן.`,
-          bodyEn: `The due date for "${milestoneData.nameEn ?? milestoneData.type}" was updated.`,
-          isRead: false,
-          relatedProjectId: milestoneData.projectId ?? null,
-          relatedMilestoneId: id,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        })
-      ));
-    } catch (notifyError) {
-      console.error(`Failed to notify students of due-date change for milestone ${id}:`, notifyError);
+    if (EXCEPTIONAL_ACTION_GATED_ROLES.includes(role)) {
+      if (typeof reason !== 'string' || !reason.trim()) {
+        return res.status(400).json({ message: 'A documented reason is required to request this exceptional action.' });
+      }
+      const request = await requestExceptionalAction({
+        type: 'deadline_override',
+        payload: { milestoneId: id, dueDate: parsedDate.toISOString() },
+        reason,
+        facultyId: updateScope.facultyId,
+        requestedBy: req.user!.uid,
+        requestedByRole: role,
+      });
+      return res.status(202).json({
+        success: true,
+        pendingApproval: true,
+        message: 'This deadline override requires program-head/faculty-admin approval before it takes effect.',
+        request,
+      });
     }
 
-    return res.status(200).json({ success: true, message: 'Milestone due date updated.' });
+    const result = await applySingleDueDateOverride(id, parsedDate, typeof reason === 'string' ? reason : undefined, req.user!.uid, role);
+    return res.status(200).json(result);
   } catch (error: any) {
     console.error('updateMilestoneByCoordinator error:', error);
     return res.status(500).json({ message: error.message || 'Failed to update milestone.' });
@@ -274,105 +257,45 @@ export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res
   }
 
   try {
-    // Firestore 'in' queries cap at 30 values — chunk projectIds accordingly.
-    const CHUNK_SIZE = 30;
-    const chunks: string[][] = [];
-    for (let i = 0; i < projectIds.length; i += CHUNK_SIZE) {
-      chunks.push(projectIds.slice(i, i + CHUNK_SIZE));
-    }
-
-    const snaps = await Promise.all(chunks.map((chunk) => {
-      let q: FirebaseFirestore.Query = db.collection('milestones').where('projectId', 'in', chunk);
-      if (typeof milestoneType === 'string' && milestoneType) {
-        q = q.where('type', '==', milestoneType);
+    if (EXCEPTIONAL_ACTION_GATED_ROLES.includes(role)) {
+      if (typeof reason !== 'string' || !reason.trim()) {
+        return res.status(400).json({ message: 'A documented reason is required to request this exceptional action.' });
       }
-      return q.get();
-    }));
-    const docs = snaps.flatMap((s) => s.docs);
-
-    if (docs.length === 0) {
-      return res.status(404).json({ message: 'No matching milestones found.' });
-    }
-
-    const affected = docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ref: doc.ref,
-        projectId: data.projectId as string | undefined,
-        studentIds: (data.studentIds ?? []) as string[],
-        nameHe: data.nameHe as string | undefined,
-        nameEn: data.nameEn as string | undefined,
-        type: data.type as string | undefined,
-        previousDueDate: data.dueDate ?? null,
-      };
-    });
-
-    // Firestore batches cap at 500 writes — chunk into multiple batches.
-    const BATCH_LIMIT = 450;
-    let batch = db.batch();
-    let opsInBatch = 0;
-    const commits: Promise<unknown>[] = [];
-    for (const m of affected) {
-      batch.update(m.ref, {
-        dueDate: admin.firestore.Timestamp.fromDate(parsedDate),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Faculty is resolved per-project at approval time by the underlying
+      // apply function; the request itself is scoped by the requester's own
+      // facultyId so it lands in the right approver's queue.
+      const request = await requestExceptionalAction({
+        type: 'bulk_deadline_override',
+        payload: {
+          projectIds,
+          dueDate: parsedDate.toISOString(),
+          ...(typeof milestoneType === 'string' && milestoneType ? { milestoneType } : {}),
+        },
+        reason,
+        facultyId: req.user!.facultyId,
+        requestedBy: req.user!.uid,
+        requestedByRole: role,
       });
-      opsInBatch++;
-      if (opsInBatch >= BATCH_LIMIT) {
-        commits.push(batch.commit());
-        batch = db.batch();
-        opsInBatch = 0;
-      }
-    }
-    if (opsInBatch > 0) commits.push(batch.commit());
-    await Promise.all(commits);
-
-    await Promise.all(affected.map((m) =>
-      logAuditEvent({
-        userId: req.user!.uid,
-        userRole: role,
-        action: 'deadline_overridden',
-        entityType: 'milestone',
-        entityId: m.id,
-        oldValue: { dueDate: m.previousDueDate?.toDate?.()?.toISOString?.() ?? m.previousDueDate },
-        newValue: { dueDate: parsedDate.toISOString() },
-        explanation: typeof reason === 'string' ? reason : undefined,
-      })
-    ));
-
-    // Notification failures must never mask the due-date updates above, which
-    // have already committed by this point — same defensive pattern as
-    // updateMilestoneByCoordinator.
-    try {
-      await Promise.all(affected.flatMap((m) =>
-        m.studentIds.map((studentId) =>
-          db.collection('notifications').add({
-            recipientId: studentId,
-            type: 'milestone_date_adjusted',
-            titleHe: 'תאריך יעד עודכן 📅',
-            titleEn: 'Milestone Due Date Updated 📅',
-            bodyHe: `תאריך היעד עבור "${m.nameHe ?? m.type}" עודכן.`,
-            bodyEn: `The due date for "${m.nameEn ?? m.type}" was updated.`,
-            isRead: false,
-            relatedProjectId: m.projectId ?? null,
-            relatedMilestoneId: m.id,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          })
-        )
-      ));
-    } catch (notifyError) {
-      console.error('Failed to notify students of bulk due-date change:', notifyError);
+      return res.status(202).json({
+        success: true,
+        pendingApproval: true,
+        message: 'This bulk deadline override requires program-head/faculty-admin approval before it takes effect.',
+        request,
+      });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: `Updated ${affected.length} milestone(s).`,
-      updatedCount: affected.length,
-    });
+    const result = await applyBulkDueDateOverride(
+      projectIds,
+      typeof milestoneType === 'string' ? milestoneType : undefined,
+      parsedDate,
+      typeof reason === 'string' ? reason : undefined,
+      req.user!.uid,
+      role,
+    );
+    return res.status(200).json(result);
   } catch (error: any) {
     console.error('bulkUpdateMilestoneDueDates error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to bulk-update milestones.' });
+    return res.status(error.message === 'No matching milestones found.' ? 404 : 500).json({ message: error.message || 'Failed to bulk-update milestones.' });
   }
 };
 

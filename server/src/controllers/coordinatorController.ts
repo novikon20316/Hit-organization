@@ -5,44 +5,12 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { assignExaminersAndNotify, ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import {
-  initDefenseScheduling,
   resolveKeepExaminers,
   resolveReplaceExaminer,
-  type DefensePanelMember,
+  openDefenseSchedulingIfPanelReady,
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
-
-/**
- * Builds the 2-member defense panel from an assignExaminersAndNotify() result
- * and opens the defense date-matching window for it. Only fires once exactly
- * 2 examiners were assigned — a defense panel is always 2 people; assignments
- * of 1 (e.g. re-assigning a single examiner) don't start scheduling.
- */
-async function maybeOpenDefenseScheduling(
-  projectId: string,
-  result: { internalUids: string[]; externalNotified: Array<{ name: string; email: string; token: string }> },
-): Promise<void> {
-  const internalMembers: DefensePanelMember[] = await Promise.all(
-    result.internalUids.map(async (uid) => {
-      const userSnap = await db.collection('users').doc(uid).get();
-      return { type: 'internal' as const, ref: uid, displayName: userSnap.data()?.displayName ?? 'Unknown' };
-    }),
-  );
-  const externalMembers: DefensePanelMember[] = result.externalNotified.map((e) => ({
-    type: 'external' as const, ref: e.token, displayName: e.name, email: e.email,
-  }));
-  const panel = [...internalMembers, ...externalMembers];
-
-  if (panel.length !== 2) return;
-
-  try {
-    await initDefenseScheduling(projectId, panel);
-  } catch (error) {
-    // Most commonly: no 'defense' milestone exists yet for this project.
-    // Don't fail the examiner-assignment request over it — log for follow-up.
-    console.error(`Failed to open defense scheduling for project ${projectId}:`, error);
-  }
-}
+import { deriveProcessType } from '../services/workflowTemplates.js';
 
 // Matches the Firestore project document shape exactly
 interface ProjectDocument {
@@ -152,7 +120,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    await maybeOpenDefenseScheduling(projectId, result);
+    await openDefenseSchedulingIfPanelReady(projectId, result);
 
     res.status(200).json({
       message: 'Examiners assigned',
@@ -244,6 +212,32 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
     );
     const studentName = studentSnaps.map((s) => s.data()?.displayName).filter(Boolean).join(', ');
 
+    // P1 backlog item #5 — master's thesis examiner lists need a second,
+    // grad_school_head sign-off before invitations actually go out. Every
+    // other process type keeps the coordinator's approval as final, exactly
+    // as before.
+    const processType = deriveProcessType(project.degreeType, project.projectType);
+    if (processType === 'msc_thesis') {
+      await recRef.update({
+        status: 'coordinator_approved',
+        coordinatorApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+        coordinatorApprovedBy: coordinatorId,
+      });
+      await logAuditEvent({
+        userId: coordinatorId,
+        userRole: req.user!.role,
+        action: 'examiner_approval_requested',
+        entityType: 'examinerRecommendation',
+        entityId: id,
+        newValue: { projectId, processType },
+      });
+      return res.status(200).json({
+        success: true,
+        message: 'Approved — awaiting grad-school-head sign-off before invitations are sent.',
+        requiresGradSchoolHeadApproval: true,
+      });
+    }
+
     const examinerInputs: ExaminerAssignmentInput[] = (rec.recommendedExaminers ?? []).map((ex: any) =>
       ex.type === 'internal'
         ? { type: 'internal' as const, uid: ex.internalUserId }
@@ -262,7 +256,7 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    await maybeOpenDefenseScheduling(projectId, result);
+    await openDefenseSchedulingIfPanelReady(projectId, result);
 
     await recRef.update({
       status:     'approved',
@@ -727,7 +721,7 @@ export const DEFENSE_ALLOWED_BUILDINGS = ['1', '2', '3', '4', '5', '6', '7', '8'
  */
 export const assignDefense = async (req: AuthenticatedRequest, res: Response) => {
   const { projectId } = req.params;
-  const { time, room, building } = req.body;
+  const { time, room, building, onlineDefenseLink } = req.body;
   const coordinatorId = req.user?.uid;
 
   if (!projectId || typeof projectId !== 'string') {
@@ -753,6 +747,13 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
     return res.status(400).json({
       message: 'Building 9 is under construction and unavailable. Please choose a building from 1-8.',
     });
+  }
+  // Optional — a remote/hybrid defense may add a meeting link alongside the
+  // physical room; not required since most defenses stay in-person only.
+  if (onlineDefenseLink !== undefined && onlineDefenseLink !== null && onlineDefenseLink !== '') {
+    if (typeof onlineDefenseLink !== 'string' || !/^https?:\/\//i.test(onlineDefenseLink)) {
+      return res.status(400).json({ message: 'onlineDefenseLink must be a valid http(s) URL.' });
+    }
   }
 
   try {
@@ -783,11 +784,14 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
       const panel: Array<{ type: 'internal' | 'external'; ref: string }> = milestone.defensePanel ?? [];
       const internalExaminerIds = panel.filter((m) => m.type === 'internal').map((m) => m.ref);
 
+      const onlineLink: string | null = onlineDefenseLink || null;
+
       // 1. Stamp logistics onto the project document
       transaction.update(projectRef, {
         defenseRoom: room,
         defenseBuilding: building,
         defenseTime: time,
+        onlineDefenseLink: onlineLink,
         defenseExaminerIds: internalExaminerIds,
         status: 'defense_scheduled',
         defenseSchedulingState: 'scheduled',
@@ -799,13 +803,14 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
         defenseRoom: room,
         defenseBuilding: building,
         defenseTime: time,
+        onlineDefenseLink: onlineLink,
         examinerIds: internalExaminerIds,
         status: 'scheduled',
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       const dateLabel = milestone.dueDate?.toDate?.().toLocaleDateString('en-GB') ?? '';
-      const logisticsLabel = `${time} · ${room}, ${building}`;
+      const logisticsLabel = `${time} · ${room}, ${building}${onlineLink ? ` · ${onlineLink}` : ''}`;
 
       // 3. Notify students
       studentIds.forEach((studentId) => {

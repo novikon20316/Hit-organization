@@ -16,6 +16,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { TopBar, getFacultyColor } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { ProgramHeadDashboardStyles } from '../../constants/styles';
+import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -266,6 +267,7 @@ export default function ProgramHeadDashboard() {
         {/* ── APPROVALS TAB ── */}
         {activeTab === 'approvals' && (
           <>
+            <ExceptionalActionQueue lang={lang} />
             {(data?.pendingApprovals.length ?? 0) === 0 ? (
               <EmptyState emoji="✅" text={lang === 'he' ? 'אין פריטים ממתינים' : 'Nothing pending'} />
             ) : (

@@ -9,6 +9,7 @@ export type ExaminerAccessPhase =
   | 'accepted'
   | 'submitted'
   | 'declined'
+  | 'superseded'
   | 'error'
   | 'otp_required';
 

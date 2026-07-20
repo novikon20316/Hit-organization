@@ -142,6 +142,8 @@ export const t = {
   examinerInvalidBody:          { he: 'הקישור שקיבלת אינו תקין. פנה לרכז הפקולטה לקבלת קישור חדש.', en: 'The link you received is invalid. Please contact the faculty coordinator for a new link.' },
   examinerExpiredBody:          { he: 'מועד השיפוט חלף. פנה לרכז הפקולטה לקבלת הארכה.', en: 'The review deadline has passed. Please contact the faculty coordinator for an extension.' },
   examinerDeclinedBody:         { he: 'דחית את בקשת השיפוט. הרכז יפנה אליך אם יש שאלות.', en: 'You have declined this review assignment. The coordinator will reach out if needed.' },
+  examinerSuperseded:           { he: 'המשימה הועברה לבוחן אחר', en: 'This assignment was reassigned' },
+  examinerSupersededBody:       { he: 'שיפוט העבודה הועבר לבוחן אחר. אין צורך בפעולה נוספת מצדך.', en: 'This review was reassigned to another examiner. No further action is needed from you.' },
   examinerSubmittedBody:        { he: 'חוות הדעת שלך התקבלה. תודה על שיתוף הפעולה.', en: 'Your opinion has been received. Thank you for your cooperation.' },
   examinerOpinionSubmittedAt:   { he: 'הוגש בתאריך:',                    en: 'Submitted at:' },
   examinerCouldNotOpenFile:     { he: 'לא ניתן לפתוח את הקובץ',          en: 'Could not open the file' },

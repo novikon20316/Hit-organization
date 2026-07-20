@@ -22,18 +22,24 @@ interface Props {
   isRtl: boolean;
   saving: boolean;
   onClose: () => void;
-  onSave: (fields: { time: string; room: string; building: string }) => void | Promise<void>;
+  onSave: (fields: { time: string; room: string; building: string; onlineDefenseLink?: string }) => void | Promise<void>;
 }
 
 export default function ScheduleDefenseModal({ visible, project, lang, isRtl, saving, onClose, onSave }: Props) {
   const [time, setTime] = useState('');
   const [room, setRoom] = useState('');
   const [building, setBuilding] = useState('');
+  const [onlineDefenseLink, setOnlineDefenseLink] = useState('');
 
-  const reset = () => { setTime(''); setRoom(''); setBuilding(''); };
+  const reset = () => { setTime(''); setRoom(''); setBuilding(''); setOnlineDefenseLink(''); };
   const handleClose = () => { reset(); onClose(); };
   const handleSave = async () => {
-    await onSave({ time: time.trim(), room: room.trim(), building });
+    await onSave({
+      time: time.trim(),
+      room: room.trim(),
+      building,
+      ...(onlineDefenseLink.trim() ? { onlineDefenseLink: onlineDefenseLink.trim() } : {}),
+    });
     reset();
   };
 
@@ -68,6 +74,16 @@ export default function ScheduleDefenseModal({ visible, project, lang, isRtl, sa
 
         <Text style={s.label}>{tx('defenseBuilding', lang)}</Text>
         <DefenseBuildingPicker value={building} onChange={setBuilding} lang={lang} />
+
+        <Text style={s.label}>{lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}</Text>
+        <TextInput
+          style={[s.input, isRtl && { textAlign: 'right' }]}
+          value={onlineDefenseLink}
+          onChangeText={setOnlineDefenseLink}
+          placeholder="https://zoom.us/j/..."
+          placeholderTextColor="#9CA3AF"
+          autoCapitalize="none"
+        />
 
         <Pressable style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
           {saving

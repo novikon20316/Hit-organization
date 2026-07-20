@@ -221,9 +221,10 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
   const [time,     setTime]     = useState('');
   const [room,     setRoom]     = useState('');
   const [building, setBuilding] = useState('');
+  const [onlineDefenseLink, setOnlineDefenseLink] = useState('');
   const [saving,   setSaving]   = useState(false);
 
-  const reset = () => { setTime(''); setRoom(''); setBuilding(''); };
+  const reset = () => { setTime(''); setRoom(''); setBuilding(''); setOnlineDefenseLink(''); };
   const handleClose = () => { reset(); onClose(); };
 
   const handleSave = async () => {
@@ -241,6 +242,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
         time: time.trim(),
         room: room.trim(),
         building,
+        ...(onlineDefenseLink.trim() ? { onlineDefenseLink: onlineDefenseLink.trim() } : {}),
       });
       Alert.alert('✅', lang === 'he' ? 'פרטי ההגנה נשמרו בהצלחה' : 'Defense logistics saved successfully');
       reset();
@@ -301,6 +303,18 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
         <View style={m.fieldWrap}>
           <Text style={m.fieldLabel}>{tx('defenseBuilding', lang)}</Text>
           <DefenseBuildingPicker value={building} onChange={setBuilding} lang={lang} />
+        </View>
+
+        <View style={m.fieldWrap}>
+          <Text style={m.fieldLabel}>{lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}</Text>
+          <TextInput
+            style={[m.input, isRtl && { textAlign: 'right' }]}
+            value={onlineDefenseLink}
+            onChangeText={setOnlineDefenseLink}
+            placeholder="https://zoom.us/j/..."
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="none"
+          />
         </View>
 
         <Pressable

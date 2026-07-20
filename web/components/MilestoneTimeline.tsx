@@ -21,6 +21,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
+import { RevisionDecisionPanel } from '@/components/RevisionDecisionPanel';
 import {
   MILESTONE_LABEL,
   STATUS_LABEL,
@@ -46,6 +47,7 @@ export interface MilestoneData {
   defenseRoom: string | null;
   defenseBuilding?: string | null;
   defenseTime?: string | null;
+  onlineDefenseLink?: string | null;
   examinerNames?: string[];
   examinerIds?: string[];
 }
@@ -133,6 +135,7 @@ function MilestoneCard({
   const [reasonText, setReasonText] = useState('');
   const [savingDate, setSavingDate] = useState(false);
   const [adjustError, setAdjustError] = useState('');
+  const [pendingApprovalNotice, setPendingApprovalNotice] = useState(false);
 
   const isCompleted = isCompletedStatus(milestone.status);
   const cfg = STATUS_CONFIG[milestone.status] ?? STATUS_CONFIG.pending;
@@ -155,13 +158,27 @@ function MilestoneCard({
       setAdjustError(lang === 'he' ? 'תאריך לא תקין' : 'Invalid date');
       return;
     }
+    if (!reasonText.trim()) {
+      setAdjustError(lang === 'he' ? 'יש לציין סיבה' : 'A reason is required');
+      return;
+    }
     setSavingDate(true);
     setAdjustError('');
     try {
-      await apiClient.updateMilestoneDueDate(milestone.id, {
+      const result = await apiClient.updateMilestoneDueDate(milestone.id, {
         dueDate: parsed.toISOString(),
-        reason: reasonText.trim() || undefined,
+        reason: reasonText.trim(),
       });
+      if (result.pendingApproval) {
+        // coordinator/administrative_secretary — this now needs program_head/
+        // faculty_admin sign-off before it actually takes effect (P1 #12).
+        setShowAdjust(false);
+        setNewDateText('');
+        setReasonText('');
+        setAdjustError('');
+        setPendingApprovalNotice(true);
+        return;
+      }
       onAdjustDate?.(milestone, parsed);
       setShowAdjust(false);
       setNewDateText('');
@@ -227,6 +244,14 @@ function MilestoneCard({
             {milestone.defenseTime ? ` · 🕐 ${milestone.defenseTime}` : ''}
             {milestone.defenseBuilding ? ` · 🏢 ${milestone.defenseBuilding}` : ''}
             {milestone.defenseRoom ? ` · 🏛️ ${milestone.defenseRoom}` : ''}
+            {milestone.onlineDefenseLink ? (
+              <>
+                {' · 💻 '}
+                <a href={milestone.onlineDefenseLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  {lang === 'he' ? 'הצטרפות מקוונת' : 'Join online'}
+                </a>
+              </>
+            ) : ''}
           </span>
         )}
         {milestone.finalGrade !== null && (
@@ -235,6 +260,14 @@ function MilestoneCard({
           </span>
         )}
       </div>
+
+      {pendingApprovalNotice && (
+        <p className="mt-2 rounded-md border border-accent bg-[#FBF3E3] px-2.5 py-1.5 text-xs text-accent">
+          ⏳ {lang === 'he'
+            ? 'הבקשה נשלחה לאישור ראש התוכנית/הפקולטה ותיושם רק לאחר אישור.'
+            : 'This request was sent for program-head/faculty-admin approval and will only take effect once approved.'}
+        </p>
+      )}
 
       {/* Adjust-date inline form */}
       {showAdjust && (
@@ -246,7 +279,7 @@ function MilestoneCard({
             onChange={(e) => setNewDateText(e.target.value)}
             className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none"
           />
-          <label className="mt-2 block text-xs font-medium text-ink">{`${t('reason')} (${t('optional')})`}</label>
+          <label className="mt-2 block text-xs font-medium text-ink">{t('reason')}</label>
           <input
             type="text"
             value={reasonText}
@@ -337,6 +370,10 @@ function MilestoneCard({
             >
               ✏️ {lang === 'he' ? 'מלא טופס ציון הגנה' : 'Fill Defense Grade Form'}
             </button>
+          )}
+
+          {(viewerRole === 'supervisor' || COORDINATOR_APPROVE_ROLES.includes(viewerRole)) && (
+            <RevisionDecisionPanel milestoneId={milestone.id} canDecide />
           )}
         </div>
       )}

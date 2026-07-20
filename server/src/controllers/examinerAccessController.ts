@@ -219,6 +219,7 @@ export const getDefenseAccessStatus = async (req: Request, res: Response) => {
       projectTitleEn: project?.titleEn ?? '',
       room: milestone?.defenseRoom ?? null,
       building: milestone?.defenseBuilding ?? null,
+      onlineDefenseLink: milestone?.onlineDefenseLink ?? null,
       time: milestone?.defenseTime ?? null,
     });
   } catch (error: any) {

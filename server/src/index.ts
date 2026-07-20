@@ -29,10 +29,13 @@ import legalRoutes from './routes/legal.js';
 import feedbackRoutes from './routes/feedback.js';
 import gradeHistoryRoutes from './routes/gradeHistory.js';
 import clockPauseRoutes from './routes/clockPause.js';
+import exceptionalActionRoutes from './routes/exceptionalActions.js';
+import examinerEscalationRoutes from './routes/examinerEscalation.js';
 import trackChangeRoutes from './routes/trackChange.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
+import { getFacultyContent } from './controllers/facultyContentController.js';
 import { getStudentStatusOptions } from './controllers/studentStatusController.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
@@ -52,6 +55,9 @@ app.get('/api/projects/:projectId/milestones', verifyToken, getMilestonesByQuery
 // not scoped under /api/admin or /api/coordinator, which only handle
 // uploading/deleting them.
 app.get('/api/info-files', verifyToken, getInfoFiles);
+// Same reasoning — free-text faculty procedures/announcements (requirements
+// doc section 15), companion to info-files' file attachments.
+app.get('/api/faculty-content', verifyToken, getFacultyContent);
 // Same reasoning as info-files above — any authenticated user needs to be
 // able to resolve a status key to a label wherever it's displayed, not just
 // whoever can edit the option lists (that's /api/admin/student-statuses).
@@ -109,6 +115,8 @@ app.use('/api/examiner-access', examinerAccessRoutes);
 app.use('/api/grades',        gradeHistoryRoutes);
 app.use('/api/projects',      clockPauseRoutes);
 app.use('/api/projects',      trackChangeRoutes);
+app.use('/api/exceptional-actions', exceptionalActionRoutes);
+app.use('/api/coordinator/examiner-escalations', examinerEscalationRoutes);
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error('Unhandled error:', err.stack);

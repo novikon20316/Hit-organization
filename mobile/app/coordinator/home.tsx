@@ -82,6 +82,7 @@ export default function CoordinatorHome() {
   const [defenseTime,      setDefenseTime]      = useState('');
   const [defenseRoom,      setDefenseRoom]      = useState('');
   const [defenseBuilding,  setDefenseBuilding]  = useState('');
+  const [onlineDefenseLink, setOnlineDefenseLink] = useState('');
 
   // Date-conflict resolution modal (no common date found between examiners)
   const [conflictModal, setConflictModal] = useState(false);
@@ -477,12 +478,14 @@ export default function CoordinatorHome() {
         time: defenseTime.trim(),
         room: defenseRoom.trim(),
         building: defenseBuilding.trim(),
+        ...(onlineDefenseLink.trim() ? { onlineDefenseLink: onlineDefenseLink.trim() } : {}),
       });
 
       setDefenseModal(false);
       setDefenseTime('');
       setDefenseRoom('');
       setDefenseBuilding('');
+      setOnlineDefenseLink('');
       Alert.alert('✅', lang === 'he' ? 'פרטי ההגנה נשמרו בהצלחה' : 'Defense logistics saved successfully');
       fetchCoordinatorDashboard();
     } catch (err) {
@@ -1762,6 +1765,17 @@ export default function CoordinatorHome() {
             {lang === 'he' ? 'בניין' : 'Building'}
           </Text>
           <DefenseBuildingPicker value={defenseBuilding} onChange={setDefenseBuilding} lang={lang} />
+
+          <Text style={styles.fieldLabel}>
+            {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={onlineDefenseLink}
+            onChangeText={setOnlineDefenseLink}
+            placeholder="https://zoom.us/j/..."
+            autoCapitalize="none"
+          />
 
           <Pressable
             style={[styles.submitBtn, saving && { opacity: 0.6 }]}

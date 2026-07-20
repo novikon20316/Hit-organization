@@ -93,6 +93,7 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           defenseRoom: milestoneData.defenseRoom ?? null,
           defenseBuilding: milestoneData.defenseBuilding ?? null,
           defenseTime: milestoneData.defenseTime ?? null,
+          onlineDefenseLink: milestoneData.onlineDefenseLink ?? null,
           defensePanel: milestoneData.defensePanel ?? [],
           dateMatching: milestoneData.dateMatching ?? null,
         };

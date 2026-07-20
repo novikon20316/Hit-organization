@@ -69,6 +69,22 @@ export class SoftError extends Error {
   }
 }
 
+// See server/src/services/exceptionalActions.ts.
+export interface ExceptionalActionRequest {
+  id: string;
+  type: 'deadline_override' | 'bulk_deadline_override';
+  payload: Record<string, unknown>;
+  reason: string;
+  facultyId: string;
+  requestedBy: string;
+  requestedByRole: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  decisionReason: string | null;
+}
+
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   params?: Record<string, string | number | boolean | undefined | null | string[]>;
   body?: unknown;
@@ -188,7 +204,12 @@ export const apiClient = {
    *  milestoneController.ts exactly). Distinct from bulkUpdateMilestoneDueDates
    *  below, which shifts the same date across many projects at once. */
   async updateMilestoneDueDate(id: string, payload: { dueDate: string; reason?: string }) {
-    return request<{ success: boolean; message: string }>(`/api/milestones/${id}`, { method: 'PUT', body: payload });
+    // coordinator/administrative_secretary now get a 202 + pendingApproval
+    // instead of an immediate write — see P1 #12 / services/exceptionalActions.ts.
+    // faculty_admin/system_admin still get an immediate 200.
+    return request<{ success: boolean; message: string; pendingApproval?: boolean; request?: ExceptionalActionRequest }>(
+      `/api/milestones/${id}`, { method: 'PUT', body: payload },
+    );
   },
 
   // ─── 3. NOTIFICATIONS ───────────────────────────────────────────────────────
@@ -308,6 +329,7 @@ export const apiClient = {
       room?: string | null;
       building?: string | null;
       time?: string | null;
+      onlineDefenseLink?: string | null;
     }>(`/api/examiner-access/defense/${encodeURIComponent(grantCode)}`, { method: 'GET' });
   },
 
@@ -709,6 +731,30 @@ export const apiClient = {
     return request<{ success: boolean; message: string }>(`/api/admin/info-files/${id}`, { method: 'DELETE' });
   },
 
+  /** Free-text faculty procedures/announcements — companion to info-files'
+   *  file attachments (requirements doc section 15). */
+  async getFacultyContent() {
+    return request<{
+      items: Array<{
+        id: string; type: 'procedure' | 'announcement'; titleHe: string; titleEn: string;
+        bodyHe: string; bodyEn: string; facultyIds: string[]; majors: string[]; degreeTypes: string[];
+        createdAt: string | null;
+      }>;
+    }>('/api/faculty-content', { method: 'GET' });
+  },
+
+  async createFacultyContent(payload: {
+    type: 'procedure' | 'announcement';
+    titleHe: string; titleEn: string; bodyHe: string; bodyEn: string;
+    facultyIds: string[]; majors: string[]; degreeTypes: string[];
+  }) {
+    return request<{ success: boolean; id: string }>('/api/admin/faculty-content', { method: 'POST', body: payload });
+  },
+
+  async deleteFacultyContent(id: string) {
+    return request<{ success: boolean; message: string }>(`/api/admin/faculty-content/${id}`, { method: 'DELETE' });
+  },
+
   // ─── 15. BULK IMPORT/EXPORT (admin/coordinator) ────────────────────────────
   async importStaffExcel(scope: 'admin' | 'coordinator', formData: FormData) {
     const path = scope === 'admin' ? '/api/admin/staff/import' : '/api/coordinator/staff/import';
@@ -1023,18 +1069,34 @@ export const apiClient = {
   /** Shared by coordinator, administrative_secretary, and system_admin — all
    *  three route to the same assignDefense controller (coordinatorController.ts),
    *  just mounted under different base paths ('admin' for the admin panel). */
-  async assignDefenseLogistics(basePath: 'admin' | 'coordinator' | 'project-coordinator', projectId: string, payload: { time: string; room: string; building: string }) {
+  async assignDefenseLogistics(basePath: 'admin' | 'coordinator' | 'project-coordinator', projectId: string, payload: { time: string; room: string; building: string; onlineDefenseLink?: string }) {
     return request<{ success: boolean; message: string }>(`/api/${basePath}/projects/${projectId}/assign-defense`, {
       method: 'POST',
       body: payload,
     });
   },
 
-  /** Shared by coordinator / administrative_secretary / system_admin. */
+  /** Shared by coordinator / administrative_secretary / system_admin. Same
+   *  pending-approval gate as updateMilestoneDueDate above for coordinator/
+   *  administrative_secretary callers. */
   async bulkUpdateMilestoneDueDates(payload: { projectIds: string[]; milestoneType?: string; dueDate: string; reason: string }) {
-    return request<{ success?: boolean; updatedCount?: number; message?: string }>('/api/milestones/bulk-due-date', {
+    return request<{ success?: boolean; updatedCount?: number; message?: string; pendingApproval?: boolean; request?: ExceptionalActionRequest }>('/api/milestones/bulk-due-date', {
       method: 'PUT',
       body: payload,
+    });
+  },
+
+  // ─── 18. EXCEPTIONAL ACTIONS — program_head/faculty_admin/grad_school_head/
+  // system_admin review coordinator/administrative_secretary's deadline
+  // overrides before they take effect (P1 #12). ──────────────────────────────
+  async getPendingExceptionalActions() {
+    return request<{ requests: ExceptionalActionRequest[] }>('/api/exceptional-actions/pending', { method: 'GET' });
+  },
+
+  async decideExceptionalAction(id: string, decision: 'approved' | 'rejected', reason?: string) {
+    return request<{ success: boolean; request: ExceptionalActionRequest }>(`/api/exceptional-actions/${id}/decide`, {
+      method: 'POST',
+      body: { decision, reason },
     });
   },
 
@@ -1083,6 +1145,19 @@ export const apiClient = {
   /** Reopens an already-approved final grade for correction — requires a reason. */
   async unlockFinalGrade(milestoneId: string, reason: string) {
     return request<{ success: boolean; message: string }>(`/api/grad-school-head/milestones/${milestoneId}/unlock-grade`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
+  /** Second, cross-faculty sign-off for msc_thesis examiner lists a coordinator
+   *  already approved — see gradSchoolHeadController.ts's approveExaminerRecommendationFinal (P1 #5). */
+  async approveExaminerRecommendationFinal(recommendationId: string) {
+    return request<{ success: boolean; message: string }>(`/api/grad-school-head/examiner-recommendations/${recommendationId}/approve`, { method: 'POST' });
+  },
+
+  async rejectExaminerRecommendationFinal(recommendationId: string, reason: string) {
+    return request<{ success: boolean; message: string }>(`/api/grad-school-head/examiner-recommendations/${recommendationId}/reject`, {
       method: 'POST',
       body: { reason },
     });
@@ -1211,7 +1286,72 @@ export const apiClient = {
       { method: 'POST', body: { newTrack, reason } },
     );
   },
+
+  // ─── 20. EXAMINER ESCALATION — coordinator/faculty_admin/administrative_secretary/
+  // grad_school_head/system_admin manually chase or reassign a declined/overdue
+  // external examiner (P1 #6; the scheduled sweep also does this automatically —
+  // see server/src/services/examinerEscalation.ts). ──────────────────────────
+  async getExaminerEscalations() {
+    return request<{ escalations: ExaminerEscalation[] }>('/api/coordinator/examiner-escalations', { method: 'GET' });
+  },
+
+  async remindExaminer(tokenId: string) {
+    return request<{ success: boolean; message: string }>(`/api/coordinator/examiner-escalations/${tokenId}/remind`, { method: 'POST' });
+  },
+
+  async promoteNextExaminer(tokenId: string) {
+    return request<{ success: boolean; message: string; promoted: { uid: string; displayName: string; activeLoad: number } | null }>(
+      `/api/coordinator/examiner-escalations/${tokenId}/promote-next`,
+      { method: 'POST' },
+    );
+  },
+
+  // ─── 21. REVISION DECISION — advisor/coordinator decides what happens after
+  // examiner opinions are in (P1 #13). ────────────────────────────────────────
+  async getExaminerOpinions(milestoneId: string) {
+    return request<{ opinions: ExaminerOpinion[]; allSubmitted: boolean; revisionDecisions: RevisionDecisionEntry[] }>(
+      `/api/milestones/${milestoneId}/examiner-opinions`,
+      { method: 'GET' },
+    );
+  },
+
+  async submitRevisionDecision(milestoneId: string, decision: RevisionDecisionType, note?: string) {
+    return request<{ success: boolean; status: string }>(`/api/milestones/${milestoneId}/revision-decision`, {
+      method: 'POST',
+      body: { decision, note },
+    });
+  },
 };
+
+// See server/src/services/revisionDecisions.ts (P1 #13).
+export type RevisionDecisionType = 'proceed_to_defense' | 'require_corrections' | 're_judge' | 'add_examiner';
+
+export interface ExaminerOpinion {
+  tokenId: string;
+  examinerName: string;
+  status: 'pending' | 'accepted' | 'declined' | 'submitted' | 'superseded';
+  opinion: { criteria?: Record<string, number>; total?: number; recommendation?: string; comments?: string } | null;
+  submittedAt: string | null;
+}
+
+export interface RevisionDecisionEntry {
+  decision: RevisionDecisionType;
+  note: string | null;
+  decidedBy: string;
+  decidedByRole: string;
+  decidedAt: string;
+}
+
+export interface ExaminerEscalation {
+  tokenId: string;
+  examinerName: string;
+  studentName: string;
+  thesisTitle: string;
+  status: 'pending' | 'accepted' | 'declined';
+  isOverdue: boolean;
+  projectId: string | null;
+  facultyId: string;
+}
 
 export type ClockPauseReason = 'reserve_duty' | 'illness' | 'maternity_paternity' | 'other';
 
