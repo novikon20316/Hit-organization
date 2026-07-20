@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  ActivityIndicator, Alert, RefreshControl, StyleSheet,
+  ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,6 +13,7 @@ import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import { TopBar } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
+import { GradSchoolHeadDashboardStyles } from '../../constants/styles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,14 +203,14 @@ export default function GradSchoolHeadDashboard() {
       </View>
 
       {/* Tab bar */}
-      <View style={s.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabBar}>
         {tabs.map(tab => (
           <Pressable
             key={tab.key}
             style={[s.tab, activeTab === tab.key && s.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]}>
+            <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.he : tab.en}
             </Text>
             {tab.badge > 0 && (
@@ -217,7 +218,7 @@ export default function GradSchoolHeadDashboard() {
             )}
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView
         contentContainerStyle={s.scroll}
@@ -374,59 +375,6 @@ function EmptyState({ emoji, text }: { emoji: string; text: string }) {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const ACCENT = '#7C3AED';
-
-const s = StyleSheet.create({
-  root:      { flex: 1, backgroundColor: '#F5F3FF' },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll:    { padding: 16 },
-
-  statsStrip:  { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10,
-                 backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  statCard:    { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
-  statValue:   { fontSize: 22, fontWeight: '800' },
-  statLabel:   { fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 2 },
-
-  tabBar:      { flexDirection: 'row', backgroundColor: '#fff',
-                 borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  tab:         { flex: 1, paddingVertical: 12, alignItems: 'center', flexDirection: 'row',
-                 justifyContent: 'center', gap: 4 },
-  tabActive:   { borderBottomWidth: 2, borderBottomColor: ACCENT },
-  tabText:     { fontSize: 12, color: '#64748B' },
-  tabTextActive:{ fontSize: 12, color: ACCENT, fontWeight: '700' },
-  badge:       { backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 5,
-                 paddingVertical: 1 },
-  badgeText:   { color: '#fff', fontSize: 10, fontWeight: '700' },
-
-  card:        { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12,
-                 borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.05,
-                 shadowRadius: 6, elevation: 2 },
-  cardTitle:   { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
-  cardSub:     { fontSize: 13, color: '#64748B', marginBottom: 2 },
-  cardDate:    { fontSize: 12, color: '#94A3B8' },
-  row:         { flexDirection: 'row', justifyContent: 'space-between',
-                 alignItems: 'center', marginBottom: 6 },
-  typePill:    { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  typePillText:{ fontSize: 12, fontWeight: '600' },
-
-  actionRow:   { flexDirection: 'row', gap: 8, marginTop: 10 },
-  btnApprove:  { flex: 1, backgroundColor: '#D1FAE5', borderRadius: 8,
-                 padding: 10, alignItems: 'center' },
-  btnApproveText:{ color: '#065F46', fontWeight: '700', fontSize: 13 },
-  btnReturn:   { flex: 1, backgroundColor: '#FEF3C7', borderRadius: 8,
-                 padding: 10, alignItems: 'center' },
-  btnReturnText:{ color: '#92400E', fontWeight: '700', fontSize: 13 },
-
-  statsRow:    { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 },
-  miniStat:    { alignItems: 'center' },
-  miniStatValue:{ fontSize: 18, fontWeight: '800' },
-  miniStatLabel:{ fontSize: 10, color: '#64748B', marginTop: 2 },
-
-  stuckBadge:     { backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 10,
-                    paddingVertical: 4, alignSelf: 'flex-start', marginTop: 8 },
-  stuckBadgeText: { color: '#991B1B', fontWeight: '600', fontSize: 12 },
-
-  empty:     { alignItems: 'center', paddingVertical: 48 },
-  emptyEmoji:{ fontSize: 48, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: '#64748B', textAlign: 'center' },
-});
+// ACCENT ('#7C3AED') is now inlined directly in GradSchoolHeadDashboardStyles
+// (constants/styles.ts) since that's its only use.
+const s = GradSchoolHeadDashboardStyles;

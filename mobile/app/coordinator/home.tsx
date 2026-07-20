@@ -755,25 +755,7 @@ export default function CoordinatorHome() {
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
       />
 
-      <Pressable
-        style={{ marginHorizontal: 16, marginTop: 4, marginBottom: 8, backgroundColor: '#EDE9FE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
-        onPress={() => router.push('/WorkflowTemplateManager' as any)}
-      >
-        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
-          🧬 {lang === 'he' ? 'ניהול תבניות אבני דרך' : 'Manage Milestone Templates'}
-        </Text>
-      </Pressable>
-
-      <Pressable
-        style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#DBEAFE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
-        onPress={() => router.push('/Reports' as any)}
-      >
-        <Text style={{ color: '#2E86FF', fontWeight: '700', fontSize: 13 }}>
-          📊 {lang === 'he' ? 'דוחות' : 'Reports'}
-        </Text>
-      </Pressable>
-
-      <View style={styles.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
           { key: 'pending', heLabel: 'ממתין לאישור', enLabel: 'Pending Approval', badge: pendingMilestones.length },
           { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: sortedDefenseCards.length },
@@ -785,7 +767,7 @@ export default function CoordinatorHome() {
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.heLabel : tab.enLabel}
             </Text>
             {tab.badge > 0 && (
@@ -799,9 +781,9 @@ export default function CoordinatorHome() {
           style={[styles.tab, activeTab === 'deadlines' && styles.tabActive]}
           onPress={() => setActiveTab('deadlines')}
         >
-          <Text style={styles.tabText}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
+          <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
         </Pressable>
-      </View>
+      </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content}>
 
@@ -1541,6 +1523,8 @@ export default function CoordinatorHome() {
         corner="bottom-right"
         color="#8B5CF6"
         actions={[
+          { key: 'templates', icon: '🧬', label: lang === 'he' ? 'ניהול תבניות אבני דרך' : 'Manage Milestone Templates', onPress: () => router.push('/WorkflowTemplateManager' as any) },
+          { key: 'reports', icon: '📊', label: lang === 'he' ? 'דוחות' : 'Reports', onPress: () => router.push('/Reports' as any) },
           { key: 'import', icon: '📥', label: lang === 'he' ? 'ייבוא סגל' : 'Import Staff', onPress: handleImportStaff, loading: importingStaff },
           { key: 'importRoster', icon: '🎓', label: lang === 'he' ? 'ייבוא רשימת סטודנטים' : 'Import Student Roster', onPress: handleImportStudentRoster, loading: importingRoster },
           { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Roster', onPress: handleExportUsers, loading: exportingUsers },

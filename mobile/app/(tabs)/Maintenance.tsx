@@ -3,7 +3,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Pressable,
   ActivityIndicator,
   ScrollView,
@@ -14,6 +13,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import { MaintenanceStatus } from '@/hooks/useMaintenanceCheck';
+import { MaintenanceScreenStyles } from '../../constants/styles';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -187,93 +187,4 @@ export default function MaintenanceScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: '#F0F4FF' },
-  scroll: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-    paddingVertical: 48,
-  },
-
-  iconWrap: {
-    width: 88, height: 88,
-    borderRadius: 24,
-    backgroundColor: '#1a1a2e',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 28,
-  },
-  iconEmoji: { fontSize: 42 },
-
-  heading: {
-    fontSize: 26, fontWeight: '700',
-    color: '#1a1a2e', textAlign: 'center',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 15, fontWeight: '500',
-    color: '#7F77DD', textAlign: 'center',
-    marginBottom: 16,
-  },
-  body: {
-    fontSize: 14, color: '#64748B',
-    textAlign: 'center', lineHeight: 22,
-    marginBottom: 32,
-  },
-
-  // Countdown
-  countdownCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  countdownLabel: {
-    fontSize: 11, fontWeight: '600',
-    color: '#94A3B8', textTransform: 'uppercase',
-    letterSpacing: 0.6, marginBottom: 16,
-  },
-  countdownRow: {
-    flexDirection: 'row', alignItems: 'center',
-  },
-  countdownUnit:      { alignItems: 'center', minWidth: 56 },
-  countdownNum: {
-    fontSize: 44, fontWeight: '700',
-    color: '#1a1a2e', lineHeight: 52,
-  },
-  countdownUnitLabel: {
-    fontSize: 11, color: '#94A3B8',
-    fontWeight: '500', marginTop: 2,
-  },
-  countdownColon: {
-    fontSize: 38, fontWeight: '700',
-    color: '#CBD5E1', marginBottom: 16, paddingHorizontal: 4,
-  },
-  endsAtText: {
-    fontSize: 12, color: '#94A3B8',
-    marginTop: 14, textAlign: 'center',
-  },
-
-  // Buttons
-  refreshBtn: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    minWidth: 180,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  refreshBtnText: { color: '#fff', fontSize: 15, fontWeight: '500' },
-
-  signOutLink: {
-    color: '#94A3B8', fontSize: 13,
-    textDecorationLine: 'underline',
-    marginTop: 4,
-  },
-});
+const s = MaintenanceScreenStyles;

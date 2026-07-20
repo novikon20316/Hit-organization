@@ -7,10 +7,10 @@ import {
   Pressable,
   TextInput,
   Switch,
-  StyleSheet,
   ActivityIndicator,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { MaintenanceModalStyles } from '../../constants/styles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -419,73 +419,4 @@ export default function MaintenanceModal({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet:   { backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "94%", overflow: "hidden" },
-
-  header:      { backgroundColor: "#1a1a2e", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  headerLeft:  { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  headerIcon:  { width: 40, height: 40, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  headerIconText: { fontSize: 20 },
-  headerTitle: { fontSize: 16, fontWeight: "500", color: "#FFFFFF", marginBottom: 2 },
-  headerSub:   { fontSize: 12, color: "rgba(255,255,255,0.55)" },
-  closeBtn:    { width: 30, height: 30, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 8, alignItems: "center", justifyContent: "center", marginLeft: 8 },
-  closeBtnText:{ color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: "500" },
-
-  body:         { paddingBottom: 8 },
-  section:      { paddingHorizontal: 20, paddingVertical: 18 },
-  sectionLabel: { fontSize: 11, fontWeight: "600", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 },
-  input:        { backgroundColor: "#F8FAFC", borderWidth: 0.5, borderColor: "#CBD5E1", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: "#0F172A", marginBottom: 6 },
-  fieldHint:    { fontSize: 12, color: "#94A3B8", lineHeight: 18, marginBottom: 12 },
-  divider:      { height: 0.5, backgroundColor: "#E2E8F0", marginHorizontal: 20 },
-
-  // Role chips
-  selectAllRow:     { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
-  selectAllBox:     { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" },
-  selectAllBoxActive:{ backgroundColor: "#1a1a2e", borderColor: "#1a1a2e" },
-  selectAllCheck:   { color: "#fff", fontSize: 13, fontWeight: "700" },
-  selectAllText:    { fontSize: 13, color: "#475569", fontWeight: "500" },
-
-  rolesGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
-  roleChip:        { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC" },
-  roleChipSelected:{ backgroundColor: "#EEF2FF", borderColor: "#7F77DD" },
-  roleChipDot:     { width: 7, height: 7, borderRadius: 4, backgroundColor: "#CBD5E1" },
-  roleChipDotSelected: { backgroundColor: "#7F77DD" },
-  roleChipText:    { fontSize: 13, color: "#64748B", fontWeight: "500" },
-  roleChipTextSelected: { color: "#4338CA" },
-  roleChipCheck:   { fontSize: 12, color: "#7F77DD", fontWeight: "700" },
-
-  warningBox:  { backgroundColor: "#FFF7ED", borderRadius: 10, padding: 12, borderWidth: 0.5, borderColor: "#FED7AA", marginTop: 8 },
-  warningText: { fontSize: 12, color: "#C2410C", lineHeight: 18 },
-
-  infoBox:  { backgroundColor: "#F0F9FF", borderRadius: 10, padding: 12, borderWidth: 0.5, borderColor: "#BAE6FD", marginTop: 10 },
-  infoText: { fontSize: 12, color: "#0369A1", lineHeight: 18 },
-
-  // Time pickers
-  timeRow:      { flexDirection: "row", gap: 8 },
-  timeUnit:     { flex: 1, alignItems: "center" },
-  timeUnitLabel:{ fontSize: 11, fontWeight: "500", color: "#64748B", marginBottom: 4 },
-  pickerWrap:   { backgroundColor: "#F8FAFC", borderWidth: 0.5, borderColor: "#CBD5E1", borderRadius: 10, overflow: "hidden", width: "100%" },
-  picker:       { height: 100 },
-  pickerItem:   { fontSize: 18, fontWeight: "500", color: "#0F172A" },
-  hintBelow:    { fontSize: 12, color: "#7C3AED", textAlign: "center", marginTop: 10 },
-
-  // Broadcast row
-  broadcastRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#F8FAFC", borderWidth: 0.5, borderColor: "#E2E8F0", borderRadius: 12, padding: 14 },
-  broadcastInfo:{ flex: 1, marginRight: 12 },
-  broadcastLabel:{ fontSize: 13, fontWeight: "500", color: "#0F172A", marginBottom: 2 },
-  broadcastSub:  { fontSize: 11, color: "#94A3B8" },
-
-  // Preview
-  previewBox:   { backgroundColor: "#1a1a2e", borderRadius: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: "#7F77DD" },
-  previewLabel: { fontSize: 10, fontWeight: "600", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 },
-  previewText:  { fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 20 },
-
-  // Footer
-  footer:          { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28, gap: 8, borderTopWidth: 0.5, borderTopColor: "#E2E8F0", backgroundColor: "#FFFFFF" },
-  saveBtn:         { backgroundColor: "#1a1a2e", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  saveBtnDisabled: { backgroundColor: "#94A3B8" },
-  saveBtnText:     { color: "#FFFFFF", fontSize: 15, fontWeight: "500" },
-  cancelBtn:       { borderWidth: 0.5, borderColor: "#CBD5E1", borderRadius: 12, paddingVertical: 12, alignItems: "center" },
-  cancelBtnText:   { color: "#64748B", fontSize: 14 },
-});
+const s = MaintenanceModalStyles;

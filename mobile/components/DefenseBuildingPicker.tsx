@@ -4,8 +4,9 @@
 // DEFENSE_ALLOWED_BUILDINGS in server/src/controllers/coordinatorController.ts.
 
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import type { Lang } from './i18n';
+import { DefenseBuildingPickerStyles } from '../constants/styles';
 
 export const DEFENSE_BUILDINGS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 export const AVAILABLE_DEFENSE_BUILDINGS = ['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -44,14 +45,4 @@ export default function DefenseBuildingPicker({ value, onChange, lang }: Props) 
   );
 }
 
-const s = StyleSheet.create({
-  row:              { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  chip:             { minWidth: 44, alignItems: 'center', borderWidth: 1.5, borderColor: '#CBD5E1',
-                       borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: '#fff' },
-  chipSelected:     { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  chipDisabled:     { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' },
-  chipText:         { fontSize: 15, fontWeight: '700', color: '#374151' },
-  chipTextSelected: { color: '#fff' },
-  chipTextDisabled: { color: '#94A3B8' },
-  chipSubText:      { fontSize: 8, color: '#94A3B8', marginTop: 2 },
-});
+const s = DefenseBuildingPickerStyles;

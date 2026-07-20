@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Pressable,
+  ActivityIndicator, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
@@ -17,6 +17,7 @@ import { apiClient } from '../../src/api/apiClient';
 import { auth, db } from '@/src/firebase/firebase';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
+import { ChangePasswordStyles } from '../../constants/styles';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
@@ -111,14 +112,4 @@ export default function ChangePasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#F0F4FF' },
-  title:          { fontSize: 24, fontWeight: 'bold', marginBottom: 8, color: '#1a1a2e' },
-  subtitle:       { textAlign: 'center', color: '#666', marginBottom: 32, lineHeight: 22 },
-  input:          { borderWidth: 2, borderColor: '#2E86FF', borderRadius: 12, padding: 14, width: '100%', fontSize: 16, marginBottom: 12, backgroundColor: '#fff' },
-  button:         { backgroundColor: '#2E86FF', padding: 16, borderRadius: 12, width: '100%', alignItems: 'center', marginTop: 8 },
-  buttonDisabled: { backgroundColor: '#a0c4ff' },
-  buttonText:     { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  error:          { color: '#e74c3c', marginBottom: 8, textAlign: 'center' },
-  backLink:       { marginTop: 24, color: '#2E86FF', fontSize: 14 },
-});
+const styles = ChangePasswordStyles;

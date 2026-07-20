@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Modal, TextInput, ActivityIndicator,
+  View, Text, Pressable, Modal, TextInput, ActivityIndicator,
 } from 'react-native';
 import {
   EmailAuthProvider, reauthenticateWithCredential,
@@ -15,6 +15,7 @@ import {
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient';
 import type { Lang } from '../i18n';
+import { DeleteAccountModalStyles } from '../../constants/styles';
 
 interface Props {
   visible: boolean;
@@ -135,25 +136,4 @@ export default function DeleteAccountModal({ visible, onClose, lang, onRequested
   );
 }
 
-const s = StyleSheet.create({
-  root:      { flex: 1, backgroundColor: '#fff' },
-  header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-               padding: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  title:     { fontSize: 18, fontWeight: '800', color: '#1E293B' },
-  closeBtn:  { padding: 4 },
-  closeText: { fontSize: 20, color: '#64748B' },
-  body:      { padding: 20 },
-  textRight: { textAlign: 'right' },
-  warning:   { fontSize: 14, color: '#991B1B', backgroundColor: '#FEE2E2', borderRadius: 10,
-               padding: 14, marginBottom: 20, lineHeight: 20 },
-  label:     { fontSize: 13, fontWeight: '600', color: '#445', marginBottom: 6 },
-  input:     { backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0',
-               padding: 14, fontSize: 16, color: '#111', marginBottom: 8 },
-  error:     { color: '#EF4444', fontSize: 13, marginBottom: 8 },
-  confirmBtn:{ backgroundColor: '#EF4444', borderRadius: 12, paddingVertical: 14,
-               alignItems: 'center', marginTop: 12 },
-  btnDisabled:{ opacity: 0.5 },
-  confirmBtnText:{ color: '#fff', fontWeight: '700', fontSize: 15 },
-  cancelBtn: { paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  cancelBtnText:{ color: '#64748B', fontWeight: '600', fontSize: 14 },
-});
+const s = DeleteAccountModalStyles;

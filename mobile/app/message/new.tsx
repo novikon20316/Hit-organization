@@ -8,12 +8,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, Pressable, TextInput, FlatList,
-  StyleSheet, ActivityIndicator, Modal,
+  ActivityIndicator, Modal,
   Animated, Dimensions, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { auth } from '../../src/firebase/firebase';
 import { palette, spacing, fontSize, fontWeight, radius } from '../../constants/theme';
 import { apiClient } from '@/src/api/apiClient';
+import { NewMessageStyles } from '../../constants/styles';
 
 
 const { height: SCREEN_H } = Dimensions.get('window');
@@ -324,143 +325,4 @@ export function roleColor(role: string): string {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const ss = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  sheet: {
-    position:             'absolute',
-    bottom: 0, left: 0, right: 0,
-    height:               SCREEN_H * 0.82,
-    backgroundColor:      palette.bgMain,
-    borderTopLeftRadius:  28,
-    borderTopRightRadius: 28,
-    overflow:             'hidden',
-    shadowColor:          '#000',
-    shadowOffset:         { width: 0, height: -4 },
-    shadowOpacity:        0.15,
-    shadowRadius:         20,
-    elevation:            20,
-  },
-  handle: {
-    width: 40, height: 4,
-    backgroundColor: palette.borderLight,
-    borderRadius:    2,
-    alignSelf:       'center',
-    marginTop:       spacing.md,
-    marginBottom:    spacing.sm,
-  },
-  header: {
-    flexDirection:     'row',
-    justifyContent:    'space-between',
-    alignItems:        'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical:   spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderLight,
-    backgroundColor:   palette.bgWhite,
-  },
-  headerTitle: { fontSize: fontSize.xxl, fontWeight: fontWeight.heavy, color: palette.textPrimary },
-  closeBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: palette.bgMain,
-    justifyContent:  'center',
-    alignItems:      'center',
-  },
-  closeText: { fontSize: fontSize.md, color: palette.textSecondary },
-
-  modeRow: {
-    flexDirection:     'row',
-    margin:            spacing.lg,
-    backgroundColor:   palette.bgWhite,
-    borderRadius:      radius.xl,
-    borderWidth:       1,
-    borderColor:       palette.borderLight,
-    padding:           spacing.xxs,
-    gap:               spacing.xxs,
-  },
-  modeBtn:           { flex: 1, paddingVertical: spacing.sm + 2, alignItems: 'center', borderRadius: radius.lg },
-  modeBtnActive:     { backgroundColor: palette.primary },
-  modeBtnText:       { fontSize: fontSize.md, fontWeight: fontWeight.semi,  color: palette.textSecondary },
-  modeBtnTextActive: { color: palette.bgWhite, fontWeight: fontWeight.bold },
-
-  searchWrap: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    backgroundColor:   palette.bgWhite,
-    margin:            spacing.lg,
-    borderRadius:      radius.xl,
-    paddingHorizontal: spacing.base,
-    borderWidth:       1,
-    borderColor:       palette.borderLight,
-    height:            48,
-  },
-  searchIcon:  { fontSize: 16, marginRight: spacing.sm },
-  searchInput: { flex: 1, fontSize: fontSize.base, color: palette.textPrimary },
-  clearSearch: { fontSize: fontSize.md, color: palette.textMuted, paddingHorizontal: spacing.sm },
-
-  list:    { paddingHorizontal: spacing.lg, paddingBottom: 60 },
-  userRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    backgroundColor: palette.bgWhite,
-    borderRadius:    radius.xl,
-    padding:         spacing.base,
-    marginBottom:    spacing.sm,
-    borderWidth:     1,
-    borderColor:     palette.borderLight,
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  avatarText: { color: '#fff', fontWeight: fontWeight.black, fontSize: fontSize.xl },
-  userName:   { fontSize: fontSize.base, fontWeight: fontWeight.bold,  color: palette.textPrimary },
-  userEmail:  { fontSize: fontSize.sm,   color: palette.textSecondary, marginTop: 2 },
-  rolePill: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical:   3,
-    borderRadius:      radius.full,
-    marginLeft:        spacing.sm,
-  },
-  rolePillText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, textTransform: 'capitalize' },
-
-  centered:   { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 },
-  emptyEmoji: { fontSize: 44, marginBottom: spacing.md },
-  emptyText:  { fontSize: fontSize.md, color: palette.textSecondary, textAlign: 'center', maxWidth: 260 },
-
-  broadcastForm:     { padding: spacing.lg, flex: 1 },
-  broadcastSubtitle: { fontSize: fontSize.md, color: palette.textSecondary, marginBottom: spacing.lg },
-  fieldLabel: {
-    fontSize:     fontSize.md,
-    fontWeight:   fontWeight.semi,
-    color:        palette.textBody,
-    marginBottom: spacing.xxs,
-    marginTop:    spacing.md,
-  },
-  input: {
-    backgroundColor:   palette.bgWhite,
-    borderRadius:      radius.lg,
-    paddingHorizontal: spacing.base,
-    paddingVertical:   spacing.md,
-    fontSize:          fontSize.base,
-    color:             palette.textPrimary,
-    borderWidth:       1,
-    borderColor:       palette.borderLight,
-  },
-  textarea:          { minHeight: 110, textAlignVertical: 'top' },
-  sendBroadcastBtn: {
-    backgroundColor: palette.primary,
-    borderRadius:    radius.xl,
-    paddingVertical: spacing.base,
-    alignItems:      'center',
-    marginTop:       spacing.xl,
-    shadowColor:     palette.primary,
-    shadowOpacity:   0.3,
-    shadowRadius:    8,
-    elevation:       3,
-  },
-  sendBroadcastText: { color: '#fff', fontWeight: fontWeight.bold, fontSize: fontSize.lg },
-});
+const ss = NewMessageStyles;

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList,
+  View, Text, FlatList,
   TextInput, Pressable, KeyboardAvoidingView, Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { auth } from '../../src/firebase/firebase';
 import { roleColor } from './new';
 import { apiClient } from '@/src/api/apiClient';
+import { ChatScreenStyles } from '../../constants/styles';
 
 interface Message {
   id:        string;
@@ -241,127 +242,4 @@ export default function ChatScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#EDF3FF' },
-
-  header: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: 16,
-    paddingVertical:   12,
-    backgroundColor:   '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E8FF',
-    elevation:         3,
-    shadowColor:       '#000',
-    shadowOffset:      { width: 0, height: 1 },
-    shadowOpacity:     0.06,
-    shadowRadius:      4,
-    gap:               12,
-  },
-  backBtn: {
-    width:           36,
-    height:          36,
-    borderRadius:    18,
-    backgroundColor: '#F0F4FF',
-    justifyContent:  'center',
-    alignItems:      'center',
-    borderWidth:     1,
-    borderColor:     '#D0DEFF',
-  },
-  backArrow:    { fontSize: 18, color: '#2E86FF', fontWeight: '700' },
-  avatar: {
-    width:          44,
-    height:         44,
-    borderRadius:   22,
-    justifyContent: 'center',
-    alignItems:     'center',
-  },
-  avatarText:   { color: '#fff', fontWeight: '900', fontSize: 16 },
-  headerInfo:   { flex: 1, justifyContent: 'center' },
-  headerName: {
-    fontSize:     16,
-    fontWeight:   '800',
-    color:        '#111827',
-    marginBottom: 3,
-  },
-  roleBadge: {
-    alignSelf:         'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical:   2,
-    borderRadius:      999,
-  },
-  roleBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-
-  messagesList:  { padding: 14, paddingBottom: 20 },
-  timeStamp: {
-    textAlign:    'center',
-    fontSize:     11,
-    color:        '#9BA8C0',
-    marginBottom: 8,
-    marginTop:    4,
-  },
-  msgWrap:      { alignItems: 'flex-start', marginBottom: 6 },
-  msgWrapMine:  { alignItems: 'flex-end' },
-  bubble: {
-    maxWidth:               '78%',
-    backgroundColor:        '#fff',
-    borderRadius:           18,
-    borderBottomLeftRadius: 4,
-    paddingHorizontal:      14,
-    paddingVertical:        10,
-    shadowColor:            '#000',
-    shadowOpacity:          0.04,
-    shadowRadius:           4,
-    elevation:              1,
-  },
-  bubbleMine: {
-    backgroundColor:         '#2E86FF',
-    borderBottomLeftRadius:  18,
-    borderBottomRightRadius: 4,
-  },
-  bubbleText:     { color: '#111', fontSize: 15, lineHeight: 21 },
-  bubbleTextMine: { color: '#fff' },
-
-  emptyChat: {
-    alignItems:    'center',
-    paddingTop:    80,
-    paddingBottom: 40,
-  },
-  emptyChatEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyChatText:  { fontSize: 14, color: '#9BA8C0' },
-
-  inputBar: {
-    flexDirection:   'row',
-    alignItems:      'flex-end',
-    padding:         12,
-    gap:             10,
-    borderTopWidth:  1,
-    borderTopColor:  '#DCE6FF',
-    backgroundColor: '#fff',
-  },
-  input: {
-    flex:              1,
-    backgroundColor:   '#F3F6FD',
-    borderRadius:      20,
-    paddingHorizontal: 16,
-    paddingVertical:   10,
-    maxHeight:         120,
-    fontSize:          15,
-    color:             '#111',
-  },
-  sendBtn: {
-    width:           46,
-    height:          46,
-    borderRadius:    23,
-    backgroundColor: '#2E86FF',
-    justifyContent:  'center',
-    alignItems:      'center',
-    shadowColor:     '#2E86FF',
-    shadowOpacity:   0.35,
-    shadowRadius:    6,
-    elevation:       3,
-  },
-  sendBtnDisabled: { backgroundColor: '#B0C8F0', shadowOpacity: 0 },
-  sendIcon:        { color: '#fff', fontSize: 18, fontWeight: '700' },
-});
+const s = ChatScreenStyles;

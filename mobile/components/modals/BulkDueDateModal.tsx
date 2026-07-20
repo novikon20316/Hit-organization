@@ -9,10 +9,11 @@
 import React, { useState } from 'react';
 import {
   Modal, View, Text, ScrollView, Pressable,
-  TextInput, ActivityIndicator, Alert, StyleSheet,
+  TextInput, ActivityIndicator, Alert,
 } from 'react-native';
 import { apiClient } from '../../src/api/apiClient';
 import type { Lang } from '../i18n';
+import { BulkDueDateModalStyles } from '../../constants/styles';
 
 const MILESTONE_TYPE_OPTIONS: Array<{ value: string; he: string; en: string }> = [
   { value: '',                 he: 'כל אבני הדרך',    en: 'All milestone types' },
@@ -201,51 +202,4 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
   );
 }
 
-const s = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: '#F8FAFC' },
-  content:  { padding: 20, paddingBottom: 60 },
-  title:    { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 6 },
-  subtitle: { fontSize: 12, color: '#64748B', marginBottom: 18, lineHeight: 18 },
-  textRight:{ textAlign: 'right' },
-
-  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, marginTop: 6 },
-
-  projectList: { marginBottom: 8, gap: 8 },
-  projectRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
-    borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#fff',
-  },
-  projectRowActive:    { borderColor: '#2E86FF', backgroundColor: '#EBF3FF' },
-  projectRowText:      { flex: 1, fontSize: 13, color: '#334155' },
-  projectRowTextActive:{ color: '#1A5FCC', fontWeight: '600' },
-  checkbox: {
-    width: 18, height: 18, borderRadius: 5, borderWidth: 2,
-    borderColor: '#9BA8C0', alignItems: 'center', justifyContent: 'center',
-  },
-  checkboxActive: { borderColor: '#2E86FF', backgroundColor: '#2E86FF' },
-  checkmark:      { color: '#fff', fontSize: 11, fontWeight: '700' },
-  emptyText:      { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 12 },
-  selectAll:      { fontSize: 12, color: '#2E86FF', fontWeight: '600', marginBottom: 12 },
-
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  chip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0',
-  },
-  chipActive:     { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  chipText:       { fontSize: 12, fontWeight: '600', color: '#475569' },
-  chipTextActive: { color: '#fff' },
-
-  input: {
-    borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-    padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff', marginBottom: 4,
-  },
-  inputMultiline: { minHeight: 70, textAlignVertical: 'top' },
-
-  submitBtn:         { backgroundColor: '#F59E0B', borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 20, marginBottom: 10 },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },
-  cancelBtn:         { padding: 12, alignItems: 'center' },
-  cancelBtnText:     { color: '#64748B', fontSize: 15 },
-});
+const s = BulkDueDateModalStyles;

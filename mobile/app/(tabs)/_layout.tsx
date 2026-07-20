@@ -1,13 +1,15 @@
 // app/(tabs)/_layout.tsx
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Platform, Alert } from 'react-native';
+import { View, Text, Platform, Alert } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient'; // 🚀 Added backend API client instance
 
 // Keep your existing haptic tab for the native press feel
 import { HapticTab } from '@/components/haptic-tab';
+import { TabLayoutStyles, TabIconStyles, NotFoundScreenStyles } from '../../constants/styles';
+import { getRoleAccent } from '../../components/shared';
 
 // ─── Routes where the tab bar must be completely hidden ───────────────────────
 const HIDDEN_TAB_ROUTES = [
@@ -104,8 +106,11 @@ const ROLE_TABS: Record<string, Array<{
 };
 
 // ─── Tab icon component ───────────────────────────────────────────────────────
-function TabIcon({ emoji, label, focused, unread = 0 }: {
-  emoji: string; label: string; focused: boolean; unread?: number;
+// accentColor comes from the signed-in user's role (see ROLE_ACCENT in
+// components/shared.tsx) so the active tab reflects that role's color
+// instead of the same hardcoded blue for every role.
+function TabIcon({ emoji, label, focused, unread = 0, accentColor }: {
+  emoji: string; label: string; focused: boolean; unread?: number; accentColor: string;
 }) {
   return (
     <View style={ti.wrap}>
@@ -117,7 +122,7 @@ function TabIcon({ emoji, label, focused, unread = 0 }: {
           </View>
         )}
       </View>
-      <Text style={[ti.label, focused && ti.labelFocused]}>{label}</Text>
+      <Text style={[ti.label, focused && { color: accentColor }]}>{label}</Text>
     </View>
   );
 }
@@ -236,6 +241,7 @@ export default function TabLayout() {
     !isKnownRoute(pathname);
 
   const tabs = role ? (ROLE_TABS[role] ?? []) : [];
+  const roleAccentColor = getRoleAccent(role ?? '').text;
 
   return (
     <Tabs
@@ -243,9 +249,16 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,          // ← your existing haptic press kept
         tabBarShowLabel: false,           // we draw our own label inside TabIcon
-        tabBarStyle: shouldHideTabs 
+        tabBarStyle: shouldHideTabs
           ? styles.hidden
           : styles.tabBar,
+        // Force every tab button to an equal, fixed share of the bar width
+        // instead of sizing to its own icon/label content — without this,
+        // each button's width is driven by its emoji + label (which differ
+        // between the focused/unfocused icon and bold/regular label), so
+        // buttons visibly resize on press and, with few tabs, the row falls
+        // short of the full screen width instead of stretching to fill it.
+        tabBarItemStyle: { flex: 1 },
       }}
     >
       {/* Render only the tabs for this role */}
@@ -260,6 +273,7 @@ export default function TabLayout() {
                 label={lang === 'he' ? tab.labelHe : tab.labelEn}
                 focused={focused}
                 unread={tab.name === 'notifications' ? unread : 0}
+                accentColor={roleAccentColor}
               />
             ),
           }}
@@ -273,51 +287,8 @@ export default function TabLayout() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor:  '#FFFFFF',
-    borderTopWidth:   1,
-    borderTopColor:   '#E0E8FF',
-    height:           Platform.OS === 'ios' ? 82 : 64,
-    paddingBottom:    Platform.OS === 'ios' ? 20 : 6,
-    paddingTop:       6,
-    elevation:        8,
-    shadowColor:      '#2E86FF',
-    shadowOffset:     { width: 0, height: -2 },
-    shadowOpacity:    0.08,
-    shadowRadius:     12,
-  },
-  hidden: {
-    display: 'none',
-    height:  0,
-  },
-});
+const styles = TabLayoutStyles;
 
-const ti = StyleSheet.create({
-  wrap:        { alignItems: 'center', justifyContent: 'center', paddingTop: 2 },
-  emoji:       { fontSize: 22 },
-  emojiDim:    { opacity: 0.4 },
-  badge: {
-    position:         'absolute',
-    top:              -4,
-    right:            -8,
-    backgroundColor:  '#EF4444',
-    borderRadius:     8,
-    minWidth:         16,
-    height:           16,
-    justifyContent:   'center',
-    alignItems:       'center',
-    paddingHorizontal: 3,
-  },
-  badgeText:    { color: '#fff', fontSize: 9, fontWeight: '800' },
-  label:        { fontSize: 10, color: '#9BA8C0', fontWeight: '600', marginTop: 3 },
-  labelFocused: { color: '#2E86FF' },
-});
+const ti = TabIconStyles;
 
-const nf = StyleSheet.create({
-  root:  { flex: 1, justifyContent: 'center', alignItems: 'center',
-           backgroundColor: '#F0F4FF', padding: 30 },
-  emoji: { fontSize: 60, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 8, textAlign: 'center' },
-  sub:   { fontSize: 14, color: '#8899BB', textAlign: 'center', lineHeight: 20 },
-});
+const nf = NotFoundScreenStyles;

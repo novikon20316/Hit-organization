@@ -14,11 +14,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput,
-  ActivityIndicator, Alert, Linking, StyleSheet,
+  ActivityIndicator, Alert, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { Timestamp } from 'firebase/firestore';
+import { ExaminerAccessStyles } from '../constants/styles';
 
 import {
   getExaminerToken,
@@ -760,103 +761,4 @@ function BottomPadding() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#F0F4FF' },
-  scroll:      { padding: 20 },
-  centered:    { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-
-  // Loading
-  loadingText: { marginTop: 12, color: '#2E86FF', fontSize: 15 },
-
-  // Error / status states
-  errorEmoji:   { fontSize: 56, marginBottom: 16 },
-  successEmoji: { fontSize: 56, marginBottom: 16 },
-  errorTitle:   { fontSize: 20, fontWeight: '700', color: '#1E293B', textAlign: 'center', marginBottom: 8 },
-  successTitle: { fontSize: 20, fontWeight: '700', color: '#10B981', textAlign: 'center', marginBottom: 8 },
-  errorSub:     { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 },
-  metaChip:     { marginTop: 16, fontSize: 13, color: '#64748B' },
-
-  // Header
-  header:        { marginBottom: 24 },
-  headerRtl:     { alignItems: 'flex-end' },
-  headerTitle:   { fontSize: 22, fontWeight: '800', color: '#1E293B', marginBottom: 4, marginTop: 48 },
-  headerSub:     { fontSize: 14, color: '#64748B', marginBottom: 16 },
-
-  // Info card
-  infoCard:      { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12,
-                   shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  infoRow:       { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6,
-                   borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  infoLabel:     { fontSize: 13, color: '#64748B', flex: 1 },
-  infoValue:     { fontSize: 13, color: '#1E293B', fontWeight: '600', flex: 2, textAlign: 'right' },
-  infoValueAccent: { color: '#2E86FF' },
-  accessNote:    { fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 4 },
-
-  // Accepted banner
-  acceptedBanner:     { backgroundColor: '#D1FAE5', borderRadius: 10, padding: 12,
-                        alignItems: 'center', marginBottom: 20 },
-  acceptedBannerText: { color: '#065F46', fontWeight: '700', fontSize: 15 },
-
-  // Section
-  section:       { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16,
-                   shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  sectionTitle:  { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 12 },
-
-  // Download
-  downloadBtn:     { backgroundColor: '#2E86FF', borderRadius: 10, padding: 14, alignItems: 'center' },
-  downloadBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-
-  // Criterion rows
-  criterionRow:    { marginBottom: 12 },
-  criterionHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  criterionLabel:  { fontSize: 14, color: '#1E293B', fontWeight: '600' },
-  criterionMax:    { fontSize: 13, color: '#64748B' },
-  scoreInput:      { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-                     padding: 10, fontSize: 16, color: '#1E293B', textAlign: 'center' },
-
-  // Total
-  totalRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                 paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginBottom: 16 },
-  totalLabel:  { fontSize: 15, fontWeight: '700', color: '#1E293B' },
-  totalScore:  { fontSize: 22, fontWeight: '800' },
-
-  // Radio
-  radioRow:         { flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
-                      paddingHorizontal: 12, borderRadius: 8, marginBottom: 6,
-                      backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0' },
-  radioRowSelected: { backgroundColor: '#EFF6FF', borderColor: '#2E86FF' },
-  radioCircle:      { width: 18, height: 18, borderRadius: 9, borderWidth: 2,
-                      borderColor: '#CBD5E1', marginEnd: 10 },
-  radioCircleSelected: { borderColor: '#2E86FF', backgroundColor: '#2E86FF' },
-  radioLabel:       { fontSize: 14, color: '#475569' },
-  radioLabelSelected: { color: '#1E3A8A', fontWeight: '600' },
-
-  // Field label
-  fieldLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
-
-  // Textarea
-  textarea:   { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10,
-                padding: 12, fontSize: 14, color: '#1E293B',
-                minHeight: 120, textAlignVertical: 'top' },
-  textRtl:    { textAlign: 'right' },
-
-  // Action buttons
-  actionBlock:  { gap: 12, marginBottom: 24 },
-  declineBlock: { backgroundColor: '#fff', borderRadius: 12, padding: 16, gap: 12, marginBottom: 24 },
-
-  btnPrimary:     { backgroundColor: '#2E86FF', borderRadius: 12, padding: 16, alignItems: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  btnOutline:     { borderWidth: 2, borderColor: '#CBD5E1', borderRadius: 12,
-                    padding: 16, alignItems: 'center', backgroundColor: '#fff' },
-  btnOutlineText: { color: '#374151', fontSize: 16, fontWeight: '600' },
-  btnDanger:      { backgroundColor: '#EF4444', borderRadius: 12, padding: 16, alignItems: 'center' },
-  btnGhost:       { padding: 12, alignItems: 'center' },
-  btnGhostText:   { color: '#64748B', fontSize: 15 },
-  btnDisabled:    { opacity: 0.55 },
-
-  // Lang toggle
-  langToggle:     { position: 'absolute', top: 0, right: 0, zIndex: 10,
-                    backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 12,
-                    paddingVertical: 6, borderWidth: 1, borderColor: '#E2E8F0' },
-  langToggleText: { fontWeight: '700', fontSize: 13, color: '#374151' },
-});
+const s = ExaminerAccessStyles;

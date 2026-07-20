@@ -2,10 +2,9 @@
 import { Stack, useRouter, usePathname } from "expo-router";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState, useRef } from "react";
-import { View, Text, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, ActivityIndicator, Platform, I18nManager } from 'react-native';
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../src/firebase/firebase";
-import { getDoc, doc } from "firebase/firestore";
+import { auth } from "../src/firebase/firebase";
 import { apiClient } from "../src/api/apiClient";
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -15,6 +14,21 @@ import Constants from 'expo-constants';
 import { NotificationsProvider } from '../src/context/NotificationsContext';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth
+
+// ─── Lock native layout direction to LTR ──────────────────────────────────────
+// This app implements its own RTL presentation everywhere (isRtl && styles.
+// rowReverse / textRight, etc. throughout components) instead of relying on
+// RN's automatic Yoga-level mirroring. Left on its OS-locale default, a
+// Hebrew-language device flips I18nManager.isRTL to true and Yoga starts
+// auto-mirroring every flex container on top of the app's manual RTL classes
+// — two independent RTL systems fighting each other, which is a known source
+// of inconsistent flex sizing (e.g. fixed-width elements resolving to
+// different widths on the same screen). Force LTR at the native layer so only
+// the app's own RTL logic applies.
+if (I18nManager.isRTL) {
+  I18nManager.allowRTL(false);
+  I18nManager.forceRTL(false);
+}
 
 // ─── Android notification channel ─────────────────────────────────────────────
 if (Platform.OS === 'android') {
@@ -207,11 +221,17 @@ export default function RootLayout() {
         }
 
         // ── 2FA gate ────────────────────────────────────────────────────────
-        const userSnap       = await getDoc(doc(db, 'users', user.uid));
+        // Reads totp_enabled off the /api/users/me response already fetched
+        // above (server-mediated, Admin SDK) instead of a second direct
+        // client Firestore read — that second read was racing Firestore's
+        // internal auth-credentials listener right after a fresh sign-in
+        // (worse with the custom secureStorage persistence), intermittently
+        // failing with "Missing or insufficient permissions" before the
+        // token was fully attached. userData.totp_enabled is the same field,
+        // just already in hand.
         if (!auth.currentUser) { setLoading(false); return; }
 
-        const firestoreData  = userSnap.data();
-        const totpEnabled    = firestoreData?.totp_enabled ?? false;
+        const totpEnabled = userData?.totp_enabled ?? false;
 
         const latestPathname   = pathnameRef.current;
         console.log('latestPathname:', latestPathname);
@@ -264,14 +284,26 @@ export default function RootLayout() {
 
       } catch (err: any) {
         console.error('Auth state error:', err);
-        if (err?.message === 'Network Error' || !err?.response) {
-          Alert.alert(
-            'Network Connection Error / שגיאת חיבור',
-            'There is a problem with the internet connection.\n\nישנה בעיה בחיבור לאינטרנט.'
-          );
+
+        // Only a genuine auth rejection (401/403 — the token was actually
+        // refused) means the session itself is invalid, so only THAT case
+        // signs the user out and sends them back to login. A bare network
+        // error (no response at all, e.g. AxiosError "Network Error") just
+        // means this one /api/users/me check failed to reach the server —
+        // it says nothing about whether the user's credentials or session
+        // are still good. This fetch is a redundant background re-check that
+        // races other flows already establishing the session correctly
+        // (e.g. login.tsx's own successful direct Firestore read + its own
+        // router.replace to the user's dashboard) — signing the user out and
+        // yanking them back to login here would tear down a login that had
+        // already succeeded, over a transient blip on this one call.
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
           await auth.signOut();
+          scheduleRedirectRef.current?.('/(auth)/login');
+        } else {
+          console.warn('Ignoring non-auth error on /api/users/me — leaving current session/route as-is:', status ?? err?.message);
         }
-        scheduleRedirectRef.current?.('/(auth)/login');
         setLoading(false);
       }
     });

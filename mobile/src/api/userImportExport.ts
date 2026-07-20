@@ -48,8 +48,24 @@ const EXCEL_MIME_TYPES = [
   'application/vnd.ms-excel',
 ];
 
-/** Opens the native file picker for an .xlsx/.xls file and uploads it to `path`. Returns null if the user cancels. */
-async function pickAndUploadExcel(path: string): Promise<ImportSummary | null> {
+export type ImportProgressStage = 'uploading' | 'processing';
+export type ImportProgressCallback = (stage: ImportProgressStage, uploadPercent?: number) => void;
+
+/**
+ * Opens the native file picker for an .xlsx/.xls file and uploads it to
+ * `path`. Returns null if the user cancels.
+ *
+ * Each row does a real Auth lookup + account creation + Firestore write +
+ * an awaited SMTP email send — for a handful of rows that can genuinely
+ * take well past the client's normal API timeout, so this uses a much
+ * longer one instead of the default 15s (previously: a slow-but-successful
+ * import would abort client-side, show a false "failed" alert, and the
+ * caller would have no way to tell it actually went through on the server).
+ * `onProgress` reports the upload phase (0-100%) and then a plain
+ * "processing" stage while the server works through each row, since there's
+ * no percentage available for that part.
+ */
+async function pickAndUploadExcel(path: string, onProgress?: ImportProgressCallback): Promise<ImportSummary | null> {
   const picked = await DocumentPicker.getDocumentAsync({
     type: EXCEL_MIME_TYPES,
     copyToCacheDirectory: true,
@@ -68,6 +84,12 @@ async function pickAndUploadExcel(path: string): Promise<ImportSummary | null> {
 
   const response = await apiClient.post(path, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+    onUploadProgress: (e: any) => {
+      if (!onProgress) return;
+      const percent = e.total ? Math.round((e.loaded / e.total) * 100) : undefined;
+      onProgress(percent !== undefined && percent < 100 ? 'uploading' : 'processing', percent);
+    },
   });
 
   return response.data.summary as ImportSummary;
@@ -78,8 +100,8 @@ async function pickAndUploadExcel(path: string): Promise<ImportSummary | null> {
  * generic users-import endpoint for the given scope. Returns null if the
  * user cancels.
  */
-export async function pickAndImportUsers(scope: ImportExportScope): Promise<ImportSummary | null> {
-  return pickAndUploadExcel(IMPORT_PATH[scope]);
+export async function pickAndImportUsers(scope: ImportExportScope, onProgress?: ImportProgressCallback): Promise<ImportSummary | null> {
+  return pickAndUploadExcel(IMPORT_PATH[scope], onProgress);
 }
 
 /**
@@ -87,8 +109,8 @@ export async function pickAndImportUsers(scope: ImportExportScope): Promise<Impo
  * uploads it to the staff-import endpoint for the given scope. Returns null
  * if the user cancels.
  */
-export async function pickAndImportStaff(scope: ImportExportScope): Promise<ImportSummary | null> {
-  return pickAndUploadExcel(STAFF_IMPORT_PATH[scope]);
+export async function pickAndImportStaff(scope: ImportExportScope, onProgress?: ImportProgressCallback): Promise<ImportSummary | null> {
+  return pickAndUploadExcel(STAFF_IMPORT_PATH[scope], onProgress);
 }
 
 /** Downloads the users export as .xlsx and opens the native share/save sheet. */

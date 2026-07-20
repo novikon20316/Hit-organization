@@ -12,10 +12,11 @@
 // issue a temp password, or notify admins).
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ActivityIndicator, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
+import { LoginSecurityStyles } from '../constants/styles';
 
 type Lang = 'he' | 'en';
 
@@ -167,17 +168,4 @@ export default function LoginSecurityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: '#F0F4FF' },
-  centered:       { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title:          { fontSize: 20, fontWeight: 'bold', color: '#1a1a2e', textAlign: 'center', marginBottom: 12 },
-  body:           { fontSize: 15, color: '#444', textAlign: 'center', marginBottom: 16 },
-  detailsBox:     { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 20 },
-  detailLine:     { fontSize: 14, color: '#333', marginBottom: 6 },
-  question:       { fontSize: 17, fontWeight: '600', textAlign: 'center', marginBottom: 16 },
-  button:         { padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
-  yesButton:      { backgroundColor: '#2E86FF' },
-  noButton:       { backgroundColor: '#e74c3c' },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText:     { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-});
+const styles = LoginSecurityStyles;

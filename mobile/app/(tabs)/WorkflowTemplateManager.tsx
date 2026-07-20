@@ -307,8 +307,14 @@ export default function WorkflowTemplateManager() {
         ))}
       </ScrollView>
 
-      {/* Tab bar */}
-      <View style={{ flexDirection: 'row', marginTop: 14, paddingHorizontal: 16, gap: 8 }}>
+      {/* Tab bar — fixed size (not flex:1), matches admin/panel.tsx's
+          tabsContainer, wrapped in a horizontal ScrollView so extra tabs
+          slide into view instead of shrinking/growing with tab count. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ flexDirection: 'row', marginTop: 14, paddingHorizontal: 16, gap: 8 }}
+      >
         {([
           { key: 'current' as const, he: 'תבנית נוכחית', en: 'Current Template' },
           { key: 'pending' as const, he: 'ממתין לאישור', en: 'Pending Approval', badge: pending.length },
@@ -316,17 +322,21 @@ export default function WorkflowTemplateManager() {
           <Pressable
             key={tab.key}
             style={{
-              flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
+              width: 110, height: 46, paddingVertical: 14, paddingHorizontal: 18, borderRadius: 10,
+              alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
               backgroundColor: activeTab === tab.key ? '#EDE9FE' : 'transparent',
             }}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={{ fontWeight: activeTab === tab.key ? '700' : '500', color: activeTab === tab.key ? '#7C3AED' : '#8899BB' }}>
+            <Text
+              style={{ fontSize: 13, fontWeight: activeTab === tab.key ? '700' : '500', color: activeTab === tab.key ? '#7C3AED' : '#8899BB' }}
+              numberOfLines={1}
+            >
               {lang === 'he' ? tab.he : tab.en}{'badge' in tab && tab.badge ? ` (${tab.badge})` : ''}
             </Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {activeTab === 'current' && (

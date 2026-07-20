@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, Pressable, ActivityIndicator, StyleSheet, Alert,
+  View, Text, Pressable, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -14,6 +14,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
+import { AccountDeletionPendingStyles } from '../constants/styles';
 
 const ROLE_ROUTES: Record<string, string> = {
   student:       '/student/home',
@@ -125,20 +126,4 @@ export default function AccountDeletionPending() {
   );
 }
 
-const s = StyleSheet.create({
-  root:      { flex: 1, backgroundColor: '#FEF2F2', justifyContent: 'center', padding: 24 },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FEF2F2' },
-  card:      { backgroundColor: '#fff', borderRadius: 20, padding: 28, alignItems: 'center',
-               shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 },
-  emoji:     { fontSize: 48, marginBottom: 16 },
-  title:     { fontSize: 20, fontWeight: '800', color: '#991B1B', textAlign: 'center', marginBottom: 12 },
-  textRight: { textAlign: 'right' },
-  body:      { fontSize: 15, color: '#445', textAlign: 'center', lineHeight: 22, marginBottom: 12 },
-  date:      { fontSize: 14, fontWeight: '700', color: '#991B1B', textAlign: 'center', marginBottom: 24 },
-  cancelBtn: { backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 14,
-               paddingHorizontal: 32, alignItems: 'center', width: '100%', marginBottom: 12 },
-  btnDisabled:{ opacity: 0.5 },
-  cancelBtnText:{ color: '#fff', fontWeight: '700', fontSize: 15 },
-  signOutBtn:{ paddingVertical: 10 },
-  signOutText:{ color: '#64748B', fontWeight: '600', fontSize: 14 },
-});
+const s = AccountDeletionPendingStyles;

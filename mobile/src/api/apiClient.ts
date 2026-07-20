@@ -5,22 +5,16 @@ import Constants from 'expo-constants';
 import { auth } from '../firebase/firebase';
 
 function getBaseUrl(): string {
-  // Dev build on a real device — derive IP from Metro's hostUri
-  const debuggerHost =
-    Constants.expoConfig?.hostUri ??
-    (Constants as any).manifest2?.extra?.expoClient?.hostUri ??
-    (Constants as any).manifest?.debuggerHost;
-
-  if (debuggerHost) {
-    const host = debuggerHost.split(':')[0];
-    return `http://${host}:5000`;
-  }
-
-  // Production build — use the value baked in via app.json extra
+  // Always hit the deployed server (value baked in via app.json extra) —
+  // dev client and production builds alike. Previously this derived
+  // http://<LAN-IP>:5000 from Metro's hostUri whenever a dev client was
+  // connected, silently ignoring apiUrl and requiring a local `npm run dev`
+  // server to be running; that's gone now that Render is the actual backend
+  // used for day-to-day testing.
   const configuredApiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
   if (configuredApiUrl) return configuredApiUrl;
 
-  // Last resort emulator fallback
+  // Last resort emulator fallback (only reachable if apiUrl is ever unset)
   return Platform.OS === 'android'
     ? 'http://10.0.2.2:5000'
     : 'http://127.0.0.1:5000';

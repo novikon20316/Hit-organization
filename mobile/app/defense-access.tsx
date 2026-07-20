@@ -10,11 +10,12 @@
 // access on its own.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
+import { DefenseAccessStyles } from '../constants/styles';
 
 type GateStatus = 'loading' | 'invalid' | 'not_yet_active' | 'active' | 'expired' | 'error';
 
@@ -140,18 +141,4 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-const s = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: '#F0F4FF' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  content:  { flex: 1, alignItems: 'center', padding: 24, paddingTop: 64 },
-  emoji:    { fontSize: 56, marginBottom: 16 },
-  title:    { fontSize: 20, fontWeight: '700', color: '#1E293B', textAlign: 'center', marginBottom: 8 },
-  sub:      { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 },
-  card:     { width: '100%', backgroundColor: '#fff', borderRadius: 12, padding: 16, marginTop: 20,
-              shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  infoRow:  { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8,
-              borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  infoLabel:{ fontSize: 13, color: '#64748B' },
-  infoValue:{ fontSize: 13, color: '#1E293B', fontWeight: '600' },
-  footnote: { marginTop: 16, fontSize: 12, color: '#94A3B8', textAlign: 'center' },
-});
+const s = DefenseAccessStyles;

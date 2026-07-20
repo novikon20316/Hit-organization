@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
   Modal, View, Text, ScrollView, Pressable,
-  TextInput, ActivityIndicator, StyleSheet,
+  TextInput, ActivityIndicator,
 } from 'react-native';
 import DefenseBuildingPicker from '../DefenseBuildingPicker';
 import { tx } from '../i18n';
+import { ScheduleDefenseModalStyles } from '../../constants/styles';
 
 type Lang = 'he' | 'en';
 
@@ -83,17 +84,4 @@ export default function ScheduleDefenseModal({ visible, project, lang, isRtl, sa
   );
 }
 
-const s = StyleSheet.create({
-  modal:        { flex: 1, backgroundColor: '#F8FAFC' },
-  content:      { padding: 20, paddingBottom: 60 },
-  title:        { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 8 },
-  subtitle:     { fontSize: 13, color: '#64748B', marginBottom: 16 },
-  label:        { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 10 },
-  input:        { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-                  padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff' },
-  saveBtn:      { backgroundColor: '#10B981', borderRadius: 12, padding: 15,
-                  alignItems: 'center', marginTop: 20, marginBottom: 10 },
-  saveBtnText:  { color: '#fff', fontSize: 16, fontWeight: '700' },
-  cancelBtn:    { padding: 12, alignItems: 'center' },
-  cancelBtnText:{ color: '#64748B', fontSize: 15 },
-});
+const s = ScheduleDefenseModalStyles;

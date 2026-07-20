@@ -39,19 +39,33 @@ export default function LoginScreen() {
     try {
       const firebaseUser = await signInWithEmailAndPassword(auth, email, password);
 
-      // Registration doesn't write the Firestore profile until the email is
-      // verified (see signup.tsx) — an unverified sign-in has no profile to
-      // route by, so stop here instead of falling through with an empty role.
-      if (!firebaseUser.user.emailVerified) {
+      // Force a fresh fetch of the account record instead of trusting
+      // whatever emailVerified value came back with this sign-in. That value
+      // can be a stale snapshot when verification status changed externally
+      // (e.g. an admin flipping it via the Admin SDK) rather than through the
+      // user completing the actual verification-link flow in this same
+      // session — reload() is Firebase's documented fix for exactly that.
+      await firebaseUser.user.reload();
+
+      const userDoc  = await getDoc(doc(db, 'users', firebaseUser.user.uid));
+      const userData = userDoc.data();
+
+      // Only self-registered students go through email verification —
+      // every other role is provisioned via admin import with emailVerified
+      // already set true at account creation (see createImportedUserAccount
+      // in server/src/services/userImportExport.ts), so this gate must not
+      // apply to them. A student who hasn't verified yet has no Firestore
+      // profile at all (signup.tsx doesn't write one until verification
+      // completes), so `!userData` also means "still mid-verification" here.
+      const isStudent = !userData || userData?.role === 'student';
+
+      if (isStudent && !firebaseUser.user.emailVerified) {
         await auth.signOut();
         setError(
           'Please verify your email before logging in. Check your inbox (and spam folder) for the verification link we sent during signup.'
         );
         return;
       }
-
-      const userDoc  = await getDoc(doc(db, 'users', firebaseUser.user.uid));
-      const userData = userDoc.data();
 
       if (!userData) {
         // Email verified, but the profile sync never completed (e.g. the app

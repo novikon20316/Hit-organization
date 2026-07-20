@@ -1,63 +1,17 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, Pressable,
-  StyleSheet, ActivityIndicator, Alert,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
+import { ResetPassStyles } from '../../constants/styles';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#F0F4FF' },
-  content:     { flex: 1, padding: 28, justifyContent: 'center' },
-  langRow:     { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
-  langRowRtl:  { flexDirection: 'row-reverse' },
-  langBtn: {
-    backgroundColor: '#EFF6FF', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: '#D0DEFF',
-  },
-  langText:    { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
-  hero:        { alignItems: 'center', marginBottom: 40 },
-  heroEmoji:   { fontSize: 52, marginBottom: 14 },
-  heroTitle:   { fontSize: 24, fontWeight: '900', color: '#111', marginBottom: 8, textAlign: 'center' },
-  heroSub:     { fontSize: 14, color: '#8899BB', lineHeight: 21, textAlign: 'center', paddingHorizontal: 8 },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: '#E0E8FF',
-    fontSize: 16,
-    color: '#111',
-    marginBottom: 6,
-  },
-  inputFocused: { borderColor: '#2E86FF' },
-  inputError:   { borderColor: '#EF4444' },
-  inputSuccess: { borderColor: '#10B981' },
-  errorText:   { color: '#EF4444', fontSize: 12, marginBottom: 14, textAlign: 'left' },
-  errorTextRtl:{ textAlign: 'right' },
-  btn: {
-    backgroundColor: '#2E86FF', borderRadius: 16, paddingVertical: 16,
-    alignItems: 'center', marginTop: 8,
-    shadowColor: '#2E86FF', shadowOpacity: 0.35, shadowRadius: 12, elevation: 5,
-  },
-  btnDisabled: { opacity: 0.5 },
-  btnText:     { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
-  backBtn:     { alignItems: 'center', marginTop: 20 },
-  backText:    { color: '#8899BB', fontSize: 14, fontWeight: '600' },
-  successBox: {
-    backgroundColor: '#ECFDF5', borderRadius: 14, padding: 18,
-    borderWidth: 1.5, borderColor: '#10B981',
-    alignItems: 'center', marginBottom: 24,
-  },
-  successEmoji: { fontSize: 36, marginBottom: 8 },
-  successTitle: { fontSize: 16, fontWeight: '800', color: '#065F46', marginBottom: 4, textAlign: 'center' },
-  successSub:   { fontSize: 13, color: '#047857', textAlign: 'center', lineHeight: 19 },
-});
+const s = ResetPassStyles;
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function ResetPassword() {

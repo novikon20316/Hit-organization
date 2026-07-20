@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Modal, ScrollView, Image,
+  ActivityIndicator, Modal, ScrollView, Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../../src/api/apiClient';
@@ -10,6 +10,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/src/firebase/firebase';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
+import { Verify2faStyles, Verify2faModalStyles } from '../../constants/styles';
 
 // ─── Lost-authenticator recovery modal ─────────────────────────────────────────
 // 3 steps: request an emailed code -> confirm that code -> scan a fresh QR
@@ -268,35 +269,6 @@ export default function Verify2FA() {
   );
 }
 
-const styles = StyleSheet.create({
-  container:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#F0F4FF' },
-  title:          { fontSize: 24, fontWeight: 'bold', marginBottom: 8, color: '#1a1a2e' },
-  subtitle:       { textAlign: 'center', color: '#666', marginBottom: 32, lineHeight: 22 },
-  input:          { borderWidth: 2, borderColor: '#2E86FF', borderRadius: 12, padding: 16, width: '100%', fontSize: 32, textAlign: 'center', letterSpacing: 12, marginBottom: 12, backgroundColor: '#fff' },
-  button:         { backgroundColor: '#2E86FF', padding: 16, borderRadius: 12, width: '100%', alignItems: 'center', marginTop: 8 },
-  buttonDisabled: { backgroundColor: '#a0c4ff' },
-  buttonText:     { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  error:          { color: '#e74c3c', marginBottom: 8, textAlign: 'center' },
-  recoveryLink:   { marginTop: 20, color: '#2E86FF', fontSize: 14, fontWeight: '600' },
-  backLink:       { marginTop: 16, color: '#666', fontSize: 14 },
-});
+const styles = Verify2faStyles;
 
-const m = StyleSheet.create({
-  modal:          { flex: 1, backgroundColor: '#F0F4FF' },
-  content:        { padding: 24, paddingTop: 40, alignItems: 'center' },
-  title:          { fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#1a1a2e' },
-  body:           { textAlign: 'center', color: '#555', marginBottom: 20, lineHeight: 22 },
-  input:          { borderWidth: 2, borderColor: '#2E86FF', borderRadius: 12, padding: 16, width: '100%', fontSize: 28, textAlign: 'center', letterSpacing: 10, marginBottom: 16, backgroundColor: '#fff' },
-  qr:             { width: 200, height: 200, marginBottom: 20, alignSelf: 'center' },
-  button:         { backgroundColor: '#2E86FF', padding: 16, borderRadius: 12, width: '100%', alignItems: 'center', marginBottom: 8 },
-  buttonDisabled: { backgroundColor: '#a0c4ff' },
-  buttonText:     { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  error:          { color: '#e74c3c', marginBottom: 12, textAlign: 'center' },
-  link:           { color: '#2E86FF', fontSize: 14, textAlign: 'center', marginTop: 8 },
-  cancelLink:     { color: '#999', fontSize: 14, textAlign: 'center', marginTop: 24 },
-  rowReverse:     { flexDirection: 'row-reverse' },
-  textRight:      { textAlign: 'right' },
-  langRow:        { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', marginBottom: 12 },
-  langBtn:        { backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#D0DEFF' },
-  langBtnText:    { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
-});
+const m = Verify2faModalStyles;

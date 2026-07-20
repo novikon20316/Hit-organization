@@ -311,7 +311,7 @@ export default function FacultyTemplateManager() {
       />
 
       {/* ── Main tabs ── */}
-      <View style={s.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabBar}>
         {([
           { key: 'templates', he: 'תבניות פרויקט',  en: 'Project Templates', badge: 0 },
           { key: 'pending',   he: 'הצעות ממתינות',   en: 'Pending Proposals', badge: pendingProps.length },
@@ -321,7 +321,7 @@ export default function FacultyTemplateManager() {
             style={[s.tab, activeTab === tab.key && s.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]}>
+            <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.he : tab.en}
             </Text>
             {tab.badge > 0 && (
@@ -329,7 +329,7 @@ export default function FacultyTemplateManager() {
             )}
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView contentContainerStyle={s.content}>
 

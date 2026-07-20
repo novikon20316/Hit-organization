@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Alert, RefreshControl,
-  TextInput, Modal, StyleSheet,
+  TextInput, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +18,7 @@ import { t, tx, type Lang } from '../../components/i18n';
 import { createExaminerToken } from '@/src/firebase/createExaminerToken';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal } from '@/components/modals';
+import { AdministrativeSecretaryDashboardStyles, AdministrativeSecretaryModalStyles } from '../../constants/styles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -577,77 +578,7 @@ export default function ProjectCoordinatorDashboard() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: '#FFFBEB' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll:   { padding: 16 },
-
-  statsStrip: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10,
-                backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  statCard:   { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
-  statValue:  { fontSize: 22, fontWeight: '800' },
-  statLabel:  { fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 2 },
-
-  searchInput: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1.5,
-                 borderColor: '#E2E8F0', padding: 12, fontSize: 14, color: '#1E293B', marginBottom: 10 },
-  filterRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  filterChip:  { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-                 backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
-  filterChipText: { fontSize: 12, color: '#475569', fontWeight: '600' },
-
-  card:          { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 14,
-                   borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.05,
-                   shadowRadius: 6, elevation: 2 },
-  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between',
-                   alignItems: 'flex-start', marginBottom: 6, gap: 8 },
-  cardTitle:     { fontSize: 15, fontWeight: '700', color: '#1E293B', flex: 1 },
-  cardSub:       { fontSize: 13, color: '#64748B', marginBottom: 3 },
-  overduePill:   { backgroundColor: '#FEE2E2', borderRadius: 8,
-                   paddingHorizontal: 7, paddingVertical: 3 },
-  overduePillText:{ color: '#991B1B', fontSize: 11, fontWeight: '700' },
-
-  metaRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 6 },
-  trackPill:     { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  trackPillText: { fontSize: 11, fontWeight: '600' },
-  milestoneText: { fontSize: 12, color: '#64748B' },
-
-  defensePill:     { backgroundColor: '#EFF6FF', borderRadius: 8, padding: 8, marginBottom: 6 },
-  defensePillText: { color: '#1D4ED8', fontSize: 12, fontWeight: '600' },
-  noDefenseText:   { fontSize: 12, color: '#94A3B8', marginBottom: 6 },
-
-  actionRow:     { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' },
-  actionBtn:     { flex: 1, borderRadius: 8, padding: 9, alignItems: 'center', minWidth: 90 },
-  actionBtnText: { fontSize: 12, fontWeight: '700' },
-
-  empty:      { alignItems: 'center', paddingVertical: 48 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: '#64748B' },
-});
+const s = AdministrativeSecretaryDashboardStyles;
 
 // ─── Send Examiner Modal styles ───────────────────────────────────────────────
-const m = StyleSheet.create({
-  modal:        { flex: 1, backgroundColor: '#F8FAFC' },
-  modalContent: { padding: 20, paddingBottom: 60 },
-  modalTitle:   { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 16 },
-  contextCard:  { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 12, marginBottom: 16 },
-  contextTitle: { fontSize: 14, fontWeight: '700', color: '#1E3A8A', marginBottom: 4 },
-  contextSub:   { fontSize: 13, color: '#1D4ED8' },
-  fieldWrap:    { marginBottom: 14 },
-  fieldLabel:   { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
-  input:        { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-                  padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff' },
-  langRow:      { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  langBtn:      { flex: 1, borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-                  padding: 10, alignItems: 'center', backgroundColor: '#fff' },
-  langBtnActive:{ backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  langBtnText:  { fontSize: 14, fontWeight: '600', color: '#374151' },
-  langBtnTextActive: { color: '#fff' },
-  linkBox:      { backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, marginBottom: 14 },
-  linkLabel:    { fontSize: 13, fontWeight: '700', color: '#065F46', marginBottom: 6 },
-  linkText:     { fontSize: 12, color: '#1E293B', fontFamily: 'monospace' },
-  btnSend:      { backgroundColor: '#F59E0B', borderRadius: 12, padding: 15,
-                  alignItems: 'center', marginBottom: 10 },
-  btnSendText:  { color: '#fff', fontSize: 16, fontWeight: '700' },
-  btnCancel:    { padding: 12, alignItems: 'center' },
-  btnCancelText:{ color: '#64748B', fontSize: 15 },
-});
+const m = AdministrativeSecretaryModalStyles;

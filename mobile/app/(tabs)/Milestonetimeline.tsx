@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { toDate } from '@/components/shared';
 import {
-  View, Text, Pressable, StyleSheet,
+  View, Text, Pressable,
   Modal, TextInput, ActivityIndicator,
 } from 'react-native';
 import { Timestamp } from 'firebase/firestore';
@@ -16,6 +16,7 @@ import {
   type MilestoneStatus,
 } from '../../components/Milestoneservice';
 import type { Lang } from '../../components/i18n';
+import { MilestoneTimelineStyles, MilestoneCardStyles } from '../../constants/styles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface MilestoneData {
@@ -463,151 +464,6 @@ export default function MilestoneTimeline({
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const tl = StyleSheet.create({
-  progressCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 20,
-    borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#2E86FF', shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
-  },
-  progressHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  rowReverse:      { flexDirection: 'row-reverse' },
-  textRight:       { textAlign: 'right' },
-  progressTitle:   { fontSize: 14, fontWeight: '700', color: '#111' },
-  progressPct:     { fontSize: 22, fontWeight: '900', color: '#2E86FF' },
-  progressTrack:   { height: 8, backgroundColor: '#E0E8FF', borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
-  progressFill:    { height: '100%', backgroundColor: '#2E86FF', borderRadius: 4 },
-  progressSub:     { fontSize: 12, color: '#8899BB' },
-  timeline:        { paddingLeft: 4 },
-  empty:           { alignItems: 'center', paddingVertical: 40 },
-  emptyEmoji:      { fontSize: 40, marginBottom: 12 },
-  emptyText:       { fontSize: 14, color: '#8899BB', textAlign: 'center', lineHeight: 20 },
-});
+const tl = MilestoneTimelineStyles;
 
-const mc = StyleSheet.create({
-  wrapper:     { flexDirection: 'row', marginBottom: 4 },
-  wrapperRtl:  { flexDirection: 'row-reverse' },
-  rowReverse:  { flexDirection: 'row-reverse' },
-  textRight:   { textAlign: 'right' },
-
-  // Spine
-  spine:       { width: 40, alignItems: 'center' },
-  dot: {
-    width: 36, height: 36, borderRadius: 18,
-    justifyContent: 'center', alignItems: 'center',
-    zIndex: 1, borderWidth: 2,
-  },
-  dotPending:   { backgroundColor: '#F0F4FF', borderColor: '#D0DEFF' },
-  dotActive:    { backgroundColor: '#EFF6FF', borderColor: '#2E86FF' },
-  dotCompleted: { backgroundColor: '#ECFDF5', borderColor: '#10B981' },
-  dotIcon:      { fontSize: 16 },
-  line:         { width: 2, flex: 1, minHeight: 20, marginVertical: 2 },
-  linePending:  { backgroundColor: '#E0E8FF' },
-  lineCompleted:{ backgroundColor: '#10B981' },
-
-  // Card
-  card: {
-    flex: 1, marginLeft: 12, marginBottom: 16,
-    backgroundColor: '#fff', borderRadius: 16, padding: 14,
-    borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#2E86FF', shadowOpacity: 0.06, shadowRadius: 8, elevation: 1,
-  },
-  cardExpanded:   { borderColor: '#2E86FF' },
-  cardCompleted:  { backgroundColor: '#FAFFFE', borderColor: '#A7F3D0' },
-  cardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  cardTitleWrap:  { flex: 1, marginRight: 10 },
-  cardTitle:      { fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 5 },
-  cardTitleCompleted: { textDecorationLine: 'none', color: '#10B981' },
-
-  statusBadge: {
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
-    borderWidth: 1, alignSelf: 'flex-start',
-  },
-  statusBadgeText: { fontSize: 11, fontWeight: '600' },
-
-  // Countdown chip
-  dateChip: {
-    borderRadius: 12, padding: 8, alignItems: 'center',
-    minWidth: 52, borderWidth: 1,
-  },
-  dateChipDays:  { fontSize: 20, fontWeight: '900', lineHeight: 24 },
-  dateChipLabel: { fontSize: 9, fontWeight: '600', textAlign: 'center', lineHeight: 12 },
-  dateChipText:  { fontSize: 20, fontWeight: '900' },
-
-  dueDate:      { fontSize: 12, color: '#8899BB', marginBottom: 4 },
-  adjustBtn:    { color: '#2E86FF', fontSize: 12, fontWeight: '600' },
-  submittedDate:{ fontSize: 12, color: '#10B981', marginBottom: 4 },
-
-  // Defense banner
-  defenseBanner: {
-    backgroundColor: '#F5F3FF', borderRadius: 10, padding: 10, marginTop: 6,
-    borderLeftWidth: 3, borderLeftColor: '#8B5CF6',
-  },
-  defenseBannerText: { fontSize: 13, color: '#6B21A8', fontWeight: '500' },
-
-  // Grade chip
-  gradeChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
-    backgroundColor: '#ECFDF5', borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start',
-  },
-  gradeChipLabel: { fontSize: 12, color: '#10B981', fontWeight: '600' },
-  gradeChipValue: { fontSize: 18, fontWeight: '900', color: '#10B981' },
-
-  // Expanded
-  expandedContent: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F0F4FF' },
-  description:     { fontSize: 13, color: '#445', lineHeight: 19, marginBottom: 14 },
-  chainTitle:      { fontSize: 12, fontWeight: '700', color: '#8899BB', marginBottom: 8, letterSpacing: 0.3 },
-  chainStep:       { flexDirection: 'row', alignItems: 'center', marginBottom: 7, gap: 8 },
-  chainDot: {
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: '#D0DEFF', flexShrink: 0,
-  },
-  chainDotDone:   { backgroundColor: '#10B981' },
-  chainText:      { fontSize: 12, color: '#8899BB', flex: 1 },
-  chainTextDone:  { color: '#10B981', fontWeight: '600' },
-
-  // Action buttons
-  actionBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 12,
-    paddingVertical: 12, alignItems: 'center', marginTop: 14,
-    shadowColor: '#2E86FF', shadowOpacity: 0.25, shadowRadius: 6, elevation: 2,
-  },
-  actionBtnGreen:  { backgroundColor: '#10B981', shadowColor: '#10B981' },
-  actionBtnPurple: { backgroundColor: '#8B5CF6', shadowColor: '#8B5CF6' },
-  actionBtnOrange: { backgroundColor: '#F97316', shadowColor: '#F97316' },
-  actionBtnText:   { color: '#fff', fontSize: 14, fontWeight: '700' },
-
-  // Chevron
-  chevron: { textAlign: 'center', color: '#C0CCDD', fontSize: 11, marginTop: 6 },
-
-  // Date picker modal
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  modalCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 24,
-    width: '80%', alignItems: 'center',
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, elevation: 10,
-  },
-  modalTitle:    { fontSize: 17, fontWeight: '800', color: '#111', marginBottom: 4 },
-  modalSub:      { fontSize: 13, color: '#8899BB', marginBottom: 16, textAlign: 'center' },
-  modalInput: {
-    width: '100%', backgroundColor: '#F0F4FF', borderRadius: 12,
-    padding: 14, fontSize: 18, fontWeight: '700', color: '#111',
-    borderWidth: 1, borderColor: '#D0DEFF', marginBottom: 6,
-  },
-  modalHint:     { fontSize: 11, color: '#9BA8C0', marginBottom: 18 },
-  modalBtns:     { flexDirection: 'row', gap: 10, width: '100%' },
-  modalCancelBtn:{
-    flex: 1, backgroundColor: '#F0F4FF', borderRadius: 12,
-    paddingVertical: 13, alignItems: 'center',
-    borderWidth: 1, borderColor: '#D0DEFF',
-  },
-  modalCancelText:{ fontSize: 14, fontWeight: '600', color: '#8899BB' },
-  modalSaveBtn:  {
-    flex: 1, backgroundColor: '#2E86FF', borderRadius: 12,
-    paddingVertical: 13, alignItems: 'center',
-  },
-  modalSaveText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-});
+const mc = MilestoneCardStyles;

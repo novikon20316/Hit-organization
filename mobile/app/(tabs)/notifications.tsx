@@ -1,7 +1,7 @@
 // app/(tabs)/notifications.tsx  — shared screen for ALL roles
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
+  View, Text, ScrollView, Pressable,
   ActivityIndicator, Animated, FlatList, Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
@@ -12,6 +12,7 @@ import NewChatSheet from '../message/new';
 import { apiClient } from '../../src/api/apiClient';
 import { useNotifications } from '../../src/context/NotificationsContext';
 import FeedbackChat from '../../components/FeedbackChat';
+import { NotificationsStyles, NotificationsRowStyles, ChatRowStyles } from '../../constants/styles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -439,13 +440,15 @@ export default function NotificationsScreen() {
         </View>
       </View>
 
-      {/* ── Tab switcher ── */}
+      {/* ── Tab switcher — full-width flex tabs, not a scroller: with only
+          2-3 tabs here (never enough to need scrolling), flex fills the
+          screen edge-to-edge instead of leaving dead space or clipping. ── */}
       <View style={[s.tabBar, isRtl && s.rowReverse]}>
         <Pressable
           style={[s.tabBtn, activeTab === 'notifs' && s.tabBtnActive]}
           onPress={() => setActiveTab('notifs')}
         >
-          <Text style={[s.tabBtnText, activeTab === 'notifs' && s.tabBtnTextActive]}>
+          <Text style={[s.tabBtnText, activeTab === 'notifs' && s.tabBtnTextActive]} numberOfLines={1}>
             🔔 {lang === 'he' ? 'התראות' : 'Notifications'}
             {unreadCount > 0 ? ` (${unreadCount})` : ''}
           </Text>
@@ -454,7 +457,7 @@ export default function NotificationsScreen() {
           style={[s.tabBtn, activeTab === 'chats' && s.tabBtnActive]}
           onPress={() => setActiveTab('chats')}
         >
-          <Text style={[s.tabBtnText, activeTab === 'chats' && s.tabBtnTextActive]}>
+          <Text style={[s.tabBtnText, activeTab === 'chats' && s.tabBtnTextActive]} numberOfLines={1}>
             💬 {lang === 'he' ? 'הודעות' : 'Chats'}
             {unreadChats > 0 ? ` (${unreadChats})` : ''}
           </Text>
@@ -466,7 +469,7 @@ export default function NotificationsScreen() {
             style={[s.tabBtn, activeTab === 'feedback' && s.tabBtnActive]}
             onPress={() => setActiveTab('feedback')}
           >
-            <Text style={[s.tabBtnText, activeTab === 'feedback' && s.tabBtnTextActive]}>
+            <Text style={[s.tabBtnText, activeTab === 'feedback' && s.tabBtnTextActive]} numberOfLines={1}>
               🗨️ {lang === 'he' ? 'משוב' : 'Feedback'}
             </Text>
           </Pressable>
@@ -492,13 +495,15 @@ export default function NotificationsScreen() {
                 </Pressable>
               ))}
             </View>
-            {unreadCount > 0 && (
-              <Pressable style={s.markAllBtn} onPress={handleMarkAllRead}>
-                <Text style={s.markAllText}>
-                  {lang === 'he' ? 'סמן הכל כנקרא' : 'Mark all read'}
-                </Text>
-              </Pressable>
-            )}
+            <Pressable
+              style={[s.markAllBtn, unreadCount === 0 && s.markAllBtnHidden]}
+              onPress={handleMarkAllRead}
+              disabled={unreadCount === 0}
+            >
+              <Text style={s.markAllText}>
+                {lang === 'he' ? 'סמן הכל כנקרא' : 'Mark all read'}
+              </Text>
+            </Pressable>
           </View>
 
           {loadingNotifs ? (
@@ -599,102 +604,8 @@ export default function NotificationsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  root:       { flex: 1, backgroundColor: '#F0F4FF' },
-  centered:   { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  rowReverse: { flexDirection: 'row-reverse' },
-  alignRight: { alignItems: 'flex-end' },
+const s = NotificationsStyles;
 
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E0E8FF',
-    elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4,
-  },
-  backBtn:         { padding: 6, borderRadius: 10, backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: '#D0DEFF' },
-  backText:        { fontSize: 18, color: '#2E86FF', fontWeight: '700', paddingHorizontal: 4 },
-  headerCenter:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle:     { fontSize: 18, fontWeight: '800', color: '#111' },
-  unreadBadge:     { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 5 },
-  unreadBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  headerRight:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  langBtn:         { backgroundColor: '#F0F4FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: '#D0DEFF' },
-  langText:        { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
+const nr = NotificationsRowStyles;
 
-  tabBar:          { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E0E8FF' },
-  tabBtn:          { flex: 1, paddingVertical: 13, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabBtnActive:    { borderBottomColor: '#2E86FF' },
-  tabBtnText:      { fontSize: 13, fontWeight: '600', color: '#8899BB' },
-  tabBtnTextActive:{ color: '#2E86FF', fontWeight: '700' },
-
-  toolbar:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F4FF' },
-  filters:          { flexDirection: 'row', gap: 8 },
-  filterChip:       { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: '#D0DEFF' },
-  filterChipActive: { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  filterText:       { fontSize: 12, fontWeight: '600', color: '#8899BB' },
-  filterTextActive: { color: '#fff' },
-  markAllBtn:       { paddingHorizontal: 10, paddingVertical: 6 },
-  markAllText:      { fontSize: 12, color: '#2E86FF', fontWeight: '600' },
-
-  longPressHint: { textAlign: 'center', fontSize: 11, color: '#9BA8C0', paddingVertical: 6, backgroundColor: '#F8FAFF' },
-
-  list:      { paddingHorizontal: 14, paddingTop: 12 },
-  separator: { height: 1, backgroundColor: '#F0F4FF', marginHorizontal: 16 },
-
-  dateHeader: { flexDirection: 'row', alignItems: 'center', marginVertical: 12, gap: 8 },
-  dateLine:   { flex: 1, height: 1, backgroundColor: '#E0E8FF' },
-  dateLabel:  { fontSize: 11, fontWeight: '700', color: '#8899BB', letterSpacing: 0.5 },
-
-  empty:      { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
-  emptyEmoji: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#111', marginBottom: 8, textAlign: 'center' },
-  emptyBody:  { fontSize: 14, color: '#8899BB', textAlign: 'center', lineHeight: 20 },
-
-  fab: {
-    position: 'absolute', bottom: 24, right: 24,
-    width: 58, height: 58, borderRadius: 29,
-    backgroundColor: '#2E86FF',
-    justifyContent: 'center', alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#2E86FF', shadowOpacity: 0.35, shadowRadius: 8,
-  },
-  fabText: { color: '#fff', fontSize: 30, fontWeight: '700' },
-});
-
-const nr = StyleSheet.create({
-  card:        { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, borderLeftWidth: 3, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1, position: 'relative' },
-  cardUnread:  { backgroundColor: '#FAFCFF' },
-  cardRtl:     { flexDirection: 'row-reverse', borderLeftWidth: 0, borderRightWidth: 3 },
-  unreadDot:   { position: 'absolute', top: 14, right: 14, width: 8, height: 8, borderRadius: 4 },
-  iconBubble:  { width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 12, flexShrink: 0 },
-  iconText:    { fontSize: 20 },
-  content:     { flex: 1 },
-  contentRtl:  { marginRight: 12, marginLeft: 0 },
-  titleRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  rowReverse:  { flexDirection: 'row-reverse' },
-  textRight:   { textAlign: 'right' },
-  title:       { fontSize: 13, fontWeight: '500', color: '#445', flex: 1, marginRight: 8 },
-  titleBold:   { fontWeight: '700', color: '#111' },
-  time:        { fontSize: 11, color: '#9BA8C0', flexShrink: 0 },
-  body:        { fontSize: 12, color: '#8899BB', lineHeight: 17 },
-});
-
-const cr = StyleSheet.create({
-  row:          { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 14 },
-  rowRtl:       { flexDirection: 'row-reverse' },
-  avatar:       { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  avatarText:   { color: '#fff', fontWeight: '900', fontSize: 18 },
-  body:         { flex: 1 },
-  topLine:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  name:         { fontSize: 15, fontWeight: '700', color: '#111827', flex: 1 },
-  time:         { fontSize: 11, color: '#9BA8C0' },
-  bottomLine:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  preview:      { fontSize: 13, color: '#8899BB', flex: 1, marginRight: 8 },
-  previewBold:  { color: '#111827', fontWeight: '600' },
-  badge:        { backgroundColor: '#2E86FF', borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 5 },
-  badgeText:    { color: '#fff', fontSize: 11, fontWeight: '800' },
-  rolePill:     { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
-  roleText:     { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  deleteHint:   { fontSize: 18, color: '#D0DEFF', paddingLeft: 8 },
-});
+const cr = ChatRowStyles;

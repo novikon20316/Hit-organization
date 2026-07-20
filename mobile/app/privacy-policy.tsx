@@ -6,9 +6,10 @@
 // app screens aren't reachable by Play's reviewer without installing the app.
 
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { PrivacyPolicyStyles } from '../constants/styles';
 
 type Lang = 'he' | 'en';
 
@@ -142,21 +143,4 @@ export default function PrivacyPolicyScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: '#F0F4FF' },
-  content: { padding: 20 },
-  topRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  rowReverse: { flexDirection: 'row-reverse' },
-  backText: { color: '#2E86FF', fontWeight: '700', fontSize: 15 },
-  langBtn: {
-    backgroundColor: '#EFF6FF', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: '#D0DEFF',
-  },
-  langText: { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
-  title: { fontSize: 24, fontWeight: '900', color: '#111', marginBottom: 20 },
-  section: { marginBottom: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 6 },
-  sectionBody: { fontSize: 14, color: '#445', lineHeight: 21 },
-  textRight: { textAlign: 'right' },
-});
+const s = PrivacyPolicyStyles;

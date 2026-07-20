@@ -238,7 +238,7 @@ export default function ExaminerHome() {
       />
  
       {/* ── Tab bar ── */}
-      <View style={styles.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
           { key: 'projects', he: 'הגנות לבחינה', en: 'Defenses', badge: assignments.length },
           { key: 'schedule', he: 'לוח זמנים',     en: 'Schedule', badge: scheduled.length  },
@@ -248,7 +248,7 @@ export default function ExaminerHome() {
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.he : tab.en}
             </Text>
             {tab.badge > 0 && (
@@ -258,7 +258,7 @@ export default function ExaminerHome() {
             )}
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
  
       <ScrollView contentContainerStyle={styles.content}>
  

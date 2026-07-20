@@ -5,8 +5,9 @@
 // Import, Export, ...) with a single tidy floating control.
 
 import React, { useRef, useState } from 'react';
-import { View, Text, Pressable, Animated, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Animated, ActivityIndicator, Easing } from 'react-native';
 import type { Lang } from './i18n';
+import { FloatingActionMenuStyles } from '../constants/styles';
 
 export interface FloatingAction {
   key: string;
@@ -35,16 +36,38 @@ export default function FloatingActionMenu({
 }: Props) {
   const [expanded, setExpanded]   = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
-  const anim = useRef(new Animated.Value(0)).current;
+  const anim = useRef(new Animated.Value(0)).current; // drives the FAB's own rotate
+
+  // One Animated.Value per pill so they can cascade in/out instead of all
+  // moving in lockstep — closest-to-FAB pill leads on open, trails on close,
+  // giving the stack a "scrolling" reveal instead of a single flat pop.
+  const pillAnimsRef = useRef<Animated.Value[]>([]);
+  if (pillAnimsRef.current.length !== actions.length) {
+    pillAnimsRef.current = actions.map(() => new Animated.Value(0));
+  }
+  const pillAnims = pillAnimsRef.current;
 
   const toggle = () => {
     const next = !expanded;
     setExpanded(next);
-    Animated.spring(anim, {
-      toValue: next ? 1 : 0,
+
+    Animated.timing(anim, {
+      toValue:  next ? 1 : 0,
+      duration: 220,
+      easing:   Easing.out(Easing.cubic),
       useNativeDriver: true,
-      friction: 7,
     }).start();
+
+    const cascadeOrder = next ? pillAnims : [...pillAnims].reverse();
+    Animated.stagger(
+      60,
+      cascadeOrder.map((v) => Animated.timing(v, {
+        toValue:  next ? 1 : 0,
+        duration: 200,
+        easing:   Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      })),
+    ).start();
   };
 
   // `screenOffset` positions the whole widget on screen; `edgeStyle` then
@@ -61,7 +84,8 @@ export default function FloatingActionMenu({
     >
       {/* Expanded action pills */}
       {actions.map((action, i) => {
-        const translateY = anim.interpolate({
+        const pillAnim = pillAnims[i];
+        const translateY = pillAnim.interpolate({
           inputRange: [0, 1],
           outputRange: [0, -(56 * (i + 1))],
         });
@@ -73,7 +97,7 @@ export default function FloatingActionMenu({
               styles.pillWrapper,
               edgeStyle,
               {
-                opacity: anim,
+                opacity: pillAnim,
                 transform: [{ translateY }],
               },
             ]}
@@ -124,46 +148,4 @@ export default function FloatingActionMenu({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    bottom: 24,
-    alignItems: 'center',
-    zIndex: 50,
-  },
-  fab: {
-    width: 56, height: 56, borderRadius: 28,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6,
-    elevation: 6,
-  },
-  fabIcon: { color: '#fff', fontSize: 30, fontWeight: '400', marginTop: -2 },
-  pillWrapper: {
-    position: 'absolute',
-    bottom: 0,
-  },
-  pill: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4,
-    elevation: 4,
-  },
-  pillRtl: { flexDirection: 'row-reverse' },
-  pillIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  pillIconText: { fontSize: 18 },
-  pillLabel: {
-    fontSize: 13, fontWeight: '700', color: '#1a1a2e',
-    marginHorizontal: 10,
-  },
-  tooltip: {
-    position: 'absolute',
-    bottom: 64,
-    backgroundColor: '#1a1a2e',
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 8,
-  },
-  tooltipText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-});
+const styles = FloatingActionMenuStyles;

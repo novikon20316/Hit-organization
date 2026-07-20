@@ -1,7 +1,7 @@
 // student/screens/ActiveDashboard.tsx
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
+  View, Text, ScrollView, Pressable,
   Modal, TextInput, ActivityIndicator, Linking,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
@@ -10,6 +10,7 @@ import { tx, type Lang } from '../../components/i18n';
 import type { ActiveProject, Milestone, MilestoneType, MilestoneStatus } from '@/types';
 import { ActivateDashboardStyles } from '@/constants';
 import { apiClient } from '../../src/api/apiClient';
+import { ThesisTemplateCardStyles, GradeBreakdownStyles } from '../../constants/styles';
 
 interface Props {
   project:       ActiveProject;
@@ -215,7 +216,7 @@ export default function ActiveDashboard({
     <View style={styles.container}>
 
       {/* ── Tab Bar ── */}
-      <View style={styles.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
           { key: 'overview',   labelHe: 'סקירה',    labelEn: 'Overview' },
           { key: 'milestones', labelHe: 'אבני דרך', labelEn: 'Milestones' },
@@ -226,12 +227,12 @@ export default function ActiveDashboard({
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.labelHe : tab.labelEn}
             </Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
@@ -941,87 +942,6 @@ export default function ActiveDashboard({
 
 const styles = ActivateDashboardStyles;
 
-const thesisTemplateStyles = StyleSheet.create({
-  downloadBtn: {
-    marginTop:       12,
-    backgroundColor: '#2E86FF',
-    borderRadius:    10,
-    paddingVertical: 12,
-    alignItems:      'center',
-  },
-  downloadBtnText: {
-    color:      '#fff',
-    fontWeight: '700',
-    fontSize:   14,
-  },
-});
+const thesisTemplateStyles = ThesisTemplateCardStyles;
 
-const breakdownStyles = StyleSheet.create({
-  container: {
-    marginTop:       12,
-    paddingTop:      12,
-    borderTopWidth:  1,
-    borderTopColor:  '#E0E8FF',
-  },
-  row: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'space-between',
-    marginBottom:    10,
-  },
-  criterionLabel: {
-    fontSize:   13,
-    color:      '#445',
-    fontWeight: '600',
-    flex:       1,
-    marginRight: 8,
-  },
-  scoreRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           8,
-  },
-  miniTrack: {
-    width:           80,
-    height:          8,
-    borderRadius:    4,
-    backgroundColor: '#F0F4FF',
-    flexDirection:   'row',
-    overflow:        'hidden',
-  },
-  miniFill: {
-    borderRadius: 4,
-    height:       '100%',
-  },
-  scoreText: {
-    fontSize:   13,
-    color:      '#445',
-    fontWeight: '700',
-    minWidth:   50,
-    textAlign:  'right',
-  },
-  divider: {
-    height:          1,
-    backgroundColor: '#E0E8FF',
-    marginVertical:  8,
-  },
-  commentsBox: {
-    marginTop:       8,
-    backgroundColor: '#F8FAFF',
-    borderRadius:    10,
-    padding:         10,
-    borderWidth:     1,
-    borderColor:     '#E0E8FF',
-  },
-  commentsLabel: {
-    fontSize:     12,
-    fontWeight:   '700',
-    color:        '#8899BB',
-    marginBottom: 4,
-  },
-  commentsText: {
-    fontSize:   13,
-    color:      '#445',
-    lineHeight: 19,
-  },
-});
+const breakdownStyles = GradeBreakdownStyles;
