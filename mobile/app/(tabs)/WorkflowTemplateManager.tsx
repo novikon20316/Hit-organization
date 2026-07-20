@@ -19,7 +19,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../src/firebase/firebase';
 import type { Lang } from '../../components/i18n';
-import { TopBar } from '../../components/shared';
+import { TopBar, FACULTY_COLORS } from '../../components/shared';
+import { ResponsiveScreen } from '../../components/ResponsiveScreen';
+import { PERMISSION_FACULTY_IDS } from '../../constants/permissions';
 import { apiClient } from '../../src/api/apiClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -59,8 +61,12 @@ const PROCESS_TYPES: { key: ProcessType; he: string; en: string }[] = [
   { key: 'bsc_project', he: 'פרויקט לתואר ראשון',       en: "Bachelor's Project" },
 ];
 
-const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'system_admin'];
-const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'system_admin'];
+const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'administrative_secretary', 'system_admin'];
+const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'administrative_secretary', 'system_admin'];
+// No single "home" faculty — must explicitly pick which faculty they're
+// viewing/proposing for (see workflowTemplateController.ts).
+const CROSS_FACULTY_ROLES = ['system_admin', 'administrative_secretary', 'grad_school_head'];
+const SELECTABLE_FACULTY_IDS = PERMISSION_FACULTY_IDS.filter((id) => id !== 'all');
 
 function isMastersProcess(pt: ProcessType): boolean {
   return pt === 'msc_thesis' || pt === 'msc_project';
@@ -88,7 +94,13 @@ export default function WorkflowTemplateManager() {
   const [loading, setLoading]     = useState(true);
   const [userName, setUserName]   = useState('');
   const [userRole, setUserRole]   = useState<string | null>(null);
-  const [facultyId, setFacultyId] = useState<string | null>(null);
+  const [ownFacultyId, setOwnFacultyId] = useState<string | null>(null);
+  const [selectedFacultyId, setSelectedFacultyId] = useState<string | null>(null);
+
+  const isCrossFaculty = !!userRole && CROSS_FACULTY_ROLES.includes(userRole);
+  // Cross-faculty roles pick a real faculty explicitly; everyone else is
+  // locked to their own.
+  const facultyId = isCrossFaculty ? selectedFacultyId : ownFacultyId;
 
   const [templates, setTemplates] = useState<WorkflowTemplateDoc[]>([]);
   const [activeProcessType, setActiveProcessType] = useState<ProcessType>('msc_thesis');
@@ -122,16 +134,22 @@ export default function WorkflowTemplateManager() {
         const res = await apiClient.get('/api/users/profile');
         setUserName(res.data.displayName || '');
         setUserRole(res.data.role || null);
-        setFacultyId(res.data.facultyId || null);
+        setOwnFacultyId(res.data.facultyId || null);
         // No facultyId on the profile (shouldn't happen for the roles that
         // can reach this screen) — nothing left to load, stop spinning.
-        if (!res.data.facultyId) setLoading(false);
+        if (!res.data.facultyId && !CROSS_FACULTY_ROLES.includes(res.data.role)) setLoading(false);
       } catch (err) {
         console.error('WorkflowTemplateManager: failed to load profile', err);
         setLoading(false);
       }
     })();
   }, [uid]);
+
+  useEffect(() => {
+    if (isCrossFaculty && !selectedFacultyId && SELECTABLE_FACULTY_IDS.length > 0) {
+      setSelectedFacultyId(SELECTABLE_FACULTY_IDS[0]!);
+    }
+  }, [isCrossFaculty, selectedFacultyId]);
 
   const loadTemplates = useCallback(async () => {
     if (!facultyId) return;
@@ -215,6 +233,7 @@ export default function WorkflowTemplateManager() {
         processType: activeProcessType,
         milestones: editorMilestones,
         note: editorNote.trim() || undefined,
+        ...(isCrossFaculty ? { facultyId } : {}),
       });
       setEditorOpen(false);
       Alert.alert(
@@ -288,6 +307,27 @@ export default function WorkflowTemplateManager() {
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
       />
 
+      {/* Faculty selector — cross-faculty roles only (no single "home" faculty) */}
+      {isCrossFaculty && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          {SELECTABLE_FACULTY_IDS.map((id) => (
+            <Pressable
+              key={id}
+              style={{
+                borderWidth: 1.5, borderColor: selectedFacultyId === id ? '#7C3AED' : '#DDD6FE',
+                backgroundColor: selectedFacultyId === id ? '#7C3AED' : '#fff',
+                borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
+              }}
+              onPress={() => setSelectedFacultyId(id)}
+            >
+              <Text style={{ color: selectedFacultyId === id ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
+                {FACULTY_COLORS[id]?.label[lang] ?? id}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Process type selector */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12 }}>
         {PROCESS_TYPES.map((pt) => (
@@ -338,6 +378,7 @@ export default function WorkflowTemplateManager() {
         ))}
       </ScrollView>
 
+      <ResponsiveScreen>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {activeTab === 'current' && (
           <>
@@ -445,6 +486,7 @@ export default function WorkflowTemplateManager() {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+      </ResponsiveScreen>
 
       {/* ── Propose-version editor modal ── */}
       <Modal visible={editorOpen} animationType="slide" presentationStyle="pageSheet">

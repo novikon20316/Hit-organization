@@ -347,6 +347,15 @@ export default function PanelScreen() {
         </Text>
       </Pressable>
 
+      <Pressable
+        style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#F5F3FF', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+        onPress={() => router.push('/BulkPermissionsManager' as any)}
+      >
+        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
+          🛡️ {lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role'}
+        </Text>
+      </Pressable>
+
       <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('overview')}>
         <Text style={localStyles.tabLabel}>Overview</Text>
       </Pressable>

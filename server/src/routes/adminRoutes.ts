@@ -19,6 +19,8 @@ import {
   listDefenseAccessGrants,
   extendDefenseAccessGrant,
   eraseUserBySystemAdmin,
+  updateStudentAcademicYear,
+  searchStudents,
 } from '../controllers/adminController.js'
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
@@ -57,6 +59,8 @@ router.get('/dashboard-summary', verifyToken, getAdminDashboardSummary);
 router.get('/users/export', verifyToken, exportUsersAdmin);
 router.get('/defense-access-grants', verifyToken, listDefenseAccessGrants);
 router.get('/academic-calendar', verifyToken, getAcademicCalendarConfig);
+// system_admin or administrative_secretary — gated inside the controller.
+router.get('/students/search', verifyToken, searchStudents);
 
 // POST routes
 router.post('/projects', verifyToken, createAdminProject);
@@ -82,6 +86,8 @@ router.post('/users/:id/status', verifyToken, setStudentStatus);
 // PUT routes
 router.put('/academic-calendar', verifyToken, updateAcademicCalendarConfig);
 router.put('/student-statuses', verifyToken, updateStudentStatusOptions);
+// system_admin or administrative_secretary — gated inside the controller.
+router.put('/users/:id/academic-year', verifyToken, updateStudentAcademicYear);
 
 // DELETE routes
 router.delete('/info-files/:id', verifyToken, deleteInfoFile);

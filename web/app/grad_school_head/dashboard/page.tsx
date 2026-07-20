@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ReportsLink } from '@/components/ReportsLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
+import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -205,6 +206,7 @@ export default function GradSchoolHeadDashboardPage() {
       actions={
         <div className="flex items-center gap-2">
           <WorkflowTemplatesLink />
+          <BulkPermissionsLink />
           <ReportsLink />
         </div>
       }

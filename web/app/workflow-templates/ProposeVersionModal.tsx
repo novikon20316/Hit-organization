@@ -13,12 +13,16 @@ import { emptyMilestone, processTypeLabel, type GradingComponentSpec, type Miles
 
 interface ProposeVersionModalProps {
   processType: ProcessType;
+  /** Required for cross-faculty proposers (system_admin/administrative_secretary/
+   *  grad_school_head) — they have no single "home" faculty, so the server
+   *  requires one to be named explicitly (see workflowTemplateController.ts). */
+  facultyId?: string;
   initialMilestones: MilestoneSpec[];
   onClose: () => void;
   onProposed: () => void;
 }
 
-export function ProposeVersionModal({ processType, initialMilestones, onClose, onProposed }: ProposeVersionModalProps) {
+export function ProposeVersionModal({ processType, facultyId, initialMilestones, onClose, onProposed }: ProposeVersionModalProps) {
   const { lang, t } = useLanguage();
   const [milestones, setMilestones] = useState<MilestoneSpec[]>(initialMilestones.length > 0 ? initialMilestones.map((m) => ({ ...m })) : [emptyMilestone(1)]);
   const [note, setNote] = useState('');
@@ -62,6 +66,7 @@ export function ProposeVersionModal({ processType, initialMilestones, onClose, o
         processType,
         milestones,
         note: note.trim() || undefined,
+        facultyId,
       });
       onProposed();
       onClose();

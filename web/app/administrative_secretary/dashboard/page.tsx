@@ -15,6 +15,7 @@ import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import type { AppRole } from '@/lib/roles';
 import { BulkDueDateModal } from '@/components/BulkDueDateModal';
+import { AcademicYearLink } from '@/components/AcademicYearLink';
 import { SendExaminerModal } from './SendExaminerModal';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import type { ProjectGroup } from './types';
@@ -86,6 +87,7 @@ export default function AdministrativeSecretaryDashboardPage() {
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — מזכירה אדמיניסטרטיבית' : 'Administrative Secretary Dashboard'}
       subtitle={lang === 'he' ? 'קבוצות פרויקט, הגנות ובוחנים חיצוניים' : 'Project groups, defenses, and external examiners'}
+      actions={<AcademicYearLink />}
     >
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard value={stats.totalGroups} label={lang === 'he' ? 'קבוצות' : 'Groups'} color={facultyColor} />

@@ -32,6 +32,7 @@ import clockPauseRoutes from './routes/clockPause.js';
 import exceptionalActionRoutes from './routes/exceptionalActions.js';
 import examinerEscalationRoutes from './routes/examinerEscalation.js';
 import trackChangeRoutes from './routes/trackChange.js';
+import bulkPermissionsRoutes from './routes/bulkPermissions.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
@@ -117,6 +118,7 @@ app.use('/api/projects',      clockPauseRoutes);
 app.use('/api/projects',      trackChangeRoutes);
 app.use('/api/exceptional-actions', exceptionalActionRoutes);
 app.use('/api/coordinator/examiner-escalations', examinerEscalationRoutes);
+app.use('/api/admin/permissions', bulkPermissionsRoutes);
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error('Unhandled error:', err.stack);

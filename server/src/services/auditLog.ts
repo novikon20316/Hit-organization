@@ -40,7 +40,9 @@ export type AuditAction =
   | 'examiner_approval_decided'
   | 'revision_decision_recorded'
   | 'next_examiner_promoted'
-  | 'examiner_reminder_sent';
+  | 'examiner_reminder_sent'
+  | 'bulk_permissions_granted'
+  | 'academic_year_updated';
 
 export interface AuditLogEntry {
   userId: string;

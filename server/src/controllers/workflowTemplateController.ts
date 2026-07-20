@@ -20,9 +20,20 @@ import {
 import { logAuditEvent } from '../services/auditLog.js';
 
 const PROCESS_TYPES: ProcessType[] = ['msc_thesis', 'msc_project', 'bsc_project'];
-const PROPOSER_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'];
-const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'system_admin'];
-const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'system_admin'];
+// grad_school_head added — previously could only approve master's templates,
+// never propose/add one themselves, even though they're the head-of-school
+// role this whole approval chain is built around.
+const PROPOSER_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
+// administrative_secretary added to both — templates must be modifiable by
+// system_admin, administrative_secretary, and the relevant head-of-faculty/
+// head-of-school regardless of process type (previously administrative_secretary
+// could propose a template but never actually approve/activate one).
+const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'administrative_secretary', 'system_admin'];
+const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'administrative_secretary', 'system_admin'];
+// Roles with no single "home" faculty — must name a real target faculty
+// explicitly rather than silently proposing against their own facultyId
+// ('all'), which getActiveMilestonesFor would never match against a real project.
+const CROSS_FACULTY_PROPOSER_ROLES = ['system_admin', 'administrative_secretary', 'grad_school_head'];
 
 function isMastersProcess(processType: ProcessType): boolean {
   return processType === 'msc_thesis' || processType === 'msc_project';
@@ -90,8 +101,16 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     return res.status(403).json({ message: 'You do not have permission to propose workflow templates.' });
   }
 
-  const facultyId = role === 'system_admin' ? (req.body.facultyId ?? req.user?.facultyId) : req.user?.facultyId;
-  if (!facultyId) return res.status(400).json({ message: 'facultyId could not be resolved.' });
+  const facultyId = CROSS_FACULTY_PROPOSER_ROLES.includes(role)
+    ? (req.body.facultyId ?? req.user?.facultyId)
+    : req.user?.facultyId;
+  if (!facultyId || facultyId === 'all') {
+    return res.status(400).json({
+      message: CROSS_FACULTY_PROPOSER_ROLES.includes(role)
+        ? 'A specific facultyId is required — please choose which faculty this template applies to.'
+        : 'facultyId could not be resolved.',
+    });
+  }
 
   const { processType, note } = req.body;
   if (!PROCESS_TYPES.includes(processType)) {

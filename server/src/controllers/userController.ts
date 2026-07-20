@@ -10,7 +10,11 @@ import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../se
 import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
 import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
 
-function computeIsEligible(
+// Exported — also used by adminController.ts's updateStudentAcademicYear to
+// recompute this whenever a student's yearOfStudy is corrected/advanced, so
+// the same staleness bug fixed below (see getFullFirestore/getUserProfile)
+// can't reappear the moment yearOfStudy actually gets an update path.
+export function computeIsEligible(
   degreeType: string | null,
   major: string | null,
   yearOfStudy: number | null
@@ -42,7 +46,7 @@ export const getFullFirestore = async (req: AuthenticatedRequest, res: Response)
     const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
 
-    return res.status(200).json(userDoc.data());
+    return res.status(200).json(withRecomputedEligibility(userDoc.data()!));
   } catch (error: any) {
     console.error('GET /me error:', error);
     return res.status(500).json({ error: error.message });
@@ -59,12 +63,29 @@ export const getUserProfile = async (req: AuthenticatedRequest, res: Response) =
     const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
 
-    return res.status(200).json(userDoc.data());
+    return res.status(200).json(withRecomputedEligibility(userDoc.data()!));
   } catch (error: any) {
     console.error('GET /profile error:', error);
     return res.status(500).json({ error: error.message });
   }
 };
+
+// Bug fix: isEligibleForProcess was previously written ONCE at signup time
+// (whatever yearOfStudy the student typed on the signup form — almost always
+// NOT their final year) and never recomputed again — there was no
+// yearOfStudy update path at all, so a student who later reached their
+// actual final year stayed permanently stuck on the "ineligible" screen no
+// matter what. Recomputing it on every profile read means it always
+// reflects the CURRENT stored degreeType/major/yearOfStudy, including once
+// updateStudentAcademicYear (adminController.ts) gives staff a way to
+// correct/advance that field.
+function withRecomputedEligibility(data: FirebaseFirestore.DocumentData): FirebaseFirestore.DocumentData {
+  if (data.role !== 'student') return data;
+  return {
+    ...data,
+    isEligibleForProcess: computeIsEligible(data.degreeType ?? null, data.major ?? null, data.yearOfStudy ?? null),
+  };
+}
 
 // ─── POST /api/users/verify-eligibility ───────────────────────────────────────
 // PUBLIC — no Firebase Auth account exists yet at this point in the signup

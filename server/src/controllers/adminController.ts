@@ -17,7 +17,7 @@ import { hasActionGrant } from '../services/scopeAuthorization.js';
 const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head'];
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { sendNotificationEmail } from '../services/emailService.js';
-import { validateSystemAdminPassword } from './userController.js';
+import { validateSystemAdminPassword, computeIsEligible } from './userController.js';
 
 const db = admin.firestore();
 
@@ -791,5 +791,136 @@ export const extendDefenseAccessGrant = async (req: AuthenticatedRequest, res: R
   } catch (error: any) {
     console.error('extendDefenseAccessGrant error:', error);
     return res.status(500).json({ message: 'Failed to extend access grant.' });
+  }
+};
+
+/**
+ * PUT /api/admin/users/:id/academic-year
+ * Body: { yearOfStudy?: number, heldBack?: boolean, reason?: string }
+ *
+ * Previously there was NO way at all to correct/advance a student's
+ * yearOfStudy after account creation (see userController.ts's
+ * computeIsEligible fix — a student stuck as "ineligible" had no path out
+ * even once they reached their real final year). `heldBack` additionally
+ * lets staff explicitly record "keep this student in the same academic
+ * year" (a genuine hold-back), distinct from simply correcting a wrong
+ * number — visible elsewhere as an academicYearHeld badge/audit trail.
+ */
+const ACADEMIC_YEAR_ROLES = ['system_admin', 'administrative_secretary'];
+
+export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: Response) => {
+  const callerUid = req.user?.uid;
+  if (!callerUid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !ACADEMIC_YEAR_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: "Only system_admin or administrative_secretary may change a student's academic year." });
+  }
+
+  const { id: studentId } = req.params;
+  const { yearOfStudy, heldBack, reason } = req.body;
+  if (!studentId || typeof studentId !== 'string') {
+    return res.status(400).json({ message: 'Invalid studentId.' });
+  }
+  if (yearOfStudy !== undefined && (typeof yearOfStudy !== 'number' || !Number.isInteger(yearOfStudy) || yearOfStudy < 1 || yearOfStudy > 10)) {
+    return res.status(400).json({ message: 'yearOfStudy must be an integer between 1 and 10.' });
+  }
+  if (heldBack === true && (!reason || typeof reason !== 'string' || !reason.trim())) {
+    return res.status(400).json({ message: 'A reason is required to hold a student back in the same academic year.' });
+  }
+
+  try {
+    const studentRef = db.collection('users').doc(studentId);
+    const studentSnap = await studentRef.get();
+    if (!studentSnap.exists) return res.status(404).json({ message: 'Student not found.' });
+    const student = studentSnap.data()!;
+    if (student.role !== 'student') {
+      return res.status(400).json({ message: 'This action only applies to student accounts.' });
+    }
+
+    const newYearOfStudy = yearOfStudy !== undefined ? yearOfStudy : (student.yearOfStudy ?? null);
+    const isEligibleForProcess = computeIsEligible(student.degreeType ?? null, student.major ?? null, newYearOfStudy);
+
+    const update: Record<string, any> = {
+      isEligibleForProcess,
+      updatedAt: new Date().toISOString(),
+    };
+    if (yearOfStudy !== undefined) update.yearOfStudy = yearOfStudy;
+
+    if (heldBack === true) {
+      update.academicYearHeld = true;
+      update.academicYearHeldReason = reason.trim();
+      update.academicYearHeldBy = callerUid;
+      update.academicYearHeldAt = admin.firestore.FieldValue.serverTimestamp();
+    } else if (heldBack === false) {
+      update.academicYearHeld = false;
+      update.academicYearHeldReason = admin.firestore.FieldValue.delete();
+      update.academicYearHeldBy = admin.firestore.FieldValue.delete();
+      update.academicYearHeldAt = admin.firestore.FieldValue.delete();
+    }
+
+    await studentRef.update(update);
+
+    await logAuditEvent({
+      userId: callerUid,
+      userRole: req.user.role,
+      action: 'academic_year_updated',
+      entityType: 'user',
+      entityId: studentId,
+      oldValue: { yearOfStudy: student.yearOfStudy ?? null, academicYearHeld: student.academicYearHeld ?? false },
+      newValue: { yearOfStudy: newYearOfStudy, academicYearHeld: heldBack ?? student.academicYearHeld ?? false },
+      explanation: typeof reason === 'string' ? reason : undefined,
+    });
+
+    return res.status(200).json({ success: true, message: 'Academic year updated.' });
+  } catch (error: any) {
+    console.error('updateStudentAcademicYear error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to update academic year.' });
+  }
+};
+
+/**
+ * GET /api/admin/students/search?q=...
+ * Backs the academic-year management screen — Firestore has no full-text
+ * search, so this fetches every student and filters in-memory by
+ * displayName/email/studentId substring match. Fine at this system's scale
+ * (a university department's student roster, not millions of rows).
+ */
+export const searchStudents = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user?.role || !ACADEMIC_YEAR_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied.' });
+  }
+
+  const q = (req.query.q as string | undefined)?.trim().toLowerCase();
+  if (!q || q.length < 2) {
+    return res.status(400).json({ message: 'Provide at least 2 characters to search.' });
+  }
+
+  try {
+    const snap = await db.collection('users').where('role', '==', 'student').get();
+    const students = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((u: any) =>
+        (u.displayName ?? '').toLowerCase().includes(q) ||
+        (u.email ?? '').toLowerCase().includes(q) ||
+        (u.studentId ?? '').toLowerCase().includes(q)
+      )
+      .slice(0, 25)
+      .map((u: any) => ({
+        id: u.id,
+        displayName: u.displayName ?? '',
+        email: u.email ?? '',
+        studentId: u.studentId ?? '',
+        facultyId: u.facultyId ?? '',
+        degreeType: u.degreeType ?? null,
+        major: u.major ?? null,
+        yearOfStudy: u.yearOfStudy ?? null,
+        isEligibleForProcess: !!u.isEligibleForProcess,
+        academicYearHeld: !!u.academicYearHeld,
+        academicYearHeldReason: u.academicYearHeldReason ?? null,
+      }));
+
+    return res.status(200).json({ students });
+  } catch (error: any) {
+    console.error('searchStudents error:', error);
+    return res.status(500).json({ message: 'Failed to search students.' });
   }
 };

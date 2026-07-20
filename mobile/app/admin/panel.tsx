@@ -1170,6 +1170,22 @@ export default function PanelScreen() {
                 📎 {lang === 'he' ? 'ניהול מסמכים לסטודנטים' : 'Manage Student Info Files'}
               </Text>
             </Pressable>
+            <Pressable
+              style={[styles.submitBtn, { marginTop: 10 }]}
+              onPress={() => router.push('/AcademicYearManager' as any)}
+            >
+              <Text style={styles.submitBtnText}>
+                🎓 {lang === 'he' ? 'ניהול שנת לימודים' : 'Academic Year Management'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.submitBtn, { marginTop: 10 }]}
+              onPress={() => router.push('/BulkPermissionsManager' as any)}
+            >
+              <Text style={styles.submitBtnText}>
+                🛡️ {lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role'}
+              </Text>
+            </Pressable>
           </>
         )}
 

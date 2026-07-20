@@ -13,11 +13,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
+import { FACULTY_LABELS, type FacultyId } from '@/lib/i18n';
 import { ProposeVersionModal } from './ProposeVersionModal';
 import { RejectModal } from './RejectModal';
 import { PROCESS_TYPES, canApproveRole, isMastersProcess, processTypeLabel, type ProcessType, type WorkflowTemplateDoc } from './types';
 
 const WORKFLOW_TEMPLATE_ROLES: AppRole[] = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
+// These roles have no single "home" faculty (facultyId === 'all') — they
+// must explicitly pick which faculty's templates they're viewing/proposing
+// for, or every fetch/propose silently targets a facultyId ('all') that no
+// real project ever has (see workflowTemplateController.ts).
+const CROSS_FACULTY_ROLES: AppRole[] = ['system_admin', 'administrative_secretary', 'grad_school_head'];
+const SELECTABLE_FACULTY_IDS = (Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all');
 
 export default function WorkflowTemplatesPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(WORKFLOW_TEMPLATE_ROLES);
@@ -35,8 +42,18 @@ export default function WorkflowTemplatesPage() {
   const [proposeOpen, setProposeOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
-  const facultyId = userData?.facultyId;
-  const role = userData?.role;
+  const role = userData?.role as AppRole | undefined;
+  const isCrossFaculty = !!role && CROSS_FACULTY_ROLES.includes(role);
+  const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
+  // Cross-faculty roles pick a real faculty explicitly; everyone else is
+  // locked to their own.
+  const facultyId = isCrossFaculty ? selectedFacultyId : userData?.facultyId;
+
+  useEffect(() => {
+    if (isCrossFaculty && !selectedFacultyId && SELECTABLE_FACULTY_IDS.length > 0) {
+      setSelectedFacultyId(SELECTABLE_FACULTY_IDS[0]!);
+    }
+  }, [isCrossFaculty, selectedFacultyId]);
 
   const fetchTemplates = useCallback(async () => {
     if (!facultyId) return;
@@ -101,6 +118,23 @@ export default function WorkflowTemplatesPage() {
       title={lang === 'he' ? 'תבניות תהליך' : 'Process Templates'}
       subtitle={lang === 'he' ? 'הגדרת אבני הדרך לכל סוג תהליך' : 'Configure the milestone list for each process type'}
     >
+      {isCrossFaculty && (
+        <label className="mb-4 block max-w-xs">
+          <span className="mb-1.5 block text-xs font-medium text-muted">
+            {lang === 'he' ? 'פקולטה' : 'Faculty'}
+          </span>
+          <select
+            value={selectedFacultyId}
+            onChange={(e) => setSelectedFacultyId(e.target.value)}
+            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+          >
+            {SELECTABLE_FACULTY_IDS.map((id) => (
+              <option key={id} value={id}>{FACULTY_LABELS[id][lang]}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <div className="mb-4 flex flex-wrap gap-2">
         {PROCESS_TYPES.map((pt) => (
           <button
@@ -245,6 +279,7 @@ export default function WorkflowTemplatesPage() {
       {proposeOpen && (
         <ProposeVersionModal
           processType={activeProcessType}
+          facultyId={isCrossFaculty ? facultyId : undefined}
           initialMilestones={approvedForActive?.milestones ?? []}
           onClose={() => setProposeOpen(false)}
           onProposed={() => {

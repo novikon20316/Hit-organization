@@ -65,9 +65,9 @@ export const PROCESS_TYPES: { key: ProcessType; he: string; en: string }[] = [
 // consumed on the web side today (proposing is gated by the page's own
 // useRequireRole list, which is a superset), but kept here for parity with
 // mobile and in case a narrower "can propose" check is needed later.
-export const PROPOSER_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'];
-export const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'system_admin'];
-export const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'system_admin'];
+export const PROPOSER_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
+export const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'administrative_secretary', 'system_admin'];
+export const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'administrative_secretary', 'system_admin'];
 
 export function isMastersProcess(pt: ProcessType): boolean {
   return pt === 'msc_thesis' || pt === 'msc_project';

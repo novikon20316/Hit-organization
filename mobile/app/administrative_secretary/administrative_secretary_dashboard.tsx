@@ -426,14 +426,24 @@ export default function ProjectCoordinatorDashboard() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Search + filters */}
-        <Pressable
-          style={[s.filterChip, { alignSelf: 'flex-start', backgroundColor: '#FFF7ED', borderColor: '#F59E0B', marginBottom: 10 }]}
-          onPress={() => setShowBulkDueDate(true)}
-        >
-          <Text style={[s.filterChipText, { color: '#92400E' }]}>
-            📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
-          </Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+          <Pressable
+            style={[s.filterChip, { alignSelf: 'flex-start', backgroundColor: '#FFF7ED', borderColor: '#F59E0B' }]}
+            onPress={() => setShowBulkDueDate(true)}
+          >
+            <Text style={[s.filterChipText, { color: '#92400E' }]}>
+              📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[s.filterChip, { alignSelf: 'flex-start', backgroundColor: '#EDE9FE', borderColor: '#7C3AED' }]}
+            onPress={() => router.push('/AcademicYearManager' as any)}
+          >
+            <Text style={[s.filterChipText, { color: '#5B21B6' }]}>
+              🎓 {lang === 'he' ? 'שנת לימודים' : 'Academic Year'}
+            </Text>
+          </Pressable>
+        </View>
         <TextInput
           style={s.searchInput}
           value={searchText}

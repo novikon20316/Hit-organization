@@ -10,6 +10,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ReportsLink } from '@/components/ReportsLink';
 import { InfoFilesLink } from '@/components/InfoFilesLink';
+import { AcademicYearLink } from '@/components/AcademicYearLink';
+import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -121,6 +123,8 @@ export default function AdminPanelPage() {
       actions={
         <div className="flex items-center gap-2">
           <InfoFilesLink />
+          <AcademicYearLink />
+          <BulkPermissionsLink />
           <ReportsLink />
           <button
             type="button"

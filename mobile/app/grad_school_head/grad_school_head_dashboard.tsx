@@ -259,6 +259,15 @@ export default function GradSchoolHeadDashboard() {
         </Text>
       </Pressable>
 
+      <Pressable
+        style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#F5F3FF', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+        onPress={() => router.push('/BulkPermissionsManager' as any)}
+      >
+        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
+          🛡️ {lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role'}
+        </Text>
+      </Pressable>
+
       {/* Stats strip */}
       <View style={s.statsStrip}>
         {[

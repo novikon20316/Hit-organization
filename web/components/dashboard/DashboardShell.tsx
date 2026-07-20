@@ -40,6 +40,11 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
   const { lang } = useLanguage();
   const railColor = getRoleAccent(userData?.role);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  // Every per-page nav link (Reports, Workflow Templates, Academic Year, Bulk
+  // Permissions, ...) gets injected here via `actions` — on a narrow viewport
+  // that row has nowhere to go but overflow. Below `sm`, it (plus language/
+  // role/delete/sign-out) collapses into this hamburger dropdown instead.
+  const [menuOpen, setMenuOpen] = useState(false);
   const [totpNudgeDismissed, setTotpNudgeDismissed] = useState(
     () => typeof window !== 'undefined' && sessionStorage.getItem(TOTP_NUDGE_DISMISS_KEY) === '1'
   );
@@ -71,21 +76,67 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
           <Link
             href={getHomeRoute(userData?.role)}
             title={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
-            className="flex items-center gap-3 rounded-lg transition-opacity hover:opacity-80"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition-opacity hover:opacity-80 sm:flex-initial"
           >
-            <Image src="/hit-logo.png" alt="HIT" width={32} height={19} className="h-6 w-auto object-contain" />
-            <div>
-              <h1 className="text-base font-semibold leading-tight text-ink">{title}</h1>
-              {subtitle && <p className="text-xs text-muted">{subtitle}</p>}
+            <Image src="/hit-logo.png" alt="HIT" width={32} height={19} className="h-6 w-auto shrink-0 object-contain" />
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold leading-tight text-ink">{title}</h1>
+              {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
             </div>
           </Link>
 
-          <div className="flex items-center gap-3">
-            {actions}
+          <div className="flex shrink-0 items-center gap-3">
             <NotificationBell />
-            <LanguageToggle />
+
+            {/* Desktop: everything inline, unchanged. */}
+            <div className="hidden items-center gap-3 sm:flex">
+              {actions}
+              <LanguageToggle />
+              {userData && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="rounded-full px-2.5 py-1 text-xs font-medium"
+                    style={{ backgroundColor: `${railColor}1F`, color: railColor }}
+                  >
+                    {roleLabel(userData.role as AppRole, lang)}
+                  </span>
+                  <span className="text-sm text-ink">{lang === 'he' ? userData.displayNameHe : userData.displayNameEn}</span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowDeleteAccount(true)}
+                title={lang === 'he' ? 'מחיקת חשבון' : 'Delete Account'}
+                className="rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-danger hover:text-danger"
+              >
+                🗑️
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink transition-colors hover:border-danger hover:text-danger"
+              >
+                {lang === 'he' ? 'יציאה' : 'Sign Out'}
+              </button>
+            </div>
+
+            {/* Mobile: everything above folds into this hamburger toggle. */}
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={lang === 'he' ? 'תפריט' : 'Menu'}
+              aria-expanded={menuOpen}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink sm:hidden"
+            >
+              <span className="text-lg leading-none">{menuOpen ? '✕' : '☰'}</span>
+            </button>
+          </div>
+        </div>
+
+        {menuOpen && (
+          <div className="border-t border-line bg-surface px-4 py-3 sm:hidden">
             {userData && (
-              <div className="hidden items-center gap-2 sm:flex">
+              <div className="mb-3 flex items-center gap-2">
                 <span
                   className="rounded-full px-2.5 py-1 text-xs font-medium"
                   style={{ backgroundColor: `${railColor}1F`, color: railColor }}
@@ -95,23 +146,37 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
                 <span className="text-sm text-ink">{lang === 'he' ? userData.displayNameHe : userData.displayNameEn}</span>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setShowDeleteAccount(true)}
-              title={lang === 'he' ? 'מחיקת חשבון' : 'Delete Account'}
-              className="hidden rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-danger hover:text-danger sm:inline-flex"
-            >
-              🗑️
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink transition-colors hover:border-danger hover:text-danger"
-            >
-              {lang === 'he' ? 'יציאה' : 'Sign Out'}
-            </button>
+            {actions && (
+              // `actions` is arbitrary page-provided markup (often its own
+              // `flex items-center gap-2` row of link pills) — this can't
+              // force it into a column, but flex-wrap keeps it from
+              // overflowing horizontally in the narrow dropdown instead.
+              <div className="mb-3 flex flex-wrap items-center gap-2 [&>div]:flex-wrap [&>div]:gap-2 [&_a]:text-center [&_button]:text-center">
+                {actions}
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between rounded-lg border border-line px-3 py-2">
+                <span className="text-sm text-ink">{lang === 'he' ? 'שפה' : 'Language'}</span>
+                <LanguageToggle />
+              </div>
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); setShowDeleteAccount(true); }}
+                className="rounded-lg border border-line px-3 py-2 text-start text-sm text-muted hover:border-danger hover:text-danger"
+              >
+                🗑️ {lang === 'he' ? 'מחיקת חשבון' : 'Delete Account'}
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-lg border border-line px-3 py-2 text-start text-sm font-medium text-ink hover:border-danger hover:text-danger"
+              >
+                {lang === 'he' ? '🚪 יציאה' : '🚪 Sign Out'}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </header>
 
       {showTotpNudge && (

@@ -755,6 +755,46 @@ export const apiClient = {
     return request<{ success: boolean; message: string }>(`/api/admin/faculty-content/${id}`, { method: 'DELETE' });
   },
 
+  /** system_admin or administrative_secretary only (checked server-side). */
+  async searchStudents(q: string) {
+    return request<{
+      students: Array<{
+        id: string; displayName: string; email: string; studentId: string; facultyId: string;
+        degreeType: string | null; major: string | null; yearOfStudy: number | null;
+        isEligibleForProcess: boolean; academicYearHeld: boolean; academicYearHeldReason: string | null;
+      }>;
+    }>('/api/admin/students/search', { method: 'GET', params: { q } });
+  },
+
+  async updateStudentAcademicYear(studentId: string, payload: { yearOfStudy?: number; heldBack?: boolean; reason?: string }) {
+    return request<{ success: boolean; message: string }>(`/api/admin/users/${studentId}/academic-year`, { method: 'PUT', body: payload });
+  },
+
+  // ─── Bulk role-based permissions — apply a scope+view+actions grant to
+  // EVERY user of a role at once, instead of the per-user checkbox editor
+  // (PermissionsEditorModal.tsx). system_admin: unscoped. faculty_admin:
+  // locked server-side to their own faculty. grad_school_head: cross-faculty
+  // by design. ─────────────────────────────────────────────────────────────
+  async getUsersByRole(role: string) {
+    return request<{ users: Array<{ id: string; displayName: string; facultyId: string | null }> }>(
+      '/api/admin/permissions/users-by-role', { method: 'GET', params: { role } }
+    );
+  },
+
+  async applyPermissionsToRole(payload: {
+    targetRole: string;
+    facultyId?: string;
+    major?: string;
+    degreeLevel?: 'bachelors' | 'masters';
+    processType?: 'thesis' | 'project';
+    view: string[];
+    actions: string[];
+  }) {
+    return request<{ success: boolean; affectedCount: number; message?: string }>(
+      '/api/admin/permissions/apply-to-role', { method: 'POST', body: payload }
+    );
+  },
+
   // ─── 15. BULK IMPORT/EXPORT (admin/coordinator) ────────────────────────────
   async importStaffExcel(scope: 'admin' | 'coordinator', formData: FormData) {
     const path = scope === 'admin' ? '/api/admin/staff/import' : '/api/coordinator/staff/import';
