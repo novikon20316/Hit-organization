@@ -495,6 +495,37 @@ export const apiClient = {
     }>('/api/admin/academic-calendar', { method: 'PUT', body: payload });
   },
 
+  /** Any authenticated user — labels are shown wherever a student's status
+   *  appears, not just to whoever can edit the option lists. */
+  async getStudentStatusOptions() {
+    return request<{
+      primary: Array<{ key: string; labelHe: string; labelEn: string }>;
+      secondary: Array<{ key: string; labelHe: string; labelEn: string }>;
+    }>('/api/student-statuses', { method: 'GET' });
+  },
+
+  /** system_admin only — whole-list replace per axis (either key omitted
+   *  leaves that axis unchanged). */
+  async updateStudentStatusOptions(payload: {
+    primary?: Array<{ key?: string; labelHe: string; labelEn: string }>;
+    secondary?: Array<{ key?: string; labelHe: string; labelEn: string }>;
+  }) {
+    return request<{
+      primary: Array<{ key: string; labelHe: string; labelEn: string }>;
+      secondary: Array<{ key: string; labelHe: string; labelEn: string }>;
+    }>('/api/admin/student-statuses', { method: 'PUT', body: payload });
+  },
+
+  /** system_admin (any student) or faculty_admin (own faculty only — server
+   *  enforces this, a 403 comes back otherwise). Either field omitted leaves
+   *  that one unchanged; pass null to clear it. */
+  async setStudentStatus(studentId: string, payload: { primaryStatus?: string | null; secondaryStatus?: string | null }) {
+    return request<{ success: boolean; message: string }>(`/api/admin/users/${studentId}/status`, {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
   // ─── 6. COORDINATOR (coordinator / administrative_secretary / system_admin) ─
   async getCoordinatorDashboard() {
     return request<{
@@ -651,10 +682,12 @@ export const apiClient = {
   },
 
   async getInfoFiles() {
-    return request<{ files: Array<{ id: string; titleHe: string; titleEn: string; fileUrl: string; fileName: string }> }>(
-      '/api/info-files',
-      { method: 'GET' }
-    );
+    return request<{
+      files: Array<{
+        id: string; titleHe: string; titleEn: string; fileUrl: string; fileName: string;
+        facultyIds: string[]; majors: string[]; degreeTypes: string[];
+      }>;
+    }>('/api/info-files', { method: 'GET' });
   },
 
   /** system_admin or coordinator only (checked server-side regardless of

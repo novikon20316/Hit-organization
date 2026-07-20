@@ -415,6 +415,21 @@ export interface UserRecord {
   // omitted/empty means unrestricted (every major in their faculty). See
   // constants/permissions.ts's majorsForFaculty for the slug source of truth.
   assignedMajors?: string[];
+  // Student-only, independent axes resolved against the admin-managed
+  // option lists (see server/src/services/studentStatuses.ts). Both are
+  // optional keys into that config — undefined/null means "not set yet".
+  primaryStatus?: string | null;
+  secondaryStatus?: string | null;
+}
+
+/**
+ * A single admin-manageable Primary/Secondary status option — mirrors
+ * StatusOption in server/src/services/studentStatuses.ts exactly.
+ */
+export interface StatusOption {
+  key: string;
+  labelHe: string;
+  labelEn: string;
 }
 
 /**

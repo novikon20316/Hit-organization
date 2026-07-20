@@ -35,6 +35,10 @@ import {
   getAcademicCalendarConfig,
   updateAcademicCalendarConfig,
 } from '../controllers/academicCalendarController.js';
+import {
+  updateStudentStatusOptions,
+  setStudentStatus,
+} from '../controllers/studentStatusController.js';
 
 const router = Router();
 
@@ -69,9 +73,13 @@ router.post('/users/import', verifyToken, uploadExcelFileMiddleware, importUsers
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
+// system_admin (any student) or faculty_admin (own faculty only) — gated
+// inside the controller, not here, matching createAdminProject's pattern.
+router.post('/users/:id/status', verifyToken, setStudentStatus);
 
 // PUT routes
 router.put('/academic-calendar', verifyToken, updateAcademicCalendarConfig);
+router.put('/student-statuses', verifyToken, updateStudentStatusOptions);
 
 // DELETE routes
 router.delete('/info-files/:id', verifyToken, deleteInfoFile);

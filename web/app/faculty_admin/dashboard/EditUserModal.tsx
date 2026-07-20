@@ -1,12 +1,12 @@
 'use client';
 
 // app/faculty_admin/dashboard/EditUserModal.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel } from '@/lib/i18n';
-import type { FacultyAdminUserRecord } from './types';
+import type { FacultyAdminUserRecord, StudentStatusConfig } from './types';
 
 interface EditUserModalProps {
   user: FacultyAdminUserRecord;
@@ -24,11 +24,47 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Student status — options come from the shared admin-manageable lists
+  // (managed by system_admin only); fetched once when this modal opens.
+  // faculty_admin can set status here, but only server-enforced within
+  // their own faculty (a 403 comes back otherwise).
+  const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
+  const [primaryStatus, setPrimaryStatus] = useState<string>(user.primaryStatus ?? '');
+  const [secondaryStatus, setSecondaryStatus] = useState<string>(user.secondaryStatus ?? '');
+  const isStudent = role === 'student';
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .getStudentStatusOptions()
+      .then((res) => {
+        if (!cancelled) setStatusConfig(res);
+      })
+      .catch(() => {
+        // Non-fatal — the dropdowns just stay empty aside from "— none —".
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSave = async () => {
     setSaving(true);
     setError('');
     try {
       await apiClient.updateUserPermissionsFacultyAdmin(user.id, { role, facultyId });
+
+      if (isStudent) {
+        const primaryChanged = (user.primaryStatus ?? '') !== primaryStatus;
+        const secondaryChanged = (user.secondaryStatus ?? '') !== secondaryStatus;
+        if (primaryChanged || secondaryChanged) {
+          await apiClient.setStudentStatus(user.id, {
+            primaryStatus: primaryStatus || null,
+            secondaryStatus: secondaryStatus || null,
+          });
+        }
+      }
+
       onSaved();
       onClose();
     } catch (err) {
@@ -69,6 +105,33 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
               ))}
             </select>
           </label>
+
+          {isStudent && (
+            <>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}</span>
+                <select value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
+                  <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
+                  {statusConfig.primary.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {lang === 'he' ? o.labelHe : o.labelEn}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}</span>
+                <select value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
+                  <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
+                  {statusConfig.secondary.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {lang === 'he' ? o.labelHe : o.labelEn}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}

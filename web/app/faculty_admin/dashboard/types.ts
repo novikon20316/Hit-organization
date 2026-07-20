@@ -10,6 +10,24 @@ export interface FacultyAdminUserRecord {
   facultyId: FacultyId;
   isActive: boolean;
   hasActiveProject?: boolean;
+  /** Admin-manageable Primary/Secondary status keys — only meaningful when
+   *  role === 'student'. Resolve to display labels via a fetched
+   *  StudentStatusConfig (see server/src/services/studentStatuses.ts). */
+  primaryStatus?: string;
+  secondaryStatus?: string;
+}
+
+/** Mirrors apiClient.getStudentStatusOptions()'s response shape (see
+ *  lib/apiClient.ts and server/src/services/studentStatuses.ts). */
+export interface StudentStatusOption {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+}
+
+export interface StudentStatusConfig {
+  primary: StudentStatusOption[];
+  secondary: StudentStatusOption[];
 }
 
 export interface FacultyAdminProjectRecord {

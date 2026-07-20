@@ -4,7 +4,7 @@
 // Ported from mobile's EditUserModal + panel.tsx's handleSaveUser. Same
 // endpoint, same payload: { role, roles, facultyId } via role-update.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
@@ -12,7 +12,7 @@ import { roleLabel, facultyLabel } from '@/lib/i18n';
 import { PermissionsEditorModal } from './PermissionsEditorModal';
 import { CoordinatorScopesModal } from './CoordinatorScopesModal';
 import { majorsForFaculty, type ScopeRule, type CoordinatorScope } from '@/lib/permissions';
-import type { AdminUserRecord } from './types';
+import type { AdminUserRecord, StudentStatusConfig } from './types';
 
 interface EditUserModalProps {
   user: AdminUserRecord;
@@ -35,6 +35,27 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Student status — options come from the shared admin-manageable lists
+  // (see StudentStatusesModal.tsx); fetched once when this modal opens.
+  const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
+  const [primaryStatus, setPrimaryStatus] = useState<string>(user.primaryStatus ?? '');
+  const [secondaryStatus, setSecondaryStatus] = useState<string>(user.secondaryStatus ?? '');
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .getStudentStatusOptions()
+      .then((res) => {
+        if (!cancelled) setStatusConfig(res);
+      })
+      .catch(() => {
+        // Non-fatal — the dropdowns just stay empty aside from "— none —".
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Granular permissions — UI only for now, not yet sent to the server (see
   // lib/permissions.ts and PermissionsEditorModal). Mirrors mobile's
   // panel.tsx: these live in component state and get threaded into
@@ -49,6 +70,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
   const showCoordinatorScopes = role === 'coordinator' || additionalRoles.includes('coordinator');
   const isSupervisorLike =
     role === 'supervisor' || additionalRoles.includes('supervisor') || role === 'secondary_supervisor' || additionalRoles.includes('secondary_supervisor');
+  const isStudent = role === 'student' || additionalRoles.includes('student');
 
   // Deduped across degree levels — same helper the coordinator-scope UI uses.
   const assignedMajorOptions = useMemo(() => majorsForFaculty(facultyId), [facultyId]);
@@ -77,6 +99,18 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
         facultyId,
         assignedMajors: isSupervisorLike ? assignedMajors : undefined,
       });
+
+      if (isStudent) {
+        const primaryChanged = (user.primaryStatus ?? '') !== primaryStatus;
+        const secondaryChanged = (user.secondaryStatus ?? '') !== secondaryStatus;
+        if (primaryChanged || secondaryChanged) {
+          await apiClient.setStudentStatus(user.id, {
+            primaryStatus: primaryStatus || null,
+            secondaryStatus: secondaryStatus || null,
+          });
+        }
+      }
+
       onSaved();
       onClose();
     } catch (err) {
@@ -114,6 +148,33 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
               ))}
             </select>
           </label>
+
+          {isStudent && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}</span>
+                <select value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
+                  <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
+                  {statusConfig.primary.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {lang === 'he' ? o.labelHe : o.labelEn}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}</span>
+                <select value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
+                  <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
+                  {statusConfig.secondary.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {lang === 'he' ? o.labelHe : o.labelEn}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
 
           {isSupervisorLike && (
             <div>

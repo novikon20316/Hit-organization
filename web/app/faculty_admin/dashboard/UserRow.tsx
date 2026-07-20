@@ -6,19 +6,26 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getRoleAccent, withAlpha } from '@/lib/facultyColors';
 import { roleLabel, type AppRole } from '@/lib/i18n';
-import type { FacultyAdminUserRecord } from './types';
+import type { FacultyAdminUserRecord, StudentStatusConfig } from './types';
 
 interface UserRowProps {
   user: FacultyAdminUserRecord;
+  statusConfig: StudentStatusConfig;
   onChanged: () => void;
   onEdit: (user: FacultyAdminUserRecord) => void;
 }
 
-export function UserRow({ user, onChanged, onEdit }: UserRowProps) {
+export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps) {
   const { lang } = useLanguage();
   const roleColor = getRoleAccent(user.role);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState('');
+
+  // Status badges are student-only, and only shown once actually set —
+  // omit entirely rather than showing an empty/placeholder badge.
+  const isStudent = user.role === 'student' || (user.roles ?? []).includes('student');
+  const primaryStatusOption = isStudent && user.primaryStatus ? statusConfig.primary.find((o) => o.key === user.primaryStatus) : undefined;
+  const secondaryStatusOption = isStudent && user.secondaryStatus ? statusConfig.secondary.find((o) => o.key === user.secondaryStatus) : undefined;
 
   const handleToggle = async () => {
     setToggling(true);
@@ -63,6 +70,21 @@ export function UserRow({ user, onChanged, onEdit }: UserRowProps) {
           ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
         </button>
       </div>
+
+      {(primaryStatusOption || secondaryStatusOption) && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {primaryStatusOption && (
+            <span className="rounded-full bg-[#EEF2FF] px-2.5 py-1 text-xs font-medium text-[#4338CA]">
+              🎯 {lang === 'he' ? primaryStatusOption.labelHe : primaryStatusOption.labelEn}
+            </span>
+          )}
+          {secondaryStatusOption && (
+            <span className="rounded-full bg-[#F0FDF4] px-2.5 py-1 text-xs font-medium text-[#15803D]">
+              ▫️ {lang === 'he' ? secondaryStatusOption.labelHe : secondaryStatusOption.labelEn}
+            </span>
+          )}
+        </div>
+      )}
 
       {error && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{error}</p>}
     </div>

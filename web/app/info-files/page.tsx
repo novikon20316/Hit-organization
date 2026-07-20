@@ -5,15 +5,32 @@
 // with delete. The read side students see already exists at
 // app/student/home/InfoScreen.tsx, calling the same GET /api/info-files.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import type { AppRole } from '@/lib/roles';
+import { VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
+import { facultyLabel, type FacultyId } from '@/lib/i18n';
+import { majorsForFaculty } from '@/lib/permissions';
+import { HIT_FACULTIES } from '@/lib/faculties';
 
 const INFO_FILE_ROLES: AppRole[] = ['system_admin', 'coordinator'];
+const SELECTABLE_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
+const ALL_MAJORS = (() => {
+  const seen = new Set<string>();
+  const out: { slug: string; label: Record<'he' | 'en', string> }[] = [];
+  for (const faculty of HIT_FACULTIES) {
+    for (const program of faculty.programs) {
+      if (seen.has(program.slug)) continue;
+      seen.add(program.slug);
+      out.push({ slug: program.slug, label: program.label });
+    }
+  }
+  return out;
+})();
+const DEGREE_TYPES = ['bachelors', 'masters'] as const;
 
 interface InfoFile {
   id: string;
@@ -21,6 +38,30 @@ interface InfoFile {
   titleEn: string;
   fileUrl: string;
   fileName: string;
+  facultyIds: string[];
+  majors: string[];
+  degreeTypes: string[];
+}
+
+function scopeSummary(f: InfoFile, lang: 'he' | 'en'): string {
+  const parts: string[] = [];
+  if (f.facultyIds?.length) parts.push(f.facultyIds.map((id) => facultyLabel(id as FacultyId, lang)).join(', '));
+  if (f.majors?.length) {
+    parts.push(
+      f.majors
+        .map((slug) => ALL_MAJORS.find((m) => m.slug === slug)?.label[lang] ?? slug)
+        .join(', ')
+    );
+  }
+  if (f.degreeTypes?.length) {
+    parts.push(
+      f.degreeTypes
+        .map((d) => (d === 'bachelors' ? (lang === 'he' ? "תואר ראשון" : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")))
+        .join(', ')
+    );
+  }
+  if (parts.length === 0) return lang === 'he' ? '🌐 כולם' : '🌐 Everyone';
+  return `🎯 ${parts.join(' · ')}`;
 }
 
 export default function InfoFilesPage() {
@@ -36,6 +77,48 @@ export default function InfoFilesPage() {
   const [error, setError] = useState('');
   const [deletingFile, setDeletingFile] = useState<InfoFile | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Visibility scoping — each empty means unrestricted for that axis (the
+  // file stays visible to everyone along that dimension). A student must
+  // match ALL three non-empty axes to see the file; enforced server-side in
+  // getInfoFiles, not just here.
+  const [scopeFacultyIds, setScopeFacultyIds] = useState<string[]>([]);
+  const [scopeMajors, setScopeMajors] = useState<string[]>([]);
+  const [scopeDegreeTypes, setScopeDegreeTypes] = useState<string[]>([]);
+
+  // Cascades to just the selected faculties' majors once any are picked —
+  // otherwise the full cross-faculty list, since a major on its own is a
+  // valid (if unusual) restriction too.
+  const availableMajors = useMemo(() => {
+    if (scopeFacultyIds.length === 0) return ALL_MAJORS;
+    const seen = new Set<string>();
+    const out: typeof ALL_MAJORS = [];
+    for (const facultyId of scopeFacultyIds) {
+      for (const m of majorsForFaculty(facultyId)) {
+        if (seen.has(m.slug)) continue;
+        seen.add(m.slug);
+        out.push(m);
+      }
+    }
+    return out;
+  }, [scopeFacultyIds]);
+
+  const toggleIn = (list: string[], value: string, setList: (v: string[]) => void) => {
+    setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  };
+
+  const toggleFaculty = (facultyId: string) => {
+    const next = scopeFacultyIds.includes(facultyId)
+      ? scopeFacultyIds.filter((v) => v !== facultyId)
+      : [...scopeFacultyIds, facultyId];
+    setScopeFacultyIds(next);
+    // Drop any selected major that no longer belongs to the (now narrower)
+    // set of faculties, so the stored scope never silently contradicts itself.
+    const validSlugs = new Set(
+      next.length === 0 ? ALL_MAJORS.map((m) => m.slug) : next.flatMap((f) => majorsForFaculty(f).map((m) => m.slug))
+    );
+    setScopeMajors((prev) => prev.filter((m) => validSlugs.has(m)));
+  };
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -69,10 +152,16 @@ export default function InfoFilesPage() {
       formData.append('file', pickedFile);
       formData.append('titleHe', titleHe.trim());
       formData.append('titleEn', titleEn.trim());
+      formData.append('facultyIds', JSON.stringify(scopeFacultyIds));
+      formData.append('majors', JSON.stringify(scopeMajors));
+      formData.append('degreeTypes', JSON.stringify(scopeDegreeTypes));
       await apiClient.uploadInfoFile(formData);
       setTitleHe('');
       setTitleEn('');
       setPickedFile(null);
+      setScopeFacultyIds([]);
+      setScopeMajors([]);
+      setScopeDegreeTypes([]);
       await fetchFiles();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'העלאת הקובץ נכשלה' : 'Failed to upload file');
@@ -129,6 +218,68 @@ export default function InfoFilesPage() {
           />
         </label>
 
+        <div className="mt-4 grid gap-3 rounded-lg border border-line bg-paper p-3">
+          <p className="text-xs font-medium text-muted">
+            {lang === 'he'
+              ? '🎯 חשיפה (אופציונלי) — השאר ריק כדי להציג לכולם'
+              : '🎯 Visibility (optional) — leave everything blank to show this to everyone'}
+          </p>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {SELECTABLE_FACULTIES.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => toggleFaculty(id)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    scopeFacultyIds.includes(id) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                  }`}
+                >
+                  {facultyLabel(id, lang)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'מגמה' : 'Major'}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {availableMajors.map((m) => (
+                <button
+                  key={m.slug}
+                  type="button"
+                  onClick={() => toggleIn(scopeMajors, m.slug, setScopeMajors)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    scopeMajors.includes(m.slug) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                  }`}
+                >
+                  {m.label[lang]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {DEGREE_TYPES.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => toggleIn(scopeDegreeTypes, d, setScopeDegreeTypes)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    scopeDegreeTypes.includes(d) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                  }`}
+                >
+                  {d === 'bachelors' ? (lang === 'he' ? "תואר ראשון" : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
 
         <button
@@ -158,6 +309,9 @@ export default function InfoFilesPage() {
                   <span className="block truncate text-xs text-muted">{f.fileName}</span>
                 </span>
               </a>
+              <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {scopeSummary(f, lang)}
+              </span>
               <button type="button" onClick={() => setDeletingFile(f)} className="shrink-0 px-2 py-1 text-sm font-semibold text-danger hover:opacity-70">
                 ✕
               </button>

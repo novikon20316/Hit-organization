@@ -7,6 +7,9 @@ import RecommendedExaminerModal from './RecommendedExaminerModal';
 import ScheduleDefenseModal from './ScheduleDefenseModal';
 import DeleteAccountModal from './DeleteAccountModal';
 import BulkDueDateModal from './BulkDueDateModal';
+import PermissionsEditorModal from './PermissionsEditorModal';
+import CoordinatorScopesModal from './CoordinatorScopesModal';
+import StudentStatusesModal from './StudentStatusesModal';
 
 export {
     NewUserModal,
@@ -18,4 +21,7 @@ export {
     ScheduleDefenseModal,
     DeleteAccountModal,
     BulkDueDateModal,
+    PermissionsEditorModal,
+    CoordinatorScopesModal,
+    StudentStatusesModal,
 }

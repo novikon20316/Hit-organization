@@ -30,6 +30,7 @@ import feedbackRoutes from './routes/feedback.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
+import { getStudentStatusOptions } from './controllers/studentStatusController.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
 import { apiLimiter } from './middleware/rateLimit.js';
@@ -47,6 +48,10 @@ app.get('/api/projects/:projectId/milestones', verifyToken, getMilestonesByQuery
 // not scoped under /api/admin or /api/coordinator, which only handle
 // uploading/deleting them.
 app.get('/api/info-files', verifyToken, getInfoFiles);
+// Same reasoning as info-files above — any authenticated user needs to be
+// able to resolve a status key to a label wherever it's displayed, not just
+// whoever can edit the option lists (that's /api/admin/student-statuses).
+app.get('/api/student-statuses', verifyToken, getStudentStatusOptions);
 
 const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
 const apiKey = process.env.CLOUDINARY_API_KEY!;

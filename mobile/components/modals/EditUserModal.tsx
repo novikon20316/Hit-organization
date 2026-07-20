@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -7,12 +7,15 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { FACULTY_COLORS, getRoleAccent } from '../../components/shared';
 import { EditUserModalExtraStyles } from '../../constants/styles';
 import PermissionsEditorModal from './PermissionsEditorModal';
 import CoordinatorScopesModal from './CoordinatorScopesModal';
 import { majorsForFaculty } from '../../constants/permissions';
 import type { ScopeRule, CoordinatorScope } from '../../constants/permissions';
+import { apiClient } from '../../src/api/apiClient';
+import type { StatusOption } from '@/types';
 
 type RoleLabels = Record<string, Record<string, string>>;
 type FacultyColors = Record<string, { primary: string; light?: string; label: Record<string, string> }>;
@@ -74,6 +77,16 @@ type Props = {
   assignedMajors?:    string[];
   setAssignedMajors?: (majors: string[]) => void;
 
+  // Student Primary/Secondary status (system_admin any student, faculty_admin
+  // own-faculty students only — enforced server-side) — optional so callers
+  // that don't wire this up simply don't get the fields, same pattern as
+  // assignedMajors above. Only ever shown when the user being edited has
+  // role === 'student'. See server/src/controllers/studentStatusController.ts.
+  primaryStatus?:      string | null;
+  setPrimaryStatus?:   (v: string | null) => void;
+  secondaryStatus?:    string | null;
+  setSecondaryStatus?: (v: string | null) => void;
+
   styles: any;
 };
 
@@ -88,6 +101,8 @@ export default function EditUserModal({
   permissionRules, setPermissionRules,
   coordinatorScopes, setCoordinatorScopes,
   assignedMajors, setAssignedMajors,
+  primaryStatus, setPrimaryStatus,
+  secondaryStatus, setSecondaryStatus,
   styles,
 }: Props) {
   const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
@@ -99,6 +114,31 @@ export default function EditUserModal({
     assignedMajors !== undefined && !!setAssignedMajors &&
     (role === 'supervisor' || role === 'secondary_supervisor' ||
       roles.includes('supervisor') || roles.includes('secondary_supervisor'));
+  const isStudent = role === 'student' || roles.includes('student');
+  const showPrimaryStatus = primaryStatus !== undefined && !!setPrimaryStatus && isStudent;
+  const showSecondaryStatus = secondaryStatus !== undefined && !!setSecondaryStatus && isStudent;
+  const showStudentStatus = showPrimaryStatus || showSecondaryStatus;
+
+  // ── Student status option lists (Primary/Secondary) — fetched once when
+  // the modal opens, not per-field. Any authenticated user can read them
+  // (see GET /api/student-statuses); only relevant to display/edit when the
+  // user being edited is a student.
+  const [statusOptions, setStatusOptions] = useState<{ primary: StatusOption[]; secondary: StatusOption[] }>({ primary: [], secondary: [] });
+  const [statusOptionsLoaded, setStatusOptionsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!visible || statusOptionsLoaded) return;
+    (async () => {
+      try {
+        const res = await apiClient.get('/api/student-statuses');
+        setStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] });
+      } catch (e) {
+        console.error('EditUserModal: failed to load student status options', e);
+      } finally {
+        setStatusOptionsLoaded(true);
+      }
+    })();
+  }, [visible, statusOptionsLoaded]);
 
   const toggleAdditionalRole = (r: string) => {
     if (r === role) return; // can't remove the primary role this way
@@ -272,6 +312,55 @@ export default function EditUserModal({
                 <Text style={editStyles.hint}>
                   {lang === "he" ? "בחר פקולטה תחילה" : "Select a faculty first"}
                 </Text>
+              )}
+            </>
+          )}
+
+          {/* ── Student Status (Primary / Secondary — student accounts only) ── */}
+          {showStudentStatus && (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                {lang === "he" ? "סטטוס סטודנט" : "Student Status"}
+              </Text>
+
+              {showPrimaryStatus && (
+                <>
+                  <Text style={editStyles.hint}>
+                    {lang === "he" ? "סטטוס ראשי" : "Primary Status"}
+                  </Text>
+                  <View style={editStyles.pickerWrap}>
+                    <Picker
+                      selectedValue={primaryStatus ?? ''}
+                      onValueChange={(v) => setPrimaryStatus!(v === '' ? null : String(v))}
+                      style={editStyles.picker}
+                    >
+                      <Picker.Item label={lang === "he" ? "— ללא —" : "— none —"} value="" />
+                      {statusOptions.primary.map((o) => (
+                        <Picker.Item key={o.key} label={lang === "he" ? o.labelHe : o.labelEn} value={o.key} />
+                      ))}
+                    </Picker>
+                  </View>
+                </>
+              )}
+
+              {showSecondaryStatus && (
+                <>
+                  <Text style={editStyles.hint}>
+                    {lang === "he" ? "סטטוס משני" : "Secondary Status"}
+                  </Text>
+                  <View style={editStyles.pickerWrap}>
+                    <Picker
+                      selectedValue={secondaryStatus ?? ''}
+                      onValueChange={(v) => setSecondaryStatus!(v === '' ? null : String(v))}
+                      style={editStyles.picker}
+                    >
+                      <Picker.Item label={lang === "he" ? "— ללא —" : "— none —"} value="" />
+                      {statusOptions.secondary.map((o) => (
+                        <Picker.Item key={o.key} label={lang === "he" ? o.labelHe : o.labelEn} value={o.key} />
+                      ))}
+                    </Picker>
+                  </View>
+                </>
               )}
             </>
           )}

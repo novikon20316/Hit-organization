@@ -1,13 +1,17 @@
 // app/coordinator/info-files.tsx  (move to app/admin/ if that's where this role's screens live)
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  View, Text, ScrollView, Pressable, TextInput, StyleSheet,
+  View, Text, ScrollView, Pressable, TextInput,
   ActivityIndicator, Alert, Linking, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { apiClient } from '@/src/api/apiClient';
 import { tx, type Lang } from '../components/i18n';
+import { InfoFilesStyles } from '../constants/styles';
+import { FACULTY_COLORS } from '../components/shared';
+import { PERMISSION_FACULTY_IDS, majorsForFaculty } from '../constants/permissions';
+import { HIT_FACULTIES } from '../constants/faculties';
 
 interface InfoFile {
   id: string;
@@ -17,6 +21,47 @@ interface InfoFile {
   fileName: string;
   mimeType: string;
   createdAt: string | null;
+  facultyIds: string[];
+  majors: string[];
+  degreeTypes: string[];
+}
+
+// Visibility scoping — leaving an axis empty means "unrestricted" for that
+// axis (matches every file, as before this feature). A student must match
+// ALL non-empty axes; the actual filtering happens server-side in
+// getInfoFiles, this screen only builds/displays the scope.
+const SELECTABLE_FACULTIES = PERMISSION_FACULTY_IDS.filter((id) => id !== 'all');
+const ALL_MAJORS = (() => {
+  const seen = new Set<string>();
+  const out: { slug: string; label: Record<'he' | 'en', string> }[] = [];
+  for (const faculty of HIT_FACULTIES) {
+    for (const program of faculty.programs) {
+      if (seen.has(program.slug)) continue;
+      seen.add(program.slug);
+      out.push({ slug: program.slug, label: program.label });
+    }
+  }
+  return out;
+})();
+const DEGREE_TYPES = ['bachelors', 'masters'] as const;
+
+function scopeSummary(f: InfoFile, lang: Lang): string {
+  const parts: string[] = [];
+  if (f.facultyIds?.length) {
+    parts.push(f.facultyIds.map((id) => FACULTY_COLORS[id]?.label[lang] ?? id).join(', '));
+  }
+  if (f.majors?.length) {
+    parts.push(f.majors.map((slug) => ALL_MAJORS.find((m) => m.slug === slug)?.label[lang] ?? slug).join(', '));
+  }
+  if (f.degreeTypes?.length) {
+    parts.push(
+      f.degreeTypes
+        .map((d) => (d === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")))
+        .join(', ')
+    );
+  }
+  if (parts.length === 0) return lang === 'he' ? '🌐 כולם' : '🌐 Everyone';
+  return `🎯 ${parts.join(' · ')}`;
 }
 
 export default function InfoFilesAdmin() {
@@ -32,6 +77,45 @@ export default function InfoFilesAdmin() {
   const [titleHe, setTitleHe] = useState('');
   const [titleEn, setTitleEn] = useState('');
   const [pickedFile, setPickedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+
+  // Visibility scoping — each empty means unrestricted for that axis.
+  const [scopeFacultyIds, setScopeFacultyIds] = useState<string[]>([]);
+  const [scopeMajors, setScopeMajors] = useState<string[]>([]);
+  const [scopeDegreeTypes, setScopeDegreeTypes] = useState<string[]>([]);
+
+  // Cascades to just the selected faculties' majors once any are picked —
+  // otherwise the full cross-faculty list, since a major on its own is a
+  // valid (if unusual) restriction too.
+  const availableMajors = useMemo(() => {
+    if (scopeFacultyIds.length === 0) return ALL_MAJORS;
+    const seen = new Set<string>();
+    const out: typeof ALL_MAJORS = [];
+    for (const facultyId of scopeFacultyIds) {
+      for (const m of majorsForFaculty(facultyId)) {
+        if (seen.has(m.slug)) continue;
+        seen.add(m.slug);
+        out.push(m);
+      }
+    }
+    return out;
+  }, [scopeFacultyIds]);
+
+  const toggleIn = (list: string[], value: string, setList: (v: string[]) => void) => {
+    setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  };
+
+  const toggleFaculty = (facultyId: string) => {
+    const next = scopeFacultyIds.includes(facultyId)
+      ? scopeFacultyIds.filter((v) => v !== facultyId)
+      : [...scopeFacultyIds, facultyId];
+    setScopeFacultyIds(next);
+    // Drop any selected major that no longer belongs to the (now narrower)
+    // set of faculties, so the stored scope never silently contradicts itself.
+    const validSlugs = new Set(
+      next.length === 0 ? ALL_MAJORS.map((m) => m.slug) : next.flatMap((f) => majorsForFaculty(f).map((m) => m.slug))
+    );
+    setScopeMajors((prev) => prev.filter((m) => validSlugs.has(m)));
+  };
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -90,6 +174,9 @@ export default function InfoFilesAdmin() {
       } as any);
       formData.append('titleHe', titleHe.trim());
       formData.append('titleEn', titleEn.trim());
+      formData.append('facultyIds', JSON.stringify(scopeFacultyIds));
+      formData.append('majors', JSON.stringify(scopeMajors));
+      formData.append('degreeTypes', JSON.stringify(scopeDegreeTypes));
 
       await apiClient.post('/api/admin/info-files', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -99,6 +186,9 @@ export default function InfoFilesAdmin() {
       setTitleHe('');
       setTitleEn('');
       setPickedFile(null);
+      setScopeFacultyIds([]);
+      setScopeMajors([]);
+      setScopeDegreeTypes([]);
       fetchFiles();
     } catch (e) {
       Alert.alert(
@@ -182,6 +272,73 @@ export default function InfoFilesAdmin() {
             </Text>
           </Pressable>
 
+          {/* ── Visibility scoping (optional) ── */}
+          <View style={styles.scopeBox}>
+            <Text style={[styles.scopeHint, isRtl && styles.textRight]}>
+              {lang === 'he'
+                ? '🎯 חשיפה (אופציונלי) — השאר ריק כדי להציג לכולם'
+                : '🎯 Visibility (optional) — leave everything blank to show this to everyone'}
+            </Text>
+
+            <Text style={[styles.scopeGroupLabel, isRtl && styles.textRight]}>
+              {lang === 'he' ? 'פקולטה' : 'Faculty'}
+            </Text>
+            <View style={styles.chipRow}>
+              {SELECTABLE_FACULTIES.map((id) => {
+                const active = scopeFacultyIds.includes(id);
+                return (
+                  <Pressable
+                    key={id}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleFaculty(id)}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {FACULTY_COLORS[id]?.label[lang] ?? id}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.scopeGroupLabel, isRtl && styles.textRight]}>
+              {lang === 'he' ? 'מגמה' : 'Major'}
+            </Text>
+            <View style={styles.chipRow}>
+              {availableMajors.map((m) => {
+                const active = scopeMajors.includes(m.slug);
+                return (
+                  <Pressable
+                    key={m.slug}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleIn(scopeMajors, m.slug, setScopeMajors)}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{m.label[lang]}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.scopeGroupLabel, isRtl && styles.textRight]}>
+              {lang === 'he' ? 'תואר' : 'Degree'}
+            </Text>
+            <View style={styles.chipRow}>
+              {DEGREE_TYPES.map((d) => {
+                const active = scopeDegreeTypes.includes(d);
+                return (
+                  <Pressable
+                    key={d}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleIn(scopeDegreeTypes, d, setScopeDegreeTypes)}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {d === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
           <Pressable
             style={[styles.uploadBtn, uploading && { opacity: 0.6 }]}
             onPress={handleUpload}
@@ -217,6 +374,9 @@ export default function InfoFilesAdmin() {
                   <Text style={[styles.fileMeta, isRtl && styles.textRight]}>{f.fileName}</Text>
                 </View>
               </Pressable>
+              <View style={[styles.scopeBadge, isRtl && styles.scopeBadgeRtl]}>
+                <Text style={styles.scopeBadgeText}>{scopeSummary(f, lang)}</Text>
+              </View>
               <Pressable onPress={() => handleDelete(f)} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
                 {deletingId === f.id
                   ? <ActivityIndicator size="small" color="#EF4444" />
@@ -231,37 +391,4 @@ export default function InfoFilesAdmin() {
   );
 }
 
-const styles = StyleSheet.create({
-  root:      { flex: 1, backgroundColor: '#F0F4FF' },
-  centered:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header:    { fontSize: 20, fontWeight: 'bold', color: '#1a1a2e', padding: 20, paddingBottom: 8 },
-  content:   { paddingHorizontal: 20, paddingBottom: 40 },
-  uploadCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  textRight: { textAlign: 'right' },
-  fieldLabel: { fontSize: 12, color: '#8899BB', marginBottom: 4 },
-  input: {
-    borderWidth: 1, borderColor: '#E0E8FF', borderRadius: 10,
-    padding: 10, fontSize: 14, backgroundColor: '#F8FAFF', color: '#111',
-  },
-  pickBtn: {
-    marginTop: 14, borderWidth: 1, borderColor: '#2E86FF', borderStyle: 'dashed',
-    borderRadius: 10, padding: 12, alignItems: 'center',
-  },
-  pickBtnText: { color: '#2E86FF', fontWeight: '600', fontSize: 13 },
-  uploadBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 10, padding: 14,
-    alignItems: 'center', marginTop: 12,
-  },
-  uploadBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  fileRow: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    borderRadius: 10, padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: '#E0E8FF',
-  },
-  fileTitle: { fontSize: 13, fontWeight: '700', color: '#111' },
-  fileMeta:  { fontSize: 11, color: '#8899BB', marginTop: 2 },
-  rowReverse: { flexDirection: 'row-reverse' },
-});
+const styles = InfoFilesStyles;

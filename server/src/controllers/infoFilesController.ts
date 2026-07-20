@@ -5,12 +5,37 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
+import { VALID_MAJORS } from '../config/majors.js';
 
 const db = admin.firestore();
 
 // Mounted under both /api/admin/info-files and /api/coordinator/info-files —
 // gate to exactly those two roles rather than trusting verifyToken alone.
 const INFO_FILE_ROLES = ['system_admin', 'coordinator'];
+
+const VALID_FACULTY_IDS = new Set([
+  'sciences', 'electrical', 'industrial', 'learning_tech', 'medical_tech', 'design', 'data_science',
+]);
+const VALID_DEGREE_TYPES = new Set(['bachelors', 'masters']);
+
+// Empty/omitted array on any of these three fields means "unrestricted" for
+// that axis — matches the convention already established for project.major
+// in supervisorController.ts/applicationController.ts, so a file uploaded
+// before this feature existed (all three fields absent) stays visible to
+// everyone, not silently hidden.
+function parseScopeArray(raw: unknown, validValues: Set<string>, label: string): string[] {
+  if (raw === undefined || raw === null || raw === '') return [];
+  let parsed: unknown;
+  try {
+    parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    throw new Error(`${label} must be a JSON array.`);
+  }
+  if (!Array.isArray(parsed)) throw new Error(`${label} must be an array.`);
+  const invalid = parsed.filter((v) => typeof v !== 'string' || !validValues.has(v));
+  if (invalid.length > 0) throw new Error(`Invalid ${label}: ${invalid.join(', ')}`);
+  return parsed as string[];
+}
 
 // ── Multer setup (memory storage — same pattern as milestoneController) ───────
 const ALLOWED_MIME_TYPES = new Set([
@@ -50,6 +75,18 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ message: 'A title (Hebrew or English) is required.' });
     }
 
+    // Each empty/omitted = unrestricted for that axis; a student must match
+    // ALL three (facultyIds, majors, degreeTypes) that are non-empty to see
+    // this file — enforced in getInfoFiles below.
+    let facultyIds: string[], majors: string[], degreeTypes: string[];
+    try {
+      facultyIds  = parseScopeArray(req.body?.facultyIds, VALID_FACULTY_IDS, 'facultyIds');
+      majors      = parseScopeArray(req.body?.majors, VALID_MAJORS, 'majors');
+      degreeTypes = parseScopeArray(req.body?.degreeTypes, VALID_DEGREE_TYPES, 'degreeTypes');
+    } catch (e: any) {
+      return res.status(400).json({ message: e.message });
+    }
+
     const base64  = file.buffer.toString('base64');
     const dataUri = `data:${file.mimetype};base64,${base64}`;
 
@@ -66,6 +103,9 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       fileName:    file.originalname,
       mimeType:    file.mimetype,
       uploadedBy:  uploaderId,
+      facultyIds,
+      majors,
+      degreeTypes,
       createdAt:   admin.firestore.FieldValue.serverTimestamp(),
     });
 
@@ -77,22 +117,39 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
 };
 
 // ─── GET /api/info-files ───────────────────────────────────────────────────────
-// Any authenticated user (e.g. students) can list info files.
+// Any authenticated user can list info files — staff (system_admin/coordinator,
+// who manage these) always see every file unfiltered; students only see files
+// whose facultyIds/majors/degreeTypes (each empty = unrestricted for that axis)
+// all match their own facultyId/major/degreeType.
 export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const snap = await db.collection('infoFiles').orderBy('createdAt', 'desc').get();
-    const files = snap.docs.map((d) => {
+    let files = snap.docs.map((d) => {
       const data = d.data();
       return {
-        id:        d.id,
-        titleHe:   data.titleHe   ?? '',
-        titleEn:   data.titleEn   ?? '',
-        fileUrl:   data.fileUrl   ?? '',
-        fileName:  data.fileName  ?? '',
-        mimeType:  data.mimeType  ?? '',
-        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        id:          d.id,
+        titleHe:     data.titleHe     ?? '',
+        titleEn:     data.titleEn     ?? '',
+        fileUrl:     data.fileUrl     ?? '',
+        fileName:    data.fileName    ?? '',
+        mimeType:    data.mimeType    ?? '',
+        facultyIds:  data.facultyIds  ?? [],
+        majors:      data.majors      ?? [],
+        degreeTypes: data.degreeTypes ?? [],
+        createdAt:   data.createdAt?.toDate?.()?.toISOString() ?? null,
       };
     });
+
+    if (req.user?.role === 'student') {
+      const studentSnap = await db.collection('users').doc(req.user.uid).get();
+      const student = studentSnap.data() ?? {};
+      files = files.filter((f) =>
+        (f.facultyIds.length === 0  || f.facultyIds.includes(req.user!.facultyId)) &&
+        (f.majors.length === 0      || f.majors.includes(student.major)) &&
+        (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType))
+      );
+    }
+
     return res.status(200).json({ files });
   } catch (error: any) {
     console.error('getInfoFiles error:', error);

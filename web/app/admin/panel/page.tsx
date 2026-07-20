@@ -13,9 +13,9 @@ import { InfoFilesLink } from '@/components/InfoFilesLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
-import { facultyLabel, type FacultyId } from '@/lib/i18n';
+import { facultyLabel, roleLabel, type FacultyId } from '@/lib/i18n';
 import { getFacultyColor } from '@/lib/facultyColors';
-import { VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
+import { VALID_FACULTY_IDS, VALID_ROLES, isStaff, type AppRole } from '@/lib/roles';
 import { UserRow } from './UserRow';
 import { NewUserModal } from './NewUserModal';
 import { EditUserModal } from './EditUserModal';
@@ -26,10 +26,12 @@ import { DefenseAccessTab } from './DefenseAccessTab';
 import { FeedbackTab } from './FeedbackTab';
 import { MaintenanceModal } from './MaintenanceModal';
 import { AcademicCalendarModal } from './AcademicCalendarModal';
-import type { AdminUserRecord, AdminProjectRecord, AdminMilestoneRecord } from './types';
+import { StudentStatusesModal } from './StudentStatusesModal';
+import type { AdminUserRecord, AdminProjectRecord, AdminMilestoneRecord, StudentStatusConfig } from './types';
 
 const ADMIN_ROLES: AppRole[] = ['system_admin'];
 const DISPLAYED_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
+const selectCls = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none';
 
 type AdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback';
 
@@ -44,11 +46,15 @@ export default function AdminPanelPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | AppRole>('all');
+  const [staffFilter, setStaffFilter] = useState<'all' | 'staff' | 'student'>('all');
   const [showNewUser, setShowNewUser] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [showMaintenance, setShowMaintenance] = useState(false);
   const [showAcademicCalendar, setShowAcademicCalendar] = useState(false);
+  const [showStudentStatuses, setShowStudentStatuses] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
+  const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -64,10 +70,20 @@ export default function AdminPanelPage() {
     }
   }, [lang]);
 
+  const fetchStatusConfig = useCallback(async () => {
+    try {
+      const res = await apiClient.getStudentStatusOptions();
+      setStatusConfig(res);
+    } catch {
+      // Non-fatal — student-status badges just stay hidden if this fails.
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls all happen after its awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
-  }, [isAllowed, fetchDashboard]);
+    if (isAllowed) fetchStatusConfig();
+  }, [isAllowed, fetchDashboard, fetchStatusConfig]);
 
   const stats = useMemo(
     () => ({
@@ -81,11 +97,14 @@ export default function AdminPanelPage() {
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
-      (u) => u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q)
-    );
-  }, [users, search]);
+    return users.filter((u) => {
+      const searchOk =
+        !q || u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q);
+      const roleOk = roleFilter === 'all' || u.role === roleFilter || (u.roles ?? []).includes(roleFilter);
+      const staffOk = staffFilter === 'all' || (staffFilter === 'staff' ? isStaff(u.role) : u.role === 'student');
+      return searchOk && roleOk && staffOk;
+    });
+  }, [users, search, roleFilter, staffFilter]);
 
   if (guardLoading) {
     return (
@@ -116,6 +135,13 @@ export default function AdminPanelPage() {
             className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
           >
             🛠️ {lang === 'he' ? 'תחזוקה' : 'Maintenance'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowStudentStatuses(true)}
+            className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
+          >
+            🏷️ {lang === 'he' ? 'סטטוסי סטודנטים' : 'Student Statuses'}
           </button>
           {tab === 'users' && (
             <>
@@ -161,15 +187,30 @@ export default function AdminPanelPage() {
         <OverviewTab stats={stats} projects={projects} lang={lang} />
       ) : tab === 'users' ? (
         <div>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={lang === 'he' ? 'חפש משתמש...' : 'Search user...'}
-            className="mb-4 w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
-          />
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={lang === 'he' ? 'חפש משתמש...' : 'Search user...'}
+              className="w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+            />
+            <select value={staffFilter} onChange={(e) => setStaffFilter(e.target.value as typeof staffFilter)} className={selectCls}>
+              <option value="all">{lang === 'he' ? 'הכל' : 'All'}</option>
+              <option value="staff">{lang === 'he' ? 'צוות בלבד' : 'Staff only'}</option>
+              <option value="student">{lang === 'he' ? 'סטודנטים בלבד' : 'Students only'}</option>
+            </select>
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={selectCls}>
+              <option value="all">{lang === 'he' ? 'כל התפקידים' : 'All roles'}</option>
+              {VALID_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {roleLabel(r, lang)}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {filteredUsers.map((u) => (
-              <UserRow key={u.id} user={u} onChanged={fetchDashboard} onEdit={setEditingUser} />
+              <UserRow key={u.id} user={u} statusConfig={statusConfig} onChanged={fetchDashboard} onEdit={setEditingUser} />
             ))}
           </div>
           {filteredUsers.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}
@@ -191,6 +232,14 @@ export default function AdminPanelPage() {
       {showBulkImport && <BulkImportModal scope="admin" onClose={() => setShowBulkImport(false)} onImported={fetchDashboard} />}
       {showMaintenance && <MaintenanceModal onClose={() => setShowMaintenance(false)} />}
       {showAcademicCalendar && <AcademicCalendarModal onClose={() => setShowAcademicCalendar(false)} />}
+      {showStudentStatuses && (
+        <StudentStatusesModal
+          onClose={() => {
+            setShowStudentStatuses(false);
+            fetchStatusConfig();
+          }}
+        />
+      )}
     </DashboardShell>
   );
 }

@@ -11,7 +11,7 @@ import {
   Switch,
   Modal,
 } from 'react-native';
-import { AppUser, GradingCriterion, SystemStats, UserRecord, ProjectRecord, MilestoneRecord } from '@/types';
+import { AppUser, GradingCriterion, SystemStats, UserRecord, ProjectRecord, MilestoneRecord, StatusOption } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Clipboard from 'expo-clipboard';
 import {SafeAreaView} from 'react-native-safe-area-context'
@@ -24,6 +24,7 @@ import type { Lang, AppRole } from '../../components/i18n';
 import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
 import type { ScopeRule, CoordinatorScope } from '../../constants/permissions';
 import { getProgramByKey } from '../../constants/faculties';
+import { VALID_ROLES, isStaff } from '../../firebase/roles';
 import {
   TopBar,
   StatCard,
@@ -35,7 +36,7 @@ import {
 } from '../../components/shared';
 import { adminPanelStyles } from '../../constants/styles';
 import {ROLE_LABELS} from '../../constants';
-import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal} from '@/components/modals';
+import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal} from '@/components/modals';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 
 export default function PanelScreen() {
@@ -84,6 +85,8 @@ export default function PanelScreen() {
   const [userSearch, setUserSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState('all');
   const [facultyFilter, setFacultyFilter] = useState('all');
+  const [userStaffFilter, setUserStaffFilter] = useState<'all' | 'staff' | 'student'>('all');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | AppRole>('all');
 
   const [userModal, setUserModal] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
@@ -99,6 +102,10 @@ export default function PanelScreen() {
   // Majors restriction (supervisor / secondary_supervisor only) — unlike the
   // two above, this one IS persisted server-side (see updateUserRoleAdmin).
   const [editAssignedMajors, setEditAssignedMajors] = useState<string[]>([]);
+  // Student Primary/Secondary status — independent axes, persisted via a
+  // separate endpoint (see handleSaveUser). null = "— none —".
+  const [editPrimaryStatus, setEditPrimaryStatus] = useState<string | null>(null);
+  const [editSecondaryStatus, setEditSecondaryStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // ── New user modal state ───────────────────────────────────────────────────
   const [newUserName,    setNewUserName]    = useState('');
@@ -118,6 +125,11 @@ export default function PanelScreen() {
   const [newUserAssignedMajors, setNewUserAssignedMajors] = useState<string[]>([]);
 // -----------------------------------------------------------------------------
   const [maintenanceModal, setMaintenanceModal] = useState(false);
+  const [studentStatusesModal, setStudentStatusesModal] = useState(false);
+  // Resolved once per screen load (not per user row) — used to render each
+  // student row's status badge and to know which keys are currently valid.
+  // See server/src/services/studentStatuses.ts.
+  const [studentStatusOptions, setStudentStatusOptions] = useState<{ primary: StatusOption[]; secondary: StatusOption[] }>({ primary: [], secondary: [] });
   const [academicCalendarModal, setAcademicCalendarModal] = useState(false);
   const [academicCalendarLoading, setAcademicCalendarLoading] = useState(false);
   const [fallMonth, setFallMonth]     = useState('11');
@@ -209,6 +221,21 @@ export default function PanelScreen() {
   useEffect(() => {
     fetchAllDashboardData();
   }, []);
+
+  // Student status option lists — fetched once at screen load, not per row
+  // (see server/src/controllers/studentStatusController.ts's GET, open to
+  // any authenticated user).
+  useEffect(() => {
+    apiClient.get('/api/student-statuses')
+      .then((res) => setStudentStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] }))
+      .catch((err) => console.error('Failed to load student status options:', err));
+  }, []);
+
+  const resolveStatusLabel = (key: string | null | undefined, list: StatusOption[]): string | null => {
+    if (!key) return null;
+    const found = list.find((o) => o.key === key);
+    return found ? (lang === 'he' ? found.labelHe : found.labelEn) : null;
+  };
 
   useEffect(() => {
     const fetchProjectMilestones = async () => {
@@ -726,11 +753,15 @@ export default function PanelScreen() {
 
   const filteredUsers = users.filter((u) => {
     const q = userSearch.toLowerCase();
-    return (
+    const searchOk =
+      !q ||
       u.displayName?.toLowerCase().includes(q) ||
       u.email?.toLowerCase().includes(q) ||
-      u.role?.toLowerCase().includes(q)
-    );
+      u.role?.toLowerCase().includes(q);
+    const staffOk =
+      userStaffFilter === 'all' || (userStaffFilter === 'staff' ? isStaff(u.role as AppRole) : u.role === 'student');
+    const roleOk = userRoleFilter === 'all' || u.role === userRoleFilter || (u.roles ?? []).includes(userRoleFilter);
+    return searchOk && staffOk && roleOk;
   });
 
   const filteredProjects = projects.filter((p) => {
@@ -751,6 +782,10 @@ export default function PanelScreen() {
     // Unlike the two above, assignedMajors IS persisted server-side, so it
     // loads from the actual user doc (see UserRecord.assignedMajors).
     setEditAssignedMajors(user.assignedMajors ?? []);
+    // Student-only, independent of role/faculty — loads from the actual
+    // user doc, same as assignedMajors above.
+    setEditPrimaryStatus(user.primaryStatus ?? null);
+    setEditSecondaryStatus(user.secondaryStatus ?? null);
     setUserModal(true);
   };
 
@@ -767,6 +802,17 @@ export default function PanelScreen() {
         // here since the server already gates on role.
         assignedMajors: editAssignedMajors,
       });
+
+      // Student status is a separate axis from role/faculty, set through its
+      // own endpoint — only meaningful (and only sent) when the user being
+      // saved is (still) a student. See studentStatusController.setStudentStatus.
+      if (editRole === 'student' || editRoles.includes('student')) {
+        await apiClient.post(`/api/admin/users/${editUser.id}/status`, {
+          primaryStatus:   editPrimaryStatus,
+          secondaryStatus: editSecondaryStatus,
+        });
+      }
+
       Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
       setUserModal(false);
       fetchAllDashboardData();
@@ -974,16 +1020,62 @@ export default function PanelScreen() {
       </ScrollView>
 
       {activeTab === 'users' && (
-        <View style={styles.searchBox}>
-          <TextInput
-            placeholder={
-              lang === 'he' ? 'חפש משתמש...' : 'Search user...'
-            }
-            value={userSearch}
-            onChangeText={setUserSearch}
-            style={styles.searchInput}
-          />
-        </View>
+        <>
+          <View style={styles.searchBox}>
+            <TextInput
+              placeholder={
+                lang === 'he' ? 'חפש משתמש...' : 'Search user...'
+              }
+              value={userSearch}
+              onChangeText={setUserSearch}
+              style={styles.searchInput}
+            />
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.userFilterRow}
+            contentContainerStyle={styles.userFilterRowContent}
+          >
+            {(
+              [
+                { key: 'all', label: lang === 'he' ? 'הכל' : 'All' },
+                { key: 'staff', label: lang === 'he' ? 'צוות' : 'Staff' },
+                { key: 'student', label: lang === 'he' ? 'סטודנטים' : 'Students' },
+              ] as const
+            ).map((opt) => (
+              <Pressable
+                key={opt.key}
+                style={[styles.userFilterChip, userStaffFilter === opt.key && styles.userFilterChipActive]}
+                onPress={() => setUserStaffFilter(opt.key)}
+              >
+                <Text style={[styles.userFilterChipText, userStaffFilter === opt.key && styles.userFilterChipTextActive]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            ))}
+            <View style={styles.userFilterDivider} />
+            <Pressable
+              style={[styles.userFilterChip, userRoleFilter === 'all' && styles.userFilterChipActive]}
+              onPress={() => setUserRoleFilter('all')}
+            >
+              <Text style={[styles.userFilterChipText, userRoleFilter === 'all' && styles.userFilterChipTextActive]}>
+                {lang === 'he' ? 'כל התפקידים' : 'All roles'}
+              </Text>
+            </Pressable>
+            {VALID_ROLES.map((r) => (
+              <Pressable
+                key={r}
+                style={[styles.userFilterChip, userRoleFilter === r && styles.userFilterChipActive]}
+                onPress={() => setUserRoleFilter(r)}
+              >
+                <Text style={[styles.userFilterChipText, userRoleFilter === r && styles.userFilterChipTextActive]}>
+                  {ROLE_LABELS[r]?.[lang] ?? r}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
       )}
 
       <ScrollView
@@ -1121,6 +1213,18 @@ export default function PanelScreen() {
                         {ROLE_LABELS[u.role as AppRole]?.[lang] ?? u.role}
                       </Text>
                     </View>
+
+                    {/* Student Primary/Secondary status badge — students
+                        with a status set only (see server/src/services/
+                        studentStatuses.ts). */}
+                    {u.role === 'student' && u.primaryStatus && (
+                      <View style={[styles.roleBadge, { backgroundColor: '#FDF4FF' }]}>
+                        <Text style={[styles.roleBadgeText, { color: '#A21CAF' }]} numberOfLines={1}>
+                          🏷️ {resolveStatusLabel(u.primaryStatus, studentStatusOptions.primary)}
+                          {u.secondaryStatus ? ` · ${resolveStatusLabel(u.secondaryStatus, studentStatusOptions.secondary)}` : ''}
+                        </Text>
+                      </View>
+                    )}
 
                     {/* 2FA status badge */}
                     <View style={[
@@ -1500,6 +1604,7 @@ export default function PanelScreen() {
           { key: 'importRoster', icon: '🎓', label: lang === 'he' ? 'ייבוא רשימת סטודנטים' : 'Import Student Roster', onPress: handleImportStudentRoster, loading: importingRoster },
           { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Excel', onPress: handleExportUsers, loading: exportingUsers },
           { key: 'calendar', icon: '📅', label: lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar', onPress: openAcademicCalendar },
+          { key: 'studentStatuses', icon: '🏷️', label: lang === 'he' ? 'סטטוסי סטודנטים' : 'Student Statuses', onPress: () => setStudentStatusesModal(true) },
         ]}
       />
 
@@ -1673,7 +1778,26 @@ export default function PanelScreen() {
         assignedMajors={editAssignedMajors}
         setAssignedMajors={setEditAssignedMajors}
 
+        primaryStatus={editPrimaryStatus}
+        setPrimaryStatus={setEditPrimaryStatus}
+        secondaryStatus={editSecondaryStatus}
+        setSecondaryStatus={setEditSecondaryStatus}
+
         styles={styles}
+      />
+
+      <StudentStatusesModal
+        visible={studentStatusesModal}
+        onClose={() => {
+          setStudentStatusesModal(false);
+          // Re-fetch — labels/keys may have changed (edited/removed/added)
+          // since this modal was opened, and both the row badges above and
+          // the EditUserModal's dropdowns rely on this cached copy.
+          apiClient.get('/api/student-statuses')
+            .then((res) => setStudentStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] }))
+            .catch((err) => console.error('Failed to refresh student status options:', err));
+        }}
+        lang={lang}
       />
 
       <MaintenanceModal

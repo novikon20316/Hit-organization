@@ -29,7 +29,7 @@ import { ProjectCard } from './ProjectCard';
 import { EnrollStudentModal } from './EnrollStudentModal';
 import { NewProjectModal } from './NewProjectModal';
 import { DeadlinesTab } from './DeadlinesTab';
-import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline } from './types';
+import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline, StudentStatusConfig } from './types';
 
 const FACULTY_ADMIN_ROLES: AppRole[] = ['faculty_admin', 'system_admin'];
 
@@ -49,6 +49,7 @@ export default function FacultyAdminDashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
+  const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
 
   const [editingUser, setEditingUser] = useState<FacultyAdminUserRecord | null>(null);
   const [enrollingProject, setEnrollingProject] = useState<FacultyAdminProjectRecord | null>(null);
@@ -81,10 +82,20 @@ export default function FacultyAdminDashboardPage() {
     }
   }, [lang, firebaseUser]);
 
+  const fetchStatusConfig = useCallback(async () => {
+    try {
+      const res = await apiClient.getStudentStatusOptions();
+      setStatusConfig(res);
+    } catch {
+      // Non-fatal — student-status badges just stay hidden if this fails.
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls happen after its awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
-  }, [isAllowed, fetchDashboard]);
+    if (isAllowed) fetchStatusConfig();
+  }, [isAllowed, fetchDashboard, fetchStatusConfig]);
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -168,7 +179,7 @@ export default function FacultyAdminDashboardPage() {
           />
           <div className="grid gap-3 sm:grid-cols-2">
             {filteredUsers.map((u) => (
-              <UserRow key={u.id} user={u} onChanged={fetchDashboard} onEdit={setEditingUser} />
+              <UserRow key={u.id} user={u} statusConfig={statusConfig} onChanged={fetchDashboard} onEdit={setEditingUser} />
             ))}
           </div>
           {filteredUsers.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}

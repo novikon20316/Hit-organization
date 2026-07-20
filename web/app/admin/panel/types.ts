@@ -20,6 +20,24 @@ export interface AdminUserRecord {
    *  their faculty. Empty/unset means unrestricted (all majors in their
    *  faculty) — see server/src/controllers/adminController.ts. */
   assignedMajors?: string[];
+  /** Admin-manageable Primary/Secondary status keys — only meaningful when
+   *  role === 'student'. Resolve to display labels via a fetched
+   *  StudentStatusConfig (see server/src/services/studentStatuses.ts). */
+  primaryStatus?: string;
+  secondaryStatus?: string;
+}
+
+/** Mirrors apiClient.getStudentStatusOptions()'s response shape (see
+ *  lib/apiClient.ts and server/src/services/studentStatuses.ts). */
+export interface StudentStatusOption {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+}
+
+export interface StudentStatusConfig {
+  primary: StudentStatusOption[];
+  secondary: StudentStatusOption[];
 }
 
 export interface GradingCriterion {

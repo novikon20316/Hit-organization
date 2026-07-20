@@ -23,7 +23,7 @@ import {
   TopBar,
   FACULTY_COLORS,
 } from '../../components/shared';
-import { GradingCriterion, AppUser, SystemStats, UserRecord, ProjectRecord, MilestoneRecord } from '@/types'
+import { GradingCriterion, AppUser, SystemStats, UserRecord, ProjectRecord, MilestoneRecord, StatusOption } from '@/types'
 import { ROLE_LABELS } from '../../constants';
 import { FacultyAdminDashboardStyles } from '../../constants/styles';
 
@@ -61,6 +61,13 @@ export default function PanelScreen() {
   const [editFaculty, setEditFaculty] = useState<string>('');
   const [editRole , setEditRole] = useState<string>('');
   const [editRoles, setEditRoles] = useState<string[]>([]);
+  // Student Primary/Secondary status — independent axes, persisted via a
+  // separate endpoint (see handleSaveUser). null = "— none —".
+  const [editPrimaryStatus, setEditPrimaryStatus] = useState<string | null>(null);
+  const [editSecondaryStatus, setEditSecondaryStatus] = useState<string | null>(null);
+  // Resolved once per screen load (not per user row) — used for each
+  // student row's status badge. See server/src/services/studentStatuses.ts.
+  const [studentStatusOptions, setStudentStatusOptions] = useState<{ primary: StatusOption[]; secondary: StatusOption[] }>({ primary: [], secondary: [] });
   const [saving, setSaving] = useState(false);
   const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
   const [showNewUser, setShowNewUser] = useState(false);
@@ -112,6 +119,21 @@ export default function PanelScreen() {
     fetchAdminDashboard();
   }, []);
 
+  // Student status option lists — fetched once at screen load, not per row
+  // (see server/src/controllers/studentStatusController.ts's GET, open to
+  // any authenticated user).
+  useEffect(() => {
+    apiClient.get('/api/student-statuses')
+      .then((res) => setStudentStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] }))
+      .catch((err) => console.error('Failed to load student status options:', err));
+  }, []);
+
+  const resolveStatusLabel = (key: string | null | undefined, list: StatusOption[]): string | null => {
+    if (!key) return null;
+    const found = list.find((o) => o.key === key);
+    return found ? (lang === 'he' ? found.labelHe : found.labelEn) : null;
+  };
+
   useEffect(() => {
     if (activeTab !== 'deadlines') return;
     const fetchDeadlines = async () => {
@@ -142,6 +164,19 @@ export default function PanelScreen() {
         roles:     editRoles,
         facultyId: editFaculty,
       });
+
+      // Student status is a separate axis from role/faculty, set through its
+      // own endpoint (faculty_admin is only allowed to set it for students in
+      // their own faculty — enforced server-side, see setStudentStatus) —
+      // only meaningful (and only sent) when the user being saved is
+      // (still) a student.
+      if (editRole === 'student' || editRoles.includes('student')) {
+        await apiClient.post(`/api/admin/users/${editUser.id}/status`, {
+          primaryStatus:   editPrimaryStatus,
+          secondaryStatus: editSecondaryStatus,
+        });
+      }
+
       Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
       setUserModal(false);
       fetchAdminDashboard();
@@ -157,6 +192,10 @@ export default function PanelScreen() {
     setEditRole(user.role);
     setEditRoles(user.roles?.length ? user.roles : [user.role]); // ← ADD
     setEditFaculty(user.facultyId);
+    // Student-only, independent of role/faculty — loads from the actual
+    // user doc.
+    setEditPrimaryStatus(user.primaryStatus ?? null);
+    setEditSecondaryStatus(user.secondaryStatus ?? null);
     setUserModal(true);
   };
 
@@ -395,13 +434,35 @@ export default function PanelScreen() {
         ) : (
           /* USERS */
           users.map((u) => (
-            <View key={u.id}>
-              <Text>{u.displayName}</Text>
+            <View key={u.id} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>{u.displayName}</Text>
 
-              <Switch
-                value={u.isActive}
-                onValueChange={() => toggleUserActive(u.id, u.isActive)}
-              />
+                <Switch
+                  value={u.isActive}
+                  onValueChange={() => toggleUserActive(u.id, u.isActive)}
+                />
+              </View>
+
+              {/* Student Primary/Secondary status badge — students with a
+                  status set only (see server/src/services/studentStatuses.ts). */}
+              {u.role === 'student' && u.primaryStatus && (
+                <View style={{ marginTop: 6, alignSelf: 'flex-start', backgroundColor: '#FDF4FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
+                  <Text style={{ color: '#A21CAF', fontWeight: '700', fontSize: 11 }}>
+                    🏷️ {resolveStatusLabel(u.primaryStatus, studentStatusOptions.primary)}
+                    {u.secondaryStatus ? ` · ${resolveStatusLabel(u.secondaryStatus, studentStatusOptions.secondary)}` : ''}
+                  </Text>
+                </View>
+              )}
+
+              <Pressable
+                style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10 }}
+                onPress={() => openEditUser(u)}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
+                  ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
+                </Text>
+              </Pressable>
             </View>
           ))
         )}
@@ -421,8 +482,13 @@ export default function PanelScreen() {
         styles={{}}
         roleLabels={ROLE_LABELS}
         facultyColors={FACULTY_COLORS}
-        roles={editRoles} 
+        roles={editRoles}
         setRoles={setEditRoles}
+
+        primaryStatus={editPrimaryStatus}
+        setPrimaryStatus={setEditPrimaryStatus}
+        secondaryStatus={editSecondaryStatus}
+        setSecondaryStatus={setEditSecondaryStatus}
       />
 
       <NewProjectModal
