@@ -313,13 +313,17 @@ export default function SignupPage() {
                     dir="ltr"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={`${inputCls} pe-11`}
+                    className={`${inputCls} pr-11`}
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute inset-y-0 end-2 flex items-center px-2 text-sm text-muted hover:text-ink"
+                    // Fixed to the right regardless of page language direction
+                    // — the input above is forced dir="ltr", so a logical
+                    // `end-*` position would flip to the left in Hebrew/RTL
+                    // mode and sit on top of the password text.
+                    className="absolute inset-y-0 right-2 flex items-center px-2 text-sm text-muted hover:text-ink"
                   >
                     {showPassword ? '🙈' : '👁️'}
                   </button>

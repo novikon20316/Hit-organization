@@ -210,14 +210,19 @@ export default function LoginPage() {
                     setPassword(e.target.value);
                     setError('');
                   }}
-                  className="w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 pe-11 text-sm text-ink placeholder:text-muted focus:border-primary focus:bg-surface focus:outline-none"
+                  className="w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 pr-11 text-sm text-ink placeholder:text-muted focus:border-primary focus:bg-surface focus:outline-none"
                   placeholder="••••••••"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 end-2 flex items-center px-2 text-sm text-muted hover:text-ink"
+                  // Fixed to the right regardless of page language direction
+                  // — the input above is forced dir="ltr" (passwords always
+                  // display left-to-right), so a logical `end-*` position
+                  // would flip to the left in Hebrew/RTL mode and sit right
+                  // on top of the password text instead of clear of it.
+                  className="absolute inset-y-0 right-2 flex items-center px-2 text-sm text-muted hover:text-ink"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? '🙈' : '👁️'}
