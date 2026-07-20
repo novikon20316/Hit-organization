@@ -32,8 +32,20 @@ export default function ChangePasswordPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (newPassword.length < 6) {
-      setError(lang === 'he' ? 'הסיסמה חייבת להכיל לפחות 6 תווים.' : 'Password must be at least 6 characters.');
+    // Baseline client-side check (8+ chars, upper/lower/digit/symbol) — the
+    // server is authoritative and enforces the stricter 12-character
+    // system_admin policy plus the "not the same as your temporary
+    // password" check, surfaced via the catch block below.
+    if (newPassword.length < 8) {
+      setError(lang === 'he' ? 'הסיסמה חייבת להכיל לפחות 8 תווים.' : 'Password must be at least 8 characters.');
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      setError(
+        lang === 'he'
+          ? 'הסיסמה חייבת לכלול אות גדולה, אות קטנה, ספרה וסימן.'
+          : 'Password must include an uppercase letter, a lowercase letter, a digit, and a symbol.'
+      );
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -98,6 +110,11 @@ export default function ChangePasswordPage() {
                 className="w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
                 required
               />
+              <span className="mt-1 block text-xs text-muted">
+                {lang === 'he'
+                  ? '8+ תווים, כולל אות גדולה, אות קטנה, ספרה וסימן (12+ למנהלי מערכת). לא ניתן להשתמש בסיסמה הזמנית שקיבלת.'
+                  : "8+ characters with an uppercase letter, lowercase letter, digit, and symbol (12+ for system admins). Can't be the same as your temporary password."}
+              </span>
             </label>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'אימות סיסמה חדשה' : 'Confirm new password'}</span>

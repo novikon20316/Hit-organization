@@ -40,7 +40,13 @@ export default function ResetPasswordPage() {
     setLoading(true);
     setError('');
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      // Without this, the email link lands on Firebase's own default hosted
+      // reset page (6-character minimum only, none of our complexity rules)
+      // instead of our own validated confirm page.
+      await sendPasswordResetEmail(auth, email.trim(), {
+        url: `${window.location.origin}/reset-password/confirm`,
+        handleCodeInApp: true,
+      });
       setSent(true);
     } catch (err) {
       const code = (err as AuthError)?.code;

@@ -5,7 +5,7 @@ import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount } from '../services/accountDeletion.js';
-import { VALID_ROLES, generateTempPassword } from '../services/userImportExport.js';
+import { VALID_ROLES, generateTempPassword, hashPassword } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
 import { validateScopeRule, validateCoordinatorScope, type ScopeRule, type CoordinatorScope } from '../config/permissionScopes.js';
@@ -17,7 +17,7 @@ import { hasActionGrant } from '../services/scopeAuthorization.js';
 const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head'];
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { sendNotificationEmail } from '../services/emailService.js';
-import { validateSystemAdminPassword, computeIsEligible } from './userController.js';
+import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
 
 const db = admin.firestore();
 
@@ -285,15 +285,16 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
 
     let tempPassword: string;
     if (requestedTempPassword) {
-      if (typeof requestedTempPassword !== 'string' || requestedTempPassword.length < 6) {
-        return res.status(400).json({ message: 'Temporary password must be at least 6 characters.' });
+      if (typeof requestedTempPassword !== 'string') {
+        return res.status(400).json({ message: 'Invalid temporary password.' });
       }
-      // system_admin accounts are the highest-value target in this system —
-      // same stricter policy userController.ts's changePassword enforces.
-      if (userData.role === 'system_admin') {
-        const policyError = validateSystemAdminPassword(requestedTempPassword);
-        if (policyError) return res.status(400).json({ message: policyError });
-      }
+      // Same policy userController.ts's changePassword enforces — a custom
+      // temp password shouldn't get to skip the bar the account's real
+      // password will be held to a moment later anyway.
+      const policyError = userData.role === 'system_admin'
+        ? validateSystemAdminPassword(requestedTempPassword)
+        : validateStandardPassword(requestedTempPassword);
+      if (policyError) return res.status(400).json({ message: policyError });
       tempPassword = requestedTempPassword;
     } else {
       tempPassword = generateTempPassword();
@@ -326,6 +327,7 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
       totp_last_verified: null,
       isActive: true,
       mustChangePassword: true, // enforced in-app on first login — see /api/users/change-password
+      tempPasswordHash: hashPassword(tempPassword),
       createdAt: new Date().toISOString()
     });
 

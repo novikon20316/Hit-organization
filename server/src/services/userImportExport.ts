@@ -51,6 +51,19 @@ export function generateTempPassword(): string {
   return `${rand.slice(0, 10)}Aa1!`;
 }
 
+/**
+ * One-way hash of a temporary password, stored on the user doc as
+ * `tempPasswordHash` purely so userController.ts's changePassword can reject
+ * "your new password is the same as the temp one you were just issued"
+ * without ever storing the temp password itself in plaintext. Not a
+ * substitute for Firebase Auth's own password storage — this exists only
+ * for that one comparison, so a fast SHA-256 (same convention as
+ * loginSecurity.ts's OTP hashing) is a reasonable, sufficient choice here.
+ */
+export function hashPassword(password: string): string {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
 /** Creates the Firebase Auth account + Firestore user doc, and emails the temp password. Shared by every import flow. */
 async function createImportedUserAccount(params: {
   email: string;
@@ -107,6 +120,7 @@ async function createImportedUserAccount(params: {
     isEligibleForProcess: params.isEligibleForProcess,
     createdViaImport: true,
     mustChangePassword: true, // enforced in-app on first login — see /api/users/change-password
+    tempPasswordHash: hashPassword(tempPassword),
     createdAt: new Date().toISOString(),
     ...(params.extra ?? {}),
   });

@@ -13,6 +13,17 @@ import { ResetPassStyles } from '../../constants/styles';
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = ResetPassStyles;
 
+// Without this, the reset-password email link opens Firebase's own default
+// hosted page (only enforces Firebase Auth's 6-character minimum, none of
+// this app's complexity rules) instead of the web app's own validated
+// confirm page (web/app/(auth)/reset-password/confirm/page.tsx). The link is
+// always opened in a browser regardless of which platform requested it, so
+// this must point at the deployed WEB app's own URL — not this repo's
+// backend API URL. TODO: set this to the real deployed web app origin (e.g.
+// "https://<your-web-app>.onrender.com") once known; left blank rather than
+// guessed, since a wrong guess would silently send users to a broken link.
+const WEB_APP_BASE_URL = '';
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function ResetPassword() {
   const router = useRouter();
@@ -57,7 +68,11 @@ export default function ResetPassword() {
     if (!isValidEmail) return;
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendPasswordResetEmail(
+        auth,
+        email.trim(),
+        WEB_APP_BASE_URL ? { url: `${WEB_APP_BASE_URL}/reset-password/confirm`, handleCodeInApp: true } : undefined,
+      );
       setSent(true);
       startCountdown();
     } catch (e: any) {

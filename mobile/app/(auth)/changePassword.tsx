@@ -30,8 +30,16 @@ export default function ChangePasswordScreen() {
 
   const handleSubmit = async () => {
     setError('');
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
+    // Baseline client-side check (8+ chars, upper/lower/digit/symbol) — the
+    // server is authoritative and enforces the stricter 12-character
+    // system_admin policy plus "not the same as your temporary password",
+    // surfaced via the catch block below.
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      setError('Password must include an uppercase letter, a lowercase letter, a digit, and a symbol.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -80,6 +88,10 @@ export default function ChangePasswordScreen() {
         onChangeText={setNewPassword}
         autoFocus
       />
+      <Text style={styles.subtitle}>
+        8+ characters with an uppercase letter, lowercase letter, digit, and symbol
+        (12+ for system admins). Can't be the same as your temporary password.
+      </Text>
 
       <TextInput
         style={styles.input}

@@ -21,7 +21,7 @@ import crypto from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
-import { generateTempPassword } from './userImportExport.js';
+import { generateTempPassword, hashPassword } from './userImportExport.js';
 
 const INCIDENT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const FAILURE_THRESHOLD = 3;
@@ -322,6 +322,7 @@ export async function resolveIncident(
     await auth.updateUser(uid, { password: tempPassword, disabled: false });
     await db.collection('users').doc(uid).update({
       mustChangePassword: true,
+      tempPasswordHash: hashPassword(tempPassword),
       updatedAt: new Date().toISOString(),
     });
     await securityRef.set({ pendingIncidentCode: FieldValue.delete(), failedLoginCount: 0 }, { merge: true });

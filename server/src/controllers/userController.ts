@@ -1,7 +1,7 @@
 // src/routes/users.ts
 
 import { Request, Response } from 'express';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
 import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js';
 import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
@@ -9,6 +9,7 @@ import { VALID_MAJORS } from '../config/majors.js';
 import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../services/accountDeletion.js';
 import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
 import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
+import { hashPassword } from '../services/userImportExport.js';
 
 // Exported — also used by adminController.ts's updateStudentAcademicYear to
 // recompute this whenever a student's yearOfStudy is corrected/advanced, so
@@ -380,6 +381,25 @@ export function validateSystemAdminPassword(password: string): string | null {
   return null;
 }
 
+// Everyone else's floor — previously just "6 characters," no complexity
+// requirement at all. Same character-class checks as the system_admin
+// policy above, just an 8-character minimum instead of 12.
+const STANDARD_PASSWORD_MIN_LENGTH = 8;
+const STANDARD_PASSWORD_SYMBOL_RE = /[^A-Za-z0-9]/;
+
+export function validateStandardPassword(password: string): string | null {
+  if (password.length < STANDARD_PASSWORD_MIN_LENGTH) {
+    return `Password must be at least ${STANDARD_PASSWORD_MIN_LENGTH} characters.`;
+  }
+  if (!/[A-Z]/.test(password)) return 'Password must include at least one uppercase letter.';
+  if (!/[a-z]/.test(password)) return 'Password must include at least one lowercase letter.';
+  if (!/[0-9]/.test(password)) return 'Password must include at least one digit.';
+  if (!STANDARD_PASSWORD_SYMBOL_RE.test(password)) {
+    return 'Password must include at least one symbol.';
+  }
+  return null;
+}
+
 export const changePassword = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
@@ -390,19 +410,30 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     }
 
     const { newPassword } = req.body;
-    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    if (!newPassword || typeof newPassword !== 'string') {
+      return res.status(400).json({ error: 'A new password is required.' });
     }
 
     const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
-    if (isSystemAdmin) {
-      const policyError = validateSystemAdminPassword(newPassword);
-      if (policyError) return res.status(400).json({ error: policyError });
+    const policyError = isSystemAdmin ? validateSystemAdminPassword(newPassword) : validateStandardPassword(newPassword);
+    if (policyError) return res.status(400).json({ error: policyError });
+
+    // Reject re-submitting whatever temporary/reset password the account was
+    // just issued (Excel import, admin-created account, or a login-security
+    // re-enable) — see the tempPasswordHash written alongside
+    // mustChangePassword in adminController.ts/userImportExport.ts/
+    // loginSecurity.ts. Only ever set while mustChangePassword is pending; a
+    // voluntary later change finds nothing here and this is a no-op.
+    const userSnap = await db.collection('users').doc(uid).get();
+    const tempPasswordHash = userSnap.data()?.tempPasswordHash as string | undefined;
+    if (tempPasswordHash && hashPassword(newPassword) === tempPasswordHash) {
+      return res.status(400).json({ error: 'Your new password cannot be the same as the temporary password you were issued.' });
     }
 
     await auth.updateUser(uid, { password: newPassword });
     await db.collection('users').doc(uid).update({
       mustChangePassword: false,
+      tempPasswordHash: FieldValue.delete(),
       updatedAt: new Date().toISOString(),
     });
 
