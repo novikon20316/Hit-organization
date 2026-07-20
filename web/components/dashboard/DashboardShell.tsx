@@ -8,6 +8,7 @@
 
 import { useState, type ReactNode } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -16,6 +17,7 @@ import { NotificationBell } from '@/components/NotificationBell';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { roleLabel, type AppRole } from '@/lib/i18n';
+import { getHomeRoute } from '@/lib/roles';
 
 interface DashboardShellProps {
   title: string;
@@ -66,13 +68,17 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
         style={{ '--rail-color': railColor } as React.CSSProperties}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
+          <Link
+            href={getHomeRoute(userData?.role)}
+            title={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
+            className="flex items-center gap-3 rounded-lg transition-opacity hover:opacity-80"
+          >
             <Image src="/hit-logo.png" alt="HIT" width={32} height={19} className="h-6 w-auto object-contain" />
             <div>
               <h1 className="text-base font-semibold leading-tight text-ink">{title}</h1>
               {subtitle && <p className="text-xs text-muted">{subtitle}</p>}
             </div>
-          </div>
+          </Link>
 
           <div className="flex items-center gap-3">
             {actions}
