@@ -1,9 +1,10 @@
 // lib/permissions.ts
 // Ported from mobile/constants/permissions.ts — system_admin's per-user
 // granular permission model (Edit User flow) and a coordinator's own
-// operational scope. UI ONLY for now — nothing here is enforced or sent to
-// the server yet (see app/admin/panel/PermissionsEditorModal.tsx and
-// app/admin/panel/CoordinatorScopesModal.tsx).
+// operational scope. Persisted via apiClient.updateUserRoleAdmin (see
+// app/admin/panel/PermissionsEditorModal.tsx and
+// app/admin/panel/CoordinatorScopesModal.tsx) and enforced server-side by
+// server/src/services/scopeAuthorization.ts.
 //
 // Elastic scope-rule model: an account can hold any number of ScopeRules,
 // each narrowing a Faculty -> optional Major -> optional Degree Level ->

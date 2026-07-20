@@ -4,10 +4,12 @@
 // Ported from mobile/components/modals/CoordinatorScopesModal.tsx —
 // system_admin's editor for a coordinator's own operational scope — which
 // population of students/projects they oversee. Opened from EditUserModal
-// when the user being edited holds the coordinator role. UI ONLY for now —
-// scopes live in local state on the parent (EditUserModal) and are NOT sent
-// to the server yet; the coordinator's actual dashboard queries still only
-// check the single facultyId field until this is wired server-side.
+// when the user being edited holds the coordinator role. Scopes live in
+// local state on the parent (EditUserModal) until Save, which persists them
+// via apiClient.updateUserRoleAdmin's coordinatorScopes field — enforced
+// server-side by services/scopeAuthorization.ts's withinCoordinatorScope,
+// which every coordinator write endpoint now checks (falling back to the
+// coordinator's plain facultyId when no scopes are configured).
 //
 // An account can hold multiple scopes at once (e.g. "CS bachelor's" AND
 // "Design master's" from one login) — real institutions split the
@@ -109,12 +111,6 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
                 ＋ {lang === 'he' ? 'הוסף תחום אחריות' : 'Add Scope'}
               </button>
             </div>
-
-            <p className="mt-4 text-xs text-muted">
-              {lang === 'he'
-                ? 'טרם מחובר לשרת — השינויים נשמרים רק להצגה כרגע'
-                : 'Not yet connected to the server — changes are for preview only right now'}
-            </p>
 
             <div className="mt-4 flex justify-end">
               <button

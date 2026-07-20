@@ -1,5 +1,6 @@
 // app/admin/panel/types.ts
 import type { AppRole, FacultyId } from '@/lib/roles';
+import type { ScopeRule, CoordinatorScope } from '@/lib/permissions';
 
 /** Shape of each entry in dashboard-summary's `users` array — a raw
  *  Firestore doc spread (`{ id, ...doc.data() }`), so treat optional
@@ -25,6 +26,10 @@ export interface AdminUserRecord {
    *  StudentStatusConfig (see server/src/services/studentStatuses.ts). */
   primaryStatus?: string;
   secondaryStatus?: string;
+  /** Granular per-user permission grants (system_admin-managed) — see lib/permissions.ts. */
+  permissionRules?: ScopeRule[];
+  /** A coordinator's own operational scope narrowing beyond their facultyId. */
+  coordinatorScopes?: CoordinatorScope[];
 }
 
 /** Mirrors apiClient.getStudentStatusOptions()'s response shape (see

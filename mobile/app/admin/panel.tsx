@@ -775,10 +775,10 @@ export default function PanelScreen() {
     setEditRole(user.role);
     setEditRoles(user.roles?.length ? user.roles : [user.role]); // ← ADD
     setEditFaculty(user.facultyId);
-    // Not persisted server-side yet, so there's nothing to load per-user —
-    // always starts fresh. See constants/permissions.ts.
-    setEditPermissionRules([]);
-    setEditCoordinatorScopes([]);
+    // Persisted server-side via role-update's permissionRules/
+    // coordinatorScopes fields — see constants/permissions.ts.
+    setEditPermissionRules(user.permissionRules ?? []);
+    setEditCoordinatorScopes(user.coordinatorScopes ?? []);
     // Unlike the two above, assignedMajors IS persisted server-side, so it
     // loads from the actual user doc (see UserRecord.assignedMajors).
     setEditAssignedMajors(user.assignedMajors ?? []);
@@ -801,6 +801,8 @@ export default function PanelScreen() {
         // secondary_supervisor (see updateUserRoleAdmin) — sent unconditionally
         // here since the server already gates on role.
         assignedMajors: editAssignedMajors,
+        permissionRules: editPermissionRules,
+        coordinatorScopes: (editRole === 'coordinator' || editRoles.includes('coordinator')) ? editCoordinatorScopes : undefined,
       });
 
       // Student status is a separate axis from role/faculty, set through its

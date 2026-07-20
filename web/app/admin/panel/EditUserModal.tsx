@@ -56,14 +56,12 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
     };
   }, []);
 
-  // Granular permissions — UI only for now, not yet sent to the server (see
-  // lib/permissions.ts and PermissionsEditorModal). Mirrors mobile's
-  // panel.tsx: these live in component state and get threaded into
-  // PermissionsEditorModal/CoordinatorScopesModal, but are intentionally
-  // left out of handleSave's request body below.
-  const [permissionRules, setPermissionRules] = useState<ScopeRule[]>([]);
-  // Coordinator's own operational scope — same "UI only" caveat as above.
-  const [coordinatorScopes, setCoordinatorScopes] = useState<CoordinatorScope[]>([]);
+  // Granular permissions — persisted via updateUserRoleAdmin's
+  // permissionRules/coordinatorScopes fields (see lib/permissions.ts,
+  // PermissionsEditorModal, and server/src/services/scopeAuthorization.ts
+  // for how these get enforced).
+  const [permissionRules, setPermissionRules] = useState<ScopeRule[]>(user.permissionRules ?? []);
+  const [coordinatorScopes, setCoordinatorScopes] = useState<CoordinatorScope[]>(user.coordinatorScopes ?? []);
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [scopesModalOpen, setScopesModalOpen] = useState(false);
 
@@ -98,6 +96,8 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
         roles: [role, ...additionalRoles.filter((r) => r !== role)],
         facultyId,
         assignedMajors: isSupervisorLike ? assignedMajors : undefined,
+        permissionRules,
+        coordinatorScopes: showCoordinatorScopes ? coordinatorScopes : undefined,
       });
 
       if (isStudent) {

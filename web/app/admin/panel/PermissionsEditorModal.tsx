@@ -3,9 +3,10 @@
 // app/admin/panel/PermissionsEditorModal.tsx
 // Ported from mobile/components/modals/PermissionsEditorModal.tsx —
 // system_admin's per-user granular permission editor, opened from
-// EditUserModal for any user being edited. UI ONLY for now — rules live in
-// local state on the parent (EditUserModal) and are NOT sent to the server;
-// nothing here is enforced anywhere yet.
+// EditUserModal for any user being edited. Rules live in local state on the
+// parent (EditUserModal) until Save, which persists them via
+// apiClient.updateUserRoleAdmin's permissionRules field — enforced
+// server-side by services/scopeAuthorization.ts.
 //
 // Elastic scope-rule model (see lib/permissions.ts): an account can hold any
 // number of ScopeRules, each narrowing Faculty -> optional Major -> optional
@@ -121,12 +122,6 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange }: Permi
                 ＋ {lang === 'he' ? 'הוסף כלל הרשאה' : 'Add Scope Rule'}
               </button>
             </div>
-
-            <p className="mt-4 text-xs text-muted">
-              {lang === 'he'
-                ? 'טרם מחובר לשרת — השינויים נשמרים רק להצגה כרגע'
-                : 'Not yet connected to the server — changes are for preview only right now'}
-            </p>
 
             <div className="mt-4 flex justify-end">
               <button

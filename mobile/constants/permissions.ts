@@ -12,7 +12,8 @@
 // operational scope later (faculty/major/degree/process-type narrowing,
 // without necessarily needing the view/actions fields).
 //
-// UI-only for now — nothing here is enforced server-side yet (see
+// Persisted via role-update's permissionRules/coordinatorScopes fields and
+// enforced server-side by server/src/services/scopeAuthorization.ts (see
 // PermissionsEditorModal.tsx). Major-based scoping depends on every user's
 // `major` field actually being one of HIT_FACULTIES's canonical slugs — see
 // the NewUserModal fix that makes major a validated picker instead of free

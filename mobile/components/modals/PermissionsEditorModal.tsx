@@ -1,9 +1,9 @@
 // components/modals/PermissionsEditorModal.tsx
 //
 // system_admin's per-user granular permission editor, opened from
-// EditUserModal. UI ONLY for now — rules live in local state on the parent
-// (admin/panel.tsx) and are NOT sent to the server yet; nothing here is
-// enforced anywhere.
+// EditUserModal. Rules live in local state on the parent (admin/panel.tsx)
+// until Save, which persists them via role-update's permissionRules field —
+// enforced server-side by server/src/services/scopeAuthorization.ts.
 //
 // Elastic scope-rule model (see constants/permissions.ts): an account can
 // hold any number of ScopeRules, each narrowing Faculty → optional Major →
@@ -119,11 +119,6 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
             </ScrollView>
 
             <View style={s.footer}>
-              <Text style={s.footerNote}>
-                {lang === 'he'
-                  ? 'טרם מחובר לשרת — השינויים נשמרים רק להצגה כרגע'
-                  : 'Not yet connected to the server — changes are for preview only right now'}
-              </Text>
               <Pressable style={s.doneBtn} onPress={onClose}>
                 <Text style={s.doneBtnText}>{lang === 'he' ? 'סגור' : 'Done'}</Text>
               </Pressable>

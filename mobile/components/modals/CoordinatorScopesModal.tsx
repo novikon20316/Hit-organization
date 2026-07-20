@@ -2,10 +2,12 @@
 //
 // system_admin's editor for a coordinator's own operational scope — which
 // population of students/projects they oversee. Opened from EditUserModal
-// when the user being edited holds the coordinator role. UI ONLY for now —
-// scopes live in local state on the parent (admin/panel.tsx) and are NOT
-// sent to the server yet; the coordinator's actual dashboard queries still
-// only check the single facultyId field until this is wired server-side.
+// when the user being edited holds the coordinator role. Scopes live in
+// local state on the parent (admin/panel.tsx) until Save, which persists
+// them via role-update's coordinatorScopes field — enforced server-side by
+// services/scopeAuthorization.ts's withinCoordinatorScope, which every
+// coordinator write endpoint now checks (falling back to the coordinator's
+// plain facultyId when no scopes are configured).
 //
 // An account can hold multiple scopes at once (e.g. "CS bachelor's" AND
 // "Design master's" from one login) — real institutions split the
@@ -118,11 +120,6 @@ export default function CoordinatorScopesModal({ visible, onClose, lang, scopes,
             </ScrollView>
 
             <View style={s.footer}>
-              <Text style={s.footerNote}>
-                {lang === 'he'
-                  ? 'טרם מחובר לשרת — השינויים נשמרים רק להצגה כרגע'
-                  : 'Not yet connected to the server — changes are for preview only right now'}
-              </Text>
               <Pressable style={s.doneBtn} onPress={onClose}>
                 <Text style={s.doneBtnText}>{lang === 'he' ? 'סגור' : 'Done'}</Text>
               </Pressable>

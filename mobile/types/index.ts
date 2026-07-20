@@ -420,6 +420,11 @@ export interface UserRecord {
   // optional keys into that config — undefined/null means "not set yet".
   primaryStatus?: string | null;
   secondaryStatus?: string | null;
+  // Granular per-user permission grants (system_admin-managed) — see
+  // constants/permissions.ts.
+  permissionRules?: import('../constants/permissions').ScopeRule[];
+  // A coordinator's own operational scope narrowing beyond their facultyId.
+  coordinatorScopes?: import('../constants/permissions').CoordinatorScope[];
 }
 
 /**

@@ -241,6 +241,14 @@ export interface UserDoc {
    *  unrestricted (all majors in their faculty). See
    *  server/src/controllers/adminController.ts. */
   assignedMajors?: string[];
+  /** Elastic per-user scope-rule grants (system_admin-managed) — see
+   *  lib/permissions.ts. Empty/unset means no granular grants beyond the
+   *  account's role. */
+  permissionRules?: import('./permissions').ScopeRule[];
+  /** A coordinator's own operational scope narrowing beyond their facultyId —
+   *  see lib/permissions.ts. Empty/unset means unrestricted within their
+   *  facultyId (the pre-existing behavior). */
+  coordinatorScopes?: import('./permissions').CoordinatorScope[];
 }
 
 export const VALID_ROLES: AppRole[] = [

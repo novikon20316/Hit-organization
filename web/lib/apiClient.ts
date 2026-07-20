@@ -345,7 +345,15 @@ export const apiClient = {
 
   async updateUserRoleAdmin(
     userId: string,
-    payload: { role: string; roles?: string[]; facultyId?: string; assignedMajors?: string[] }
+    payload: {
+      role: string;
+      roles?: string[];
+      facultyId?: string;
+      assignedMajors?: string[];
+      /** system_admin-only — see lib/permissions.ts. */
+      permissionRules?: import('./permissions').ScopeRule[];
+      coordinatorScopes?: import('./permissions').CoordinatorScope[];
+    }
   ) {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${userId}/role-update`, {
       method: 'POST',
