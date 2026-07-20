@@ -24,6 +24,23 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Plain presence flag read by proxy.ts (Next's Proxy runs before this
+// component ever mounts, so it can't ask AuthContext directly) — never the
+// actual Firebase ID token. See proxy.ts for why that split matters.
+const SESSION_COOKIE = 'session_active';
+const SESSION_COOKIE_MAX_AGE_S = 30 * 24 * 60 * 60; // matches the "stay signed in" intent of browserLocalPersistence below
+
+function setSessionCookie() {
+  if (typeof document === 'undefined') return;
+  const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${SESSION_COOKIE}=1; path=/; max-age=${SESSION_COOKIE_MAX_AGE_S}; SameSite=Lax${secure}`;
+}
+
+function clearSessionCookie() {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserDoc | null>(null);
@@ -37,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user) {
         setUserData(null);
         setProfileResolved(true);
+        clearSessionCookie();
       } else {
         // New/changed user — the Firestore subscription below hasn't run
         // yet, so mark the profile as not-yet-loaded. Doing this inside the
@@ -44,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // this a "setState from a subscription callback", not a
         // synchronous setState-in-effect.
         setProfileResolved(false);
+        setSessionCookie();
       }
     });
     return unsubscribe;
@@ -66,6 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [firebaseUser]);
 
   const logout = async () => {
+    // Cleared eagerly, before the async signOut() below resolves — closes
+    // the window where clicking "sign out" and immediately pressing back
+    // would still find the cookie present and slip past proxy.ts.
+    clearSessionCookie();
     await signOut(auth);
   };
 

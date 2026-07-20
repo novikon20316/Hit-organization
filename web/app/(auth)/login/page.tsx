@@ -23,6 +23,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 
+// Deliberately excludes `'` and `"` too (on top of the usual whitespace/@
+// exclusion) — a real email address never contains either, so rejecting
+// them client-side blocks quote-based injection-probing payloads before
+// they ever leave the browser. `-` and `@` stay allowed since both are
+// legitimate/required in real addresses (e.g. "my-university.edu").
+const EMAIL_FORMAT_REGEX = /^[^\s@'"]+@[^\s@'"]+\.[^\s@'"]+$/;
+const MAX_EMAIL_LENGTH = 254; // RFC 5321 §4.5.3.1.3
+const MAX_PASSWORD_LENGTH = 128; // generous cap — just blocks absurd/DoS-y payloads, not real passwords
+
 export default function LoginPage() {
   const router = useRouter();
   const { t, lang } = useLanguage();
@@ -74,11 +83,22 @@ export default function LoginPage() {
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     if (!email || !password || submitting) return;
+
+    const trimmedEmail = email.trim();
+    if (
+      !EMAIL_FORMAT_REGEX.test(trimmedEmail) ||
+      trimmedEmail.length > MAX_EMAIL_LENGTH ||
+      password.length > MAX_PASSWORD_LENGTH
+    ) {
+      setError(lang === 'he' ? 'כתובת דוא"ל לא תקינה.' : 'Invalid email address.');
+      return;
+    }
+
     setSubmitting(true);
     setError('');
 
     try {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
 
       // Force a fresh fetch rather than trusting a stale emailVerified
       // snapshot — same reasoning as mobile: this can change outside the
@@ -125,7 +145,7 @@ export default function LoginPage() {
         // confirmed-wrong attempts does it lock the account and email a
         // "was this you?" link, which `locked` reflects here.
         try {
-          const { locked } = await apiClient.reportFailedLogin(email, password);
+          const { locked } = await apiClient.reportFailedLogin(trimmedEmail, password);
           setError(
             locked
               ? lang === 'he'
