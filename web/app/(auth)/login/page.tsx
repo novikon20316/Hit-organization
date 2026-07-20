@@ -255,6 +255,12 @@ export default function LoginPage() {
           </form>
         </div>
       </main>
+
+      <footer className="pb-6 text-center text-xs text-muted">
+        {lang === 'he'
+          ? `כל הזכויות שמורות ל-HIT ${new Date().getFullYear()}`
+          : `All rights reserved to HIT ${new Date().getFullYear()}`}
+      </footer>
     </div>
   );
 }
