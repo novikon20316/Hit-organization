@@ -949,6 +949,23 @@ export default function PanelScreen() {
         isRtl={isRtl}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
         onMaintenance={() => setMaintenanceModal(true)}
+        extraMenuItems={[
+          {
+            key: 'manage-files', icon: '📎',
+            label: lang === 'he' ? 'ניהול מסמכים לסטודנטים' : 'Manage Student Info Files',
+            onPress: () => router.push('/Info-files' as any),
+          },
+          {
+            key: 'manage-year', icon: '🎓',
+            label: lang === 'he' ? 'ניהול שנת לימודים' : 'Academic Year Management',
+            onPress: () => router.push('/AcademicYearManager' as any),
+          },
+          {
+            key: 'bulk-permissions', icon: '🛡️',
+            label: lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role',
+            onPress: () => router.push('/BulkPermissionsManager' as any),
+          },
+        ]}
         onBeforeSignOut={() => {
           unsubUsersRef.current?.();
           unsubProjectsRef.current?.();
@@ -1162,30 +1179,10 @@ export default function PanelScreen() {
                   );
                 })}
             </View>
-            <Pressable
-              style={[styles.submitBtn, { marginTop: 14 }]}
-              onPress={() => router.push('/Info-files' as any)}
-            >
-              <Text style={styles.submitBtnText}>
-                📎 {lang === 'he' ? 'ניהול מסמכים לסטודנטים' : 'Manage Student Info Files'}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.submitBtn, { marginTop: 10 }]}
-              onPress={() => router.push('/AcademicYearManager' as any)}
-            >
-              <Text style={styles.submitBtnText}>
-                🎓 {lang === 'he' ? 'ניהול שנת לימודים' : 'Academic Year Management'}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.submitBtn, { marginTop: 10 }]}
-              onPress={() => router.push('/BulkPermissionsManager' as any)}
-            >
-              <Text style={styles.submitBtnText}>
-                🛡️ {lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role'}
-              </Text>
-            </Pressable>
+            {/* Manage Student Info Files / Academic Year Management / Bulk
+                Permissions by Role moved into the TopBar's ☰ menu
+                (extraMenuItems above) — same routes, no functionality
+                dropped, just decluttered off this tab. */}
           </>
         )}
 

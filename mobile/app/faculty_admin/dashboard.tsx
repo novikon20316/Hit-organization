@@ -327,34 +327,27 @@ export default function PanelScreen() {
         lang={lang}
         isRtl={isRtl}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
+        extraMenuItems={[
+          {
+            key: 'milestone-templates', icon: '🧬',
+            label: lang === 'he' ? 'ניהול תבניות אבני דרך' : 'Manage Milestone Templates',
+            onPress: () => router.push('/WorkflowTemplateManager' as any),
+          },
+          {
+            key: 'reports', icon: '📊',
+            label: lang === 'he' ? 'דוחות' : 'Reports',
+            onPress: () => router.push('/Reports' as any),
+          },
+          {
+            key: 'bulk-permissions', icon: '🛡️',
+            label: lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role',
+            onPress: () => router.push('/BulkPermissionsManager' as any),
+          },
+        ]}
       />
-
-      <Pressable
-        style={{ marginHorizontal: 16, marginTop: 4, marginBottom: 8, backgroundColor: '#EDE9FE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
-        onPress={() => router.push('/WorkflowTemplateManager' as any)}
-      >
-        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
-          🧬 {lang === 'he' ? 'ניהול תבניות אבני דרך' : 'Manage Milestone Templates'}
-        </Text>
-      </Pressable>
-
-      <Pressable
-        style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#DBEAFE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
-        onPress={() => router.push('/Reports' as any)}
-      >
-        <Text style={{ color: '#2E86FF', fontWeight: '700', fontSize: 13 }}>
-          📊 {lang === 'he' ? 'דוחות' : 'Reports'}
-        </Text>
-      </Pressable>
-
-      <Pressable
-        style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: '#F5F3FF', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
-        onPress={() => router.push('/BulkPermissionsManager' as any)}
-      >
-        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
-          🛡️ {lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role'}
-        </Text>
-      </Pressable>
+      {/* Manage Milestone Templates / Reports / Bulk Permissions by Role
+          moved into the TopBar's ☰ menu (extraMenuItems above) — same
+          routes, no functionality dropped, just decluttered off the header. */}
 
       <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('overview')}>
         <Text style={localStyles.tabLabel}>Overview</Text>

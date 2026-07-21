@@ -3910,6 +3910,53 @@ export const TopBarStyles = StyleSheet.create({
     borderWidth: 1, borderColor: '#FFCDD2',
   },
   signOutText: { fontSize: 12, fontWeight: '600', color: '#D32F2F' },
+  hamburgerBtn: {
+    width: 40, height: 40, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: '#D0DEFF',
+  },
+  hamburgerIcon: { fontSize: 20, color: '#111' },
+});
+
+// ─── HeaderMenu — the dropdown a TopBar's hamburger button opens ──────────────
+export const HeaderMenuStyles = StyleSheet.create({
+  trigger: {
+    width: 40, height: 40, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: '#D0DEFF',
+  },
+  triggerIcon: { fontSize: 20, color: '#111' },
+  badgeDot: {
+    position: 'absolute', top: -4, right: -4,
+    backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  badgeDotText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+
+  backdrop: { flex: 1, backgroundColor: 'rgba(17,24,39,0.25)' },
+  panel: {
+    position: 'absolute', top: 64, minWidth: 240, maxWidth: 320,
+    backgroundColor: '#fff', borderRadius: 16, paddingVertical: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12,
+    elevation: 8,
+  },
+  panelRight: { right: 16 },
+  panelLeft:  { left: 16 },
+
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 13,
+  },
+  rowReverse: { flexDirection: 'row-reverse' },
+  rowIcon:    { fontSize: 18, width: 22, textAlign: 'center' },
+  rowLabel:   { flex: 1, fontSize: 14, fontWeight: '600', color: '#1F2937' },
+  rowLabelDanger: { color: '#D32F2F' },
+  rowDivider: { height: 1, backgroundColor: '#F0F2F5', marginVertical: 4 },
+  badge: {
+    backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5,
+  },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });
 
 export const StatCardStyles = StyleSheet.create({

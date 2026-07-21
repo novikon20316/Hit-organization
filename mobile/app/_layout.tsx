@@ -2,7 +2,7 @@
 import { Stack, useRouter, usePathname } from "expo-router";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState, useRef } from "react";
-import { View, Text, ActivityIndicator, Platform, I18nManager } from 'react-native';
+import { View, Text, Image, ActivityIndicator, Platform, I18nManager } from 'react-native';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../src/firebase/firebase";
 import { apiClient } from "../src/api/apiClient";
@@ -337,11 +337,20 @@ export default function RootLayout() {
   }, [router]);
 
   // ── Loading splash ─────────────────────────────────────────────────────────
+  // Kept up (with the app's own logo, not just a bare spinner) for the whole
+  // auth-state → role-fetch → redirect sequence below, so the router only
+  // ever lands the user on a screen once their role is actually known —
+  // never a flash of the wrong screen while that's still in flight.
   if (loading) {
     return (
       <SafeAreaProvider>
         <StatusBar style="auto" translucent={false} />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F4FF' }}>
+          <Image
+            source={require('../assets/hit-logo.png')}
+            style={{ width: 96, height: 96, marginBottom: 20 }}
+            resizeMode="contain"
+          />
           <ActivityIndicator size="large" color="#2E86FF" />
           <Text style={{ marginTop: 16, fontSize: 16, color: '#2E86FF', fontWeight: '600' }}>
             Signing in...

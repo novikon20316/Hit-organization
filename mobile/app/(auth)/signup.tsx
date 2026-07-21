@@ -108,6 +108,19 @@ const s = SignupStyles;
     );
   };
 
+// Red border override for FloatingInput/Pressable fields once a field is
+// flagged as missing/invalid after a failed save attempt.
+const missingFieldStyle = { borderColor: '#EF4444' };
+
+// Small red helper line shown under a field once `attemptedSubmit` is true
+// and that field is still empty/invalid — the same red used for the
+// email-domain and password-strength errors elsewhere on this form.
+const RequiredNote = ({ isRtl, children }: { isRtl: boolean; children: React.ReactNode }) => (
+  <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
+    {children}
+  </Text>
+);
+
 export default function ProfileSetup() {
   const router = useRouter();
   const passwordRef = useRef<TextInput>(null); // ← add with other state declarations
@@ -127,6 +140,9 @@ export default function ProfileSetup() {
   // sent to the server is selectedProgram.slug, not this key — see handleSave.
   const [programKey, setProgramKey] = useState<string | null>(null);
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
+  // Set once the user tries to save with the form incomplete — turns on the
+  // red "required field" indicators below instead of just the blocking Alert.
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [saving,      setSaving]      = useState(false);
   const [stage,       setStage]       = useState<'form' | 'verify'>('form');
   const [resending,   setResending]   = useState(false);
@@ -431,7 +447,11 @@ export default function ProfileSetup() {
             value={displayName}
             onChangeText={setDisplayName}
             isRtl={isRtl}
+            style={attemptedSubmit && displayName.trim().length <= 1 ? missingFieldStyle : undefined}
           />
+          {attemptedSubmit && displayName.trim().length <= 1 && (
+            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
+          )}
 
           <FloatingInput
             placeholder={lang === 'he' ? 'כתובת אימייל' : 'Email Address'}
@@ -440,23 +460,34 @@ export default function ProfileSetup() {
             keyboardType="email-address"
             autoCapitalize="none"
             isRtl={isRtl}
+            style={(attemptedSubmit && email.length === 0) || (email.length > 0 && !isAllowedStudentEmailDomain(email)) ? missingFieldStyle : undefined}
           />
-          {email.length > 0 && !isAllowedStudentEmailDomain(email) && (
-            <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
+          {attemptedSubmit && email.length === 0 ? (
+            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
+          ) : email.length > 0 && !isAllowedStudentEmailDomain(email) ? (
+            <RequiredNote isRtl={isRtl}>
               {lang === 'he'
                 ? `יש להשתמש בכתובת ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' או ')} בלבד`
                 : `Must be an ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ')} address`}
-            </Text>
-          )}
+            </RequiredNote>
+          ) : null}
 
           <FloatingInput
             placeholder={lang === 'he' ? 'מספר טלפון' : 'Phone Number'}
             value={phoneNumber}
-            onChangeText={setPhoneNumber}
+            onChangeText={(t) => setPhoneNumber(t.replace(/\D/g, '').slice(0, 10))}
             keyboardType="phone-pad"
             maxLength={10}
             isRtl={isRtl}
+            style={attemptedSubmit && phoneNumber.length < 9 ? missingFieldStyle : undefined}
           />
+          {attemptedSubmit && phoneNumber.length < 9 && (
+            <RequiredNote isRtl={isRtl}>
+              {phoneNumber.length === 0
+                ? (lang === 'he' ? 'שדה חובה' : 'Required field')
+                : (lang === 'he' ? 'מספר טלפון חייב לכלול לפחות 9 ספרות' : 'Phone number must have at least 9 digits')}
+            </RequiredNote>
+          )}
 
           <View style={{ position: 'relative', justifyContent: 'center', marginBottom: 12 }}>
           {!showPassword && !password && !passwordFocused && (    // ← add passwordFocused state
@@ -483,7 +514,8 @@ export default function ProfileSetup() {
               !isRtl && s.textRight,
               password.length > 0 && {
                 borderColor: getPasswordStrength(password).valid ? '#10B981' : '#EF4444'
-              }
+              },
+              attemptedSubmit && password.length === 0 && missingFieldStyle,
             ]}
             placeholder=""                                        // ← clear real placeholder
             placeholderTextColor="#9BA8C0"
@@ -501,7 +533,9 @@ export default function ProfileSetup() {
           </Pressable>
         </View>
 
-          {password.length > 0 && !getPasswordStrength(password).valid && (
+          {attemptedSubmit && password.length === 0 ? (
+            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
+          ) : password.length > 0 && !getPasswordStrength(password).valid && (
             <View style={{ marginTop: -8, marginBottom: 8 }}>
               {getPasswordStrength(password).errors.map((err) => (
                 <Text key={err} style={{ color: '#EF4444', fontSize: 12, textAlign: isRtl ? 'right' : 'left' }}>
@@ -511,7 +545,7 @@ export default function ProfileSetup() {
             </View>
           )}
 
-           
+
           <FloatingInput
             placeholder={lang === 'he' ? 'תעודת זהות' : 'Student ID'}
             value={studentId}
@@ -521,9 +555,11 @@ export default function ProfileSetup() {
             isRtl={isRtl}
             style={studentId.length > 0 ? {
               borderColor: isValidStudentId(studentId) ? '#10B981' : '#EF4444'
-            } : {}}
+            } : attemptedSubmit ? missingFieldStyle : {}}
           />
-          {studentId.length > 0 && !isValidStudentId(studentId) && (
+          {attemptedSubmit && studentId.length === 0 ? (
+            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
+          ) : studentId.length > 0 && !isValidStudentId(studentId) && (
             <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
               {lang === 'he' ? 'תעודת זהות חייבת להכיל 9 ספרות' : 'Student ID must be exactly 9 digits'}
             </Text>
@@ -534,22 +570,22 @@ export default function ProfileSetup() {
             {lang === 'he' ? 'בחר פקולטה / מחלקה:' : 'Select Faculty / Department:'}
           </Text>
 
-          <Pressable 
+          <Pressable
             style={({ pressed }) => [
-              s.input, 
-              { 
-                justifyContent: 'center', 
+              s.input,
+              {
+                justifyContent: 'center',
                 backgroundColor: pressed ? '#F0F4FF' : '#fff',
-                borderColor: showFacultyModal ? '#2E86FF' : '#E0E8FF',
+                borderColor: showFacultyModal ? '#2E86FF' : (attemptedSubmit && !faculty ? '#EF4444' : '#E0E8FF'),
                 minHeight: 50,
               }
-            ]} 
+            ]}
             onPress={() => setShowFacultyModal(true)}
           >
-            <View style={{ 
-              flexDirection: isRtl ? 'row-reverse' : 'row', 
-              justifyContent: 'space-between', 
-              alignItems: 'center' 
+            <View style={{
+              flexDirection: isRtl ? 'row-reverse' : 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center'
             }}>
               <Text style={{
                 fontSize: 16,
@@ -560,6 +596,9 @@ export default function ProfileSetup() {
               <Text style={{ fontSize: 12, color: '#8899BB' }}>▼</Text>
             </View>
           </Pressable>
+          {attemptedSubmit && !faculty && (
+            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty'}</RequiredNote>
+          )}
 
         {/* --- Degree / program (the faculty determines which programs show up; each
              program already carries its own bachelors/masters level) --- */}
@@ -586,6 +625,9 @@ export default function ProfileSetup() {
                 </Pressable>
               ))}
             </View>
+            {attemptedSubmit && !programKey && (
+              <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור תוכנית לימודים' : 'Please select a program'}</RequiredNote>
+            )}
           </View>
         )}
 
@@ -623,6 +665,9 @@ export default function ProfileSetup() {
                 );
               })}
             </View>
+            {attemptedSubmit && !yearOfStudy && (
+              <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור שנת לימוד' : 'Please select a year of study'}</RequiredNote>
+            )}
           </View>
         )}
 
@@ -631,8 +676,9 @@ export default function ProfileSetup() {
           style={[s.saveBtn, saving && { opacity: 0.5 }]}
           onPress={() => {
             if (!canSave) {
-              Alert.alert(isRtl ? "חוסר בפרטים" : "Missing Info", 
-                          isRtl ? "אנא מלא את כל השדות בצורה תקינה" : "Please fill all fields correctly");
+              setAttemptedSubmit(true);
+              Alert.alert(isRtl ? "חוסר בפרטים" : "Missing Info",
+                          isRtl ? "אנא מלא את כל השדות המסומנים באדום" : "Please fill in the fields marked in red");
               return;
             }
             handleSave();

@@ -404,6 +404,18 @@ export default function ProjectCoordinatorDashboard() {
         lang={lang}
         isRtl={lang === 'he'}
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
+        extraMenuItems={[
+          {
+            key: 'bulk-due-dates', icon: '📅',
+            label: lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates',
+            onPress: () => setShowBulkDueDate(true),
+          },
+          {
+            key: 'academic-year', icon: '🎓',
+            label: lang === 'he' ? 'שנת לימודים' : 'Academic Year',
+            onPress: () => router.push('/AcademicYearManager' as any),
+          },
+        ]}
       />
 
       {/* Stats strip */}
@@ -425,25 +437,9 @@ export default function ProjectCoordinatorDashboard() {
         contentContainerStyle={s.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Search + filters */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-          <Pressable
-            style={[s.filterChip, { alignSelf: 'flex-start', backgroundColor: '#FFF7ED', borderColor: '#F59E0B' }]}
-            onPress={() => setShowBulkDueDate(true)}
-          >
-            <Text style={[s.filterChipText, { color: '#92400E' }]}>
-              📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[s.filterChip, { alignSelf: 'flex-start', backgroundColor: '#EDE9FE', borderColor: '#7C3AED' }]}
-            onPress={() => router.push('/AcademicYearManager' as any)}
-          >
-            <Text style={[s.filterChipText, { color: '#5B21B6' }]}>
-              🎓 {lang === 'he' ? 'שנת לימודים' : 'Academic Year'}
-            </Text>
-          </Pressable>
-        </View>
+        {/* Bulk Update Due Dates / Academic Year moved into the TopBar's ☰
+            menu (extraMenuItems above) — same actions, no functionality
+            dropped, just decluttered off this row. */}
         <TextInput
           style={s.searchInput}
           value={searchText}

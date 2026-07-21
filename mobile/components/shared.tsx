@@ -11,11 +11,12 @@ import { auth, db } from '../src/firebase/firebase';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
 import type { Lang } from './i18n';
-import { NotificationBell } from './NotificationBell';
 import { apiClient } from '../src/api/apiClient';
 import DeleteAccountModal from './modals/DeleteAccountModal';
+import HeaderMenu, { type HeaderMenuItem } from './HeaderMenu';
+import { useNotifications } from '../src/context/NotificationsContext';
 import {
-  TopBarStyles, StatCardStyles, SectionHeaderStyles, FacultyBadgeStyles,
+  TopBarStyles, HeaderMenuStyles, StatCardStyles, SectionHeaderStyles, FacultyBadgeStyles,
   StatusBadgeStyles, SecurityModalStyles,
 } from '../constants/styles';
 
@@ -306,6 +307,17 @@ function SecurityModal({ visible, onClose, lang }: {
 }
 
 // ─── Shared TopBar component ──────────────────────────────────────────────────
+// The right-hand action row used to be a lineup of individual icon buttons
+// (lang, security, maintenance, delete-account, notification bell, sign out)
+// — on screens with the most items (system_admin) that row was the tightest
+// part of the header. Notifications and the language toggle are frequent,
+// single-tap actions, so they stay as their own always-visible buttons; every
+// other action (security, maintenance, delete-account, sign-out, and any
+// page-specific extras) is consolidated into the "☰" HeaderMenu so the header
+// stays a fixed, predictable width regardless of role. `extraMenuItems` lets a
+// specific screen (e.g. admin/panel.tsx's Manage Files / Academic Year /
+// Bulk Permissions buttons) fold its own page-level actions into the same
+// menu instead of leaving them as a separate row of buttons on the page.
 interface TopBarProps {
   name:      string;
   role:      keyof typeof ROLE_ACCENT;
@@ -313,35 +325,61 @@ interface TopBarProps {
   isRtl:     boolean;
   onToggleLang: () => void;
   onMaintenance?: () => void;
-  onBeforeSignOut?: () => void;
+  onBeforeSignOut?: () => void | Promise<void>;
+  extraMenuItems?: HeaderMenuItem[];
 }
 
 export function TopBar({
-  name, role, lang, isRtl, onToggleLang, onMaintenance, onBeforeSignOut,
+  name, role, lang, isRtl, onToggleLang, onMaintenance, onBeforeSignOut, extraMenuItems,
 }: TopBarProps) {
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
   const [securityModal, setSecurityModal] = useState(false);
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
+  const { unreadCount } = useNotifications();
 
   const handleSignOut = async () => {
-    onBeforeSignOut?.();
+    await onBeforeSignOut?.();
     await signOut(auth);
     setTimeout(() => router.replace('/(auth)/login'), 100);
   };
 
   const handleAccountDeletionRequested = async () => {
     setDeleteAccountModal(false);
-    onBeforeSignOut?.();
+    await onBeforeSignOut?.();
     await signOut(auth);
     setTimeout(() => router.replace('/(auth)/login'), 100);
   };
+
+  const menuItems: HeaderMenuItem[] = [
+    {
+      key: 'security', icon: '🔐',
+      label: lang === 'he' ? 'אבטחה ואימות דו-שלבי' : 'Security & 2FA',
+      onPress: () => setSecurityModal(true),
+    },
+    ...(role === 'system_admin' ? [{
+      key: 'maintenance', icon: '🛠️',
+      label: lang === 'he' ? 'מצב תחזוקה' : 'Maintenance mode',
+      onPress: () => onMaintenance?.(),
+    }] : []),
+    ...(extraMenuItems ?? []).map((item, i) => ({ ...item, dividerBefore: i === 0 })),
+    {
+      key: 'delete-account', icon: '🗑️', dividerBefore: true,
+      label: lang === 'he' ? 'מחיקת חשבון' : 'Delete account',
+      onPress: () => setDeleteAccountModal(true),
+    },
+    {
+      key: 'sign-out', icon: '🚪', danger: true,
+      label: lang === 'he' ? 'יציאה' : 'Sign Out',
+      onPress: handleSignOut,
+    },
+  ];
 
   return (
     <>
       <View style={[tb.bar, isRtl && tb.rowReverse]}>
         {/* Left: avatar + name — flexShrink so a long name/role list can never
-            push the right-hand action row (sign-out included) off-screen */}
+            push the hamburger button off-screen */}
         <View style={[tb.left, isRtl && tb.rowReverse]}>
           <View style={[tb.avatar, { backgroundColor: accent.text }]}>
             <Text style={tb.avatarText}>{name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
@@ -356,45 +394,27 @@ export function TopBar({
           </View>
         </View>
 
-        {/* Right: lang + security + bell + maintenance + sign out — never
-            shrinks, so the sign-out button (last item, most items for
-            system_admin) never gets clipped at the screen edge */}
+        {/* Right: notifications + language stay as their own always-visible
+            buttons (they're the two most frequent, single-tap actions);
+            everything else that used to live here — plus any page-specific
+            extras — is inside the hamburger's dropdown. */}
         <View style={[tb.right, isRtl && tb.rowReverse]}>
+          <Pressable
+            style={[tb.iconBtn, { position: 'relative' }]}
+            onPress={() => router.push('/(tabs)/notifications')}
+            accessibilityLabel={lang === 'he' ? 'התראות' : 'Notifications'}
+          >
+            <Text style={tb.iconBtnText}>🔔</Text>
+            {!!unreadCount && unreadCount > 0 && (
+              <View style={hm.badgeDot}>
+                <Text style={hm.badgeDotText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </Pressable>
           <Pressable style={tb.langBtn} onPress={onToggleLang}>
             <Text style={tb.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
-
-          {/* 🔐 Security / 2FA button — visible to ALL roles */}
-          <Pressable
-            style={tb.iconBtn}
-            onPress={() => setSecurityModal(true)}
-            accessibilityLabel="Security settings"
-          >
-            <Text style={tb.iconBtnText}>🔐</Text>
-          </Pressable>
-
-          {role === 'system_admin' && (
-            <Pressable style={tb.iconBtn} onPress={onMaintenance}>
-              <Text style={tb.iconBtnText}>🛠️</Text>
-            </Pressable>
-          )}
-
-          {/* 🗑️ Delete account — visible to ALL roles, same home as 2FA/security */}
-          <Pressable
-            style={tb.iconBtn}
-            onPress={() => setDeleteAccountModal(true)}
-            accessibilityLabel="Delete account"
-          >
-            <Text style={tb.iconBtnText}>🗑️</Text>
-          </Pressable>
-
-          <NotificationBell />
-
-          <Pressable style={tb.signOutBtn} onPress={handleSignOut}>
-            <Text style={tb.signOutText}>
-              {lang === 'he' ? 'יציאה' : 'Sign Out'}
-            </Text>
-          </Pressable>
+          <HeaderMenu items={menuItems} isRtl={isRtl} />
         </View>
       </View>
 
@@ -479,6 +499,8 @@ export const toDate = (val: Timestamp | string | null | undefined): Date | null 
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const tb = TopBarStyles;
+
+const hm = HeaderMenuStyles;
 
 const sc = StatCardStyles;
 
