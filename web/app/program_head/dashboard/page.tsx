@@ -15,10 +15,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
-import type { AppRole } from '@/lib/roles';
+import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { TrackChangeControl } from '@/components/TrackChangeControl';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
+import type { AdminUserRecord } from '@/app/admin/panel/types';
 
 const PROGRAM_HEAD_ROLES: AppRole[] = ['program_head', 'system_admin'];
 
@@ -55,13 +57,14 @@ export default function ProgramHeadDashboardPage() {
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
 
-  const [tab, setTab] = useState<'students' | 'approvals' | 'supervisors'>('students');
+  const [tab, setTab] = useState<'students' | 'approvals' | 'supervisors' | 'staff'>('students');
   const [headName, setHeadName] = useState('');
   const [facultyId, setFacultyId] = useState('');
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [supervisorLoads, setSupervisorLoads] = useState<SupervisorLoad[]>([]);
   const [stats, setStats] = useState({ totalStudents: 0, activeStudents: 0, overdueCount: 0, pendingCount: 0 });
+  const [staff, setStaff] = useState<AdminUserRecord[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -87,10 +90,25 @@ export default function ProgramHeadDashboardPage() {
     }
   }, [firebaseUser, lang]);
 
+  // Own-faculty staff this role can now manage directly (see
+  // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — a
+  // separate endpoint from the read-only dashboard data above, since
+  // program_head never had a user-listing endpoint of any kind before this.
+  const fetchStaff = useCallback(async () => {
+    try {
+      const res = await apiClient.listManagedStaff();
+      setStaff((res.staff ?? []) as unknown as AdminUserRecord[]);
+    } catch {
+      // Non-fatal — the Staff tab just shows an empty list if this fails;
+      // the rest of the dashboard doesn't depend on it.
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
-  }, [isAllowed, fetchDashboard]);
+    if (isAllowed) fetchStaff();
+  }, [isAllowed, fetchDashboard, fetchStaff]);
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -116,6 +134,7 @@ export default function ProgramHeadDashboardPage() {
     { key: 'students' as const, label: lang === 'he' ? 'סטודנטים' : 'Students', badge: stats.totalStudents },
     { key: 'approvals' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Approvals', badge: stats.pendingCount },
     { key: 'supervisors' as const, label: lang === 'he' ? 'מנחים' : 'Supervisors', badge: 0 },
+    { key: 'staff' as const, label: lang === 'he' ? 'סגל' : 'Staff', badge: 0 },
   ];
 
   return (
@@ -233,7 +252,7 @@ export default function ProgramHeadDashboardPage() {
           ))}
           {approvals.length === 0 && <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין פריטים ממתינים' : 'Nothing pending'}</p>}
         </div>
-      ) : (
+      ) : tab === 'supervisors' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {supervisorLoads.map((sv, i) => (
             <div key={i} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
@@ -251,6 +270,8 @@ export default function ProgramHeadDashboardPage() {
           ))}
           {supervisorLoads.length === 0 && <p className="text-sm text-muted">👨‍🏫 {lang === 'he' ? 'אין מנחים' : 'No supervisors'}</p>}
         </div>
+      ) : (
+        <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }} />
       )}
     </DashboardShell>
   );

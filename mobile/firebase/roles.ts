@@ -41,6 +41,20 @@ export const STAFF_ROLES: AppRole[] = [
   'system_admin',
 ];
 
+// Roles a delegate (faculty_admin/program_head/grad_school_head) can create
+// or edit for someone else — STAFF_ROLES minus the admin tier itself
+// (system_admin/faculty_admin/program_head/grad_school_head — see
+// server/src/config/permissionScopes.ts's ADMIN_TIER_ROLES, which a delegate
+// may never touch) and minus 'student' (self-registration only, not
+// admin-created here).
+export const DELEGATE_MANAGEABLE_ROLES: AppRole[] = [
+  'coordinator',
+  'supervisor',
+  'secondary_supervisor',
+  'administrative_secretary',
+  'internal_examiner',
+];
+
 // Roles that can approve at grad-school level
 export const GRAD_SCHOOL_APPROVERS: AppRole[] = [
   'grad_school_head',

@@ -17,7 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
-import { pickAndImportStudentRoster } from '@/src/api/studentRoster';
+import { pickAndImportStudentRoster, listStudentRoster, updateStudentRosterEntry, deleteStudentRosterEntry, type RosterEntry } from '@/src/api/studentRoster';
 import { auth } from '../../src/firebase/firebase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Lang, AppRole } from '../../components/i18n';
@@ -63,7 +63,7 @@ export default function PanelScreen() {
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback'
+    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster'
   >('overview');
 
   // ── Real feedback awaiting review — one-way (see feedbackController.ts);
@@ -81,6 +81,23 @@ export default function PanelScreen() {
   const [extendNewDate, setExtendNewDate] = useState('');
   const [extendReason, setExtendReason] = useState('');
   const [extendingGrant, setExtendingGrant] = useState(false);
+
+  // ── Pre-registration student roster (see src/api/studentRoster.ts) — the
+  //    allowlist coordinators/admin upload before students self-register;
+  //    this is the first place system_admin can actually view/edit it rather
+  //    than only ever writing to it via import ──────────────────────────────
+  const [rosterEntries, setRosterEntries] = useState<RosterEntry[]>([]);
+  const [loadingRoster, setLoadingRoster] = useState(false);
+  const [rosterError, setRosterError] = useState('');
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterFacultyFilter, setRosterFacultyFilter] = useState('all');
+  const [rosterDegreeFilter, setRosterDegreeFilter] = useState<'all' | 'bachelors' | 'masters'>('all');
+  const [rosterUsedFilter, setRosterUsedFilter] = useState<'all' | 'used' | 'unused'>('all');
+  const [editingRosterId, setEditingRosterId] = useState<string | null>(null);
+  const [editRosterFullName, setEditRosterFullName] = useState('');
+  const [editRosterMajor, setEditRosterMajor] = useState('');
+  const [savingRosterId, setSavingRosterId] = useState<string | null>(null);
+  const [confirmDeleteRosterId, setConfirmDeleteRosterId] = useState<string | null>(null);
 
   const [userSearch, setUserSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState('all');
@@ -294,6 +311,78 @@ export default function PanelScreen() {
     };
     fetchExpiredGrants();
   }, [activeTab]);
+
+  // ── Student roster tab — debounced so typing in the search box doesn't
+  //    refetch on every keystroke ──────────────────────────────────────────
+  const fetchRosterEntries = async () => {
+    try {
+      setLoadingRoster(true);
+      setRosterError('');
+      const entries = await listStudentRoster({
+        facultyId: rosterFacultyFilter === 'all' ? undefined : rosterFacultyFilter,
+        degreeType: rosterDegreeFilter === 'all' ? undefined : rosterDegreeFilter,
+        used: rosterUsedFilter === 'all' ? undefined : rosterUsedFilter === 'used',
+        q: rosterSearch.trim() || undefined,
+      });
+      setRosterEntries(entries);
+    } catch (err) {
+      console.error('Error loading student roster:', err);
+      setRosterError(lang === 'he' ? 'טעינת רשימת הסטודנטים נכשלה' : 'Failed to load the student roster');
+    } finally {
+      setLoadingRoster(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'studentRoster') return;
+    const id = setTimeout(fetchRosterEntries, 300);
+    return () => clearTimeout(id);
+  }, [activeTab, rosterFacultyFilter, rosterDegreeFilter, rosterUsedFilter, rosterSearch]);
+
+  const startRosterEdit = (entry: RosterEntry) => {
+    setEditingRosterId(entry.id);
+    setEditRosterFullName(entry.fullName ?? '');
+    setEditRosterMajor(entry.major ?? '');
+    setConfirmDeleteRosterId(null);
+  };
+
+  const handleSaveRosterEdit = async (entry: RosterEntry) => {
+    setSavingRosterId(entry.id);
+    try {
+      await updateStudentRosterEntry(entry.id, { fullName: editRosterFullName.trim(), major: editRosterMajor.trim() || null });
+      setEditingRosterId(null);
+      await fetchRosterEntries();
+    } catch (err: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', err.response?.data?.message || err.message || 'Save failed');
+    } finally {
+      setSavingRosterId(null);
+    }
+  };
+
+  const handleReopenRoster = async (entry: RosterEntry) => {
+    setSavingRosterId(entry.id);
+    try {
+      await updateStudentRosterEntry(entry.id, { used: false });
+      await fetchRosterEntries();
+    } catch (err: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', err.response?.data?.message || err.message || 'Action failed');
+    } finally {
+      setSavingRosterId(null);
+    }
+  };
+
+  const handleDeleteRoster = async (entry: RosterEntry) => {
+    setSavingRosterId(entry.id);
+    try {
+      await deleteStudentRosterEntry(entry.id);
+      setConfirmDeleteRosterId(null);
+      setRosterEntries((prev) => prev.filter((e) => e.id !== entry.id));
+    } catch (err: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', err.response?.data?.message || err.message || 'Delete failed');
+    } finally {
+      setSavingRosterId(null);
+    }
+  };
 
   // ── Feedback chat — real feedback awaiting review ────────────────────────
   useEffect(() => {
@@ -606,6 +695,7 @@ export default function PanelScreen() {
           : `Added: ${summary.imported}\nSkipped: ${summary.skipped}\nFailed: ${summary.failed}\nof ${summary.totalRows} rows` +
             (failedLines ? `\n\n${failedLines}` : '')
       );
+      if (activeTab === 'studentRoster') fetchRosterEntries();
     } catch (e: any) {
       console.error('Import student roster error:', e);
       Alert.alert(
@@ -1015,6 +1105,10 @@ export default function PanelScreen() {
           {
             key: 'feedback',
             label: lang === 'he' ? 'משוב' : 'Feedback',
+          },
+          {
+            key: 'studentRoster',
+            label: lang === 'he' ? 'רשימת סטודנטים' : 'Student Roster',
           },
         ].map((tab) => (
           <Pressable
@@ -1541,6 +1635,197 @@ export default function PanelScreen() {
                         {lang === 'he' ? '🔓 הארך גישה' : '🔓 Extend access'}
                       </Text>
                     </Pressable>
+                  )}
+                </View>
+              ))
+            )}
+          </>
+        )}
+
+        {activeTab === 'studentRoster' && (
+          <>
+            <Text style={styles.sectionTitle}>
+              {lang === 'he'
+                ? 'רשימת הסטודנטים המאושרים שהועלתה על ידי רכזי הפקולטות (או המערכת)'
+                : "The approved-students allowlist uploaded by faculty coordinators (or system-wide)"}
+            </Text>
+
+            <View style={styles.searchBox}>
+              <TextInput
+                placeholder={lang === 'he' ? 'חפש לפי ת.ז. או שם...' : 'Search by ID or name...'}
+                value={rosterSearch}
+                onChangeText={setRosterSearch}
+                style={styles.searchInput}
+              />
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.userFilterRow}
+              contentContainerStyle={styles.userFilterRowContent}
+            >
+              {(
+                [
+                  { key: 'all', label: lang === 'he' ? 'הכל' : 'All' },
+                  { key: 'unused', label: lang === 'he' ? 'לא נרשמו' : 'Not registered' },
+                  { key: 'used', label: lang === 'he' ? 'נרשמו' : 'Registered' },
+                ] as const
+              ).map((opt) => (
+                <Pressable
+                  key={opt.key}
+                  style={[styles.userFilterChip, rosterUsedFilter === opt.key && styles.userFilterChipActive]}
+                  onPress={() => setRosterUsedFilter(opt.key)}
+                >
+                  <Text style={[styles.userFilterChipText, rosterUsedFilter === opt.key && styles.userFilterChipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+              <View style={styles.userFilterDivider} />
+              {(
+                [
+                  { key: 'all', label: lang === 'he' ? 'כל התארים' : 'All degrees' },
+                  { key: 'bachelors', label: lang === 'he' ? 'תואר ראשון' : "Bachelor's" },
+                  { key: 'masters', label: lang === 'he' ? 'תואר שני' : "Master's" },
+                ] as const
+              ).map((opt) => (
+                <Pressable
+                  key={opt.key}
+                  style={[styles.userFilterChip, rosterDegreeFilter === opt.key && styles.userFilterChipActive]}
+                  onPress={() => setRosterDegreeFilter(opt.key)}
+                >
+                  <Text style={[styles.userFilterChipText, rosterDegreeFilter === opt.key && styles.userFilterChipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+              <View style={styles.userFilterDivider} />
+              <Pressable
+                style={[styles.userFilterChip, rosterFacultyFilter === 'all' && styles.userFilterChipActive]}
+                onPress={() => setRosterFacultyFilter('all')}
+              >
+                <Text style={[styles.userFilterChipText, rosterFacultyFilter === 'all' && styles.userFilterChipTextActive]}>
+                  {lang === 'he' ? 'כל הפקולטות' : 'All faculties'}
+                </Text>
+              </Pressable>
+              {Object.entries(FACULTY_COLORS)
+                .filter(([k]) => k !== 'default' && k !== 'all')
+                .map(([id, fc]) => (
+                  <Pressable
+                    key={id}
+                    style={[styles.userFilterChip, rosterFacultyFilter === id && styles.userFilterChipActive]}
+                    onPress={() => setRosterFacultyFilter(id)}
+                  >
+                    <Text style={[styles.userFilterChipText, rosterFacultyFilter === id && styles.userFilterChipTextActive]}>
+                      {fc.label[lang]}
+                    </Text>
+                  </Pressable>
+                ))}
+            </ScrollView>
+
+            {rosterError ? (
+              <Text style={[styles.projectMeta, { color: '#EF4444' }]}>{rosterError}</Text>
+            ) : loadingRoster ? (
+              <ActivityIndicator size="large" color="#8B5CF6" />
+            ) : rosterEntries.length === 0 ? (
+              <Text style={styles.projectMeta}>{lang === 'he' ? 'לא נמצאו רשומות' : 'No entries found'}</Text>
+            ) : (
+              rosterEntries.map((entry) => (
+                <View key={entry.id} style={styles.projectMilestoneCard}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.projectTitle}>{entry.studentId}</Text>
+                      <Text style={styles.projectMeta}>{entry.fullName || '—'}</Text>
+                    </View>
+                    <View
+                      style={{
+                        borderRadius: 999,
+                        paddingHorizontal: 10,
+                        paddingVertical: 3,
+                        backgroundColor: entry.used ? '#FEF2F2' : '#EFF6FF',
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: entry.used ? '#EF4444' : '#2E86FF' }}>
+                        {entry.used ? (lang === 'he' ? 'נרשם' : 'Registered') : lang === 'he' ? 'פנוי' : 'Open'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.projectMeta}>
+                    {FACULTY_COLORS[entry.facultyId as keyof typeof FACULTY_COLORS]?.label?.[lang] ?? entry.facultyId}
+                    {' · '}
+                    {entry.degreeType === 'masters' ? (lang === 'he' ? 'תואר שני' : "Master's") : (lang === 'he' ? 'תואר ראשון' : "Bachelor's")}
+                    {entry.major ? ` · ${entry.major}` : ''}
+                  </Text>
+
+                  {editingRosterId === entry.id ? (
+                    <View style={{ marginTop: 10 }}>
+                      <TextInput
+                        style={adminPanelStyles.input}
+                        value={editRosterFullName}
+                        onChangeText={setEditRosterFullName}
+                        placeholder={lang === 'he' ? 'שם מלא' : 'Full name'}
+                      />
+                      <TextInput
+                        style={[adminPanelStyles.input, { marginTop: 8 }]}
+                        value={editRosterMajor}
+                        onChangeText={setEditRosterMajor}
+                        placeholder={lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}
+                      />
+                      <Pressable
+                        style={[styles.submitBtn, savingRosterId === entry.id && { opacity: 0.6 }]}
+                        onPress={() => handleSaveRosterEdit(entry)}
+                        disabled={savingRosterId === entry.id}
+                      >
+                        {savingRosterId === entry.id
+                          ? <ActivityIndicator color="#fff" />
+                          : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
+                        }
+                      </Pressable>
+                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setEditingRosterId(null)}>
+                        <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                      </Pressable>
+                    </View>
+                  ) : confirmDeleteRosterId === entry.id ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={{ color: '#EF4444', fontSize: 13, marginBottom: 8 }}>
+                        {lang === 'he' ? 'למחוק את הרשומה הזו לצמיתות?' : 'Permanently delete this entry?'}
+                      </Text>
+                      <Pressable
+                        style={[styles.submitBtn, { backgroundColor: '#EF4444' }, savingRosterId === entry.id && { opacity: 0.6 }]}
+                        onPress={() => handleDeleteRoster(entry)}
+                        disabled={savingRosterId === entry.id}
+                      >
+                        {savingRosterId === entry.id
+                          ? <ActivityIndicator color="#fff" />
+                          : <Text style={styles.submitBtnText}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
+                        }
+                      </Pressable>
+                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setConfirmDeleteRosterId(null)}>
+                        <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                      <Pressable style={[styles.submitBtn, { flex: 1, marginTop: 0 }]} onPress={() => startRosterEdit(entry)}>
+                        <Text style={styles.submitBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
+                      </Pressable>
+                      {entry.used && (
+                        <Pressable
+                          style={[styles.submitBtn, { flex: 1, marginTop: 0, backgroundColor: '#8B5CF6' }]}
+                          onPress={() => handleReopenRoster(entry)}
+                        >
+                          <Text style={styles.submitBtnText}>🔓 {lang === 'he' ? 'פתח מחדש' : 'Reopen'}</Text>
+                        </Pressable>
+                      )}
+                      <Pressable
+                        style={[styles.submitBtn, { marginTop: 0, backgroundColor: '#EF4444', flex: entry.used ? 0 : 1, paddingHorizontal: 14 }]}
+                        onPress={() => setConfirmDeleteRosterId(entry.id)}
+                      >
+                        <Text style={styles.submitBtnText}>🗑️</Text>
+                      </Pressable>
+                    </View>
                   )}
                 </View>
               ))

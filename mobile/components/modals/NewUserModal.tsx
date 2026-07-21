@@ -75,6 +75,16 @@ interface Props {
   onCreate: () => void;
   creating: boolean;
 
+  // Narrows this modal for a delegate (faculty_admin/program_head/
+  // grad_school_head) instead of system_admin: only these roles are
+  // offered, and the Faculty section is hidden entirely when
+  // lockedFacultyId is set (state stays fixed at whatever the caller
+  // initialized newUserFaculty to) — omit lockedFacultyId for
+  // grad_school_head, who can create staff in any faculty. Enforced for
+  // real server-side by createAdminUser's delegate scope check.
+  selectableRoles?: string[];
+  lockedFacultyId?: string;
+
   styles: any;
 }
 
@@ -110,8 +120,13 @@ export default function NewUserModal({
 
   onCreate,
   creating,
+  selectableRoles,
+  lockedFacultyId,
   styles,
 }: Props) {
+  const roleEntries = selectableRoles?.length
+    ? Object.entries(ROLE_LABELS).filter(([r]) => selectableRoles.includes(r))
+    : Object.entries(ROLE_LABELS);
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
@@ -220,7 +235,7 @@ export default function NewUserModal({
           {lang === 'he' ? 'תפקיד' : 'Role'}
         </Text>
 
-        {Object.entries(ROLE_LABELS).map(([role, label]) => {
+        {roleEntries.map(([role, label]) => {
           const accent = getRoleAccent(role);
           const isActive = newUserRole === role;
           return (
@@ -241,32 +256,36 @@ export default function NewUserModal({
           );
         })}
 
-        {/* Faculty */}
-        <Text style={styles.sectionDivider}>
-          {lang === 'he' ? 'פקולטה' : 'Faculty'}
-        </Text>
+        {/* Faculty (hidden entirely when locked to a delegate's own faculty) */}
+        {!lockedFacultyId && (
+          <>
+            <Text style={styles.sectionDivider}>
+              {lang === 'he' ? 'פקולטה' : 'Faculty'}
+            </Text>
 
-        {CROSS_FACULTY_ROLES.includes(newUserRole as any) ? (
-          <Text style={{ opacity: 0.7 }}>
-            {lang === 'he'
-              ? 'תפקיד זה חוצה פקולטות — יוגדר אוטומטית לצפייה בכל הפקולטות.'
-              : 'This role is cross-faculty — it will automatically see all faculties.'}
-          </Text>
-        ) : (
-          Object.entries(FACULTY_COLORS)
-            .filter(([k]) => k !== 'default' && k !== 'all')
-            .map(([fid, fc]) => (
-              <Pressable
-                key={fid}
-                style={[
-                  styles.facultyPickerBtn,
-                  newUserFaculty === fid && { backgroundColor: fc.primary },
-                ]}
-                onPress={() => { setNewUserFaculty(fid); setNewUserMajor(''); setNewUserAssignedMajors([]); }}
-              >
-                <Text>{fc.label[lang]}</Text>
-              </Pressable>
-            ))
+            {CROSS_FACULTY_ROLES.includes(newUserRole as any) ? (
+              <Text style={{ opacity: 0.7 }}>
+                {lang === 'he'
+                  ? 'תפקיד זה חוצה פקולטות — יוגדר אוטומטית לצפייה בכל הפקולטות.'
+                  : 'This role is cross-faculty — it will automatically see all faculties.'}
+              </Text>
+            ) : (
+              Object.entries(FACULTY_COLORS)
+                .filter(([k]) => k !== 'default' && k !== 'all')
+                .map(([fid, fc]) => (
+                  <Pressable
+                    key={fid}
+                    style={[
+                      styles.facultyPickerBtn,
+                      newUserFaculty === fid && { backgroundColor: fc.primary },
+                    ]}
+                    onPress={() => { setNewUserFaculty(fid); setNewUserMajor(''); setNewUserAssignedMajors([]); }}
+                  >
+                    <Text>{fc.label[lang]}</Text>
+                  </Pressable>
+                ))
+            )}
+          </>
         )}
 
         {/* Assigned Majors (optional) — restricts a supervisor /

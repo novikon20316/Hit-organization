@@ -33,14 +33,21 @@ interface PermissionsEditorModalProps {
   onClose: () => void;
   rules: ScopeRule[];
   onChange: (next: ScopeRule[]) => void;
+  /** Hides these actions from the checklist entirely — e.g. a delegate
+   *  (faculty_admin/program_head/grad_school_head) editing someone else's
+   *  permissions can't grant delete_users/all_actions, so there's no point
+   *  showing them the checkbox (the server rejects it either way — see
+   *  DELEGATE_RESTRICTED_ACTIONS in server/src/config/permissionScopes.ts). */
+  restrictedActions?: ActionType[];
 }
 
 function emptyDraft(): ScopeRule {
   return { id: newScopeId(), facultyId: 'sciences', view: [], actions: [] };
 }
 
-export function PermissionsEditorModal({ open, onClose, rules, onChange }: PermissionsEditorModalProps) {
+export function PermissionsEditorModal({ open, onClose, rules, onChange, restrictedActions }: PermissionsEditorModalProps) {
   const { lang } = useLanguage();
+  const availableActions = restrictedActions?.length ? ACTION_TYPES.filter((a) => !restrictedActions.includes(a.key)) : ACTION_TYPES;
   // null = list screen; a draft = the add/edit form screen.
   const [draft, setDraft] = useState<ScopeRule | null>(null);
 
@@ -167,7 +174,7 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange }: Permi
             <div className="mt-4">
               <p className="mb-1.5 text-sm font-medium text-ink">⚡ {lang === 'he' ? 'פעולות' : 'Actions'}</p>
               <div className="grid gap-1.5">
-                {ACTION_TYPES.map((a) => (
+                {availableActions.map((a) => (
                   <label key={a.key} className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
                     <input
                       type="checkbox"

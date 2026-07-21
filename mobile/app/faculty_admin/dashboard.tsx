@@ -33,6 +33,8 @@ import {
   EditUserModal,
   NewProjectModal,
 } from '@/components/modals';
+import ManagedStaffSection from '@/components/ManagedStaffSection';
+import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 
 const { width } = Dimensions.get('window');
 
@@ -50,11 +52,16 @@ export default function PanelScreen() {
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones' | 'deadlines'
+    'overview' | 'users' | 'projects' | 'milestones' | 'deadlines' | 'staff'
   >('overview');
 
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
+
+  // Own-faculty staff this role can now manage directly (see
+  // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — reuses
+  // the same `users` list already fetched by fetchAdminDashboard below
+  // rather than a second fetch, filtered to non-student/non-admin-tier rows.
 
   const [userModal, setUserModal] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
@@ -352,12 +359,23 @@ export default function PanelScreen() {
       <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('overview')}>
         <Text style={localStyles.tabLabel}>Overview</Text>
       </Pressable>
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('deadlines')}> 
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('deadlines')}>
         <Text style={localStyles.tabLabel}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
+      </Pressable>
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('staff')}>
+        <Text style={localStyles.tabLabel}>{lang === 'he' ? 'סגל' : 'Staff'}</Text>
       </Pressable>
 
       <ScrollView>
-        {activeTab === 'deadlines' ? (
+        {activeTab === 'staff' ? (
+          <ManagedStaffSection
+            staff={users.filter((u) => DELEGATE_MANAGEABLE_ROLES.includes(u.role as any)) as any}
+            onRefresh={fetchAdminDashboard}
+            scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: adminFacultyId }}
+            lang={lang}
+            isRtl={isRtl}
+          />
+        ) : activeTab === 'deadlines' ? (
             loadingDeadlines ? (
             <ActivityIndicator size="large" />
           ) : (

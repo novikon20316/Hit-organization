@@ -18,9 +18,11 @@ import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
-import type { AppRole } from '@/lib/roles';
+import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
+import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
+import type { AdminUserRecord } from '@/app/admin/panel/types';
 
 const GRAD_SCHOOL_HEAD_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
 
@@ -88,13 +90,14 @@ export default function GradSchoolHeadDashboardPage() {
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
 
-  const [tab, setTab] = useState<'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades'>('approvals');
+  const [tab, setTab] = useState<'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff'>('approvals');
   const [headName, setHeadName] = useState('');
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [processSummaries, setProcessSummaries] = useState<ProcessSummary[]>([]);
   const [stuckStudents, setStuckStudents] = useState<StuckStudent[]>([]);
   const [examinerLoad, setExaminerLoad] = useState<ExaminerLoad[]>([]);
   const [approvedFinalGrades, setApprovedFinalGrades] = useState<ApprovedFinalGrade[]>([]);
+  const [staff, setStaff] = useState<AdminUserRecord[]>([]);
   const [stats, setStats] = useState({ totalMasters: 0, pendingCount: 0, stuckCount: 0, completedThisYear: 0 });
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -124,10 +127,24 @@ export default function GradSchoolHeadDashboardPage() {
     }
   }, [firebaseUser, lang]);
 
+  // Cross-faculty staff this role can now manage directly (see
+  // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) —
+  // grad_school_head had zero user-management endpoints of any kind before
+  // this.
+  const fetchStaff = useCallback(async () => {
+    try {
+      const res = await apiClient.listManagedStaff();
+      setStaff((res.staff ?? []) as unknown as AdminUserRecord[]);
+    } catch {
+      // Non-fatal — the Staff tab just shows an empty list if this fails.
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
-  }, [isAllowed, fetchDashboard]);
+    if (isAllowed) fetchStaff();
+  }, [isAllowed, fetchDashboard, fetchStaff]);
 
   const handleApproveFinalGrade = async (item: PendingApproval) => {
     setApprovingId(item.id);
@@ -197,6 +214,7 @@ export default function GradSchoolHeadDashboardPage() {
     { key: 'stuck' as const, label: lang === 'he' ? 'תקועים' : 'Stuck', badge: stuckStudents.length },
     { key: 'examiners' as const, label: lang === 'he' ? 'עומס בוחנים' : 'Examiners', badge: 0 },
     { key: 'grades' as const, label: lang === 'he' ? 'ציונים מאושרים' : 'Approved Grades', badge: 0 },
+    { key: 'staff' as const, label: lang === 'he' ? 'סגל' : 'Staff', badge: 0 },
   ];
 
   return (
@@ -362,7 +380,7 @@ export default function GradSchoolHeadDashboardPage() {
           ))}
           {examinerLoad.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין בוחנים פעילים' : 'No active examiners'}</p>}
         </div>
-      ) : (
+      ) : tab === 'grades' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {approvedFinalGrades.map((g) => (
             <div key={g.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--success)' } as React.CSSProperties}>
@@ -416,6 +434,8 @@ export default function GradSchoolHeadDashboardPage() {
           ))}
           {approvedFinalGrades.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'}</p>}
         </div>
+      ) : (
+        <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }} />
       )}
     </DashboardShell>
   );

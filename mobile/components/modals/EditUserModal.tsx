@@ -13,7 +13,7 @@ import { EditUserModalExtraStyles } from '../../constants/styles';
 import PermissionsEditorModal from './PermissionsEditorModal';
 import CoordinatorScopesModal from './CoordinatorScopesModal';
 import { majorsForFaculty } from '../../constants/permissions';
-import type { ScopeRule, CoordinatorScope } from '../../constants/permissions';
+import type { ScopeRule, CoordinatorScope, ActionType } from '../../constants/permissions';
 import { apiClient } from '../../src/api/apiClient';
 import type { StatusOption } from '@/types';
 
@@ -87,6 +87,15 @@ type Props = {
   secondaryStatus?:    string | null;
   setSecondaryStatus?: (v: string | null) => void;
 
+  // Narrows this modal for a delegate (faculty_admin/program_head/
+  // grad_school_head) instead of system_admin: hides the Faculty section
+  // entirely (state stays fixed at whatever the caller initialized `faculty`
+  // to) and hides delete_users/all_actions from the permissions editor.
+  // Enforced for real server-side either way — see adminController.ts's
+  // updateUserRoleAdmin and DELEGATE_RESTRICTED_ACTIONS.
+  lockedFacultyId?: string;
+  restrictedActions?: ActionType[];
+
   styles: any;
 };
 
@@ -103,6 +112,8 @@ export default function EditUserModal({
   assignedMajors, setAssignedMajors,
   primaryStatus, setPrimaryStatus,
   secondaryStatus, setSecondaryStatus,
+  lockedFacultyId,
+  restrictedActions,
   styles,
 }: Props) {
   const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
@@ -256,23 +267,27 @@ export default function EditUserModal({
             </View>
           )}
 
-          {/* ── Faculty ── */}
-          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
-            {lang === "he" ? "פקולטה" : "Faculty"}
-          </Text>
+          {/* ── Faculty (hidden entirely when locked to a delegate's own faculty) ── */}
+          {!lockedFacultyId && (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                {lang === "he" ? "פקולטה" : "Faculty"}
+              </Text>
 
-          {Object.entries(FACULTY_COLORS)
-            .filter(([k]) => k !== "default")
-            .map(([fid, fc]) => (
-              <Pressable
-                key={fid}
-                style={[styles.facultyOption, faculty === fid && styles.facultyOptionActive]}
-                onPress={() => { setFaculty(fid); setAssignedMajors?.([]); }}
-              >
-                <View style={[styles.facultyDot, { backgroundColor: fc.primary }]} />
-                <Text>{fc.label[lang]}</Text>
-              </Pressable>
-            ))}
+              {Object.entries(facultyColors ?? FACULTY_COLORS)
+                .filter(([k]) => k !== "default")
+                .map(([fid, fc]) => (
+                  <Pressable
+                    key={fid}
+                    style={[styles.facultyOption, faculty === fid && styles.facultyOptionActive]}
+                    onPress={() => { setFaculty(fid); setAssignedMajors?.([]); }}
+                  >
+                    <View style={[styles.facultyDot, { backgroundColor: fc.primary }]} />
+                    <Text>{fc.label[lang]}</Text>
+                  </Pressable>
+                ))}
+            </>
+          )}
 
           {/* ── Assigned Majors (supervisor / secondary_supervisor only) ── */}
           {showAssignedMajors && (
@@ -418,6 +433,7 @@ export default function EditUserModal({
             lang={lang}
             rules={permissionRules ?? []}
             onChange={setPermissionRules!}
+            restrictedActions={restrictedActions}
           />
         )}
 

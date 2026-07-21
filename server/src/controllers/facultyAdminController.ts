@@ -4,13 +4,9 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { VALID_ROLES } from '../services/userImportExport.js';
 import { hasActionGrant, withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES } from '../config/permissionScopes.js';
 
 const FACULTY_ADMIN_ROLES = ['faculty_admin', 'system_admin'];
-
-// Roles that already sit above faculty_admin in the privilege hierarchy — a
-// faculty_admin (via role or a delegated 'edit_users' grant) may never grant
-// or modify one of these, only system_admin can.
-const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head'];
 
 const db = admin.firestore();
 
@@ -180,12 +176,11 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
  *      so the Firestore data shape stays consistent.
  */
 export const toggleUserActive = async (req: AuthenticatedRequest, res: Response) => {
-  const role  = req.user?.role;
-  const roles = req.user?.roles ?? [];
-  const isAuthorized = role === 'faculty_admin' || role === 'system_admin' ||
-    roles.includes('faculty_admin') || roles.includes('system_admin');
-  if (!isAuthorized) {
-    return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
+  const hasRole = (r: string) => req.user?.role === r || (req.user?.roles ?? []).includes(r);
+  const isSystemAdmin = hasRole('system_admin');
+  const isDelegateAdmin = DELEGATE_ADMIN_ROLES.some(hasRole);
+  if (!isSystemAdmin && !isDelegateAdmin) {
+    return res.status(403).json({ message: 'Access denied: faculty_admin, program_head, grad_school_head, or system_admin only.' });
   }
 
   const { userId } = req.params;
@@ -206,10 +201,22 @@ export const toggleUserActive = async (req: AuthenticatedRequest, res: Response)
     if (!userSnap.exists) {
       return res.status(404).json({ message: 'User not found.' });
     }
+    const target = userSnap.data();
 
-    // Faculty admins may only toggle users within their own faculty.
-    if (role === 'faculty_admin' && userSnap.data()?.facultyId !== req.user?.facultyId) {
-      return res.status(403).json({ message: 'Cannot modify a user outside your faculty.' });
+    if (!isSystemAdmin) {
+      // Was previously missing entirely — nothing stopped a delegate from
+      // deactivating an admin-tier account (including another faculty_admin
+      // in the same faculty, or — once grad_school_head/program_head were
+      // added to isAuthorized below — anyone at all, since the old check
+      // only ever compared facultyId for the literal 'faculty_admin' role).
+      if (ADMIN_TIER_ROLES.includes(target?.role)) {
+        return res.status(403).json({ message: 'Cannot modify an admin-tier account.' });
+      }
+      // grad_school_head is cross-faculty; faculty_admin/program_head are
+      // confined to their own faculty.
+      if (!hasRole('grad_school_head') && target?.facultyId !== req.user?.facultyId) {
+        return res.status(403).json({ message: 'Cannot modify a user outside your faculty.' });
+      }
     }
 
     await userRef.update({
@@ -224,5 +231,39 @@ export const toggleUserActive = async (req: AuthenticatedRequest, res: Response)
   } catch (error: any) {
     console.error('toggleUserActive error:', error);
     return res.status(500).json({ message: 'Failed to toggle user active status.' });
+  }
+};
+
+/**
+ * GET /api/admin/staff
+ * Lets faculty_admin/program_head (own faculty) and grad_school_head
+ * (cross-faculty) actually see the same "who can I manage" population this
+ * feature's create/edit/toggle-active endpoints already enforce — until
+ * now, program_head and grad_school_head had no user-listing endpoint of
+ * any kind. Excludes admin-tier accounts (never delegate-manageable, see
+ * ADMIN_TIER_ROLES) and students (this is a staff-management tool).
+ */
+export const listManagedStaff = async (req: AuthenticatedRequest, res: Response) => {
+  const hasRole = (r: string) => req.user?.role === r || (req.user?.roles ?? []).includes(r);
+  const isSystemAdmin = hasRole('system_admin');
+  const isDelegateAdmin = DELEGATE_ADMIN_ROLES.some(hasRole);
+  if (!isSystemAdmin && !isDelegateAdmin) {
+    return res.status(403).json({ message: 'Access denied.' });
+  }
+  const isCrossFaculty = isSystemAdmin || hasRole('grad_school_head');
+
+  try {
+    let query: FirebaseFirestore.Query = db.collection('users');
+    if (!isCrossFaculty) {
+      query = query.where('facultyId', '==', req.user!.facultyId);
+    }
+    const snap = await query.get();
+    const staff = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((u: any) => u.role !== 'student' && !ADMIN_TIER_ROLES.includes(u.role));
+    return res.status(200).json({ success: true, staff });
+  } catch (error: any) {
+    console.error('listManagedStaff error:', error);
+    return res.status(500).json({ message: 'Failed to load staff list.' });
   }
 };

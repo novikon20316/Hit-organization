@@ -98,6 +98,24 @@ export interface DefenseAccessGrant {
   projectId?: string;
 }
 
+/** One row of the pre-registration student allowlist (see
+ *  server/src/services/studentRoster.ts) — coordinators/system_admin upload
+ *  these before students can self-register; `used` locks once a matching
+ *  account has actually been created. */
+export interface RosterEntry {
+  id: string;
+  studentId: string;
+  facultyId: FacultyId;
+  degreeType: 'bachelors' | 'masters';
+  major: string | null;
+  fullName: string;
+  used: boolean;
+  usedByUid: string | null;
+  usedAt: string | null;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
 /** Shape returned by getAdminFeedback — real (non-noise) feedback messages,
  *  one-way (see feedbackController.ts — never replied to in-thread). */
 export interface AdminFeedbackMessage {

@@ -46,6 +46,25 @@ export const ACTION_TYPES: ActionType[] = [
 // mirrors web/lib/roles.ts's VALID_FACULTY_IDS.
 export const VALID_SCOPE_FACULTY_IDS: string[] = [...Object.keys(MAJORS_BY_FACULTY), 'all'];
 
+// Roles that sit at or above the delegate tier — a delegate (whether acting
+// via role name or a permissionRules grant) may never create/promote/erase/
+// grant-permissions-to one of these accounts; only system_admin can touch
+// them. Single source of truth — previously duplicated verbatim in both
+// adminController.ts and facultyAdminController.ts.
+export const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head'];
+
+// The three roles that can now self-serve day-to-day staff management
+// within their own organizational scope (faculty_admin/program_head: their
+// own facultyId; grad_school_head: cross-faculty) instead of requiring
+// system_admin to do it for them — system_admin remains the backup for
+// admin-tier accounts (ADMIN_TIER_ROLES, above) and DELEGATE_RESTRICTED_ACTIONS.
+export const DELEGATE_ADMIN_ROLES = ['faculty_admin', 'program_head', 'grad_school_head'];
+
+// Even within their own scope, a delegate can never grant these two —
+// wiping out a user's access entirely, or handing over blanket all-actions
+// power, stays a system_admin-only move.
+export const DELEGATE_RESTRICTED_ACTIONS: ActionType[] = ['delete_users', 'all_actions'];
+
 export interface ScopeDescriptor {
   facultyId: string;
   major?: string;

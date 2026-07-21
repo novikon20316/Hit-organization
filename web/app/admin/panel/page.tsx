@@ -26,6 +26,7 @@ import { ProjectsTab } from './ProjectsTab';
 import { MilestonesTab } from './MilestonesTab';
 import { DefenseAccessTab } from './DefenseAccessTab';
 import { FeedbackTab } from './FeedbackTab';
+import { StudentRosterTab } from './StudentRosterTab';
 import { MaintenanceModal } from './MaintenanceModal';
 import { AcademicCalendarModal } from './AcademicCalendarModal';
 import { StudentStatusesModal } from './StudentStatusesModal';
@@ -35,7 +36,7 @@ const ADMIN_ROLES: AppRole[] = ['system_admin'];
 const DISPLAYED_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
 const selectCls = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none';
 
-type AdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback';
+type AdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster';
 
 export default function AdminPanelPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_ROLES);
@@ -57,6 +58,11 @@ export default function AdminPanelPage() {
   const [showStudentStatuses, setShowStudentStatuses] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
   const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
+  // Bumped after a roster import so StudentRosterTab (which fetches its own
+  // data independently of fetchDashboard) remounts and refetches — otherwise
+  // an import while already on that tab wouldn't show up until the next
+  // filter change.
+  const [rosterRefreshKey, setRosterRefreshKey] = useState(0);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -147,7 +153,7 @@ export default function AdminPanelPage() {
           >
             🏷️ {lang === 'he' ? 'סטטוסי סטודנטים' : 'Student Statuses'}
           </button>
-          {tab === 'users' && (
+          {(tab === 'users' || tab === 'studentRoster') && (
             <>
               <button
                 type="button"
@@ -156,20 +162,22 @@ export default function AdminPanelPage() {
               >
                 📥 {lang === 'he' ? 'ייבוא/ייצוא' : 'Import/Export'}
               </button>
-              <button
-                type="button"
-                onClick={() => setShowNewUser(true)}
-                className="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
-              >
-                + {lang === 'he' ? 'משתמש חדש' : 'New User'}
-              </button>
+              {tab === 'users' && (
+                <button
+                  type="button"
+                  onClick={() => setShowNewUser(true)}
+                  className="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+                >
+                  + {lang === 'he' ? 'משתמש חדש' : 'New User'}
+                </button>
+              )}
             </>
           )}
         </div>
       }
     >
       <div className="mb-5 flex flex-wrap gap-1 border-b border-line">
-        {(['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback'] as const).map((key) => (
+        {(['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster'] as const).map((key) => (
           <button
             key={key}
             type="button"
@@ -225,6 +233,8 @@ export default function AdminPanelPage() {
         <MilestonesTab projects={projects} milestones={milestones} users={users} onChanged={fetchDashboard} />
       ) : tab === 'defenseAccess' ? (
         <DefenseAccessTab />
+      ) : tab === 'studentRoster' ? (
+        <StudentRosterTab key={rosterRefreshKey} />
       ) : (
         <FeedbackTab />
       )}
@@ -233,7 +243,16 @@ export default function AdminPanelPage() {
       {editingUser && (
         <EditUserModal key={editingUser.id} user={editingUser} onClose={() => setEditingUser(null)} onSaved={fetchDashboard} />
       )}
-      {showBulkImport && <BulkImportModal scope="admin" onClose={() => setShowBulkImport(false)} onImported={fetchDashboard} />}
+      {showBulkImport && (
+        <BulkImportModal
+          scope="admin"
+          onClose={() => setShowBulkImport(false)}
+          onImported={() => {
+            fetchDashboard();
+            setRosterRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
       {showMaintenance && <MaintenanceModal onClose={() => setShowMaintenance(false)} />}
       {showAcademicCalendar && <AcademicCalendarModal onClose={() => setShowAcademicCalendar(false)} />}
       {showStudentStatuses && (
@@ -255,6 +274,7 @@ const TAB_LABELS: Record<AdminTab, { he: string; en: string }> = {
   milestones: { he: 'אבני דרך', en: 'Milestones' },
   defenseAccess: { he: 'גישת הגנה', en: 'Defense Access' },
   feedback: { he: 'משוב', en: 'Feedback' },
+  studentRoster: { he: 'רשימת סטודנטים', en: 'Student Roster' },
 };
 
 function OverviewTab({

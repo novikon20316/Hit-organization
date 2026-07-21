@@ -8,13 +8,12 @@ import { checkDeletionEligibility, purgeAccount } from '../services/accountDelet
 import { VALID_ROLES, generateTempPassword, hashPassword } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
-import { validateScopeRule, validateCoordinatorScope, type ScopeRule, type CoordinatorScope } from '../config/permissionScopes.js';
+import {
+  validateScopeRule, validateCoordinatorScope,
+  ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES, DELEGATE_RESTRICTED_ACTIONS,
+  type ScopeRule, type CoordinatorScope,
+} from '../config/permissionScopes.js';
 import { hasActionGrant } from '../services/scopeAuthorization.js';
-
-// Roles that already sit above faculty_admin in the privilege hierarchy — a
-// delegate acting via a permissionRules grant (rather than being system_admin
-// themselves) may never create/promote/erase one of these accounts.
-const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head'];
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
@@ -268,17 +267,22 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
       delete userData.assignedMajors;
     }
 
-    // Previously system_admin-only with no delegation path at all. A
-    // non-system_admin may only reach here via an explicit add_users grant
-    // (see scopeAuthorization.ts) scoped to the new account's facultyId/major
-    // — and may never create an admin-tier account that way, regardless of
-    // what their grant claims to cover.
+    // Previously system_admin-only with no delegation path at all. Two ways
+    // in for a non-system_admin now: (a) faculty_admin/program_head/
+    // grad_school_head acting within their own natural scope — no grant
+    // needed, that's the whole point of letting them self-serve — or (b) an
+    // explicit add_users grant (see scopeAuthorization.ts) scoped to the new
+    // account's facultyId/major, for anyone else it's been delegated to.
+    // Neither path may ever create an admin-tier account.
     if (!isSystemAdmin) {
       if (ADMIN_TIER_ROLES.includes(userData.role)) {
         return res.status(403).json({ message: 'Access denied: system_admin only.' });
       }
+      const callerRole = req.user?.role ?? '';
+      const isDelegateAdmin = DELEGATE_ADMIN_ROLES.includes(callerRole);
+      const inOwnFacultyScope = isDelegateAdmin && (callerRole === 'grad_school_head' || userData.facultyId === req.user?.facultyId);
       const requestedScope = { facultyId: userData.facultyId, major: userData.major };
-      if (!hasActionGrant(req.user, 'add_users', requestedScope)) {
+      if (!inOwnFacultyScope && !hasActionGrant(req.user, 'add_users', requestedScope)) {
         return res.status(403).json({ message: 'Access denied: system_admin only.' });
       }
     }
@@ -423,17 +427,41 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
     })
   }
 
-  // Previously system_admin-only with no delegation path. A delegate acting
-  // via a permissionRules 'edit_users' grant (checked below, once the
-  // target's current facultyId/major is known) may never touch the granular
-  // grant fields themselves — that would let them hand out arbitrary scoped
-  // permissions, including to themselves — nor grant an admin-tier role.
+  const callerRole = req.user?.role ?? '';
+  const isDelegateAdmin = DELEGATE_ADMIN_ROLES.includes(callerRole);
+  const isGradSchoolHead = callerRole === 'grad_school_head';
+  // A delegate's own faculty — grad_school_head is cross-faculty, so any
+  // facultyId is "their own" for scope-matching purposes below.
+  const scopeAllowedForCaller = (facultyIdToCheck: unknown) =>
+    isGradSchoolHead || facultyIdToCheck === req.user?.facultyId;
+
+  // Previously system_admin-only with no delegation path at all for the
+  // granular grant fields. Now: faculty_admin/program_head/grad_school_head
+  // may set permissionRules/coordinatorScopes too, but only within their own
+  // scope, and never the two most sensitive actions (delete_users,
+  // all_actions) — those stay system_admin-exclusive even for delegates.
+  // Anyone else non-system_admin still can't touch these fields at all.
   if (!isSystemAdmin) {
-    if (permissionRules !== undefined || coordinatorScopes !== undefined) {
-      return res.status(403).json({ message: 'Only system_admin may modify granular permissions.' });
-    }
     if (ADMIN_TIER_ROLES.includes(role)) {
       return res.status(403).json({ message: 'Cannot grant an admin-tier role.' });
+    }
+    if (permissionRules !== undefined || coordinatorScopes !== undefined) {
+      if (!isDelegateAdmin) {
+        return res.status(403).json({ message: 'Only system_admin may modify granular permissions.' });
+      }
+      for (const rule of Array.isArray(permissionRules) ? permissionRules : []) {
+        if (Array.isArray(rule?.actions) && rule.actions.some((a: string) => DELEGATE_RESTRICTED_ACTIONS.includes(a as any))) {
+          return res.status(403).json({ message: 'Only system_admin may grant delete_users or all_actions.' });
+        }
+        if (!scopeAllowedForCaller(rule?.facultyId)) {
+          return res.status(403).json({ message: 'Cannot grant a permission scoped outside your own faculty.' });
+        }
+      }
+      for (const scope of Array.isArray(coordinatorScopes) ? coordinatorScopes : []) {
+        if (!scopeAllowedForCaller(scope?.facultyId)) {
+          return res.status(403).json({ message: 'Cannot grant a coordinator scope outside your own faculty.' });
+        }
+      }
     }
   }
 
@@ -491,7 +519,12 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       const currentScope = { facultyId: before.facultyId, major: before.major };
       const newFacultyId = typeof facultyId === 'string' && facultyId ? facultyId : before.facultyId;
       const newScope = { facultyId: newFacultyId, major: before.major };
-      if (!hasActionGrant(req.user, 'edit_users', currentScope) || !hasActionGrant(req.user, 'edit_users', newScope)) {
+      // A delegate acting within their own faculty (any faculty, for
+      // grad_school_head) needs no pre-existing grant — that's the point of
+      // letting them self-serve. Anyone else (e.g. a coordinator holding an
+      // explicit edit_users grant) still goes through the grant check.
+      const inOwnFacultyScope = isDelegateAdmin && scopeAllowedForCaller(currentScope.facultyId) && scopeAllowedForCaller(newScope.facultyId);
+      if (!inOwnFacultyScope && (!hasActionGrant(req.user, 'edit_users', currentScope) || !hasActionGrant(req.user, 'edit_users', newScope))) {
         return res.status(403).json({ message: 'Cannot modify a user outside your assigned scope.' });
       }
     }

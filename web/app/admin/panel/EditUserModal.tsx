@@ -11,21 +11,34 @@ import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel } from '@/lib/i18n';
 import { PermissionsEditorModal } from './PermissionsEditorModal';
 import { CoordinatorScopesModal } from './CoordinatorScopesModal';
-import { majorsForFaculty, type ScopeRule, type CoordinatorScope } from '@/lib/permissions';
+import { majorsForFaculty, type ScopeRule, type CoordinatorScope, type ActionType } from '@/lib/permissions';
 import type { AdminUserRecord, StudentStatusConfig } from './types';
 
 interface EditUserModalProps {
   user: AdminUserRecord;
   onClose: () => void;
   onSaved: () => void;
+  /** Narrows this modal for a delegate (faculty_admin/program_head/
+   *  grad_school_head) instead of system_admin — see NewUserModal's `scope`
+   *  for the same idea on the create side. `restrictedActions` hides
+   *  delete_users/all_actions from the permissions editor (still rejected
+   *  server-side regardless). */
+  scope?: { selectableRoles: AppRole[]; lockedFacultyId?: string; restrictedActions?: ActionType[] };
 }
 
 // Rendered by the parent with `key={user.id}` (only when a user is actually
 // being edited) so a different user means a fresh mount of this component —
 // that's what lets the form fields below initialize straight from props
 // with plain useState, no reset-on-prop-change effect required.
-export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
+export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalProps) {
   const { lang } = useLanguage();
+  // Always includes the target's current role even if it's outside the
+  // delegate's manageable set (e.g. faculty_admin opening this on a
+  // student — whose only actual reason to be here is the primary/secondary
+  // status fields below, not a role change) — never silently offer the full
+  // VALID_ROLES list to a delegate, only their scope plus whatever this user
+  // already is.
+  const roleOptions = scope?.selectableRoles ? Array.from(new Set([user.role, ...scope.selectableRoles])) : VALID_ROLES;
   const [role, setRole] = useState<AppRole>(user.role);
   const [additionalRoles, setAdditionalRoles] = useState<AppRole[]>(
     user.roles?.length ? user.roles.filter((r) => r !== user.role) : []
@@ -130,7 +143,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תפקיד ראשי' : 'Primary Role'}</span>
             <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
-              {VALID_ROLES.map((r) => (
+              {roleOptions.map((r) => (
                 <option key={r} value={r}>
                   {roleLabel(r, lang)}
                 </option>
@@ -138,16 +151,18 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
             </select>
           </label>
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
-            <select value={facultyId} onChange={(e) => handleFacultyChange(e.target.value)} className={inputCls}>
-              {VALID_FACULTY_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {facultyLabel(id, lang)}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!scope?.lockedFacultyId && (
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
+              <select value={facultyId} onChange={(e) => handleFacultyChange(e.target.value)} className={inputCls}>
+                {VALID_FACULTY_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {facultyLabel(id, lang)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {isStudent && (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -214,7 +229,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
               {lang === 'he' ? 'תפקידים נוספים (אופציונלי)' : 'Additional Roles (optional)'}
             </span>
             <div className="flex flex-wrap gap-2">
-              {VALID_ROLES.filter((r) => r !== role).map((r) => {
+              {roleOptions.filter((r) => r !== role).map((r) => {
                 const checked = additionalRoles.includes(r);
                 return (
                   <button
@@ -232,7 +247,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
             </div>
           </div>
 
-          {/* ── Granular Permissions (system_admin only) ── */}
+          {/* ── Granular Permissions ── */}
           <button
             type="button"
             onClick={() => setPermissionsModalOpen(true)}
@@ -246,7 +261,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
             </span>
           </button>
 
-          {/* ── Coordinator Scope (system_admin only, coordinator role only) ── */}
+          {/* ── Coordinator Scope (coordinator role only) ── */}
           {showCoordinatorScopes && (
             <button
               type="button"
@@ -285,6 +300,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
         onClose={() => setPermissionsModalOpen(false)}
         rules={permissionRules}
         onChange={setPermissionRules}
+        restrictedActions={scope?.restrictedActions}
       />
 
       {showCoordinatorScopes && (

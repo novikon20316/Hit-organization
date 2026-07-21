@@ -145,6 +145,97 @@ export async function importApprovedStudentsFromBuffer(
   };
 }
 
+export interface RosterEntry {
+  id: string;
+  studentId: string;
+  facultyId: string;
+  degreeType: RosterDegreeType;
+  major: string | null;
+  fullName: string;
+  used: boolean;
+  usedByUid: string | null;
+  usedAt: string | null;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+// Firestore serves multiple equality (==) filters off the automatic
+// single-field indexes — no composite index needed as long as nothing here
+// adds a range/orderBy clause alongside them.
+export async function listApprovedStudents(filter: {
+  facultyId?: string;
+  degreeType?: RosterDegreeType;
+  used?: boolean;
+} = {}): Promise<RosterEntry[]> {
+  let query: FirebaseFirestore.Query = db.collection('approvedStudents');
+  if (filter.facultyId) query = query.where('facultyId', '==', filter.facultyId);
+  if (filter.degreeType) query = query.where('degreeType', '==', filter.degreeType);
+  if (filter.used !== undefined) query = query.where('used', '==', filter.used);
+  const snap = await query.get();
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RosterEntry, 'id'>) }));
+}
+
+export interface RosterEntryUpdate {
+  fullName?: string;
+  major?: string | null;
+  /** Setting this back to false re-opens the ID for a fresh registration —
+   *  e.g. after an admin deletes a mistakenly-created account, since
+   *  markRosterEntryUsed's lock would otherwise never be lifted. */
+  used?: boolean;
+  facultyId?: string;
+  degreeType?: RosterDegreeType;
+  studentId?: string;
+}
+
+/**
+ * studentId + facultyId + degreeType together form the roster doc's ID
+ * (see rosterDocId), so changing any of them means moving the entry to a
+ * new doc rather than updating the existing one in place.
+ */
+export async function updateApprovedStudentEntry(docId: string, updates: RosterEntryUpdate): Promise<void> {
+  const ref = db.collection('approvedStudents').doc(docId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error('Roster entry not found.');
+  const current = snap.data() as Omit<RosterEntry, 'id'>;
+
+  const nextStudentId = updates.studentId !== undefined ? normalizeStudentId(updates.studentId) : current.studentId;
+  const nextFacultyId = updates.facultyId !== undefined ? updates.facultyId.toLowerCase() : current.facultyId;
+  const nextDegreeType = updates.degreeType !== undefined ? updates.degreeType : current.degreeType;
+  const idChanged = nextStudentId !== current.studentId || nextFacultyId !== current.facultyId || nextDegreeType !== current.degreeType;
+
+  const patch: Record<string, unknown> = {};
+  if (updates.fullName !== undefined) patch.fullName = updates.fullName;
+  if (updates.major !== undefined) patch.major = updates.major ? updates.major.toLowerCase() : null;
+  if (updates.used !== undefined) {
+    patch.used = updates.used;
+    if (!updates.used) {
+      patch.usedByUid = null;
+      patch.usedAt = null;
+    }
+  }
+
+  if (!idChanged) {
+    if (Object.keys(patch).length) await ref.update(patch);
+    return;
+  }
+
+  if (!/^\d{9}$/.test(nextStudentId)) throw new Error('Student ID must be exactly 9 digits.');
+  if (!VALID_FACULTIES.includes(nextFacultyId)) throw new Error(`Invalid faculty: "${nextFacultyId}"`);
+  const newDocId = rosterDocId(nextStudentId, nextFacultyId, nextDegreeType);
+  const newRef = db.collection('approvedStudents').doc(newDocId);
+  const existing = await newRef.get();
+  if (existing.exists) throw new Error('Another roster entry already exists with this student ID, faculty, and degree.');
+
+  await db.runTransaction(async (tx) => {
+    tx.set(newRef, { ...current, ...patch, studentId: nextStudentId, facultyId: nextFacultyId, degreeType: nextDegreeType });
+    tx.delete(ref);
+  });
+}
+
+export async function deleteApprovedStudentEntry(docId: string): Promise<void> {
+  await db.collection('approvedStudents').doc(docId).delete();
+}
+
 export interface EligibilityCheckResult {
   eligible: boolean;
   reason?: string;

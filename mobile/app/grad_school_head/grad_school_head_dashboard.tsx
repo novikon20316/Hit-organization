@@ -15,6 +15,8 @@ import { TopBar } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { GradSchoolHeadDashboardStyles } from '../../constants/styles';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
+import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -109,8 +111,12 @@ export default function GradSchoolHeadDashboard() {
   const [refreshing, setRefreshing]= useState(false);
   const [data, setData]            = useState<DashboardData | null>(null);
   const [activeTab, setActiveTab]  = useState<
-    'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades'
+    'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff'
   >('approvals');
+  // Cross-faculty staff this role can now manage directly (see
+  // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — this
+  // role had zero user-management endpoints of any kind before this.
+  const [staff, setStaff] = useState<ManagedStaffRecord[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [unlockTargetId, setUnlockTargetId] = useState<string | null>(null);
   const [unlockReason, setUnlockReason] = useState('');
@@ -137,9 +143,19 @@ export default function GradSchoolHeadDashboard() {
     }
   }, [uid, lang]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchStaff = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/admin/staff');
+      setStaff(res.data.staff ?? []);
+    } catch (e) {
+      // Non-fatal — the Staff tab just shows an empty list if this fails.
+      console.error('grad_school_head fetchStaff error:', e);
+    }
+  }, []);
 
-  const onRefresh = () => { setRefreshing(true); fetchData(); };
+  useEffect(() => { fetchData(); fetchStaff(); }, [fetchData, fetchStaff]);
+
+  const onRefresh = () => { setRefreshing(true); fetchData(); fetchStaff(); };
 
   // Final-grade approvals go straight to a real endpoint — see
   // server/src/controllers/gradSchoolHeadController.ts's approveFinalGrade.
@@ -229,6 +245,7 @@ export default function GradSchoolHeadDashboard() {
     { key: 'stuck'     as const, he: 'תקועים',          en: 'Stuck',     badge: data?.stuckStudents.length ?? 0 },
     { key: 'examiners' as const, he: 'עומס בוחנים',     en: 'Examiners', badge: 0 },
     { key: 'grades'    as const, he: 'ציונים מאושרים',  en: 'Approved Grades', badge: 0 },
+    { key: 'staff'     as const, he: 'סגל',             en: 'Staff', badge: 0 },
   ];
 
   return (
@@ -532,6 +549,17 @@ export default function GradSchoolHeadDashboard() {
               ))
             )}
           </>
+        )}
+
+        {/* ── STAFF TAB ── */}
+        {activeTab === 'staff' && (
+          <ManagedStaffSection
+            staff={staff}
+            onRefresh={fetchStaff}
+            scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }}
+            lang={lang}
+            isRtl={lang === 'he'}
+          />
         )}
 
         <View style={{ height: 60 }} />

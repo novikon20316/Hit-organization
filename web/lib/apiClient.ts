@@ -343,6 +343,14 @@ export const apiClient = {
     }>('/api/admin/dashboard-summary', { method: 'GET' });
   },
 
+  /** GET /api/admin/staff — faculty_admin/program_head (own faculty) or
+   *  grad_school_head (cross-faculty) listing the staff they can manage;
+   *  excludes admin-tier accounts and students. See
+   *  facultyAdminController.listManagedStaff. */
+  async listManagedStaff() {
+    return request<{ success: boolean; staff: Array<Record<string, unknown> & { id: string }> }>('/api/admin/staff', { method: 'GET' });
+  },
+
   async createAdminUser(payload: {
     displayName: string;
     email: string;
@@ -372,7 +380,10 @@ export const apiClient = {
       roles?: string[];
       facultyId?: string;
       assignedMajors?: string[];
-      /** system_admin-only — see lib/permissions.ts. */
+      /** system_admin, or a delegate (faculty_admin/program_head/
+       *  grad_school_head) granting within their own scope — see
+       *  server/src/config/permissionScopes.ts's DELEGATE_RESTRICTED_ACTIONS
+       *  for what a delegate still can't grant. */
       permissionRules?: import('./permissions').ScopeRule[];
       coordinatorScopes?: import('./permissions').CoordinatorScope[];
     }
@@ -808,6 +819,42 @@ export const apiClient = {
     return request<{
       summary: { totalRows: number; imported: number; skipped: number; failed: number; details: Array<{ row: number; studentId: string; status: string; reason?: string }> };
     }>(path, { method: 'POST', body: formData, raw: true });
+  },
+
+  /** GET /api/admin/student-roster — the pre-registration allowlist
+   *  coordinators/system_admin upload before students can self-register
+   *  (see server/src/services/studentRoster.ts); system_admin only. */
+  async listStudentRoster(filter?: { facultyId?: string; degreeType?: 'bachelors' | 'masters'; used?: boolean; q?: string }) {
+    return request<{
+      success: boolean;
+      entries: Array<{
+        id: string;
+        studentId: string;
+        facultyId: string;
+        degreeType: 'bachelors' | 'masters';
+        major: string | null;
+        fullName: string;
+        used: boolean;
+        usedByUid: string | null;
+        usedAt: string | null;
+        uploadedBy: string;
+        uploadedAt: string;
+      }>;
+    }>('/api/admin/student-roster', { method: 'GET', params: { facultyId: filter?.facultyId, degreeType: filter?.degreeType, used: filter?.used, q: filter?.q } });
+  },
+
+  /** PATCH /api/admin/student-roster/:docId — edit a roster entry, or set
+   *  `used: false` to re-open an ID for registration (e.g. after deleting a
+   *  mistakenly-created account). */
+  async updateStudentRosterEntry(
+    docId: string,
+    updates: Partial<{ fullName: string; major: string | null; used: boolean; facultyId: string; degreeType: 'bachelors' | 'masters'; studentId: string }>
+  ) {
+    return request<{ success: boolean }>(`/api/admin/student-roster/${encodeURIComponent(docId)}`, { method: 'PATCH', body: updates });
+  },
+
+  async deleteStudentRosterEntry(docId: string) {
+    return request<{ success: boolean }>(`/api/admin/student-roster/${encodeURIComponent(docId)}`, { method: 'DELETE' });
   },
 
   // ─── 8. SUPERVISOR ──────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@
 // (via req.user.role or req.user.roles[]), and getDeadLines's role check
 // includes faculty_admin and returns faculty-wide deadlines for that role.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ReportsLink } from '@/components/ReportsLink';
@@ -22,15 +22,15 @@ import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
-import type { AppRole } from '@/lib/roles';
+import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
 import type { FacultyId } from '@/lib/i18n';
-import { UserRow } from './UserRow';
-import { EditUserModal } from './EditUserModal';
+import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
+import type { AdminUserRecord } from '@/app/admin/panel/types';
 import { ProjectCard } from './ProjectCard';
 import { EnrollStudentModal } from './EnrollStudentModal';
 import { NewProjectModal } from './NewProjectModal';
 import { DeadlinesTab } from './DeadlinesTab';
-import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline, StudentStatusConfig } from './types';
+import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline } from './types';
 
 const FACULTY_ADMIN_ROLES: AppRole[] = ['faculty_admin', 'system_admin'];
 
@@ -49,10 +49,7 @@ export default function FacultyAdminDashboardPage() {
   const [deadlines, setDeadlines] = useState<FacultyAdminDeadline[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [search, setSearch] = useState('');
-  const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
 
-  const [editingUser, setEditingUser] = useState<FacultyAdminUserRecord | null>(null);
   const [enrollingProject, setEnrollingProject] = useState<FacultyAdminProjectRecord | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
 
@@ -83,26 +80,10 @@ export default function FacultyAdminDashboardPage() {
     }
   }, [lang, firebaseUser]);
 
-  const fetchStatusConfig = useCallback(async () => {
-    try {
-      const res = await apiClient.getStudentStatusOptions();
-      setStatusConfig(res);
-    } catch {
-      // Non-fatal — student-status badges just stay hidden if this fails.
-    }
-  }, []);
-
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls happen after its awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
-    if (isAllowed) fetchStatusConfig();
-  }, [isAllowed, fetchDashboard, fetchStatusConfig]);
-
-  const filteredUsers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) => u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q));
-  }, [users, search]);
+  }, [isAllowed, fetchDashboard]);
 
   if (guardLoading) {
     return (
@@ -172,20 +153,11 @@ export default function FacultyAdminDashboardPage() {
           <StatCard emoji="🎓" value={availableStudents.length} label={lang === 'he' ? 'סטודנטים ללא פרויקט' : 'Students w/o Project'} />
         </div>
       ) : tab === 'users' ? (
-        <div>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={lang === 'he' ? 'חפש משתמש...' : 'Search user...'}
-            className="mb-4 w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
-          />
-          <div className="grid gap-3 sm:grid-cols-2">
-            {filteredUsers.map((u) => (
-              <UserRow key={u.id} user={u} statusConfig={statusConfig} onChanged={fetchDashboard} onEdit={setEditingUser} />
-            ))}
-          </div>
-          {filteredUsers.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}
-        </div>
+        <ManagedStaffTab
+          staff={users as unknown as AdminUserRecord[]}
+          onRefresh={fetchDashboard}
+          scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }}
+        />
       ) : tab === 'projects' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {projects.map((p) => (
@@ -197,7 +169,6 @@ export default function FacultyAdminDashboardPage() {
         <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchDashboard} />
       )}
 
-      {editingUser && <EditUserModal key={editingUser.id} user={editingUser} onClose={() => setEditingUser(null)} onSaved={fetchDashboard} />}
       {enrollingProject && (
         <EnrollStudentModal
           key={enrollingProject.id}

@@ -17,6 +17,14 @@ interface NewUserModalProps {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  /** Narrows this modal for a delegate (faculty_admin/program_head/
+   *  grad_school_head) instead of system_admin: only these roles are
+   *  selectable, and facultyId is locked to (and hidden, pre-filled with)
+   *  the delegate's own faculty — omit `lockedFacultyId` for
+   *  grad_school_head, who can create staff in any faculty. Enforced for
+   *  real server-side by createAdminUser's delegate scope check — this is
+   *  just so the form doesn't even offer an option the server would reject. */
+  scope?: { selectableRoles: AppRole[]; lockedFacultyId?: string };
 }
 
 const SELECTABLE_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
@@ -34,14 +42,15 @@ function generateReadableTempPassword(): string {
   return `${out}Aa1!`;
 }
 
-export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
+export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalProps) {
   const { lang } = useLanguage();
+  const roleOptions = scope?.selectableRoles ?? VALID_ROLES;
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<AppRole>('student');
-  const [facultyId, setFacultyId] = useState('');
+  const [role, setRole] = useState<AppRole>(roleOptions[0] ?? 'student');
+  const [facultyId, setFacultyId] = useState(scope?.lockedFacultyId ?? '');
   const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>('bachelors');
   const [major, setMajor] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState('1');
@@ -80,8 +89,8 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
     setName('');
     setEmail('');
     setPhone('');
-    setRole('student');
-    setFacultyId('');
+    setRole(roleOptions[0] ?? 'student');
+    setFacultyId(scope?.lockedFacultyId ?? '');
     setDegreeType('bachelors');
     setMajor('');
     setYearOfStudy('1');
@@ -251,7 +260,7 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
 
           <Field label={lang === 'he' ? 'תפקיד' : 'Role'}>
             <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
-              {VALID_ROLES.map((r) => (
+              {roleOptions.map((r) => (
                 <option key={r} value={r}>
                   {roleLabel(r, lang)}
                 </option>
@@ -259,7 +268,7 @@ export function NewUserModal({ open, onClose, onCreated }: NewUserModalProps) {
             </select>
           </Field>
 
-          {!isCrossFaculty && (
+          {!isCrossFaculty && !scope?.lockedFacultyId && (
             <Field label={lang === 'he' ? 'פקולטה' : 'Faculty'}>
               <select
                 value={facultyId}

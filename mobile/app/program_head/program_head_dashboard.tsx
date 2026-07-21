@@ -17,6 +17,8 @@ import { TopBar, getFacultyColor } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { ProgramHeadDashboardStyles } from '../../constants/styles';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
+import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,7 +72,12 @@ export default function ProgramHeadDashboard() {
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData]             = useState<DashboardData | null>(null);
-  const [activeTab, setActiveTab]   = useState<'students' | 'approvals' | 'supervisors'>('students');
+  const [activeTab, setActiveTab]   = useState<'students' | 'approvals' | 'supervisors' | 'staff'>('students');
+  // Own-faculty staff this role can now manage directly (see
+  // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — a
+  // separate endpoint from the read-only dashboard data above, since
+  // program_head never had a user-listing endpoint of any kind before this.
+  const [staff, setStaff] = useState<ManagedStaffRecord[]>([]);
 
   // Filters
   const [searchText, setSearchText]         = useState('');
@@ -96,8 +103,18 @@ export default function ProgramHeadDashboard() {
     }
   }, [uid, lang]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-  const onRefresh = () => { setRefreshing(true); fetchData(); };
+  const fetchStaff = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/admin/staff');
+      setStaff(res.data.staff ?? []);
+    } catch (e) {
+      // Non-fatal — the Staff tab just shows an empty list if this fails.
+      console.error('program_head fetchStaff error:', e);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); fetchStaff(); }, [fetchData, fetchStaff]);
+  const onRefresh = () => { setRefreshing(true); fetchData(); fetchStaff(); };
 
   // ── Filter students ────────────────────────────────────────────────────────
   const filteredStudents = (data?.students ?? []).filter(s => {
@@ -126,6 +143,7 @@ export default function ProgramHeadDashboard() {
     { key: 'students'   as const, he: 'סטודנטים',      en: 'Students',    badge: data?.stats.totalStudents ?? 0 },
     { key: 'approvals'  as const, he: 'ממתין לאישור',   en: 'Approvals',   badge: data?.pendingApprovals.length ?? 0 },
     { key: 'supervisors'as const, he: 'מנחים',          en: 'Supervisors', badge: 0 },
+    { key: 'staff'       as const, he: 'סגל',            en: 'Staff',       badge: 0 },
   ];
 
   return (
@@ -311,6 +329,17 @@ export default function ProgramHeadDashboard() {
               ))
             )}
           </>
+        )}
+
+        {/* ── STAFF TAB ── */}
+        {activeTab === 'staff' && (
+          <ManagedStaffSection
+            staff={staff}
+            onRefresh={fetchStaff}
+            scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: data?.facultyId }}
+            lang={lang}
+            isRtl={lang === 'he'}
+          />
         )}
 
         <View style={{ height: 60 }} />

@@ -18,7 +18,7 @@ import { FACULTY_COLORS } from '../shared';
 import ScopeDescriptorFields from './ScopeDescriptorFields';
 import {
   VIEW_TYPES, ACTION_TYPES, scopeLabel, newScopeId,
-  type ScopeRule, type ScopeDescriptor,
+  type ScopeRule, type ScopeDescriptor, type ActionType,
 } from '../../constants/permissions';
 import { PermissionsEditorModalStyles } from '../../constants/styles';
 
@@ -28,13 +28,20 @@ type Props = {
   lang:     'he' | 'en';
   rules:    ScopeRule[];
   onChange: (next: ScopeRule[]) => void;
+  /** Hides these actions from the checklist — e.g. a delegate
+   *  (faculty_admin/program_head/grad_school_head) can't grant
+   *  delete_users/all_actions (see DELEGATE_RESTRICTED_ACTIONS in
+   *  server/src/config/permissionScopes.ts), so there's no point offering
+   *  the checkbox. */
+  restrictedActions?: ActionType[];
 };
 
 function emptyDraft(): ScopeRule {
   return { id: newScopeId(), facultyId: 'sciences', view: [], actions: [] };
 }
 
-export default function PermissionsEditorModal({ visible, onClose, lang, rules, onChange }: Props) {
+export default function PermissionsEditorModal({ visible, onClose, lang, rules, onChange, restrictedActions }: Props) {
+  const availableActions = restrictedActions?.length ? ACTION_TYPES.filter((a) => !restrictedActions.includes(a.key)) : ACTION_TYPES;
   // null = list screen; a draft = the add/edit form screen.
   const [draft, setDraft] = useState<ScopeRule | null>(null);
 
@@ -153,7 +160,7 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
 
               {/* Action permissions */}
               <Text style={[s.degreeLabel, { marginTop: 16 }]}>{lang === 'he' ? '⚡ פעולות' : '⚡ Actions'}</Text>
-              {ACTION_TYPES.map((t) => {
+              {availableActions.map((t) => {
                 const isActive = draft.actions.includes(t.key);
                 return (
                   <Pressable key={t.key} style={s.permRow} onPress={() => setDraft({ ...draft, actions: toggleType(draft.actions, t.key) })}>

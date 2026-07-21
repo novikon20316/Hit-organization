@@ -64,6 +64,47 @@ export async function pickAndImportStudentRoster(scope: ImportExportScope): Prom
   return response.data.summary as RosterImportSummary;
 }
 
+export interface RosterEntry {
+  id: string;
+  studentId: string;
+  facultyId: string;
+  degreeType: 'bachelors' | 'masters';
+  major: string | null;
+  fullName: string;
+  used: boolean;
+  usedByUid: string | null;
+  usedAt: string | null;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+/** GET /api/admin/student-roster — system_admin only. Lets an admin actually
+ *  see the pre-registration allowlist coordinators/admin upload, instead of
+ *  it only ever being written to and read internally at signup time. */
+export async function listStudentRoster(filter?: {
+  facultyId?: string;
+  degreeType?: 'bachelors' | 'masters';
+  used?: boolean;
+  q?: string;
+}): Promise<RosterEntry[]> {
+  const response = await apiClient.get('/api/admin/student-roster', { params: filter });
+  return response.data.entries as RosterEntry[];
+}
+
+/** PATCH /api/admin/student-roster/:docId — edit a roster entry, or set
+ *  `used: false` to re-open an ID for registration (e.g. after deleting a
+ *  mistakenly-created account). */
+export async function updateStudentRosterEntry(
+  docId: string,
+  updates: Partial<{ fullName: string; major: string | null; used: boolean; facultyId: string; degreeType: 'bachelors' | 'masters'; studentId: string }>
+): Promise<void> {
+  await apiClient.patch(`/api/admin/student-roster/${encodeURIComponent(docId)}`, updates);
+}
+
+export async function deleteStudentRosterEntry(docId: string): Promise<void> {
+  await apiClient.delete(`/api/admin/student-roster/${encodeURIComponent(docId)}`);
+}
+
 export interface EligibilityCheckResult {
   eligible: boolean;
   message?: string;

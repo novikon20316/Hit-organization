@@ -4,6 +4,7 @@ import {
   updateUserPermissions,
   enrollStudentToProject,
   toggleUserActive,
+  listManagedStaff,
 } from '../controllers/facultyAdminController.js';
 import {
   getAdminDashboardSummary,
@@ -33,7 +34,12 @@ import {
   importStaffAdmin,
   uploadExcelFileMiddleware,
 } from '../controllers/userImportExportController.js';
-import { importStudentRosterAdmin } from '../controllers/studentRosterController.js';
+import {
+  importStudentRosterAdmin,
+  listStudentRosterAdmin,
+  updateStudentRosterAdmin,
+  deleteStudentRosterAdmin,
+} from '../controllers/studentRosterController.js';
 import {
   getAcademicCalendarConfig,
   updateAcademicCalendarConfig,
@@ -61,6 +67,11 @@ router.get('/defense-access-grants', verifyToken, listDefenseAccessGrants);
 router.get('/academic-calendar', verifyToken, getAcademicCalendarConfig);
 // system_admin or administrative_secretary — gated inside the controller.
 router.get('/students/search', verifyToken, searchStudents);
+router.get('/student-roster', verifyToken, listStudentRosterAdmin);
+// faculty_admin/program_head (own faculty) or grad_school_head
+// (cross-faculty) — gated inside the controller, same pattern as the rest
+// of this file.
+router.get('/staff', verifyToken, listManagedStaff);
 
 // POST routes
 router.post('/projects', verifyToken, createAdminProject);
@@ -89,8 +100,12 @@ router.put('/student-statuses', verifyToken, updateStudentStatusOptions);
 // system_admin or administrative_secretary — gated inside the controller.
 router.put('/users/:id/academic-year', verifyToken, updateStudentAcademicYear);
 
+// PATCH routes
+router.patch('/student-roster/:docId', verifyToken, updateStudentRosterAdmin);
+
 // DELETE routes
 router.delete('/info-files/:id', verifyToken, deleteInfoFile);
 router.delete('/faculty-content/:id', verifyToken, deleteFacultyContent);
 router.delete('/projects/:id', verifyToken, deleteAdminProject);
+router.delete('/student-roster/:docId', verifyToken, deleteStudentRosterAdmin);
 export default router;
