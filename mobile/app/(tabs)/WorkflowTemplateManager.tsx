@@ -22,6 +22,7 @@ import type { Lang } from '../../components/i18n';
 import { TopBar, FACULTY_COLORS } from '../../components/shared';
 import { ResponsiveScreen } from '../../components/ResponsiveScreen';
 import { PERMISSION_FACULTY_IDS } from '../../constants/permissions';
+import { getFilteredPrograms } from '../../constants/faculties';
 import { apiClient } from '../../src/api/apiClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -38,18 +39,26 @@ export interface MilestoneSpec {
   requiresExaminers: boolean;
 }
 
+export type ApplyMode = 'now' | 'from_now_on';
+
 export interface WorkflowTemplateDoc {
   id: string;
   facultyId: string;
   processType: ProcessType;
+  /** A major slug, or `null` for "all majors in this faculty" (the fallback
+   *  tier — also what every pre-existing template effectively means). */
+  major: string | null;
   version: number;
   status: TemplateStatus;
   milestones: MilestoneSpec[];
   createdBy: string;
   createdAt: string;
   proposedNote: string | null;
+  applyMode: ApplyMode;
   approvedBy?: string;
   approvedAt?: string;
+  retroactiveAppliedAt?: string;
+  retroactiveAffectedCount?: number;
   rejectedBy?: string;
   rejectedAt?: string;
   rejectionReason?: string;
@@ -63,9 +72,11 @@ const PROCESS_TYPES: { key: ProcessType; he: string; en: string }[] = [
 
 const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'administrative_secretary', 'system_admin'];
 const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'administrative_secretary', 'system_admin'];
-// No single "home" faculty — must explicitly pick which faculty they're
-// viewing/proposing for (see workflowTemplateController.ts).
-const CROSS_FACULTY_ROLES = ['system_admin', 'administrative_secretary', 'grad_school_head'];
+// system_admin and grad_school_head get a free faculty picker (no single
+// "home" faculty — see workflowTemplateController.ts). administrative_secretary
+// is scoped further still: never a free choice, only whichever subject(s)
+// her own coordinatorScopes actually assign her (see isSecretary below).
+const FREE_CHOICE_CROSS_FACULTY_ROLES = ['system_admin', 'grad_school_head'];
 const SELECTABLE_FACULTY_IDS = PERMISSION_FACULTY_IDS.filter((id) => id !== 'all');
 
 function isMastersProcess(pt: ProcessType): boolean {
@@ -75,6 +86,16 @@ function isMastersProcess(pt: ProcessType): boolean {
 function canApproveRole(pt: ProcessType, role: string | null): boolean {
   if (!role) return false;
   return isMastersProcess(pt) ? GRAD_SCHOOL_APPROVER_ROLES.includes(role) : FACULTY_APPROVER_ROLES.includes(role);
+}
+
+/** Major options for a faculty, filtered to the degree level implied by the
+ *  selected process type (bsc_project → bachelors, msc_* → masters). */
+function majorOptionsFor(facultyId: string, processType: ProcessType, lang: Lang): { slug: string; label: string }[] {
+  const level = isMastersProcess(processType) ? 'masters' : 'bachelors';
+  const seen = new Set<string>();
+  return getFilteredPrograms(facultyId, level)
+    .filter((p) => !seen.has(p.slug) && seen.add(p.slug))
+    .map((p) => ({ slug: p.slug, label: p.label[lang] }));
 }
 
 function makeId(): string {
@@ -96,21 +117,40 @@ export default function WorkflowTemplateManager() {
   const [userRole, setUserRole]   = useState<string | null>(null);
   const [ownFacultyId, setOwnFacultyId] = useState<string | null>(null);
   const [selectedFacultyId, setSelectedFacultyId] = useState<string | null>(null);
+  const [selectedMajor, setSelectedMajor] = useState<string | null>(null);
+  // administrative_secretary's own assigned subject(s) — {facultyId, major?}
+  // tuples on her own user doc's coordinatorScopes (same generic field the
+  // 'coordinator' role uses; see server/src/controllers/
+  // workflowTemplateController.ts's resolveSecretaryScope). Never a free
+  // choice: if she holds more than one, she picks among only her own.
+  const [secretaryScopes, setSecretaryScopes] = useState<{ facultyId: string; major?: string }[]>([]);
+  const [secretaryScopeIndex, setSecretaryScopeIndex] = useState(0);
 
-  const isCrossFaculty = !!userRole && CROSS_FACULTY_ROLES.includes(userRole);
-  // Cross-faculty roles pick a real faculty explicitly; everyone else is
-  // locked to their own.
-  const facultyId = isCrossFaculty ? selectedFacultyId : ownFacultyId;
+  const isSecretary = userRole === 'administrative_secretary';
+  const isFreeChoiceCrossFaculty = !!userRole && FREE_CHOICE_CROSS_FACULTY_ROLES.includes(userRole);
+  const secretaryScope = isSecretary ? secretaryScopes[secretaryScopeIndex] : undefined;
+
+  // Cross-faculty roles pick a real faculty explicitly; administrative_secretary
+  // is resolved from her own scope; everyone else is locked to their own.
+  const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isSecretary ? (secretaryScope?.facultyId ?? null) : ownFacultyId;
+  const activeMajor: string | null = userRole === 'system_admin' ? selectedMajor : isSecretary ? (secretaryScope?.major ?? null) : null;
 
   const [templates, setTemplates] = useState<WorkflowTemplateDoc[]>([]);
   const [activeProcessType, setActiveProcessType] = useState<ProcessType>('msc_thesis');
-  const [activeTab, setActiveTab] = useState<'current' | 'pending'>('current');
+  const [activeTab, setActiveTab] = useState<'current' | 'pending' | 'history'>('current');
   const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // Approve, for a template proposed with applyMode 'now', shows a preview
+  // of affected in-progress projects before actually confirming.
+  const [approvePreview, setApprovePreview] = useState<{ tpl: WorkflowTemplateDoc; count: number } | null>(null);
 
   // Propose-editor modal
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMilestones, setEditorMilestones] = useState<MilestoneSpec[]>([]);
   const [editorNote, setEditorNote] = useState('');
+  const [editorApplyMode, setEditorApplyMode] = useState<ApplyMode>('from_now_on');
+  const [editorPreview, setEditorPreview] = useState<{ count: number } | null>(null);
+  const [editorPreviewLoading, setEditorPreviewLoading] = useState(false);
 
   // Milestone row editor (inside the propose modal)
   const [msModalOpen, setMsModalOpen] = useState(false);
@@ -135,9 +175,12 @@ export default function WorkflowTemplateManager() {
         setUserName(res.data.displayName || '');
         setUserRole(res.data.role || null);
         setOwnFacultyId(res.data.facultyId || null);
+        setSecretaryScopes(res.data.coordinatorScopes ?? []);
         // No facultyId on the profile (shouldn't happen for the roles that
         // can reach this screen) — nothing left to load, stop spinning.
-        if (!res.data.facultyId && !CROSS_FACULTY_ROLES.includes(res.data.role)) setLoading(false);
+        if (!res.data.facultyId && !FREE_CHOICE_CROSS_FACULTY_ROLES.includes(res.data.role) && res.data.role !== 'administrative_secretary') {
+          setLoading(false);
+        }
       } catch (err) {
         console.error('WorkflowTemplateManager: failed to load profile', err);
         setLoading(false);
@@ -146,29 +189,31 @@ export default function WorkflowTemplateManager() {
   }, [uid]);
 
   useEffect(() => {
-    if (isCrossFaculty && !selectedFacultyId && SELECTABLE_FACULTY_IDS.length > 0) {
+    if (isFreeChoiceCrossFaculty && !selectedFacultyId && SELECTABLE_FACULTY_IDS.length > 0) {
       setSelectedFacultyId(SELECTABLE_FACULTY_IDS[0]!);
     }
-  }, [isCrossFaculty, selectedFacultyId]);
+  }, [isFreeChoiceCrossFaculty, selectedFacultyId]);
 
   const loadTemplates = useCallback(async () => {
-    if (!facultyId) return;
+    if (!facultyId) { setLoading(false); return; }
     try {
       setLoading(true);
-      const res = await apiClient.get(`/api/workflow-templates?facultyId=${facultyId}`);
+      const res = await apiClient.get('/api/workflow-templates', { params: { facultyId, major: activeMajor === null ? 'all' : activeMajor } });
       setTemplates(res.data.templates || []);
     } catch (err) {
       console.error('WorkflowTemplateManager: failed to load templates', err);
     } finally {
       setLoading(false);
     }
-  }, [facultyId]);
+  }, [facultyId, activeMajor]);
 
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
   const approvedForActive = templates.find((t) => t.processType === activeProcessType && t.status === 'approved');
   const pending = templates.filter((t) => t.status === 'pending_approval');
   const pendingForActive = pending.filter((t) => t.processType === activeProcessType);
+  const history = templates.filter((t) => t.status === 'rejected' || t.status === 'superseded');
+  const historyForActive = history.filter((t) => t.processType === activeProcessType);
 
   // ── Propose editor ──────────────────────────────────────────────────────
   const openEditor = () => {
@@ -178,7 +223,25 @@ export default function WorkflowTemplateManager() {
         : [emptyMilestone(1)]
     );
     setEditorNote('');
+    setEditorApplyMode('from_now_on');
+    setEditorPreview(null);
     setEditorOpen(true);
+  };
+
+  const handleApplyModeChange = async (mode: ApplyMode) => {
+    setEditorApplyMode(mode);
+    if (mode !== 'now' || !facultyId) return;
+    setEditorPreviewLoading(true);
+    try {
+      const res = await apiClient.get('/api/workflow-templates/retroactive-preview', {
+        params: { facultyId, major: activeMajor === null ? 'all' : activeMajor, processType: activeProcessType },
+      });
+      setEditorPreview({ count: res.data.count });
+    } catch {
+      setEditorPreview(null);
+    } finally {
+      setEditorPreviewLoading(false);
+    }
   };
 
   const openMilestoneEditor = (ms: MilestoneSpec | null) => {
@@ -233,7 +296,9 @@ export default function WorkflowTemplateManager() {
         processType: activeProcessType,
         milestones: editorMilestones,
         note: editorNote.trim() || undefined,
-        ...(isCrossFaculty ? { facultyId } : {}),
+        major: activeMajor === null ? 'all' : activeMajor,
+        applyMode: editorApplyMode,
+        ...(isFreeChoiceCrossFaculty || isSecretary ? { facultyId } : {}),
       });
       setEditorOpen(false);
       Alert.alert(
@@ -249,15 +314,50 @@ export default function WorkflowTemplateManager() {
     }
   };
 
-  // ── Approve / reject ────────────────────────────────────────────────────
+  // ── Approve / reject / delete ───────────────────────────────────────────
+  // For an applyMode:'now' proposal, show a preview of affected in-progress
+  // projects before actually approving — final confirmation re-fetched
+  // right here since time may have passed since the proposal was created.
+  const handleApproveClick = async (tpl: WorkflowTemplateDoc) => {
+    if (tpl.applyMode !== 'now') {
+      handleApprove(tpl);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await apiClient.get('/api/workflow-templates/retroactive-preview', {
+        params: { facultyId: tpl.facultyId, major: tpl.major === null ? 'all' : tpl.major, processType: tpl.processType },
+      });
+      setApprovePreview({ tpl, count: res.data.count });
+    } catch (e: any) {
+      Alert.alert('❌', e.response?.data?.message || (lang === 'he' ? 'טעינת התצוגה המקדימה נכשלה' : 'Failed to load the preview'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleApprove = async (tpl: WorkflowTemplateDoc) => {
     setSaving(true);
     try {
       await apiClient.post(`/api/workflow-templates/${tpl.id}/approve`);
+      setApprovePreview(null);
       Alert.alert('✅', lang === 'he' ? 'התבנית אושרה' : 'Template approved');
       await loadTemplates();
     } catch (e: any) {
       Alert.alert('❌', e.response?.data?.message || (lang === 'he' ? 'האישור נכשל' : 'Approval failed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setSaving(true);
+    try {
+      await apiClient.delete(`/api/workflow-templates/${id}`);
+      setConfirmDeleteId(null);
+      await loadTemplates();
+    } catch (e: any) {
+      Alert.alert('❌', e.response?.data?.message || (lang === 'he' ? 'המחיקה נכשלה' : 'Delete failed'));
     } finally {
       setSaving(false);
     }
@@ -307,8 +407,8 @@ export default function WorkflowTemplateManager() {
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
       />
 
-      {/* Faculty selector — cross-faculty roles only (no single "home" faculty) */}
-      {isCrossFaculty && (
+      {/* Faculty selector — system_admin/grad_school_head only (no single "home" faculty) */}
+      {isFreeChoiceCrossFaculty && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12 }}>
           {SELECTABLE_FACULTY_IDS.map((id) => (
             <Pressable
@@ -322,6 +422,36 @@ export default function WorkflowTemplateManager() {
             >
               <Text style={{ color: selectedFacultyId === id ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
                 {FACULTY_COLORS[id]?.label[lang] ?? id}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* administrative_secretary's own subject — no free choice */}
+      {isSecretary && secretaryScopes.length === 0 && (
+        <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12 }}>
+          <Text style={{ color: '#B91C1C', fontSize: 13 }}>
+            {lang === 'he'
+              ? 'לא הוקצה לך תחום אחריות עדיין — פנה למנהל המערכת שיקצה לך תחום.'
+              : 'No subject has been assigned to your account yet — ask your system_admin to assign one.'}
+          </Text>
+        </View>
+      )}
+      {isSecretary && secretaryScopes.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          {secretaryScopes.map((s, i) => (
+            <Pressable
+              key={i}
+              style={{
+                borderWidth: 1.5, borderColor: secretaryScopeIndex === i ? '#7C3AED' : '#DDD6FE',
+                backgroundColor: secretaryScopeIndex === i ? '#7C3AED' : '#fff',
+                borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
+              }}
+              onPress={() => setSecretaryScopeIndex(i)}
+            >
+              <Text style={{ color: secretaryScopeIndex === i ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
+                {FACULTY_COLORS[s.facultyId]?.label[lang] ?? s.facultyId}{s.major ? ` — ${s.major}` : ''}
               </Text>
             </Pressable>
           ))}
@@ -347,6 +477,41 @@ export default function WorkflowTemplateManager() {
         ))}
       </ScrollView>
 
+      {/* Subject/major selector — system_admin only; administrative_secretary
+          is auto-resolved from her own scope above, everyone else stays
+          whole-faculty (major: null). */}
+      {userRole === 'system_admin' && facultyId && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <Pressable
+            style={{
+              borderWidth: 1.5, borderColor: selectedMajor === null ? '#7C3AED' : '#DDD6FE',
+              backgroundColor: selectedMajor === null ? '#7C3AED' : '#fff',
+              borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
+            }}
+            onPress={() => setSelectedMajor(null)}
+          >
+            <Text style={{ color: selectedMajor === null ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
+              {lang === 'he' ? 'כל המגמות' : 'All majors'}
+            </Text>
+          </Pressable>
+          {majorOptionsFor(facultyId, activeProcessType, lang).map((m) => (
+            <Pressable
+              key={m.slug}
+              style={{
+                borderWidth: 1.5, borderColor: selectedMajor === m.slug ? '#7C3AED' : '#DDD6FE',
+                backgroundColor: selectedMajor === m.slug ? '#7C3AED' : '#fff',
+                borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
+              }}
+              onPress={() => setSelectedMajor(m.slug)}
+            >
+              <Text style={{ color: selectedMajor === m.slug ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
+                {m.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Tab bar — fixed size (not flex:1), matches admin/panel.tsx's
           tabsContainer, wrapped in a horizontal ScrollView so extra tabs
           slide into view instead of shrinking/growing with tab count. */}
@@ -358,6 +523,7 @@ export default function WorkflowTemplateManager() {
         {([
           { key: 'current' as const, he: 'תבנית נוכחית', en: 'Current Template' },
           { key: 'pending' as const, he: 'ממתין לאישור', en: 'Pending Approval', badge: pending.length },
+          { key: 'history' as const, he: 'היסטוריה', en: 'History' },
         ]).map((tab) => (
           <Pressable
             key={tab.key}
@@ -452,6 +618,11 @@ export default function WorkflowTemplateManager() {
                       {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
                       {tpl.proposedNote ? ` · ${tpl.proposedNote}` : ''}
                     </Text>
+                    {tpl.applyMode === 'now' && (
+                      <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '600', marginBottom: 6 }}>
+                        ⚡ {lang === 'he' ? 'תחול מיידית על תהליכים בעיצומם' : 'Applies immediately to in-progress processes'}
+                      </Text>
+                    )}
                     {!canApprove && (
                       <Text style={{ fontSize: 12, color: '#9BA8C0', fontStyle: 'italic' }}>
                         {isMastersProcess(tpl.processType)
@@ -459,11 +630,32 @@ export default function WorkflowTemplateManager() {
                           : (lang === 'he' ? 'ממתין לאישור הפקולטה' : 'Awaiting faculty approval')}
                       </Text>
                     )}
-                    {canApprove && (
-                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                    {canApprove && confirmDeleteId === tpl.id ? (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={{ fontSize: 13, color: '#EF4444', marginBottom: 8 }}>
+                          {lang === 'he' ? 'למחוק את ההצעה הזו לצמיתות?' : 'Permanently delete this proposal?'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                          <Pressable
+                            style={{ flex: 1, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                            onPress={() => handleDelete(tpl.id)}
+                            disabled={saving}
+                          >
+                            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
+                          </Pressable>
+                          <Pressable
+                            style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                            onPress={() => setConfirmDeleteId(null)}
+                          >
+                            <Text style={{ color: '#374151', fontWeight: '600', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : canApprove ? (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                         <Pressable
                           style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
-                          onPress={() => handleApprove(tpl)}
+                          onPress={() => handleApproveClick(tpl)}
                           disabled={saving}
                         >
                           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>✅ {lang === 'he' ? 'אשר' : 'Approve'}</Text>
@@ -475,7 +667,80 @@ export default function WorkflowTemplateManager() {
                         >
                           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>❌ {lang === 'he' ? 'דחה' : 'Reject'}</Text>
                         </Pressable>
+                        <Pressable
+                          style={{ borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, alignItems: 'center' }}
+                          onPress={() => setConfirmDeleteId(tpl.id)}
+                          disabled={saving}
+                        >
+                          <Text>🗑️</Text>
+                        </Pressable>
                       </View>
+                    ) : null}
+                  </View>
+                );
+              })
+            )}
+          </>
+        )}
+
+        {activeTab === 'history' && (
+          <>
+            {historyForActive.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Text style={{ fontSize: 14, color: '#8899BB' }}>
+                  {lang === 'he' ? 'אין היסטוריה להצגה' : 'No history to show'}
+                </Text>
+              </View>
+            ) : (
+              historyForActive.map((tpl) => {
+                const canDelete = canApproveRole(tpl.processType, userRole);
+                const ptLabel = PROCESS_TYPES.find((p) => p.key === tpl.processType);
+                return (
+                  <View key={tpl.id} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, opacity: 0.92 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#111' }}>
+                      {lang === 'he' ? ptLabel?.he : ptLabel?.en} · {lang === 'he' ? `גרסה ${tpl.version}` : `Version ${tpl.version}`}
+                      {' · '}
+                      <Text style={{ color: tpl.status === 'rejected' ? '#EF4444' : '#8899BB' }}>
+                        {tpl.status === 'rejected' ? (lang === 'he' ? 'נדחה' : 'Rejected') : (lang === 'he' ? 'הוחלף' : 'Superseded')}
+                      </Text>
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 4, marginBottom: 8 }}>
+                      {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
+                      {tpl.rejectionReason ? ` · ${tpl.rejectionReason}` : ''}
+                    </Text>
+                    {tpl.retroactiveAffectedCount !== undefined && (
+                      <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8 }}>
+                        {lang === 'he' ? `הוחל רטרואקטיבית על ${tpl.retroactiveAffectedCount} תהליכים` : `Retroactively applied to ${tpl.retroactiveAffectedCount} process(es)`}
+                      </Text>
+                    )}
+                    {canDelete && (
+                      confirmDeleteId === tpl.id ? (
+                        <View>
+                          <Text style={{ fontSize: 13, color: '#EF4444', marginBottom: 8 }}>{lang === 'he' ? 'למחוק לצמיתות?' : 'Permanently delete?'}</Text>
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <Pressable
+                              style={{ flex: 1, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                              onPress={() => handleDelete(tpl.id)}
+                              disabled={saving}
+                            >
+                              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
+                            </Pressable>
+                            <Pressable
+                              style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                              onPress={() => setConfirmDeleteId(null)}
+                            >
+                              <Text style={{ color: '#374151', fontWeight: '600', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      ) : (
+                        <Pressable
+                          style={{ borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignSelf: 'flex-start' }}
+                          onPress={() => setConfirmDeleteId(tpl.id)}
+                        >
+                          <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>🗑️ {lang === 'he' ? 'מחק' : 'Delete'}</Text>
+                        </Pressable>
+                      )
                     )}
                   </View>
                 );
@@ -535,7 +800,41 @@ export default function WorkflowTemplateManager() {
               </View>
             ))}
 
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 20 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 20 }}>
+              {lang === 'he' ? 'מתי התבנית תיכנס לתוקף?' : 'When should this take effect?'}
+            </Text>
+            {([
+              { key: 'from_now_on' as const, he: 'מכאן ואילך (רק תהליכים חדשים)', en: 'From now on (new processes only)' },
+              { key: 'now' as const, he: 'עכשיו (גם תהליכים בעיצומם)', en: 'Now (also in-progress processes)' },
+            ]).map((opt) => (
+              <Pressable
+                key={opt.key}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, padding: 12, marginBottom: 8 }}
+                onPress={() => handleApplyModeChange(opt.key)}
+              >
+                <View style={{
+                  width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+                  borderColor: editorApplyMode === opt.key ? '#7C3AED' : '#DDD6FE',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {editorApplyMode === opt.key && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#7C3AED' }} />}
+                </View>
+                <Text style={{ fontSize: 13, color: '#1F1235', flex: 1 }}>{lang === 'he' ? opt.he : opt.en}</Text>
+              </Pressable>
+            ))}
+            {editorApplyMode === 'now' && (
+              <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '600', marginBottom: 12 }}>
+                {editorPreviewLoading
+                  ? '…'
+                  : editorPreview
+                    ? (lang === 'he'
+                        ? `⚡ יעדכן ${editorPreview.count} תהליכים בעיצומם ברגע שהתבנית תאושר`
+                        : `⚡ Will update ${editorPreview.count} in-progress process(es) once approved`)
+                    : (lang === 'he' ? 'לא ניתן היה לחשב תצוגה מקדימה' : 'Could not compute a preview')}
+              </Text>
+            )}
+
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 8 }}>
               {lang === 'he' ? 'הערה להצעה (אופציונלי)' : 'Note for this proposal (optional)'}
             </Text>
             <TextInput
@@ -620,6 +919,38 @@ export default function WorkflowTemplateManager() {
             </Pressable>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* ── Retroactive-apply confirm modal (applyMode 'now' only) ── */}
+      <Modal visible={!!approvePreview} animationType="fade" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '100%', maxWidth: 360 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F1235' }}>
+              ⚡ {lang === 'he' ? 'החלה רטרואקטיבית' : 'Retroactive application'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#374151', marginTop: 10 }}>
+              {approvePreview && (lang === 'he'
+                ? `אישור התבנית יעדכן מיידית ${approvePreview.count} תהליכים בעיצומם.`
+                : `Approving this template will immediately update ${approvePreview.count} in-progress process(es).`)}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <Pressable
+                style={{ flex: 1, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
+                onPress={() => setApprovePreview(null)}
+                disabled={saving}
+              >
+                <Text style={{ color: '#374151', fontWeight: '600', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+              </Pressable>
+              <Pressable
+                style={{ flex: 1, backgroundColor: '#7C3AED', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
+                onPress={() => approvePreview && handleApprove(approvePreview.tpl)}
+                disabled={saving}
+              >
+                {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{lang === 'he' ? 'אשר בכל זאת' : 'Confirm & Approve'}</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );

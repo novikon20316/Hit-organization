@@ -53,7 +53,7 @@ export async function changeProjectTrack(
 
   const newProjectRef = db.collection('projects').doc();
   const processType = deriveProcessType(oldProject.degreeType, newTrack);
-  const milestoneTemplates = await getActiveMilestonesFor(oldProject.facultyId, processType);
+  const milestoneTemplates = await getActiveMilestonesFor(oldProject.facultyId, processType, oldProject.major ?? null);
 
   const batch = db.batch();
 

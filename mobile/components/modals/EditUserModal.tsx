@@ -119,8 +119,14 @@ export default function EditUserModal({
   const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
   const [scopesModalVisible, setScopesModalVisible] = useState(false);
   const showPermissions = permissionRules !== undefined && !!setPermissionRules;
+  // Same generic scope field also used to assign an administrative_secretary
+  // to one or more specific subjects (facultyId+major) — "keep a separation
+  // between degrees" for the workflow-templates screen. See
+  // resolveSecretaryScope in server/src/controllers/workflowTemplateController.ts.
   const showCoordinatorScopes =
-    coordinatorScopes !== undefined && !!setCoordinatorScopes && (role === 'coordinator' || roles.includes('coordinator'));
+    coordinatorScopes !== undefined && !!setCoordinatorScopes &&
+    (role === 'coordinator' || roles.includes('coordinator') ||
+      role === 'administrative_secretary' || roles.includes('administrative_secretary'));
   const showAssignedMajors =
     assignedMajors !== undefined && !!setAssignedMajors &&
     (role === 'supervisor' || role === 'secondary_supervisor' ||
@@ -397,14 +403,19 @@ export default function EditUserModal({
             </Pressable>
           )}
 
-          {/* ── Coordinator Scope (system_admin only, coordinator role only) ── */}
+          {/* ── Coordinator Scope / Subject Responsibility — coordinator or
+                administrative_secretary; same underlying field either way,
+                just a role-appropriate label. ── */}
           {showCoordinatorScopes && (
             <Pressable
               style={[editStyles.additionalRoleBtn, { marginTop: 12, justifyContent: 'space-between' }]}
               onPress={() => setScopesModalVisible(true)}
             >
               <Text style={editStyles.additionalRoleText}>
-                📋 {lang === "he" ? "היקף אחריות רכז" : "Coordinator Scope"}
+                📋{' '}
+                {role === 'administrative_secretary' || roles.includes('administrative_secretary')
+                  ? lang === 'he' ? 'תחום אחריות (מזכירה)' : 'Subject Responsibility'
+                  : lang === "he" ? "היקף אחריות רכז" : "Coordinator Scope"}
               </Text>
               <Text style={editStyles.clearAllText}>
                 {(coordinatorScopes ?? []).length > 0

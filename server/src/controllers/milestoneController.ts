@@ -446,11 +446,18 @@ export const initializeRoadMap = async (req: AuthenticatedRequest, res: Response
     // Same faculty-configurable workflow-template lookup used by the live
     // enrollment path (services/projectEnrollment.ts) — see
     // services/workflowTemplates.ts. Falls back to the app's long-standing
-    // defaults if this faculty/process type has no approved template yet.
+    // defaults if this faculty/process type/major has no approved template yet.
     const projectSnap = await db.collection('projects').doc(projectId).get();
     const projectData = projectSnap.data() ?? {};
     const processType = deriveProcessType(projectData.degreeType, projectData.projectType);
-    const milestoneTemplates = await getActiveMilestonesFor(facultyId, processType);
+    // A project's major is optional — fall back to the first named
+    // student's own major, same precedent as projectEnrollment.ts.
+    let major: string | null = projectData.major ?? null;
+    if (!major && Array.isArray(studentIds) && studentIds[0]) {
+      const studentSnap = await db.collection('users').doc(studentIds[0]).get();
+      major = studentSnap.data()?.major ?? null;
+    }
+    const milestoneTemplates = await getActiveMilestonesFor(facultyId, processType, major);
 
     const batch    = db.batch();
     const baseDate = new Date();

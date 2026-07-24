@@ -27,6 +27,8 @@ export type AuditAction =
   | 'grade_approval_reverted'
   | 'workflow_template_approved'
   | 'workflow_template_rejected'
+  | 'workflow_template_deleted'
+  | 'workflow_template_retroactively_applied'
   | 'examiner_access_granted'
   | 'examiner_document_viewed'
   | 'examiner_dates_submitted'

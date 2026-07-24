@@ -12,6 +12,8 @@
 // canApproveRole/isMastersProcess helpers below are ported verbatim from
 // workflowTemplateController.ts's canApprove()/isMastersProcess().
 
+import { HIT_FACULTIES } from '@/lib/faculties';
+
 export type ProcessType = 'msc_thesis' | 'msc_project' | 'bsc_project';
 export type TemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';
 
@@ -38,18 +40,27 @@ export interface MilestoneSpec {
   gradingComponents?: GradingComponentSpec[];
 }
 
+export type ApplyMode = 'now' | 'from_now_on';
+
 export interface WorkflowTemplateDoc {
   id: string;
   facultyId: string;
   processType: ProcessType;
+  /** A major slug, or `null` for "all majors in this faculty" (the
+   *  fallback tier — also what every pre-existing template effectively
+   *  means). */
+  major: string | null;
   version: number;
   status: TemplateStatus;
   milestones: MilestoneSpec[];
   createdBy: string;
   createdAt: string;
   proposedNote: string | null;
+  applyMode: ApplyMode;
   approvedBy?: string;
   approvedAt?: string;
+  retroactiveAppliedAt?: string;
+  retroactiveAffectedCount?: number;
   rejectedBy?: string;
   rejectedAt?: string;
   rejectionReason?: string;
@@ -80,6 +91,19 @@ export function canApproveRole(pt: ProcessType, role: string | null | undefined)
 
 export function processTypeLabel(pt: ProcessType, lang: 'he' | 'en'): string {
   return PROCESS_TYPES.find((p) => p.key === pt)?.[lang] ?? pt;
+}
+
+/** Major options for a faculty, filtered to the degree level implied by the
+ *  selected process type (bsc_project → bachelors, msc_* → masters) — a
+ *  major with no program at that level simply isn't offered for that tab. */
+export function majorOptionsFor(facultyId: string, processType: ProcessType, lang: 'he' | 'en'): { slug: string; label: string }[] {
+  const level = isMastersProcess(processType) ? 'masters' : 'bachelors';
+  const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
+  if (!faculty) return [];
+  const seen = new Set<string>();
+  return faculty.programs
+    .filter((p) => p.level === level && !seen.has(p.slug) && seen.add(p.slug))
+    .map((p) => ({ slug: p.slug, label: p.label[lang] }));
 }
 
 export function makeId(): string {

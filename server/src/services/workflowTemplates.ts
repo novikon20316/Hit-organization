@@ -57,19 +57,33 @@ export interface WorkflowMilestoneSpec {
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';
+export type ApplyMode = 'now' | 'from_now_on';
 
 export interface WorkflowTemplateDoc {
   id: string;
   facultyId: string;
   processType: ProcessType;
+  /** The subject this template applies to — a major slug, or `null` for
+   *  "all majors in this faculty" (the fallback tier — also what every
+   *  pre-existing template effectively means; see
+   *  backfillWorkflowTemplateMajor.ts). Always written explicitly, never
+   *  omitted, so `.where('major','==',null)` reliably matches it. */
+  major: string | null;
   version: number;
   status: WorkflowTemplateStatus;
   milestones: WorkflowMilestoneSpec[];
   createdBy: string;
   createdAt: string;
   proposedNote: string | null;
+  /** Whether approving this version also retroactively updates in-progress
+   *  projects/theses already using an older version (see
+   *  applyTemplateRetroactively) — chosen once, at proposal time. */
+  applyMode: ApplyMode;
   approvedBy?: string;
   approvedAt?: string;
+  /** Set once, at approval time, only when applyMode === 'now'. */
+  retroactiveAppliedAt?: string;
+  retroactiveAffectedCount?: number;
   rejectedBy?: string;
   rejectedAt?: string;
   rejectionReason?: string;
@@ -86,29 +100,37 @@ export const DEFAULT_MILESTONES: WorkflowMilestoneSpec[] = [
 
 const COLLECTION = 'workflowTemplates';
 
-/** The milestone list a NEW enrollment should use — the faculty's approved template, or the app default. */
-export async function getActiveMilestonesFor(facultyId: string, processType: ProcessType): Promise<WorkflowMilestoneSpec[]> {
-  const snap = await db.collection(COLLECTION)
-    .where('facultyId', '==', facultyId)
-    .where('processType', '==', processType)
-    .where('status', '==', 'approved')
-    .limit(1)
-    .get();
+/** The milestone list a NEW enrollment should use — the most specific
+ *  approved template (exact major match), falling back to the faculty's
+ *  "all majors" template (major === null), falling back to the app default. */
+export async function getActiveMilestonesFor(facultyId: string, processType: ProcessType, major: string | null): Promise<WorkflowMilestoneSpec[]> {
+  const tryMajor = async (m: string | null) => {
+    const snap = await db.collection(COLLECTION)
+      .where('facultyId', '==', facultyId)
+      .where('processType', '==', processType)
+      .where('major', '==', m)
+      .where('status', '==', 'approved')
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
+    const milestones = (snap.docs[0]!.data().milestones ?? []) as WorkflowMilestoneSpec[];
+    return milestones.length > 0 ? milestones : null;
+  };
 
-  if (snap.empty) return DEFAULT_MILESTONES;
-  const milestones = (snap.docs[0]!.data().milestones ?? []) as WorkflowMilestoneSpec[];
-  if (milestones.length === 0) return DEFAULT_MILESTONES;
-  return milestones.slice().sort((a, b) => a.order - b.order);
+  const exact = major ? await tryMajor(major) : null;
+  const resolved = exact ?? (major ? await tryMajor(null) : null);
+  if (!resolved) return DEFAULT_MILESTONES;
+  return resolved.slice().sort((a, b) => a.order - b.order);
 }
 
-export async function listWorkflowTemplates(facultyId: string): Promise<WorkflowTemplateDoc[]> {
+export async function listWorkflowTemplates(facultyId: string, major?: string | null): Promise<WorkflowTemplateDoc[]> {
   // Sorted in memory rather than via .orderBy('createdAt') — combining that
   // with the facultyId equality filter needs a composite index Firestore
   // doesn't have here, which throws and turns into a 500 (same class of bug
   // fixed for feedback-history queries).
-  const snap = await db.collection(COLLECTION)
-    .where('facultyId', '==', facultyId)
-    .get();
+  let query: FirebaseFirestore.Query = db.collection(COLLECTION).where('facultyId', '==', facultyId);
+  if (major !== undefined) query = query.where('major', '==', major);
+  const snap = await query.get();
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() } as WorkflowTemplateDoc))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
@@ -117,13 +139,19 @@ export async function listWorkflowTemplates(facultyId: string): Promise<Workflow
 export async function proposeWorkflowTemplate(params: {
   facultyId: string;
   processType: ProcessType;
+  major: string | null;
   milestones: WorkflowMilestoneSpec[];
   createdBy: string;
   note?: string | null;
+  applyMode: ApplyMode;
 }): Promise<{ id: string }> {
+  // Version numbering is scoped per facultyId+processType+major — each
+  // subject gets its own clean version history, rather than an unrelated
+  // major's proposals bumping this one's version number.
   const existingSnap = await db.collection(COLLECTION)
     .where('facultyId', '==', params.facultyId)
     .where('processType', '==', params.processType)
+    .where('major', '==', params.major)
     .get();
   const maxVersion = existingSnap.docs.reduce((max, d) => Math.max(max, d.data().version ?? 0), 0);
 
@@ -131,21 +159,26 @@ export async function proposeWorkflowTemplate(params: {
   await ref.set({
     facultyId: params.facultyId,
     processType: params.processType,
+    major: params.major,
     version: maxVersion + 1,
     status: 'pending_approval',
     milestones: params.milestones,
     createdBy: params.createdBy,
     createdAt: new Date().toISOString(),
     proposedNote: params.note ?? null,
+    applyMode: params.applyMode,
   });
   return { id: ref.id };
 }
 
 /**
  * Marks the template approved and supersedes whatever was previously approved
- * for the same facultyId+processType — only one template is ever "active"
- * (consulted by getActiveMilestonesFor) at a time, but every prior version
- * stays in Firestore with status 'superseded' for audit/history.
+ * for the same facultyId+processType+major — only one template per subject
+ * is ever "active" (consulted by getActiveMilestonesFor) at a time, but
+ * every prior version stays in Firestore with status 'superseded' for
+ * audit/history. Does NOT run the retroactive-apply engine itself — see
+ * applyTemplateRetroactively, invoked separately by the caller when
+ * `applyMode === 'now'`.
  */
 export async function approveWorkflowTemplate(id: string, approvedBy: string): Promise<WorkflowTemplateDoc> {
   const ref = db.collection(COLLECTION).doc(id);
@@ -159,6 +192,7 @@ export async function approveWorkflowTemplate(id: string, approvedBy: string): P
   const prevApprovedSnap = await db.collection(COLLECTION)
     .where('facultyId', '==', data.facultyId)
     .where('processType', '==', data.processType)
+    .where('major', '==', data.major ?? null)
     .where('status', '==', 'approved')
     .get();
 
@@ -169,6 +203,16 @@ export async function approveWorkflowTemplate(id: string, approvedBy: string): P
   await batch.commit();
 
   return { id, ...data, status: 'approved', approvedBy, approvedAt } as WorkflowTemplateDoc;
+}
+
+export async function deleteWorkflowTemplate(id: string): Promise<void> {
+  const ref = db.collection(COLLECTION).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error('Template not found.');
+  if (snap.data()!.status === 'approved') {
+    throw new Error('Cannot delete the currently-active template — approve a replacement first.');
+  }
+  await ref.delete();
 }
 
 export async function rejectWorkflowTemplate(id: string, rejectedBy: string, reason: string): Promise<WorkflowTemplateDoc> {

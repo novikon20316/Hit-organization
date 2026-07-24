@@ -1905,6 +1905,7 @@ export default function PanelScreen() {
           { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Excel', onPress: handleExportUsers, loading: exportingUsers },
           { key: 'calendar', icon: '📅', label: lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar', onPress: openAcademicCalendar },
           { key: 'studentStatuses', icon: '🏷️', label: lang === 'he' ? 'סטטוסי סטודנטים' : 'Student Statuses', onPress: () => setStudentStatusesModal(true) },
+          { key: 'workflowTemplates', icon: '🧬', label: lang === 'he' ? 'תבניות תהליך' : 'Process Templates', onPress: () => router.push('/WorkflowTemplateManager' as any) },
         ]}
       />
 

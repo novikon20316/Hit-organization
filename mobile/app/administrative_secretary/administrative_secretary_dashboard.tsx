@@ -415,6 +415,11 @@ export default function ProjectCoordinatorDashboard() {
             label: lang === 'he' ? 'שנת לימודים' : 'Academic Year',
             onPress: () => router.push('/AcademicYearManager' as any),
           },
+          {
+            key: 'workflow-templates', icon: '🧬',
+            label: lang === 'he' ? 'תבניות תהליך' : 'Process Templates',
+            onPress: () => router.push('/WorkflowTemplateManager' as any),
+          },
         ]}
       />
 

@@ -16,7 +16,10 @@ import {
   proposeWorkflowTemplate,
   approveWorkflowTemplate,
   rejectWorkflowTemplate,
+  deleteWorkflowTemplate,
 } from '../services/workflowTemplates.js';
+import { previewRetroactiveImpact, applyTemplateRetroactively } from '../services/workflowTemplateRetroactiveApply.js';
+import { majorsForFaculty } from '../config/majors.js';
 import { logAuditEvent } from '../services/auditLog.js';
 
 const PROCESS_TYPES: ProcessType[] = ['msc_thesis', 'msc_project', 'bsc_project'];
@@ -45,6 +48,27 @@ function canApprove(processType: ProcessType, role: string): boolean {
     : FACULTY_APPROVER_ROLES.includes(role);
 }
 
+// administrative_secretary is scoped to one or more specific subjects via
+// the same `coordinatorScopes` field the 'coordinator' role already uses —
+// confirmed generic (no role check anywhere) in scopeAuthorization.ts/
+// validateCoordinatorScope. Each scope entry is a {facultyId, major?} tuple
+// (major omitted = "whole faculty, all majors" — matches e.g. "industrial
+// and management faculty" as a whole-faculty assignment). Returns null if
+// the requested facultyId/major isn't one of her own assigned scopes.
+function resolveSecretaryScope(
+  scopes: { facultyId: string; major?: string }[],
+  requested: { facultyId?: string | undefined; major?: string | null | undefined } | undefined,
+): { facultyId: string; major: string | null } | null {
+  if (scopes.length === 0) return null;
+  if (!requested?.facultyId) {
+    // No explicit choice needed/possible when she only holds one scope.
+    if (scopes.length === 1) return { facultyId: scopes[0]!.facultyId, major: scopes[0]!.major ?? null };
+    return null;
+  }
+  const match = scopes.find((s) => s.facultyId === requested.facultyId && (s.major ?? null) === (requested.major ?? null));
+  return match ? { facultyId: match.facultyId, major: match.major ?? null } : null;
+}
+
 function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
   if (!Array.isArray(input) || input.length === 0) return null;
   const cleaned: WorkflowMilestoneSpec[] = [];
@@ -66,14 +90,36 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
   return cleaned;
 }
 
-// ─── GET /api/workflow-templates?facultyId=xxx ────────────────────────────────
-// Own faculty only, unless caller is grad_school_head/system_admin (cross-faculty).
+// ─── GET /api/workflow-templates?facultyId=&major= ────────────────────────────
+// Own faculty only, unless caller is grad_school_head/system_admin
+// (cross-faculty). administrative_secretary is scoped further still — she
+// only ever sees templates matching one of her own coordinatorScopes
+// (facultyId+major) tuples, never anything outside them ("keep a
+// separation between degrees").
 export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Response) => {
   const role = req.user?.role;
   if (!role) return res.status(401).json({ message: 'Unauthorized.' });
 
-  const isCrossFaculty = GRAD_SCHOOL_APPROVER_ROLES.includes(role);
   const requestedFacultyId = (req.query.facultyId as string | undefined) ?? undefined;
+  const requestedMajor = req.query.major === 'all' ? null : (req.query.major as string | undefined) ?? undefined;
+
+  if (role === 'administrative_secretary') {
+    const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: requestedFacultyId, major: requestedMajor });
+    if (!scope) {
+      // No scope assigned yet, or the requested one isn't hers — either
+      // way, an empty list (never someone else's subject), not an error.
+      return res.status(200).json({ facultyId: requestedFacultyId ?? null, major: requestedMajor ?? null, templates: [] });
+    }
+    try {
+      const templates = await listWorkflowTemplates(scope.facultyId, scope.major);
+      return res.status(200).json({ facultyId: scope.facultyId, major: scope.major, templates });
+    } catch (error: any) {
+      console.error('getWorkflowTemplates error:', error);
+      return res.status(500).json({ message: 'Failed to load workflow templates.' });
+    }
+  }
+
+  const isCrossFaculty = GRAD_SCHOOL_APPROVER_ROLES.includes(role);
   const facultyId = isCrossFaculty ? (requestedFacultyId ?? req.user?.facultyId) : req.user?.facultyId;
 
   if (!facultyId) return res.status(400).json({ message: 'facultyId could not be resolved.' });
@@ -82,8 +128,8 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
   }
 
   try {
-    const templates = await listWorkflowTemplates(facultyId);
-    return res.status(200).json({ facultyId, templates });
+    const templates = await listWorkflowTemplates(facultyId, requestedMajor);
+    return res.status(200).json({ facultyId, major: requestedMajor ?? null, templates });
   } catch (error: any) {
     console.error('getWorkflowTemplates error:', error);
     return res.status(500).json({ message: 'Failed to load workflow templates.' });
@@ -91,8 +137,12 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
 };
 
 // ─── POST /api/workflow-templates ──────────────────────────────────────────────
-// Body: { processType, milestones, note? } — facultyId is the caller's own
-// (system_admin may pass facultyId explicitly to propose for another faculty).
+// Body: { processType, milestones, note?, major?, applyMode? } — facultyId
+// is the caller's own (system_admin may pass facultyId explicitly to
+// propose for another faculty). administrative_secretary never sends
+// facultyId/major at all (or, if she holds multiple scopes, names one of
+// her OWN — never an arbitrary one) — both are derived from her
+// coordinatorScopes server-side, same as getWorkflowTemplates above.
 export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const role = req.user?.role;
@@ -101,20 +151,42 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     return res.status(403).json({ message: 'You do not have permission to propose workflow templates.' });
   }
 
-  const facultyId = CROSS_FACULTY_PROPOSER_ROLES.includes(role)
-    ? (req.body.facultyId ?? req.user?.facultyId)
-    : req.user?.facultyId;
-  if (!facultyId || facultyId === 'all') {
-    return res.status(400).json({
-      message: CROSS_FACULTY_PROPOSER_ROLES.includes(role)
-        ? 'A specific facultyId is required — please choose which faculty this template applies to.'
-        : 'facultyId could not be resolved.',
-    });
+  let facultyId: string | undefined;
+  let major: string | null = req.body.major === 'all' || req.body.major === undefined ? null : req.body.major;
+
+  if (role === 'administrative_secretary') {
+    const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: req.body.facultyId, major: req.body.major });
+    if (!scope) {
+      return res.status(403).json({
+        message: (req.user?.coordinatorScopes ?? []).length === 0
+          ? 'No subject has been assigned to your account yet — ask your system_admin to assign one.'
+          : 'You may only propose templates for a subject assigned to you.',
+      });
+    }
+    facultyId = scope.facultyId;
+    major = scope.major;
+  } else {
+    facultyId = CROSS_FACULTY_PROPOSER_ROLES.includes(role)
+      ? (req.body.facultyId ?? req.user?.facultyId)
+      : req.user?.facultyId;
+    if (!facultyId || facultyId === 'all') {
+      return res.status(400).json({
+        message: CROSS_FACULTY_PROPOSER_ROLES.includes(role)
+          ? 'A specific facultyId is required — please choose which faculty this template applies to.'
+          : 'facultyId could not be resolved.',
+      });
+    }
+    if (major && !majorsForFaculty(facultyId).includes(major)) {
+      return res.status(400).json({ message: `Invalid major "${major}" for faculty "${facultyId}".` });
+    }
   }
 
-  const { processType, note } = req.body;
+  const { processType, note, applyMode } = req.body;
   if (!PROCESS_TYPES.includes(processType)) {
     return res.status(400).json({ message: `Invalid processType: ${processType}` });
+  }
+  if (applyMode !== 'now' && applyMode !== 'from_now_on') {
+    return res.status(400).json({ message: 'applyMode must be "now" or "from_now_on".' });
   }
 
   const milestones = validateMilestones(req.body.milestones);
@@ -124,7 +196,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
 
   try {
     const result = await proposeWorkflowTemplate({
-      facultyId, processType, milestones, createdBy: uid, note: note ?? null,
+      facultyId: facultyId!, processType, major, milestones, createdBy: uid, note: note ?? null, applyMode,
     });
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval' });
   } catch (error: any) {
@@ -145,7 +217,8 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
   try {
     const snap = await db.collection('workflowTemplates').doc(id).get();
     if (!snap.exists) return res.status(404).json({ message: 'Template not found.' });
-    const processType = snap.data()!.processType as ProcessType;
+    const data = snap.data()!;
+    const processType = data.processType as ProcessType;
 
     if (!canApprove(processType, role)) {
       return res.status(403).json({
@@ -153,6 +226,13 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
           ? 'Only the grad school head can approve this process type.'
           : 'Only the faculty admin/coordinator can approve this process type.',
       });
+    }
+    // administrative_secretary may only act within her own assigned
+    // subject(s) — "keep a separation between degrees" applies to
+    // approve/reject/delete, not just proposing/viewing.
+    if (role === 'administrative_secretary') {
+      const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      if (!scope) return res.status(403).json({ message: 'You may only approve templates for a subject assigned to you.' });
     }
 
     const updated = await approveWorkflowTemplate(id, uid);
@@ -167,10 +247,116 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
       newValue: { status: 'approved', version: updated.version },
     });
 
-    return res.status(200).json({ success: true, message: 'Workflow template approved.' });
+    // Retroactive apply — only when the proposer chose "now" at proposal
+    // time. Runs after approval commits so a failure here never blocks the
+    // approval itself; the caller can still retry via the preview+approve
+    // flow (approve() is idempotent-safe against re-running since the
+    // affected-count is recorded, not re-derived).
+    let retroactive: { affectedCount: number } | undefined;
+    if (data.applyMode === 'now') {
+      retroactive = await applyTemplateRetroactively(
+        data.facultyId, processType, data.major ?? null, updated.milestones, uid, role,
+      );
+      await db.collection('workflowTemplates').doc(id).update({
+        retroactiveAppliedAt: new Date().toISOString(),
+        retroactiveAffectedCount: retroactive.affectedCount,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Workflow template approved.',
+      retroactiveAffectedCount: retroactive?.affectedCount,
+    });
   } catch (error: any) {
     console.error('approveWorkflowTemplateController error:', error);
     return res.status(500).json({ message: error.message || 'Failed to approve workflow template.' });
+  }
+};
+
+// ─── GET /api/workflow-templates/retroactive-preview?facultyId=&major=&processType= ──
+// Read-only — no mutation. Used both when the proposer picks "now"
+// (informational) and again right before the approver confirms.
+export const getRetroactivePreviewController = async (req: AuthenticatedRequest, res: Response) => {
+  const role = req.user?.role;
+  if (!role) return res.status(401).json({ message: 'Unauthorized.' });
+
+  const processType = req.query.processType as ProcessType;
+  if (!PROCESS_TYPES.includes(processType)) {
+    return res.status(400).json({ message: `Invalid processType: ${processType}` });
+  }
+  const requestedMajor = req.query.major === 'all' ? null : (req.query.major as string | undefined) ?? null;
+
+  let facultyId: string | undefined;
+  let major = requestedMajor;
+
+  if (role === 'administrative_secretary') {
+    const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: req.query.facultyId as string | undefined, major: requestedMajor });
+    if (!scope) return res.status(403).json({ message: 'You may only preview a subject assigned to you.' });
+    facultyId = scope.facultyId;
+    major = scope.major;
+  } else {
+    facultyId = (req.query.facultyId as string | undefined) ?? (CROSS_FACULTY_PROPOSER_ROLES.includes(role) ? undefined : req.user?.facultyId);
+  }
+  if (!facultyId || facultyId === 'all') {
+    return res.status(400).json({ message: 'A specific facultyId is required.' });
+  }
+
+  try {
+    const preview = await previewRetroactiveImpact(facultyId, processType, major);
+    return res.status(200).json(preview);
+  } catch (error: any) {
+    console.error('getRetroactivePreviewController error:', error);
+    return res.status(500).json({ message: 'Failed to compute the retroactive-impact preview.' });
+  }
+};
+
+// ─── DELETE /api/workflow-templates/:id ────────────────────────────────────────
+// Same role gate as approve/reject; blocked while the template is the
+// currently-active one (status === 'approved') — it must be replaced by
+// approving a new version first, never leaving a subject with no active
+// template.
+export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const role = req.user?.role;
+  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
+
+  const { id } = req.params;
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing template id.' });
+
+  try {
+    const snap = await db.collection('workflowTemplates').doc(id).get();
+    if (!snap.exists) return res.status(404).json({ message: 'Template not found.' });
+    const data = snap.data()!;
+    const processType = data.processType as ProcessType;
+
+    if (!canApprove(processType, role)) {
+      return res.status(403).json({
+        message: isMastersProcess(processType)
+          ? 'Only the grad school head can delete this process type\'s templates.'
+          : 'Only the faculty admin/coordinator can delete this process type\'s templates.',
+      });
+    }
+    if (role === 'administrative_secretary') {
+      const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      if (!scope) return res.status(403).json({ message: 'You may only delete templates for a subject assigned to you.' });
+    }
+
+    await deleteWorkflowTemplate(id);
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: role,
+      action: 'workflow_template_deleted',
+      entityType: 'workflowTemplate',
+      entityId: id,
+      oldValue: { status: data.status, version: data.version },
+    });
+
+    return res.status(200).json({ success: true, message: 'Workflow template deleted.' });
+  } catch (error: any) {
+    console.error('deleteWorkflowTemplateController error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to delete workflow template.' });
   }
 };
 
@@ -191,7 +377,8 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
   try {
     const snap = await db.collection('workflowTemplates').doc(id).get();
     if (!snap.exists) return res.status(404).json({ message: 'Template not found.' });
-    const processType = snap.data()!.processType as ProcessType;
+    const data = snap.data()!;
+    const processType = data.processType as ProcessType;
 
     if (!canApprove(processType, role)) {
       return res.status(403).json({
@@ -199,6 +386,10 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
           ? 'Only the grad school head can reject this process type.'
           : 'Only the faculty admin/coordinator can reject this process type.',
       });
+    }
+    if (role === 'administrative_secretary') {
+      const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      if (!scope) return res.status(403).json({ message: 'You may only reject templates for a subject assigned to you.' });
     }
 
     await rejectWorkflowTemplate(id, uid, reason);

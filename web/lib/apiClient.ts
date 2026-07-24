@@ -1063,44 +1063,71 @@ export const apiClient = {
   // approval: grad_school_head/system_admin for master's processes,
   // faculty_admin/coordinator/system_admin for bachelor's — see
   // server/src/controllers/workflowTemplateController.ts's canApprove(). ─────
-  async getWorkflowTemplates(facultyId?: string) {
+  async getWorkflowTemplates(facultyId?: string, major?: string | null) {
     return request<{
-      facultyId: string;
+      facultyId: string | null;
+      major: string | null;
       templates: Array<{
         id: string;
         facultyId: string;
         processType: 'msc_thesis' | 'msc_project' | 'bsc_project';
+        major: string | null;
         version: number;
         status: 'pending_approval' | 'approved' | 'rejected' | 'superseded';
         milestones: Array<{ type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean }>;
         createdBy: string;
         createdAt: string;
         proposedNote: string | null;
+        applyMode: 'now' | 'from_now_on';
         approvedBy?: string;
         approvedAt?: string;
+        retroactiveAppliedAt?: string;
+        retroactiveAffectedCount?: number;
         rejectedBy?: string;
         rejectedAt?: string;
         rejectionReason?: string;
       }>;
-    }>('/api/workflow-templates', { method: 'GET', params: { facultyId } });
+    }>('/api/workflow-templates', { method: 'GET', params: { facultyId, major: major === null ? 'all' : major } });
   },
 
   async createWorkflowTemplateProposal(payload: {
     processType: 'msc_thesis' | 'msc_project' | 'bsc_project';
     milestones: Array<{ type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean }>;
     note?: string;
-    /** system_admin only — proposes on behalf of another faculty. */
+    /** system_admin only — proposes on behalf of another faculty. Ignored
+     *  (and derived server-side from her own assigned subject) for
+     *  administrative_secretary. */
     facultyId?: string;
+    /** A major slug, or `null`/omitted for "all majors in this faculty." */
+    major?: string | null;
+    applyMode: 'now' | 'from_now_on';
   }) {
-    return request<{ success: boolean; id: string; status: string }>('/api/workflow-templates', { method: 'POST', body: payload });
+    return request<{ success: boolean; id: string; status: string }>('/api/workflow-templates', {
+      method: 'POST',
+      body: { ...payload, major: payload.major === null ? 'all' : payload.major },
+    });
   },
 
   async approveWorkflowTemplate(id: string) {
-    return request<{ success: boolean; message: string }>(`/api/workflow-templates/${id}/approve`, { method: 'POST' });
+    return request<{ success: boolean; message: string; retroactiveAffectedCount?: number }>(`/api/workflow-templates/${id}/approve`, { method: 'POST' });
   },
 
   async rejectWorkflowTemplate(id: string, reason: string) {
     return request<{ success: boolean; message: string }>(`/api/workflow-templates/${id}/reject`, { method: 'POST', body: { reason } });
+  },
+
+  async deleteWorkflowTemplate(id: string) {
+    return request<{ success: boolean; message: string }>(`/api/workflow-templates/${id}`, { method: 'DELETE' });
+  },
+
+  /** Read-only — how many in-progress projects/theses a "now" (retroactive)
+   *  template choice would touch, shown before the proposer/approver
+   *  confirms. See workflowTemplateRetroactiveApply.ts. */
+  async getWorkflowTemplateRetroactivePreview(params: { facultyId?: string; major?: string | null; processType: 'msc_thesis' | 'msc_project' | 'bsc_project' }) {
+    return request<{ count: number; projects: Array<{ id: string; studentNames: string[] }> }>('/api/workflow-templates/retroactive-preview', {
+      method: 'GET',
+      params: { facultyId: params.facultyId, major: params.major === null ? 'all' : params.major, processType: params.processType },
+    });
   },
 
   // ─── 10. PROGRAM HEAD (read-only dashboard — no mutation endpoints exist) ──

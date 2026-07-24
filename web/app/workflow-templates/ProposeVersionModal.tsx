@@ -13,21 +13,45 @@ import { emptyMilestone, processTypeLabel, type GradingComponentSpec, type Miles
 
 interface ProposeVersionModalProps {
   processType: ProcessType;
-  /** Required for cross-faculty proposers (system_admin/administrative_secretary/
-   *  grad_school_head) — they have no single "home" faculty, so the server
-   *  requires one to be named explicitly (see workflowTemplateController.ts). */
+  /** Required for cross-faculty proposers (system_admin/grad_school_head) —
+   *  they have no single "home" faculty, so the server requires one to be
+   *  named explicitly (see workflowTemplateController.ts). For
+   *  administrative_secretary this is her resolved own-scope facultyId
+   *  (never a free choice, but still sent so the server can match it
+   *  against her coordinatorScopes if she holds more than one). */
   facultyId?: string;
+  /** A major slug, or `null` for "all majors in this faculty" — resolved by
+   *  the parent page (system_admin's picker, or administrative_secretary's
+   *  own scope), never asked again in here. */
+  major: string | null;
   initialMilestones: MilestoneSpec[];
   onClose: () => void;
   onProposed: () => void;
 }
 
-export function ProposeVersionModal({ processType, facultyId, initialMilestones, onClose, onProposed }: ProposeVersionModalProps) {
+export function ProposeVersionModal({ processType, facultyId, major, initialMilestones, onClose, onProposed }: ProposeVersionModalProps) {
   const { lang, t } = useLanguage();
   const [milestones, setMilestones] = useState<MilestoneSpec[]>(initialMilestones.length > 0 ? initialMilestones.map((m) => ({ ...m })) : [emptyMilestone(1)]);
   const [note, setNote] = useState('');
+  const [applyMode, setApplyMode] = useState<'now' | 'from_now_on'>('from_now_on');
+  const [preview, setPreview] = useState<{ count: number } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const handleApplyModeChange = async (mode: 'now' | 'from_now_on') => {
+    setApplyMode(mode);
+    if (mode !== 'now' || !facultyId) return;
+    setPreviewLoading(true);
+    try {
+      const result = await apiClient.getWorkflowTemplateRetroactivePreview({ facultyId, major, processType });
+      setPreview({ count: result.count });
+    } catch {
+      setPreview(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const [rowModalOpen, setRowModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<MilestoneSpec | null>(null);
@@ -67,6 +91,8 @@ export function ProposeVersionModal({ processType, facultyId, initialMilestones,
         milestones,
         note: note.trim() || undefined,
         facultyId,
+        major,
+        applyMode,
       });
       onProposed();
       onClose();
@@ -126,6 +152,39 @@ export function ProposeVersionModal({ processType, facultyId, initialMilestones,
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-4">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'מתי התבנית תיכנס לתוקף?' : 'When should this take effect?'}
+          </span>
+          <div className="grid gap-2">
+            <label className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
+              <input type="radio" checked={applyMode === 'from_now_on'} onChange={() => handleApplyModeChange('from_now_on')} className="accent-[var(--primary)]" />
+              <span className="text-sm text-ink">
+                {lang === 'he' ? 'מכאן ואילך (רק תהליכים חדשים)' : 'From now on (new processes only)'}
+              </span>
+            </label>
+            <label className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
+              <input type="radio" checked={applyMode === 'now'} onChange={() => handleApplyModeChange('now')} className="accent-[var(--primary)]" />
+              <span className="text-sm text-ink">
+                {lang === 'he' ? 'עכשיו (גם תהליכים בעיצומם)' : 'Now (also in-progress processes)'}
+              </span>
+            </label>
+          </div>
+          {applyMode === 'now' && (
+            <p className="mt-1.5 text-xs font-medium text-danger">
+              {previewLoading
+                ? '…'
+                : preview
+                  ? lang === 'he'
+                    ? `⚡ יעדכן ${preview.count} תהליכים בעיצומם ברגע שהתבנית תאושר`
+                    : `⚡ Will update ${preview.count} in-progress process(es) once approved`
+                  : lang === 'he'
+                    ? 'לא ניתן היה לחשב תצוגה מקדימה'
+                    : 'Could not compute a preview'}
+            </p>
+          )}
         </div>
 
         <label className="mt-4 block">

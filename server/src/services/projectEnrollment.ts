@@ -22,16 +22,21 @@ export async function enrollStudentInProject(
 
   // Which milestone list to use is the faculty's own currently-approved
   // workflow template for this project's process type (msc_thesis /
-  // msc_project / bsc_project) — see services/workflowTemplates.ts — falling
-  // back to the same defaults this app has always used if none is approved
-  // yet. Read outside the transaction below: degreeType/projectType are set
-  // once at project creation and never change concurrently with enrollment,
-  // and the template itself isn't part of the invariant that transaction
-  // protects (hasActiveProject), so it doesn't need transactional consistency.
-  const projectSnapForTemplate = await projectRef.get();
+  // msc_project / bsc_project) AND subject/major — see
+  // services/workflowTemplates.ts — falling back to the same defaults this
+  // app has always used if none is approved yet. Read outside the
+  // transaction below: degreeType/projectType/major are set once at project
+  // creation and never change concurrently with enrollment, and the
+  // template itself isn't part of the invariant that transaction protects
+  // (hasActiveProject), so it doesn't need transactional consistency.
+  const [projectSnapForTemplate, studentSnapForMajor] = await Promise.all([projectRef.get(), studentRef.get()]);
   const projectDataForTemplate = projectSnapForTemplate.data() ?? {};
   const processType = deriveProcessType(projectDataForTemplate.degreeType, projectDataForTemplate.projectType);
-  const milestoneTemplates = await getActiveMilestonesFor(facultyId, processType);
+  // A project's major is optional (unset means "open to any major") — fall
+  // back to the enrolling student's own major, same precedent as
+  // reports.ts's gatherEngagements.
+  const major = projectDataForTemplate.major ?? studentSnapForMajor.data()?.major ?? null;
+  const milestoneTemplates = await getActiveMilestonesFor(facultyId, processType, major);
 
   // Wrapped in a transaction: the three callers (supervisor approving an
   // application, admin manual assignment, faculty-admin manual assignment)

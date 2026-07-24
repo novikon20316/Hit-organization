@@ -78,7 +78,13 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [scopesModalOpen, setScopesModalOpen] = useState(false);
 
-  const showCoordinatorScopes = role === 'coordinator' || additionalRoles.includes('coordinator');
+  // Same generic scope field also used to assign an administrative_secretary
+  // to one or more specific subjects (facultyId+major) — "keep a separation
+  // between degrees" for the workflow-templates screen. See
+  // resolveSecretaryScope in server/src/controllers/workflowTemplateController.ts.
+  const showCoordinatorScopes =
+    role === 'coordinator' || additionalRoles.includes('coordinator') ||
+    role === 'administrative_secretary' || additionalRoles.includes('administrative_secretary');
   const isSupervisorLike =
     role === 'supervisor' || additionalRoles.includes('supervisor') || role === 'secondary_supervisor' || additionalRoles.includes('secondary_supervisor');
   const isStudent = role === 'student' || additionalRoles.includes('student');
@@ -261,14 +267,21 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             </span>
           </button>
 
-          {/* ── Coordinator Scope (coordinator role only) ── */}
+          {/* ── Coordinator Scope / Subject Responsibility (coordinator or
+                administrative_secretary) — same underlying field either way,
+                just a role-appropriate label. ── */}
           {showCoordinatorScopes && (
             <button
               type="button"
               onClick={() => setScopesModalOpen(true)}
               className="flex items-center justify-between rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm font-medium text-ink hover:border-primary"
             >
-              <span>📋 {lang === 'he' ? 'היקף אחריות רכז' : 'Coordinator Scope'}</span>
+              <span>
+                📋{' '}
+                {role === 'administrative_secretary' || additionalRoles.includes('administrative_secretary')
+                  ? lang === 'he' ? 'תחום אחריות (מזכירה)' : 'Subject Responsibility'
+                  : lang === 'he' ? 'היקף אחריות רכז' : 'Coordinator Scope'}
+              </span>
               <span className="text-muted">
                 {coordinatorScopes.length > 0
                   ? (lang === 'he' ? `${coordinatorScopes.length} תחומים ›` : `${coordinatorScopes.length} scopes ›`)

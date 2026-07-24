@@ -13,17 +13,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
-import { FACULTY_LABELS, type FacultyId } from '@/lib/i18n';
+import { FACULTY_LABELS, facultyLabel, type FacultyId } from '@/lib/i18n';
 import { ProposeVersionModal } from './ProposeVersionModal';
 import { RejectModal } from './RejectModal';
-import { PROCESS_TYPES, canApproveRole, isMastersProcess, processTypeLabel, type ProcessType, type WorkflowTemplateDoc } from './types';
+import { PROCESS_TYPES, canApproveRole, isMastersProcess, processTypeLabel, majorOptionsFor, type ProcessType, type WorkflowTemplateDoc } from './types';
 
 const WORKFLOW_TEMPLATE_ROLES: AppRole[] = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
 // These roles have no single "home" faculty (facultyId === 'all') — they
 // must explicitly pick which faculty's templates they're viewing/proposing
 // for, or every fetch/propose silently targets a facultyId ('all') that no
-// real project ever has (see workflowTemplateController.ts).
-const CROSS_FACULTY_ROLES: AppRole[] = ['system_admin', 'administrative_secretary', 'grad_school_head'];
+// real project ever has (see workflowTemplateController.ts). system_admin
+// and grad_school_head get a free faculty picker; administrative_secretary
+// is scoped further still (see isSecretary below) — never a free choice,
+// only whichever subject(s) her own coordinatorScopes actually assign her.
+const FREE_CHOICE_CROSS_FACULTY_ROLES: AppRole[] = ['system_admin', 'grad_school_head'];
 const SELECTABLE_FACULTY_IDS = (Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all');
 
 export default function WorkflowTemplatesPage() {
@@ -32,7 +35,7 @@ export default function WorkflowTemplatesPage() {
   const { lang, t } = useLanguage();
 
   const [activeProcessType, setActiveProcessType] = useState<ProcessType>('msc_thesis');
-  const [tab, setTab] = useState<'current' | 'pending'>('current');
+  const [tab, setTab] = useState<'current' | 'pending' | 'history'>('current');
   const [templates, setTemplates] = useState<WorkflowTemplateDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -41,24 +44,47 @@ export default function WorkflowTemplatesPage() {
 
   const [proposeOpen, setProposeOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // Approve, for a template proposed with applyMode 'now', shows a preview
+  // of affected in-progress projects before actually confirming — see
+  // handleApprove below.
+  const [approvePreview, setApprovePreview] = useState<{ tpl: WorkflowTemplateDoc; count: number } | null>(null);
 
   const role = userData?.role as AppRole | undefined;
-  const isCrossFaculty = !!role && CROSS_FACULTY_ROLES.includes(role);
+  const isSecretary = role === 'administrative_secretary';
+  const isFreeChoiceCrossFaculty = !!role && FREE_CHOICE_CROSS_FACULTY_ROLES.includes(role);
+
   const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
-  // Cross-faculty roles pick a real faculty explicitly; everyone else is
-  // locked to their own.
-  const facultyId = isCrossFaculty ? selectedFacultyId : userData?.facultyId;
+  const [selectedMajor, setSelectedMajor] = useState<string | null>(null);
+  const [secretaryScopeIndex, setSecretaryScopeIndex] = useState(0);
+
+  // administrative_secretary's own assigned subject(s) — {facultyId, major?}
+  // tuples on her own user doc's coordinatorScopes (same generic field the
+  // 'coordinator' role uses; see server/src/controllers/
+  // workflowTemplateController.ts's resolveSecretaryScope). Never a free
+  // choice: if she holds more than one, she picks among only her own.
+  const secretaryScopes = (userData?.coordinatorScopes ?? []) as { facultyId: string; major?: string }[];
+  const secretaryScope = isSecretary ? secretaryScopes[secretaryScopeIndex] : undefined;
+
+  const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isSecretary ? secretaryScope?.facultyId : userData?.facultyId;
+  const major: string | null = role === 'system_admin' ? selectedMajor : isSecretary ? (secretaryScope?.major ?? null) : null;
 
   useEffect(() => {
-    if (isCrossFaculty && !selectedFacultyId && SELECTABLE_FACULTY_IDS.length > 0) {
+    if (isFreeChoiceCrossFaculty && !selectedFacultyId && SELECTABLE_FACULTY_IDS.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- role (and so isFreeChoiceCrossFaculty) only becomes known once userData loads asynchronously; this just seeds a sensible default the first time that becomes true, same pattern as the fetch-on-mount effects elsewhere in this file
       setSelectedFacultyId(SELECTABLE_FACULTY_IDS[0]!);
     }
-  }, [isCrossFaculty, selectedFacultyId]);
+  }, [isFreeChoiceCrossFaculty, selectedFacultyId]);
+
+  const majorOptions = role === 'system_admin' && facultyId ? majorOptionsFor(facultyId, activeProcessType, lang) : [];
 
   const fetchTemplates = useCallback(async () => {
-    if (!facultyId) return;
+    if (!facultyId) {
+      setLoading(false);
+      return;
+    }
     try {
-      const data = await apiClient.getWorkflowTemplates(facultyId);
+      const data = await apiClient.getWorkflowTemplates(facultyId, major);
       setTemplates((data.templates ?? []) as unknown as WorkflowTemplateDoc[]);
       setLoadError('');
     } catch (err) {
@@ -66,7 +92,7 @@ export default function WorkflowTemplatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [facultyId, lang]);
+  }, [facultyId, major, lang]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchTemplates's setState calls happen after its awaited network call resolves, not synchronously in this effect
@@ -76,12 +102,35 @@ export default function WorkflowTemplatesPage() {
   const approvedForActive = templates.find((tpl) => tpl.processType === activeProcessType && tpl.status === 'approved');
   const pending = templates.filter((tpl) => tpl.status === 'pending_approval');
   const pendingForActive = pending.filter((tpl) => tpl.processType === activeProcessType);
+  const history = templates.filter((tpl) => tpl.status === 'rejected' || tpl.status === 'superseded');
+  const historyForActive = history.filter((tpl) => tpl.processType === activeProcessType);
+
+  // For an applyMode:'now' proposal, show a preview of affected in-progress
+  // projects before actually approving — final confirmation re-fetched
+  // right here since time may have passed since the proposal was created.
+  const handleApproveClick = async (tpl: WorkflowTemplateDoc) => {
+    if (tpl.applyMode !== 'now') {
+      handleApprove(tpl);
+      return;
+    }
+    setBusyId(tpl.id);
+    setActionError('');
+    try {
+      const preview = await apiClient.getWorkflowTemplateRetroactivePreview({ facultyId: tpl.facultyId, major: tpl.major, processType: tpl.processType });
+      setApprovePreview({ tpl, count: preview.count });
+    } catch (err) {
+      setActionError(err instanceof ApiError || err instanceof SoftError ? err.message : lang === 'he' ? 'טעינת התצוגה המקדימה נכשלה' : 'Failed to load the preview');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const handleApprove = async (tpl: WorkflowTemplateDoc) => {
     setBusyId(tpl.id);
     setActionError('');
     try {
       await apiClient.approveWorkflowTemplate(tpl.id);
+      setApprovePreview(null);
       await fetchTemplates();
     } catch (err) {
       setActionError(err instanceof ApiError || err instanceof SoftError ? err.message : lang === 'he' ? 'האישור נכשל' : 'Approval failed');
@@ -105,6 +154,20 @@ export default function WorkflowTemplatesPage() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    setBusyId(id);
+    setActionError('');
+    try {
+      await apiClient.deleteWorkflowTemplate(id);
+      setConfirmDeleteId(null);
+      await fetchTemplates();
+    } catch (err) {
+      setActionError(err instanceof ApiError || err instanceof SoftError ? err.message : lang === 'he' ? 'המחיקה נכשלה' : 'Delete failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (guardLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper">
@@ -118,7 +181,7 @@ export default function WorkflowTemplatesPage() {
       title={lang === 'he' ? 'תבניות תהליך' : 'Process Templates'}
       subtitle={lang === 'he' ? 'הגדרת אבני הדרך לכל סוג תהליך' : 'Configure the milestone list for each process type'}
     >
-      {isCrossFaculty && (
+      {isFreeChoiceCrossFaculty && (
         <label className="mb-4 block max-w-xs">
           <span className="mb-1.5 block text-xs font-medium text-muted">
             {lang === 'he' ? 'פקולטה' : 'Faculty'}
@@ -130,6 +193,33 @@ export default function WorkflowTemplatesPage() {
           >
             {SELECTABLE_FACULTY_IDS.map((id) => (
               <option key={id} value={id}>{FACULTY_LABELS[id][lang]}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {isSecretary && secretaryScopes.length === 0 && (
+        <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+          {lang === 'he'
+            ? 'לא הוקצה לך תחום אחריות עדיין — פנה למנהל המערכת שיקצה לך תחום.'
+            : 'No subject has been assigned to your account yet — ask your system_admin to assign one.'}
+        </p>
+      )}
+      {isSecretary && secretaryScopes.length > 1 && (
+        <label className="mb-4 block max-w-xs">
+          <span className="mb-1.5 block text-xs font-medium text-muted">
+            {lang === 'he' ? 'תחום אחריות' : 'Your subject'}
+          </span>
+          <select
+            value={secretaryScopeIndex}
+            onChange={(e) => setSecretaryScopeIndex(Number(e.target.value))}
+            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+          >
+            {secretaryScopes.map((s, i) => (
+              <option key={i} value={i}>
+                {facultyLabel(s.facultyId as FacultyId, lang)}
+                {s.major ? ` — ${s.major}` : ` (${lang === 'he' ? 'כל המגמות' : 'all majors'})`}
+              </option>
             ))}
           </select>
         </label>
@@ -150,10 +240,29 @@ export default function WorkflowTemplatesPage() {
         ))}
       </div>
 
+      {role === 'system_admin' && facultyId && (
+        <label className="mb-4 block max-w-xs">
+          <span className="mb-1.5 block text-xs font-medium text-muted">
+            {lang === 'he' ? 'מגמה / תחום' : 'Subject / Major'}
+          </span>
+          <select
+            value={selectedMajor ?? ''}
+            onChange={(e) => setSelectedMajor(e.target.value || null)}
+            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+          >
+            <option value="">{lang === 'he' ? 'כל המגמות בפקולטה' : 'All majors in this faculty'}</option>
+            {majorOptions.map((m) => (
+              <option key={m.slug} value={m.slug}>{m.label}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <div className="mb-5 flex gap-1 border-b border-line">
         {([
           { key: 'current' as const, label: lang === 'he' ? 'תבנית נוכחית' : 'Current Template', badge: 0 },
           { key: 'pending' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Pending Approval', badge: pending.length },
+          { key: 'history' as const, label: lang === 'he' ? 'היסטוריה' : 'History', badge: 0 },
         ]).map(({ key, label, badge }) => (
           <button
             key={key}
@@ -224,7 +333,7 @@ export default function WorkflowTemplatesPage() {
             ＋ {lang === 'he' ? 'הצע גרסה חדשה' : 'Propose New Version'}
           </button>
         </div>
-      ) : pending.length === 0 ? (
+      ) : tab === 'pending' ? pending.length === 0 ? (
         <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין הצעות ממתינות' : 'No pending proposals'}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -239,6 +348,11 @@ export default function WorkflowTemplatesPage() {
                   {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
                   {tpl.proposedNote ? ` · ${tpl.proposedNote}` : ''}
                 </p>
+                {tpl.applyMode === 'now' && (
+                  <p className="mt-1 text-xs font-medium text-danger">
+                    ⚡ {lang === 'he' ? 'תחול מיידית על תהליכים בעיצומם' : 'Applies immediately to in-progress processes'}
+                  </p>
+                )}
                 {!canApprove && (
                   <p className="mt-2 text-xs italic text-muted">
                     {isMastersProcess(tpl.processType)
@@ -250,11 +364,28 @@ export default function WorkflowTemplatesPage() {
                         : 'Awaiting faculty approval'}
                   </p>
                 )}
-                {canApprove && (
+                {canApprove && confirmDeleteId === tpl.id ? (
+                  <div className="mt-3 grid gap-2">
+                    <p className="text-xs text-danger">{lang === 'he' ? 'למחוק את ההצעה הזו לצמיתות?' : 'Permanently delete this proposal?'}</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(tpl.id)}
+                        disabled={busyId === tpl.id}
+                        className="flex-1 rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                      >
+                        {lang === 'he' ? 'מחק' : 'Delete'}
+                      </button>
+                      <button type="button" onClick={() => setConfirmDeleteId(null)} className="flex-1 rounded-lg border border-line px-3 py-2 text-xs font-medium text-ink">
+                        {lang === 'he' ? 'ביטול' : 'Cancel'}
+                      </button>
+                    </div>
+                  </div>
+                ) : canApprove ? (
                   <div className="mt-3 flex gap-2">
                     <button
                       type="button"
-                      onClick={() => handleApprove(tpl)}
+                      onClick={() => handleApproveClick(tpl)}
                       disabled={busyId === tpl.id}
                       className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
                     >
@@ -268,7 +399,71 @@ export default function WorkflowTemplatesPage() {
                     >
                       ❌ {t('reject')}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(tpl.id)}
+                      disabled={busyId === tpl.id}
+                      className="rounded-lg border border-line px-2.5 py-2 text-xs font-medium text-danger hover:border-danger"
+                    >
+                      🗑️
+                    </button>
                   </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : historyForActive.length === 0 ? (
+        <p className="text-sm text-muted">{lang === 'he' ? 'אין היסטוריה להצגה' : 'No history to show'}</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {historyForActive.map((tpl) => {
+            const canDelete = canApproveRole(tpl.processType, role);
+            return (
+              <div key={tpl.id} className="rounded-[var(--radius)] border border-line bg-surface p-4 opacity-90">
+                <p className="text-sm font-semibold text-ink">
+                  {processTypeLabel(tpl.processType, lang)} · {lang === 'he' ? `גרסה ${tpl.version}` : `Version ${tpl.version}`}
+                  {' · '}
+                  <span className={tpl.status === 'rejected' ? 'text-danger' : 'text-muted'}>
+                    {tpl.status === 'rejected' ? (lang === 'he' ? 'נדחה' : 'Rejected') : (lang === 'he' ? 'הוחלף' : 'Superseded')}
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
+                  {tpl.rejectionReason ? ` · ${tpl.rejectionReason}` : ''}
+                </p>
+                {tpl.retroactiveAffectedCount !== undefined && (
+                  <p className="mt-1 text-xs text-muted">
+                    {lang === 'he' ? `הוחל רטרואקטיבית על ${tpl.retroactiveAffectedCount} תהליכים` : `Retroactively applied to ${tpl.retroactiveAffectedCount} process(es)`}
+                  </p>
+                )}
+                {canDelete && (
+                  confirmDeleteId === tpl.id ? (
+                    <div className="mt-3 grid gap-2">
+                      <p className="text-xs text-danger">{lang === 'he' ? 'למחוק לצמיתות?' : 'Permanently delete?'}</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(tpl.id)}
+                          disabled={busyId === tpl.id}
+                          className="flex-1 rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                        >
+                          {lang === 'he' ? 'מחק' : 'Delete'}
+                        </button>
+                        <button type="button" onClick={() => setConfirmDeleteId(null)} className="flex-1 rounded-lg border border-line px-3 py-2 text-xs font-medium text-ink">
+                          {lang === 'he' ? 'ביטול' : 'Cancel'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(tpl.id)}
+                      className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-danger hover:border-danger"
+                    >
+                      🗑️ {lang === 'he' ? 'מחק' : 'Delete'}
+                    </button>
+                  )
                 )}
               </div>
             );
@@ -279,7 +474,8 @@ export default function WorkflowTemplatesPage() {
       {proposeOpen && (
         <ProposeVersionModal
           processType={activeProcessType}
-          facultyId={isCrossFaculty ? facultyId : undefined}
+          facultyId={facultyId}
+          major={major}
           initialMilestones={approvedForActive?.milestones ?? []}
           onClose={() => setProposeOpen(false)}
           onProposed={() => {
@@ -290,6 +486,37 @@ export default function WorkflowTemplatesPage() {
       )}
 
       <RejectModal open={!!rejectingId} busy={busyId === rejectingId} onCancel={() => setRejectingId(null)} onConfirm={handleReject} />
+
+      {approvePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+            <h2 className="text-base font-semibold text-ink">⚡ {lang === 'he' ? 'החלה רטרואקטיבית' : 'Retroactive application'}</h2>
+            <p className="mt-2 text-sm text-ink">
+              {lang === 'he'
+                ? `אישור התבנית יעדכן מיידית ${approvePreview.count} תהליכים בעיצומם.`
+                : `Approving this template will immediately update ${approvePreview.count} in-progress process(es).`}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setApprovePreview(null)}
+                disabled={busyId === approvePreview.tpl.id}
+                className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+              >
+                {lang === 'he' ? 'ביטול' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApprove(approvePreview.tpl)}
+                disabled={busyId === approvePreview.tpl.id}
+                className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              >
+                {busyId === approvePreview.tpl.id ? '…' : lang === 'he' ? 'אשר בכל זאת' : 'Confirm & Approve'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardShell>
   );
 }
