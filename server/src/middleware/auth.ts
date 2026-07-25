@@ -6,6 +6,25 @@ import { Request, Response, NextFunction } from 'express';
 import { auth, db } from '../config/firebase.js';
 import type { ScopeRule, CoordinatorScope } from '../config/permissionScopes.js';
 
+// Routes an account with a forced temp-password change must still be able to
+// reach — everything else 403s until they change it. This is the real gate:
+// the client redirects to /change-password on its own, but that's only a
+// UX nicety (bypassable via the browser back button, a direct URL, or just
+// calling the API) — the account is not actually locked down until this
+// check exists here too.
+const PASSWORD_CHANGE_ALLOWED_PATHS = new Set([
+  '/api/users/change-password',
+  '/api/users/logout',
+  // Both clients' own auth-routing gate (web's AuthContext/useRequireRole,
+  // mobile's app/_layout.tsx onAuthStateChanged handler) fetches this to
+  // learn mustChangePassword in the first place and decide to redirect —
+  // blocking it here too would 403 that very check, and mobile's handler
+  // treats any 401/403 as a dead session and force-signs-out, which would
+  // make the change-password screen permanently unreachable. Returns only
+  // the caller's own document, so exposing it under this gate is safe.
+  '/api/users/me',
+]);
+
 export interface AuthenticatedRequest extends Request {
   user?: {
     uid:       string;
@@ -64,6 +83,11 @@ export const verifyToken = async (
     const userData = userDoc.data();
     if (!userData?.isActive) {
       return res.status(403).json({ error: 'Account has been disabled.' });
+    }
+
+    const requestPath = req.originalUrl.split('?')[0] ?? req.originalUrl;
+    if (userData?.mustChangePassword && !PASSWORD_CHANGE_ALLOWED_PATHS.has(requestPath)) {
+      return res.status(403).json({ error: 'PASSWORD_CHANGE_REQUIRED' });
     }
 
     req.user = {

@@ -121,6 +121,10 @@ export default function RootLayout() {
   const scheduleRedirectRef     = useRef<((target: RouterTarget) => void) | null>(null);
   const pushTokenRegistered     = useRef(false);
   const initialAuthCheckedRef   = useRef(false);
+  // Last /api/users/me response seen by the auth-state effect below — read
+  // by the navigation re-check effect further down so it doesn't need its
+  // own network round-trip on every route change.
+  const lastUserDataRef         = useRef<{ mustChangePassword?: boolean } | null>(null);
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
 
@@ -200,6 +204,7 @@ export default function RootLayout() {
         }
 
         const role = userData.role as string;
+        lastUserDataRef.current = userData;
 
         // ── Forced password change (accounts created via Excel import) ──────
         // Takes priority over everything below, including the 2FA gate.
@@ -310,6 +315,24 @@ export default function RootLayout() {
 
     return unsub;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Re-check the forced-password-change gate on every navigation ──────────
+  // The effect above only runs on sign-in/sign-out (onAuthStateChanged), not
+  // on navigation — so on its own it can't stop a user from reaching a
+  // protected screen by navigating away from /changePassword (e.g. the
+  // Android hardware back button) before actually submitting a new password.
+  // This re-validates against the last-fetched userData on every pathname
+  // change instead. The server independently rejects API calls in this state
+  // regardless (see server/src/middleware/auth.ts) — this is
+  // belt-and-suspenders so the screen itself doesn't even render.
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    if (!lastUserDataRef.current?.mustChangePassword) return;
+    const onChangePasswordScreen = pathname === '/changePassword' || pathname === '/(auth)/changePassword';
+    if (!onChangePasswordScreen) {
+      router.replace('/(auth)/changePassword' as any);
+    }
+  }, [pathname, router]);
 
   // ── Notification listeners ─────────────────────────────────────────────────
   useEffect(() => {
