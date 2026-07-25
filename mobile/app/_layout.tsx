@@ -2,7 +2,7 @@
 import { Stack, useRouter, usePathname } from "expo-router";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState, useRef } from "react";
-import { View, Text, Image, ActivityIndicator, Platform, I18nManager } from 'react-native';
+import { View, Text, Image, ActivityIndicator, Platform, I18nManager, AppState } from 'react-native';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../src/firebase/firebase";
 import { apiClient } from "../src/api/apiClient";
@@ -333,6 +333,44 @@ export default function RootLayout() {
       router.replace('/(auth)/changePassword' as any);
     }
   }, [pathname, router]);
+
+  // ── Presence heartbeat ──────────────────────────────────────────────────────
+  // Feeds the system_admin-only "Live Transportation" live-user-count page
+  // (server/src/controllers/presenceController.ts) — no UI on mobile itself,
+  // this just keeps this session's presence doc fresh while foregrounded, the
+  // same AppState-gated pattern as useSafeKeepAwake.
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const sendHeartbeat = () => {
+      if (!auth.currentUser) return;
+      apiClient.post('/api/presence/heartbeat', { platform: 'mobile' }).catch(() => {});
+    };
+
+    const startHeartbeat = () => {
+      if (intervalId) return;
+      sendHeartbeat();
+      intervalId = setInterval(sendHeartbeat, 25_000);
+    };
+    const stopHeartbeat = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    if (AppState.currentState === 'active') startHeartbeat();
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') startHeartbeat();
+      else stopHeartbeat();
+    });
+
+    return () => {
+      subscription.remove();
+      stopHeartbeat();
+    };
+  }, []);
 
   // ── Notification listeners ─────────────────────────────────────────────────
   useEffect(() => {

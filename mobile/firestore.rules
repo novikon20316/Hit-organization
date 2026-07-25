@@ -282,6 +282,16 @@ service cloud.firestore {
       allow write: if isSignedIn() && role(userDoc()) == 'system_admin';
     }
 
+    // Presence heartbeats (server/src/controllers/presenceController.ts) —
+    // powers the system_admin-only "Live Transportation" live-user-count
+    // page. Written exclusively by the Admin SDK (bypasses rules), never by
+    // clients — a client-writable "I'm online" doc would let anyone spoof
+    // another uid's presence.
+    match /presence/{uid} {
+      allow read: if isSignedIn() && role(userDoc()) == 'system_admin';
+      allow write: if false;
+    }
+
     match /auditLog/{entryId} {
       allow read: if isSignedIn() &&
         role(userDoc()) in [

@@ -5,6 +5,7 @@ import { verifyToken, verifyTokenOnly  } from '../middleware/auth.js';
 import { loginSecurityLimiter } from '../middleware/rateLimit.js';
 import {
   logout,
+  logLogin,
   updatePushToken,
   getUserProfile,
   syncData,
@@ -27,6 +28,7 @@ router.post('/verify-eligibility', loginSecurityLimiter, verifyStudentEligibilit
 router.get('/profile', verifyToken, getUserProfile)
 router.post('/update-push-token', verifyToken, updatePushToken)
 router.post('/logout', verifyToken, logout)
+router.post('/log-login', verifyToken, logLogin)
 router.post('/change-password', verifyToken, changePassword)
 router.post('/delete-account/request', verifyToken, requestAccountDeletion)
 router.post('/delete-account/cancel', verifyToken, cancelAccountDeletion)

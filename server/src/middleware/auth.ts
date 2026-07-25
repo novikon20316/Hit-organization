@@ -15,6 +15,11 @@ import type { ScopeRule, CoordinatorScope } from '../config/permissionScopes.js'
 const PASSWORD_CHANGE_ALLOWED_PATHS = new Set([
   '/api/users/change-password',
   '/api/users/logout',
+  // Called once right after every sign-in, including one that's about to be
+  // redirected straight to /change-password — the "Live Transportation" audit
+  // table should still see that login happened. Writes only the caller's own
+  // login/logout audit event, nothing else, so it's safe under this gate.
+  '/api/users/log-login',
   // Both clients' own auth-routing gate (web's AuthContext/useRequireRole,
   // mobile's app/_layout.tsx onAuthStateChanged handler) fetches this to
   // learn mustChangePassword in the first place and decide to redirect —
@@ -29,6 +34,7 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     uid:       string;
     email?:    string | undefined;
+    displayName: string;
     role:      string;
     facultyId: string;
     roles: string[];
@@ -93,6 +99,7 @@ export const verifyToken = async (
     req.user = {
       uid,
       email:     decodedToken.email,
+      displayName: userData.displayName ?? '',
       role:      userData.role      ?? 'student',
       facultyId: userData.facultyId ?? 'sciences',
       roles:     userData.roles     ?? ['student'],
@@ -134,6 +141,7 @@ export const verifyTokenOnly = async (
     req.user = {
       uid:       decodedToken.uid,
       email:     decodedToken.email,
+      displayName: '',
       role:      'student',       // default, sync will set the real value
       facultyId: 'sciences',
       roles:     ['student'],

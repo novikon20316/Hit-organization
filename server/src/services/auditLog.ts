@@ -15,6 +15,8 @@ import { db } from '../config/firebase.js';
 import admin from 'firebase-admin';
 
 export type AuditAction =
+  | 'login'
+  | 'logout'
   | 'role_changed'
   | 'grade_entered'
   | 'grade_changed'
@@ -55,6 +57,12 @@ export interface AuditLogEntry {
   oldValue?: unknown | undefined;
   newValue?: unknown | undefined;
   explanation?: string | undefined;
+  // Denormalized at write time purely so the "Live Transportation" admin
+  // table (server/src/controllers/presenceController.ts's sibling feature)
+  // can render a name without an extra per-row user lookup on every poll.
+  // Optional — older entries and the ~26 pre-existing call sites that don't
+  // pass it just fall back to showing userId in that table.
+  userDisplayName?: string | undefined;
 }
 
 export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
@@ -68,6 +76,7 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
       oldValue: entry.oldValue ?? null,
       newValue: entry.newValue ?? null,
       explanation: entry.explanation ?? null,
+      userDisplayName: entry.userDisplayName ?? null,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (err) {

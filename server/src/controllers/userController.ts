@@ -10,6 +10,7 @@ import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../se
 import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
 import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
 import { hashPassword } from '../services/userImportExport.js';
+import { logAuditEvent } from '../services/auditLog.js';
 
 // Exported — also used by adminController.ts's updateStudentAcademicYear to
 // recompute this whenever a student's yearOfStudy is corrected/advanced, so
@@ -265,6 +266,31 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
   }
 };
 
+// ─── POST /api/users/log-login ────────────────────────────────────────────────
+// Called once by both clients right after a successful Firebase sign-in
+// (there's no other server touchpoint for login — it happens entirely via
+// the client Firebase SDK). Feeds the "Live Transportation" admin table.
+export const logLogin = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? 'student',
+      action: 'login',
+      entityType: 'session',
+      entityId: uid,
+      userDisplayName: req.user?.displayName,
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('logLogin error:', error);
+    return res.status(500).json({ error: 'Failed to log login' });
+  }
+};
+
 export const logout = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid      = req.user?.uid;
@@ -277,6 +303,18 @@ export const logout = async (req: AuthenticatedRequest, res: Response) => {
 
     const userRef = db.collection('users').doc(uid);
     const now     = new Date().toISOString();
+
+    // Feeds the "Live Transportation" admin table — additive alongside the
+    // pre-existing per-role console.log/admin_audit branches below, which
+    // stay untouched.
+    await logAuditEvent({
+      userId: uid,
+      userRole: role ?? 'student',
+      action: 'logout',
+      entityType: 'session',
+      entityId: uid,
+      userDisplayName: req.user?.displayName,
+    });
 
     // ─── 1. Universal — clear push token for all roles ────────────────────
     await userRef.update({

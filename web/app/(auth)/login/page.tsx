@@ -100,6 +100,12 @@ export default function LoginPage() {
     try {
       const credential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
 
+      // Fire-and-forget — feeds the system_admin "Live Transportation" audit
+      // table. Only here (an actual credential submission), never in the
+      // "already signed in" effect below, so reopening a tab doesn't log a
+      // fresh "login" every time.
+      apiClient.post('/api/users/log-login').catch(() => {});
+
       // Force a fresh fetch rather than trusting a stale emailVerified
       // snapshot — same reasoning as mobile: this can change outside the
       // current session (e.g. an admin flipping it via the Admin SDK).

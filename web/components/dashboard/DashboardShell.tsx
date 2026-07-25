@@ -11,6 +11,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -36,8 +37,9 @@ const TOTP_NUDGE_DISMISS_KEY = 'totpNudgeDismissedAt';
 
 export function DashboardShell({ title, subtitle, children, actions, onBeforeSignOut }: DashboardShellProps) {
   const router = useRouter();
-  const { userData, logout } = useAuth();
+  const { firebaseUser, userData, logout } = useAuth();
   const { lang } = useLanguage();
+  usePresenceHeartbeat(!!firebaseUser);
   const railColor = getRoleAccent(userData?.role);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   // Every per-page nav link (Reports, Workflow Templates, Academic Year, Bulk

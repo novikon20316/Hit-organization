@@ -13,6 +13,7 @@ import { InfoFilesLink } from '@/components/InfoFilesLink';
 import { AcademicYearLink } from '@/components/AcademicYearLink';
 import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
+import { LiveTransportationLink } from '@/components/LiveTransportationLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -134,6 +135,7 @@ export default function AdminPanelPage() {
           <BulkPermissionsLink />
           <WorkflowTemplatesLink />
           <ReportsLink />
+          <LiveTransportationLink />
           <button
             type="button"
             onClick={() => setShowAcademicCalendar(true)}

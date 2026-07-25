@@ -39,6 +39,12 @@ export default function LoginScreen() {
     try {
       const firebaseUser = await signInWithEmailAndPassword(auth, email, password);
 
+      // Fire-and-forget — feeds the system_admin "Live Transportation" audit
+      // table. Only here (an actual credential submission), never in
+      // _layout.tsx's own auth-state redirect logic, so reopening the app
+      // with a still-live session doesn't log a fresh "login" every time.
+      apiClient.post('/api/users/log-login').catch(() => {});
+
       // Force a fresh fetch of the account record instead of trusting
       // whatever emailVerified value came back with this sign-in. That value
       // can be a stale snapshot when verification status changed externally

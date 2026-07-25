@@ -33,6 +33,7 @@ import exceptionalActionRoutes from './routes/exceptionalActions.js';
 import examinerEscalationRoutes from './routes/examinerEscalation.js';
 import trackChangeRoutes from './routes/trackChange.js';
 import bulkPermissionsRoutes from './routes/bulkPermissions.js';
+import presenceRoutes from './routes/presence.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
@@ -119,6 +120,7 @@ app.use('/api/projects',      trackChangeRoutes);
 app.use('/api/exceptional-actions', exceptionalActionRoutes);
 app.use('/api/coordinator/examiner-escalations', examinerEscalationRoutes);
 app.use('/api/admin/permissions', bulkPermissionsRoutes);
+app.use('/api/presence', presenceRoutes);
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error('Unhandled error:', err.stack);
