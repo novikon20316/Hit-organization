@@ -1076,9 +1076,18 @@ export default function PanelScreen() {
         </Text>
       </View>
 
+      {/* Explicit height — without it, this horizontal ScrollView's own frame
+          can measure much taller than its visible pills on Android when it
+          sits directly next to another scrollable sibling (the main content
+          ScrollView below) with nothing fixed-height in between. The result:
+          a big blank area below the pills that's still part of this
+          ScrollView's own hit-test region (drag it and the pills scroll),
+          painted with tabsContainer's own white background. Height = tab
+          height (46) + tabsContainer's paddingVertical (10) * 2. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={{ height: 66 }}
         contentContainerStyle={styles.tabsContainer}
       >
         {[
