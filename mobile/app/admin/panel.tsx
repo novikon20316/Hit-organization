@@ -1192,6 +1192,7 @@ export default function PanelScreen() {
       )}
 
       <ScrollView
+        style={styles.contentScroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >

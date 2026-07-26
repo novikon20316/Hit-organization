@@ -1098,8 +1098,19 @@ export const adminPanelStyles = StyleSheet.create({
     color: '#fff',
   },
 
+  // flex: 1 on the ScrollView itself reserves the full remaining screen
+  // height regardless of which tab's content is shorter/longer; flexGrow: 1
+  // on the content container then lets that reserved space actually be
+  // filled instead of just scrollable-but-empty — together these stop the
+  // gap below short-content tabs (e.g. Feedback) from visibly differing in
+  // size from long-content tabs (e.g. Users) when switching between them.
+  contentScroll: {
+    flex: 1,
+  },
+
   content: {
     padding: 16,
+    flexGrow: 1,
   },
 
   statsGrid: {
@@ -4118,7 +4129,7 @@ export const FloatingActionMenuStyles = StyleSheet.create({
   pillIconText: { fontSize: 18 },
   pillLabel: {
     fontSize: 13, fontWeight: '700', color: '#1a1a2e',
-    marginHorizontal: 10,
+    marginHorizontal: 10, maxWidth: 150,
   },
   tooltip: {
     position: 'absolute',

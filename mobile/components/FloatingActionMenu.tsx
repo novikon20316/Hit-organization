@@ -26,6 +26,13 @@ interface Props {
   tooltipLabel?: { he: string; en: string };
 }
 
+// Fallback spacing used only until a pill's real height is measured (its
+// very first render) — actual spacing below is always driven by onLayout
+// measurements, so labels that wrap onto 2 lines never overlap their
+// neighbor the way a fixed one-line assumption would.
+const DEFAULT_PILL_HEIGHT = 56;
+const PILL_GAP = 12;
+
 export default function FloatingActionMenu({
   actions,
   lang,
@@ -36,6 +43,7 @@ export default function FloatingActionMenu({
 }: Props) {
   const [expanded, setExpanded]   = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+  const [pillHeights, setPillHeights] = useState<number[]>([]);
   const anim = useRef(new Animated.Value(0)).current; // drives the FAB's own rotate
 
   // One Animated.Value per pill so they can cascade in/out instead of all
@@ -77,6 +85,18 @@ export default function FloatingActionMenu({
   const edgeStyle     = corner === 'bottom-left' ? { left: 0 }  : { right: 0 };
   const tooltipText = lang === 'he' ? tooltipLabel.he : tooltipLabel.en;
 
+  // Cumulative distance to push pill `i` up by, based on the REAL measured
+  // height of every pill below it (falling back to DEFAULT_PILL_HEIGHT only
+  // until that pill's own onLayout has fired) — this is what keeps equal
+  // gaps between pills regardless of how many lines a label wraps onto.
+  const offsetFor = (index: number) => {
+    let offset = 0;
+    for (let j = 0; j <= index; j++) {
+      offset += (pillHeights[j] ?? DEFAULT_PILL_HEIGHT) + PILL_GAP;
+    }
+    return offset;
+  };
+
   return (
     <View
       style={[styles.container, screenOffset, { alignItems: corner === 'bottom-left' ? 'flex-start' : 'flex-end' }]}
@@ -87,7 +107,7 @@ export default function FloatingActionMenu({
         const pillAnim = pillAnims[i];
         const translateY = pillAnim.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -(56 * (i + 1))],
+          outputRange: [0, -offsetFor(i)],
         });
         return (
           <Animated.View
@@ -106,12 +126,21 @@ export default function FloatingActionMenu({
               style={[styles.pill, isRtl && styles.pillRtl]}
               onPress={() => { toggle(); action.onPress(); }}
               disabled={action.loading}
+              onLayout={(e) => {
+                const h = Math.ceil(e.nativeEvent.layout.height);
+                setPillHeights((prev) => {
+                  if (prev[i] === h) return prev;
+                  const next = [...prev];
+                  next[i] = h;
+                  return next;
+                });
+              }}
             >
-              {isRtl && <Text style={styles.pillLabel}>{action.label}</Text>}
+              {isRtl && <Text style={styles.pillLabel} numberOfLines={2}>{action.label}</Text>}
               <View style={[styles.pillIcon, { backgroundColor: color }]}>
                 {action.loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.pillIconText}>{action.icon}</Text>}
               </View>
-              {!isRtl && <Text style={styles.pillLabel}>{action.label}</Text>}
+              {!isRtl && <Text style={styles.pillLabel} numberOfLines={2}>{action.label}</Text>}
             </Pressable>
           </Animated.View>
         );
