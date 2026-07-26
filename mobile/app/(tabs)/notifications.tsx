@@ -47,12 +47,15 @@ interface ChatRow {
 
 const TYPE_STYLE: Record<string, { icon: string; color: string; bg: string }> = {
   project_published:      { icon: '📢', color: '#2E86FF', bg: '#EFF6FF' },
+  application_received:   { icon: '📥', color: '#2E86FF', bg: '#EFF6FF' },
   application_approved:   { icon: '✅', color: '#10B981', bg: '#ECFDF5' },
   application_rejected:   { icon: '❌', color: '#EF4444', bg: '#FEF2F2' },
   meeting_requested:      { icon: '📅', color: '#F97316', bg: '#FFF7ED' },
   milestone_graded:       { icon: '✏️', color: '#8B5CF6', bg: '#F5F3FF' },
   milestone_deadline_7d:  { icon: '⏰', color: '#F59E0B', bg: '#FFFBEB' },
   milestone_deadline_1d:  { icon: '🚨', color: '#EF4444', bg: '#FEF2F2' },
+  milestone_overdue:      { icon: '⏰', color: '#EF4444', bg: '#FEF2F2' },
+  account_created:        { icon: '🎓', color: '#2E86FF', bg: '#EFF6FF' },
   broadcast:              { icon: '📢', color: '#EF4444', bg: '#FEF2F2' },
   new_message:            { icon: '💬', color: '#2E86FF', bg: '#EFF6FF' },
 };
@@ -208,7 +211,11 @@ export default function NotificationsScreen() {
   const [deletingChatId,   setDeletingChatId]   = useState<string | null>(null);
 
   const isRtl       = lang === 'he';
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  // Chat-originated entries belong to the Messages tab, not Alerts — they're
+  // already fully represented there via each chat's own unreadCount, so they're
+  // excluded here rather than double-counted/shown in both places.
+  const alerts      = notifications.filter((n) => n.type !== 'new_message');
+  const unreadCount = alerts.filter((n) => !n.isRead).length;
   const unreadChats = chats.filter((c) => c.unreadCount > 0).length;
 
   // ── 1. Fetch User Role ──────────────────────────────────────────────────
@@ -356,7 +363,17 @@ export default function NotificationsScreen() {
       case 'milestone_graded':
       case 'milestone_deadline_7d':
       case 'milestone_deadline_1d':
+      case 'milestone_overdue':
+        // Always student-directed types.
         router.push('/student/home');
+        break;
+      case 'application_received':
+        // Supervisor-directed — send to their own home, not the student's.
+        goHomeByRole();
+        break;
+      case 'account_created':
+        // Recipient can be any role — route to whichever home matches theirs.
+        goHomeByRole();
         break;
       default:
         router.back();
@@ -385,8 +402,8 @@ export default function NotificationsScreen() {
 
   // ── Grouped notifications ────────────────────────────────────────────────────
   const displayed = filter === 'unread'
-    ? notifications.filter((n) => !n.isRead)
-    : notifications;
+    ? alerts.filter((n) => !n.isRead)
+    : alerts;
 
   const grouped: Record<string, Notif[]> = {};
   displayed.forEach((n) => {
@@ -424,7 +441,7 @@ export default function NotificationsScreen() {
           <Text style={s.headerTitle}>
             {lang === 'he'
               ? (activeTab === 'notifs' ? 'התראות' : activeTab === 'chats' ? 'הודעות' : 'משוב')
-              : (activeTab === 'notifs' ? 'Notifications' : activeTab === 'chats' ? 'Messages' : 'Feedback')}
+              : (activeTab === 'notifs' ? 'Alerts' : activeTab === 'chats' ? 'Messages' : 'Feedback')}
           </Text>
           {activeTab === 'notifs' && unreadCount > 0 && (
             <View style={s.unreadBadge}><Text style={s.unreadBadgeText}>{unreadCount}</Text></View>
@@ -449,7 +466,7 @@ export default function NotificationsScreen() {
           onPress={() => setActiveTab('notifs')}
         >
           <Text style={[s.tabBtnText, activeTab === 'notifs' && s.tabBtnTextActive]} numberOfLines={1}>
-            🔔 {lang === 'he' ? 'התראות' : 'Notifications'}
+            🔔 {lang === 'he' ? 'התראות' : 'Alerts'}
             {unreadCount > 0 ? ` (${unreadCount})` : ''}
           </Text>
         </Pressable>
@@ -458,7 +475,7 @@ export default function NotificationsScreen() {
           onPress={() => setActiveTab('chats')}
         >
           <Text style={[s.tabBtnText, activeTab === 'chats' && s.tabBtnTextActive]} numberOfLines={1}>
-            💬 {lang === 'he' ? 'הודעות' : 'Chats'}
+            💬 {lang === 'he' ? 'הודעות' : 'Messages'}
             {unreadChats > 0 ? ` (${unreadChats})` : ''}
           </Text>
         </Pressable>
