@@ -1098,19 +1098,18 @@ export const adminPanelStyles = StyleSheet.create({
     color: '#fff',
   },
 
-  // flex: 1 on the ScrollView itself reserves the full remaining screen
-  // height regardless of which tab's content is shorter/longer; flexGrow: 1
-  // on the content container then lets that reserved space actually be
-  // filled instead of just scrollable-but-empty — together these stop the
-  // gap below short-content tabs (e.g. Feedback) from visibly differing in
-  // size from long-content tabs (e.g. Users) when switching between them.
-  contentScroll: {
-    flex: 1,
-  },
+  // Reverted: flex/flexGrow here previously stretched the content container
+  // to fill the *entire* remaining screen height, which made the gap below
+  // short tabs (Feedback, Defense Access) much bigger and more obvious on
+  // tall screens instead of fixing it. A plain fixed paddingBottom can't
+  // grow no matter how little content a tab has — every tab now ends with
+  // the exact same tiny, constant gap instead of a variable, stretched one.
+  contentScroll: {},
 
   content: {
-    padding: 16,
-    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 3,
   },
 
   statsGrid: {
