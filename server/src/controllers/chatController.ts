@@ -499,12 +499,24 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
           .where('isRead', '==', false)
           .get();
 
+        // This is a direct (1:1) chat model — both the web and mobile
+        // notifications screens render a single avatar/name/role per row
+        // (chat.otherUid/otherName/otherRole), not the otherParticipants
+        // array. Without these, chat.otherRole.replace(...) (mobile) and
+        // initials(chat.otherName) (web) throw on undefined — otherParticipants
+        // is kept alongside for any future group-chat support, but nothing
+        // reads it today.
+        const primaryOther = otherParticipants[0];
+
         return {
           chatId:            doc.id,
           type:              data.type        ?? 'direct',
           lastMessage:       data.lastMessage ?? '',
           updatedAt:         data.updatedAt   ?? null,
           unreadCount:       unreadSnap.size,
+          otherUid:          primaryOther?.id   ?? '',
+          otherName:         primaryOther?.name ?? '',
+          otherRole:         primaryOther?.role ?? '',
           otherParticipants,
         };
       })
