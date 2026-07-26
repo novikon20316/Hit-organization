@@ -18,7 +18,7 @@ import { VALID_ROLES, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel, type FacultyId } from '@/lib/i18n';
 import {
   VIEW_TYPES, ACTION_TYPES, DEGREE_LEVELS, PROCESS_TYPES, PERMISSION_FACULTY_IDS,
-  majorsForFaculty, type ViewType, type ActionType, type DegreeLevel, type ProcessType,
+  majorsForFaculty, degreeLevelsForFaculty, type ViewType, type ActionType, type DegreeLevel, type ProcessType,
 } from '@/lib/permissions';
 
 const BULK_PERMISSION_ROLES: AppRole[] = ['system_admin', 'faculty_admin', 'grad_school_head'];
@@ -50,6 +50,7 @@ export default function BulkPermissionsPage() {
 
   const effectiveFacultyId = isFacultyLocked ? (ownFacultyId ?? '') : facultyId;
   const majors = effectiveFacultyId ? majorsForFaculty(effectiveFacultyId) : [];
+  const degreeLevelOptions = DEGREE_LEVELS.filter((d) => degreeLevelsForFaculty(effectiveFacultyId || 'all').includes(d.key));
 
   const loadPreview = useCallback(async () => {
     setCountLoading(true);
@@ -140,7 +141,20 @@ export default function BulkPermissionsPage() {
         ) : (
           <label className="mt-3 block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
-            <select value={facultyId} onChange={(e) => { setFacultyId(e.target.value); setMajor(''); }} className={inputCls}>
+            <select
+              value={facultyId}
+              onChange={(e) => {
+                const fid = e.target.value;
+                setFacultyId(fid);
+                setMajor('');
+                const validLevels = degreeLevelsForFaculty(fid || 'all');
+                if (degreeLevel && !validLevels.includes(degreeLevel)) {
+                  setDegreeLevel('');
+                  setProcessType('');
+                }
+              }}
+              className={inputCls}
+            >
               <option value="">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
               {PERMISSION_FACULTY_IDS.filter((id) => id !== 'all').map((id) => (
                 <option key={id} value={id}>{facultyLabel(id, lang)}</option>
@@ -169,7 +183,7 @@ export default function BulkPermissionsPage() {
             className={inputCls}
           >
             <option value="">{lang === 'he' ? 'שני התארים' : 'Both degree levels'}</option>
-            {DEGREE_LEVELS.map((d) => (
+            {degreeLevelOptions.map((d) => (
               <option key={d.key} value={d.key}>{d.label[lang]}</option>
             ))}
           </select>

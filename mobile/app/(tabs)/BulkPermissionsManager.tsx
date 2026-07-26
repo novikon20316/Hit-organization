@@ -22,7 +22,7 @@ import { apiClient } from '../../src/api/apiClient';
 import { VALID_ROLES } from '../../firebase/roles';
 import {
   VIEW_TYPES, ACTION_TYPES, DEGREE_LEVELS, PROCESS_TYPES, PERMISSION_FACULTY_IDS,
-  majorsForFaculty, type ViewType, type ActionType, type DegreeLevel, type ProcessType,
+  majorsForFaculty, degreeLevelsForFaculty, type ViewType, type ActionType, type DegreeLevel, type ProcessType,
 } from '../../constants/permissions';
 
 const TARGETABLE_ROLES = VALID_ROLES.filter((r) => r !== 'student');
@@ -66,6 +66,7 @@ export default function BulkPermissionsManager() {
   const isFacultyLocked = userRole === 'faculty_admin';
   const effectiveFacultyId = isFacultyLocked ? (ownFacultyId ?? '') : facultyId;
   const majors = effectiveFacultyId ? majorsForFaculty(effectiveFacultyId) : [];
+  const degreeLevelOptions = DEGREE_LEVELS.filter((d) => degreeLevelsForFaculty(effectiveFacultyId || 'all').includes(d.key));
 
   useEffect(() => {
     if (!uid) { setLoadingProfile(false); return; }
@@ -169,7 +170,20 @@ export default function BulkPermissionsManager() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               <Pill label={lang === 'he' ? 'כל הפקולטות' : 'All faculties'} active={facultyId === ''} onPress={() => { setFacultyId(''); setMajor(''); }} />
               {SELECTABLE_FACULTY_IDS.map((id) => (
-                <Pill key={id} label={FACULTY_COLORS[id]?.label[lang] ?? id} active={facultyId === id} onPress={() => { setFacultyId(id); setMajor(''); }} />
+                <Pill
+                key={id}
+                label={FACULTY_COLORS[id]?.label[lang] ?? id}
+                active={facultyId === id}
+                onPress={() => {
+                  setFacultyId(id);
+                  setMajor('');
+                  const validLevels = degreeLevelsForFaculty(id);
+                  if (degreeLevel && !validLevels.includes(degreeLevel)) {
+                    setDegreeLevel('');
+                    setProcessType('');
+                  }
+                }}
+              />
               ))}
             </View>
           </>
@@ -194,7 +208,7 @@ export default function BulkPermissionsManager() {
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           <Pill label={lang === 'he' ? 'שני התארים' : 'Both'} active={degreeLevel === ''} onPress={() => { setDegreeLevel(''); setProcessType(''); }} />
-          {DEGREE_LEVELS.map((d) => (
+          {degreeLevelOptions.map((d) => (
             <Pill key={d.key} label={d.label[lang]} active={degreeLevel === d.key} onPress={() => { setDegreeLevel(d.key); if (d.key !== 'masters') setProcessType(''); }} />
           ))}
         </View>

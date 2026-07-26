@@ -15,7 +15,7 @@
 import { useLanguage } from '@/contexts/LanguageContext';
 import { facultyLabel } from '@/lib/i18n';
 import {
-  PERMISSION_FACULTY_IDS, DEGREE_LEVELS, PROCESS_TYPES, majorsForFaculty,
+  PERMISSION_FACULTY_IDS, DEGREE_LEVELS, PROCESS_TYPES, majorsForFaculty, degreeLevelsForFaculty,
   type ScopeDescriptor, type PermissionFacultyId,
 } from '@/lib/permissions';
 
@@ -29,6 +29,8 @@ const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-s
 export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFieldsProps) {
   const { lang } = useLanguage();
   const majors = scope.facultyId !== 'all' ? majorsForFaculty(scope.facultyId) : [];
+  const availableDegreeLevels = degreeLevelsForFaculty(scope.facultyId);
+  const degreeLevelOptions = DEGREE_LEVELS.filter((d) => availableDegreeLevels.includes(d.key));
 
   return (
     <div className="grid gap-3">
@@ -37,7 +39,12 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
         <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
         <select
           value={scope.facultyId}
-          onChange={(e) => onChange({ facultyId: e.target.value as PermissionFacultyId, major: undefined })}
+          onChange={(e) => {
+            const facultyId = e.target.value as PermissionFacultyId;
+            const validLevels = degreeLevelsForFaculty(facultyId);
+            const degreeLevel = scope.degreeLevel && validLevels.includes(scope.degreeLevel) ? scope.degreeLevel : undefined;
+            onChange({ facultyId, major: undefined, degreeLevel, processType: degreeLevel === 'masters' ? scope.processType : undefined });
+          }}
           className={inputCls}
         >
           {PERMISSION_FACULTY_IDS.map((fid) => (
@@ -79,7 +86,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
           className={inputCls}
         >
           <option value="">{lang === 'he' ? 'שני התארים' : 'Both degree levels'}</option>
-          {DEGREE_LEVELS.map((d) => (
+          {degreeLevelOptions.map((d) => (
             <option key={d.key} value={d.key}>
               {d.label[lang]}
             </option>

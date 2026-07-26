@@ -10,7 +10,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { FACULTY_COLORS } from '../shared';
 import {
-  PERMISSION_FACULTY_IDS, DEGREE_LEVELS, PROCESS_TYPES, majorsForFaculty,
+  PERMISSION_FACULTY_IDS, DEGREE_LEVELS, PROCESS_TYPES, majorsForFaculty, degreeLevelsForFaculty,
   type ScopeDescriptor, type PermissionFacultyId,
 } from '../../constants/permissions';
 import { PermissionsEditorModalStyles } from '../../constants/styles';
@@ -23,6 +23,8 @@ type Props = {
 
 export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) {
   const majors = scope.facultyId !== 'all' ? majorsForFaculty(scope.facultyId) : [];
+  const availableDegreeLevels = degreeLevelsForFaculty(scope.facultyId);
+  const degreeLevelOptions = DEGREE_LEVELS.filter((d) => availableDegreeLevels.includes(d.key));
 
   return (
     <>
@@ -35,7 +37,16 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
           <Pressable
             key={fid}
             style={s.permRow}
-            onPress={() => onChange({ facultyId: fid as PermissionFacultyId, major: undefined })}
+            onPress={() => {
+              const validLevels = degreeLevelsForFaculty(fid);
+              const degreeLevel = scope.degreeLevel && validLevels.includes(scope.degreeLevel) ? scope.degreeLevel : undefined;
+              onChange({
+                facultyId: fid as PermissionFacultyId,
+                major: undefined,
+                degreeLevel,
+                processType: degreeLevel === 'masters' ? scope.processType : undefined,
+              });
+            }}
           >
             <View style={[s.checkbox, isActive && s.checkboxActive]}>
               {isActive && <Text style={s.checkmark}>✓</Text>}
@@ -78,7 +89,7 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
         </View>
         <Text style={s.permLabel}>{lang === 'he' ? 'שני התארים' : 'Both degree levels'}</Text>
       </Pressable>
-      {DEGREE_LEVELS.map((d) => {
+      {degreeLevelOptions.map((d) => {
         const isActive = scope.degreeLevel === d.key;
         return (
           <Pressable

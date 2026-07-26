@@ -128,6 +128,17 @@ export function newScopeId(): string {
   return `scope_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Which degree levels a given faculty actually offers (e.g. data_science is
+ *  master's-only, medical_tech is bachelor's-only) — 'all' (cross-faculty)
+ *  offers both. */
+export function degreeLevelsForFaculty(facultyId: string): DegreeLevel[] {
+  if (facultyId === 'all') return ['bachelors', 'masters'];
+  const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
+  if (!faculty) return ['bachelors', 'masters'];
+  const levels = new Set(faculty.programs.map((p) => p.level));
+  return (['bachelors', 'masters'] as const).filter((l) => levels.has(l));
+}
+
 /** Every distinct major slug available for a given faculty, deduped (a slug can repeat across bachelor's/master's rows). */
 export function majorsForFaculty(facultyId: string): { slug: string; label: { he: string; en: string } }[] {
   const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
