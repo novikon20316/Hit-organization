@@ -1,11 +1,13 @@
 export type NotificationType =
   | 'project_published'
+  | 'application_received'
   | 'application_approved'
   | 'application_rejected'
   | 'meeting_requested'
   | 'milestone_graded'
   | 'milestone_deadline_7d'
   | 'milestone_deadline_1d'
+  | 'milestone_overdue'
   | 'broadcast'
   | 'new_message'
   | 'account_created'
@@ -49,6 +51,21 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     `,
   },
 
+  application_received: {
+    subjectHe: '📥 התקבלה בקשה חדשה',
+    subjectEn: '📥 New Application Received',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>הסטודנט/ית <strong>${d.studentName || ''}</strong> הגיש/ה בקשה להצטרף לפרויקט <strong>${d.projectTitle || ''}</strong>.</p>
+      <p>היכנס למערכת לצפייה בפרטי הבקשה ולמענה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p><strong>${d.studentName || ''}</strong> has applied to join your project <strong>${d.projectTitle || ''}</strong>.</p>
+      <p>Log in to review the application and respond.</p>
+    `,
+  },
+
   application_approved: {
     subjectHe: '✅ בקשתך אושרה!',
     subjectEn: '✅ Your Application Was Approved!',
@@ -80,17 +97,17 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
   },
 
   meeting_requested: {
-    subjectHe: '📅 נקבעה פגישה',
-    subjectEn: '📅 Meeting Scheduled',
+    subjectHe: '📅 בקשת פגישה',
+    subjectEn: '📅 Meeting Requested',
     bodyHe: (d) => `
       <p>שלום ${d.name || ''},</p>
-      <p>נקבעה פגישה בתאריך <strong>${d.meetingDate || ''}</strong>.</p>
-      <p>אנא אשר את השתתפותך במערכת.</p>
+      <p>המנחה שלך מבקש/ת לקיים פגישה לפני קבלת החלטה על בקשתך לפרויקט <strong>${d.projectTitle || ''}</strong>.</p>
+      <p>היכנס למערכת לתיאום מועד.</p>
     `,
     bodyEn: (d) => `
       <p>Hello ${d.name || ''},</p>
-      <p>A meeting has been scheduled for <strong>${d.meetingDate || ''}</strong>.</p>
-      <p>Please confirm your attendance in the system.</p>
+      <p>Your supervisor would like to meet before deciding on your application for <strong>${d.projectTitle || ''}</strong>.</p>
+      <p>Log in to arrange a time.</p>
     `,
   },
 
@@ -136,6 +153,21 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>Hello ${d.name || ''},</p>
       <p><strong>Tomorrow</strong> is the final deadline for submitting <strong>${d.milestoneTitle || ''}</strong>.</p>
       <p>Don't forget to submit!</p>
+    `,
+  },
+
+  milestone_overdue: {
+    subjectHe: '⏰ אבן הדרך שלך באיחור',
+    subjectEn: '⏰ Your Milestone Is Overdue',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>אבן הדרך <strong>${d.milestoneTitle || ''}</strong> באיחור של <strong>${d.daysLate || ''}</strong> ${d.daysLate === '1' ? 'יום' : 'ימים'}.</p>
+      <p>אנא הגש/י בהקדם האפשרי כדי למנוע עיכוב נוסף בתהליך.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>Your milestone <strong>${d.milestoneTitle || ''}</strong> is <strong>${d.daysLate || ''}</strong> day(s) overdue.</p>
+      <p>Please submit as soon as possible to avoid further delay.</p>
     `,
   },
 

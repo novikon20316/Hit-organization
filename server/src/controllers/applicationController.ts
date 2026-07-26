@@ -2,6 +2,7 @@ import admin from 'firebase-admin'
 import { AuthenticatedRequest } from '../middleware/auth.js'
 import { Response } from 'express'
 import { screenApplication } from '../services/cvScreeningService.js'
+import { notifyUser } from '../services/notify.js'
 
 const db = admin.firestore();
 
@@ -118,6 +119,29 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         supervisorNote: null,
         meetingDate:    null,
         });
+
+        // Best-effort — a notification failure must never block or fail the
+        // student's application submission.
+        if (projectData.supervisorId) {
+            try {
+                const studentName = studentData.displayName ?? studentData.displayNameHe ?? '';
+                await notifyUser({
+                    recipientId: projectData.supervisorId,
+                    type: 'application_received',
+                    titleHe: '📥 התקבלה בקשה חדשה',
+                    titleEn: '📥 New Application Received',
+                    bodyHe: `${studentName} הגיש/ה בקשה להצטרף לפרויקט "${projectData.titleHe ?? ''}".`,
+                    bodyEn: `${studentName} applied to join your project "${projectData.titleEn ?? ''}".`,
+                    relatedProjectId: projectId,
+                    emailData: {
+                        studentName,
+                        projectTitle: { he: projectData.titleHe ?? '', en: projectData.titleEn ?? '' },
+                    },
+                });
+            } catch (notifyError) {
+                console.error(`application_received notification failed for supervisor ${projectData.supervisorId}:`, notifyError);
+            }
+        }
 
         // Best-effort, time-bounded — a screening failure must never block or
         // fail the student's application submission (see cvScreeningService.ts).

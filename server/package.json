@@ -16,6 +16,7 @@
     "pdf-parse": "^1.1.1",
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",
+    "twilio": "^6.0.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   },
   "scripts": {

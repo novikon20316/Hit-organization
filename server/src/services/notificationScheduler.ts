@@ -19,6 +19,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 import { promoteNextExaminer } from './examinerEscalation.js';
+import { notifyUser } from './notify.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -30,37 +31,53 @@ async function notifyStudentOfDeadline(
 ): Promise<void> {
   const type = kind === '7d' ? 'milestone_deadline_7d' : 'milestone_deadline_1d';
   try {
-    const userSnap = await db.collection('users').doc(studentId).get();
-    const user = userSnap.data();
-    if (!user) return;
-
-    await db.collection('notifications').add({
+    await notifyUser({
       recipientId: studentId,
       type,
       titleHe: kind === '7d' ? '⏰ תזכורת: 7 ימים לסיום אבן הדרך' : '🚨 מחר הוא המועד האחרון!',
       titleEn: kind === '7d' ? '⏰ Reminder: 7 Days Until Milestone Deadline' : '🚨 Tomorrow Is the Deadline!',
       bodyHe: `נותרו ${kind === '7d' ? '7 ימים' : 'פחות מ-24 שעות'} להגשת "${milestone.nameHe ?? milestone.type}".`,
       bodyEn: `${kind === '7d' ? '7 days' : 'Less than 24 hours'} left to submit "${milestone.nameEn ?? milestone.type}".`,
-      isRead: false,
       relatedProjectId: milestone.projectId ?? null,
       relatedMilestoneId: milestoneId,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    if (user.email) {
-      const lang: 'he' | 'en' = user.language === 'en' ? 'en' : 'he';
-      await sendNotificationEmail({
-        toEmail: user.email,
-        type,
-        lang,
-        data: {
-          name: user.displayName ?? '',
-          milestoneTitle: (lang === 'en' ? milestone.nameEn : milestone.nameHe) ?? milestone.type ?? '',
+      emailData: {
+        milestoneTitle: {
+          he: milestone.nameHe ?? milestone.type ?? '',
+          en: milestone.nameEn ?? milestone.type ?? '',
         },
-      });
-    }
+      },
+    });
   } catch (err) {
     console.error(`notifyStudentOfDeadline(${kind}): failed for student ${studentId} on milestone ${milestoneId}:`, err);
+  }
+}
+
+async function notifyStudentOfOverdue(
+  studentId: string,
+  milestone: FirebaseFirestore.DocumentData,
+  milestoneId: string,
+  daysLate: number,
+): Promise<void> {
+  try {
+    await notifyUser({
+      recipientId: studentId,
+      type: 'milestone_overdue',
+      titleHe: '⏰ אבן הדרך שלך באיחור',
+      titleEn: '⏰ Your Milestone Is Overdue',
+      bodyHe: `אבן הדרך "${milestone.nameHe ?? milestone.type}" באיחור של ${daysLate} ${daysLate === 1 ? 'יום' : 'ימים'}. אנא הגש/י בהקדם האפשרי.`,
+      bodyEn: `Your milestone "${milestone.nameEn ?? milestone.type}" is ${daysLate} day(s) overdue. Please submit as soon as possible.`,
+      relatedProjectId: milestone.projectId ?? null,
+      relatedMilestoneId: milestoneId,
+      emailData: {
+        milestoneTitle: {
+          he: milestone.nameHe ?? milestone.type ?? '',
+          en: milestone.nameEn ?? milestone.type ?? '',
+        },
+        daysLate: String(daysLate),
+      },
+    });
+  } catch (err) {
+    console.error(`notifyStudentOfOverdue: failed for student ${studentId} on milestone ${milestoneId}:`, err);
   }
 }
 
@@ -86,6 +103,16 @@ export async function sendMilestoneDeadlineReminders(): Promise<void> {
       } else if (daysLeft <= 1 && daysLeft > -1 && !data.deadlineReminder1dSentAt) {
         await Promise.all(studentIds.map((sid) => notifyStudentOfDeadline(sid, data, doc.id, '1d')));
         await doc.ref.update({ deadlineReminder1dSentAt: admin.firestore.FieldValue.serverTimestamp() });
+      } else if (daysLeft <= -1) {
+        // Overdue — fire once when it first crosses into "late", then once
+        // per additional calendar day late (not once per hourly sweep),
+        // gated by a UTC date-string compared against the last reminder.
+        const today = new Date().toISOString().slice(0, 10);
+        if (data.lastOverdueReminderDate !== today) {
+          const daysLate = Math.floor(-daysLeft);
+          await Promise.all(studentIds.map((sid) => notifyStudentOfOverdue(sid, data, doc.id, daysLate)));
+          await doc.ref.update({ lastOverdueReminderDate: today });
+        }
       }
     } catch (err) {
       console.error(`sendMilestoneDeadlineReminders: failed for milestone ${doc.id}:`, err);

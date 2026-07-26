@@ -15,7 +15,7 @@ import {
 } from '../config/permissionScopes.js';
 import { hasActionGrant } from '../services/scopeAuthorization.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
-import { sendNotificationEmail } from '../services/emailService.js';
+import { notifyUser } from '../services/notify.js';
 import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
 
 const db = admin.firestore();
@@ -336,12 +336,18 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
     });
 
     try {
-      await sendNotificationEmail({
-        toEmail: userData.email,
+      // Also attempts SMS (iff a phoneNumber was given) and push (naturally
+      // skipped — no expoPushToken exists yet for a brand-new account).
+      // Delivery outcome for every channel is persisted on the created
+      // notification doc — see services/notify.ts.
+      await notifyUser({
+        recipientId: authUser.uid,
         type: 'account_created',
-        lang: userData.language === 'en' ? 'en' : 'he',
-        data: {
-          name: userData.displayName,
+        titleHe: '🎓 ברוך הבא למערכת',
+        titleEn: '🎓 Welcome to the System',
+        bodyHe: 'מנהל המערכת הוסיף אותך למערכת ניהול פרויקטי הגמר. בדוק את תיבת הדוא"ל שלך לפרטי ההתחברות.',
+        bodyEn: 'The system administrator added you to the Projects & Thesis Management System. Check your email for login details.',
+        emailData: {
           email: userData.email,
           tempPassword,
           // TODO: set once the app is published on each store
@@ -349,8 +355,8 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
           appLinkAndroid: process.env.APP_LINK_URL_ANDROID || '',
         },
       });
-    } catch (emailError) {
-      console.error(`Welcome email failed for ${userData.email}:`, emailError);
+    } catch (notifyError) {
+      console.error(`Welcome notification failed for ${userData.email}:`, notifyError);
     }
 
     return res.status(201).json({ success: true, id: authUser.uid, tempPassword, message: 'User created.' });

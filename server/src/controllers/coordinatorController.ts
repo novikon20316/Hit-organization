@@ -11,6 +11,7 @@ import {
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType } from '../services/workflowTemplates.js';
+import { notifyUser } from '../services/notify.js';
 
 // Matches the Firestore project document shape exactly
 interface ProjectDocument {
@@ -516,6 +517,9 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   }
 
   let previousStatus: string | undefined;
+  // Captured from the transaction's read so email/push/SMS (external I/O —
+  // never allowed inside db.runTransaction) can fire after it commits.
+  let approvedMilestone: FirebaseFirestore.DocumentData | undefined;
   try {
     await db.runTransaction(async (transaction) => {
       const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -526,11 +530,8 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
       }
 
       const milestone = milestoneSnap.data()!;
-      const { projectId, supervisorId } = milestone;
       previousStatus = milestone.status;
-
-      // Resolve student IDs — stored as array on milestones
-      const studentIds: string[] = milestone.studentIds ?? [];
+      approvedMilestone = milestone;
 
       // 1. Update milestone status
       transaction.update(milestoneRef, {
@@ -538,42 +539,6 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
         coordinatorApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
         coordinatorId,
       });
-
-      // 2. Notify each student
-      studentIds.forEach((studentId) => {
-        const notifRef = db.collection('notifications').doc();
-        transaction.set(notifRef, {
-          recipientId: studentId,
-          type: 'milestone_coordinator_approved',
-          titleHe: 'אבן דרך אושרה על ידי הרכז',
-          titleEn: 'Milestone approved by coordinator',
-          bodyHe: `אבן הדרך "${milestone.nameEn ?? milestone.type}" אושרה.`,
-          bodyEn: `Your milestone "${milestone.nameEn ?? milestone.type}" has been approved.`,
-          isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          relatedProjectId: projectId ?? null,
-          relatedMilestoneId: milestoneId,
-          chatId: null,
-        });
-      });
-
-      // 3. Notify supervisor
-      if (supervisorId) {
-        const supNotifRef = db.collection('notifications').doc();
-        transaction.set(supNotifRef, {
-          recipientId: supervisorId,
-          type: 'milestone_coordinator_approved',
-          titleHe: 'אבן דרך אושרה',
-          titleEn: 'Milestone approved',
-          bodyHe: `הרכז אישר את אבן הדרך "${milestone.nameEn ?? milestone.type}".`,
-          bodyEn: `The coordinator approved milestone "${milestone.nameEn ?? milestone.type}".`,
-          isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          relatedProjectId: projectId ?? null,
-          relatedMilestoneId: milestoneId,
-          chatId: null,
-        });
-      }
     });
 
     await logAuditEvent({
@@ -585,6 +550,56 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
       oldValue: { status: previousStatus ?? null },
       newValue: { status: 'coordinator_approved' },
     });
+
+    // Notify students (grade is already final by the time a coordinator
+    // approves — see projectController.ts's submitMilestoneGrade) + the
+    // supervisor, best-effort — a notify failure must never turn an
+    // already-committed approval into a 500.
+    if (approvedMilestone) {
+      const milestone = approvedMilestone;
+      const projectId: string | undefined = milestone.projectId;
+      const supervisorId: string | undefined = milestone.supervisorId;
+      const studentIds: string[] = milestone.studentIds ?? [];
+      const finalGradeByStudent: Record<string, number> | undefined = milestone.finalGradeByStudent;
+      const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
+
+      await Promise.all(studentIds.map(async (studentId) => {
+        try {
+          const grade = finalGradeByStudent?.[studentId] ?? milestone.finalGrade;
+          await notifyUser({
+            recipientId: studentId,
+            type: 'milestone_graded',
+            titleHe: 'אבן דרך אושרה על ידי הרכז',
+            titleEn: 'Milestone approved by coordinator',
+            bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה${grade != null ? ` עם ציון ${grade}` : ''}. בדוק/י בטאב הציונים של הפרויקט שלך.`,
+            bodyEn: `Your milestone "${milestoneTitle.en}" has been approved${grade != null ? ` with grade ${grade}` : ''}. Check your project's Grades section.`,
+            relatedProjectId: projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            emailData: { milestoneTitle, grade: grade != null ? String(grade) : '' },
+          });
+        } catch (notifyError) {
+          console.error(`coordinatorApproveMilestone: student notify failed for ${studentId} on milestone ${milestoneId}:`, notifyError);
+        }
+      }));
+
+      if (supervisorId) {
+        try {
+          await notifyUser({
+            recipientId: supervisorId,
+            type: 'milestone_graded',
+            titleHe: 'אבן דרך אושרה',
+            titleEn: 'Milestone approved',
+            bodyHe: `הרכז אישר את אבן הדרך "${milestoneTitle.he}".`,
+            bodyEn: `The coordinator approved milestone "${milestoneTitle.en}".`,
+            relatedProjectId: projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            channels: { email: false, sms: false },
+          });
+        } catch (notifyError) {
+          console.error(`coordinatorApproveMilestone: supervisor notify failed for ${supervisorId} on milestone ${milestoneId}:`, notifyError);
+        }
+      }
+    }
 
     return res.status(200).json({ success: true, message: 'Milestone approved by coordinator.' });
   } catch (error: any) {

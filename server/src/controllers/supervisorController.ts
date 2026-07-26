@@ -3,6 +3,7 @@ import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { majorsForFaculty } from '../config/majors.js';
+import { notifyUser } from '../services/notify.js';
 
 const db = admin.firestore();
 
@@ -235,16 +236,16 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     const studentId = appSnap.data()?.studentId;
     const facultyId = appSnap.data()?.facultyId ?? '';
 
-    // Fetch project title + student push token in parallel
-    const [projectSnap, studentSnap, supervisorSnap] = await Promise.all([
+    // Fetch project title + supervisor's display name in parallel — notifyUser
+    // fetches the student's own doc (for email/push/sms) itself, so no
+    // separate student fetch is needed here anymore.
+    const [projectSnap, supervisorSnap] = await Promise.all([
       db.collection('projects').doc(projectId).get(),
-      db.collection('users').doc(studentId).get(),
       db.collection('users').doc(supervisorId).get(),
     ]);
 
     const projectTitleHe = projectSnap.data()?.titleHe ?? '';
     const projectTitleEn = projectSnap.data()?.titleEn ?? '';
-    const studentToken   = studentSnap.data()?.expoPushToken ?? null;
     const supervisorName = supervisorSnap.data()?.displayNameHe ?? supervisorSnap.data()?.displayName ?? '';
 
     await applicationRef.update({
@@ -253,13 +254,14 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
       reviewedAt:    new Date().toISOString(),
     });
 
+    // Delivery status (email/push/sms) is persisted on the notification doc
+    // by notifyUser — see services/notify.ts.
     if (decision === 'approved') {
       // 1-3. Project/student/milestone writes — shared with the admin and
       // faculty-admin manual-enrollment paths so all three stay in sync.
       await enrollStudentInProject(projectId, studentId, supervisorId, facultyId);
 
-      // 4. ✅ Firestore notification — approved
-      await createNotification({
+      await notifyUser({
         recipientId:      studentId,
         type:             'application_approved',
         titleHe:          'בקשתך אושרה! 🎉',
@@ -267,21 +269,11 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
         bodyHe:           `המנחה ${supervisorName} אישר את בקשתך לפרויקט "${projectTitleHe}".`,
         bodyEn:           `Supervisor ${supervisorName} approved your application for "${projectTitleEn}".`,
         relatedProjectId: projectId,
+        emailData:        { projectTitle: { he: projectTitleHe, en: projectTitleEn } },
       });
 
-      // 5. ✅ Push notification — approved
-      if (studentToken) {
-        await sendPushNotification(
-          studentToken,
-          '✅ Application Approved!',
-          `You have been accepted to "${projectTitleEn}".`,
-          { projectId },
-        );
-      }
-
     } else if (decision === 'rejected') {
-      // ✅ Firestore notification — rejected
-      await createNotification({
+      await notifyUser({
         recipientId:      studentId,
         type:             'application_rejected',
         titleHe:          'בקשתך נדחתה',
@@ -289,21 +281,11 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
         bodyHe:           `לצערנו, בקשתך לפרויקט "${projectTitleHe}" נדחתה.${notes ? ` הערה: ${notes}` : ''}`,
         bodyEn:           `Unfortunately your application for "${projectTitleEn}" was rejected.${notes ? ` Note: ${notes}` : ''}`,
         relatedProjectId: projectId,
+        emailData:        { projectTitle: { he: projectTitleHe, en: projectTitleEn } },
       });
 
-      // ✅ Push notification — rejected
-      if (studentToken) {
-        await sendPushNotification(
-          studentToken,
-          '❌ Application Update',
-          `Your application for "${projectTitleEn}" was not accepted.`,
-          { projectId },
-        );
-      }
-
     } else if (decision === 'meeting_requested') {
-      // ✅ Firestore notification — meeting requested
-      await createNotification({
+      await notifyUser({
         recipientId:      studentId,
         type:             'meeting_requested',
         titleHe:          'בקשת פגישה 📅',
@@ -311,16 +293,8 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
         bodyHe:           `המנחה ${supervisorName} מבקש לקיים פגישה לפני קבלת ההחלטה על פרויקט "${projectTitleHe}".`,
         bodyEn:           `Supervisor ${supervisorName} requested a meeting before deciding on "${projectTitleEn}".`,
         relatedProjectId: projectId,
+        emailData:        { projectTitle: { he: projectTitleHe, en: projectTitleEn } },
       });
-
-      if (studentToken) {
-        await sendPushNotification(
-          studentToken,
-          '📅 Meeting Requested',
-          `Your supervisor wants to meet regarding "${projectTitleEn}".`,
-          { projectId },
-        );
-      }
     }
 
     return res.status(200).json({ success: true, message: `Application ${decision} successfully.` });
