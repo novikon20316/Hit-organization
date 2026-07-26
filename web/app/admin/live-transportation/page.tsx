@@ -11,7 +11,7 @@
 // polling a REST endpoint, so everything here updates instantly.
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -52,6 +52,12 @@ export default function LiveTransportationPage() {
   const [now, setNow] = useState(() => Date.now());
   const [presenceError, setPresenceError] = useState('');
   const [auditError, setAuditError] = useState('');
+  // Denormalized userDisplayName is missing on most historical audit rows
+  // (only the login action ever passed it — see auditLog.ts) — resolve the
+  // rest client-side against the users collection instead. Keyed by uid,
+  // with '' meaning "looked up, no name found" so a lookup is never retried
+  // forever on every snapshot re-fire.
+  const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!isAllowed) return;
@@ -115,6 +121,40 @@ export default function LiveTransportationPage() {
     );
     return unsub;
   }, [isAllowed]);
+
+  useEffect(() => {
+    if (!isAllowed) return;
+    const missing = Array.from(new Set(
+      auditRows
+        .filter((r) => !r.userDisplayName && r.userId && !(r.userId in resolvedNames))
+        .map((r) => r.userId)
+    ));
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        missing.map(async (uid) => {
+          try {
+            const snap = await getDoc(doc(db, 'users', uid));
+            const data = snap.data() as Record<string, unknown> | undefined;
+            const name = (data?.displayName as string) || (data?.displayNameHe as string) || (data?.displayNameEn as string) || '';
+            return [uid, name] as const;
+          } catch (err) {
+            console.error(`Failed resolving display name for uid ${uid}:`, err);
+            return [uid, ''] as const;
+          }
+        })
+      );
+      if (cancelled) return;
+      setResolvedNames((prev) => {
+        const next = { ...prev };
+        entries.forEach(([uid, name]) => { next[uid] = name; });
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [auditRows, isAllowed, resolvedNames]);
 
   useEffect(() => {
     if (!isAllowed) return;
@@ -196,12 +236,17 @@ export default function LiveTransportationPage() {
 
         <section className="rounded-[var(--radius)] border border-line bg-surface p-4">
           <h2 className="mb-3 text-sm font-semibold text-ink">{lang === 'he' ? 'פעולות נפוצות (100 אחרונות)' : 'Action breakdown (last 100)'}</h2>
-          <div className="h-56 w-full">
+          {/* Recharts isn't RTL-aware — under the page's ambient dir="rtl" the
+              SVG's tick labels (always plain English action names) end up
+              mispositioned relative to the bars. Forcing this chart's own
+              container to dir="ltr" keeps its internal layout consistent
+              regardless of the page language. */}
+          <div className="h-56 w-full" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={actionCounts} layout="vertical" margin={{ left: 16, right: 16 }}>
+              <BarChart data={actionCounts} layout="vertical" margin={{ top: 5, right: 24, bottom: 5, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
                 <XAxis type="number" allowDecimals={false} stroke="var(--muted)" fontSize={11} />
-                <YAxis type="category" dataKey="action" width={170} tick={{ fontSize: 11 }} stroke="var(--muted)" />
+                <YAxis type="category" dataKey="action" width={180} tick={{ fontSize: 11 }} stroke="var(--muted)" />
                 <Tooltip />
                 <Bar dataKey="count" fill="var(--primary)" isAnimationActive={false} />
               </BarChart>
@@ -212,7 +257,13 @@ export default function LiveTransportationPage() {
         <section className="rounded-[var(--radius)] border border-line bg-surface p-4">
           <h2 className="mb-3 text-sm font-semibold text-ink">{lang === 'he' ? 'פעולות אחרונות' : 'Recent actions'}</h2>
           {auditError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{auditError}</p>}
-          <div className="overflow-x-auto">
+          {/* dir="ltr" here too — under RTL a <table> mirrors column order by
+              default, but these cells stay text-left, so headers and data
+              visually detached from each other. Forcing LTR keeps column
+              order and text alignment consistent (Hebrew header text still
+              renders correctly — Unicode bidi shaping is per-run, not
+              container-direction-dependent). */}
+          <div className="overflow-x-auto" dir="ltr">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
@@ -225,9 +276,10 @@ export default function LiveTransportationPage() {
               <tbody>
                 {auditRows.map((row) => {
                   const d = row.timestampMs ? new Date(row.timestampMs) : null;
+                  const displayName = row.userDisplayName || resolvedNames[row.userId] || row.userId;
                   return (
                     <tr key={row.id} className="border-b border-line/50">
-                      <td className="py-2 pr-3 text-ink">{row.userDisplayName || row.userId}</td>
+                      <td className="py-2 pr-3 text-ink">{displayName}</td>
                       <td className="py-2 pr-3 text-ink">{row.action}</td>
                       <td className="py-2 pr-3 text-muted">{d ? d.toLocaleDateString() : '—'}</td>
                       <td className="py-2 text-muted">{d ? d.toLocaleTimeString() : '—'}</td>
