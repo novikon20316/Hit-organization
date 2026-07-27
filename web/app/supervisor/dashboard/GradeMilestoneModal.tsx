@@ -22,10 +22,14 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
     writing: '',
   });
   const [comment, setComment] = useState('');
+  // Group projects only (studentIds.length > 1) — optional per-student score
+  // layered on top of the shared group score above, keyed by studentId.
+  const [individualScores, setIndividualScores] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const totalScore = GRADING_CRITERIA.reduce((sum, c) => sum + (Number(criteria[c.key]) || 0), 0);
+  const isGroupProject = m.studentIds.length > 1;
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -43,6 +47,37 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           writing: Number(criteria.writing) || 0,
         },
       });
+
+      // Individual components are optional per student and independent of
+      // the group score above — submit each filled-in one, but a failure
+      // here shouldn't hide that the (already-saved) group grade succeeded.
+      if (isGroupProject) {
+        const individualFailures: string[] = [];
+        for (const studentId of m.studentIds) {
+          const raw = individualScores[studentId];
+          if (raw === undefined || raw.trim() === '') continue;
+          try {
+            await apiClient.submitIndividualGrade(m.id, { studentId, score: Number(raw) });
+          } catch (err) {
+            console.error(`Failed to submit individual grade for ${studentId}:`, err);
+            individualFailures.push(m.studentNames[m.studentIds.indexOf(studentId)] ?? studentId);
+          }
+        }
+        if (individualFailures.length > 0) {
+          setError(
+            lang === 'he'
+              ? `הציון הקבוצתי נשמר, אך הציון האישי נכשל עבור: ${individualFailures.join(', ')}`
+              : `Group grade saved, but the individual score failed for: ${individualFailures.join(', ')}`,
+          );
+          // The group grade above did save — refresh the underlying list
+          // (this milestone is no longer "pending") without closing the
+          // modal, so the error stays visible.
+          onGraded();
+          setSubmitting(false);
+          return;
+        }
+      }
+
       onGraded();
       onClose();
     } catch (err) {
@@ -83,6 +118,33 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
             </label>
           ))}
         </div>
+
+        {/* Group projects only: personal component per student, on top of
+            the shared group score above — final grades can differ within
+            the group. */}
+        {isGroupProject && (
+          <div className="mt-4">
+            <span className="mb-1.5 block text-sm font-medium text-ink">
+              {lang === 'he' ? 'ציון אישי (לצד הציון הקבוצתי)' : 'Individual grade (on top of the group score)'}
+            </span>
+            <div className="grid gap-2.5">
+              {m.studentIds.map((studentId, idx) => (
+                <label key={studentId} className="block">
+                  <span className="mb-1 block text-xs text-muted">👤 {m.studentNames[idx] ?? studentId}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    placeholder={lang === 'he' ? 'ציון אישי 0–100 (אופציונלי)' : 'Individual score 0–100 (optional)'}
+                    value={individualScores[studentId] ?? ''}
+                    onChange={(e) => setIndividualScores({ ...individualScores, [studentId]: e.target.value })}
+                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <label className="mt-4 block">
           <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}</span>

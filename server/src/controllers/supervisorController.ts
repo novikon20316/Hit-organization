@@ -104,6 +104,13 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         type:           data.type           ?? '',
         status:         data.status         ?? '',
         studentNames:   data.studentNames   ?? [],
+        // Needed so a caller can submit a per-student individual grade
+        // component (POST /api/projects/milestones/:id/individual-grade,
+        // see projectController.ts's submitIndividualGrade) — mobile gets
+        // this today via its own direct Firestore listener instead of this
+        // endpoint; added here so the web port has a real id to submit
+        // against too, without duplicating that Firestore read client-side.
+        studentIds:     data.studentIds     ?? [],
         fileUrls:       data.fileUrls       ?? [],
         submissionNote: data.submissionNote ?? '',
         facultyId:      data.facultyId      ?? '',

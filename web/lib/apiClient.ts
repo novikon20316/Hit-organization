@@ -772,9 +772,10 @@ export const apiClient = {
     }>('/api/info-files', { method: 'GET' });
   },
 
-  /** system_admin or coordinator only (checked server-side regardless of
-   *  which base path it's called through — /api/admin/info-files and
-   *  /api/coordinator/info-files both route to the same handler). */
+  /** system_admin or coordinator only (checked server-side) — a
+   *  coordinator-mounted /api/coordinator/info-files duplicate of this same
+   *  handler used to exist too, but nothing ever called it; removed rather
+   *  than left as an unreachable second URL for the same feature. */
   async uploadInfoFile(formData: FormData) {
     return request<{ success: boolean; id: string; fileUrl: string }>('/api/admin/info-files', { method: 'POST', body: formData, raw: true });
   },
@@ -952,6 +953,15 @@ export const apiClient = {
     }
   ) {
     return request<{ success?: boolean; message?: string }>(`/api/projects/milestones/${milestoneId}/grade`, { method: 'POST', body: payload });
+  },
+
+  /** POST /api/projects/milestones/:id/individual-grade — group projects
+   *  only: layers one student's personal component on top of the shared
+   *  group score submitMilestoneGrade just recorded, so members of the
+   *  same group can end up with different final grades (see
+   *  submitIndividualGrade/computeFinalGradeByStudent server-side). */
+  async submitIndividualGrade(milestoneId: string, payload: { studentId: string; score: number; comments?: string }) {
+    return request<{ success: boolean }>(`/api/projects/milestones/${milestoneId}/individual-grade`, { method: 'POST', body: payload });
   },
 
   async getSupervisorExaminerRecommendations() {

@@ -38,12 +38,7 @@ export interface Application {
   };
 }
 
-// Shape returned by GET /api/supervisor/dashboard's pendingGrades — note
-// there's no studentIds field here (only studentNames), which is why the
-// per-student "individual grade" input from mobile's grading form is left
-// out of this port: mobile sends it keyed by studentId, but the dashboard
-// response never actually supplies one, so that half of the feature has no
-// real id to submit against today on either platform.
+// Shape returned by GET /api/supervisor/dashboard's pendingGrades.
 export interface SupervisorPendingMilestone {
   id: string;
   projectId: string;
@@ -52,6 +47,10 @@ export interface SupervisorPendingMilestone {
   type: string;
   status: string;
   studentNames: string[];
+  // Parallel to studentNames (same index = same student) — needed to submit
+  // the per-student "individual grade" component on group projects (see
+  // GradeMilestoneModal.tsx's individual-score fields).
+  studentIds: string[];
   fileUrls: string[];
   submissionNote: string;
   facultyId: FacultyId;
