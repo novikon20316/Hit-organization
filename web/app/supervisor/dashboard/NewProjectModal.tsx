@@ -10,6 +10,12 @@
 // this project's web port doesn't need yet). Calls the already-existing
 // apiClient.createSupervisorProject. Grading criteria now lives solely in
 // the workflow-templates screen, not per-project.
+//
+// Degree type and project type are checkboxes (multi-select) — a supervisor
+// can post a project open to more than one degree/track at once. Faculty
+// stays locked/single (supervisor isn't one of the multi-faculty roles).
+// Every selected combination must resolve to an approved workflow template
+// — see WorkflowTemplatePreview.
 
 import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -19,6 +25,7 @@ import { facultyLabel } from '@/lib/i18n';
 import { apiClient } from '@/lib/apiClient';
 import { majorsForFaculty } from '@/lib/permissions';
 import type { FacultyId } from '@/lib/i18n';
+import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 
 interface NewProjectModalProps {
   facultyId: FacultyId;
@@ -33,8 +40,8 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
   const [titleEn, setTitleEn] = useState('');
   const [descHe, setDescHe] = useState('');
   const [descEn, setDescEn] = useState('');
-  const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>('bachelors');
-  const [projectType, setProjectType] = useState<'project' | 'thesis'>('project');
+  const [degreeTypes, setDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
+  const [projectTypes, setProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [skills, setSkills] = useState('');
   const [prerequisites, setPrerequisites] = useState('');
   const [numberOfStudents, setNumberOfStudents] = useState(1);
@@ -51,6 +58,13 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
     return isMajorRestricted ? all.filter((m) => ownAssignedMajors.includes(m.slug)) : all;
   }, [facultyId, isMajorRestricted, ownAssignedMajors]);
 
+  const toggleDegreeType = (d: 'bachelors' | 'masters') => {
+    setDegreeTypes((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+  };
+  const toggleProjectType = (t: 'project' | 'thesis') => {
+    setProjectTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+  };
+
   const handleCreate = async () => {
     setError('');
     if (!titleHe.trim() || !titleEn.trim()) {
@@ -61,6 +75,10 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
       setError(lang === 'he' ? 'יש לבחור מגמה' : 'Please select a major');
       return;
     }
+    if (degreeTypes.length === 0 || projectTypes.length === 0) {
+      setError(lang === 'he' ? 'יש לבחור לפחות סוג תואר אחד וסוג פרויקט אחד' : 'Select at least one degree type and one project type');
+      return;
+    }
     setSaving(true);
     try {
       await apiClient.createSupervisorProject({
@@ -68,8 +86,8 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         titleEn,
         descriptionHe: descHe,
         descriptionEn: descEn,
-        degreeType,
-        projectType,
+        degreeTypes,
+        projectTypes,
         requiredSkills: skills.split(',').map((s) => s.trim()).filter(Boolean),
         prerequisites: prerequisites.split(',').map((s) => s.trim()).filter(Boolean),
         NumberOfStudents: numberOfStudents,
@@ -164,21 +182,35 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
           </label>
 
           <div className="grid grid-cols-2 gap-3">
-            <label className="block">
+            <div>
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
-              <select value={degreeType} onChange={(e) => setDegreeType(e.target.value as 'bachelors' | 'masters')} className={inputCls}>
-                <option value="bachelors">{t('bachelors')}</option>
-                <option value="masters">{t('masters')}</option>
-              </select>
-            </label>
-            <label className="block">
+              <div className="flex gap-3">
+                <label className="flex items-center gap-1.5 text-sm text-ink">
+                  <input type="checkbox" checked={degreeTypes.includes('bachelors')} onChange={() => toggleDegreeType('bachelors')} className="h-4 w-4" />
+                  {t('bachelors')}
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-ink">
+                  <input type="checkbox" checked={degreeTypes.includes('masters')} onChange={() => toggleDegreeType('masters')} className="h-4 w-4" />
+                  {t('masters')}
+                </label>
+              </div>
+            </div>
+            <div>
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג' : 'Type'}</span>
-              <select value={projectType} onChange={(e) => setProjectType(e.target.value as 'project' | 'thesis')} className={inputCls}>
-                <option value="project">{lang === 'he' ? 'פרויקט' : 'Project'}</option>
-                <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>
-              </select>
-            </label>
+              <div className="flex gap-3">
+                <label className="flex items-center gap-1.5 text-sm text-ink">
+                  <input type="checkbox" checked={projectTypes.includes('project')} onChange={() => toggleProjectType('project')} className="h-4 w-4" />
+                  {lang === 'he' ? 'פרויקט' : 'Project'}
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-ink">
+                  <input type="checkbox" checked={projectTypes.includes('thesis')} onChange={() => toggleProjectType('thesis')} className="h-4 w-4" />
+                  {lang === 'he' ? 'תזה' : 'Thesis'}
+                </label>
+              </div>
+            </div>
           </div>
+
+          <WorkflowTemplatePreview facultyIds={[facultyId]} degreeTypes={degreeTypes} projectTypes={projectTypes} major={major || undefined} />
 
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כישורים נדרשים (מופרדים בפסיק)' : 'Required Skills (comma-separated)'}</span>
