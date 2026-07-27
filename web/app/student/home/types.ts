@@ -30,8 +30,17 @@ export interface ProjectProposal {
   supervisorId: string;
   supervisorName: string;
   facultyId: string;
+  /** Primary/first value — kept for legacy display code. Prefer
+   *  degreeTypes/projectTypes (the full multi-select set) for anything
+   *  eligibility- or filter-related; `?? [degreeType]`/`?? [projectType]`
+   *  covers pre-migration projects that only have the scalar field. */
   degreeType: DegreeType;
   projectType: ProjectType;
+  /** Full multi-select set — a project can be open to more than one degree
+   *  type and/or project type at once (see adminController.ts's
+   *  createAdminProject). Absent on pre-migration projects. */
+  degreeTypes?: DegreeType[];
+  projectTypes?: ProjectType[];
   NumberOfStudents: number;
   requiredSkills: string[];
   prerequisites?: string[];

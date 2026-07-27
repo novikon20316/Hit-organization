@@ -36,8 +36,15 @@ export interface FacultyAdminProjectRecord {
   titleEn: string;
   facultyId: FacultyId;
   status: string;
+  /** Primary/first value — prefer degreeTypes/projectTypes (the full
+   *  multi-select set) for anything eligibility- or filter-related. */
   degreeType: string;
   projectType: string;
+  degreeTypes?: string[];
+  projectTypes?: string[];
+  /** Links sibling docs created from one multi-faculty Add Project
+   *  submission — see adminController.ts's createAdminProject. */
+  postingGroupId?: string | null;
   supervisorId?: string;
   supervisorName: string;
   enrolledStudentIds: string[];

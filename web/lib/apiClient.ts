@@ -770,7 +770,7 @@ export const apiClient = {
     });
   },
 
-  async applyToProject(payload: { projectId: string; transcriptUrl: string; cvUrl: string; notes: string }) {
+  async applyToProject(payload: { projectId: string; transcriptUrl: string; cvUrl: string; notes: string; selectedProjectType?: 'project' | 'thesis' }) {
     return request<{ success?: boolean; message?: string }>('/api/applications/apply', { method: 'POST', body: payload });
   },
 

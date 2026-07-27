@@ -45,6 +45,10 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [applyMessage, setApplyMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  // The student's track choice for projects open to more than one project
+  // type (project vs. thesis) — auto-filled with no UI step when the
+  // project only offers one, same as today's single-select projects.
+  const [selectedProjectType, setSelectedProjectType] = useState<'project' | 'thesis' | ''>('');
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -55,16 +59,22 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
         title?.toLowerCase().includes(q) ||
         p.supervisorName?.toLowerCase().includes(q) ||
         (p.requiredSkills ?? []).some((s) => s.toLowerCase().includes(q));
-      const degreeOk = degreeFilter === 'all' || p.degreeType === degreeFilter;
-      const typeOk = typeFilter === 'all' || p.projectType === typeFilter;
+      // `?? [scalar]` keeps this correct against pre-migration projects that
+      // only ever had the single scalar degreeType/projectType field.
+      const degreeOk = degreeFilter === 'all' || (p.degreeTypes ?? [p.degreeType]).includes(degreeFilter);
+      const typeOk = typeFilter === 'all' || (p.projectTypes ?? [p.projectType]).includes(typeFilter);
       return textOk && degreeOk && typeOk;
     });
   }, [proposals, search, degreeFilter, typeFilter, lang]);
 
   const getMissingCourses = (p: ProjectProposal): string[] => (p.prerequisites ?? []).filter((c) => !completedCourses.includes(c));
 
+  const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
+
   const openApply = (p: ProjectProposal) => {
     setSelected(p);
+    const types = projectTypesOf(p);
+    setSelectedProjectType(types.length === 1 ? types[0]! : '');
     setShowApply(true);
     setApplyMessage(null);
   };
@@ -76,6 +86,7 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
     setTranscriptFile(null);
     setCvFile(null);
     setApplyMessage(null);
+    setSelectedProjectType('');
   };
 
   const handleApply = async () => {
@@ -83,11 +94,21 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
       setApplyMessage({ text: lang === 'he' ? 'אנא העלה גיליון ציונים וקורות חיים' : 'Please upload transcript and CV', ok: false });
       return;
     }
+    if (projectTypesOf(selected).length > 1 && !selectedProjectType) {
+      setApplyMessage({ text: lang === 'he' ? 'פרויקט זה מציע יותר ממסלול אחד — יש לבחור מסלול' : 'This project offers more than one track — please choose one', ok: false });
+      return;
+    }
     setSubmitting(true);
     setApplyMessage(null);
     try {
       const [transcriptUrl, cvUrl] = await Promise.all([uploadToCloudinary(transcriptFile), uploadToCloudinary(cvFile)]);
-      await apiClient.applyToProject({ projectId: selected.id, transcriptUrl, cvUrl, notes: coverNote });
+      await apiClient.applyToProject({
+        projectId: selected.id,
+        transcriptUrl,
+        cvUrl,
+        notes: coverNote,
+        ...(selectedProjectType ? { selectedProjectType } : {}),
+      });
       setApplyMessage({ text: `✅ ${lang === 'he' ? 'המועמדות הוגשה בהצלחה' : 'Application submitted successfully'}`, ok: true });
       setTimeout(closeApply, 1500);
     } catch (e) {
@@ -157,12 +178,16 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
             <div key={p.id} className="rounded-[var(--radius)] border border-line bg-surface p-4">
               <button type="button" onClick={() => setExpandedId(isExpanded ? null : p.id)} className="w-full text-start">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
-                    {p.degreeType === 'masters' ? t('masters') : t('bachelors')}
-                  </span>
-                  <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
-                    {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
-                  </span>
+                  {(p.degreeTypes ?? [p.degreeType]).map((d) => (
+                    <span key={d} className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
+                      {d === 'masters' ? t('masters') : t('bachelors')}
+                    </span>
+                  ))}
+                  {projectTypesOf(p).map((tp) => (
+                    <span key={tp} className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
+                      {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
+                    </span>
+                  ))}
                 </div>
                 <p className="mt-2 text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe : p.titleEn}</p>
                 <p className="mt-1 text-xs text-muted">
@@ -241,6 +266,26 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
               </button>
             </div>
             <p className="mt-1 text-sm text-muted">{lang === 'he' ? selected.titleHe : selected.titleEn}</p>
+
+            {projectTypesOf(selected).length > 1 && (
+              <div className="mt-4">
+                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מסלול *' : 'Track *'}</span>
+                <div className="flex gap-3">
+                  {projectTypesOf(selected).map((tp) => (
+                    <label key={tp} className="flex items-center gap-1.5 text-sm text-ink">
+                      <input
+                        type="radio"
+                        name="applyProjectType"
+                        checked={selectedProjectType === tp}
+                        onChange={() => setSelectedProjectType(tp)}
+                        className="h-4 w-4"
+                      />
+                      {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <label className="mt-4 block">
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}</span>

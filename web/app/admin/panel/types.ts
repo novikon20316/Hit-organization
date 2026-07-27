@@ -55,8 +55,15 @@ export interface AdminProjectRecord {
   status: string;
   supervisorId?: string;
   supervisorName?: string;
+  /** Primary/first value — prefer degreeTypes/projectTypes (the full
+   *  multi-select set) for anything eligibility- or filter-related. */
   degreeType?: 'bachelors' | 'masters';
   projectType?: 'project' | 'thesis';
+  degreeTypes?: ('bachelors' | 'masters')[];
+  projectTypes?: ('project' | 'thesis')[];
+  /** Links sibling docs created from one multi-faculty Add Project
+   *  submission — see adminController.ts's createAdminProject. */
+  postingGroupId?: string | null;
   maxStudents?: number;
   requiredSkills?: string[];
   prerequisites?: string[];

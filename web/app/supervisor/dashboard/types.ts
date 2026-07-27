@@ -9,8 +9,12 @@ export interface MyProject {
   descriptionEn: string;
   facultyId: FacultyId;
   status: string;
+  /** Primary/first value — prefer degreeTypes/projectTypes (the full
+   *  multi-select set) for anything eligibility- or filter-related. */
   degreeType: string;
   projectType: string;
+  degreeTypes?: string[];
+  projectTypes?: string[];
   academicYear: string;
   enrolledStudentIds: string[];
   applicationIds: string[];

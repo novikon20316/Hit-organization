@@ -120,11 +120,14 @@ export function useStudentData() {
     cancel(unsubProposals);
     if (studentState !== 'no_project' || !studentFaculty || !studentDegree) return;
 
+    // array-contains, not equality, on degreeTypes — a project can now be
+    // open to more than one degree type. facultyId stays a plain equality
+    // filter (Firestore only allows one array-contains clause per query).
     const q = query(
       collection(db, 'projects'),
       where('status', '==', 'active'),
       where('facultyId', '==', studentFaculty),
-      where('degreeType', '==', studentDegree)
+      where('degreeTypes', 'array-contains', studentDegree)
     );
 
     const unsub = onSnapshot(
