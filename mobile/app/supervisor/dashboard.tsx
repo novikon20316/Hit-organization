@@ -514,20 +514,41 @@ export default function SupervisorHome() {
           writing: Number(criteria.writing) || 0,
         },
       });
-      // Group projects: layer each student's individual component on top of the
-      // shared group score just submitted above (see submitIndividualGrade).
+      // Group projects: layer each student's individual component on top of
+      // the shared group score just submitted above (see
+      // submitIndividualGrade). Each student's submission is tried
+      // independently — a failure here must not be reported as "the whole
+      // grade failed" (via the outer catch below) when the group grade
+      // above already saved successfully; that used to be exactly what
+      // happened, since this loop had no try/catch of its own.
       const groupStudentIds = (activeMilestone as PendingMilestone).studentIds ?? [];
+      const individualFailures: string[] = [];
       for (const sid of groupStudentIds) {
         const raw = individualScores[sid];
         if (raw === undefined || raw.trim() === '') continue;
-        await apiClient.post(`/api/projects/milestones/${activeMilestone.id}/individual-grade`, {
-          studentId: sid,
-          score: Number(raw),
-        });
+        try {
+          await apiClient.post(`/api/projects/milestones/${activeMilestone.id}/individual-grade`, {
+            studentId: sid,
+            score: Number(raw),
+          });
+        } catch (individualError) {
+          console.error(`Failed to submit individual grade for ${sid}:`, individualError);
+          const idx = groupStudentIds.indexOf(sid);
+          individualFailures.push((activeMilestone as PendingMilestone).studentNames?.[idx] ?? sid);
+        }
       }
 
       if (res.status === 200 || res.status === 201 || res.data?.success) {
-        Alert.alert(lang === 'he' ? 'הצלחה' : 'Success', lang === 'he' ? 'הציון נשמר!' : 'Grade submitted!');
+        if (individualFailures.length > 0) {
+          Alert.alert(
+            lang === 'he' ? 'הצלחה חלקית' : 'Partial success',
+            lang === 'he'
+              ? `הציון הקבוצתי נשמר, אך הציון האישי נכשל עבור: ${individualFailures.join(', ')}`
+              : `Group grade saved, but the individual score failed for: ${individualFailures.join(', ')}`,
+          );
+        } else {
+          Alert.alert(lang === 'he' ? 'הצלחה' : 'Success', lang === 'he' ? 'הציון נשמר!' : 'Grade submitted!');
+        }
         setGradeModal(false);
         setPendingGrades(prev => prev.filter(m => m.id !== activeMilestone.id));
       }
