@@ -2,6 +2,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv'
 import userRoutes         from './routes/users.js';
 import applicationRoutes  from './routes/applications.js';
@@ -34,6 +35,7 @@ import examinerEscalationRoutes from './routes/examinerEscalation.js';
 import trackChangeRoutes from './routes/trackChange.js';
 import bulkPermissionsRoutes from './routes/bulkPermissions.js';
 import presenceRoutes from './routes/presence.js';
+import permissionsRoutes from './routes/permissions.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
@@ -43,6 +45,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
 import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders } from './services/notificationScheduler.js';
 import { apiLimiter } from './middleware/rateLimit.js';
+import { WEBSITE_URL } from './config/links.js';
 
 
 dotenv.config()
@@ -69,7 +72,28 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-app.use(cors());
+// LOW FIX: baseline security response headers (X-Content-Type-Options,
+// X-Frame-Options, Strict-Transport-Security, etc). Defaults only — this is
+// a JSON API with no HTML views, so helmet's default CSP has nothing to
+// restrict here.
+app.use(helmet());
+
+// LOW FIX: cors() with no options reflects and allows every origin. Only
+// browsers enforce CORS at all, so the only real consumer of this allowlist
+// is the web frontend; React Native's fetch sends no Origin header and is
+// unaffected either way. `!origin` also covers curl/Postman/server-to-server
+// calls, which were never subject to CORS in the first place.
+const ALLOWED_ORIGINS = new Set([
+  WEBSITE_URL,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+]);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || ALLOWED_ORIGINS.has(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use('/api', apiLimiter);
 app.get('/api/projects/:projectId/milestones', verifyToken, getMilestonesByQuery);
@@ -141,6 +165,7 @@ app.use('/api/exceptional-actions', exceptionalActionRoutes);
 app.use('/api/coordinator/examiner-escalations', examinerEscalationRoutes);
 app.use('/api/admin/permissions', bulkPermissionsRoutes);
 app.use('/api/presence', presenceRoutes);
+app.use('/api/permissions', permissionsRoutes);
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error('Unhandled error:', err.stack);

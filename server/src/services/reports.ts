@@ -217,14 +217,26 @@ export async function examinerTrackingReport(filters: ReportFilters): Promise<Ex
   const now = Date.now();
 
   // External examiners — examinerTokens carries the full timeline.
-  let tokensQuery: FirebaseFirestore.Query = db.collection('examinerTokens');
-  const tokensSnap = await tokensQuery.get();
+  const tokensSnap = await db.collection('examinerTokens').get();
+
+  // Batch-fetch every referenced project up front (Promise.all) instead of
+  // one sequential await per token inside the loop below — the previous
+  // per-token round-trip meant a facultyId-filtered report with N tokens
+  // took N sequential round-trips instead of one parallel batch.
+  const projectFacultyById: Record<string, string | undefined> = {};
+  if (filters.facultyId) {
+    const projectIds = new Set<string>();
+    tokensSnap.docs.forEach((doc) => {
+      const pid = doc.data().projectId;
+      if (pid) projectIds.add(pid);
+    });
+    const projectSnaps = await Promise.all([...projectIds].map((id) => db.collection('projects').doc(id).get()));
+    projectSnaps.forEach((snap) => { if (snap.exists) projectFacultyById[snap.id] = snap.data()?.facultyId; });
+  }
+
   for (const doc of tokensSnap.docs) {
     const t = doc.data();
-    if (filters.facultyId) {
-      const projSnap = t.projectId ? await db.collection('projects').doc(t.projectId).get() : null;
-      if (!projSnap?.exists || projSnap.data()?.facultyId !== filters.facultyId) continue;
-    }
+    if (filters.facultyId && projectFacultyById[t.projectId] !== filters.facultyId) continue;
     const invitedAt = t.createdAt ? new Date(t.createdAt) : null;
     const daysElapsed = invitedAt ? Math.floor((now - invitedAt.getTime()) / 86_400_000) : null;
     const expiresAt = t.expiresAt ? new Date(t.expiresAt) : null;

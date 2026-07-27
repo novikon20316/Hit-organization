@@ -229,56 +229,74 @@ export async function flagGraduatedStudents(): Promise<void> {
   const calendar = await getAcademicCalendar();
   const now = new Date();
 
-  const snap = await db.collection('users').where('role', '==', 'student').get();
+  // Paginated in batches rather than one collection-wide .get() — this runs
+  // daily and the student population only grows over the institution's
+  // lifetime, so an unbounded snapshot would load every student doc into
+  // memory at once indefinitely into the future. No explicit orderBy is
+  // added here (which would need a new composite index) — startAfter() rides
+  // on Firestore's implicit document-ID order, which already applies to the
+  // same single equality filter the unbounded query used before.
+  const PAGE_SIZE = 500;
+  let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
 
-  for (const doc of snap.docs) {
-    const data = doc.data();
-    if (data.pendingDeletion) continue;
+  while (true) {
+    let pageQuery = db.collection('users').where('role', '==', 'student').limit(PAGE_SIZE);
+    if (cursor) pageQuery = pageQuery.startAfter(cursor);
+    const snap = await pageQuery.get();
+    if (snap.empty) break;
 
-    const programStartDate: Date | null = data.programStartDate?.toDate?.() ?? data.createdAt?.toDate?.() ?? null;
-    if (!programStartDate) continue; // no anchor date at all — skip rather than guess
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      if (data.pendingDeletion) continue;
 
-    const years = programLengthYearsFor(data.degreeType ?? null, data.major ?? null);
-    const graduationDate = computeGraduationEligibleDate(programStartDate, years, calendar);
+      const programStartDate: Date | null = data.programStartDate?.toDate?.() ?? data.createdAt?.toDate?.() ?? null;
+      if (!programStartDate) continue; // no anchor date at all — skip rather than guess
 
-    // Retention requirement: don't even start the deletion countdown until
-    // 7 years after (estimated) graduation — the data must be kept until then.
-    const eligibleDate = new Date(graduationDate);
-    eligibleDate.setFullYear(eligibleDate.getFullYear() + RETENTION_YEARS_AFTER_GRADUATION);
-    if (now < eligibleDate) continue;
+      const years = programLengthYearsFor(data.degreeType ?? null, data.major ?? null);
+      const graduationDate = computeGraduationEligibleDate(programStartDate, years, calendar);
 
-    // Never flag an account that still has an active dependency (active
-    // project, active advisees, ungraded defense, last system_admin) — the
-    // same guard requestAccountDeletion/eraseUserBySystemAdmin already
-    // enforce. Skipping (not flagging) means it's simply re-evaluated on
-    // tomorrow's sweep once the dependency clears.
-    const eligibility = await checkDeletionEligibility(doc.id);
-    if (!eligibility.eligible) {
-      console.log(`flagGraduatedStudents: skipping ${doc.id} — not eligible (${eligibility.reason})`);
-      continue;
-    }
+      // Retention requirement: don't even start the deletion countdown until
+      // 7 years after (estimated) graduation — the data must be kept until then.
+      const eligibleDate = new Date(graduationDate);
+      eligibleDate.setFullYear(eligibleDate.getFullYear() + RETENTION_YEARS_AFTER_GRADUATION);
+      if (now < eligibleDate) continue;
 
-    try {
-      await requestDeletion(doc.id, 'graduated');
-      try {
-        await db.collection('notifications').add({
-          recipientId: doc.id,
-          type: 'account_graduation_flagged',
-          titleHe: 'החשבון שלך מיועד למחיקה',
-          titleEn: 'Your account is scheduled for deletion',
-          bodyHe: 'לפי הרישומים שלנו סיימת את משך הלימודים הצפוי. החשבון שלך יימחק בקרוב, אלא אם תבטל.',
-          bodyEn: "Our records show you've completed your program's expected duration. Your account will be deleted soon unless you cancel.",
-          isRead: false,
-          relatedProjectId: null,
-          relatedMilestoneId: null,
-          createdAt: FieldValue.serverTimestamp(),
-        });
-      } catch (notifyErr) {
-        console.error(`flagGraduatedStudents: failed to notify ${doc.id}:`, notifyErr);
+      // Never flag an account that still has an active dependency (active
+      // project, active advisees, ungraded defense, last system_admin) — the
+      // same guard requestAccountDeletion/eraseUserBySystemAdmin already
+      // enforce. Skipping (not flagging) means it's simply re-evaluated on
+      // tomorrow's sweep once the dependency clears.
+      const eligibility = await checkDeletionEligibility(doc.id);
+      if (!eligibility.eligible) {
+        console.log(`flagGraduatedStudents: skipping ${doc.id} — not eligible (${eligibility.reason})`);
+        continue;
       }
-      console.log(`flagGraduatedStudents: flagged ${doc.id} (eligible ${eligibleDate.toISOString()})`);
-    } catch (err) {
-      console.error(`flagGraduatedStudents: failed to flag ${doc.id}:`, err);
+
+      try {
+        await requestDeletion(doc.id, 'graduated');
+        try {
+          await db.collection('notifications').add({
+            recipientId: doc.id,
+            type: 'account_graduation_flagged',
+            titleHe: 'החשבון שלך מיועד למחיקה',
+            titleEn: 'Your account is scheduled for deletion',
+            bodyHe: 'לפי הרישומים שלנו סיימת את משך הלימודים הצפוי. החשבון שלך יימחק בקרוב, אלא אם תבטל.',
+            bodyEn: "Our records show you've completed your program's expected duration. Your account will be deleted soon unless you cancel.",
+            isRead: false,
+            relatedProjectId: null,
+            relatedMilestoneId: null,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        } catch (notifyErr) {
+          console.error(`flagGraduatedStudents: failed to notify ${doc.id}:`, notifyErr);
+        }
+        console.log(`flagGraduatedStudents: flagged ${doc.id} (eligible ${eligibleDate.toISOString()})`);
+      } catch (err) {
+        console.error(`flagGraduatedStudents: failed to flag ${doc.id}:`, err);
+      }
     }
+
+    cursor = snap.docs[snap.docs.length - 1];
+    if (snap.docs.length < PAGE_SIZE) break;
   }
 }
