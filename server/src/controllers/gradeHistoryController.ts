@@ -9,11 +9,20 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
+import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 
-// Mirrors projectController.ts's STAFF_ROLES / studentController.ts's STAFF_ROLES.
-const STAFF_ROLES = [
-  'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
-  'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
+// Mirrors web/lib/roles.ts's PERMISSION_MAP view_all_grades — notably
+// narrower than projectController.ts/studentController.ts's project-view
+// bypass list: internal_examiner is NOT granted view_all_grades, so (unlike
+// project details) it gets no blanket bypass here — only isOwnProject
+// applies to it. administrative_secretary is deliberately NOT blanket-listed
+// here either (view_all_grades predates per-degree secretaries) — she's
+// scoped below via withinCoordinatorScope to whichever facultyId/major(s)
+// are actually assigned to her account. She IS the bridge between students
+// and management for grades/defenses within her own degree(s), so unlike
+// internal_examiner she does get a scoped path, just not an unscoped one.
+const FULL_ACCESS_ROLES = [
+  'coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin',
 ];
 
 const GRADE_AUDIT_ACTIONS = ['grade_entered', 'grade_changed', 'final_grade_approved'];
@@ -43,8 +52,12 @@ export const getProjectGradeHistory = async (req: AuthenticatedRequest, res: Res
 
     const isOwnProject =
       project.supervisorId === requester.uid ||
+      project.secondarySupervisorId === requester.uid ||
       (project.enrolledStudentIds ?? []).includes(requester.uid);
-    if (!isOwnProject && !STAFF_ROLES.includes(requester.role)) {
+    const hasSecretaryScopeAccess =
+      requester.role === 'administrative_secretary' &&
+      withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });
+    if (!isOwnProject && !FULL_ACCESS_ROLES.includes(requester.role) && !hasSecretaryScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 

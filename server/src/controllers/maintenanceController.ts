@@ -1,53 +1,30 @@
+import { Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+import {
+  resolvePlatform,
+  readMaintenanceStatus,
+  setMaintenanceStatus,
+  clearMaintenanceStatus,
+} from '../services/maintenanceStatus.js';
 
-import {Response} from 'express';
-import {AuthenticatedRequest} from '../middleware/auth.js';
-import {db} from '../config/firebase.js';
-
-const MAINTENANCE_DOC = db.collection('system').doc('maintenance');
-
-// ─── GET /api/system/maintenance-status ──────────────────────────────────────
-// PUBLIC — no auth required. Called by the app before routing any user.
-// Auto-expires maintenance when endsAt has passed.
-//
+// ─── GET /api/system/maintenance-status?platform=web|mobile ─────────────────
+// Requires auth (verifyToken) — called right after login/2FA once the
+// client already has a token, not before. See maintenanceStatus.ts for the
+// per-platform doc split and middleware/auth.ts's verifyToken for the
+// actual per-request enforcement (this endpoint only self-reports; it
+// doesn't gate anything by itself).
 export const getMaintenanceStatus = async (req: AuthenticatedRequest, res: Response) => {
-    try {
-    const snap = await MAINTENANCE_DOC.get();
- 
-    if (!snap.exists) {
-      return res.json({ isActive: false, title: '', endsAt: null });
-    }
- 
-    const data = snap.data();
-    if(!data) {
-      return res.json({ isActive: false, title: '', endsAt: null });
-    }
- 
-    // Auto-expire: if endsAt has passed, flip isActive to false
-    if (data.isActive && data.endsAt) {
-      const endsAtMs = data.endsAt.toDate?.()?.getTime?.() ?? new Date(data.endsAt).getTime();
-      if (Date.now() > endsAtMs) {
-        await MAINTENANCE_DOC.update({ isActive: false });
-        return res.json({ isActive: false, title: '', endsAt: null });
-      }
-    }
- 
-    return res.json({
-      isActive: data.isActive ?? false,
-      title:    data.title    ?? '',
-      endsAt:   data.endsAt?.toDate?.()?.toISOString?.() ?? null,
-    });
-  } catch (err) {
-    console.error('GET /system/maintenance-status error:', err);
-    // Fail open — don't block users if the DB is unreachable
-    return res.json({ isActive: false, title: '', endsAt: null });
-  }
+  const platform = resolvePlatform(req.query.platform);
+  return res.json(await readMaintenanceStatus(platform));
 };
 
-
 // ─── POST /api/admin/system/maintenance ──────────────────────────────────────
-// Requires system_admin. Activates maintenance and schedules the broadcast.
+// Requires system_admin. Activates maintenance for one platform (body.platform,
+// 'web' | 'mobile' — defaults to 'mobile' for older callers that predate the
+// platform split) and schedules the broadcast.
 //
 // Body:
+//   platform         'web' | 'mobile'
 //   title            string   — user-facing message title
 //   shutdownAt       number   — ms epoch when the app goes offline
 //   maintenanceDurMs number   — how long (ms) maintenance will last
@@ -67,54 +44,47 @@ export const updateMaintenanceStatus = async (req: AuthenticatedRequest, res: Re
       if (req.user?.role !== 'system_admin') {
         return res.status(403).json({ message: 'Access denied: system_admin only.' });
       }
- 
+
       if (!title?.trim())        return res.status(400).json({ message: 'title is required' });
       if (!shutdownAt)           return res.status(400).json({ message: 'shutdownAt is required' });
       if (!maintenanceDurMs)     return res.status(400).json({ message: 'maintenanceDurMs is required' });
- 
-      const shutdownTs  = new Date(shutdownAt);
+
+      const platform = resolvePlatform(req.body.platform);
+      const shutdownTs = new Date(shutdownAt);
       const endsAt      = new Date(shutdownAt + maintenanceDurMs);
- 
-      // broadcastAt = shutdownAt - warnMs is already baked into shutdownAt by the
-      // frontend (shutdownAt = Date.now() + warnMs). If you want separate control,
-      // pass broadcastAt explicitly instead.
-      const broadcastAt = shutdownTs; // fire the broadcast exactly at shutdown
- 
-      await MAINTENANCE_DOC.set({
-        isActive:         true,
-        title:            title.trim(),
-        shutdownAt:       shutdownTs,
+
+      await setMaintenanceStatus(platform, {
+        title: title.trim(),
+        shutdownAt: shutdownTs,
         endsAt,
-        broadcastAt,
         broadcastEnabled,
-        broadcastSent:    false,
-        createdBy:        uid,
-        createdAt:        new Date(),
+        createdBy: uid,
       });
- 
+
       // ── Optional: schedule a job to auto-deactivate when endsAt passes ──────
       // If you have a task scheduler (Bull, Agenda, Cloud Tasks, etc.) you can
       // enqueue a job here. Without one, the GET endpoint below handles it by
       // comparing endsAt to now at read time — no cron needed.
- 
-      return res.json({ ok: true });
+
+      return res.json({ ok: true, platform });
     } catch (err) {
       console.error('POST /admin/system/maintenance error:', err);
       return res.status(500).json({ message: 'Internal server error' });
     }
 };
 
- 
+
 // ─── DELETE /api/admin/system/maintenance ─────────────────────────────────────
-// Requires system_admin. Immediately ends maintenance.
-//
+// Requires system_admin. Immediately ends maintenance for one platform
+// (body.platform, same default as above).
 export const deleteMaintenanceStatus = async (req: AuthenticatedRequest, res: Response) => {
     if (req.user?.role !== 'system_admin') {
       return res.status(403).json({ message: 'Access denied: system_admin only.' });
     }
     try {
-      await MAINTENANCE_DOC.update({ isActive: false });
-      return res.json({ ok: true });
+      const platform = resolvePlatform(req.body?.platform);
+      await clearMaintenanceStatus(platform);
+      return res.json({ ok: true, platform });
     } catch (err) {
       console.error('DELETE /admin/system/maintenance error:', err);
       return res.status(500).json({ message: 'Internal server error' });

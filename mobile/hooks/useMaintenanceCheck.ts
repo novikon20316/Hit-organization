@@ -39,8 +39,13 @@ export function useMaintenanceCheck() {
       }
 
       try {
+        // platform=mobile — reads mobile's own maintenance flag, separate
+        // from web's (server/src/services/maintenanceStatus.ts). This is
+        // only the one-time login-time check; the server's verifyToken
+        // middleware is what actually enforces it for every request after.
         const res = await apiClient.get<MaintenanceStatus>(
-          '/api/system/maintenance-status'
+          '/api/system/maintenance-status',
+          { params: { platform: 'mobile' } },
         );
         const { isActive, title, endsAt } = res.data;
 

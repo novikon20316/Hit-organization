@@ -104,6 +104,7 @@ export function BulkImportModal({ scope, onClose, onImported }: BulkImportModalP
         },
         failedRows: s.details.filter((d) => d.status === 'failed').map((d) => ({ row: d.row, label: d.studentId, status: d.status, reason: d.reason })),
       });
+      onImported?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'ייבוא רשימת הסטודנטים נכשל' : 'Failed to import the student roster');
     } finally {

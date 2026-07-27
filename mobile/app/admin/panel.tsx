@@ -963,6 +963,10 @@ export default function PanelScreen() {
         durDays  * 86_400_000 + durHours  * 3_600_000 + durMinutes  * 60_000;
 
     await apiClient.post('/api/admin/system/maintenance', {
+      // Mobile only ever manages its own maintenance flag from here — web
+      // and mobile are independent now (see server/src/services/maintenanceStatus.ts),
+      // and the dual-platform control panel lives in the web admin panel.
+      platform:          'mobile',
       title: maintenanceTitle.trim() || 'Scheduled Maintenance',
       shutdownAt:        Date.now() + warnMs,   // when the app shuts down
       maintenanceDurMs:  durMs,                 // how long it stays down

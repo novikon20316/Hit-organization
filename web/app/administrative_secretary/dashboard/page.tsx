@@ -19,25 +19,47 @@ import { AcademicYearLink } from '@/components/AcademicYearLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
 import { SendExaminerModal } from './SendExaminerModal';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
-import type { ProjectGroup } from './types';
+import type { ProjectGroup, MemberMilestoneGrade } from './types';
+import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
 
 const ADMIN_SECRETARY_ROLES: AppRole[] = ['administrative_secretary', 'system_admin'];
+
+// Mirrors InProgressTab.tsx's statusColor/statusLabel (coordinator/home) —
+// same milestone status taxonomy, just keyed off finalGrade instead of the
+// legacy per-role supervisorScore field.
+function gradeStatusColor(m: MemberMilestoneGrade): string {
+  if (m.status === 'coordinator_approved' || m.status === 'completed') return '#10B981';
+  if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') return '#F59E0B';
+  return '#8899BB';
+}
+
+function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
+  if (m.finalGrade !== null) {
+    const approved = m.gradeApproved ? (lang === 'he' ? 'מאושר' : 'Approved') : lang === 'he' ? 'טרם אושר' : 'Not yet approved';
+    return `${m.finalGrade}/100 · ${approved}`;
+  }
+  if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') {
+    return lang === 'he' ? 'הוגש, בבדיקה' : 'Submitted, grading';
+  }
+  return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
+}
 
 export default function AdministrativeSecretaryDashboardPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_SECRETARY_ROLES);
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
 
-  const [coordinatorName, setCoordinatorName] = useState('');
   const [facultyId, setFacultyId] = useState('');
   const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [stats, setStats] = useState({ totalGroups: 0, activeGroups: 0, scheduledDefenses: 0, overdueGroups: 0 });
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [noScopeAssigned, setNoScopeAssigned] = useState(false);
 
   const [search, setSearch] = useState('');
   const [filterTrack, setFilterTrack] = useState<'all' | 'bachelor_project' | 'masters_project'>('all');
   const [filterOverdue, setFilterOverdue] = useState(false);
+  const [expandedGrades, setExpandedGrades] = useState<Record<string, boolean>>({});
 
   const [examinerModalGroup, setExaminerModalGroup] = useState<ProjectGroup | null>(null);
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
@@ -47,10 +69,10 @@ export default function AdministrativeSecretaryDashboardPage() {
     if (!firebaseUser) return;
     try {
       const data = await apiClient.getProjectCoordinatorDashboard(firebaseUser.uid);
-      setCoordinatorName(data.coordinatorName ?? '');
       setFacultyId(data.facultyId ?? '');
       setGroups((data.groups ?? []) as ProjectGroup[]);
       setStats(data.stats ?? { totalGroups: 0, activeGroups: 0, scheduledDefenses: 0, overdueGroups: 0 });
+      setNoScopeAssigned(!!data.noScopeAssigned);
       setLoadError('');
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data');
@@ -103,6 +125,14 @@ export default function AdministrativeSecretaryDashboardPage() {
       </div>
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+
+      {!loadingData && noScopeAssigned && (
+        <p className="mb-4 rounded-md bg-[#FBF3E3] px-3 py-2 text-sm text-accent">
+          {lang === 'he'
+            ? 'לא הוקצה לך עדיין תחום אחריות (פקולטה/תואר). פנה/י למנהל המערכת כדי להקצות לך תואר.'
+            : 'No degree has been assigned to your account yet — ask your system_admin to assign one via Coordinator Scope.'}
+        </p>
+      )}
 
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>
@@ -176,6 +206,43 @@ export default function AdministrativeSecretaryDashboardPage() {
                   <p className="mt-2 text-xs text-muted">📅 {t('defenseNotScheduled')}</p>
                 )}
 
+                <button
+                  type="button"
+                  onClick={() => setExpandedGrades((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
+                  className="mt-2 flex w-full items-center justify-between rounded-lg bg-paper px-2.5 py-1.5 text-xs font-medium text-ink"
+                >
+                  <span>🎓 {lang === 'he' ? 'ציונים' : 'Grades'}</span>
+                  <span className="text-muted">{expandedGrades[group.id] ? '▲' : '▼'}</span>
+                </button>
+
+                {expandedGrades[group.id] && (
+                  <div className="mt-1.5 grid gap-2 rounded-lg bg-paper p-2.5">
+                    {group.members.length === 0 && (
+                      <p className="text-xs text-muted">{lang === 'he' ? 'אין סטודנטים בקבוצה זו' : 'No students in this group'}</p>
+                    )}
+                    {group.members.map((member) => (
+                      <div key={member.uid}>
+                        <p className="text-xs font-semibold text-ink">{member.name}</p>
+                        {member.milestones.length === 0 ? (
+                          <p className="text-xs text-muted">{lang === 'he' ? 'לא נוצרו אבני דרך' : 'No milestones yet'}</p>
+                        ) : (
+                          member.milestones.map((m, mIdx) => (
+                            <div
+                              key={mIdx}
+                              className={`flex items-center justify-between py-1 text-xs ${mIdx < member.milestones.length - 1 ? 'border-b border-line' : ''}`}
+                            >
+                              <span className="text-muted">{MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}</span>
+                              <span className="font-semibold" style={{ color: gradeStatusColor(m) }}>
+                                {gradeStatusLabel(m, lang)}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="mt-3 flex gap-1.5">
                   <button
                     type="button"
@@ -203,8 +270,6 @@ export default function AdministrativeSecretaryDashboardPage() {
         <SendExaminerModal
           key={examinerModalGroup.id}
           group={examinerModalGroup}
-          coordinatorUid={firebaseUser?.uid ?? ''}
-          coordinatorName={coordinatorName}
           onClose={() => setExaminerModalGroup(null)}
         />
       )}

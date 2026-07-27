@@ -63,7 +63,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
   }
 
   const { projectId } = req.params;
-  const { examiners, examinerIds, milestoneId, studentIds } = req.body;
+  const { examiners, examinerIds, milestoneId, studentIds, lang } = req.body;
 
   if (typeof projectId !== 'string' || !projectId) {
     return res.status(400).json({ message: 'Invalid or missing projectId' });
@@ -113,7 +113,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
       studentName,
       milestoneId: typeof milestoneId === 'string' ? milestoneId : undefined,
       thesisUrl,
-      lang: 'he',
+      lang: lang === 'en' ? 'en' : 'he',
     });
 
     await projectRef.update({

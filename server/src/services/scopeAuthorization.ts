@@ -80,7 +80,14 @@ export function withinCoordinatorScope(user: AuthUser | undefined, resource: Res
   if (user.coordinatorScopes.length > 0) {
     return user.coordinatorScopes.some((scope) => scopeMatches(scope, resource));
   }
-  return user.facultyId === 'all' || user.facultyId === resource.facultyId;
+  // facultyId 'all' is how cross-faculty roles (administrative_secretary,
+  // grad_school_head, internal_examiner, system_admin — see CROSS_FACULTY_ROLES
+  // in userController.ts) are provisioned; it is not a real faculty and must
+  // never satisfy this fallback. Without an explicit coordinatorScopes entry,
+  // an 'all'-provisioned account has no assigned degree yet — deny rather than
+  // silently granting institution-wide access. Only a real single facultyId
+  // (the 'coordinator' role's own baseline) may fall back this way.
+  return user.facultyId !== 'all' && user.facultyId === resource.facultyId;
 }
 
 /** Resolves a project doc's scope-relevant fields for scope-matching against

@@ -1,6 +1,10 @@
 // hooks/useMaintenanceCheck.ts
-// Ported from mobile/hooks/useMaintenanceCheck.ts — same public endpoint,
-// same bypass rule (system_admin never blocked), same fail-open behavior.
+// Ported from mobile/hooks/useMaintenanceCheck.ts — same endpoint, same
+// bypass rule (system_admin never blocked), same fail-open behavior. Passes
+// platform=web explicitly so it reads web's own maintenance flag, separate
+// from mobile's (see services/maintenanceStatus.ts on the server) — this is
+// only the one-time login-time check; middleware/auth.ts's verifyToken is
+// what actually enforces it for every subsequent request.
 
 import { useCallback } from 'react';
 import { apiClient } from '@/lib/apiClient';
@@ -34,7 +38,7 @@ export function useMaintenanceCheck() {
     }
 
     try {
-      const res = await apiClient.get<MaintenanceStatus>('/api/system/maintenance-status');
+      const res = await apiClient.get<MaintenanceStatus>('/api/system/maintenance-status', { params: { platform: 'web' } });
       return {
         blocked: res.isActive,
         title: res.title ?? '',

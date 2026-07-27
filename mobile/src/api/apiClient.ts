@@ -2,6 +2,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { auth } from '../firebase/firebase';
 
 function getBaseUrl(): string {
@@ -56,6 +57,10 @@ class ApiClient {
         } catch (error) {
           console.error('❌ Failed to retrieve Firebase ID token:', error);
         }
+        // Lets server/src/middleware/auth.ts enforce mobile's own
+        // maintenance flag on every request — separate from web's (see
+        // server/src/services/maintenanceStatus.ts).
+        config.headers['X-Client-Platform'] = 'mobile';
         return config;
       },
       (error) => Promise.reject(error)
@@ -94,6 +99,21 @@ class ApiClient {
         return response;
       },
       (error) => {
+        // Maintenance flipped on mid-session (useMaintenanceCheck only
+        // checks once, at login/2FA) — bounce to the same /maintenance
+        // screen a fresh login would've redirected to, instead of letting
+        // a raw 503 surface on whatever screen happened to be mid-request.
+        if (error.response?.status === 503 && error.response?.data?.error === 'MAINTENANCE_ACTIVE') {
+          const { title, endsAt } = error.response.data;
+          try {
+            router.replace({
+              pathname: '/maintenance',
+              params: { title: title ?? '', endsAt: endsAt ?? '' },
+            } as any);
+          } catch (navError) {
+            console.error('Failed to redirect to /maintenance:', navError);
+          }
+        }
         // Real HTTP errors (4xx / 5xx / network timeout) — let them propagate
         // so the app can handle auth failures, redirects, etc. as before.
         return Promise.reject(error);

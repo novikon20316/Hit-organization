@@ -15,7 +15,6 @@ import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import { TopBar, getFacultyColor } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
-import { createExaminerToken } from '@/src/firebase/createExaminerToken';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal } from '@/components/modals';
 import { AdministrativeSecretaryDashboardStyles, AdministrativeSecretaryModalStyles } from '../../constants/styles';
@@ -30,6 +29,12 @@ interface ProjectGroup {
   trackType:       'bachelor_project' | 'masters_project';
   members:         Array<{ uid: string; name: string }>;
   currentMilestone:string;
+  // Real milestone doc id (as opposed to the display label above) and the
+  // project's already-assigned internal examiners — both needed so
+  // SendExaminerModal below can invite an external examiner via the real
+  // assign-examiners endpoint without wiping out an existing internal one.
+  currentMilestoneId: string | null;
+  existingExaminerIds: string[];
   primaryStatus:   string;
   defenseDate:     string | null;
   defenseRoom:     string | null;
@@ -51,31 +56,37 @@ interface DashboardData {
 }
 
 // ─── Send Examiner Modal ───────────────────────────────────────────────────────
+// Previously wrote an examinerTokens doc directly to Firestore
+// (src/firebase/createExaminerToken.ts) — that path only checks the caller's
+// ROLE (Firestore rules), never her assigned degree scope, so any
+// administrative_secretary could invite an examiner for a project outside
+// her own faculty/major. It also never emailed the examiner (she had to
+// copy/paste the link herself) and passed group.currentMilestone — a
+// display label like "Final Report", not a real milestone doc id — as
+// milestoneId. Now routed through the same POST
+// /api/coordinator/projects/:id/assign-examiners endpoint the coordinator's
+// own assign-examiners flow uses (see app/coordinator/home.tsx), which
+// enforces withinCoordinatorScope server-side and emails the access link.
 interface SendExaminerModalProps {
   visible:  boolean;
   group:    ProjectGroup | null;
   lang:     Lang;
   onClose:  () => void;
-  coordinatorUid:  string;
-  coordinatorName: string;
 }
 
 function SendExaminerModal({
-  visible, group, lang, onClose, coordinatorUid, coordinatorName,
+  visible, group, lang, onClose,
 }: SendExaminerModalProps) {
   const [examinerName,        setExaminerName]        = useState('');
   const [examinerEmail,       setExaminerEmail]       = useState('');
   const [examinerInstitution, setExaminerInstitution] = useState('');
   const [examinerLanguage,    setExaminerLanguage]    = useState<'he' | 'en'>('he');
-  const [thesisUrl,           setThesisUrl]           = useState('');
-  const [reviewDays,          setReviewDays]          = useState('30');
   const [sending,             setSending]             = useState(false);
-  const [generatedLink,       setGeneratedLink]       = useState<string | null>(null);
+  const [sent,                setSent]                = useState(false);
 
   const reset = () => {
     setExaminerName(''); setExaminerEmail(''); setExaminerInstitution('');
-    setThesisUrl(''); setReviewDays('30'); setGeneratedLink(null);
-    setExaminerLanguage('he');
+    setSent(false); setExaminerLanguage('he');
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -91,32 +102,40 @@ function SendExaminerModal({
     }
     setSending(true);
     try {
-      const { link } = await createExaminerToken({
-        milestoneId:        group.currentMilestone,
-        projectId:          group.id,
-        studentId:          group.members[0]?.uid ?? '',
-        studentName:        group.members.map(m => m.name).join(', '),
-        thesisTitle:        group.projectTitle,
-        thesisUrl:          thesisUrl.trim(),
-        examinerName:       examinerName.trim(),
-        examinerEmail:      examinerEmail.trim(),
-        examinerInstitution:examinerInstitution.trim(),
-        examinerLanguage,
-        reviewDays:         parseInt(reviewDays, 10) || 30,
-        opinionVisible:     true,
-        opinionAnonymous:   false,
-        createdByUid:       coordinatorUid,
-        createdByName:      coordinatorName,
+      const res = await apiClient.post(`/api/coordinator/projects/${group.id}/assign-examiners`, {
+        // Existing internal examiners must be re-sent — the endpoint
+        // replaces the project's whole examiner panel with what's passed
+        // here, so omitting them would silently unassign them.
+        examiners: [
+          ...group.existingExaminerIds.map((uid) => ({ type: 'internal' as const, uid })),
+          {
+            type: 'external' as const,
+            name: examinerName.trim(),
+            email: examinerEmail.trim(),
+            institution: examinerInstitution.trim(),
+          },
+        ],
+        ...(group.currentMilestoneId ? { milestoneId: group.currentMilestoneId } : {}),
+        lang: examinerLanguage,
       });
-      setGeneratedLink(link);
+      if ((res.data.externalFailed ?? []).length > 0) {
+        Alert.alert(
+          lang === 'he' ? 'שגיאה' : 'Error',
+          lang === 'he'
+            ? 'הבקשה נשמרה אך שליחת המייל לבוחן נכשלה — נסה שוב מאוחר יותר'
+            : 'The request was saved, but the email to the examiner failed to send — please try again later.',
+        );
+        return;
+      }
+      setSent(true);
       Alert.alert(
-        lang === 'he' ? '✅ הקישור נוצר' : '✅ Link created',
+        lang === 'he' ? '✅ נשלח' : '✅ Sent',
         lang === 'he'
-          ? 'קישור הבוחן נוצר בהצלחה. העתק אותו ושלח לבוחן.'
-          : 'Examiner link created. Copy and send it to the examiner.',
+          ? 'קישור הגישה נשלח לבוחן במייל.'
+          : 'The access link was emailed directly to the examiner.',
       );
     } catch (e: any) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', String(e));
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e.response?.data?.message || String(e));
     } finally {
       setSending(false);
     }
@@ -145,8 +164,6 @@ function SendExaminerModal({
           { label: lang === 'he' ? 'שם הבוחן *' : 'Examiner name *',         value: examinerName,        set: setExaminerName,        key: 'name' },
           { label: lang === 'he' ? 'דוא"ל *' : 'Email *',                    value: examinerEmail,       set: setExaminerEmail,       key: 'email' },
           { label: lang === 'he' ? 'מוסד' : 'Institution',                   value: examinerInstitution, set: setExaminerInstitution, key: 'inst' },
-          { label: lang === 'he' ? 'קישור לעבודה (URL)' : 'Thesis URL',      value: thesisUrl,           set: setThesisUrl,           key: 'url' },
-          { label: lang === 'he' ? 'ימי שיפוט' : 'Review days',              value: reviewDays,          set: setReviewDays,          key: 'days' },
         ].map(field => (
           <View key={field.key} style={m.fieldWrap}>
             <Text style={m.fieldLabel}>{field.label}</Text>
@@ -154,7 +171,7 @@ function SendExaminerModal({
               style={[m.input, isRtl && { textAlign: 'right' }]}
               value={field.value}
               onChangeText={field.set}
-              keyboardType={field.key === 'email' ? 'email-address' : field.key === 'days' ? 'numeric' : 'default'}
+              keyboardType={field.key === 'email' ? 'email-address' : 'default'}
               autoCapitalize="none"
               placeholderTextColor="#9CA3AF"
             />
@@ -177,11 +194,12 @@ function SendExaminerModal({
           ))}
         </View>
 
-        {/* Generated link */}
-        {generatedLink && (
+        {/* Sent confirmation */}
+        {sent && (
           <View style={m.linkBox}>
-            <Text style={m.linkLabel}>{lang === 'he' ? '🔗 קישור הבוחן:' : '🔗 Examiner link:'}</Text>
-            <Text style={m.linkText} selectable>{generatedLink}</Text>
+            <Text style={m.linkLabel}>
+              {lang === 'he' ? '✅ קישור הגישה נשלח לבוחן במייל.' : '✅ The access link was emailed directly to the examiner.'}
+            </Text>
           </View>
         )}
 
@@ -193,9 +211,9 @@ function SendExaminerModal({
           {sending
             ? <ActivityIndicator color="#fff" />
             : <Text style={m.btnSendText}>
-                {generatedLink
-                  ? (lang === 'he' ? 'שלח שוב' : 'Resend')
-                  : (lang === 'he' ? '📧 צור קישור ושלח' : '📧 Create & Send Link')}
+                {sent
+                  ? (lang === 'he' ? 'שלח שוב' : 'Send again')
+                  : (lang === 'he' ? '📧 שלח בקשה' : '📧 Send Request')}
               </Text>
           }
         </Pressable>
@@ -572,14 +590,12 @@ export default function ProjectCoordinatorDashboard() {
         <View style={{ height: 60 }} />
       </ScrollView>
 
-      {/* Send examiner token modal */}
+      {/* Send examiner modal */}
       <SendExaminerModal
         visible={!!examinerModalGroup}
         group={examinerModalGroup}
         lang={lang}
         onClose={() => setExaminerModalGroup(null)}
-        coordinatorUid={uid}
-        coordinatorName={data?.coordinatorName ?? ''}
       />
 
       {/* Defense logistics modal */}

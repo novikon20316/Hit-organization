@@ -5,6 +5,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { auth, db } from '../config/firebase.js';
 import type { ScopeRule, CoordinatorScope } from '../config/permissionScopes.js';
+import { resolvePlatform, readMaintenanceStatus } from '../services/maintenanceStatus.js';
 
 // Routes an account with a forced temp-password change must still be able to
 // reach — everything else 403s until they change it. This is the real gate:
@@ -29,6 +30,18 @@ const PASSWORD_CHANGE_ALLOWED_PATHS = new Set([
   // the caller's own document, so exposing it under this gate is safe.
   '/api/users/me',
 ]);
+
+// Maintenance used to be checked ONLY client-side, once, at login/2FA time
+// (useMaintenanceCheck) — a session already open when maintenance turned on,
+// or anyone calling the API directly, kept reading/writing data for the
+// entire maintenance window regardless. Same allowlist rationale as above:
+// a blocked client still needs these to even discover it's blocked, or to
+// sign out. system_admin bypasses entirely, same as the client-side check.
+const MAINTENANCE_ALLOWED_PATHS = new Set([
+  ...PASSWORD_CHANGE_ALLOWED_PATHS,
+  '/api/system/maintenance-status',
+]);
+const MAINTENANCE_BYPASS_ROLES = new Set(['system_admin']);
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -92,6 +105,19 @@ export const verifyToken = async (
     }
 
     const requestPath = req.originalUrl.split('?')[0] ?? req.originalUrl;
+
+    if (!MAINTENANCE_ALLOWED_PATHS.has(requestPath) && !MAINTENANCE_BYPASS_ROLES.has(userData?.role)) {
+      const platform = resolvePlatform(req.headers['x-client-platform']);
+      const maintenance = await readMaintenanceStatus(platform);
+      if (maintenance.isActive) {
+        return res.status(503).json({
+          error: 'MAINTENANCE_ACTIVE',
+          title: maintenance.title,
+          endsAt: maintenance.endsAt,
+        });
+      }
+    }
+
     if (userData?.mustChangePassword && !PASSWORD_CHANGE_ALLOWED_PATHS.has(requestPath)) {
       return res.status(403).json({ error: 'PASSWORD_CHANGE_REQUIRED' });
     }

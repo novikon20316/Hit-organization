@@ -31,7 +31,7 @@ export async function downloadAuthenticatedFile(path: string, filename: string, 
     });
   }
 
-  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}`, 'X-Client-Platform': 'web' } });
   if (!res.ok) throw new Error(`Download failed — HTTP ${res.status}`);
 
   const blob = await res.blob();
@@ -112,6 +112,11 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
 
   const finalHeaders = new Headers(headers);
   finalHeaders.set('Accept', 'application/json');
+  // Lets server/src/middleware/auth.ts enforce the right platform's
+  // maintenance flag (web and mobile are toggled independently — see
+  // services/maintenanceStatus.ts) for every authenticated request, not
+  // just the one-time login-time check in useMaintenanceCheck.ts.
+  finalHeaders.set('X-Client-Platform', 'web');
   if (!raw && body !== undefined) {
     finalHeaders.set('Content-Type', 'application/json; charset=utf-8');
   }
@@ -134,6 +139,17 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
 
   const contentType = res.headers.get('content-type') ?? '';
   const data = contentType.includes('application/json') ? await res.json().catch(() => null) : await res.text();
+
+  // Maintenance flipped on mid-session (useMaintenanceCheck only checks
+  // once, at login) — bounce to the same /maintenance screen a fresh login
+  // would've redirected to, instead of surfacing a raw 503 to whatever
+  // screen happened to be mid-fetch. window.location (not next/navigation's
+  // router) because this is a plain module, not a component.
+  if (res.status === 503 && data && typeof data === 'object' && (data as { error?: string }).error === 'MAINTENANCE_ACTIVE' && typeof window !== 'undefined') {
+    const { title, endsAt } = data as { title?: string; endsAt?: string | null };
+    const params = new URLSearchParams({ title: title ?? '', endsAt: endsAt ?? '' });
+    window.location.href = `/maintenance?${params.toString()}`;
+  }
 
   if (!res.ok) {
     const message =
@@ -506,11 +522,29 @@ export const apiClient = {
     return request<{ success: boolean }>(`/api/feedback/admin/${id}/resolve`, { method: 'PATCH' });
   },
 
+  /** GET /api/system/maintenance-status?platform= — current on/off state for
+   *  one platform, used by the admin panel to show what's live before/after
+   *  toggling (not the same call useMaintenanceCheck makes at login). */
+  async getMaintenanceStatusForPlatform(platform: 'web' | 'mobile') {
+    return request<{ isActive: boolean; title: string; endsAt: string | null }>('/api/system/maintenance-status', {
+      method: 'GET',
+      params: { platform },
+    });
+  },
+
   /** POST /api/admin/system/maintenance — see maintenanceController.ts for
    *  the exact body shape (shutdownAt/maintenanceDurMs are both ms values,
-   *  computed client-side from the warn/duration pickers). */
-  async updateMaintenanceStatus(payload: { title: string; shutdownAt: number; maintenanceDurMs: number; broadcastEnabled: boolean }) {
-    return request<{ ok: boolean }>('/api/admin/system/maintenance', { method: 'POST', body: payload });
+   *  computed client-side from the warn/duration pickers). platform is
+   *  which app this activates maintenance for — web and mobile are
+   *  independent (see services/maintenanceStatus.ts). */
+  async updateMaintenanceStatus(payload: { platform: 'web' | 'mobile'; title: string; shutdownAt: number; maintenanceDurMs: number; broadcastEnabled: boolean }) {
+    return request<{ ok: boolean; platform: string }>('/api/admin/system/maintenance', { method: 'POST', body: payload });
+  },
+
+  /** DELETE /api/admin/system/maintenance — ends maintenance for one
+   *  platform immediately, without waiting for its scheduled endsAt. */
+  async deactivateMaintenanceStatus(platform: 'web' | 'mobile') {
+    return request<{ ok: boolean; platform: string }>('/api/admin/system/maintenance', { method: 'DELETE', body: { platform } });
   },
 
   async getAcademicCalendar() {
@@ -609,6 +643,8 @@ export const apiClient = {
       >;
       milestoneId?: string;
       studentIds?: string[];
+      /** Language for the external-examiner access-link email. Defaults to 'he' server-side. */
+      lang?: 'he' | 'en';
     }
   ) {
     return request<{ message: string; internalAssigned: string[]; externalNotified: unknown[]; externalFailed: unknown[] }>(
@@ -1160,15 +1196,30 @@ export const apiClient = {
   async getProjectCoordinatorDashboard(uid: string) {
     return request<{
       coordinatorName: string;
-      facultyId: string;
+      facultyId: string | null;
+      /** The secretary's own assigned degree(s) — {facultyId, major?} tuples
+       *  from her coordinatorScopes. Empty for system_admin (unfiltered view). */
+      scopes?: Array<{ facultyId: string; major?: string }>;
+      /** True when an administrative_secretary has no coordinatorScopes
+       *  assigned yet — groups will be empty; surface this distinctly from
+       *  "no groups in your degree" so it's clear an admin needs to assign
+       *  her a scope, not that her degree genuinely has nothing in it. */
+      noScopeAssigned?: boolean;
       groups: Array<{
         id: string;
         projectTitle: string;
         supervisorName: string;
         facultyId: string;
+        major: string | null;
         trackType: 'bachelor_project' | 'masters_project';
-        members: Array<{ uid: string; name: string }>;
+        members: Array<{
+          uid: string;
+          name: string;
+          milestones: Array<{ type: string; status: string; finalGrade: number | null; gradeApproved: boolean }>;
+        }>;
         currentMilestone: string;
+        currentMilestoneId: string | null;
+        existingExaminerIds: string[];
         primaryStatus: string;
         defenseDate: string | null;
         defenseRoom: string | null;

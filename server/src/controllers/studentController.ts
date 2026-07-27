@@ -2,13 +2,24 @@ import admin from 'firebase-admin'
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
+import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 
-// Mirrors the taxonomy used elsewhere this session (firestore.rules'
-// isStaffRole, projectController.ts's STAFF_ROLES) — kept in sync.
-const STAFF_ROLES = [
-  'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
-  'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
+// Mirrors web/lib/roles.ts's PERMISSION_MAP: view_all_projects (cross-faculty,
+// no ownership needed) vs. view_faculty_projects (same-faculty only) vs.
+// view_own_project (supervisor/secondary_supervisor — ownership only, no
+// blanket bypass). Keep in sync with projectController.ts's copy.
+//
+// administrative_secretary is deliberately NOT in FULL_ACCESS_ROLES despite
+// being in view_all_projects there — that permission predates per-degree
+// secretaries (one per major, e.g. data science vs. industrial engineering)
+// and was never meant to mean "every faculty's every project." She's scoped
+// below via withinCoordinatorScope to whichever facultyId/major(s) are
+// actually assigned to her account (see CoordinatorScopesModal), same as the
+// write endpoints in coordinatorController.ts already do for her.
+const FULL_ACCESS_ROLES = [
+  'coordinator', 'program_head', 'faculty_admin', 'grad_school_head', 'system_admin',
 ];
+const FACULTY_SCOPED_ROLES = ['internal_examiner'];
 
 // Static resource — same template for every masters-thesis student, so it's
 // a hardcoded Cloudinary URL rather than a Firestore-backed upload flow.
@@ -41,8 +52,16 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
     const data = projectDoc.data();
     const isOwnProject =
       data?.supervisorId === requester.uid ||
+      data?.secondarySupervisorId === requester.uid ||
       (data?.enrolledStudentIds ?? []).includes(requester.uid);
-    if (!isOwnProject && !STAFF_ROLES.includes(requester.role)) {
+    const hasFullAccess = FULL_ACCESS_ROLES.includes(requester.role);
+    const hasFacultyAccess =
+      FACULTY_SCOPED_ROLES.includes(requester.role) &&
+      (requester.facultyId === 'all' || requester.facultyId === data?.facultyId);
+    const hasSecretaryScopeAccess =
+      requester.role === 'administrative_secretary' &&
+      withinCoordinatorScope(requester, { facultyId: data?.facultyId ?? '', major: data?.major || undefined });
+    if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasSecretaryScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 

@@ -7,6 +7,7 @@ import admin from 'firebase-admin';
 import { logAuditEvent } from '../services/auditLog.js';
 import { computeWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
+import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 
 const db = admin.firestore();
 
@@ -17,6 +18,21 @@ const MILESTONE_PROGRESS: Record<string, number> = {
   defense:           100,
 };
 
+// Mirrors web/lib/roles.ts's PERMISSION_MAP: view_all_projects (cross-faculty,
+// no ownership needed) vs. view_faculty_projects (same-faculty only) vs.
+// view_own_project (supervisor/secondary_supervisor — ownership only, no
+// blanket bypass). Keep in sync with studentController.ts's copy.
+//
+// administrative_secretary is deliberately NOT in FULL_ACCESS_ROLES — see
+// studentController.ts's copy of this comment. She's scoped below via
+// withinCoordinatorScope to her actually-assigned facultyId/major(s).
+const FULL_ACCESS_ROLES = [
+  'coordinator', 'program_head', 'faculty_admin', 'grad_school_head', 'system_admin',
+];
+const FACULTY_SCOPED_ROLES = ['internal_examiner'];
+
+// Used only by getProjects below to decide who may opt out of the default
+// status='active' filter — unrelated to the per-project access checks above.
 const STAFF_ROLES = [
   'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
   'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
@@ -36,8 +52,16 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
     const project = snap.data()!;
     const isOwnProject =
       project.supervisorId === requester.uid ||
+      project.secondarySupervisorId === requester.uid ||
       (project.enrolledStudentIds ?? []).includes(requester.uid);
-    if (!isOwnProject && !STAFF_ROLES.includes(requester.role)) {
+    const hasFullAccess = FULL_ACCESS_ROLES.includes(requester.role);
+    const hasFacultyAccess =
+      FACULTY_SCOPED_ROLES.includes(requester.role) &&
+      (requester.facultyId === 'all' || requester.facultyId === project.facultyId);
+    const hasSecretaryScopeAccess =
+      requester.role === 'administrative_secretary' &&
+      withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });
+    if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasSecretaryScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 

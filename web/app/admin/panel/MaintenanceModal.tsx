@@ -8,14 +8,27 @@
 // of what's picked there. Rather than port a selector that quietly does
 // nothing, this version drops it entirely; if per-role blocking becomes a
 // real backend feature later, add the picker back here.
+//
+// Web and mobile now have independent maintenance flags (see
+// services/maintenanceStatus.ts) — this modal manages BOTH from here via a
+// platform selector, shows each platform's current live status, and lets
+// you end one early instead of only ever waiting out its timer.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 
 interface MaintenanceModalProps {
   onClose: () => void;
   onSaved?: () => void;
+}
+
+type Platform = 'web' | 'mobile';
+
+interface PlatformStatus {
+  isActive: boolean;
+  title: string;
+  endsAt: string | null;
 }
 
 function formatDuration(d: number, h: number, m: number, lang: 'he' | 'en'): string {
@@ -35,10 +48,16 @@ function formatDuration(d: number, h: number, m: number, lang: 'he' | 'en'): str
 const DAY_OPTIONS = Array.from({ length: 8 }, (_, i) => i);
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i);
 const MIN_OPTIONS = [0, 5, 10, 15, 30, 45];
+const PLATFORMS: Platform[] = ['web', 'mobile'];
 
 export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
   const { lang } = useLanguage();
   const isHe = lang === 'he';
+
+  const [platform, setPlatform] = useState<Platform>('web');
+  const [statuses, setStatuses] = useState<Record<Platform, PlatformStatus | null>>({ web: null, mobile: null });
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [deactivating, setDeactivating] = useState<Platform | null>(null);
 
   const [title, setTitle] = useState('');
   const [warnDays, setWarnDays] = useState(0);
@@ -50,6 +69,39 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
   const [broadcastEnabled, setBroadcastEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const refreshStatuses = async () => {
+    setStatusLoading(true);
+    const results = await Promise.all(
+      PLATFORMS.map(async (p) => {
+        try {
+          return [p, await apiClient.getMaintenanceStatusForPlatform(p)] as const;
+        } catch {
+          return [p, null] as const;
+        }
+      }),
+    );
+    setStatuses(Object.fromEntries(results) as Record<Platform, PlatformStatus | null>);
+    setStatusLoading(false);
+  };
+
+  useEffect(() => {
+    refreshStatuses();
+  }, []);
+
+  const handleDeactivate = async (p: Platform) => {
+    setDeactivating(p);
+    setError('');
+    try {
+      await apiClient.deactivateMaintenanceStatus(p);
+      await refreshStatuses();
+      onSaved?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : isHe ? 'כיבוי מצב התחזוקה נכשל' : 'Failed to end maintenance mode');
+    } finally {
+      setDeactivating(null);
+    }
+  };
 
   const warnLabel = useMemo(() => {
     const total = warnDays * 24 * 60 + warnHours * 60 + warnMinutes;
@@ -84,11 +136,13 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
       const warnMs = warnDays * 86_400_000 + warnHours * 3_600_000 + warnMinutes * 60_000;
       const durMs = durDays * 86_400_000 + durHours * 3_600_000 + durMinutes * 60_000;
       await apiClient.updateMaintenanceStatus({
+        platform,
         title: title.trim() || 'Scheduled Maintenance',
         shutdownAt: Date.now() + warnMs,
         maintenanceDurMs: durMs,
         broadcastEnabled,
       });
+      await refreshStatuses();
       onSaved?.();
       onClose();
     } catch (err) {
@@ -97,6 +151,8 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
       setSaving(false);
     }
   };
+
+  const platformLabel = (p: Platform) => (p === 'web' ? (isHe ? 'אתר' : 'Web') : isHe ? 'אפליקציה' : 'Mobile app');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -107,7 +163,66 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
             ✕
           </button>
         </div>
-        <p className="mt-1 text-xs text-muted">{isHe ? 'הגדרת השבתה והתראות' : 'Configure downtime & notifications'}</p>
+        <p className="mt-1 text-xs text-muted">
+          {isHe ? 'אתר ואפליקציה מנוהלים בנפרד — השבתת אחד לא משפיעה על השני' : 'Web and mobile are managed independently — taking one down doesn’t affect the other'}
+        </p>
+
+        {/* Current status per platform */}
+        <div className="mt-4 grid gap-2">
+          {statusLoading ? (
+            <p className="text-xs text-muted">{isHe ? 'טוען סטטוס…' : 'Loading status…'}</p>
+          ) : (
+            PLATFORMS.map((p) => {
+              const status = statuses[p];
+              return (
+                <div key={p} className="flex items-center justify-between rounded-lg bg-paper p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">
+                      {platformLabel(p)} —{' '}
+                      <span className={status?.isActive ? 'text-danger' : 'text-success'}>
+                        {status?.isActive ? (isHe ? 'בתחזוקה' : 'Under maintenance') : isHe ? 'פעיל' : 'Live'}
+                      </span>
+                    </p>
+                    {status?.isActive && (
+                      <p className="mt-0.5 text-xs text-muted">
+                        {status.title}
+                        {status.endsAt ? ` · ${isHe ? 'עד' : 'until'} ${new Date(status.endsAt).toLocaleString(isHe ? 'he-IL' : 'en-US')}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  {status?.isActive && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeactivate(p)}
+                      disabled={deactivating === p}
+                      className="rounded-lg border border-danger px-2.5 py-1.5 text-xs font-medium text-danger hover:bg-danger-bg disabled:opacity-60"
+                    >
+                      {deactivating === p ? '…' : isHe ? 'סיים עכשיו' : 'End now'}
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="mt-5 border-t border-line pt-4">
+          <p className="mb-1.5 text-sm font-medium text-ink">🎯 {isHe ? 'להפעיל תחזוקה עבור' : 'Activate maintenance for'}</p>
+          <div className="flex gap-1.5">
+            {PLATFORMS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPlatform(p)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                  platform === p ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                }`}
+              >
+                {platformLabel(p)}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <label className="mt-4 block">
           <span className="mb-1.5 block text-sm font-medium text-ink">💬 {isHe ? 'הודעה למשתמשים' : 'User-facing message'}</span>
@@ -172,7 +287,15 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
             disabled={saving}
             className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
           >
-            {saving ? '…' : broadcastEnabled ? (isHe ? '🚀 הפעל ושדר' : '🚀 Activate & broadcast') : isHe ? '🛠️ הפעל תחזוקה' : '🛠️ Activate maintenance'}
+            {saving
+              ? '…'
+              : broadcastEnabled
+                ? isHe
+                  ? `🚀 הפעל ל${platformLabel(platform)} ושדר`
+                  : `🚀 Activate for ${platformLabel(platform)} & broadcast`
+                : isHe
+                  ? `🛠️ הפעל תחזוקה ל${platformLabel(platform)}`
+                  : `🛠️ Activate maintenance for ${platformLabel(platform)}`}
           </button>
         </div>
       </div>

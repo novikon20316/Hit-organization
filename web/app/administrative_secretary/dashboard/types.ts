@@ -1,17 +1,32 @@
 // app/administrative_secretary/dashboard/types.ts
 
+export interface MemberMilestoneGrade {
+  type: string;
+  status: string;
+  finalGrade: number | null;
+  gradeApproved: boolean;
+}
+
 export interface ProjectGroup {
   id: string;
   projectTitle: string;
   supervisorName: string;
   facultyId: string;
+  major: string | null;
   trackType: 'bachelor_project' | 'masters_project';
-  members: Array<{ uid: string; name: string }>;
+  members: Array<{ uid: string; name: string; milestones: MemberMilestoneGrade[] }>;
   currentMilestone: string;
+  currentMilestoneId: string | null;
+  existingExaminerIds: string[];
   primaryStatus: string;
   defenseDate: string | null;
   defenseRoom: string | null;
   submissionsCount: number;
   overdueCount: number;
   isOverdue: boolean;
+}
+
+export interface DegreeScope {
+  facultyId: string;
+  major?: string;
 }
