@@ -8,12 +8,13 @@ import { checkDeletionEligibility, purgeAccount } from '../services/accountDelet
 import { VALID_ROLES, generateTempPassword, hashPassword } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
+import { WEBSITE_URL, APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
 import {
   validateScopeRule, validateCoordinatorScope,
   ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES, DELEGATE_RESTRICTED_ACTIONS,
   type ScopeRule, type CoordinatorScope,
 } from '../config/permissionScopes.js';
-import { hasActionGrant } from '../services/scopeAuthorization.js';
+import { hasActionGrant, withinCoordinatorScope } from '../services/scopeAuthorization.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { notifyUser } from '../services/notify.js';
 import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
@@ -190,13 +191,6 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
       ...projectData,
       projectId: newProjectRef.id,
       status: projectData.status || 'active',
-      gradingCriteria: projectData.gradingCriteria ?? [
-        { key: 'clarity',     label: 'Research Clarity', maxScore: 20 },
-        { key: 'methodology', label: 'Methodology',       maxScore: 25 },
-        { key: 'feasibility', label: 'Feasibility',       maxScore: 20 },
-        { key: 'innovation',  label: 'Innovation',        maxScore: 15 },
-        { key: 'writing',     label: 'Writing Quality',   maxScore: 20 },
-      ],
       createdAt: new Date().toISOString()
     });
 
@@ -345,14 +339,13 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
         type: 'account_created',
         titleHe: '🎓 ברוך הבא למערכת',
         titleEn: '🎓 Welcome to the System',
-        bodyHe: 'מנהל המערכת הוסיף אותך למערכת ניהול פרויקטי הגמר. בדוק את תיבת הדוא"ל שלך לפרטי ההתחברות.',
-        bodyEn: 'The system administrator added you to the Projects & Thesis Management System. Check your email for login details.',
+        bodyHe: `מנהל המערכת הוסיף אותך למערכת ניהול פרויקטי הגמר. בדוק את תיבת הדוא"ל שלך לפרטי ההתחברות. כניסה למערכת: ${WEBSITE_URL}`,
+        bodyEn: `The system administrator added you to the Projects & Thesis Management System. Check your email for login details. Log in at: ${WEBSITE_URL}`,
         emailData: {
           email: userData.email,
           tempPassword,
-          // TODO: set once the app is published on each store
-          appLinkIos:     process.env.APP_LINK_URL_IOS     || '',
-          appLinkAndroid: process.env.APP_LINK_URL_ANDROID || '',
+          appLinkIos:     APP_LINK_URL_IOS,
+          appLinkAndroid: APP_LINK_URL_ANDROID,
         },
       });
     } catch (notifyError) {
@@ -876,6 +869,17 @@ export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: 
     if (student.role !== 'student') {
       return res.status(400).json({ message: 'This action only applies to student accounts.' });
     }
+    // HIGH FIX: administrative_secretary's facultyId is always the literal
+    // string 'all' (see CROSS_FACULTY_ROLES in userController.ts) — her real
+    // scope lives in coordinatorScopes. This endpoint had no scope check at
+    // all, so a secretary assigned only to e.g. "sciences" could change the
+    // academic year (and thus thesis eligibility) of a student in any other
+    // faculty. Every other administrative_secretary-facing endpoint in this
+    // codebase already enforces this the same way.
+    if (req.user.role === 'administrative_secretary' &&
+        !withinCoordinatorScope(req.user, { facultyId: student.facultyId ?? '', major: student.major || undefined })) {
+      return res.status(403).json({ message: 'This student is outside your assigned scope.' });
+    }
 
     const newYearOfStudy = yearOfStudy !== undefined ? yearOfStudy : (student.yearOfStudy ?? null);
     const isEligibleForProcess = computeIsEligible(student.degreeType ?? null, student.major ?? null, newYearOfStudy);
@@ -943,6 +947,13 @@ export const searchStudents = async (req: AuthenticatedRequest, res: Response) =
         (u.displayName ?? '').toLowerCase().includes(q) ||
         (u.email ?? '').toLowerCase().includes(q) ||
         (u.studentId ?? '').toLowerCase().includes(q)
+      )
+      // HIGH FIX: same administrative_secretary scoping gap as
+      // updateStudentAcademicYear above — without this, her search returned
+      // every student in the institution, not just her assigned degree(s).
+      .filter((u: any) =>
+        req.user!.role !== 'administrative_secretary' ||
+        withinCoordinatorScope(req.user, { facultyId: u.facultyId ?? '', major: u.major || undefined })
       )
       .slice(0, 25)
       .map((u: any) => ({

@@ -131,8 +131,20 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() &&
         role(userDoc()) in ['supervisor', 'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary'];
-      allow update: if isSignedIn() &&
-        role(userDoc()) in ['supervisor', 'coordinator', 'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary'];
+      // HIGH FIX: 'supervisor' previously had blanket update access to every
+      // project in the system, not just their own — any supervisor could
+      // directly rewrite ANOTHER supervisor's enrolledStudentIds/status/
+      // major/supervisorId, bypassing the ownership checks the scoped
+      // /api/admin/projects/* and /api/supervisor/projects/* endpoints
+      // already enforce. The other roles here are real admin-tier accounts
+      // (coordinator/faculty_admin/program_head/administrative_secretary/
+      // system_admin) whose broader project-management authority is
+      // intentional elsewhere in this codebase, so only 'supervisor' gets
+      // an ownership constraint added.
+      allow update: if isSignedIn() && (
+        (role(userDoc()) == 'supervisor' && resource.data.get('supervisorId', '') == request.auth.uid) ||
+        role(userDoc()) in ['coordinator', 'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary']
+      );
       allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
     }
 

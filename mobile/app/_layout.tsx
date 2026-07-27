@@ -14,6 +14,7 @@ import Constants from 'expo-constants';
 import { NotificationsProvider } from '../src/context/NotificationsContext';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // ─── Lock native layout direction to LTR ──────────────────────────────────────
 // This app implements its own RTL presentation everywhere (isRtl && styles.
@@ -422,11 +423,13 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <NotificationsProvider>
-        <StatusBar style="auto" translucent={false} />
-        <Stack screenOptions={{ headerShown: false }} />
-      </NotificationsProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <NotificationsProvider>
+          <StatusBar style="auto" translucent={false} />
+          <Stack screenOptions={{ headerShown: false }} />
+        </NotificationsProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
