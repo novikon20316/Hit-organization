@@ -3009,6 +3009,26 @@ export const MaintenanceScreenStyles = StyleSheet.create({
     textDecorationLine: 'underline',
     marginTop: 4,
   },
+
+  // Language toggle — top-right, so a Hebrew-default blocked screen still
+  // lets a student who doesn't read Hebrew switch to English.
+  langToggleRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 12,
+  },
+  langToggleBtn: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+  },
+  langToggleText: {
+    fontSize: 12, fontWeight: '600',
+    color: '#475569',
+  },
 });
 
 export const TabLayoutStyles = StyleSheet.create({

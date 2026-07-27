@@ -50,6 +50,23 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i);
 const MIN_OPTIONS = [0, 5, 10, 15, 30, 45];
 const PLATFORMS: Platform[] = ['web', 'mobile'];
 
+// The blocked-user-facing wording must match which platform is actually
+// affected — "אתר"/"website" for web, "אפליקציה"/"app" for mobile (mobile's
+// own screen already says this; see mobile/app/(tabs)/Maintenance.tsx and
+// mobile/components/modals/MaintenanceModal.tsx). Hebrew grammatical gender
+// differs between the two nouns (אתר is masculine, אפליקציה is feminine),
+// so the verb forms below aren't just a word swap.
+function maintenanceSubject(p: Platform, lang: 'he' | 'en') {
+  if (p === 'web') {
+    return lang === 'he'
+      ? { unavailable: 'האתר לא יהיה זמין', willReturn: 'האתר יחזור לפעול' }
+      : { unavailable: 'The website will be unavailable', willReturn: 'The website will be back' };
+  }
+  return lang === 'he'
+    ? { unavailable: 'האפליקציה לא תהיה זמינה', willReturn: 'האפליקציה תחזור לפעול' }
+    : { unavailable: 'The app will be unavailable', willReturn: 'The app will be back' };
+}
+
 export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
   const { lang } = useLanguage();
   const isHe = lang === 'he';
@@ -112,22 +129,24 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
   const durLabel = useMemo(() => {
     const total = durDays * 24 * 60 + durHours * 60 + durMinutes;
     if (total === 0) return isHe ? 'משך לא הוגדר' : 'Duration not set';
-    return isHe ? `האפליקציה תחזור בעוד ~${formatDuration(durDays, durHours, durMinutes, lang)}` : `App will be back in ~${formatDuration(durDays, durHours, durMinutes, lang)}`;
-  }, [durDays, durHours, durMinutes, lang, isHe]);
+    const subj = maintenanceSubject(platform, lang);
+    return isHe ? `${subj.willReturn} בעוד ~${formatDuration(durDays, durHours, durMinutes, lang)}` : `${subj.willReturn} in ~${formatDuration(durDays, durHours, durMinutes, lang)}`;
+  }, [durDays, durHours, durMinutes, lang, isHe, platform]);
 
   const previewText = useMemo(() => {
     const effectiveTitle = title || (isHe ? 'תחזוקה מתוכננת' : 'Scheduled maintenance');
     const dur = formatDuration(durDays, durHours, durMinutes, lang);
     const hasDur = durDays + durHours + durMinutes > 0;
+    const subj = maintenanceSubject(platform, lang);
     if (isHe) {
       return hasDur
-        ? `${effectiveTitle}\n\nאנו מבצעים תחזוקה מתוכננת. האפליקציה לא תהיה זמינה למשך כ-${dur}.\n\nנחזור בקרוב — תודה על הסבלנות.`
+        ? `${effectiveTitle}\n\nאנו מבצעים תחזוקה מתוכננת. ${subj.unavailable} למשך כ-${dur}.\n\nנחזור בקרוב — תודה על הסבלנות.`
         : `${effectiveTitle}\n\nאנו מבצעים תחזוקה מתוכננת.\n\nנחזור בקרוב — תודה על הסבלנות.`;
     }
     return hasDur
-      ? `${effectiveTitle}\n\nWe're performing scheduled maintenance. The app will be unavailable for approximately ${dur}.\n\nWe'll be back online shortly — thank you for your patience.`
+      ? `${effectiveTitle}\n\nWe're performing scheduled maintenance. ${subj.unavailable} for approximately ${dur}.\n\nWe'll be back online shortly — thank you for your patience.`
       : `${effectiveTitle}\n\nWe're performing scheduled maintenance.\n\nWe'll be back online shortly — thank you for your patience.`;
-  }, [title, durDays, durHours, durMinutes, lang, isHe]);
+  }, [title, durDays, durHours, durMinutes, lang, isHe, platform]);
 
   const handleSave = async () => {
     setSaving(true);

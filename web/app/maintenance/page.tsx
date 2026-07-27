@@ -93,8 +93,11 @@ function MaintenanceContent() {
       <p className="mt-1 text-sm font-medium text-ink">{title}</p>
       <p className="mt-3 text-sm text-muted">
         {lang === 'he'
-          ? 'אנו מבצעים תחזוקה מתוכננת כדי לשפר את החוויה שלכם. האפליקציה תחזור לפעול בקרוב.'
-          : "We're performing scheduled maintenance to improve your experience. The app will be back online shortly."}
+          // This page is only ever reached by web users (useMaintenanceCheck
+          // checks platform=web here) — "האתר", never "האפליקציה", which
+          // is mobile's wording (see mobile/app/(tabs)/Maintenance.tsx).
+          ? 'אנו מבצעים תחזוקה מתוכננת כדי לשפר את החוויה שלכם. האתר יחזור לפעול בקרוב.'
+          : "We're performing scheduled maintenance to improve your experience. The website will be back online shortly."}
       </p>
 
       {countdown && !isFinished && (

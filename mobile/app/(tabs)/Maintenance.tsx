@@ -15,6 +15,8 @@ import { apiClient } from '@/src/api/apiClient';
 import { MaintenanceStatus } from '@/hooks/useMaintenanceCheck';
 import { MaintenanceScreenStyles } from '../../constants/styles';
 
+type Lang = 'he' | 'en';
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function msToCountdown(ms: number): { h: string; m: string; s: string } {
@@ -49,7 +51,15 @@ export default function MaintenanceScreen() {
   // The layout passes these as search params when redirecting here
   const params = useLocalSearchParams<{ title?: string; endsAt?: string }>();
 
-  const [title,  setTitle]  = useState(params.title  ?? 'Scheduled maintenance');
+  // Defaults to Hebrew, matching the rest of this app's convention (e.g.
+  // administrative_secretary_dashboard.tsx's own local lang state) — a
+  // toggle lets a student who doesn't read Hebrew switch to English. This
+  // is a per-screen toggle, not the app's persisted language setting, same
+  // as other screens here.
+  const [lang, setLang] = useState<Lang>('he');
+  const isHe = lang === 'he';
+
+  const [title,  setTitle]  = useState(params.title  ?? (isHe ? 'תחזוקה מתוכננת' : 'Scheduled maintenance'));
   const [endsAt, setEndsAt] = useState<string | null>(params.endsAt ?? null);
   const [msLeft, setMsLeft] = useState<number | null>(null);
   const [checking, setChecking] = useState(false);
@@ -70,7 +80,8 @@ export default function MaintenanceScreen() {
     try {
       setChecking(true);
       const res = await apiClient.get<MaintenanceStatus>(
-        '/api/system/maintenance-status'
+        '/api/system/maintenance-status',
+        { params: { platform: 'mobile' } },
       );
       const { isActive, title: newTitle, endsAt: newEndsAt } = res.data;
 
@@ -111,44 +122,55 @@ export default function MaintenanceScreen() {
         showsVerticalScrollIndicator={false}
       >
 
+        {/* ── Language toggle ── */}
+        <View style={s.langToggleRow}>
+          <Pressable style={s.langToggleBtn} onPress={() => setLang(isHe ? 'en' : 'he')}>
+            <Text style={s.langToggleText}>{isHe ? 'English' : 'עברית'}</Text>
+          </Pressable>
+        </View>
+
         {/* ── Icon ── */}
         <View style={s.iconWrap}>
           <Text style={s.iconEmoji}>🛠️</Text>
         </View>
 
         {/* ── Heading ── */}
-        <Text style={s.heading}>Under Maintenance</Text>
+        <Text style={s.heading}>{isHe ? 'המערכת בתחזוקה' : 'Under Maintenance'}</Text>
         <Text style={s.title}>{title}</Text>
 
         <Text style={s.body}>
-          We&apos;re performing scheduled maintenance to improve your experience.{'\n'}
-          The app will be back online shortly.
+          {isHe
+            // Mobile is always "the app" here — this screen only serves the
+            // mobile client (see apiClient's platform=mobile above); web's
+            // equivalent screen says "האתר" instead.
+            ? 'אנו מבצעים תחזוקה מתוכננת כדי לשפר את החוויה שלכם. האפליקציה תחזור לפעול בקרוב.'
+            : "We're performing scheduled maintenance to improve your experience.\nThe app will be back online shortly."}
         </Text>
 
         {/* ── Countdown ── */}
         {countdown && !isFinished && (
           <View style={s.countdownCard}>
-            <Text style={s.countdownLabel}>Estimated time remaining</Text>
+            <Text style={s.countdownLabel}>{isHe ? 'זמן משוער שנותר' : 'Estimated time remaining'}</Text>
             <View style={s.countdownRow}>
               <View style={s.countdownUnit}>
                 <Text style={s.countdownNum}>{countdown.h}</Text>
-                <Text style={s.countdownUnitLabel}>hours</Text>
+                <Text style={s.countdownUnitLabel}>{isHe ? 'שעות' : 'hours'}</Text>
               </View>
               <Text style={s.countdownColon}>:</Text>
               <View style={s.countdownUnit}>
                 <Text style={s.countdownNum}>{countdown.m}</Text>
-                <Text style={s.countdownUnitLabel}>min</Text>
+                <Text style={s.countdownUnitLabel}>{isHe ? 'דקות' : 'min'}</Text>
               </View>
               <Text style={s.countdownColon}>:</Text>
               <View style={s.countdownUnit}>
                 <Text style={s.countdownNum}>{countdown.s}</Text>
-                <Text style={s.countdownUnitLabel}>sec</Text>
+                <Text style={s.countdownUnitLabel}>{isHe ? 'שניות' : 'sec'}</Text>
               </View>
             </View>
 
             {endsAt && (
               <Text style={s.endsAtText}>
-                Back online by {formatEndsAt(endsAt)}
+                {(isHe ? 'צפוי לחזור עד ' : 'Back online by ') + formatEndsAt(endsAt)}
               </Text>
             )}
           </View>
@@ -158,7 +180,7 @@ export default function MaintenanceScreen() {
         {isFinished && (
           <View style={[s.countdownCard, { borderColor: '#10B981' }]}>
             <Text style={[s.countdownLabel, { color: '#10B981' }]}>
-              ✅ Maintenance should be wrapping up…
+              ✅ {isHe ? 'התחזוקה אמורה להסתיים בקרוב...' : 'Maintenance should be wrapping up…'}
             </Text>
           </View>
         )}
@@ -171,13 +193,13 @@ export default function MaintenanceScreen() {
         >
           {checking
             ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={s.refreshBtnText}>↻  Check again</Text>
+            : <Text style={s.refreshBtnText}>↻  {isHe ? 'בדוק שוב' : 'Check again'}</Text>
           }
         </Pressable>
 
         {/* ── Sign out ── */}
         <Pressable onPress={handleSignOut}>
-          <Text style={s.signOutLink}>Sign out</Text>
+          <Text style={s.signOutLink}>{isHe ? 'התנתקות' : 'Sign out'}</Text>
         </Pressable>
 
       </ScrollView>
