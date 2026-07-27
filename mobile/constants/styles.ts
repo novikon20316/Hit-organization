@@ -4820,6 +4820,18 @@ export const MaintenanceModalStyles = StyleSheet.create({
   saveBtnText:     { color: "#FFFFFF", fontSize: 15, fontWeight: "500" },
   cancelBtn:       { borderWidth: 0.5, borderColor: "#CBD5E1", borderRadius: 12, paddingVertical: 12, alignItems: "center" },
   cancelBtnText:   { color: "#64748B", fontSize: 14 },
+
+  // Current status card (mobile's own maintenance flag — see
+  // server/src/services/maintenanceStatus.ts) + "End now" button, so ending
+  // it early doesn't require switching to the web admin panel.
+  statusCard:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#F8FAFC", borderWidth: 0.5, borderColor: "#E2E8F0", borderRadius: 12, padding: 14 },
+  statusTitle:       { fontSize: 13, fontWeight: "600", color: "#0F172A" },
+  statusLive:        { color: "#10B981" },
+  statusBlocked:     { color: "#EF4444" },
+  statusSub:         { fontSize: 11, color: "#94A3B8", marginTop: 2 },
+  endNowBtn:         { borderWidth: 1, borderColor: "#EF4444", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  endNowBtnDisabled: { opacity: 0.6 },
+  endNowBtnText:     { color: "#EF4444", fontSize: 12, fontWeight: "600" },
 });
 
 // Student Statuses admin settings modal (system_admin only — see

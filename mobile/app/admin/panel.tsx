@@ -163,6 +163,11 @@ export default function PanelScreen() {
   const [durMinutes, setDurMinutes]   = useState(0);
   const [blockedRoles, setBlockedRoles] = useState<string[]>([]);
   const [broadcastEnabled, setBroadcastEnabled] = useState(true);
+  // Mobile's own live maintenance status — fetched whenever the modal opens
+  // so the "End now" button there can end it early without switching to
+  // the web admin panel.
+  const [maintenanceStatus, setMaintenanceStatus] = useState<{ isActive: boolean; title: string; endsAt: string | null } | null>(null);
+  const [deactivatingMaintenance, setDeactivatingMaintenance] = useState(false);
   // ── New project modal state ───────────────────────────────────────────────
   const [newProjectFaculty, setNewProjectFaculty] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
@@ -980,6 +985,30 @@ export default function PanelScreen() {
     }
   };
 
+  const fetchMaintenanceStatus = async () => {
+    try {
+      const res = await apiClient.get('/api/system/maintenance-status', { params: { platform: 'mobile' } });
+      setMaintenanceStatus(res.data);
+    } catch (e) {
+      console.log(e);
+      setMaintenanceStatus(null);
+    }
+  };
+
+  const deactivateMaintenance = async () => {
+    setDeactivatingMaintenance(true);
+    try {
+      await apiClient.delete('/api/admin/system/maintenance', { data: { platform: 'mobile' } });
+      await fetchMaintenanceStatus();
+      Alert.alert('✅', lang === 'he' ? 'מצב התחזוקה בוטל' : 'Maintenance mode ended');
+    } catch (e) {
+      console.log(e);
+      Alert.alert('Error', lang === 'he' ? 'ביטול מצב התחזוקה נכשל' : 'Failed to end maintenance mode');
+    } finally {
+      setDeactivatingMaintenance(false);
+    }
+  };
+
   const openAcademicCalendar = async () => {
     setAcademicCalendarModal(true);
     setAcademicCalendarLoading(true);
@@ -1042,7 +1071,7 @@ export default function PanelScreen() {
         lang={lang}
         isRtl={isRtl}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
-        onMaintenance={() => setMaintenanceModal(true)}
+        onMaintenance={() => { setMaintenanceModal(true); fetchMaintenanceStatus(); }}
         extraMenuItems={[
           {
             key: 'manage-files', icon: '📎',
@@ -2119,6 +2148,10 @@ export default function PanelScreen() {
         visible={maintenanceModal}
         setVisible={setMaintenanceModal}
         lang={lang}
+
+        currentStatus={maintenanceStatus}
+        onDeactivate={deactivateMaintenance}
+        deactivating={deactivatingMaintenance}
 
         title={maintenanceTitle}
         setTitle={setMaintenanceTitle}

@@ -30,10 +30,24 @@ export interface RoleOption {
   labelHe: string;
 }
 
+export interface CurrentMaintenanceStatus {
+  isActive: boolean;
+  title:    string;
+  endsAt:   string | null;
+}
+
 type Props = {
   visible: boolean;
   setVisible: (v: boolean) => void;
   lang: "he" | "en";
+
+  // Mobile's own current maintenance status (fetched when the modal opens)
+  // + a way to end it early, so a system_admin doesn't have to switch to
+  // the web admin panel just to turn mobile's maintenance back off before
+  // its scheduled endsAt.
+  currentStatus?: CurrentMaintenanceStatus | null;
+  onDeactivate?: () => void;
+  deactivating?: boolean;
 
   // Section 1 — user-facing message
   title: string;
@@ -155,6 +169,7 @@ function RoleToggle({
 
 export default function MaintenanceModal({
   visible, setVisible, lang,
+  currentStatus, onDeactivate, deactivating = false,
   title, setTitle,
   warnDays, setWarnDays, warnHours, setWarnHours, warnMinutes, setWarnMinutes,
   durDays, setDurDays, durHours, setDurHours, durMinutes, setDurMinutes,
@@ -233,6 +248,38 @@ export default function MaintenanceModal({
           </View>
 
           <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
+
+            {/* ── Current status + end-now ── */}
+            {currentStatus?.isActive && (
+              <>
+                <View style={s.section}>
+                  <SectionLabel icon="📡" text={isHe ? "מצב נוכחי" : "Current status"} />
+                  <View style={s.statusCard}>
+                    <View>
+                      <Text style={[s.statusTitle, s.statusBlocked]}>
+                        {isHe ? "האפליקציה בתחזוקה" : "App is under maintenance"}
+                      </Text>
+                      <Text style={s.statusSub}>
+                        {currentStatus.title}
+                        {currentStatus.endsAt
+                          ? ` · ${isHe ? "עד" : "until"} ${new Date(currentStatus.endsAt).toLocaleString()}`
+                          : ""}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={[s.endNowBtn, deactivating && s.endNowBtnDisabled]}
+                      onPress={onDeactivate}
+                      disabled={deactivating}
+                    >
+                      <Text style={s.endNowBtnText}>
+                        {deactivating ? "…" : isHe ? "סיים עכשיו" : "End now"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <View style={s.divider} />
+              </>
+            )}
 
             {/* ── Section 1: Message ── */}
             <View style={s.section}>
