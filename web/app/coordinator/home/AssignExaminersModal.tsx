@@ -34,12 +34,10 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
   const [examiner2Id, setExaminer2Id] = useState('');
   const [examiner1Ext, setExaminer1Ext] = useState<ExternalExaminerInput>(EMPTY_EXTERNAL);
   const [examiner2Ext, setExaminer2Ext] = useState<ExternalExaminerInput>(EMPTY_EXTERNAL);
-  // Collected and validated to sum to 100%, same as mobile — but note mobile
-  // never actually sends these to the server (assign-examiners's request
-  // body only reads examiners/milestoneId/studentIds; see
-  // server/src/controllers/coordinatorController.ts). Kept here to match
-  // existing behavior exactly rather than silently changing it; worth a
-  // follow-up on the mobile side too if the weights are meant to do anything.
+  // Written onto the milestone's gradeWeights field server-side (see
+  // coordinatorController.ts's assignExaminers) — computeWeightedFinalGrade
+  // (gradeEngine.ts) reads it once submitMilestoneGrade finishes scoring,
+  // instead of always falling back to the hardcoded 40/30/30 default.
   const [weightSupervisor, setWeightSupervisor] = useState('30');
   const [weightExaminer1, setWeightExaminer1] = useState('35');
   const [weightExaminer2, setWeightExaminer2] = useState('35');
@@ -101,6 +99,7 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
         ],
         milestoneId: milestone.id,
         studentIds: milestone.studentIds,
+        weights: { supervisorWeight: w1, examiner1Weight: w2, examiner2Weight: w3 },
       });
       onAssigned();
       onClose();

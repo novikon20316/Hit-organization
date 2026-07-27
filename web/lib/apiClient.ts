@@ -645,6 +645,11 @@ export const apiClient = {
       studentIds?: string[];
       /** Language for the external-examiner access-link email. Defaults to 'he' server-side. */
       lang?: 'he' | 'en';
+      /** Fractions (0-1, summing to 1) — written onto the milestone's own
+       *  gradeWeights field (see gradeEngine.ts) so the final grade is
+       *  actually computed with them instead of the hardcoded 40/30/30
+       *  default. Requires milestoneId. */
+      weights?: { supervisorWeight: number; examiner1Weight: number; examiner2Weight: number };
     }
   ) {
     return request<{ message: string; internalAssigned: string[]; externalNotified: unknown[]; externalFailed: unknown[] }>(

@@ -24,12 +24,20 @@ export function ExceptionalActionQueue({ lang }: { lang: Lang }) {
   const [decidingId, setDecidingId] = useState<string | null>(null);
   const [rejectReasonById, setRejectReasonById] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  // Distinct from "genuinely zero pending requests" (which also renders
+  // nothing, by design) — a failed fetch used to look identical to that,
+  // so an approver could silently never see a real pending queue exists.
+  const [loadError, setLoadError] = useState('');
 
   const load = () => {
     setLoading(true);
+    setLoadError('');
     apiClient.get('/api/exceptional-actions/pending')
       .then((res: any) => setRequests(res.data?.requests ?? []))
-      .catch((err: unknown) => console.error('Failed to load exceptional-action queue:', err))
+      .catch((err: unknown) => {
+        console.error('Failed to load exceptional-action queue:', err);
+        setLoadError(lang === 'he' ? 'טעינת הבקשות הממתינות נכשלה' : 'Failed to load pending requests');
+      })
       .finally(() => setLoading(false));
   };
 
@@ -55,7 +63,20 @@ export function ExceptionalActionQueue({ lang }: { lang: Lang }) {
     }
   };
 
-  if (loading || requests.length === 0) return null;
+  if (loading) return null;
+  if (loadError) {
+    return (
+      <View style={{ backgroundColor: '#FEF2F2', borderRadius: 10, borderWidth: 1, borderColor: '#F2C7C2', padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 12, color: '#A8433A', flex: 1 }}>⚠️ {loadError}</Text>
+        <Pressable onPress={load}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#A8433A', textDecorationLine: 'underline' }}>
+            {lang === 'he' ? 'נסה שוב' : 'Retry'}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+  if (requests.length === 0) return null;
 
   return (
     <View style={{ marginBottom: 12 }}>

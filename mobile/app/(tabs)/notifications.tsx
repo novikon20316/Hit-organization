@@ -98,6 +98,26 @@ function initials(name: string): string {
   return name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
 }
 
+// Inline error + retry banner — mirrors web's own fix for the same "failed
+// fetch looks identical to genuinely empty" problem.
+function ErrorBanner({ message, lang, onRetry, dismissible }: { message: string; lang: Lang; onRetry?: () => void; dismissible?: () => void }) {
+  return (
+    <View style={{ backgroundColor: '#FEF2F2', borderRadius: 10, borderWidth: 1, borderColor: '#F2C7C2', padding: 10, marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Text style={{ fontSize: 12, color: '#A8433A', flex: 1 }}>⚠️ {message}</Text>
+      {onRetry && (
+        <Pressable onPress={onRetry}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#A8433A', textDecorationLine: 'underline' }}>{lang === 'he' ? 'נסה שוב' : 'Retry'}</Text>
+        </Pressable>
+      )}
+      {dismissible && (
+        <Pressable onPress={dismissible} style={{ marginLeft: 8 }}>
+          <Text style={{ fontSize: 14, color: '#A8433A' }}>✕</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 // ─── Animated notification row ────────────────────────────────────────────────
 
 function NotifRow({ notif, lang, isRtl, onPress }: {
@@ -205,6 +225,12 @@ export default function NotificationsScreen() {
   const [chats,            setChats]            = useState<ChatRow[]>([]);
   const [loadingNotifs,    setLoadingNotifs]    = useState(true);
   const [loadingChats,     setLoadingChats]     = useState(true);
+  // Distinct from "genuinely empty" — a failed fetch used to render
+  // identically to zero notifications/chats, so a real outage looked like
+  // an empty inbox instead of a broken screen (mirrors web's own fix).
+  const [notifsError,      setNotifsError]      = useState('');
+  const [chatsError,       setChatsError]       = useState('');
+  const [actionError,      setActionError]      = useState('');
   const [filter,           setFilter]           = useState<'all' | 'unread'>('all');
   const [userRole,         setUserRole]         = useState<string | null>(null);
   const [chatSheetVisible, setChatSheetVisible] = useState(false);
@@ -236,54 +262,61 @@ export default function NotificationsScreen() {
   }, [uid]);
 
   // ── 1. Fetch Notification Inbox & Active Chats ────────────────────────
+  // Lifted out of the effect (was an inline const before) so the "Retry"
+  // button on ErrorBanner can call the exact same fetch on demand, not just
+  // the automatic 30s poll.
+  const fetchInboxData = useCallback(async () => {
+    if (!uid) return;
+    try {
+      // 🚀 FIX: Changed from setLoading to setLoadingChats
+      setLoadingChats(true);
+
+      const response = await apiClient.get('/api/chats/dashboard');
+      const chats = response.data.chats || []
+      setChats(chats);
+      setChatsError('');
+    } catch (err) {
+      console.error("Failed compiling chat list feed items:", err);
+      setChatsError(lang === 'he' ? 'טעינת השיחות נכשלה' : 'Failed to load conversations');
+    } finally {
+      // 🚀 FIX: Changed from setLoading to setLoadingChats
+      setLoadingChats(false);
+    }
+  }, [uid, lang]);
+
   useEffect(() => {
     if (!uid) return;
-
-    const fetchInboxData = async () => {
-      try {
-        // 🚀 FIX: Changed from setLoading to setLoadingChats
-        setLoadingChats(true);
-
-        const response = await apiClient.get('/api/chats/dashboard');
-        const chats = response.data.chats || []
-        setChats(chats);
-      } catch (err) {
-        console.error("Failed compiling chat list feed items:", err);
-      } finally {
-        // 🚀 FIX: Changed from setLoading to setLoadingChats
-        setLoadingChats(false);
-      }
-    };
-
     fetchInboxData();
 
     // 💡 Optional background polling setup to fetch updates every 30 seconds since onSnapshot is removed
     const inboxInterval = setInterval(fetchInboxData, 30000);
     return () => clearInterval(inboxInterval);
-  }, [uid]);
+  }, [uid, fetchInboxData]);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!uid) return;
+    try {
+      setLoadingNotifs(true);
+      const response = await apiClient.get('/api/notifications/feed');
+      // API returns array directly (see getUserNotificationFeed controller)
+      setNotifications(Array.isArray(response.data) ? response.data : []);
+      setNotifsError('');
+    } catch (err) {
+      console.error('Failed fetching notifications:', err);
+      setNotifsError(lang === 'he' ? 'טעינת ההתראות נכשלה' : 'Failed to load notifications');
+    } finally {
+      setLoadingNotifs(false);
+    }
+  }, [uid, lang]);
 
   useEffect(() => {
     if (!uid) return;
-
-    const fetchNotifications = async () => {
-      try {
-        setLoadingNotifs(true);
-        const response = await apiClient.get('/api/notifications/feed');
-        // API returns array directly (see getUserNotificationFeed controller)
-        setNotifications(Array.isArray(response.data) ? response.data : []);
-      } catch (err) {
-        console.error('Failed fetching notifications:', err);
-      } finally {
-        setLoadingNotifs(false);
-      }
-    };
-
     fetchNotifications();
 
     // Poll every 30 seconds — same pattern as your chat polling
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
-  }, [uid]);
+  }, [uid, fetchNotifications]);
 
   // ── Delete chat (soft delete for this user) ───────────────────────────────
   const handleDeleteChat = (chatId: string) => {
@@ -397,6 +430,7 @@ export default function NotificationsScreen() {
       refresh();
     } catch (err: any) {
       console.error('Failed to mark all notifications as read:', err);
+      setActionError(lang === 'he' ? 'סימון הכל כנקרא נכשל' : 'Failed to mark all as read');
     }
   };
 
@@ -493,9 +527,14 @@ export default function NotificationsScreen() {
         )}
       </View>
 
+      {actionError && (
+        <ErrorBanner message={actionError} lang={lang} dismissible={() => setActionError('')} />
+      )}
+
       {/* ══ NOTIFICATIONS TAB ══ */}
       {activeTab === 'notifs' && (
         <>
+          {notifsError && <ErrorBanner message={notifsError} lang={lang} onRetry={fetchNotifications} />}
           <View style={[s.toolbar, isRtl && s.rowReverse]}>
             <View style={[s.filters, isRtl && s.rowReverse]}>
               {(['all', 'unread'] as const).map((f) => (
@@ -526,13 +565,15 @@ export default function NotificationsScreen() {
           {loadingNotifs ? (
             <View style={s.centered}><ActivityIndicator size="large" color="#2E86FF" /></View>
           ) : displayed.length === 0 ? (
-            <View style={s.empty}>
-              <Text style={s.emptyEmoji}>🔔</Text>
-              <Text style={s.emptyTitle}>{lang === 'he' ? 'אין התראות' : 'No notifications'}</Text>
-              <Text style={s.emptyBody}>
-                {lang === 'he' ? 'כשיהיו עדכונים חדשים, הם יופיעו כאן.' : 'New updates will appear here.'}
-              </Text>
-            </View>
+            notifsError ? null : (
+              <View style={s.empty}>
+                <Text style={s.emptyEmoji}>🔔</Text>
+                <Text style={s.emptyTitle}>{lang === 'he' ? 'אין התראות' : 'No notifications'}</Text>
+                <Text style={s.emptyBody}>
+                  {lang === 'he' ? 'כשיהיו עדכונים חדשים, הם יופיעו כאן.' : 'New updates will appear here.'}
+                </Text>
+              </View>
+            )
           ) : (
             <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
               {Object.entries(grouped).map(([dateLabel, notifs]) => (
@@ -556,16 +597,19 @@ export default function NotificationsScreen() {
       {/* ══ CHATS TAB ══ */}
       {activeTab === 'chats' && (
         <>
+          {chatsError && <ErrorBanner message={chatsError} lang={lang} onRetry={fetchInboxData} />}
           {loadingChats ? (
             <View style={s.centered}><ActivityIndicator size="large" color="#2E86FF" /></View>
           ) : chats.length === 0 ? (
-            <View style={s.empty}>
-              <Text style={s.emptyEmoji}>💬</Text>
-              <Text style={s.emptyTitle}>{lang === 'he' ? 'אין שיחות' : 'No conversations yet'}</Text>
-              <Text style={s.emptyBody}>
-                {lang === 'he' ? 'לחץ על + כדי להתחיל שיחה חדשה' : 'Tap + to start a new conversation'}
-              </Text>
-            </View>
+            chatsError ? null : (
+              <View style={s.empty}>
+                <Text style={s.emptyEmoji}>💬</Text>
+                <Text style={s.emptyTitle}>{lang === 'he' ? 'אין שיחות' : 'No conversations yet'}</Text>
+                <Text style={s.emptyBody}>
+                  {lang === 'he' ? 'לחץ על + כדי להתחיל שיחה חדשה' : 'Tap + to start a new conversation'}
+                </Text>
+              </View>
+            )
           ) : (
             <>
               {/* Long press hint */}

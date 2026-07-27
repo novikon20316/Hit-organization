@@ -31,6 +31,15 @@ export default function NotificationsPage() {
   const [chats, setChats] = useState<ChatRow[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(true);
   const [loadingChats, setLoadingChats] = useState(true);
+  // Distinct from "genuinely empty" — a failed fetch used to render
+  // identically to zero notifications/chats, so a real outage looked like
+  // an empty inbox instead of a broken page.
+  const [notifsError, setNotifsError] = useState('');
+  const [chatsError, setChatsError] = useState('');
+  // Shared banner for the smaller mutations below (mark-one-read,
+  // mark-all-read, delete-chat) — same "don't fail silently" fix, just
+  // grouped since none of them have their own dedicated UI slot.
+  const [actionError, setActionError] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [showNewChat, setShowNewChat] = useState(false);
   const [deletingChat, setDeletingChat] = useState<ChatRow | null>(null);
@@ -43,23 +52,27 @@ export default function NotificationsPage() {
     try {
       const res = await apiClient.getNotificationFeed();
       setNotifications((res ?? []) as unknown as Notif[]);
+      setNotifsError('');
     } catch (err) {
       console.error('Failed fetching notifications:', err);
+      setNotifsError(lang === 'he' ? 'טעינת ההתראות נכשלה' : 'Failed to load notifications');
     } finally {
       setLoadingNotifs(false);
     }
-  }, []);
+  }, [lang]);
 
   const fetchChats = useCallback(async () => {
     try {
       const res = await apiClient.getChatDashboard();
       setChats((res.chats ?? []) as unknown as ChatRow[]);
+      setChatsError('');
     } catch (err) {
       console.error('Failed compiling chat list feed items:', err);
+      setChatsError(lang === 'he' ? 'טעינת השיחות נכשלה' : 'Failed to load conversations');
     } finally {
       setLoadingChats(false);
     }
-  }, []);
+  }, [lang]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- polling on mount; both fetch functions' setState calls happen after their awaited network calls resolve, not synchronously in this effect
@@ -79,6 +92,7 @@ export default function NotificationsPage() {
         setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n)));
       } catch (err) {
         console.error('Failed to mark notification as read:', err);
+        setActionError(lang === 'he' ? 'סימון ההתראה כנקראה נכשל' : 'Failed to mark the notification as read');
       }
     }
     refreshBadges();
@@ -104,6 +118,7 @@ export default function NotificationsPage() {
       setDeletingChat(null);
     } catch (err) {
       console.error('Failed to delete chat:', err);
+      setActionError(lang === 'he' ? 'מחיקת השיחה נכשלה' : 'Failed to delete the conversation');
     } finally {
       setDeleting(false);
     }
@@ -116,6 +131,7 @@ export default function NotificationsPage() {
       refreshBadges();
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
+      setActionError(lang === 'he' ? 'סימון הכל כנקרא נכשל' : 'Failed to mark all as read');
     }
   };
 
@@ -155,6 +171,15 @@ export default function NotificationsPage() {
         </button>
       }
     >
+      {actionError && (
+        <div className="mb-4 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+          <span>⚠️ {actionError}</span>
+          <button type="button" onClick={() => setActionError('')} className="font-medium">
+            ✕
+          </button>
+        </div>
+      )}
+
       <div className="mb-5 flex gap-1 border-b border-line">
         {tabs.map(({ key, label, badge }) => (
           <button
@@ -191,10 +216,19 @@ export default function NotificationsPage() {
             )}
           </div>
 
+          {notifsError && (
+            <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+              <span>⚠️ {notifsError}</span>
+              <button type="button" onClick={fetchNotifications} className="font-medium underline">
+                {lang === 'he' ? 'נסה שוב' : 'Retry'}
+              </button>
+            </div>
+          )}
+
           {loadingNotifs ? (
             <p className="text-sm text-muted">{t('loading')}</p>
           ) : displayed.length === 0 ? (
-            <p className="text-sm text-muted">🔔 {lang === 'he' ? 'אין התראות' : 'No notifications'}</p>
+            notifsError ? null : <p className="text-sm text-muted">🔔 {lang === 'he' ? 'אין התראות' : 'No notifications'}</p>
           ) : (
             <div className="grid gap-4">
               {Object.entries(grouped).map(([dateLabel, notifs]) => (
@@ -234,10 +268,19 @@ export default function NotificationsPage() {
 
       {tab === 'chats' && (
         <div>
+          {chatsError && (
+            <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+              <span>⚠️ {chatsError}</span>
+              <button type="button" onClick={fetchChats} className="font-medium underline">
+                {lang === 'he' ? 'נסה שוב' : 'Retry'}
+              </button>
+            </div>
+          )}
+
           {loadingChats ? (
             <p className="text-sm text-muted">{t('loading')}</p>
           ) : chats.length === 0 ? (
-            <p className="text-sm text-muted">💬 {lang === 'he' ? 'אין שיחות. לחץ על + כדי להתחיל.' : 'No conversations yet. Tap + to start one.'}</p>
+            chatsError ? null : <p className="text-sm text-muted">💬 {lang === 'he' ? 'אין שיחות. לחץ על + כדי להתחיל.' : 'No conversations yet. Tap + to start one.'}</p>
           ) : (
             <div className="grid gap-2">
               {chats.map((chat) => {

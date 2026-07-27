@@ -403,6 +403,11 @@ export default function CoordinatorHome() {
         examiners: examinerPayload,
         milestoneId: selectedMilestone.id,
         studentIds: selectedMilestone.studentIds,
+        // Written onto the milestone's gradeWeights field server-side —
+        // previously validated here (the check above) but never actually
+        // sent, so the final grade always used the hardcoded 40/30/30
+        // default regardless of what was entered.
+        weights: { supervisorWeight: w1, examiner1Weight: w2, examiner2Weight: w3 },
       });
 
       setAssignModal(false);

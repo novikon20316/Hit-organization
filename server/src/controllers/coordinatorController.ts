@@ -63,7 +63,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
   }
 
   const { projectId } = req.params;
-  const { examiners, examinerIds, milestoneId, studentIds, lang } = req.body;
+  const { examiners, examinerIds, milestoneId, studentIds, lang, weights } = req.body;
 
   if (typeof projectId !== 'string' || !projectId) {
     return res.status(400).json({ message: 'Invalid or missing projectId' });
@@ -77,6 +77,26 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
 
   if (examinerInputs.length === 0) {
     return res.status(400).json({ message: 'Invalid examiner list' });
+  }
+
+  // Optional custom grade weights (web's AssignExaminersModal / mobile's
+  // equivalent both collect and validate these client-side, but nothing
+  // ever sent them on — gradeEngine.ts's computeWeightedFinalGrade has
+  // always supported a milestone's own gradeWeights field, it just never
+  // got written). Fractions summing to 1, re-validated here since the
+  // client-side 100% check is only a UX nicety.
+  let gradeWeights: { supervisorWeight: number; examiner1Weight: number; examiner2Weight: number } | null = null;
+  if (weights && typeof weights === 'object') {
+    const supervisorWeight = Number(weights.supervisorWeight);
+    const examiner1Weight = Number(weights.examiner1Weight);
+    const examiner2Weight = Number(weights.examiner2Weight);
+    if (![supervisorWeight, examiner1Weight, examiner2Weight].every((w) => Number.isFinite(w) && w >= 0)) {
+      return res.status(400).json({ message: 'Invalid grade weights.' });
+    }
+    if (Math.abs(supervisorWeight + examiner1Weight + examiner2Weight - 1) > 0.01) {
+      return res.status(400).json({ message: 'Grade weights must sum to 100%.' });
+    }
+    gradeWeights = { supervisorWeight, examiner1Weight, examiner2Weight };
   }
 
   try {
@@ -95,8 +115,15 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
 
     let thesisUrl = '';
     if (typeof milestoneId === 'string' && milestoneId) {
-      const milestoneSnap = await db.collection('milestones').doc(milestoneId).get();
+      const milestoneRef = db.collection('milestones').doc(milestoneId);
+      const milestoneSnap = await milestoneRef.get();
       thesisUrl = milestoneSnap.data()?.fileUrls?.[0] ?? '';
+      // Only meaningful once graders are actually assigned to this
+      // milestone — computeWeightedFinalGrade reads it off the milestone
+      // doc when submitMilestoneGrade finishes scoring.
+      if (gradeWeights && milestoneSnap.exists) {
+        await milestoneRef.update({ gradeWeights });
+      }
     }
 
     const resolvedStudentIds: string[] = Array.isArray(studentIds) && studentIds.length

@@ -3,7 +3,7 @@
 // app/notifications/NewChatModal.tsx
 // Ported from mobile/app/message/new.tsx.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getRoleAccent, withAlpha } from '@/lib/facultyColors';
@@ -40,23 +40,40 @@ export function NewChatModal({ existingChatIds, onClose, onChatCreated }: NewCha
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastResult, setBroadcastResult] = useState('');
   const [error, setError] = useState('');
+  // Distinct from "genuinely no contacts" — a failed fetch used to leave
+  // myRole/candidates at their empty defaults with no indication anything
+  // went wrong, so the UI showed a plausible-sounding "no contacts" message
+  // (e.g. the student-specific "apply to a project first" copy) instead of
+  // a real network/server error.
+  const [loadError, setLoadError] = useState('');
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadCandidates = () => {
+    setLoading(true);
+    setLoadError('');
     apiClient
       .getChatCandidates()
       .then((res) => {
-        if (cancelled) return;
+        if (!mountedRef.current) return;
         setMyRole(res.myRole ?? '');
         setCandidates(res.candidates ?? []);
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (!mountedRef.current) return;
+        setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת אנשי הקשר נכשלה' : 'Failed to load contacts');
+      })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (mountedRef.current) setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    loadCandidates();
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch-on-mount only; loadCandidates closes over lang for its error message, re-running it on every language toggle isn't needed
   }, []);
 
   const filtered = useMemo(() => {
@@ -171,10 +188,18 @@ export function NewChatModal({ existingChatIds, onClose, onChatCreated }: NewCha
                 className="mb-3 w-full rounded-lg border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
               />
               {error && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+              {loadError && (
+                <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+                  <span>⚠️ {loadError}</span>
+                  <button type="button" onClick={loadCandidates} className="font-medium underline">
+                    {lang === 'he' ? 'נסה שוב' : 'Retry'}
+                  </button>
+                </div>
+              )}
 
               {loading ? (
                 <p className="text-center text-sm text-muted">…</p>
-              ) : filtered.length === 0 ? (
+              ) : loadError ? null : filtered.length === 0 ? (
                 <p className="text-center text-sm text-muted">{candidates.length === 0 ? noContactsText(myRole, lang) : lang === 'he' ? 'אין תוצאות' : 'No users match your search'}</p>
               ) : (
                 <div className="grid gap-1.5">

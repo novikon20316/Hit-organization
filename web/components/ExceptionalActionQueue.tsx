@@ -29,12 +29,20 @@ export function ExceptionalActionQueue() {
   const [decidingId, setDecidingId] = useState<string | null>(null);
   const [rejectReasonById, setRejectReasonById] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  // Distinct from "genuinely zero pending requests" (which also renders
+  // nothing, by design) — a failed fetch used to look identical to that,
+  // so an approver could silently never see a real pending queue exists.
+  const [loadError, setLoadError] = useState('');
 
   const load = () => {
     setLoading(true);
+    setLoadError('');
     apiClient.getPendingExceptionalActions()
       .then((res) => setRequests(res.requests))
-      .catch((err) => console.error('Failed to load exceptional-action queue:', err))
+      .catch((err) => {
+        console.error('Failed to load exceptional-action queue:', err);
+        setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת הבקשות הממתינות נכשלה' : 'Failed to load pending requests');
+      })
       .finally(() => setLoading(false));
   };
 
@@ -58,6 +66,16 @@ export function ExceptionalActionQueue() {
   };
 
   if (loading) return null;
+  if (loadError) {
+    return (
+      <div className="mb-4 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+        <span>⚠️ {loadError}</span>
+        <button type="button" onClick={load} className="font-medium underline">
+          {lang === 'he' ? 'נסה שוב' : 'Retry'}
+        </button>
+      </div>
+    );
+  }
   if (requests.length === 0) return null;
 
   return (

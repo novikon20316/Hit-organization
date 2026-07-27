@@ -49,6 +49,12 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
   const [mode,           setMode]           = useState<'chat' | 'broadcast'>('chat');
   const [broadcastMsg,   setBroadcastMsg]   = useState('');
   const [broadcastTitle, setBroadcastTitle] = useState('');
+  // Distinct from "genuinely no contacts" — a failed fetch used to leave
+  // myRole/candidates at their empty defaults with no indication anything
+  // went wrong, so the UI showed a plausible-sounding "no contacts" message
+  // (e.g. the student-specific "apply to a project first" copy) instead of
+  // a real network/server error (mirrors web's own fix for the same bug).
+  const [loadError,      setLoadError]      = useState('');
 
   
   // ── Slide animation ────────────────────────────────────────────────────────
@@ -76,6 +82,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
   const loadCandidates = async () => {
     if (!uid) return;
     setLoading(true);
+    setLoadError('');
     try {
       const response = await apiClient.get('/api/chats/candidates');
       const { myRole: serverRole, candidates: serverCandidates } = response.data;
@@ -85,6 +92,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
       setFiltered(serverCandidates ?? []);
     } catch (e) {
       console.error('NewChatSheet loadCandidates:', e);
+      setLoadError('Failed to load contacts.');
     } finally {
       setLoading(false);
     }
@@ -241,11 +249,20 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
                 )}
               </View>
 
+              {loadError && (
+                <View style={{ backgroundColor: '#FEF2F2', borderRadius: 10, borderWidth: 1, borderColor: '#F2C7C2', padding: 12, marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 12, color: '#A8433A', flex: 1 }}>⚠️ {loadError}</Text>
+                  <Pressable onPress={loadCandidates}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#A8433A', textDecorationLine: 'underline' }}>Retry</Text>
+                  </Pressable>
+                </View>
+              )}
+
               {loading ? (
                 <View style={ss.centered}>
                   <ActivityIndicator size="large" color={palette.primary} />
                 </View>
-              ) : filtered.length === 0 ? (
+              ) : loadError ? null : filtered.length === 0 ? (
                 <View style={ss.centered}>
                   <Text style={ss.emptyEmoji}>{candidates.length === 0 ? '📭' : '🔍'}</Text>
                   <Text style={ss.emptyText}>
