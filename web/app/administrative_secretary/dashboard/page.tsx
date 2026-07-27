@@ -19,6 +19,7 @@ import { AcademicYearLink } from '@/components/AcademicYearLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
 import { SendExaminerModal } from './SendExaminerModal';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
+import { NewProjectModal } from './NewProjectModal';
 import type { ProjectGroup, MemberMilestoneGrade } from './types';
 import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
 
@@ -64,6 +65,7 @@ export default function AdministrativeSecretaryDashboardPage() {
   const [examinerModalGroup, setExaminerModalGroup] = useState<ProjectGroup | null>(null);
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -138,13 +140,22 @@ export default function AdministrativeSecretaryDashboardPage() {
         <p className="text-sm text-muted">{t('loading')}</p>
       ) : (
         <>
-          <button
-            type="button"
-            onClick={() => setShowBulkDueDate(true)}
-            className="mb-4 rounded-lg border border-accent bg-[#FBF3E3] px-4 py-2 text-sm font-semibold text-accent"
-          >
-            📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
-          </button>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowNewProject(true)}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            >
+              📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBulkDueDate(true)}
+              className="rounded-lg border border-accent bg-[#FBF3E3] px-4 py-2 text-sm font-semibold text-accent"
+            >
+              📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
+            </button>
+          </div>
 
           <input
             value={search}
@@ -283,6 +294,7 @@ export default function AdministrativeSecretaryDashboardPage() {
           onSaved={fetchDashboard}
         />
       )}
+      <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
     </DashboardShell>
   );
 }

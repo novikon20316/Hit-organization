@@ -22,6 +22,7 @@ import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
+import { NewProjectModal } from './NewProjectModal';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
 
 const GRAD_SCHOOL_HEAD_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
@@ -107,6 +108,7 @@ export default function GradSchoolHeadDashboardPage() {
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [examinerRejectTargetId, setExaminerRejectTargetId] = useState<string | null>(null);
   const [examinerRejectReason, setExaminerRejectReason] = useState('');
+  const [showNewProject, setShowNewProject] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -223,6 +225,13 @@ export default function GradSchoolHeadDashboardPage() {
       subtitle={lang === 'he' ? 'אישורים, תקועים ועומס בוחנים' : 'Approvals, stuck students, and examiner load'}
       actions={
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowNewProject(true)}
+            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+          >
+            📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}
+          </button>
           <WorkflowTemplatesLink />
           <BulkPermissionsLink />
           <ReportsLink />
@@ -437,6 +446,7 @@ export default function GradSchoolHeadDashboardPage() {
       ) : (
         <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }} />
       )}
+      <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
     </DashboardShell>
   );
 }
