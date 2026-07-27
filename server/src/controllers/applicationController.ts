@@ -143,18 +143,23 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
             }
         }
 
-        // Best-effort, time-bounded — a screening failure must never block or
-        // fail the student's application submission (see cvScreeningService.ts).
-        try {
-            const aiScreening = await screenApplication({
-                cvUrl: cvUrl ?? '',
-                prerequisites: projectData.prerequisites ?? [],
-                requiredSkills: projectData.requiredSkills ?? [],
+        // MEDIUM FIX: this used to `await screenApplication(...)` before
+        // responding — the application doc was already saved by this point,
+        // so a slow AI provider held the student's HTTP response open for
+        // no reason (the data-loss risk this was guarding against doesn't
+        // exist; the write already succeeded). Respond first, screen in the
+        // background — a screening failure still can't affect the
+        // already-submitted application, same as before, it just no longer
+        // makes the student's request hang while it happens.
+        screenApplication({
+            cvUrl: cvUrl ?? '',
+            prerequisites: projectData.prerequisites ?? [],
+            requiredSkills: projectData.requiredSkills ?? [],
+        })
+            .then((aiScreening) => newApplicationRef.update({ aiScreening }))
+            .catch((screeningError) => {
+                console.error(`CV screening failed for application ${newApplicationRef.id}:`, screeningError);
             });
-            await newApplicationRef.update({ aiScreening });
-        } catch (screeningError) {
-            console.error(`CV screening failed for application ${newApplicationRef.id}:`, screeningError);
-        }
 
         return res.status(201).json({ success: true, message: 'Application submitted successfully.' });
     } catch (error) {

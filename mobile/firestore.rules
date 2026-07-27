@@ -154,11 +154,17 @@ service cloud.firestore {
         resource.data.studentId == request.auth.uid ||
     		isStaffRole(userDoc())
       );
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (
-        resource.data.studentId == request.auth.uid ||
-        isStaffRole(userDoc())
-      );
+      // MEDIUM FIX: create had no studentId check at all (any signed-in user
+      // could create an application impersonating another student, or
+      // pre-set status to a value like 'approved') and update had no
+      // relation-to-the-application check for staff (any staff role could
+      // update ANY application, not just ones for their own projects). A
+      // repo-wide search found zero live client code writing to this
+      // collection directly — real creation/decisions both go through
+      // POST /api/applications/apply and /api/supervisor/applications/decision
+      // (Admin SDK, bypasses these rules) — so this is safely locked down
+      // entirely rather than patched with a narrower policy nothing uses.
+      allow create, update: if false;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -173,14 +179,16 @@ service cloud.firestore {
         role(userDoc()) in ['system_admin', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head',
           'internal_examiner']
       );
-      allow create: if isSignedIn() && isStaffRole(userDoc());
-      allow update: if isSignedIn() && (
-        // Data-level checks first (0 get() calls)
-        request.auth.uid in resource.data.get('studentIds', []) ||
-        // Role check (1 get() call)
-        role(userDoc()) in ['supervisor', 'secondary_supervisor', 'coordinator', 'internal_examiner',
-                            'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary', 'grad_school_head']
-      );
+      // MEDIUM FIX: both had no ownership/relation check — any staff role
+      // (even secondary_supervisor or internal_examiner) could create or
+      // edit a milestone for a project they have no relation to, across
+      // faculties. A repo-wide search found zero live client code writing
+      // to this collection directly — real milestone creation/grading/
+      // status changes all go through the Express API (submitMilestone,
+      // submitMilestoneGrade, updateMilestoneByCoordinator, etc. — Admin
+      // SDK, bypasses these rules), so this is safely locked down entirely
+      // rather than patched with a narrower policy nothing uses.
+      allow create, update: if false;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -191,11 +199,22 @@ service cloud.firestore {
         role(userDoc()) in ['coordinator', 'faculty_admin', 'program_head',
           'administrative_secretary', 'grad_school_head', 'system_admin']
       );
-      allow create: if isSignedIn() &&
-        role(userDoc()) in ['supervisor', 'internal_examiner', 'system_admin'];
-      allow update: if isSignedIn() &&
-      	resource.data.graderId == request.auth.uid ||
-        role(userDoc()) in ['grad_school_head', 'system_admin'];
+      // MEDIUM FIX: create never checked request.resource.data.graderId ==
+      // request.auth.uid nor that the creator was actually assigned as
+      // grader — any supervisor/internal_examiner could create a forged
+      // grade doc for any studentId, immediately visible to that student
+      // under the read rule above. update also had an operator-precedence
+      // bug (missing parens around the graderId branch meant `&&` bound
+      // tighter than `||`, so it parsed as
+      // `(isSignedIn() && graderId==uid) || role in [...]` — the second
+      // branch had no isSignedIn() of its own, though calling userDoc()
+      // unauthenticated errors out anyway, so this wasn't independently
+      // exploitable). A repo-wide search found zero live client code
+      // writing to this collection directly — real grade submission goes
+      // through submitMilestoneGrade/submitIndividualGrade (Admin SDK,
+      // bypasses these rules), so this is safely locked down entirely
+      // rather than patched with a narrower policy nothing uses.
+      allow create, update: if false;
     }
 		// ─────────────────────────────────────────────────────────────────────────
 		match /processFiles/{processId} {

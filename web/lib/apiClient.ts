@@ -267,9 +267,14 @@ export const apiClient = {
     return request<{ success: boolean; count: number }>('/api/chats/broadcast', { method: 'POST', body: payload });
   },
 
-  async getChatMessages(chatId: string) {
+  /** since — ISO timestamp of the last message already held locally. When
+   *  passed, only messages newer than it come back (a steady-state poll
+   *  with nothing new returns an empty array instead of re-transferring
+   *  the whole thread). Omit for the initial load (most recent page). */
+  async getChatMessages(chatId: string, since?: string) {
     return request<Array<{ id: string; text: string; senderId: string; createdAt: string | null }>>(`/api/chats/${chatId}/messages`, {
       method: 'GET',
+      params: since ? { since } : undefined,
     });
   },
 

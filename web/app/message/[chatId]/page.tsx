@@ -47,12 +47,28 @@ export default function ChatConversationPage() {
   const [headerName, setHeaderName] = useState(searchParams.get('otherName') ?? '');
   const [headerRole, setHeaderRole] = useState(searchParams.get('otherRole') ?? '');
   const listRef = useRef<HTMLDivElement>(null);
+  // Tracks the newest message already held locally so subsequent polls can
+  // ask the server for only what's new (see apiClient.getChatMessages) —
+  // a ref, not state, since it's read/written inside the poll loop without
+  // needing to trigger a re-render itself.
+  const lastMessageTimeRef = useRef<string | null>(null);
 
   const fetchMessages = useCallback(async () => {
     if (!chatId) return;
     try {
-      const res = await apiClient.getChatMessages(chatId);
-      setMessages(Array.isArray(res) ? res : []);
+      const since = lastMessageTimeRef.current ?? undefined;
+      const res = await apiClient.getChatMessages(chatId, since);
+      const incoming = Array.isArray(res) ? res : [];
+      if (incoming.length > 0) {
+        lastMessageTimeRef.current = incoming[incoming.length - 1]!.createdAt ?? lastMessageTimeRef.current;
+      }
+      setMessages((prev) => {
+        if (!since) return incoming; // initial load — replace outright
+        if (incoming.length === 0) return prev; // steady-state poll, nothing new
+        const seen = new Set(prev.map((m) => m.id));
+        const deduped = incoming.filter((m) => !seen.has(m.id));
+        return deduped.length > 0 ? [...prev, ...deduped] : prev;
+      });
     } catch (err) {
       console.error('Failed to load messages:', err);
     } finally {
@@ -61,6 +77,15 @@ export default function ChatConversationPage() {
   }, [chatId]);
 
   useEffect(() => {
+    // Reset the incremental cursor + any previous chat's messages before
+    // the first fetch for a (possibly) new chatId — without this, merging
+    // would apply the OLD chat's cursor/messages to the new one if this
+    // component instance is reused across navigations instead of remounted.
+    lastMessageTimeRef.current = null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting for a (possibly) new chatId before the fetch below runs
+    setMessages([]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
+    setLoadingMessages(true);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- polling on mount; fetchMessages' setState calls happen after its awaited network call resolves, not synchronously in this effect
     fetchMessages();
     const interval = setInterval(fetchMessages, 3000);

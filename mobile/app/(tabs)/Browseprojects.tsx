@@ -96,7 +96,16 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   };
 
   // ── Upload file to Firebase Storage ───────────────────────────────────────
-  const uploadFile = async (uri: string): Promise<string> => { 
+  // MEDIUM FIX: this raw fetch() had no timeout at all — on a weak
+  // connection, a stalled upload never resolved or rejected, so
+  // handleApply's Promise.all below just hung forever with submitting
+  // stuck true and no way out except force-closing the app. A 30s ceiling
+  // (longer than apiClient's own 15s JSON-request timeout, since this is a
+  // real file upload rather than a small JSON payload) turns a stall into
+  // a normal, catchable failure instead.
+  const uploadFile = async (uri: string): Promise<string> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     try {
     const formData = new FormData();
 
@@ -113,6 +122,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       }
     );
 
@@ -125,6 +135,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   } catch (error) {
     console.error('UPLOAD ERROR:', error);
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 };
 

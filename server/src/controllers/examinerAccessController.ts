@@ -81,6 +81,16 @@ export const getDefenseDateStatus = async (req: Request, res: Response) => {
     const tokenSnap = await db.collection('examinerTokens').doc(token).get();
     if (!tokenSnap.exists) return res.status(404).json({ message: 'Invalid or unknown token.' });
     const tokenDoc = tokenSnap.data()!;
+    // MEDIUM FIX: otpVerified was only ever enforced by firestore.rules'
+    // `allow get` on this same doc — but that rule only gates direct client
+    // Firestore reads. This Express endpoint goes through the Admin SDK,
+    // which bypasses Firestore rules entirely, so anyone in possession of
+    // the raw token (leaked via email forwarding, a mail-security link
+    // scanner, browser history sync, etc.) could check status without ever
+    // proving control of the examiner's inbox — defeating the OTP step.
+    if (!tokenDoc.otpVerified) {
+      return res.status(403).json({ message: 'Please verify your access code first.' });
+    }
 
     const milestoneSnap = await db.collection('milestones').doc(tokenDoc.milestoneId).get();
     if (!milestoneSnap.exists) return res.status(404).json({ message: 'Associated milestone not found.' });
@@ -132,6 +142,12 @@ export const submitExternalDefenseDates = async (req: Request, res: Response) =>
     const tokenSnap = await db.collection('examinerTokens').doc(token).get();
     if (!tokenSnap.exists) return res.status(404).json({ message: 'Invalid or unknown token.' });
     const tokenDoc = tokenSnap.data()!;
+    // MEDIUM FIX: same OTP gap as getDefenseDateStatus above — this Express
+    // endpoint bypasses firestore.rules entirely via the Admin SDK, so it
+    // must re-check otpVerified itself rather than relying on the rule.
+    if (!tokenDoc.otpVerified) {
+      return res.status(403).json({ message: 'Please verify your access code first.' });
+    }
 
     const examinerKey = examinerKeyOf({ type: 'external', ref: token });
     const result = await submitCandidateDatesAndResolve(tokenDoc.milestoneId, examinerKey, candidateDates);

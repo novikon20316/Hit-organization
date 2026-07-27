@@ -71,13 +71,31 @@ export default function ChatScreen() {
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [headerName, setHeaderName] = useState(otherName ?? '');
   const [headerRole, setHeaderRole] = useState(otherRole ?? '');
+  // Tracks the newest message already held locally so subsequent polls can
+  // ask for only what's new (mirrors web's own fix for this same screen —
+  // this endpoint previously had no limit at all and was re-fetched in
+  // full every 3s for as long as the screen was open).
+  const lastMessageTimeRef = useRef<string | null>(null);
 
   // ── Fetch messages (polls every 3s) ────────────────────────────────────────
   const fetchMessages = useCallback(async () => {
     if (!chatId || !currentUser) return;
     try {
-      const res = await apiClient.get(`/api/chats/${chatId}/messages`);
-      setMessages(Array.isArray(res.data) ? res.data : []);
+      const since = lastMessageTimeRef.current;
+      const res = await apiClient.get(`/api/chats/${chatId}/messages`, {
+        params: since ? { since } : undefined,
+      });
+      const incoming = Array.isArray(res.data) ? res.data : [];
+      if (incoming.length > 0) {
+        lastMessageTimeRef.current = incoming[incoming.length - 1]?.createdAt ?? lastMessageTimeRef.current;
+      }
+      setMessages((prev) => {
+        if (!since) return incoming; // initial load — replace outright
+        if (incoming.length === 0) return prev; // steady-state poll, nothing new
+        const seen = new Set(prev.map((m) => m.id));
+        const deduped = incoming.filter((m: Message) => !seen.has(m.id));
+        return deduped.length > 0 ? [...prev, ...deduped] : prev;
+      });
     } catch (err) {
       console.error('Failed to load messages:', err);
     } finally {
@@ -86,6 +104,11 @@ export default function ChatScreen() {
   }, [chatId, currentUser]);
 
   useEffect(() => {
+    // Reset the incremental cursor + any previous chat's messages before
+    // the first fetch for a (possibly) new chatId.
+    lastMessageTimeRef.current = null;
+    setMessages([]);
+    setLoadingMessages(true);
     fetchMessages();
     const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);

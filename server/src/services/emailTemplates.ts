@@ -1,5 +1,35 @@
 import { WEBSITE_URL } from '../config/links.js';
 
+// MEDIUM FIX: every template below interpolates `data.*` straight into HTML
+// with no escaping — several of those fields are other users' free-text
+// input reaching a THIRD party's inbox unsanitized: new_message's
+// senderName/preview (a chat message's sender name and raw text, read by
+// the other participant) and application_received's studentName (an
+// applicant's own display name, read by their prospective supervisor) are
+// the clearest examples, but any current or future field is equally at
+// risk. A user could set their displayName/message text to
+// `<a href="...">Urgent: verify your account</a>` and have it render as
+// live, clickable markup inside a legitimate system email — a credible
+// phishing/tracking vector. Escaped once here (applied to every field
+// before it reaches any template) rather than patched per-template, so a
+// future template can't reintroduce the same gap by forgetting to escape.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeEmailData(data: Record<string, string>): Record<string, string> {
+  const escaped: Record<string, string> = {};
+  for (const [key, value] of Object.entries(data)) {
+    escaped[key] = typeof value === 'string' ? escapeHtml(value) : value;
+  }
+  return escaped;
+}
+
 export type NotificationType =
   | 'project_published'
   | 'application_received'
@@ -424,6 +454,7 @@ export function buildEmailHtml(
   const template = EMAIL_TEMPLATES[type] ?? EMAIL_TEMPLATES.general;
   const isHe     = lang === 'he';
   const dir      = isHe ? 'rtl' : 'ltr';
+  const safeData = escapeEmailData(data);
 
   // Bilingual templates (currently just account_created) send both
   // languages in one email — the recipient hasn't set an in-app language
@@ -436,11 +467,11 @@ export function buildEmailHtml(
 
   const body = template.bilingual
     ? `
-      <div dir="rtl" style="text-align:right;">${template.bodyHe(data)}</div>
+      <div dir="rtl" style="text-align:right;">${template.bodyHe(safeData)}</div>
       <hr style="border:none; border-top:1px solid #E3E8F2; margin:24px 0;" />
-      <div dir="ltr" style="text-align:left;">${template.bodyEn(data)}</div>
+      <div dir="ltr" style="text-align:left;">${template.bodyEn(safeData)}</div>
     `
-    : (isHe ? template.bodyHe(data) : template.bodyEn(data));
+    : (isHe ? template.bodyHe(safeData) : template.bodyEn(safeData));
 
   const html = `
     <!DOCTYPE html>

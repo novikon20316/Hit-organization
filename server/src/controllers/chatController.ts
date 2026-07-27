@@ -536,40 +536,70 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
  * Returns all messages for a chat thread, ordered oldest → newest.
  * createdAt is serialized as an ISO string so the frontend can parse it simply.
  */
+// MEDIUM FIX: previously fetched with no limit at all — every open chat
+// screen polls this every 3s, so a long-running thread (realistic over a
+// multi-year thesis) re-transferred and re-parsed its ENTIRE history 20
+// times a minute for as long as the tab/screen was open. Two changes:
+//   - MESSAGE_PAGE_SIZE hard-caps the initial/no-cursor load.
+//   - An optional ?since=<ISO timestamp> cursor lets a caller ask for only
+//     messages newer than the last one it already has, so a steady-state
+//     poll (nothing new) returns an empty array instead of the full window
+//     every time. Callers that don't pass it still get bounded results,
+//     just not the bandwidth win — see web's/mobile's chat screens for the
+//     client-side half of this (tracking the last-seen timestamp, merging
+//     rather than replacing).
+const MESSAGE_PAGE_SIZE = 200;
+
 export const getChatMessages = async (req: AuthenticatedRequest, res: Response) => {
   const uid        = req.user?.uid;
   const { chatId } = req.params;
- 
+  const since      = req.query.since;
+
   if (!chatId || typeof chatId !== 'string') {
     return res.status(400).json({ message: 'Invalid chatId.' });
   }
- 
+
   try {
     // Verify the requesting user is a participant before returning messages
     const chatSnap = await db.collection('chats').doc(chatId).get();
- 
+
     if (!chatSnap.exists) {
       return res.status(404).json({ message: 'Chat not found.' });
     }
- 
+
     const participants: string[] = chatSnap.data()?.participants ?? [];
     if (!participants.includes(uid!)) {
       return res.status(403).json({ message: 'Access denied: not a participant.' });
     }
- 
-    const messagesSnap = await db
+
+    let messagesQuery: FirebaseFirestore.Query = db
       .collection('chats')
       .doc(chatId)
-      .collection('messages')
-      .orderBy('createdAt', 'asc')
-      .get();
- 
+      .collection('messages');
+
+    if (typeof since === 'string' && since) {
+      const sinceDate = new Date(since);
+      if (!isNaN(sinceDate.getTime())) {
+        // Incremental poll — only what's arrived since the caller's last
+        // known message. No page-size cap needed here: bounded by how much
+        // can realistically arrive in one ~3s poll interval.
+        messagesQuery = messagesQuery.where('createdAt', '>', sinceDate).orderBy('createdAt', 'asc');
+      } else {
+        messagesQuery = messagesQuery.orderBy('createdAt', 'desc').limit(MESSAGE_PAGE_SIZE);
+      }
+    } else {
+      // Initial load — most recent page only, re-sorted to ascending below.
+      messagesQuery = messagesQuery.orderBy('createdAt', 'desc').limit(MESSAGE_PAGE_SIZE);
+    }
+
+    const messagesSnap = await messagesQuery.get();
+
     const messages = messagesSnap.docs.map((doc) => {
       const data = doc.data();
- 
+
       // Firestore Timestamp → ISO string so the frontend gets a consistent format
       const createdAt = data.createdAt?.toDate?.()?.toISOString() ?? null;
- 
+
       return {
         id:        doc.id,
         text:      data.text      ?? '',
@@ -577,7 +607,14 @@ export const getChatMessages = async (req: AuthenticatedRequest, res: Response) 
         createdAt,
       };
     });
- 
+
+    // The 'desc'+limit branches above come back newest-first — flip to
+    // chronological order for display (the 'since' + orderBy('asc') branch
+    // is already in the right order).
+    if (!(typeof since === 'string' && since && !isNaN(new Date(since).getTime()))) {
+      messages.reverse();
+    }
+
     return res.status(200).json(messages);
   } catch (error) {
     console.error('getChatMessages error:', error);

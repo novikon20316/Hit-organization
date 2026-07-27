@@ -1293,14 +1293,24 @@ export default function CoordinatorHome() {
                     </Pressable>
 
                     {/* Nested Child: This Specific Student's Milestones Breakdown */}
-                    {isStudentExpanded && (
+                    {isStudentExpanded && (() => {
+                      // LOW FIX: the empty-check used `student.milestones?.length === 0`
+                      // but the .map() below dropped the `?.` — if milestones
+                      // were ever undefined (every sibling reference to
+                      // p.milestones elsewhere in this file has a `?? []`
+                      // fallback; this was the one spot without it), that
+                      // combination fell through to `undefined.map()` and
+                      // crashed the whole screen instead of showing the
+                      // empty state.
+                      const milestones = student.milestones ?? [];
+                      return (
                       <View style={[styles.expandedBox, { marginTop: 8, padding: 10, backgroundColor: '#FAFAFA', borderRadius: 6 }]}>
-                        {student.milestones?.length === 0 ? (
+                        {milestones.length === 0 ? (
                           <Text style={styles.expandedText}>
                             {lang === 'he' ? 'לא נוצרו אבני דרך לסטודנט זה' : 'No milestones created for this student'}
                           </Text>
                         ) : (
-                          student.milestones.map((m: any, mIdx: number) => {
+                          milestones.map((m: any, mIdx: number) => {
                             let displayStatus = '';
                             let statusColor = '';
 
@@ -1328,7 +1338,7 @@ export default function CoordinatorHome() {
                                   justifyContent: 'space-between',
                                   alignItems: 'center',
                                   paddingVertical: 6,
-                                  borderBottomWidth: mIdx < student.milestones.length - 1 ? 1 : 0,
+                                  borderBottomWidth: mIdx < milestones.length - 1 ? 1 : 0,
                                   borderBottomColor: '#F0F4FF',
                                 }]}
                               >
@@ -1344,7 +1354,8 @@ export default function CoordinatorHome() {
                           })
                         )}
                       </View>
-                    )}
+                      );
+                    })()}
                   </View>
                 );
               })}

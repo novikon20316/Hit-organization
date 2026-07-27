@@ -117,6 +117,16 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
     if (typeof milestoneId === 'string' && milestoneId) {
       const milestoneRef = db.collection('milestones').doc(milestoneId);
       const milestoneSnap = await milestoneRef.get();
+      // MEDIUM FIX: milestoneId is caller-supplied and was never checked
+      // against the projectId this request was already scope-validated
+      // for — a coordinator with scope only over their own faculty's
+      // project A could pass projectId: A (in-scope) but milestoneId
+      // pointing at a different faculty's milestone B, silently
+      // overwriting B's gradeWeights and leaking B's fileUrls[0] into the
+      // assignment email sent to A's newly-invited examiner.
+      if (milestoneSnap.exists && milestoneSnap.data()?.projectId !== projectId) {
+        return res.status(400).json({ message: 'milestoneId does not belong to this project.' });
+      }
       thesisUrl = milestoneSnap.data()?.fileUrls?.[0] ?? '';
       // Only meaningful once graders are actually assigned to this
       // milestone — computeWeightedFinalGrade reads it off the milestone

@@ -15,7 +15,7 @@
 
 import * as XLSX from 'xlsx';
 import { db } from '../config/firebase.js';
-import { VALID_FACULTIES } from './userImportExport.js';
+import { VALID_FACULTIES, MAX_IMPORT_ROWS } from './userImportExport.js';
 
 export type RosterDegreeType = 'bachelors' | 'masters';
 
@@ -56,11 +56,16 @@ export async function importApprovedStudentsFromBuffer(
   buffer: Buffer,
   opts: { restrictFacultyId?: string; uploadedBy: string },
 ): Promise<RosterImportSummary> {
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  // Caps in-memory row materialization — see userImportExport.ts's
+  // MAX_IMPORT_ROWS comment for why (decompression-bomb protection).
+  const workbook = XLSX.read(buffer, { type: 'buffer', sheetRows: MAX_IMPORT_ROWS + 1 });
   const sheetName = workbook.SheetNames[0];
   const rows: Record<string, any>[] = sheetName
     ? XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]!, { defval: '' })
     : [];
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw new Error(`File has more than ${MAX_IMPORT_ROWS} rows — split it into smaller files and import separately.`);
+  }
 
   const details: RosterImportRowResult[] = [];
   let batch = db.batch();

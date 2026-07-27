@@ -152,8 +152,18 @@ export const IMPORT_TEMPLATE_HEADERS = [
   'StudentId',
 ];
 
+// MEDIUM FIX: an .xlsx is a zip — a file well under the 10MB upload cap
+// (uploadExcelFileMiddleware) can decompress to a much larger in-memory
+// row count during XLSX.read, spiking memory in this single-process server
+// for every concurrent request. sheetRows caps how many rows SheetJS
+// materializes per sheet, so parsing stops early instead of building an
+// unbounded in-memory structure. 5000 comfortably covers this system's
+// real scale (a university department's roster/staff list, not millions
+// of rows) — real imports here are in the hundreds at most.
+export const MAX_IMPORT_ROWS = 5000;
+
 export function parseWorkbookRows(buffer: Buffer): Record<string, any>[] {
-  const workbook  = XLSX.read(buffer, { type: 'buffer' });
+  const workbook  = XLSX.read(buffer, { type: 'buffer', sheetRows: MAX_IMPORT_ROWS + 1 });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) return [];
   const sheet = workbook.Sheets[sheetName];
@@ -250,6 +260,9 @@ export async function importStaffFromBuffer(
   opts: { restrictFacultyId?: string; lang?: 'he' | 'en' } = {}
 ): Promise<ImportSummary> {
   const rows    = parseWorkbookRows(buffer);
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw new Error(`File has more than ${MAX_IMPORT_ROWS} rows — split it into smaller files and import separately.`);
+  }
   const details: ImportRowResult[] = [];
   const lang    = opts.lang ?? 'he';
   const seenIds = new Set<string>();

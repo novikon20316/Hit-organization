@@ -11,9 +11,21 @@ function keyByUserOrIp(req: Request): string {
 }
 
 // Baseline guard against generic abuse/scraping across the whole API.
+// MEDIUM FIX: this is mounted at app.use('/api', apiLimiter) — BEFORE any
+// route's verifyToken runs — so req.user is never populated yet here;
+// keyByUserOrIp would always fall through to IP-only keying anyway, so
+// there's no way to key this one by account without restructuring the
+// whole middleware order. Instead, raised the ceiling: a single open chat
+// tab alone polls every 3s (~20 req/min, see chatController.ts's
+// getChatMessages) — 300/15min was the entire budget for ONE such tab. On
+// a shared/NAT'd IP (plausible on campus Wi-Fi, where many students share
+// one public IP), that meant one active user's normal polling could get
+// unrelated users behind the same IP 429'd. 1000/15min stays a real
+// backstop against blatant scraping/abuse while comfortably absorbing
+// legitimate concurrent shared-IP polling at this system's scale.
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 300,
+  limit: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please try again later.' },
