@@ -8,6 +8,8 @@
 // server there either (handleCreateProject's payload has no file field), and
 // the program picker only feeds `selectedProgram`, which likewise never
 // makes it into the request body — neither is real functionality to port.
+// Grading criteria now lives solely in the workflow-templates screen, not
+// per-project.
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -15,15 +17,6 @@ import { apiClient } from '@/lib/apiClient';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { facultyLabel } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
-import type { GradingCriterion } from './types';
-
-const DEFAULT_CRITERIA: GradingCriterion[] = [
-  { key: 'clarity', label: 'Research Clarity', maxScore: 20 },
-  { key: 'methodology', label: 'Methodology', maxScore: 25 },
-  { key: 'feasibility', label: 'Feasibility', maxScore: 20 },
-  { key: 'innovation', label: 'Innovation', maxScore: 15 },
-  { key: 'writing', label: 'Writing Quality', maxScore: 20 },
-];
 
 const SELECTABLE_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
 
@@ -61,7 +54,6 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   const [maxStudents, setMaxStudents] = useState(1);
   const [skills, setSkills] = useState('');
   const [prerequisites, setPrerequisites] = useState('');
-  const [criteria, setCriteria] = useState<GradingCriterion[]>(DEFAULT_CRITERIA);
   const [major, setMajor] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -97,21 +89,6 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
     };
   }, [open]);
 
-  const totalMax = criteria.reduce((sum, c) => sum + (Number(c.maxScore) || 0), 0);
-
-  const updateCriterion = (index: number, field: keyof GradingCriterion, value: string) => {
-    setCriteria((prev) => {
-      const next = [...prev];
-      const row = next[index];
-      if (!row) return prev;
-      next[index] = field === 'maxScore' ? { ...row, maxScore: Number(value) || 0 } : { ...row, [field]: value };
-      return next;
-    });
-  };
-
-  const addCriterion = () => setCriteria((prev) => [...prev, { key: `criterion_${Date.now()}`, label: '', maxScore: 10 }]);
-  const removeCriterion = (index: number) => setCriteria((prev) => prev.filter((_, i) => i !== index));
-
   const reset = () => {
     setSupervisorId('');
     setFacultyId('');
@@ -124,7 +101,6 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
     setMaxStudents(1);
     setSkills('');
     setPrerequisites('');
-    setCriteria(DEFAULT_CRITERIA);
     setMajor('');
     setError('');
   };
@@ -150,7 +126,6 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
         maxStudents,
         requiredSkills: skills.split(',').map((s) => s.trim()).filter(Boolean),
         prerequisites: prerequisites.split(',').map((s) => s.trim()).filter(Boolean),
-        gradingCriteria: criteria,
         ...(major ? { major } : {}),
       });
       reset();
@@ -283,39 +258,6 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
               placeholder={lang === 'he' ? 'לדוגמה: מבני נתונים, אלגוריתמים' : 'e.g. Data Structures, Algorithms'}
             />
           </Field>
-
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-sm font-medium text-ink">📊 {lang === 'he' ? 'קריטריוני הערכה' : 'Grading Criteria'}</span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${totalMax === 100 ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}>
-                {lang === 'he' ? `סה"כ: ${totalMax}/100` : `Total: ${totalMax}/100`}
-              </span>
-            </div>
-            <div className="grid gap-2">
-              {criteria.map((c, i) => (
-                <div key={c.key} className="flex items-center gap-2">
-                  <input
-                    value={c.label}
-                    onChange={(e) => updateCriterion(i, 'label', e.target.value)}
-                    placeholder={lang === 'he' ? 'שם קריטריון' : 'Criterion name'}
-                    className={`${inputCls} flex-1`}
-                  />
-                  <input
-                    type="number"
-                    value={c.maxScore}
-                    onChange={(e) => updateCriterion(i, 'maxScore', e.target.value)}
-                    className={`${inputCls} w-20 text-center`}
-                  />
-                  <button type="button" onClick={() => removeCriterion(i)} className="shrink-0 text-muted hover:text-danger">
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={addCriterion} className="mt-2 text-xs text-primary hover:underline">
-              + {lang === 'he' ? 'הוסף קריטריון' : 'Add Criterion'}
-            </button>
-          </div>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}

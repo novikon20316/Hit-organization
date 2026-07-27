@@ -179,7 +179,6 @@ export interface UserDocument {
  *   maxStudents         – capacity set in NewProjectModal
  *   skills              – comma-separated tech keywords (NewProjectModal)
  *   program             – program key from HIT_FACULTIES (NewProjectModal)
- *   gradingCriteria     – array of GradingCriterion objects
  *   projectInfoFileUrl  – Cloudinary / Storage URL of uploaded PDF
  *   projectInfoFileName – display name of the uploaded PDF
  *   createdAt           – server timestamp
@@ -203,7 +202,6 @@ export interface ProjectDocument {
   requiredSkills?: string[];
   prerequisites?: string[];
   program?: string | null;
-  gradingCriteria?: GradingCriterion[];
   projectInfoFileUrl?: string | null;
   projectInfoFileName?: string | null;
   createdAt?: Timestamp | string;
@@ -357,16 +355,6 @@ export interface GradeWeights {
   supervisorWeight: number;  // e.g. 0.30
   examiner1Weight: number;   // e.g. 0.35
   examiner2Weight: number;   // e.g. 0.35
-}
-
-/**
- * A single rubric criterion used when creating/grading a project.
- * Source: NewProjectModal.tsx
- */
-export interface GradingCriterion {
-  key: string;
-  label: string;
-  maxScore: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

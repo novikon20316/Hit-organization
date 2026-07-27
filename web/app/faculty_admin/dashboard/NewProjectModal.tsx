@@ -14,6 +14,8 @@
 // (server/src/controllers/adminController.ts) gated the endpoint to
 // system_admin only — a faculty_admin hitting it got a 403. That's now fixed:
 // the handler accepts role/roles containing 'faculty_admin' or 'system_admin'.
+// Grading criteria now lives solely in the workflow-templates screen, not
+// per-project.
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -21,15 +23,7 @@ import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { apiClient } from '@/lib/apiClient';
 import type { FacultyId } from '@/lib/i18n';
-import type { GradingCriterion, SupervisorOption } from './types';
-
-const DEFAULT_CRITERIA: GradingCriterion[] = [
-  { key: 'clarity', label: 'Research Clarity', maxScore: 20 },
-  { key: 'methodology', label: 'Methodology', maxScore: 25 },
-  { key: 'feasibility', label: 'Feasibility', maxScore: 20 },
-  { key: 'innovation', label: 'Innovation', maxScore: 15 },
-  { key: 'writing', label: 'Writing Quality', maxScore: 20 },
-];
+import type { SupervisorOption } from './types';
 
 interface NewProjectModalProps {
   facultyId: FacultyId;
@@ -55,7 +49,6 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
   const [maxStudents, setMaxStudents] = useState(1);
   const [skills, setSkills] = useState('');
   const [prerequisites, setPrerequisites] = useState('');
-  const [criteria, setCriteria] = useState<GradingCriterion[]>(DEFAULT_CRITERIA);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -77,29 +70,10 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
     };
   }, [facultyId]);
 
-  const totalMax = criteria.reduce((sum, c) => sum + (Number(c.maxScore) || 0), 0);
-
-  const updateCriterion = (index: number, field: keyof GradingCriterion, value: string) => {
-    setCriteria((prev) => {
-      const next = [...prev];
-      const row = next[index];
-      if (!row) return prev;
-      next[index] = field === 'maxScore' ? { ...row, maxScore: Number(value) || 0 } : { ...row, [field]: value };
-      return next;
-    });
-  };
-
-  const addCriterion = () => setCriteria((prev) => [...prev, { key: `criterion_${Date.now()}`, label: '', maxScore: 10 }]);
-  const removeCriterion = (index: number) => setCriteria((prev) => prev.filter((_, i) => i !== index));
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!supervisorId || !titleHe.trim() || !titleEn.trim()) {
       setError(lang === 'he' ? 'יש למלא את כל השדות' : 'Missing required fields');
-      return;
-    }
-    if (totalMax !== 100) {
-      setError(lang === 'he' ? `סכום קריטריוני ההערכה חייב להיות 100 (כרגע: ${totalMax})` : `Grading criteria must sum to 100 (currently: ${totalMax})`);
       return;
     }
     setSubmitting(true);
@@ -117,7 +91,6 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         maxStudents,
         requiredSkills: skills.split(',').map((s) => s.trim()).filter(Boolean),
         prerequisites: prerequisites.split(',').map((s) => s.trim()).filter(Boolean),
-        gradingCriteria: criteria,
       });
       onCreated();
       onClose();
@@ -220,39 +193,6 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
               placeholder={lang === 'he' ? 'לדוגמה: מבני נתונים, אלגוריתמים' : 'e.g. Data Structures, Algorithms'}
             />
           </Field>
-
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-sm font-medium text-ink">📊 {lang === 'he' ? 'קריטריוני הערכה' : 'Grading Criteria'}</span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${totalMax === 100 ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}>
-                {lang === 'he' ? `סה"כ: ${totalMax}/100` : `Total: ${totalMax}/100`}
-              </span>
-            </div>
-            <div className="grid gap-2">
-              {criteria.map((c, i) => (
-                <div key={c.key} className="flex items-center gap-2">
-                  <input
-                    value={c.label}
-                    onChange={(e) => updateCriterion(i, 'label', e.target.value)}
-                    placeholder={lang === 'he' ? 'שם קריטריון' : 'Criterion name'}
-                    className={`${inputCls} flex-1`}
-                  />
-                  <input
-                    type="number"
-                    value={c.maxScore}
-                    onChange={(e) => updateCriterion(i, 'maxScore', e.target.value)}
-                    className={`${inputCls} w-20 text-center`}
-                  />
-                  <button type="button" onClick={() => removeCriterion(i)} className="shrink-0 text-muted hover:text-danger">
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={addCriterion} className="mt-2 text-xs text-primary hover:underline">
-              + {lang === 'he' ? 'הוסף קריטריון' : 'Add Criterion'}
-            </button>
-          </div>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}

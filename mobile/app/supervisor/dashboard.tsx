@@ -13,7 +13,7 @@ import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_C
 import { sharedStyles } from '@/constants';
 import { SupervisorExtraStyles } from '../../constants/styles';
 import { NewProjectModal, RecommendedExaminerModal } from '@/components/modals';
-import { GradingCriterion, AppUser, MyProject, Application } from '@/types'
+import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
@@ -92,7 +92,6 @@ export default function SupervisorHome() {
   const [newPrerequisites, setNewPrerequisites] = useState('');
   const [creating,    setCreating]    = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
-  const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
   // ── Grade modal ───────────────────────────────────────────────────────────
   const [gradeModal,      setGradeModal]      = useState(false);
   const [gradeMilestone,  setGradeMilestone]  = useState<PendingMilestone | null>(null);
@@ -432,7 +431,6 @@ export default function SupervisorHome() {
         requiredSkills: newSkills.split(',').map(s => s.trim()).filter(Boolean),
         prerequisites: newPrerequisites.split(',').map(s => s.trim()).filter(Boolean),
         facultyId,
-        gradingCriteria,
         // Optional single-major restriction — omitted means open to every
         // major in the faculty (today's default, unchanged).
         ...(major ? { major } : {}),
@@ -1207,8 +1205,6 @@ export default function SupervisorHome() {
         setProjectName={setProjectName}
         projectFile={projectFile}
         setProjectFile={setProjectFile}
-        gradingCriteria={gradingCriteria}
-        setGradingCriteria={setGradingCriteria}
         selectedProgram={selectedProgram}
         setSelectedProgram={setSelectedProgram}
         restrictedMajors={supervisorAssignedMajors}

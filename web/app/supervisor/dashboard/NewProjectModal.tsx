@@ -4,11 +4,12 @@
 // Ported from mobile's NewProjectModal (components/modals/NewProjectModal.tsx)
 // as used from supervisor/dashboard.tsx — same field set as EditProjectModal
 // (title HE/EN, description HE/EN, degree, type, skills) plus creation-only
-// fields: NumberOfStudents, prerequisites, and gradingCriteria (must sum to
-// 100). facultyId is the supervisor's own — read-only here, exactly like
-// mobile's "locked" faculty badge for supervisors (no faculty/program picker,
-// since that's an admin-only concern this project's web port doesn't need
-// yet). Calls the already-existing apiClient.createSupervisorProject.
+// fields: NumberOfStudents and prerequisites. facultyId is the supervisor's
+// own — read-only here, exactly like mobile's "locked" faculty badge for
+// supervisors (no faculty/program picker, since that's an admin-only concern
+// this project's web port doesn't need yet). Calls the already-existing
+// apiClient.createSupervisorProject. Grading criteria now lives solely in
+// the workflow-templates screen, not per-project.
 
 import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -18,21 +19,12 @@ import { facultyLabel } from '@/lib/i18n';
 import { apiClient } from '@/lib/apiClient';
 import { majorsForFaculty } from '@/lib/permissions';
 import type { FacultyId } from '@/lib/i18n';
-import { GRADING_CRITERIA } from './types';
-
-interface GradingCriterionInput {
-  key: string;
-  label: string;
-  maxScore: number;
-}
 
 interface NewProjectModalProps {
   facultyId: FacultyId;
   onClose: () => void;
   onCreated: () => void;
 }
-
-const DEFAULT_CRITERIA: GradingCriterionInput[] = GRADING_CRITERIA.map((c) => ({ key: c.key, label: c.en, maxScore: c.max }));
 
 export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectModalProps) {
   const { lang, t } = useLanguage();
@@ -46,7 +38,6 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
   const [skills, setSkills] = useState('');
   const [prerequisites, setPrerequisites] = useState('');
   const [numberOfStudents, setNumberOfStudents] = useState(1);
-  const [criteria, setCriteria] = useState<GradingCriterionInput[]>(DEFAULT_CRITERIA);
   const [major, setMajor] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -60,29 +51,10 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
     return isMajorRestricted ? all.filter((m) => ownAssignedMajors.includes(m.slug)) : all;
   }, [facultyId, isMajorRestricted, ownAssignedMajors]);
 
-  const totalMax = criteria.reduce((sum, c) => sum + (Number(c.maxScore) || 0), 0);
-
-  const updateCriterion = (index: number, field: 'label' | 'maxScore', value: string) => {
-    setCriteria((prev) =>
-      prev.map((c, i) => (i === index ? { ...c, [field]: field === 'maxScore' ? Number(value) || 0 : value } : c))
-    );
-  };
-
-  const addCriterion = () => setCriteria((prev) => [...prev, { key: `criterion_${Date.now()}`, label: '', maxScore: 10 }]);
-  const removeCriterion = (index: number) => setCriteria((prev) => prev.filter((_, i) => i !== index));
-
   const handleCreate = async () => {
     setError('');
     if (!titleHe.trim() || !titleEn.trim()) {
       setError(lang === 'he' ? 'כותרת בשתי השפות היא שדה חובה' : 'Title in both languages is required');
-      return;
-    }
-    if (totalMax !== 100) {
-      setError(lang === 'he' ? `סכום קריטריוני ההערכה חייב להיות 100 (כרגע: ${totalMax})` : `Grading criteria must sum to 100 (currently: ${totalMax})`);
-      return;
-    }
-    if (criteria.some((c) => !c.label.trim())) {
-      setError(lang === 'he' ? 'לכל קריטריון חייב להיות שם' : 'Every criterion needs a name');
       return;
     }
     if (isMajorRestricted && !major) {
@@ -102,7 +74,6 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         prerequisites: prerequisites.split(',').map((s) => s.trim()).filter(Boolean),
         NumberOfStudents: numberOfStudents,
         facultyId,
-        gradingCriteria: criteria,
         ...(major ? { major } : {}),
       });
       onCreated();
@@ -223,38 +194,6 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
               placeholder={lang === 'he' ? 'לדוגמה: מבני נתונים, אלגוריתמים' : 'e.g. Data Structures, Algorithms'}
             />
           </label>
-
-          <div className="rounded-lg border border-line p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-ink">📊 {lang === 'he' ? 'קריטריוני הערכה' : 'Grading Criteria'}</span>
-              <span
-                className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                style={{ backgroundColor: totalMax === 100 ? 'var(--success-bg)' : 'var(--danger-bg)', color: totalMax === 100 ? 'var(--success)' : 'var(--danger)' }}
-              >
-                {lang === 'he' ? `סה"כ: ${totalMax}/100` : `Total: ${totalMax}/100`}
-              </span>
-            </div>
-
-            {criteria.map((c, i) => (
-              <div key={c.key} className="mt-2 flex items-end gap-2">
-                <label className="flex-1 block">
-                  <span className="mb-1 block text-xs text-muted">{lang === 'he' ? 'שם קריטריון' : 'Criterion Name'}</span>
-                  <input value={c.label} onChange={(e) => updateCriterion(i, 'label', e.target.value)} className={inputCls} placeholder={lang === 'he' ? 'למשל: בהירות' : 'e.g. Clarity'} />
-                </label>
-                <label className="block w-20">
-                  <span className="mb-1 block text-xs text-muted">{lang === 'he' ? "מקס'" : 'Max'}</span>
-                  <input type="number" value={c.maxScore} onChange={(e) => updateCriterion(i, 'maxScore', e.target.value)} className={`${inputCls} text-center`} />
-                </label>
-                <button type="button" onClick={() => removeCriterion(i)} className="rounded-lg border border-danger px-2.5 py-2 text-xs text-danger hover:bg-danger-bg">
-                  ✕
-                </button>
-              </div>
-            ))}
-
-            <button type="button" onClick={addCriterion} className="mt-2 w-full rounded-lg border border-dashed border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary">
-              + {lang === 'he' ? 'הוסף קריטריון' : 'Add Criterion'}
-            </button>
-          </div>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}

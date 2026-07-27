@@ -45,12 +45,6 @@ export interface FacultyAdminProjectRecord {
   maxStudents?: number;
 }
 
-export interface GradingCriterion {
-  key: string;
-  label: string;
-  maxScore: number;
-}
-
 /** Shape returned by GET /api/admin/supervisors — scoped to the faculty
  *  passed via `facultyId` (see NewProjectModal.tsx's getAdminSupervisors call). */
 export interface SupervisorOption {

@@ -439,7 +439,6 @@ export const apiClient = {
     maxStudents: number;
     requiredSkills: string[];
     prerequisites: string[];
-    gradingCriteria?: Array<{ key: string; label: string; maxScore: number }>;
     /** Optional single major within facultyId — see adminController.ts's
      *  createAdminProject. Omitted = open to every major in the faculty. */
     major?: string;
@@ -971,10 +970,10 @@ export const apiClient = {
   },
 
   /** POST /api/supervisor/projects — creation-only fields (maxStudents,
-   *  prerequisites, gradingCriteria) on top of the same title/description/
-   *  degree/type/skills set shared with updateSupervisorProject above. Note
-   *  the server field is `NumberOfStudents`, not `maxStudents` (matches
-   *  createSupervisorProject in supervisorController.ts exactly). */
+   *  prerequisites) on top of the same title/description/degree/type/skills
+   *  set shared with updateSupervisorProject above. Note the server field is
+   *  `NumberOfStudents`, not `maxStudents` (matches createSupervisorProject
+   *  in supervisorController.ts exactly). */
   async createSupervisorProject(payload: {
     titleHe: string;
     titleEn: string;
@@ -986,7 +985,6 @@ export const apiClient = {
     prerequisites: string[];
     NumberOfStudents: number;
     facultyId: string;
-    gradingCriteria?: Array<{ key: string; label: string; maxScore: number }>;
     /** Optional single major within facultyId, validated server-side against
      *  the calling supervisor's own assignedMajors restriction (if any) — see
      *  supervisorController.ts's createSupervisorProject. Omitted = open to

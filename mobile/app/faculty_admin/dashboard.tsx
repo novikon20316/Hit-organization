@@ -23,7 +23,7 @@ import {
   TopBar,
   FACULTY_COLORS,
 } from '../../components/shared';
-import { GradingCriterion, AppUser, SystemStats, UserRecord, ProjectRecord, MilestoneRecord, StatusOption } from '@/types'
+import { AppUser, SystemStats, UserRecord, ProjectRecord, MilestoneRecord, StatusOption } from '@/types'
 import { ROLE_LABELS } from '../../constants';
 import { FacultyAdminDashboardStyles } from '../../constants/styles';
 
@@ -78,7 +78,6 @@ export default function PanelScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
   const [showNewUser, setShowNewUser] = useState(false);
-  const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
   const [newProjectFaculty, setNewProjectFaculty] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectFile, setProjectFile] = useState<string | null>(null);
@@ -557,9 +556,6 @@ export default function PanelScreen() {
         
         projectFile={projectFile}
         setProjectFile={setProjectFile}
-
-        gradingCriteria={gradingCriteria}
-        setGradingCriteria={setGradingCriteria}
 
         selectedProgram={selectedProgram}
         setSelectedProgram={setSelectedProgram}

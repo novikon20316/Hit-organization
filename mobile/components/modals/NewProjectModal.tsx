@@ -1,13 +1,13 @@
 // components/modals/NewProjectModal.tsx
 import React from "react";
-import {AppUser, GradingCriterion, DegreeLevel, Program, Faculty, UserRole }from '@/types'
+import {AppUser, DegreeLevel, Program, Faculty, UserRole }from '@/types'
 import { tx } from '../../components/i18n';
 import { HIT_FACULTIES, getFacultyByKey, getFilteredPrograms } from '../../constants/faculties';
 import {
   Modal, View, Text, ScrollView, Pressable,
   TextInput, ActivityIndicator
 } from "react-native";
-import { NewProjectModalStyles, CriteriaModalStyles } from '../../constants/styles';
+import { NewProjectModalStyles } from '../../constants/styles';
 
 // Returns true if the user holds a given role (checks both roles[] and the
 // legacy single role field so old data keeps working)
@@ -18,14 +18,6 @@ function userHasRole(user: AppUser | undefined, role: UserRole): boolean {
 }
 
 type FacultyColors = Record<string, { primary: string; light?: string; label: Record<string, string> }>;
-
-export const DEFAULT_CRITERIA: GradingCriterion[] = [
-  { key: 'clarity',     label: 'Research Clarity', maxScore: 20 },
-  { key: 'methodology', label: 'Methodology',       maxScore: 25 },
-  { key: 'feasibility', label: 'Feasibility',       maxScore: 20 },
-  { key: 'innovation',  label: 'Innovation',        maxScore: 15 },
-  { key: 'writing',     label: 'Writing Quality',   maxScore: 20 },
-];
 
 // HIT_FACULTIES / getFacultyByKey / getFilteredPrograms now live in
 // constants/faculties.ts (shared with student signup) — re-exported here so
@@ -83,9 +75,6 @@ type Props = {
   projectFile: string | null; setProjectFile: (v: string | null) => void;
   pickFile:    (v: boolean) => void;
 
-  gradingCriteria:    GradingCriterion[];
-  setGradingCriteria: (v: GradingCriterion[]) => void;
-
   // The logged-in user — used to lock faculty scope for supervisors
   currentUser?:  AppUser;
 
@@ -112,7 +101,6 @@ export default function NewProjectModal({
   projectName, setProjectName,
   projectFile, setProjectFile,
   pickFile,
-  gradingCriteria, setGradingCriteria,
   currentUser,
   facultyColors, styles,
 }: Props) {
@@ -133,30 +121,6 @@ export default function NewProjectModal({
   const supervisorFacultyObj = isSupervisor
     ? getFacultyByKey(effectiveFaculty ?? "")
     : null;
-
-  // ── Criteria helpers ────────────────────────────────────────────────────────
-  const totalMax = gradingCriteria.reduce((s, c) => s + (Number(c.maxScore) || 0), 0);
-
-  const updateCriterion = (index: number, field: keyof GradingCriterion, value: string) => {
-    const updated = [...gradingCriteria];
-    if (field === 'maxScore') {
-      updated[index] = { ...updated[index], maxScore: Number(value) || 0 };
-    } else {
-      updated[index] = { ...updated[index], [field]: value };
-    }
-    setGradingCriteria(updated);
-  };
-
-  const addCriterion = () => {
-    setGradingCriteria([
-      ...gradingCriteria,
-      { key: `criterion_${Date.now()}`, label: '', maxScore: 10 },
-    ]);
-  };
-
-  const removeCriterion = (index: number) => {
-    setGradingCriteria(gradingCriteria.filter((_, i) => i !== index));
-  };
 
   // ── Faculty selection handler: reset program when faculty changes ────────────
   const handleFacultyChange = (fid: string) => {
@@ -505,74 +469,6 @@ export default function NewProjectModal({
           </>
         ) : null}
 
-        {/* ── Grading Criteria ─────────────────────────────────────────────────── */}
-        <View style={criteriaStyles.section}>
-          <View style={criteriaStyles.sectionHeader}>
-            <Text style={criteriaStyles.sectionTitle}>
-              {lang === 'he' ? '📊 קריטריוני הערכה' : '📊 Grading Criteria'}
-            </Text>
-            <View style={[
-              criteriaStyles.totalBadge,
-              { backgroundColor: totalMax === 100 ? '#ECFDF5' : '#FEF2F2' },
-            ]}>
-              <Text style={[
-                criteriaStyles.totalBadgeText,
-                { color: totalMax === 100 ? '#10B981' : '#EF4444' },
-              ]}>
-                {lang === 'he' ? `סה"כ: ${totalMax}/100` : `Total: ${totalMax}/100`}
-              </Text>
-            </View>
-          </View>
-
-          {totalMax !== 100 && (
-            <Text style={criteriaStyles.warning}>
-              {lang === 'he'
-                ? `⚠️ סכום הנקודות חייב להיות 100 (כרגע: ${totalMax})`
-                : `⚠️ Total must equal 100 (currently: ${totalMax})`}
-            </Text>
-          )}
-
-          {gradingCriteria.map((c, i) => (
-            <View key={c.key} style={criteriaStyles.criterionRow}>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={criteriaStyles.criterionLabel}>
-                  {lang === 'he' ? 'שם קריטריון' : 'Criterion Name'}
-                </Text>
-                <TextInput
-                  style={criteriaStyles.criterionInput}
-                  value={c.label}
-                  onChangeText={(v) => updateCriterion(i, 'label', v)}
-                  placeholder={lang === 'he' ? 'למשל: בהירות' : 'e.g. Clarity'}
-                  placeholderTextColor="#9BA8C0"
-                />
-              </View>
-              <View style={{ width: 70 }}>
-                <Text style={criteriaStyles.criterionLabel}>
-                  {lang === 'he' ? "מקס'" : 'Max'}
-                </Text>
-                <TextInput
-                  style={[criteriaStyles.criterionInput, { textAlign: 'center' }]}
-                  value={String(c.maxScore)}
-                  onChangeText={(v) => updateCriterion(i, 'maxScore', v)}
-                  keyboardType="numeric"
-                />
-              </View>
-              <Pressable
-                style={criteriaStyles.removeBtn}
-                onPress={() => removeCriterion(i)}
-              >
-                <Text style={criteriaStyles.removeBtnText}>✕</Text>
-              </Pressable>
-            </View>
-          ))}
-
-          <Pressable style={criteriaStyles.addBtn} onPress={addCriterion}>
-            <Text style={criteriaStyles.addBtnText}>
-              + {lang === 'he' ? 'הוסף קריטריון' : 'Add Criterion'}
-            </Text>
-          </Pressable>
-        </View>
-
         {/* ── Submit ───────────────────────────────────────────────────────────── */}
         <Pressable style={styles.submitBtn} onPress={onCreate} disabled={creating}>
           {creating
@@ -591,7 +487,3 @@ export default function NewProjectModal({
 // ─── Program picker styles ────────────────────────────────────────────────────
 
 const programStyles = NewProjectModalStyles;
-
-// ─── Criteria section styles ──────────────────────────────────────────────────
-
-const criteriaStyles = CriteriaModalStyles;

@@ -45,12 +45,6 @@ export interface StudentStatusConfig {
   secondary: StudentStatusOption[];
 }
 
-export interface GradingCriterion {
-  key: string;
-  label: string;
-  maxScore: number;
-}
-
 export interface AdminProjectRecord {
   id: string;
   titleHe?: string;
@@ -66,7 +60,6 @@ export interface AdminProjectRecord {
   maxStudents?: number;
   requiredSkills?: string[];
   prerequisites?: string[];
-  gradingCriteria?: GradingCriterion[];
   enrolledStudentIds?: string[];
   academicYear?: string;
   createdAt?: string;

@@ -65,8 +65,6 @@ export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   defense: { he: 'הגנה', en: 'Defense' },
 };
 
-// Matches the default gradingCriteria a project is created with
-// (server/src/controllers/adminController.ts createAdminProject) — total 100.
 // Same raw-milestone-doc shape as coordinator's CoordinatorDeadline (see
 // staffController.ts getDeadLines) — duplicated rather than shared since
 // this codebase colocates types per route folder (see coordinator/home/types.ts).

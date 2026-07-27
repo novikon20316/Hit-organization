@@ -11,7 +11,7 @@ import {
   Switch,
   Modal,
 } from 'react-native';
-import { AppUser, GradingCriterion, SystemStats, UserRecord, ProjectRecord, MilestoneRecord, StatusOption } from '@/types';
+import { AppUser, SystemStats, UserRecord, ProjectRecord, MilestoneRecord, StatusOption } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Clipboard from 'expo-clipboard';
 import {SafeAreaView} from 'react-native-safe-area-context'
@@ -184,7 +184,6 @@ export default function PanelScreen() {
   const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
-  const [gradingCriteria, setGradingCriteria] = useState<GradingCriterion[]>([])
   const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
   // ── Add student to project state ──────────────────────────────────────────────
   const [addStudentModal, setAddStudentModal] = useState(false);
@@ -733,7 +732,6 @@ export default function PanelScreen() {
         maxStudents: maxStudents,
         requiredSkills: newSkills.split(',').map((s) => s.trim()).filter(Boolean),
         prerequisites: newPrerequisites.split(',').map((s) => s.trim()).filter(Boolean),
-        gradingCriteria,
         // Optional single-major restriction — selectedProgram holds a
         // level-specific program *key* (e.g. "bsc_cs"), but the backend's
         // `major` field expects the canonical subject *slug* (e.g.
@@ -2079,9 +2077,6 @@ export default function PanelScreen() {
 
         projectFile={projectFile}
         setProjectFile={setProjectFile}
-
-        gradingCriteria={gradingCriteria}
-        setGradingCriteria={setGradingCriteria}
 
         selectedProgram={selectedProgram}
         setSelectedProgram={setSelectedProgram}

@@ -147,25 +147,12 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       titleHe, titleEn, descriptionHe, descriptionEn,
       degreeType, projectType, projectInfo,
       NumberOfStudents, requiredSkills, facultyId,
-      gradingCriteria, // ← NEW: array of { key, label, maxScore }
       prerequisites, // ← courses a student must have completed to be eligible
       major, // ← optional; omitted means open to every major in the faculty
     } = req.body;
 
     if (!titleHe?.trim() || !titleEn?.trim()) {
       return res.status(400).json({ message: 'Title in both languages is required.' });
-    }
-
-    // Validate criteria if provided — must sum to 100
-    if (gradingCriteria && Array.isArray(gradingCriteria)) {
-      const total = gradingCriteria.reduce(
-        (sum: number, c: any) => sum + (Number(c.maxScore) || 0), 0
-      );
-      if (total !== 100) {
-        return res.status(400).json({
-          message: `Grading criteria must sum to 100 (currently ${total}).`,
-        });
-      }
     }
 
     const resolvedFacultyId = facultyId ?? req.user?.facultyId ?? '';
@@ -205,14 +192,6 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       projectId:          newProjectRef.id,
       enrolledStudentIds: [],
       status:             'active',
-      // Save criteria — fall back to sensible defaults if supervisor skipped the section
-      gradingCriteria: gradingCriteria ?? [
-        { key: 'clarity',     label: 'Research Clarity', maxScore: 20 },
-        { key: 'methodology', label: 'Methodology',       maxScore: 25 },
-        { key: 'feasibility', label: 'Feasibility',       maxScore: 20 },
-        { key: 'innovation',  label: 'Innovation',        maxScore: 15 },
-        { key: 'writing',     label: 'Writing Quality',   maxScore: 20 },
-      ],
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
  
