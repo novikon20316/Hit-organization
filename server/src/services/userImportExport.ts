@@ -5,16 +5,11 @@
 //
 // IMPORT IS STAFF-ONLY. Students always self-register in the app (see
 // mobile/app/(auth)/signup.tsx) — no import path is allowed to create a
-// student account; importUsersFromBuffer explicitly rejects any row whose
-// Role column is "student". Export is unrestricted (it reports on whatever
-// users already exist, students included).
+// student account. Export is unrestricted (it reports on whatever users
+// already exist, students included).
 //
-// Two import flows share the account-creation core below:
-//   - importUsersFromBuffer: generic staff roster. Column layout is a
-//     placeholder — swap IMPORT_TEMPLATE_HEADERS and the row mapping once
-//     the final spreadsheet design is provided.
-//   - importStaffFromBuffer: real HR "סגל" export column layout (see its
-//     own section further down).
+// importStaffFromBuffer (see its own section further down) imports the
+// real HR "סגל" export column layout.
 
 import * as XLSX from 'xlsx';
 import crypto from 'crypto';
@@ -166,14 +161,6 @@ export function parseWorkbookRows(buffer: Buffer): Record<string, any>[] {
   return XLSX.utils.sheet_to_json(sheet, { defval: '' });
 }
 
-function normalizeRow(raw: Record<string, any>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    out[key.toString().trim().toLowerCase()] = value == null ? '' : String(value).trim();
-  }
-  return out;
-}
-
 export interface ImportRowResult {
   row: number;
   email: string;
@@ -187,114 +174,6 @@ export interface ImportSummary {
   skipped: number;
   failed: number;
   details: ImportRowResult[];
-}
-
-/**
- * Imports staff from an uploaded Excel buffer. Any row with Role "student"
- * fails with a clear reason — students always self-register in the app,
- * never via import.
- * When `restrictFacultyId` is set (coordinator import), rows for other faculties
- * are skipped — not failed — and reported individually.
- */
-// Faculty-scoped coordinators may only mint faculty-level operational staff
-// through bulk import — never another coordinator/admin/cross-faculty role.
-// Without this, a coordinator's Excel import was the same class of
-// privilege-escalation bug already fixed for updateUserRoleAdmin/
-// updateUserPermissions, just reachable via a spreadsheet cell instead of a
-// direct API call.
-export const COORDINATOR_IMPORTABLE_ROLES = ['supervisor', 'secondary_supervisor', 'internal_examiner'];
-
-export async function importUsersFromBuffer(
-  buffer: Buffer,
-  opts: { restrictFacultyId?: string; restrictAssignableRoles?: string[]; lang?: 'he' | 'en' } = {}
-): Promise<ImportSummary> {
-  const rows    = parseWorkbookRows(buffer);
-  const details: ImportRowResult[] = [];
-  const lang    = opts.lang ?? 'he';
-
-  for (let i = 0; i < rows.length; i++) {
-    const rowNumber = i + 2; // header occupies row 1
-    const raw   = normalizeRow(rows[i] ?? {});
-    const email = (raw.email || '').toLowerCase();
-
-    try {
-      if (!email || !email.includes('@')) {
-        details.push({ row: rowNumber, email, status: 'failed', reason: 'Missing or invalid email' });
-        continue;
-      }
-
-      const role = (raw.role || '').toLowerCase();
-      if (!VALID_ROLES.includes(role)) {
-        details.push({ row: rowNumber, email, status: 'failed', reason: `Invalid role: "${raw.role}"` });
-        continue;
-      }
-      // Students self-register in the app (see mobile/app/(auth)/signup.tsx) —
-      // this import (and the staff/"סגל" import) is for crew members only.
-      if (role === 'student') {
-        details.push({
-          row: rowNumber, email, status: 'failed',
-          reason: 'Students register themselves in the app — they cannot be imported via file',
-        });
-        continue;
-      }
-      if (opts.restrictAssignableRoles && !opts.restrictAssignableRoles.includes(role)) {
-        details.push({
-          row: rowNumber, email, status: 'failed',
-          reason: `Role "${role}" is not assignable via this import — allowed: ${opts.restrictAssignableRoles.join(', ')}`,
-        });
-        continue;
-      }
-
-      // Blank facultyId cell: assume the importing coordinator's own faculty
-      // when this import is faculty-restricted; otherwise it must be explicit.
-      const facultyId = (raw.facultyid || opts.restrictFacultyId || '').toLowerCase();
-      if (!facultyId || !VALID_FACULTIES.includes(facultyId)) {
-        details.push({ row: rowNumber, email, status: 'failed', reason: `Invalid facultyId: "${raw.facultyid}"` });
-        continue;
-      }
-
-      if (opts.restrictFacultyId && facultyId !== opts.restrictFacultyId) {
-        details.push({
-          row: rowNumber,
-          email,
-          status: 'skipped',
-          reason: `Row belongs to faculty "${facultyId}", not your faculty "${opts.restrictFacultyId}"`,
-        });
-        continue;
-      }
-
-      const existingAuthUser = await auth.getUserByEmail(email).catch(() => null);
-      if (existingAuthUser) {
-        details.push({ row: rowNumber, email, status: 'skipped', reason: 'A user with this email already exists' });
-        continue;
-      }
-
-      const emailLocalPart = email.split('@')[0] ?? email;
-      const displayNameHe  = raw.fullnamehe || raw.fullnameen || emailLocalPart;
-      const displayNameEn  = raw.fullnameen || raw.fullnamehe || emailLocalPart;
-
-      // Every importable role here is staff — no degree/major/year/studentId fields apply.
-      await createImportedUserAccount({
-        email, displayNameHe, displayNameEn,
-        role, roles: [role], facultyId,
-        degreeType: null, major: null, yearOfStudy: null, studentId: null,
-        isEligibleForProcess: false, lang,
-      });
-
-      details.push({ row: rowNumber, email, status: 'created' });
-    } catch (error: any) {
-      console.error(`Import row ${rowNumber} failed:`, error);
-      details.push({ row: rowNumber, email, status: 'failed', reason: error.message || 'Unknown error' });
-    }
-  }
-
-  return {
-    totalRows: rows.length,
-    created:   details.filter((d) => d.status === 'created').length,
-    skipped:   details.filter((d) => d.status === 'skipped').length,
-    failed:    details.filter((d) => d.status === 'failed').length,
-    details,
-  };
 }
 
 /** Builds an .xlsx buffer from Firestore user docs, using the same column layout as import. */

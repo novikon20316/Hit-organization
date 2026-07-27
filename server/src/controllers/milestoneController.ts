@@ -6,7 +6,6 @@ import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
-import { deriveProcessType, getActiveMilestonesFor } from '../services/workflowTemplates.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
@@ -357,6 +356,9 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     supervisorId?: string; studentId?: string; facultyId?: string;
   };
   const statusFilterRaw = req.query.statusFilter || req.query['statusFilter[]'];
+  // Set only for administrative_secretary below — Firestore 'in' query
+  // instead of the single '==' facultyId the other faculty-manager roles use.
+  let facultyIdIn: string[] | undefined;
 
   // This endpoint previously trusted these filters completely, so any
   // authenticated user (e.g. a student) could call it with no params at all
@@ -367,6 +369,23 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     studentId = requester.uid;
   } else if (requester.role === 'supervisor' || requester.role === 'secondary_supervisor') {
     supervisorId = requester.uid;
+  } else if (requester.role === 'administrative_secretary') {
+    // Her facultyId field is always the literal string 'all' (see
+    // CROSS_FACULTY_ROLES in userController.ts) — filtering on it directly,
+    // like the other faculty-manager roles below, would silently match
+    // zero real milestones, always (same root cause already fixed in
+    // getProjectCoordinatorDashboard). Her real scope lives in
+    // coordinatorScopes (per-degree, assigned via CoordinatorScopesModal).
+    // Milestones don't carry a `major` field of their own (see
+    // resolveMilestoneScope's own comment on this), so this scopes to her
+    // assigned faculty/faculties, not down to the exact degree — the same
+    // limitation that helper already accepts elsewhere.
+    const scopeFacultyIds = [...new Set((requester.coordinatorScopes ?? []).map((s) => s.facultyId))];
+    if (scopeFacultyIds.length === 0) {
+      // No scope assigned yet — nothing to show (not "everything").
+      return res.status(200).json({ milestones: [] });
+    }
+    facultyIdIn = scopeFacultyIds;
   } else if (MILESTONE_QUERY_FACULTY_MANAGER_ROLES.includes(requester.role)) {
     facultyId = requester.facultyId;
   } else if (!MILESTONE_QUERY_CROSS_FACULTY_ROLES.includes(requester.role)) {
@@ -387,7 +406,9 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     if (studentId) {
       q = q.where('studentIds', 'array-contains', studentId);
     }
-    if (facultyId) {
+    if (facultyIdIn) {
+      q = q.where('facultyId', 'in', facultyIdIn);
+    } else if (facultyId) {
       q = q.where('facultyId', '==', facultyId);
     }
     
@@ -425,72 +446,4 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
-// ─── Initialize roadmap ───────────────────────────────────────────────────────
-const ROADMAP_INIT_ROLES = [
-  'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
-  'faculty_admin', 'program_head', 'grad_school_head', 'system_admin',
-];
-
-export const initializeRoadMap = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user?.role || !ROADMAP_INIT_ROLES.includes(req.user.role)) {
-    return res.status(403).json({ error: 'Access denied.' });
-  }
-
-  try {
-    const { projectId, studentIds, facultyId, supervisorId } = req.body;
-
-    if (!projectId || !studentIds || !supervisorId || !facultyId) {
-      return res.status(400).json({ error: 'Missing required fields: projectId, studentIds, supervisorId, facultyId.' });
-    }
-
-    // Same faculty-configurable workflow-template lookup used by the live
-    // enrollment path (services/projectEnrollment.ts) — see
-    // services/workflowTemplates.ts. Falls back to the app's long-standing
-    // defaults if this faculty/process type/major has no approved template yet.
-    const projectSnap = await db.collection('projects').doc(projectId).get();
-    const projectData = projectSnap.data() ?? {};
-    const processType = deriveProcessType(projectData.degreeType, projectData.projectType);
-    // A project's major is optional — fall back to the first named
-    // student's own major, same precedent as projectEnrollment.ts.
-    let major: string | null = projectData.major ?? null;
-    if (!major && Array.isArray(studentIds) && studentIds[0]) {
-      const studentSnap = await db.collection('users').doc(studentIds[0]).get();
-      major = studentSnap.data()?.major ?? null;
-    }
-    const milestoneTemplates = await getActiveMilestonesFor(facultyId, processType, major);
-
-    const batch    = db.batch();
-    const baseDate = new Date();
-
-    for (const template of milestoneTemplates) {
-      const dueDate = new Date();
-      dueDate.setDate(baseDate.getDate() + template.dueDaysFromStart);
-
-      const milestoneRef = db.collection('milestones').doc();
-      batch.set(milestoneRef, {
-        projectId,
-        studentIds,
-        facultyId,
-        supervisorId,
-        type:            template.type,
-        nameHe:          template.nameHe,
-        nameEn:          template.nameEn,
-        status:          'pending',
-        dueDate:         admin.firestore.Timestamp.fromDate(dueDate),
-        createdAt:       admin.firestore.FieldValue.serverTimestamp(),
-        supervisorScore: null,
-        finalGrade:      null,
-        fileUrls:        [],
-        ...(template.requiresExaminers
-          ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
-          : {}),
-      });
-    }
-
-    await batch.commit();
-    return res.status(200).json({ success: true, message: 'Roadmap initialized.' });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
-  }
-};
 

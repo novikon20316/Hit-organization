@@ -30,7 +30,6 @@ import { uploadInfoFile, uploadInfoFileMiddleware, deleteInfoFile } from '../con
 import { createFacultyContent, deleteFacultyContent } from '../controllers/facultyContentController.js';
 import {
   exportUsersAdmin,
-  importUsersAdmin,
   importStaffAdmin,
   uploadExcelFileMiddleware,
 } from '../controllers/userImportExportController.js';
@@ -86,7 +85,6 @@ router.post('/defense-access-grants/:grantCode/extend', verifyToken, extendDefen
 router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense);
 router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile);
 router.post('/faculty-content', verifyToken, createFacultyContent);
-router.post('/users/import', verifyToken, uploadExcelFileMiddleware, importUsersAdmin);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);

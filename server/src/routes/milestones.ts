@@ -4,7 +4,6 @@ import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js';
 import {
   getMilestonesByQuery,
   submitMilestone,
-  initializeRoadMap,
   uploadMiddleware,
   updateMilestoneByCoordinator,
   bulkUpdateMilestoneDueDates,
@@ -12,9 +11,6 @@ import {
 import { submitRevisionDecision, getExaminerOpinions } from '../controllers/revisionDecisionController.js';
 const router = Router();
 
-
-
-router.post('/initialize-roadmap', verifyToken, initializeRoadMap)
 // GET /api/milestones  — fetch milestones by query params
 router.get('/', verifyToken, getMilestonesByQuery);
 // GET /api/milestones/:projectId/milestones — fetch milestones for a project (admin view)

@@ -39,6 +39,11 @@ export default function ChatConversationPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  // Before this flips false, a zero-length messages array is ambiguous
+  // (real empty chat vs. still loading vs. a failed fetch) — without it,
+  // any of those three rendered the same "No messages yet, say hi!" empty
+  // state, self-correcting silently on the next 3s poll at best.
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [headerName, setHeaderName] = useState(searchParams.get('otherName') ?? '');
   const [headerRole, setHeaderRole] = useState(searchParams.get('otherRole') ?? '');
   const listRef = useRef<HTMLDivElement>(null);
@@ -50,6 +55,8 @@ export default function ChatConversationPage() {
       setMessages(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error('Failed to load messages:', err);
+    } finally {
+      setLoadingMessages(false);
     }
   }, [chatId]);
 
@@ -129,7 +136,11 @@ export default function ChatConversationPage() {
       </header>
 
       <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4">
-        {messages.length === 0 ? (
+        {loadingMessages ? (
+          <div className="flex h-full items-center justify-center">
+            <p className="text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <p className="text-3xl">💬</p>
             <p className="mt-2 text-sm text-muted">{lang === 'he' ? 'אין הודעות עדיין. אמור שלום!' : 'No messages yet. Say hi!'}</p>

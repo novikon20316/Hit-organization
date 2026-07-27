@@ -38,6 +38,9 @@ export default function StudentProjectDetailPage() {
   const [error, setError] = useState('');
   const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
 
+  // Used to refresh just the milestone list after a student submits one —
+  // not the mount effect below, which inlines its own fetch so it can guard
+  // against projectId changing mid-flight (see that effect's `cancelled`).
   const fetchMilestones = useCallback(async () => {
     const res = await apiClient.getMilestones({ projectId });
     const list = (res.milestones ?? []) as unknown as Milestone[];
@@ -45,26 +48,39 @@ export default function StudentProjectDetailPage() {
     setMilestones(list);
   }, [projectId]);
 
-  const fetchAll = useCallback(async () => {
-    setLoadingData(true);
-    setError('');
-    try {
-      const [projectRes] = await Promise.all([apiClient.getStudentProject(projectId), fetchMilestones()]);
-      setProject(projectRes as unknown as ActiveProject);
-    } catch (err) {
-      console.error('Failed to load project detail:', err);
-      setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת הפרויקט נכשלה' : 'Failed to load the project');
-    } finally {
-      setLoadingData(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchMilestones is re-created only when projectId changes, already covered below
-  }, [projectId, lang]);
-
   useEffect(() => {
     if (!projectId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchAll's setState calls happen after its awaited network calls resolve, not synchronously in this effect
-    fetchAll();
-  }, [projectId, fetchAll]);
+    // Mirrors admin/projects/[projectId]/milestones/page.tsx's own guard —
+    // without it, a late-resolving response for a projectId the user has
+    // since navigated away from could overwrite the newer project's state.
+    let cancelled = false;
+
+    (async () => {
+      setLoadingData(true);
+      setError('');
+      try {
+        const [projectRes, milestonesRes] = await Promise.all([
+          apiClient.getStudentProject(projectId),
+          apiClient.getMilestones({ projectId }),
+        ]);
+        if (cancelled) return;
+        setProject(projectRes as unknown as ActiveProject);
+        const list = (milestonesRes.milestones ?? []) as unknown as Milestone[];
+        list.sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+        setMilestones(list);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Failed to load project detail:', err);
+        setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת הפרויקט נכשלה' : 'Failed to load the project');
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, lang]);
 
   if (guardLoading || !isAllowed) {
     return (

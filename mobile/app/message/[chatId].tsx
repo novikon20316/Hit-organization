@@ -64,6 +64,11 @@ export default function ChatScreen() {
   const [messages,   setMessages]   = useState<Message[]>([]);
   const [text,       setText]       = useState('');
   const [sending,    setSending]    = useState(false);
+  // Before this flips false, a zero-length messages array is ambiguous
+  // (real empty chat vs. still loading vs. a failed fetch) — without it,
+  // ListEmptyComponent showed "No messages yet. Say hi!" in all three cases
+  // (mirrors web's own fix for the same screen).
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [headerName, setHeaderName] = useState(otherName ?? '');
   const [headerRole, setHeaderRole] = useState(otherRole ?? '');
 
@@ -75,6 +80,8 @@ export default function ChatScreen() {
       setMessages(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to load messages:', err);
+    } finally {
+      setLoadingMessages(false);
     }
   }, [chatId, currentUser]);
 
@@ -180,10 +187,16 @@ export default function ChatScreen() {
           contentContainerStyle={s.messagesList}
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
           ListEmptyComponent={
-            <View style={s.emptyChat}>
-              <Text style={s.emptyChatEmoji}>💬</Text>
-              <Text style={s.emptyChatText}>No messages yet. Say hi!</Text>
-            </View>
+            loadingMessages ? (
+              <View style={s.emptyChat}>
+                <ActivityIndicator size="large" color={accentColor} />
+              </View>
+            ) : (
+              <View style={s.emptyChat}>
+                <Text style={s.emptyChatEmoji}>💬</Text>
+                <Text style={s.emptyChatText}>No messages yet. Say hi!</Text>
+              </View>
+            )
           }
           renderItem={({ item, index }) => {
             const mine    = item.senderId === currentUser?.uid;
