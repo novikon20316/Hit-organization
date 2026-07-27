@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
 import crypto from 'crypto';
 import { db, auth } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
+import { APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
 
 // ── Canonical enums (mirror mobile/firebase/roles.ts — keep in sync) ──────────
 export const VALID_ROLES = [
@@ -129,9 +130,8 @@ async function createImportedUserAccount(params: {
         name: params.displayNameHe,
         email: params.email,
         tempPassword,
-        // TODO: set once the app is published on each store
-        appLinkIos:     process.env.APP_LINK_URL_IOS     || '',
-        appLinkAndroid: process.env.APP_LINK_URL_ANDROID || '',
+        appLinkIos:     APP_LINK_URL_IOS,
+        appLinkAndroid: APP_LINK_URL_ANDROID,
       },
     });
   } catch (emailError) {

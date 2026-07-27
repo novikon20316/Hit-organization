@@ -1,3 +1,5 @@
+import { WEBSITE_URL } from '../config/links.js';
+
 export type NotificationType =
   | 'project_published'
   | 'application_received'
@@ -214,6 +216,7 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>מנהל המערכת (system_admin) של HIT הוסיף אותך למערכת ניהול פרויקטי הגמר ועבודות התזה.</p>
       <p>אימייל: <strong>${d.email || ''}</strong><br/>
       סיסמה זמנית: <strong>${d.tempPassword || ''}</strong></p>
+      <p>🌐 <a href="${WEBSITE_URL}">כניסה למערכת דרך האתר</a></p>
       ${d.appLinkIos || d.appLinkAndroid ? `
       <p>הורד את האפליקציה:<br/>
       ${d.appLinkIos ? `<a href="${d.appLinkIos}">📱 iPhone (App Store)</a><br/>` : ''}
@@ -226,6 +229,7 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>HIT's system administrator has added you to the Final Projects and Thesis Management System.</p>
       <p>Email: <strong>${d.email || ''}</strong><br/>
       Temporary password: <strong>${d.tempPassword || ''}</strong></p>
+      <p>🌐 <a href="${WEBSITE_URL}">Log in via the website</a></p>
       ${d.appLinkIos || d.appLinkAndroid ? `
       <p>Download the app:<br/>
       ${d.appLinkIos ? `<a href="${d.appLinkIos}">📱 iPhone (App Store)</a><br/>` : ''}
