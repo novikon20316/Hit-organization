@@ -52,7 +52,7 @@ export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =
 }
 
 export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
-    const { projectId, transcriptUrl, cvUrl, notes } = req.body;
+    const { projectId, transcriptUrl, cvUrl, notes, selectedProjectType } = req.body;
     const studentId = req.user?.uid;
 
     if (!studentId) {
@@ -86,6 +86,40 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         return res.status(403).json({ success: false, message: 'This project is not open to your major.' });
         }
 
+        // The query/UI filter a student browses through already narrows by
+        // status/degree/type, but — same reasoning as the major check above
+        // — this endpoint is the real access-control boundary, reachable
+        // directly with any projectId. `?? [scalar]` keeps this correct
+        // against pre-migration projects that only ever had the single
+        // scalar degreeType/projectType field, no arrays yet.
+        if (projectData.status && projectData.status !== 'active') {
+        return res.status(400).json({ success: false, message: 'This project is no longer accepting applications.' });
+        }
+
+        const capacity = projectData.maxStudents ?? projectData.NumberOfStudents ?? 1;
+        const enrolledCount = (projectData.enrolledStudentIds ?? []).length;
+        if (enrolledCount >= capacity) {
+        return res.status(400).json({ success: false, message: 'This project has already reached its student capacity.' });
+        }
+
+        const projectDegreeTypes: string[] = projectData.degreeTypes ?? (projectData.degreeType ? [projectData.degreeType] : []);
+        const projectProjectTypes: string[] = projectData.projectTypes ?? (projectData.projectType ? [projectData.projectType] : []);
+
+        if (projectDegreeTypes.length > 0 && !projectDegreeTypes.includes(studentData.degreeType)) {
+        return res.status(403).json({ success: false, message: 'This project is not open to your degree type.' });
+        }
+
+        // Only a project open to more than one track actually requires the
+        // student to pick — otherwise there's nothing ambiguous to choose.
+        if (projectProjectTypes.length > 1) {
+        if (!selectedProjectType) {
+            return res.status(400).json({ success: false, message: 'This project offers more than one track — please choose one when applying.' });
+        }
+        if (!projectProjectTypes.includes(selectedProjectType)) {
+            return res.status(400).json({ success: false, message: 'Invalid track selection for this project.' });
+        }
+        }
+
         // ✅ Duplicate application check
         const existing = await db.collection('applications')
         .where('studentId', '==', studentId)
@@ -110,6 +144,11 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         studentName:    studentData.displayName ?? studentData.displayNameHe ?? '',
         studentEmail:   studentData.email       ?? '',
         degreeType:     studentData.degreeType  ?? '',
+        // The track this application was submitted under — the student's
+        // explicit choice when the project offered more than one, else the
+        // project's own single/primary projectType so the field is always
+        // populated for enrollStudentInProject to resolve milestones from.
+        selectedProjectType: selectedProjectType ?? projectData.projectType ?? null,
         projectTitleHe: projectData.titleHe     ?? '',
         projectTitleEn: projectData.titleEn     ?? '',
 

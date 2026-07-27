@@ -130,7 +130,10 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
   }
 
   const { projectId } = req.params;
-  const { studentId } = req.body;
+  // track: optional explicit choice of which track (degreeType/projectType)
+  // to enroll this student under, for a project open to more than one —
+  // defaults to the project's own primary values when omitted.
+  const { studentId, track } = req.body;
 
   if (typeof projectId !== 'string' || !projectId || !studentId) {
     return res.status(400).json({ message: 'Invalid target identifier arguments' });
@@ -157,7 +160,7 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
       return res.status(403).json({ message: 'This project is outside your assigned scope.' });
     }
 
-    await enrollStudentInProject(projectId, studentId, pData.supervisorId, pData.facultyId);
+    await enrollStudentInProject(projectId, studentId, pData.supervisorId, pData.facultyId, track);
 
     return res.status(200).json({ success: true });
   } catch (error: any) {

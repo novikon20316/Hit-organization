@@ -71,13 +71,28 @@ const CLOSED_STATUSES = new Set(['completed', 'withdrawn', 'admin_closed']);
 export async function gatherEngagements(filters: ReportFilters = {}): Promise<EngagementRecord[]> {
   let projectsQuery: FirebaseFirestore.Query = db.collection('projects');
   if (filters.facultyId) projectsQuery = projectsQuery.where('facultyId', '==', filters.facultyId);
-  if (filters.degreeType) projectsQuery = projectsQuery.where('degreeType', '==', filters.degreeType);
-  if (filters.projectType) projectsQuery = projectsQuery.where('projectType', '==', filters.projectType);
   if (filters.advisorId) projectsQuery = projectsQuery.where('supervisorId', '==', filters.advisorId);
   if (filters.processStatus) projectsQuery = projectsQuery.where('status', '==', filters.processStatus);
 
   const projectsSnap = await projectsQuery.get();
-  const projects = projectsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+  let projects = projectsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+  // degreeType/projectType filtering happens in-memory, not via Firestore
+  // .where() — a project can now be open to more than one of each
+  // (degreeTypes/projectTypes arrays), and Firestore only allows one
+  // array-contains clause per query, which facultyId/advisorId/processStatus
+  // above may already be competing for. `?? [scalar]` keeps this correct
+  // against pre-migration projects that only ever had the single scalar
+  // field.
+  if (filters.degreeType) {
+    const wanted = filters.degreeType;
+    projects = projects.filter((p) => (p.degreeTypes ?? (p.degreeType ? [p.degreeType] : [])).includes(wanted));
+  }
+  if (filters.projectType) {
+    const wanted = filters.projectType;
+    projects = projects.filter((p) => (p.projectTypes ?? (p.projectType ? [p.projectType] : [])).includes(wanted));
+  }
+
   if (projects.length === 0) return [];
 
   const projectIds = projects.map((p) => p.id);

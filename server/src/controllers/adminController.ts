@@ -2,6 +2,7 @@
 
 import { Response } from 'express';
 import admin from 'firebase-admin';
+import crypto from 'crypto';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount } from '../services/accountDeletion.js';
@@ -12,9 +13,11 @@ import { WEBSITE_URL, APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/l
 import {
   validateScopeRule, validateCoordinatorScope,
   ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES, DELEGATE_RESTRICTED_ACTIONS,
+  VALID_SCOPE_FACULTY_IDS,
   type ScopeRule, type CoordinatorScope,
 } from '../config/permissionScopes.js';
 import { hasActionGrant, withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { notifyUser } from '../services/notify.js';
 import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
@@ -132,49 +135,91 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
 // POST FUNCTIONS (6)
 // ==========================================
 
+const VALID_FACULTY_IDS_NO_ALL = VALID_SCOPE_FACULTY_IDS.filter((id) => id !== 'all');
+
 /**
  * 4. POST /api/admin/projects
- * Force-creates a new project from the admin panel.
+ * Force-creates a new project from the admin panel — one sibling doc per
+ * selected faculty (a "fan-out"), sharing a postingGroupId when more than one
+ * faculty is selected. facultyId/degreeType/projectType stay scalar on every
+ * doc (the "primary" value, first in canonical order) so every existing
+ * reader of those fields keeps working unchanged; degreeTypes/projectTypes
+ * carry the full multi-select set for the new array-aware consumers (student
+ * browse query, applyApplication eligibility check).
  */
 export const createAdminProject = async (req: AuthenticatedRequest, res: Response) => {
   const role  = req.user?.role;
   const roles = req.user?.roles ?? [];
-  const isAuthorized = role === 'faculty_admin' || role === 'system_admin' ||
-    roles.includes('faculty_admin') || roles.includes('system_admin');
+  const isAuthorized =
+    ['faculty_admin', 'system_admin', 'grad_school_head', 'administrative_secretary'].includes(role ?? '') ||
+    roles.some((r) => ['faculty_admin', 'system_admin', 'grad_school_head', 'administrative_secretary'].includes(r));
   if (!isAuthorized) {
-    return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
+    return res.status(403).json({ message: 'Access denied: faculty_admin, grad_school_head, administrative_secretary, or system_admin only.' });
   }
   try {
     const projectData = req.body;
 
+    // Backward-compatible input shape: accept either the new array fields or
+    // the old scalar ones (wrapped into a single-item array).
+    const facultyIds: string[] = Array.isArray(projectData.facultyIds)
+      ? projectData.facultyIds
+      : projectData.facultyId ? [projectData.facultyId] : [];
+    const degreeTypesInput: string[] = Array.isArray(projectData.degreeTypes)
+      ? projectData.degreeTypes
+      : projectData.degreeType ? [projectData.degreeType] : [];
+    const projectTypesInput: string[] = Array.isArray(projectData.projectTypes)
+      ? projectData.projectTypes
+      : projectData.projectType ? [projectData.projectType] : [];
+
+    if (facultyIds.length === 0) {
+      return res.status(400).json({ message: 'At least one faculty must be selected.' });
+    }
+    if (facultyIds.some((id) => !VALID_FACULTY_IDS_NO_ALL.includes(id))) {
+      return res.status(400).json({ message: 'One or more selected faculties are invalid.' });
+    }
+    const degreeTypes = DEGREE_TYPE_ORDER.filter((d) => degreeTypesInput.includes(d));
+    const projectTypes = PROJECT_TYPE_ORDER.filter((t) => projectTypesInput.includes(t));
+    if (degreeTypes.length === 0) {
+      return res.status(400).json({ message: 'At least one degree type must be selected.' });
+    }
+    if (projectTypes.length === 0) {
+      return res.status(400).json({ message: 'At least one project type must be selected.' });
+    }
+
     // Previously unscoped — facultyId came straight from the request body, so
     // a faculty_admin could plant a project in a faculty other than their
-    // own. Confine to their own faculty unless an explicit add_projects
-    // grant covers the requested scope.
+    // own. Confine each selected faculty to one this staff member is
+    // actually authorized in unless an explicit add_projects grant covers it
+    // — reject the whole request if any one selected faculty fails, so a
+    // partially-authorized submission never creates a partial fan-out.
     const isSystemAdmin = role === 'system_admin' || roles.includes('system_admin');
     if (!isSystemAdmin) {
-      const requestedScope = {
-        facultyId: projectData.facultyId,
-        major: projectData.major,
-        degreeLevel: projectData.degreeType,
-        processType: projectData.projectType,
-      };
-      const withinOwnFaculty = projectData.facultyId === req.user?.facultyId;
-      if (!withinOwnFaculty && !hasActionGrant(req.user, 'add_projects', requestedScope)) {
-        return res.status(403).json({ message: 'Cannot create a project outside your assigned scope.' });
+      for (const facultyId of facultyIds) {
+        const requestedScope = {
+          facultyId,
+          major: projectData.major,
+          degreeLevel: degreeTypes[0]!,
+          processType: projectTypes[0]!,
+        };
+        const withinOwnFaculty = facultyId === req.user?.facultyId;
+        if (!withinOwnFaculty && !hasActionGrant(req.user, 'add_projects', requestedScope)) {
+          return res.status(403).json({ message: `Cannot create a project in faculty "${facultyId}" — outside your assigned scope.` });
+        }
       }
     }
 
     // A project's major is optional — omitted means open to every major in
     // its faculty (today's implicit behavior, unchanged for existing
     // projects with no major field). If set, it must be a real program of
-    // the project's own faculty, and — if a supervisor is being assigned —
+    // EVERY selected faculty, and — if a supervisor is being assigned —
     // within that supervisor's own assignedMajors restriction, if they have
     // one. Enforced for real by applyApplication + firestore.rules.
     if (projectData.major) {
-      const validForFaculty = majorsForFaculty(projectData.facultyId);
-      if (!validForFaculty.includes(projectData.major)) {
-        return res.status(400).json({ message: `Invalid major "${projectData.major}" for faculty "${projectData.facultyId}".` });
+      for (const facultyId of facultyIds) {
+        const validForFaculty = majorsForFaculty(facultyId);
+        if (!validForFaculty.includes(projectData.major)) {
+          return res.status(400).json({ message: `Invalid major "${projectData.major}" for faculty "${facultyId}".` });
+        }
       }
       if (projectData.supervisorId) {
         const supervisorSnap = await db.collection('users').doc(projectData.supervisorId).get();
@@ -185,16 +230,53 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
       }
     }
 
-    const newProjectRef = db.collection('projects').doc();
+    // Every new project must be explicitly based on the faculty's currently-
+    // approved workflow template for each (degreeType, projectType)
+    // combination it's open to — resolved per selected faculty (a template
+    // is faculty-scoped). Block creation entirely (nothing gets written) if
+    // any faculty/combination has no approved template yet, rather than
+    // silently falling back to the generic defaults.
+    const refsByFaculty = new Map<string, Awaited<ReturnType<typeof resolveWorkflowTemplateRefs>>['refs']>();
+    const missingMessages: string[] = [];
+    for (const facultyId of facultyIds) {
+      const { refs, missing } = await resolveWorkflowTemplateRefs(facultyId, degreeTypes, projectTypes, projectData.major ?? null);
+      refsByFaculty.set(facultyId, refs);
+      missing.forEach((m) => missingMessages.push(`${facultyId}: no approved workflow template for ${m.degreeType}/${m.projectType} — approve one in Workflow Templates first.`));
+    }
+    if (missingMessages.length > 0) {
+      return res.status(400).json({ message: missingMessages.join(' ') });
+    }
 
-    await newProjectRef.set({
-      ...projectData,
-      projectId: newProjectRef.id,
-      status: projectData.status || 'active',
-      createdAt: new Date().toISOString()
-    });
+    const postingGroupId = facultyIds.length > 1 ? crypto.randomUUID() : null;
+    const {
+      facultyId: _omitFacultyId, facultyIds: _omitFacultyIds,
+      degreeType: _omitDegreeType, degreeTypes: _omitDegreeTypes,
+      projectType: _omitProjectType, projectTypes: _omitProjectTypes,
+      ...sharedFields
+    } = projectData;
 
-    return res.status(201).json({ success: true, id: newProjectRef.id, message: 'Project created.' });
+    const batch = db.batch();
+    const createdIds: string[] = [];
+    for (const facultyId of facultyIds) {
+      const newProjectRef = db.collection('projects').doc();
+      createdIds.push(newProjectRef.id);
+      batch.set(newProjectRef, {
+        ...sharedFields,
+        facultyId,
+        degreeType: degreeTypes[0]!,
+        degreeTypes,
+        projectType: projectTypes[0]!,
+        projectTypes,
+        workflowTemplateRefs: refsByFaculty.get(facultyId),
+        postingGroupId,
+        projectId: newProjectRef.id,
+        status: projectData.status || 'active',
+        createdAt: new Date().toISOString(),
+      });
+    }
+    await batch.commit();
+
+    return res.status(201).json({ success: true, id: createdIds[0], ids: createdIds, message: 'Project created.' });
   } catch (error: any) {
     console.error('createAdminProject Error:', error);
     return res.status(500).json({ message: 'Failed to create project.' });
@@ -369,7 +451,10 @@ export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Respons
   }
 
   const { id: projectId } = req.params;
-  const { studentId } = req.body;
+  // track: optional explicit choice of which track (degreeType/projectType)
+  // to enroll this student under, for a project open to more than one —
+  // defaults to the project's own primary values when omitted.
+  const { studentId, track } = req.body;
 
   if (!studentId) return res.status(400).json({ message: 'Missing studentId in request body.' });
   if(!projectId || typeof projectId !== 'string'){
@@ -391,7 +476,7 @@ export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Respons
     }
 
     const projectData = projectSnap.data()!;
-    await enrollStudentInProject(projectId, studentId, projectData.supervisorId, projectData.facultyId);
+    await enrollStudentInProject(projectId, studentId, projectData.supervisorId, projectData.facultyId, track);
 
     return res.status(200).json({ success: true, message: 'Student officially enrolled.' });
   } catch (error: any) {

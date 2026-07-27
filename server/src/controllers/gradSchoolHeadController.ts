@@ -55,7 +55,10 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
     const userData = userSnap.data()!;
 
     const [projectsSnap, milestonesSnap, examinerRecsSnap, templatesSnap] = await Promise.all([
-      db.collection('projects').where('degreeType', '==', 'masters').get(),
+      // array-contains, not equality — a project open to both bachelors and
+      // masters must still count here (see degreeTypes on the projects
+      // collection, added alongside the legacy scalar degreeType).
+      db.collection('projects').where('degreeTypes', 'array-contains', 'masters').get(),
       db.collection('milestones').get(),
       db.collection('examinerRecommendations').where('status', '==', 'coordinator_approved').get(),
       db.collection('facultyTemplates').where('status', '==', 'pending').get(),

@@ -31,7 +31,12 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
     const userData = userSnap.data()!;
 
     const [projectsSnap, milestonesSnap, examinerRecsSnap, templatesSnap] = await Promise.all([
-      db.collection('projects').where('facultyId', '==', facultyId).where('degreeType', '==', 'masters').get(),
+      // array-contains, not equality — a project open to both bachelors and
+      // masters must still count here (see degreeTypes on the projects
+      // collection, added alongside the legacy scalar degreeType). One
+      // equality clause + one array-contains clause in the same query is
+      // fine — Firestore only forbids two array-contains clauses together.
+      db.collection('projects').where('facultyId', '==', facultyId).where('degreeTypes', 'array-contains', 'masters').get(),
       db.collection('milestones').where('facultyId', '==', facultyId).get(),
       db.collection('examinerRecommendations').where('facultyId', '==', facultyId).where('status', '==', 'pending').get(),
       db.collection('facultyTemplates').where('facultyId', '==', facultyId).where('status', '==', 'pending').get(),

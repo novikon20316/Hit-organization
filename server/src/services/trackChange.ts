@@ -12,7 +12,7 @@
 
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { deriveProcessType, getActiveMilestonesFor } from './workflowTemplates.js';
+import { getMilestonesForTemplateId, resolveWorkflowTemplateRefs } from './workflowTemplates.js';
 import { logAuditEvent } from './auditLog.js';
 
 export type ProjectTrack = 'thesis' | 'project';
@@ -52,8 +52,23 @@ export async function changeProjectTrack(
   }
 
   const newProjectRef = db.collection('projects').doc();
-  const processType = deriveProcessType(oldProject.degreeType, newTrack);
-  const milestoneTemplates = await getActiveMilestonesFor(oldProject.facultyId, processType, oldProject.major ?? null);
+  // Track change (project <-> thesis) is only ever meaningful for masters
+  // students (deriveProcessType always collapses bachelors to bsc_project
+  // regardless of track) — 'masters' is the same fallback the original code
+  // used for a missing degreeType.
+  const newDegreeType: 'bachelors' | 'masters' = oldProject.degreeType === 'bachelors' ? 'bachelors' : 'masters';
+  // The new track needs its own explicit workflowTemplateRefs entry, same
+  // rule as project creation — a track change onto a faculty/degree/track
+  // combination with no approved template is blocked rather than silently
+  // falling back to defaults.
+  const { refs: workflowTemplateRefs, missing } = await resolveWorkflowTemplateRefs(
+    oldProject.facultyId, [newDegreeType], [newTrack], oldProject.major ?? null
+  );
+  if (missing.length > 0) {
+    throw new Error(`No approved workflow template for ${newDegreeType}/${newTrack} in this faculty — approve one in Workflow Templates first.`);
+  }
+  const newTemplateRef = workflowTemplateRefs[0]!;
+  const milestoneTemplates = (await getMilestonesForTemplateId(newTemplateRef.templateId)) ?? [];
 
   const batch = db.batch();
 
@@ -72,8 +87,11 @@ export async function changeProjectTrack(
     titleEn: oldProject.titleEn ?? '',
     descriptionHe: oldProject.descriptionHe ?? '',
     descriptionEn: oldProject.descriptionEn ?? '',
-    degreeType: oldProject.degreeType ?? 'masters',
+    degreeType: newDegreeType,
+    degreeTypes: [newDegreeType],
     projectType: newTrack,
+    projectTypes: [newTrack],
+    workflowTemplateRefs,
     facultyId: oldProject.facultyId,
     ...(oldProject.major ? { major: oldProject.major } : {}),
     supervisorId: oldProject.supervisorId ?? null,

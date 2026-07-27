@@ -52,15 +52,21 @@ async function findMatchingInProgressProjects(
 ): Promise<MatchingProject[]> {
   const filter = projectFilterFor(processType);
 
+  // array-contains, not equality, on degreeTypes — a project open to both
+  // bachelors and masters must still be found here. Requires
+  // backfillDegreeProjectTypes.ts to have run against every pre-existing
+  // project (a legacy doc entirely missing the degreeTypes array wouldn't
+  // match array-contains at all, even if its old scalar degreeType matches).
   const snap = await db.collection('projects')
     .where('facultyId', '==', facultyId)
-    .where('degreeType', '==', filter.degreeType)
+    .where('degreeTypes', 'array-contains', filter.degreeType)
     .where('status', '==', 'in_progress') // not 'active' — that means not-yet-enrolled
     .get();
 
   let projects = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, any>));
-  if (filter.requireThesis) projects = projects.filter((p) => p.projectType === 'thesis');
-  if (filter.excludeThesis) projects = projects.filter((p) => p.projectType !== 'thesis');
+  const projectTypesOf = (p: Record<string, any>): string[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
+  if (filter.requireThesis) projects = projects.filter((p) => projectTypesOf(p).includes('thesis'));
+  if (filter.excludeThesis) projects = projects.filter((p) => !projectTypesOf(p).includes('thesis'));
 
   if (major) {
     // A project's own `major` is optional ("open to any major") — where

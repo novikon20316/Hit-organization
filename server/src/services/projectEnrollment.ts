@@ -9,34 +9,61 @@
 
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { deriveProcessType, getActiveMilestonesFor } from './workflowTemplates.js';
+import { deriveProcessType, getActiveMilestonesFor, getMilestonesForTemplateId, type WorkflowTemplateRef } from './workflowTemplates.js';
+
+export interface EnrollmentTrack {
+  degreeType: 'bachelors' | 'masters';
+  projectType: 'project' | 'thesis';
+}
 
 export async function enrollStudentInProject(
   projectId: string,
   studentId: string,
   supervisorId: string,
   facultyId: string,
+  track?: EnrollmentTrack,
 ): Promise<void> {
   const studentRef = db.collection('users').doc(studentId);
   const projectRef = db.collection('projects').doc(projectId);
 
-  // Which milestone list to use is the faculty's own currently-approved
-  // workflow template for this project's process type (msc_thesis /
-  // msc_project / bsc_project) AND subject/major — see
-  // services/workflowTemplates.ts — falling back to the same defaults this
-  // app has always used if none is approved yet. Read outside the
-  // transaction below: degreeType/projectType/major are set once at project
-  // creation and never change concurrently with enrollment, and the
-  // template itself isn't part of the invariant that transaction protects
-  // (hasActiveProject), so it doesn't need transactional consistency.
+  // Read outside the transaction below: degreeType/projectType/major/
+  // workflowTemplateRefs are set once at project creation and never change
+  // concurrently with enrollment, and the template itself isn't part of the
+  // invariant that transaction protects (hasActiveProject), so it doesn't
+  // need transactional consistency.
   const [projectSnapForTemplate, studentSnapForMajor] = await Promise.all([projectRef.get(), studentRef.get()]);
   const projectDataForTemplate = projectSnapForTemplate.data() ?? {};
-  const processType = deriveProcessType(projectDataForTemplate.degreeType, projectDataForTemplate.projectType);
-  // A project's major is optional (unset means "open to any major") — fall
-  // back to the enrolling student's own major, same precedent as
-  // reports.ts's gatherEngagements.
-  const major = projectDataForTemplate.major ?? studentSnapForMajor.data()?.major ?? null;
-  const milestoneTemplates = await getActiveMilestonesFor(facultyId, processType, major);
+  // The enrolling student's own track — explicitly chosen at apply time when
+  // the project offers more than one — falling back to the project's own
+  // primary (scalar) degreeType/projectType for manual-assignment callers
+  // that didn't specify one, and for legacy projects with a single track.
+  const resolvedDegreeType = track?.degreeType ?? projectDataForTemplate.degreeType;
+  const resolvedProjectType = track?.projectType ?? projectDataForTemplate.projectType;
+
+  // Milestones come directly from the project's own explicit
+  // workflowTemplateRefs (resolved once, at creation time — see
+  // createAdminProject/createSupervisorProject) whenever the matching entry
+  // for this student's track exists. Legacy projects created before this
+  // field existed have no workflowTemplateRefs at all — for those, fall back
+  // to the original implicit facultyId+processType+major lookup exactly as
+  // before, so every already-in-flight project keeps working unchanged.
+  const workflowTemplateRefs: WorkflowTemplateRef[] = projectDataForTemplate.workflowTemplateRefs ?? [];
+  const matchingRef = workflowTemplateRefs.find(
+    (r) => r.degreeType === resolvedDegreeType && r.projectType === resolvedProjectType
+  );
+
+  let milestoneTemplates;
+  if (matchingRef) {
+    milestoneTemplates = await getMilestonesForTemplateId(matchingRef.templateId);
+  }
+  if (!milestoneTemplates) {
+    const processType = deriveProcessType(resolvedDegreeType, resolvedProjectType);
+    // A project's major is optional (unset means "open to any major") — fall
+    // back to the enrolling student's own major, same precedent as
+    // reports.ts's gatherEngagements.
+    const major = projectDataForTemplate.major ?? studentSnapForMajor.data()?.major ?? null;
+    milestoneTemplates = await getActiveMilestonesFor(facultyId, processType, major);
+  }
 
   // Wrapped in a transaction: the three callers (supervisor approving an
   // application, admin manual assignment, faculty-admin manual assignment)

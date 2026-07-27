@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
+import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -145,7 +146,9 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
   try {
     const {
       titleHe, titleEn, descriptionHe, descriptionEn,
-      degreeType, projectType, projectInfo,
+      degreeType, degreeTypes: degreeTypesInputRaw,
+      projectType, projectTypes: projectTypesInputRaw,
+      projectInfo,
       NumberOfStudents, requiredSkills, facultyId,
       prerequisites, // ← courses a student must have completed to be eligible
       major, // ← optional; omitted means open to every major in the faculty
@@ -153,6 +156,23 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
 
     if (!titleHe?.trim() || !titleEn?.trim()) {
       return res.status(400).json({ message: 'Title in both languages is required.' });
+    }
+
+    // Backward-compatible input shape: accept either the new array fields or
+    // the old scalar ones (wrapped into a single-item array).
+    const degreeTypesInput: string[] = Array.isArray(degreeTypesInputRaw)
+      ? degreeTypesInputRaw
+      : degreeType ? [degreeType] : ['bachelors'];
+    const projectTypesInput: string[] = Array.isArray(projectTypesInputRaw)
+      ? projectTypesInputRaw
+      : projectType ? [projectType] : ['project'];
+    const degreeTypes = DEGREE_TYPE_ORDER.filter((d) => degreeTypesInput.includes(d));
+    const projectTypes = PROJECT_TYPE_ORDER.filter((t) => projectTypesInput.includes(t));
+    if (degreeTypes.length === 0) {
+      return res.status(400).json({ message: 'At least one degree type must be selected.' });
+    }
+    if (projectTypes.length === 0) {
+      return res.status(400).json({ message: 'At least one project type must be selected.' });
     }
 
     const resolvedFacultyId = facultyId ?? req.user?.facultyId ?? '';
@@ -173,6 +193,17 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       }
     }
 
+    // Every new project must be explicitly based on the faculty's currently-
+    // approved workflow template for each (degreeType, projectType)
+    // combination it's open to — see createAdminProject for the same rule.
+    const { refs: workflowTemplateRefs, missing } = await resolveWorkflowTemplateRefs(
+      resolvedFacultyId, degreeTypes, projectTypes, major ?? null
+    );
+    if (missing.length > 0) {
+      const messages = missing.map((m) => `No approved workflow template for ${m.degreeType}/${m.projectType} — approve one in Workflow Templates first.`);
+      return res.status(400).json({ message: messages.join(' ') });
+    }
+
     const newProjectRef = db.collection('projects').doc();
 
     await newProjectRef.set({
@@ -180,8 +211,11 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       titleEn,
       descriptionHe:      descriptionHe      ?? '',
       descriptionEn:      descriptionEn      ?? '',
-      degreeType:         degreeType         ?? 'bachelors',
-      projectType:        projectType        ?? 'project',
+      degreeType:         degreeTypes[0]!,
+      degreeTypes,
+      projectType:        projectTypes[0]!,
+      projectTypes,
+      workflowTemplateRefs,
       projectInfo:        projectInfo        ?? null,
       NumberOfStudents:   NumberOfStudents   ?? 1,
       requiredSkills:     requiredSkills     ?? [],
@@ -194,7 +228,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       status:             'active',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
- 
+
     return res.status(201).json({ success: true, projectId: newProjectRef.id });
   } catch (error: any) {
     console.error('createSupervisorProject Error:', error);
@@ -221,6 +255,17 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     const projectId = appSnap.data()?.projectId;
     const studentId = appSnap.data()?.studentId;
     const facultyId = appSnap.data()?.facultyId ?? '';
+    // The student's own track — degreeType is the fixed value already
+    // denormalized onto every application (see applyApplication);
+    // selectedProjectType is the student's actual choice at apply time, only
+    // present when the project offered more than one. Absent on
+    // pre-migration applications, in which case enrollStudentInProject falls
+    // back to the project's own primary degreeType/projectType.
+    const applicationDegreeType = appSnap.data()?.degreeType;
+    const selectedProjectType = appSnap.data()?.selectedProjectType;
+    const track = applicationDegreeType && selectedProjectType
+      ? { degreeType: applicationDegreeType, projectType: selectedProjectType }
+      : undefined;
 
     // Fetch project title + supervisor's display name in parallel — notifyUser
     // fetches the student's own doc (for email/push/sms) itself, so no
@@ -245,7 +290,7 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     if (decision === 'approved') {
       // 1-3. Project/student/milestone writes — shared with the admin and
       // faculty-admin manual-enrollment paths so all three stay in sync.
-      await enrollStudentInProject(projectId, studentId, supervisorId, facultyId);
+      await enrollStudentInProject(projectId, studentId, supervisorId, facultyId, track);
 
       await notifyUser({
         recipientId:      studentId,

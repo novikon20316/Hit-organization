@@ -19,6 +19,13 @@ import { db } from '../config/firebase.js';
 
 export type ProcessType = 'msc_thesis' | 'msc_project' | 'bsc_project';
 
+// Canonical ordering for picking a "primary" scalar value out of a
+// degreeTypes/projectTypes multi-select array (see createAdminProject/
+// createSupervisorProject) — deterministic regardless of checkbox click
+// order, so every existing scalar-field reader sees a stable value.
+export const DEGREE_TYPE_ORDER = ['bachelors', 'masters'] as const;
+export const PROJECT_TYPE_ORDER = ['project', 'thesis'] as const;
+
 export function deriveProcessType(degreeType: string | null | undefined, projectType: string | null | undefined): ProcessType {
   if (degreeType === 'masters') {
     return projectType === 'thesis' ? 'msc_thesis' : 'msc_project';
@@ -98,12 +105,34 @@ export const DEFAULT_MILESTONES: WorkflowMilestoneSpec[] = [
   { type: 'defense',           nameHe: 'בחינת הגנה',   nameEn: 'Defense Exam',      order: 4, dueDaysFromStart: 240, requiresExaminers: true  },
 ];
 
+// A project's explicit binding to the approved template governing one
+// (degreeType, projectType) combination it's open to — resolved once, at
+// creation time (see createAdminProject/createSupervisorProject), and
+// consulted at enrollment instead of re-deriving/re-querying (see
+// projectEnrollment.ts). One entry per combination implied by the project's
+// degreeTypes x projectTypes checkboxes; entries that collapse to the same
+// processType (bachelors ignores projectType — see deriveProcessType) simply
+// share the same templateId.
+export interface WorkflowTemplateRef {
+  degreeType: 'bachelors' | 'masters';
+  projectType: 'project' | 'thesis';
+  templateId: string;
+}
+
 const COLLECTION = 'workflowTemplates';
 
-/** The milestone list a NEW enrollment should use — the most specific
- *  approved template (exact major match), falling back to the faculty's
- *  "all majors" template (major === null), falling back to the app default. */
-export async function getActiveMilestonesFor(facultyId: string, processType: ProcessType, major: string | null): Promise<WorkflowMilestoneSpec[]> {
+/** Resolves the most specific currently-approved template for a subject —
+ *  exact major match first, falling back to the faculty's "all majors"
+ *  template (major === null). Returns null (not DEFAULT_MILESTONES) when
+ *  nothing is approved yet — callers decide for themselves whether that's a
+ *  fine fallback (enrollment, today's behavior) or a hard error (project
+ *  creation, which now requires an explicit template — see
+ *  createAdminProject/createSupervisorProject). */
+export async function findApprovedTemplateId(
+  facultyId: string,
+  processType: ProcessType,
+  major: string | null
+): Promise<{ id: string; milestones: WorkflowMilestoneSpec[] } | null> {
   const tryMajor = async (m: string | null) => {
     const snap = await db.collection(COLLECTION)
       .where('facultyId', '==', facultyId)
@@ -113,14 +142,70 @@ export async function getActiveMilestonesFor(facultyId: string, processType: Pro
       .limit(1)
       .get();
     if (snap.empty) return null;
-    const milestones = (snap.docs[0]!.data().milestones ?? []) as WorkflowMilestoneSpec[];
-    return milestones.length > 0 ? milestones : null;
+    const doc = snap.docs[0]!;
+    const milestones = (doc.data().milestones ?? []) as WorkflowMilestoneSpec[];
+    return milestones.length > 0 ? { id: doc.id, milestones } : null;
   };
 
   const exact = major ? await tryMajor(major) : null;
-  const resolved = exact ?? (major ? await tryMajor(null) : null);
+  return exact ?? (major ? await tryMajor(null) : null);
+}
+
+/** The milestone list a NEW enrollment should use, falling back to the app
+ *  default when no template has been approved yet (the fallback path for
+ *  legacy projects with no workflowTemplateRefs of their own — see
+ *  projectEnrollment.ts). */
+export async function getActiveMilestonesFor(facultyId: string, processType: ProcessType, major: string | null): Promise<WorkflowMilestoneSpec[]> {
+  const resolved = await findApprovedTemplateId(facultyId, processType, major);
   if (!resolved) return DEFAULT_MILESTONES;
-  return resolved.slice().sort((a, b) => a.order - b.order);
+  return resolved.milestones.slice().sort((a, b) => a.order - b.order);
+}
+
+/** Resolves the full workflowTemplateRefs array for a project being created
+ *  in one faculty, open to the given degreeTypes x projectTypes combinations.
+ *  Combinations that collapse to the same processType (bachelors ignores
+ *  projectType) naturally resolve to the same templateId — no special-casing
+ *  needed. `missing` lists every combination with no approved template, for
+ *  the caller to hard-block creation on (see createAdminProject/
+ *  createSupervisorProject) rather than silently falling back to defaults. */
+export async function resolveWorkflowTemplateRefs(
+  facultyId: string,
+  degreeTypes: ('bachelors' | 'masters')[],
+  projectTypes: ('project' | 'thesis')[],
+  major: string | null
+): Promise<{ refs: WorkflowTemplateRef[]; missing: { degreeType: string; projectType: string }[] }> {
+  const refs: WorkflowTemplateRef[] = [];
+  const missing: { degreeType: string; projectType: string }[] = [];
+  // One Firestore lookup per distinct processType, not per (degreeType,
+  // projectType) pair — bachelors always collapses to bsc_project regardless
+  // of which projectType boxes are checked.
+  const resolvedByProcessType = new Map<ProcessType, string | null>();
+
+  for (const degreeType of degreeTypes) {
+    for (const projectType of projectTypes) {
+      const processType = deriveProcessType(degreeType, projectType);
+      if (!resolvedByProcessType.has(processType)) {
+        const found = await findApprovedTemplateId(facultyId, processType, major);
+        resolvedByProcessType.set(processType, found?.id ?? null);
+      }
+      const templateId = resolvedByProcessType.get(processType) ?? null;
+      if (templateId) refs.push({ degreeType, projectType, templateId });
+      else missing.push({ degreeType, projectType });
+    }
+  }
+
+  return { refs, missing };
+}
+
+/** Fetches a specific template's milestones by id, sorted — used at
+ *  enrollment time when the project already carries an explicit
+ *  workflowTemplateRefs entry (see projectEnrollment.ts). Returns null if the
+ *  template no longer exists (deleted after the project was created). */
+export async function getMilestonesForTemplateId(templateId: string): Promise<WorkflowMilestoneSpec[] | null> {
+  const snap = await db.collection(COLLECTION).doc(templateId).get();
+  if (!snap.exists) return null;
+  const milestones = (snap.data()?.milestones ?? []) as WorkflowMilestoneSpec[];
+  return milestones.slice().sort((a, b) => a.order - b.order);
 }
 
 export async function listWorkflowTemplates(facultyId: string, major?: string | null): Promise<WorkflowTemplateDoc[]> {

@@ -20,6 +20,7 @@
 import { db } from '../config/firebase.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { ActionType, ViewType, ScopeDescriptor } from '../config/permissionScopes.js';
+import { VALID_SCOPE_FACULTY_IDS } from '../config/permissionScopes.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
@@ -56,6 +57,30 @@ export function hasActionGrant(user: AuthUser | undefined, action: ActionType, r
   return user.permissionRules.some(
     (rule) => scopeMatches(rule, resource) && (rule.actions.includes(action) || rule.actions.includes('all_actions'))
   );
+}
+
+/** Enumerates every facultyId `user` may exercise `action` in — the faculty
+ *  checkbox options for the multi-faculty Add Project flow. Unlike
+ *  hasActionGrant (which answers "does this one candidate resource match"),
+ *  this lists every match. system_admin gets every real faculty (never the
+ *  'all' sentinel itself, which isn't a postable faculty). Everyone else
+ *  starts from their own facultyId (mirrors createAdminProject's existing
+ *  withinOwnFaculty bypass — no explicit grant needed for a staff member's
+ *  own faculty) plus whatever permissionRules explicitly grant the action,
+ *  expanding a rule's facultyId:'all' to every real faculty. */
+export function grantedFacultyIdsFor(user: AuthUser | undefined, action: ActionType): string[] {
+  if (!user) return [];
+  const realFacultyIds = VALID_SCOPE_FACULTY_IDS.filter((id) => id !== 'all');
+  if (isSystemAdmin(user)) return realFacultyIds;
+
+  const ids = new Set<string>();
+  if (user.facultyId && user.facultyId !== 'all') ids.add(user.facultyId);
+  for (const rule of user.permissionRules) {
+    if (!(rule.actions.includes(action) || rule.actions.includes('all_actions'))) continue;
+    if (rule.facultyId === 'all') realFacultyIds.forEach((id) => ids.add(id));
+    else ids.add(rule.facultyId);
+  }
+  return [...ids];
 }
 
 /** True if `user` holds a permissionRule granting `view` over `resource`. system_admin always true. */
