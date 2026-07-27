@@ -56,9 +56,48 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read:  if isSignedIn();   // any signed-in user can read profiles
-      allow write: if isSignedIn() && (
-        request.auth.uid == userId || isStaffRole(userDoc())
-      );
+
+      // CRITICAL FIX: this used to be a single unrestricted `allow write`
+      // covering create+update+delete, granted to (a) the doc's own owner
+      // or (b) any staff role — with NO field restriction on either branch.
+      // Branch (a) meant any signed-in user, including a plain student,
+      // could self-escalate to system_admin with one client-side call:
+      //   updateDoc(doc(db,'users',uid), { role: 'system_admin', facultyId: 'all' })
+      // Branch (b) was just as bad from the other direction: ANY staff role
+      // (even a low-trust one like internal_examiner) could rewrite ANY
+      // field — role, facultyId, permissionRules, coordinatorScopes,
+      // isActive — on ANY other user's account, since it never checked
+      // userId != request.auth.uid or restricted which fields could change.
+      // There is no Firebase custom-claims setup and no Cloud Function in
+      // this project to re-derive/backstop role server-side against this —
+      // server/src/middleware/auth.ts's verifyToken trusts this exact doc.
+      //
+      // Real account creation/role changes/permission grants all already go
+      // through the Express API using the Admin SDK (which bypasses these
+      // rules entirely) — see userController.ts's syncData,
+      // adminController.ts's updateUserRoleAdmin/updateUserPermissions,
+      // facultyAdminController.ts. A repo-wide search found no live client
+      // code creating a users doc directly, and exactly one live direct
+      // field write to another user's doc: faculty_admin/dashboard.tsx's
+      // isActive toggle. Everything else must go through the server.
+      allow create: if false;
+      allow delete: if false;
+
+      // Self-service — restricted to profile fields that carry no privilege.
+      // Add to this allowlist only if a field is confirmed to never affect
+      // role/scope/eligibility.
+      allow update: if isSignedIn() && request.auth.uid == userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'displayNameHe', 'displayNameEn', 'language'
+        ]);
+
+      // Staff editing ANOTHER user's account — also field-restricted, and
+      // explicitly excludes self (a staff member editing their own doc must
+      // go through the self-service branch above, not this broader one).
+      allow update: if isSignedIn() && userId != request.auth.uid && isStaffRole(userDoc()) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isActive'
+        ]);
 
       // TOTP secret/recovery-hash — server (Admin SDK) only. Admin SDK bypasses
       // rules entirely, so this doesn't break 2FA; it just stops the parent

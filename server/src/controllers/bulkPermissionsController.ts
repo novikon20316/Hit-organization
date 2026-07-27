@@ -16,7 +16,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { VALID_ROLES } from '../services/userImportExport.js';
-import { validateScopeDescriptor, VIEW_TYPES, ACTION_TYPES, type ViewType, type ActionType, type ScopeRule } from '../config/permissionScopes.js';
+import { validateScopeDescriptor, VIEW_TYPES, ACTION_TYPES, DELEGATE_RESTRICTED_ACTIONS, type ViewType, type ActionType, type ScopeRule } from '../config/permissionScopes.js';
 import { logAuditEvent } from '../services/auditLog.js';
 
 // system_admin: fully unscoped (any role, any faculty). faculty_admin: scoped
@@ -89,6 +89,18 @@ export const applyPermissionsToRole = async (req: AuthenticatedRequest, res: Res
   }
   if (!Array.isArray(actions) || actions.length === 0 || !actions.every((a: unknown) => ACTION_TYPES.includes(a as ActionType))) {
     return res.status(400).json({ message: 'actions must be a non-empty array of valid action types.' });
+  }
+
+  // CRITICAL FIX: adminController.ts's updateUserRoleAdmin already blocks a
+  // delegate (faculty_admin/program_head/grad_school_head) from ever
+  // granting delete_users/all_actions — this endpoint writes the exact same
+  // permissionRules structure but never had the same check. A faculty_admin
+  // could call this with targetRole: 'faculty_admin', actions: ['all_actions']
+  // and grant every faculty_admin in their faculty (including themselves)
+  // system_admin-equivalent power; a grad_school_head (cross-faculty by
+  // design) could do the same institution-wide with facultyId: 'all'.
+  if (callerRole !== 'system_admin' && actions.some((a: ActionType) => DELEGATE_RESTRICTED_ACTIONS.includes(a))) {
+    return res.status(403).json({ message: 'Only system_admin may grant delete_users or all_actions.' });
   }
 
   // A faculty_admin's bulk grant can never escape their own faculty, no
