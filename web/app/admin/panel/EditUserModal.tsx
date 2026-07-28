@@ -45,6 +45,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   );
   const [facultyId, setFacultyId] = useState<string>(user.facultyId);
   const [assignedMajors, setAssignedMajors] = useState<string[]>(user.assignedMajors ?? []);
+  const [supervisorFacultyIds, setSupervisorFacultyIds] = useState<string[]>(user.supervisorFacultyIds ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -100,6 +101,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
     setAssignedMajors((prev) => (prev.includes(slug) ? prev.filter((m) => m !== slug) : [...prev, slug]));
   };
 
+  const toggleSupervisorFaculty = (id: string) => {
+    setSupervisorFacultyIds((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
+  };
+
   const handleFacultyChange = (value: string) => {
     setFacultyId(value);
     const validSlugs = new Set(majorsForFaculty(value).map((m) => m.slug));
@@ -115,6 +120,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
         roles: [role, ...additionalRoles.filter((r) => r !== role)],
         facultyId,
         assignedMajors: isSupervisorLike ? assignedMajors : undefined,
+        supervisorFacultyIds: isSupervisorLike ? supervisorFacultyIds : undefined,
         permissionRules,
         coordinatorScopes: showCoordinatorScopes ? coordinatorScopes : undefined,
       });
@@ -226,6 +232,40 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                 {assignedMajorOptions.length === 0 && (
                   <span className="text-xs text-muted">{lang === 'he' ? 'אין מגמות לפקולטה זו' : 'No majors for this faculty'}</span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Only relevant for a cross-faculty account (facultyId 'all' —
+              e.g. system_admin): a plain single-faculty supervisor is already
+              scoped correctly by their own facultyId above, and this field
+              is ignored server-side for them either way. */}
+          {isSupervisorLike && facultyId === 'all' && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'הגבלת זמינות כמנחה לפקולטות מסוימות (אופציונלי)' : 'Restrict Supervisor Availability to Specific Faculties (optional)'}
+              </span>
+              <p className="mb-1.5 text-xs text-muted">
+                {lang === 'he'
+                  ? 'ללא בחירה — המשתמש יופיע כמנחה זמין בכל הפקולטות (ברירת המחדל לתפקיד חוצה-פקולטות). סמן פקולטות ספציפיות כדי להגביל אליהן בלבד.'
+                  : "Leave unselected — this account will appear as an available supervisor in EVERY faculty (the default for a cross-faculty role). Check specific faculties to restrict it to only those."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {VALID_FACULTY_IDS.filter((id) => id !== 'all').map((id) => {
+                  const checked = supervisorFacultyIds.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleSupervisorFaculty(id)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                      }`}
+                    >
+                      {facultyLabel(id, lang)}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -255,6 +255,14 @@ export interface UserDoc {
    *  unrestricted (all majors in their faculty). See
    *  server/src/controllers/adminController.ts. */
   assignedMajors?: string[];
+  /** Narrows a CROSS-FACULTY account's (facultyId 'all' — e.g. system_admin)
+   *  supervisor-like role down to specific faculties. By default such an
+   *  account is a supervisor option in EVERY faculty — this only ever
+   *  restricts that, never grants beyond it. Empty/unset means "available
+   *  everywhere" — the common case. Not meaningful for a plain
+   *  single-faculty supervisor (their own facultyId already scopes them
+   *  correctly). See server/src/controllers/adminController.ts. */
+  supervisorFacultyIds?: string[];
   /** Elastic per-user scope-rule grants (system_admin-managed) — see
    *  lib/permissions.ts. Empty/unset means no granular grants beyond the
    *  account's role. */

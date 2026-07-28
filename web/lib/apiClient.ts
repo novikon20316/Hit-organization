@@ -401,11 +401,13 @@ export const apiClient = {
       roles?: string[];
       facultyId?: string;
       assignedMajors?: string[];
-      /** Faculty/faculties a supervisor-like (primary or additional) role
-       *  applies to — only needed for a cross-faculty account whose own
-       *  facultyId is the 'all' sentinel (e.g. system_admin), so they can
-       *  still be surfaced as a supervisor option for a specific faculty's
-       *  Add Project modal. See adminController.ts's getSupervisorsList. */
+      /** Narrows a CROSS-FACULTY account's (facultyId 'all' — e.g.
+       *  system_admin) supervisor-like role down to specific faculties. By
+       *  default such an account is a supervisor option in EVERY faculty;
+       *  this only ever restricts that, never grants beyond it. Empty/unset
+       *  means "available everywhere" — the common case. Not meaningful for
+       *  a plain single-faculty supervisor. See adminController.ts's
+       *  getSupervisorsList. */
       supervisorFacultyIds?: string[];
       /** system_admin, or a delegate (faculty_admin/program_head/
        *  grad_school_head) granting within their own scope — see
