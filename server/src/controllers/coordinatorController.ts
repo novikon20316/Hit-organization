@@ -9,8 +9,9 @@ import {
   resolveReplaceExaminer,
   openDefenseSchedulingIfPanelReady,
 } from '../services/defenseScheduling.js';
-import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
-import { deriveProcessType } from '../services/workflowTemplates.js';
+import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
+import { deriveProcessType, type ChainStage } from '../services/workflowTemplates.js';
+import { authorizeStageActor, isChainDriven, statusForStage } from '../services/milestoneRouting.js';
 import { notifyUser } from '../services/notify.js';
 
 // Matches the Firestore project document shape exactly
@@ -525,6 +526,131 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
   }
 };
 
+/** Shared by both the legacy last-stage approve and the chain's last-stage
+ *  approve — grade is already final by this point, notify student(s) with
+ *  their grade plus the supervisor, best-effort (a notify failure must never
+ *  turn an already-committed approval into a 500). */
+async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.DocumentData, milestoneId: string): Promise<void> {
+  const projectId: string | undefined = milestone.projectId;
+  const supervisorId: string | undefined = milestone.supervisorId;
+  const studentIds: string[] = milestone.studentIds ?? [];
+  const finalGradeByStudent: Record<string, number> | undefined = milestone.finalGradeByStudent;
+  const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
+
+  await Promise.all(studentIds.map(async (studentId) => {
+    try {
+      const grade = finalGradeByStudent?.[studentId] ?? milestone.finalGrade;
+      await notifyUser({
+        recipientId: studentId,
+        type: 'milestone_graded',
+        titleHe: 'אבן דרך אושרה על ידי הרכז',
+        titleEn: 'Milestone approved by coordinator',
+        bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה${grade != null ? ` עם ציון ${grade}` : ''}. בדוק/י בטאב הציונים של הפרויקט שלך.`,
+        bodyEn: `Your milestone "${milestoneTitle.en}" has been approved${grade != null ? ` with grade ${grade}` : ''}. Check your project's Grades section.`,
+        relatedProjectId: projectId ?? null,
+        relatedMilestoneId: milestoneId,
+        emailData: { milestoneTitle, grade: grade != null ? String(grade) : '' },
+      });
+    } catch (notifyError) {
+      console.error(`notifyMilestoneApprovalComplete: student notify failed for ${studentId} on milestone ${milestoneId}:`, notifyError);
+    }
+  }));
+
+  if (supervisorId) {
+    try {
+      await notifyUser({
+        recipientId: supervisorId,
+        type: 'milestone_graded',
+        titleHe: 'אבן דרך אושרה',
+        titleEn: 'Milestone approved',
+        bodyHe: `הרכז אישר את אבן הדרך "${milestoneTitle.he}".`,
+        bodyEn: `The coordinator approved milestone "${milestoneTitle.en}".`,
+        relatedProjectId: projectId ?? null,
+        relatedMilestoneId: milestoneId,
+        channels: { email: false, sms: false },
+      });
+    } catch (notifyError) {
+      console.error(`notifyMilestoneApprovalComplete: supervisor notify failed for ${supervisorId} on milestone ${milestoneId}:`, notifyError);
+    }
+  }
+}
+
+/** Chain-aware branch of coordinatorApproveMilestone — advances to the next
+ *  configured stage, or (on the chain's last stage) finalizes exactly like
+ *  the legacy path does, reusing the same 'coordinator_approved' status and
+ *  notification regardless of which role actually approved it. */
+async function approveChainMilestone(
+  req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string,
+): Promise<Response> {
+  const routing: ChainStage[] = milestone.routing;
+  const currentStageIndex: number = milestone.currentStageIndex ?? 0;
+  const stage = routing[currentStageIndex];
+  if (!stage || stage.action !== 'approve') {
+    return res.status(400).json({ message: 'This milestone is not currently awaiting an approval.' });
+  }
+
+  const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: milestone.facultyId ?? '' };
+  const projectSupervisorIds = [milestone.supervisorId].filter(Boolean);
+  const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds);
+  if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
+
+  const milestoneRef = db.collection('milestones').doc(milestoneId);
+  let previousStatus: string | undefined;
+  let finalized = false;
+  let finalizedMilestone: FirebaseFirestore.DocumentData | undefined;
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const freshSnap = await transaction.get(milestoneRef);
+      if (!freshSnap.exists) throw new Error('Milestone not found.');
+      const fresh = freshSnap.data()!;
+      const freshRouting: ChainStage[] = fresh.routing ?? [];
+      const freshIndex: number = fresh.currentStageIndex ?? 0;
+      const currentStage = freshRouting[freshIndex];
+      if (!currentStage || currentStage.id !== stage.id) {
+        throw new Error('This milestone has moved on from this approval stage — refresh and try again.');
+      }
+      previousStatus = fresh.status;
+
+      const nextStage = freshRouting[freshIndex + 1];
+      const update: Record<string, any> = { stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() };
+      if (nextStage) {
+        update.currentStageIndex = freshIndex + 1;
+        update.status = statusForStage(nextStage);
+      } else {
+        update.status = 'coordinator_approved';
+        update.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
+        update.coordinatorId = actorId;
+        finalized = true;
+        finalizedMilestone = { ...fresh, ...update };
+      }
+      transaction.update(milestoneRef, update);
+    });
+
+    await logAuditEvent({
+      userId: actorId,
+      userRole: req.user?.role ?? stage.role,
+      action: 'milestone_approved',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { status: previousStatus ?? null },
+      newValue: { stageId: stage.id, finalized },
+    });
+
+    if (finalized && finalizedMilestone) {
+      await notifyMilestoneApprovalComplete(finalizedMilestone, milestoneId);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: finalized ? 'Milestone approved by coordinator.' : 'Stage approved — advanced to the next reviewer.',
+    });
+  } catch (error: any) {
+    console.error('approveChainMilestone error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to approve milestone.' });
+  }
+}
+
 /**
  * POST /api/coordinator/milestones/:milestoneId/approve
  * Coordinator approves a submitted milestone.
@@ -541,6 +667,18 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (!coordinatorId) {
     return res.status(401).json({ message: 'Unauthorized.' });
   }
+
+  // Chain-driven (non-defense) milestone — the stage acting now might not be
+  // coordinator-tier at all (could be faculty_admin, grad_school_head, ...),
+  // so this bypasses the COORDINATOR_ROLES gate below entirely in favor of
+  // authorizeStageActor, which checks the milestone's own configured chain.
+  const preSnap = await db.collection('milestones').doc(milestoneId).get();
+  if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+  const preData = preSnap.data()!;
+  if (isChainDriven(preData)) {
+    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId);
+  }
+
   if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
@@ -645,6 +783,155 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   }
 };
 
+/** Chain-aware branch of coordinatorRejectMilestone. `rejectTo === 'student'`
+ *  behaves exactly like the legacy path (status:'rejected', chain restarts
+ *  at stage 0, student+supervisor notified). Any other rejectTo is a silent
+ *  staff-internal reroute: currentStageIndex jumps to that stage, status
+ *  becomes whatever that stage's action maps to, and ONLY that stage's
+ *  resolved staff are notified — the student sees no rejection at all. */
+async function rejectChainMilestone(
+  req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string, reason: string,
+): Promise<Response> {
+  const routing: ChainStage[] = milestone.routing;
+  const currentStageIndex: number = milestone.currentStageIndex ?? 0;
+  const stage = routing[currentStageIndex];
+  if (!stage || stage.action !== 'approve') {
+    return res.status(400).json({ message: 'This milestone is not currently awaiting an approval, so it cannot be rejected here.' });
+  }
+
+  const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: milestone.facultyId ?? '' };
+  const projectSupervisorIds = [milestone.supervisorId].filter(Boolean);
+  const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds);
+  if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
+
+  const rejectsToStudent = stage.rejectTo === 'student';
+  const targetIndex = rejectsToStudent ? -1 : routing.findIndex((s) => s.id === stage.rejectTo);
+  if (!rejectsToStudent && targetIndex === -1) {
+    // Should never happen — workflowTemplateController.ts's validateRoutingChain
+    // rejects a rejectTo that doesn't resolve to a real stage id at proposal
+    // time. Fail closed rather than silently mis-routing if it somehow does.
+    return res.status(400).json({ message: "This stage's configured rejection target no longer exists in the chain." });
+  }
+
+  const milestoneRef = db.collection('milestones').doc(milestoneId);
+  let previousStatus: string | undefined;
+  let rejectedMilestone: FirebaseFirestore.DocumentData | undefined;
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const freshSnap = await transaction.get(milestoneRef);
+      if (!freshSnap.exists) throw new Error('Milestone not found.');
+      const fresh = freshSnap.data()!;
+      const freshRouting: ChainStage[] = fresh.routing ?? [];
+      const freshIndex: number = fresh.currentStageIndex ?? 0;
+      const currentStage = freshRouting[freshIndex];
+      if (!currentStage || currentStage.id !== stage.id) {
+        throw new Error('This milestone has moved on from this approval stage — refresh and try again.');
+      }
+      previousStatus = fresh.status;
+      rejectedMilestone = fresh;
+
+      if (rejectsToStudent) {
+        transaction.update(milestoneRef, {
+          status: 'rejected',
+          currentStageIndex: 0,
+          coordinatorRejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+          coordinatorId: actorId,
+          rejectionReason: reason,
+          stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        const studentIds: string[] = fresh.studentIds ?? [];
+        studentIds.forEach((studentId) => {
+          transaction.set(db.collection('notifications').doc(), {
+            recipientId: studentId,
+            type: 'milestone_coordinator_rejected',
+            titleHe: 'אבן דרך נדחתה',
+            titleEn: 'Milestone rejected',
+            bodyHe: `אבן הדרך "${fresh.nameEn ?? fresh.type}" נדחתה. סיבה: ${reason}`,
+            bodyEn: `Milestone "${fresh.nameEn ?? fresh.type}" was rejected. Reason: ${reason}`,
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            relatedProjectId: fresh.projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            chatId: null,
+          });
+        });
+        if (fresh.supervisorId) {
+          transaction.set(db.collection('notifications').doc(), {
+            recipientId: fresh.supervisorId,
+            type: 'milestone_coordinator_rejected',
+            titleHe: 'אבן דרך נדחתה על ידי הרכז',
+            titleEn: 'Milestone rejected by coordinator',
+            bodyHe: `הרכז דחה את אבן הדרך "${fresh.nameEn ?? fresh.type}". סיבה: ${reason}`,
+            bodyEn: `The coordinator rejected milestone "${fresh.nameEn ?? fresh.type}". Reason: ${reason}`,
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            relatedProjectId: fresh.projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            chatId: null,
+          });
+        }
+      } else {
+        const targetStage = freshRouting[targetIndex]!;
+        transaction.update(milestoneRef, {
+          status: statusForStage(targetStage),
+          currentStageIndex: targetIndex,
+          stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+          // Deliberately no coordinatorRejectedAt/rejectionReason/status:
+          // 'rejected' here — this is an internal staff reroute, not a
+          // student-facing rejection (see the "fully silent" scope decision).
+        });
+      }
+    });
+
+    await logAuditEvent({
+      userId: actorId,
+      userRole: req.user?.role ?? stage.role,
+      action: 'milestone_rejected',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { status: previousStatus ?? null },
+      newValue: { stageId: stage.id, rejectTo: stage.rejectTo },
+      explanation: reason,
+    });
+
+    // Silent reroute's notification needs an async role→uid resolution, so
+    // it happens after the transaction commits — same "external I/O never
+    // inside db.runTransaction" rule the legacy path already follows.
+    if (!rejectsToStudent && rejectedMilestone) {
+      const targetStage = routing[targetIndex]!;
+      const targetUids = await resolveStaffForScope(targetStage.role, resource, projectSupervisorIds);
+      const milestoneTitle = { he: rejectedMilestone.nameHe ?? rejectedMilestone.type ?? '', en: rejectedMilestone.nameEn ?? rejectedMilestone.type ?? '' };
+      await Promise.all(targetUids.map(async (uid) => {
+        try {
+          await notifyUser({
+            recipientId: uid,
+            type: 'general',
+            titleHe: 'אבן דרך הוחזרה אליך לבדיקה',
+            titleEn: 'A milestone was routed back to you',
+            bodyHe: `אבן הדרך "${milestoneTitle.he}" הוחזרה לבדיקתך. סיבה: ${reason}`,
+            bodyEn: `Milestone "${milestoneTitle.en}" was routed back to you for review. Reason: ${reason}`,
+            relatedProjectId: rejectedMilestone!.projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            channels: { email: false, sms: false },
+          });
+        } catch (notifyError) {
+          console.error(`rejectChainMilestone: reroute notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);
+        }
+      }));
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: rejectsToStudent ? 'Milestone rejected.' : 'Milestone routed back internally.',
+    });
+  } catch (error: any) {
+    console.error('rejectChainMilestone error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to reject milestone.' });
+  }
+}
+
 /**
  * POST /api/coordinator/milestones/:milestoneId/reject
  * Coordinator rejects a submitted milestone with a reason.
@@ -663,11 +950,19 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   if (!coordinatorId) {
     return res.status(401).json({ message: 'Unauthorized.' });
   }
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
-  }
   if (!reason || typeof reason !== 'string') {
     return res.status(400).json({ message: 'A rejection reason is required.' });
+  }
+
+  const preSnap = await db.collection('milestones').doc(milestoneId).get();
+  if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+  const preData = preSnap.data()!;
+  if (isChainDriven(preData)) {
+    return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason);
+  }
+
+  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
 
   const rejectMilestoneScope = await resolveMilestoneScope(milestoneId);

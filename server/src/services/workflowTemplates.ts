@@ -80,6 +80,16 @@ export const DEFAULT_ROUTING: MilestoneRoutingSpec = [
   { id: 'coordinator', role: 'coordinator', action: 'approve', rejectTo: 'student' },
 ];
 
+/** The chain a given milestone spec should snapshot at creation time — its
+ *  own override, else the template's default, else DEFAULT_ROUTING (for
+ *  templates that predate this feature, or no-template legacy defaults). */
+export function resolveMilestoneRouting(
+  spec: WorkflowMilestoneSpec,
+  templateDefaultRouting: MilestoneRoutingSpec | null | undefined
+): MilestoneRoutingSpec {
+  return spec.routing ?? templateDefaultRouting ?? DEFAULT_ROUTING;
+}
+
 export interface WorkflowMilestoneSpec {
   type: string;
   nameHe: string;
@@ -175,7 +185,7 @@ export async function findApprovedTemplateId(
   facultyId: string,
   processType: ProcessType,
   major: string | null
-): Promise<{ id: string; milestones: WorkflowMilestoneSpec[] } | null> {
+): Promise<{ id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec } | null> {
   const tryMajor = async (m: string | null) => {
     const snap = await db.collection(COLLECTION)
       .where('facultyId', '==', facultyId)
@@ -186,8 +196,12 @@ export async function findApprovedTemplateId(
       .get();
     if (snap.empty) return null;
     const doc = snap.docs[0]!;
-    const milestones = (doc.data().milestones ?? []) as WorkflowMilestoneSpec[];
-    return milestones.length > 0 ? { id: doc.id, milestones } : null;
+    const data = doc.data();
+    const milestones = (data.milestones ?? []) as WorkflowMilestoneSpec[];
+    if (milestones.length === 0) return null;
+    const result: { id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec } = { id: doc.id, milestones };
+    if (data.defaultRouting) result.defaultRouting = data.defaultRouting as MilestoneRoutingSpec;
+    return result;
   };
 
   const exact = major ? await tryMajor(major) : null;
@@ -197,11 +211,18 @@ export async function findApprovedTemplateId(
 /** The milestone list a NEW enrollment should use, falling back to the app
  *  default when no template has been approved yet (the fallback path for
  *  legacy projects with no workflowTemplateRefs of their own — see
- *  projectEnrollment.ts). */
-export async function getActiveMilestonesFor(facultyId: string, processType: ProcessType, major: string | null): Promise<WorkflowMilestoneSpec[]> {
+ *  projectEnrollment.ts). Also surfaces the template's defaultRouting (if
+ *  any) so callers can snapshot each created milestone's resolved chain. */
+export async function getActiveMilestonesFor(
+  facultyId: string, processType: ProcessType, major: string | null
+): Promise<{ milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec }> {
   const resolved = await findApprovedTemplateId(facultyId, processType, major);
-  if (!resolved) return DEFAULT_MILESTONES;
-  return resolved.milestones.slice().sort((a, b) => a.order - b.order);
+  if (!resolved) return { milestones: DEFAULT_MILESTONES };
+  const result: { milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec } = {
+    milestones: resolved.milestones.slice().sort((a, b) => a.order - b.order),
+  };
+  if (resolved.defaultRouting) result.defaultRouting = resolved.defaultRouting;
+  return result;
 }
 
 /** Resolves the full workflowTemplateRefs array for a project being created
@@ -240,15 +261,22 @@ export async function resolveWorkflowTemplateRefs(
   return { refs, missing };
 }
 
-/** Fetches a specific template's milestones by id, sorted — used at
- *  enrollment time when the project already carries an explicit
- *  workflowTemplateRefs entry (see projectEnrollment.ts). Returns null if the
- *  template no longer exists (deleted after the project was created). */
-export async function getMilestonesForTemplateId(templateId: string): Promise<WorkflowMilestoneSpec[] | null> {
+/** Fetches a specific template's milestones by id, sorted, plus its
+ *  defaultRouting (if any) — used at enrollment time when the project
+ *  already carries an explicit workflowTemplateRefs entry (see
+ *  projectEnrollment.ts) and at track-change time (see trackChange.ts).
+ *  Returns null if the template no longer exists (deleted after the project
+ *  was created). */
+export async function getMilestonesForTemplateId(
+  templateId: string
+): Promise<{ milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec } | null> {
   const snap = await db.collection(COLLECTION).doc(templateId).get();
   if (!snap.exists) return null;
-  const milestones = (snap.data()?.milestones ?? []) as WorkflowMilestoneSpec[];
-  return milestones.slice().sort((a, b) => a.order - b.order);
+  const data = snap.data() ?? {};
+  const milestones = ((data.milestones ?? []) as WorkflowMilestoneSpec[]).slice().sort((a, b) => a.order - b.order);
+  const result: { milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec } = { milestones };
+  if (data.defaultRouting) result.defaultRouting = data.defaultRouting as MilestoneRoutingSpec;
+  return result;
 }
 
 export async function listWorkflowTemplates(facultyId: string, major?: string | null): Promise<WorkflowTemplateDoc[]> {

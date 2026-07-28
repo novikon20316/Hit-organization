@@ -21,6 +21,12 @@ export interface MilestoneDoc {
   createdAt?: FirebaseFirestore.Timestamp | null;
   submittedAt?: FirebaseFirestore.Timestamp | null;
   gradedAt?: FirebaseFirestore.Timestamp | null;
+  /** Generic "entered this chain stage" timestamp, written on every
+   *  grade/approve/reject transition for chain-driven (configurable-routing)
+   *  milestones — see milestoneRouting.ts. Checked first below since it's
+   *  the only field that stays accurate for chains longer than the old fixed
+   *  2-stage supervisor→coordinator path. */
+  stageEnteredAt?: FirebaseFirestore.Timestamp | null;
   coordinatorApprovedAt?: FirebaseFirestore.Timestamp | null;
   approvedAt?: FirebaseFirestore.Timestamp | null;
   examinerIds?: string[];
@@ -82,6 +88,7 @@ function totalPausedMs(pauses: ClockPause[], windowStartMs: number, windowEndMs:
  */
 function stageEnteredAt(milestone: MilestoneDoc): FirebaseFirestore.Timestamp | null {
   return (
+    milestone.stageEnteredAt ??
     milestone.gradedAt ??
     milestone.submittedAt ??
     milestone.coordinatorApprovedAt ??

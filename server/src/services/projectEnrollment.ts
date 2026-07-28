@@ -9,7 +9,10 @@
 
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { deriveProcessType, getActiveMilestonesFor, getMilestonesForTemplateId, type WorkflowTemplateRef } from './workflowTemplates.js';
+import {
+  deriveProcessType, getActiveMilestonesFor, getMilestonesForTemplateId, resolveMilestoneRouting,
+  type WorkflowMilestoneSpec, type MilestoneRoutingSpec, type WorkflowTemplateRef,
+} from './workflowTemplates.js';
 
 export interface EnrollmentTrack {
   degreeType: 'bachelors' | 'masters';
@@ -52,9 +55,14 @@ export async function enrollStudentInProject(
     (r) => r.degreeType === resolvedDegreeType && r.projectType === resolvedProjectType
   );
 
-  let milestoneTemplates;
+  let milestoneTemplates: WorkflowMilestoneSpec[] | undefined;
+  let templateDefaultRouting: MilestoneRoutingSpec | undefined;
   if (matchingRef) {
-    milestoneTemplates = await getMilestonesForTemplateId(matchingRef.templateId);
+    const resolved = await getMilestonesForTemplateId(matchingRef.templateId);
+    if (resolved) {
+      milestoneTemplates = resolved.milestones;
+      templateDefaultRouting = resolved.defaultRouting;
+    }
   }
   if (!milestoneTemplates) {
     const processType = deriveProcessType(resolvedDegreeType, resolvedProjectType);
@@ -62,7 +70,9 @@ export async function enrollStudentInProject(
     // back to the enrolling student's own major, same precedent as
     // reports.ts's gatherEngagements.
     const major = projectDataForTemplate.major ?? studentSnapForMajor.data()?.major ?? null;
-    milestoneTemplates = await getActiveMilestonesFor(facultyId, processType, major);
+    const resolved = await getActiveMilestonesFor(facultyId, processType, major);
+    milestoneTemplates = resolved.milestones;
+    templateDefaultRouting = resolved.defaultRouting;
   }
 
   // Wrapped in a transaction: the three callers (supervisor approving an
@@ -110,10 +120,18 @@ export async function enrollStudentInProject(
         // Examiner/defense-panel fields only make sense on a milestone the
         // template marked as requiring examiners — writing them onto e.g.
         // research_proposal/progress_report otherwise just leaves permanent
-        // dead clutter on those docs.
+        // dead clutter on those docs. Non-examiner milestones instead
+        // snapshot the configurable approval/rejection chain — examiner
+        // (defense) milestones keep running their own separate engine
+        // untouched (see milestoneRouting.ts's isChainDriven).
         ...(t.requiresExaminers
           ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
-          : {}),
+          : {
+              routing: resolveMilestoneRouting(t, templateDefaultRouting),
+              currentStageIndex: 0,
+              stageScores: {},
+              stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+            }),
       });
     }
   });

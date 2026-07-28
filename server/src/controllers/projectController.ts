@@ -7,7 +7,9 @@ import admin from 'firebase-admin';
 import { logAuditEvent } from '../services/auditLog.js';
 import { computeWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
-import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { resolveMilestoneScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { authorizeStageActor, computeChainFinalGrade, isChainDriven } from '../services/milestoneRouting.js';
+import type { ChainStage } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -120,6 +122,95 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       return res.status(409).json({
         message: 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.',
       });
+    }
+
+    // Chain-driven (non-defense) milestone — read who's allowed to grade at
+    // its current stage from the configured chain instead of the hardcoded
+    // supervisor/examiner1/examiner2 dispatch below. Defense milestones and
+    // any milestone created before this feature shipped (no `routing`
+    // snapshot) fall straight through to the original logic, unchanged.
+    if (isChainDriven(data)) {
+      const routing: ChainStage[] = data.routing;
+      const currentStageIndex: number = data.currentStageIndex ?? 0;
+      const stage = routing[currentStageIndex];
+      if (!stage || stage.action !== 'grade') {
+        return res.status(400).json({ message: 'This milestone is not currently awaiting a grade submission.' });
+      }
+
+      const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: data.facultyId ?? '' };
+      // Matches today's own supervisor-only eligibility exactly (the legacy
+      // dispatch below never considered a secondary supervisor either) —
+      // widening to include one is a separate, later enhancement.
+      const projectSupervisorIds = [data.supervisorId].filter(Boolean);
+      const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds);
+      if (!authorized) return res.status(403).json({ message: 'Not authorized to grade this milestone at its current stage.' });
+
+      const scoreValue = Number(givenScore);
+      const gradesRef = db.collection('grades').doc();
+      let responseStatus = '';
+
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        if (!freshSnap.exists) throw new Error('Milestone not found.');
+        const fresh = freshSnap.data()!;
+        const freshRouting: ChainStage[] = fresh.routing ?? [];
+        const freshIndex: number = fresh.currentStageIndex ?? 0;
+        const currentStage = freshRouting[freshIndex];
+        if (!currentStage || currentStage.id !== stage.id) {
+          throw new Error('This milestone has moved on from this grading stage — refresh and try again.');
+        }
+
+        const stageScores = {
+          ...(fresh.stageScores ?? {}),
+          [currentStage.id]: {
+            score: scoreValue,
+            comments: comments?.trim() ?? '',
+            gradedBy: uid,
+            gradedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        };
+        const nextStage = freshRouting[freshIndex + 1];
+        const update: Record<string, any> = {
+          stageScores,
+          stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (nextStage && nextStage.action === 'grade') {
+          // Another grade stage follows immediately (e.g. two co-graders in
+          // sequence) — advance and keep waiting, this grading round isn't
+          // finalized yet.
+          update.currentStageIndex = freshIndex + 1;
+          update.status = 'submitted';
+          responseStatus = 'submitted';
+        } else {
+          update.finalGrade = computeChainFinalGrade(stageScores);
+          update.gradedAt   = admin.firestore.FieldValue.serverTimestamp();
+          update.status     = 'graded';
+          responseStatus     = 'graded';
+          if (nextStage) update.currentStageIndex = freshIndex + 1;
+        }
+
+        transaction.update(milestoneRef, update);
+        transaction.set(gradesRef, {
+          milestoneId, projectId, graderId: uid, graderRole: stage.role,
+          comments: comments?.trim() ?? '',
+          isFinalized: responseStatus === 'graded',
+          submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+          grading: { total: Math.round(scoreValue) },
+        });
+      });
+
+      await logAuditEvent({
+        userId: uid,
+        userRole: req.user?.role ?? stage.role,
+        action: 'grade_entered',
+        entityType: 'milestone',
+        entityId: milestoneId,
+        newValue: { stageId: stage.id, score: scoreValue },
+      });
+
+      return res.status(200).json({ success: true, status: responseStatus });
     }
 
     const updatePayload: Record<string, any> = {
@@ -351,6 +442,13 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       fileUrls:       fileUrls       ?? [],
       submissionNote: submissionNote ?? '',
       ...(archiveUpdate ?? {}),
+      // Chain-driven milestones restart the chain on every fresh submission
+      // (first-time or resubmission after a student-facing rejection) — the
+      // grader(s) evaluate the new content from stage 0, not wherever a
+      // previous round left off.
+      ...(isChainDriven(milestoneData)
+        ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
+        : {}),
     });
     return res.status(200).json({ success: true });
   } catch (error) {

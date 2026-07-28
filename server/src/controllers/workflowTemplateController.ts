@@ -342,7 +342,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     let retroactive: { affectedCount: number } | undefined;
     if (data.applyMode === 'now') {
       retroactive = await applyTemplateRetroactively(
-        data.facultyId, processType, data.major ?? null, updated.milestones, uid, role,
+        data.facultyId, processType, data.major ?? null, updated.milestones, uid, role, updated.defaultRouting,
       );
       await db.collection('workflowTemplates').doc(id).update({
         retroactiveAppliedAt: new Date().toISOString(),

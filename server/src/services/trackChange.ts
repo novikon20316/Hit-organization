@@ -12,7 +12,7 @@
 
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { getMilestonesForTemplateId, resolveWorkflowTemplateRefs } from './workflowTemplates.js';
+import { getMilestonesForTemplateId, resolveMilestoneRouting, resolveWorkflowTemplateRefs } from './workflowTemplates.js';
 import { logAuditEvent } from './auditLog.js';
 
 export type ProjectTrack = 'thesis' | 'project';
@@ -68,7 +68,9 @@ export async function changeProjectTrack(
     throw new Error(`No approved workflow template for ${newDegreeType}/${newTrack} in this faculty — approve one in Workflow Templates first.`);
   }
   const newTemplateRef = workflowTemplateRefs[0]!;
-  const milestoneTemplates = (await getMilestonesForTemplateId(newTemplateRef.templateId)) ?? [];
+  const resolvedTemplate = await getMilestonesForTemplateId(newTemplateRef.templateId);
+  const milestoneTemplates = resolvedTemplate?.milestones ?? [];
+  const templateDefaultRouting = resolvedTemplate?.defaultRouting;
 
   const batch = db.batch();
 
@@ -122,7 +124,14 @@ export async function changeProjectTrack(
       supervisorScore: null,
       finalGrade: null,
       fileUrls: [],
-      ...(t.requiresExaminers ? { examinerIds: [], examiner1Score: null, examiner2Score: null } : {}),
+      ...(t.requiresExaminers
+        ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
+        : {
+            routing: resolveMilestoneRouting(t, templateDefaultRouting),
+            currentStageIndex: 0,
+            stageScores: {},
+            stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+          }),
     });
   }
 

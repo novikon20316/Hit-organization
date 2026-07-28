@@ -7,6 +7,7 @@ import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
+import { isChainDriven } from '../services/milestoneRouting.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
@@ -108,6 +109,13 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       fileUrls,
       submissionNote: note,
       ...(archiveUpdate ?? {}),
+      // Chain-driven milestones restart the chain on every fresh submission
+      // — see the identical addition in projectController.ts's
+      // submitStudentMilestone (this is the second, mobile-facing route that
+      // does the exact same submit/resubmit write).
+      ...(isChainDriven(milestoneData)
+        ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
+        : {}),
     });
 
     // ── Notify supervisor ───────────────────────────────────────────────────

@@ -24,7 +24,7 @@
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
-import type { ProcessType, WorkflowMilestoneSpec } from './workflowTemplates.js';
+import { resolveMilestoneRouting, type MilestoneRoutingSpec, type ProcessType, type WorkflowMilestoneSpec } from './workflowTemplates.js';
 
 interface MatchingProject {
   id: string;
@@ -136,6 +136,7 @@ export async function applyTemplateRetroactively(
   milestoneSpecs: WorkflowMilestoneSpec[],
   actingUid: string,
   actingRole: string,
+  templateDefaultRouting?: MilestoneRoutingSpec,
 ): Promise<{ affectedCount: number }> {
   const projects = await findMatchingInProgressProjects(facultyId, processType, major);
   if (projects.length === 0) return { affectedCount: 0 };
@@ -188,6 +189,11 @@ export async function applyTemplateRetroactively(
           nameEn: spec.nameEn,
           dueDate: admin.firestore.Timestamp.fromDate(dueDate),
           ...(spec.gradingComponents ? { gradingComponents: spec.gradingComponents } : {}),
+          // Refreshes the still-pending milestone's chain to match the newly
+          // approved template — never touches currentStageIndex/stageScores/
+          // stageEnteredAt, since a still-pending milestone hasn't started
+          // its chain yet (position 0, nothing recorded either way).
+          ...(!spec.requiresExaminers ? { routing: resolveMilestoneRouting(spec, templateDefaultRouting) } : {}),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }));
         touched = true;
@@ -209,7 +215,14 @@ export async function applyTemplateRetroactively(
           finalGrade: null,
           fileUrls: [],
           supervisorScore: null,
-          ...(spec.requiresExaminers ? { examinerIds: [], examiner1Score: null, examiner2Score: null } : {}),
+          ...(spec.requiresExaminers
+            ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
+            : {
+                routing: resolveMilestoneRouting(spec, templateDefaultRouting),
+                currentStageIndex: 0,
+                stageScores: {},
+                stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+              }),
           ...(spec.gradingComponents ? { gradingComponents: spec.gradingComponents } : {}),
         }));
         touched = true;
