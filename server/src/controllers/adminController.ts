@@ -149,12 +149,24 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
   }
 
   try {
-    // Firestore 'in' caps at 30 values — the canonical faculty list is a
-    // handful of entries, nowhere near that.
-    const snap = await db.collection('users').where('facultyId', 'in', facultyIds).get();
-    const supervisors = snap.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter((u: any) => getEffectiveRoles(u).includes('supervisor'));
+    // Two separate queries, merged and deduped by id — Firestore can't
+    // combine an 'in' and an 'array-contains-any' clause in one query (both
+    // cap at 30 values, nowhere near the canonical faculty list's size).
+    // The second query is what actually surfaces a cross-faculty account
+    // (system_admin, grad_school_head, etc. — facultyId is the 'all'
+    // sentinel and never matches the first query) once an admin has
+    // explicitly associated their supervisor-like additional role with one
+    // or more real faculties via supervisorFacultyIds (see
+    // updateUserRoleAdmin above).
+    const [byOwnFaculty, byAssociatedFaculty] = await Promise.all([
+      db.collection('users').where('facultyId', 'in', facultyIds).get(),
+      db.collection('users').where('supervisorFacultyIds', 'array-contains-any', facultyIds).get(),
+    ]);
+    const byId = new Map<string, Record<string, unknown> & { id: string }>();
+    [...byOwnFaculty.docs, ...byAssociatedFaculty.docs].forEach((doc) => {
+      byId.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+    const supervisors = [...byId.values()].filter((u: any) => getEffectiveRoles(u).includes('supervisor'));
     return res.status(200).json(supervisors);
   } catch (error: any) {
     console.error('getSupervisorsList Error:', error);
@@ -540,7 +552,7 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
   const isSystemAdmin = req.user?.role === 'system_admin';
 
   const { id: userId } = req.params;
-  const { role, roles, facultyId, assignedMajors, permissionRules, coordinatorScopes } = req.body;
+  const { role, roles, facultyId, assignedMajors, supervisorFacultyIds, permissionRules, coordinatorScopes } = req.body;
 
   if (!role) return res.status(400).json({ message: 'Missing role parameter.' });
   if (!VALID_ROLES.includes(role)) {
@@ -623,18 +635,47 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
     resolvedCoordinatorScopes = coordinatorScopes as CoordinatorScope[];
   }
 
+  // "Supervisor-like" by EFFECTIVE role (primary or additional) — a
+  // system_admin/grad_school_head etc. who holds 'supervisor' as an
+  // additional role is supervisor-like too, matching EditUserModal's own
+  // isSupervisorLike check (which shows these fields based on the same
+  // condition). Previously this only checked the primary `role`, so
+  // assignedMajors collected by the modal for such an account was silently
+  // dropped here.
+  const isSupervisorLikeRole =
+    ['supervisor', 'secondary_supervisor'].includes(role) ||
+    (Array.isArray(roles) && roles.some((r: string) => ['supervisor', 'secondary_supervisor'].includes(r)));
+
   // Supervisors/secondary_supervisors can optionally be restricted to a
   // subset of their (possibly just-changed) faculty's majors — same
   // validation/semantics as createAdminUser. Only meaningful alongside a
   // facultyId, so validate against whatever facultyId this request is
   // actually setting.
   let resolvedAssignedMajors: string[] | undefined;
-  if (['supervisor', 'secondary_supervisor'].includes(role)) {
+  if (isSupervisorLikeRole) {
     resolvedAssignedMajors = Array.isArray(assignedMajors) ? assignedMajors : [];
     const validForFaculty = majorsForFaculty(facultyId);
     const invalid = resolvedAssignedMajors.filter((m: unknown) => typeof m !== 'string' || !validForFaculty.includes(m));
     if (invalid.length > 0) {
       return res.status(400).json({ message: `Invalid major(s) for faculty "${facultyId}": ${invalid.join(', ')}` });
+    }
+  }
+
+  // Which faculty/faculties a supervisor-like additional role applies to —
+  // needed for a cross-faculty account (system_admin, grad_school_head, etc.
+  // — facultyId is the 'all' sentinel and never matches a real faculty) to
+  // actually appear as a supervisor option in a specific faculty's Add
+  // Project modal (see getSupervisorsList below). Unset/empty means "rely on
+  // facultyId alone" — unchanged behavior for every plain single-faculty
+  // supervisor.
+  let resolvedSupervisorFacultyIds: string[] | undefined;
+  if (isSupervisorLikeRole) {
+    resolvedSupervisorFacultyIds = Array.isArray(supervisorFacultyIds)
+      ? supervisorFacultyIds.filter((id: unknown): id is string => typeof id === 'string')
+      : [];
+    const invalidFaculties = resolvedSupervisorFacultyIds.filter((id) => !VALID_FACULTY_IDS_NO_ALL.includes(id));
+    if (invalidFaculties.length > 0) {
+      return res.status(400).json({ message: `Invalid faculty id(s): ${invalidFaculties.join(', ')}` });
     }
   }
 
@@ -670,6 +711,7 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       // (below) always corresponds to their real, saved faculty.
       ...(typeof facultyId === 'string' && facultyId ? { facultyId } : {}),
       assignedMajors: resolvedAssignedMajors ?? admin.firestore.FieldValue.delete(),
+      supervisorFacultyIds: resolvedSupervisorFacultyIds ?? admin.firestore.FieldValue.delete(),
       permissionRules: resolvedPermissionRules?.length ? resolvedPermissionRules : admin.firestore.FieldValue.delete(),
       coordinatorScopes: resolvedCoordinatorScopes?.length ? resolvedCoordinatorScopes : admin.firestore.FieldValue.delete(),
       updatedAt: new Date().toISOString()

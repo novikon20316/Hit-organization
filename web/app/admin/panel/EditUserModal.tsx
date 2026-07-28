@@ -45,6 +45,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   );
   const [facultyId, setFacultyId] = useState<string>(user.facultyId);
   const [assignedMajors, setAssignedMajors] = useState<string[]>(user.assignedMajors ?? []);
+  const [supervisorFacultyIds, setSupervisorFacultyIds] = useState<string[]>(user.supervisorFacultyIds ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -100,6 +101,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
     setAssignedMajors((prev) => (prev.includes(slug) ? prev.filter((m) => m !== slug) : [...prev, slug]));
   };
 
+  const toggleSupervisorFaculty = (id: string) => {
+    setSupervisorFacultyIds((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
+  };
+
   const handleFacultyChange = (value: string) => {
     setFacultyId(value);
     const validSlugs = new Set(majorsForFaculty(value).map((m) => m.slug));
@@ -115,6 +120,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
         roles: [role, ...additionalRoles.filter((r) => r !== role)],
         facultyId,
         assignedMajors: isSupervisorLike ? assignedMajors : undefined,
+        supervisorFacultyIds: isSupervisorLike ? supervisorFacultyIds : undefined,
         permissionRules,
         coordinatorScopes: showCoordinatorScopes ? coordinatorScopes : undefined,
       });
@@ -226,6 +232,36 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                 {assignedMajorOptions.length === 0 && (
                   <span className="text-xs text-muted">{lang === 'he' ? 'אין מגמות לפקולטה זו' : 'No majors for this faculty'}</span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {isSupervisorLike && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'זמינות כמנחה בפקולטות נוספות (אופציונלי)' : 'Supervisor Availability in Other Faculties (optional)'}
+              </span>
+              <p className="mb-1.5 text-xs text-muted">
+                {lang === 'he'
+                  ? 'רלוונטי בעיקר לתפקידים חוצי-פקולטות (כמו מנהל מערכת) — ללא בחירה כאן, המשתמש יופיע כמנחה זמין רק בפקולטה שנבחרה למעלה.'
+                  : "Mainly relevant for cross-faculty roles (like system_admin) — without a selection here, this person only appears as an available supervisor in the faculty selected above."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {VALID_FACULTY_IDS.filter((id) => id !== 'all').map((id) => {
+                  const checked = supervisorFacultyIds.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleSupervisorFaculty(id)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                      }`}
+                    >
+                      {facultyLabel(id, lang)}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

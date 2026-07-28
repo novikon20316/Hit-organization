@@ -21,6 +21,12 @@ export interface AdminUserRecord {
    *  their faculty. Empty/unset means unrestricted (all majors in their
    *  faculty) — see server/src/controllers/adminController.ts. */
   assignedMajors?: string[];
+  /** Faculty/faculties a supervisor-like (primary or additional) role
+   *  applies to — lets a cross-faculty account (facultyId is the 'all'
+   *  sentinel, e.g. system_admin) still be surfaced as a supervisor option
+   *  for a specific faculty's Add Project modal — see
+   *  server/src/controllers/adminController.ts's getSupervisorsList. */
+  supervisorFacultyIds?: string[];
   /** Admin-manageable Primary/Secondary status keys — only meaningful when
    *  role === 'student'. Resolve to display labels via a fetched
    *  StudentStatusConfig (see server/src/services/studentStatuses.ts). */
