@@ -319,6 +319,11 @@ export default function WorkflowTemplatesPage() {
                   </p>
                 );
               })()}
+              <p className="mb-2 rounded-md bg-[#EFEBF6] px-2.5 py-1.5 text-xs font-medium" style={{ color: '#5B21B6' }}>
+                🎓 {lang === 'he'
+                  ? `אישור ציון סופי (הגנה): ${chainRoleLabel(approvedForActive.finalGradeSignoffRole ?? 'grad_school_head', lang)}`
+                  : `Final grade sign-off (defense): ${chainRoleLabel(approvedForActive.finalGradeSignoffRole ?? 'grad_school_head', lang)}`}
+              </p>
               {[...approvedForActive.milestones]
                 .sort((a, b) => a.order - b.order)
                 .map((m, idx) => (
@@ -513,6 +518,7 @@ export default function WorkflowTemplatesPage() {
           initialMilestones={approvedForActive?.milestones ?? []}
           initialDefaultRouting={approvedForActive?.defaultRouting}
           initialExaminerSignoffRole={approvedForActive?.examinerSignoffRole}
+          initialFinalGradeSignoffRole={approvedForActive?.finalGradeSignoffRole}
           onClose={() => setProposeOpen(false)}
           onProposed={() => {
             fetchTemplates();

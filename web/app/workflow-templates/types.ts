@@ -104,6 +104,12 @@ export interface WorkflowTemplateDoc {
    *  everything else). 'none' → no second tier, for any process type. A
    *  ChainRole → that role signs off, for any process type. */
   examinerSignoffRole?: ChainRole | 'none';
+  /** Who signs off on a defense milestone's already-computed final grade,
+   *  before it transfers to Michlol — distinct from milestone routing and
+   *  from examinerSignoffRole. No 'none' option: this step is always
+   *  required. Omitted → legacy default (grad_school_head, for any process
+   *  type). */
+  finalGradeSignoffRole?: ChainRole;
   approvedBy?: string;
   approvedAt?: string;
   retroactiveAppliedAt?: string;

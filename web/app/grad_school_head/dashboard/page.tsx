@@ -108,6 +108,8 @@ export default function GradSchoolHeadDashboardPage() {
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [examinerRejectTargetId, setExaminerRejectTargetId] = useState<string | null>(null);
   const [examinerRejectReason, setExaminerRejectReason] = useState('');
+  const [finalGradeRejectTargetId, setFinalGradeRejectTargetId] = useState<string | null>(null);
+  const [finalGradeRejectReason, setFinalGradeRejectReason] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
@@ -155,6 +157,21 @@ export default function GradSchoolHeadDashboardPage() {
       await fetchDashboard();
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'אישור הציון נכשל' : 'Failed to approve the grade');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectFinalGrade = async (id: string) => {
+    if (!finalGradeRejectReason.trim()) return;
+    setApprovingId(id);
+    try {
+      await apiClient.rejectFinalGrade(id, finalGradeRejectReason.trim());
+      setFinalGradeRejectTargetId(null);
+      setFinalGradeRejectReason('');
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'דחיית הציון נכשלה' : 'Failed to reject the grade');
     } finally {
       setApprovingId(null);
     }
@@ -286,14 +303,34 @@ export default function GradSchoolHeadDashboardPage() {
               <p className="mt-0.5 text-xs text-muted">{item.title}</p>
 
               {item.type === 'final_grade' ? (
-                <button
-                  type="button"
-                  onClick={() => handleApproveFinalGrade(item)}
-                  disabled={approvingId === item.id}
-                  className="mt-3 w-full rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-                >
-                  {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${t('gradeApproved')}`}
-                </button>
+                <>
+                  {finalGradeRejectTargetId === item.id && (
+                    <input
+                      value={finalGradeRejectReason}
+                      onChange={(e) => setFinalGradeRejectReason(e.target.value)}
+                      placeholder={lang === 'he' ? 'סיבת הדחייה' : 'Rejection reason'}
+                      className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                    />
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => (finalGradeRejectTargetId === item.id ? handleRejectFinalGrade(item.id) : setFinalGradeRejectTargetId(item.id))}
+                      disabled={approvingId === item.id}
+                      className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger disabled:opacity-60"
+                    >
+                      {finalGradeRejectTargetId === item.id ? (lang === 'he' ? 'שלח דחייה' : 'Submit rejection') : (lang === 'he' ? 'דחה' : 'Reject')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApproveFinalGrade(item)}
+                      disabled={approvingId === item.id}
+                      className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                    >
+                      {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${t('gradeApproved')}`}
+                    </button>
+                  </div>
+                </>
               ) : item.type === 'examiners' ? (
                 <>
                   <p className="mt-2 text-xs text-muted">

@@ -143,6 +143,14 @@ export interface WorkflowTemplateDoc {
    *  process type. A ChainRole → that role must sign off, for any process
    *  type (not msc_thesis-only anymore) — see resolveExaminerSignoffRole. */
   examinerSignoffRole?: ChainRole | 'none';
+  /** Who signs off on a defense milestone's already-computed final grade,
+   *  before it transfers to Michlol — distinct from milestone routing and
+   *  from examinerSignoffRole. No `'none'` option: this is the terminal gate,
+   *  someone must always sign off. Omitted → legacy default `grad_school_head`
+   *  (today's unconditional behavior — approveFinalGrade has no processType
+   *  branching, so the default doesn't vary by process type either). See
+   *  resolveFinalGradeSignoffRole. */
+  finalGradeSignoffRole?: ChainRole;
   approvedBy?: string;
   approvedAt?: string;
   /** Set once, at approval time, only when applyMode === 'now'. */
@@ -189,7 +197,10 @@ export async function findApprovedTemplateId(
   facultyId: string,
   processType: ProcessType,
   major: string | null
-): Promise<{ id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec; examinerSignoffRole?: ChainRole | 'none' } | null> {
+): Promise<{
+  id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec;
+  examinerSignoffRole?: ChainRole | 'none'; finalGradeSignoffRole?: ChainRole;
+} | null> {
   const tryMajor = async (m: string | null) => {
     const snap = await db.collection(COLLECTION)
       .where('facultyId', '==', facultyId)
@@ -203,9 +214,13 @@ export async function findApprovedTemplateId(
     const data = doc.data();
     const milestones = (data.milestones ?? []) as WorkflowMilestoneSpec[];
     if (milestones.length === 0) return null;
-    const result: { id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec; examinerSignoffRole?: ChainRole | 'none' } = { id: doc.id, milestones };
+    const result: {
+      id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec;
+      examinerSignoffRole?: ChainRole | 'none'; finalGradeSignoffRole?: ChainRole;
+    } = { id: doc.id, milestones };
     if (data.defaultRouting) result.defaultRouting = data.defaultRouting as MilestoneRoutingSpec;
     if (data.examinerSignoffRole) result.examinerSignoffRole = data.examinerSignoffRole as ChainRole | 'none';
+    if (data.finalGradeSignoffRole) result.finalGradeSignoffRole = data.finalGradeSignoffRole as ChainRole;
     return result;
   };
 
@@ -238,6 +253,20 @@ export async function resolveExaminerSignoffRole(
   if (configured) return configured;
   // Legacy default — matches today's hardcoded behavior exactly.
   return processType === 'msc_thesis' ? 'grad_school_head' : null;
+}
+
+/** Who must sign off on a defense milestone's already-computed final grade
+ *  (see gradSchoolHeadController.ts's approveFinalGrade) before it transfers
+ *  to Michlol. Unlike resolveExaminerSignoffRole, there is no "no tier at
+ *  all" option — someone must always sign off. Falls back to today's exact
+ *  hardcoded behavior (`grad_school_head`, unconditionally, for every
+ *  process type) when no template is approved yet, or the approved template
+ *  predates this field entirely. */
+export async function resolveFinalGradeSignoffRole(
+  facultyId: string, processType: ProcessType, major: string | null
+): Promise<ChainRole> {
+  const resolved = await findApprovedTemplateId(facultyId, processType, major);
+  return resolved?.finalGradeSignoffRole ?? 'grad_school_head';
 }
 
 /** The milestone list a NEW enrollment should use, falling back to the app
@@ -334,6 +363,7 @@ export async function proposeWorkflowTemplate(params: {
   applyMode: ApplyMode;
   defaultRouting?: MilestoneRoutingSpec;
   examinerSignoffRole?: ChainRole | 'none';
+  finalGradeSignoffRole?: ChainRole;
 }): Promise<{ id: string }> {
   // Version numbering is scoped per facultyId+processType+major — each
   // subject gets its own clean version history, rather than an unrelated
@@ -359,6 +389,7 @@ export async function proposeWorkflowTemplate(params: {
     applyMode: params.applyMode,
     defaultRouting: params.defaultRouting ?? null,
     examinerSignoffRole: params.examinerSignoffRole ?? null,
+    finalGradeSignoffRole: params.finalGradeSignoffRole ?? null,
   });
   return { id: ref.id };
 }

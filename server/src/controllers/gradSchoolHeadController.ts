@@ -23,9 +23,10 @@ import {
 } from '../services/studentProgress.js';
 import { transferGradeToMichlol } from '../services/gradeEngine.js';
 import { logAuditEvent } from '../services/auditLog.js';
-import { hasActionGrant, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
+import { hasActionGrant, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { openDefenseSchedulingIfPanelReady } from '../services/defenseScheduling.js';
+import { deriveProcessType, resolveFinalGradeSignoffRole } from '../services/workflowTemplates.js';
 
 const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
 
@@ -323,25 +324,12 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
     return res.status(400).json({ message: 'Invalid milestoneId.' });
   }
 
-  // grad_school_head is intentionally cross-faculty (facultyId 'all') — kept
-  // as-is. A non-grad_school_head user may still act here via an explicit
-  // approve_grades grant scoped to this milestone's project (checked below,
-  // once the milestone/project scope is known).
-  const hasRoleAccess = !!req.user?.role && GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role);
-
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
     if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
 
     const milestone = milestoneSnap.data()!;
-
-    if (!hasRoleAccess) {
-      const scope = (await resolveProjectScope(milestone.projectId)) ?? { facultyId: milestone.facultyId ?? '' };
-      if (!hasActionGrant(req.user, 'approve_grades', scope)) {
-        return res.status(403).json({ message: 'You do not have permission to approve grades.' });
-      }
-    }
 
     if (milestone.type !== 'defense') {
       return res.status(400).json({ message: 'Only defense/final-grade milestones can be approved here.' });
@@ -351,6 +339,24 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
     }
     if (milestone.gradeApproved) {
       return res.status(400).json({ message: 'This grade has already been approved.' });
+    }
+
+    // Who's required to sign off here is configurable per template (see
+    // workflowTemplates.ts's finalGradeSignoffRole) — defaults to
+    // grad_school_head, matching today's unconditional behavior. The
+    // pre-existing generic approve_grades permission grant stays a true
+    // parallel bypass, same as before this generalization.
+    const projectSnap = await db.collection('projects').doc(milestone.projectId ?? '').get();
+    const project = projectSnap.exists ? projectSnap.data()! : {};
+    const scope = { facultyId: project.facultyId ?? milestone.facultyId ?? '', major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+    if (!hasActionGrant(req.user, 'approve_grades', scope)) {
+      const processType = deriveProcessType(project.degreeType, project.projectType);
+      const signoffRole = await resolveFinalGradeSignoffRole(scope.facultyId, processType, project.major ?? null);
+      const projectSupervisorIds = [project.supervisorId].filter(Boolean);
+      const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
+      if (!uids.includes(uid)) {
+        return res.status(403).json({ message: 'You do not have permission to approve grades.' });
+      }
     }
 
     await milestoneRef.update({
@@ -431,8 +437,6 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
     return res.status(400).json({ message: 'A reason is required to unlock an approved grade.' });
   }
 
-  const hasRoleAccess = !!req.user?.role && GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role);
-
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
@@ -440,14 +444,22 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
 
     const milestone = milestoneSnap.data()!;
 
-    if (!hasRoleAccess) {
-      const scope = (await resolveProjectScope(milestone.projectId)) ?? { facultyId: milestone.facultyId ?? '' };
-      if (!hasActionGrant(req.user, 'approve_grades', scope)) {
-        return res.status(403).json({ message: 'You do not have permission to unlock this grade.' });
-      }
-    }
     if (!milestone.gradeApproved) {
       return res.status(400).json({ message: 'This grade is not currently approved.' });
+    }
+
+    // Same generalized authorization as approveFinalGrade — see its comment.
+    const projectSnap = await db.collection('projects').doc(milestone.projectId ?? '').get();
+    const project = projectSnap.exists ? projectSnap.data()! : {};
+    const scope = { facultyId: project.facultyId ?? milestone.facultyId ?? '', major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+    if (!hasActionGrant(req.user, 'approve_grades', scope)) {
+      const processType = deriveProcessType(project.degreeType, project.projectType);
+      const signoffRole = await resolveFinalGradeSignoffRole(scope.facultyId, processType, project.major ?? null);
+      const projectSupervisorIds = [project.supervisorId].filter(Boolean);
+      const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
+      if (!uids.includes(uid)) {
+        return res.status(403).json({ message: 'You do not have permission to unlock this grade.' });
+      }
     }
 
     await milestoneRef.update({
@@ -496,6 +508,114 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
   } catch (error: any) {
     console.error('revertFinalGradeApproval error:', error);
     return res.status(500).json({ message: 'Failed to unlock grade.' });
+  }
+};
+
+/**
+ * POST /api/grad-school-head/milestones/:id/reject-grade
+ * Body: { reason: string }
+ *
+ * New capability — previously a computed final grade could only be
+ * approved, never rejected pre-approval (only reverted after approval via
+ * revertFinalGradeApproval). Sends the grade back for re-grading: clears
+ * every score field submitMilestoneGrade wrote, resets status to
+ * 'submitted' so grading can happen again, and notifies whoever graded it.
+ * Cannot be used on an already-approved grade — that's what unlock-grade is
+ * for.
+ */
+export const rejectFinalGrade = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+
+  const { id: milestoneId } = req.params;
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: 'Invalid milestoneId.' });
+  }
+  const { reason } = req.body;
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ message: 'A reason is required to reject a computed grade.' });
+  }
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+
+    const milestone = milestoneSnap.data()!;
+
+    if (milestone.type !== 'defense') {
+      return res.status(400).json({ message: 'Only defense/final-grade milestones can be rejected here.' });
+    }
+    if (milestone.finalGrade == null) {
+      return res.status(400).json({ message: 'No final grade has been computed for this milestone yet.' });
+    }
+    if (milestone.gradeApproved) {
+      return res.status(400).json({ message: 'This grade has already been approved — unlock it instead of rejecting.' });
+    }
+
+    // Same generalized authorization as approveFinalGrade — see its comment.
+    const projectSnap = await db.collection('projects').doc(milestone.projectId ?? '').get();
+    const project = projectSnap.exists ? projectSnap.data()! : {};
+    const scope = { facultyId: project.facultyId ?? milestone.facultyId ?? '', major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+    if (!hasActionGrant(req.user, 'approve_grades', scope)) {
+      const processType = deriveProcessType(project.degreeType, project.projectType);
+      const signoffRole = await resolveFinalGradeSignoffRole(scope.facultyId, processType, project.major ?? null);
+      const projectSupervisorIds = [project.supervisorId].filter(Boolean);
+      const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
+      if (!uids.includes(uid)) {
+        return res.status(403).json({ message: 'You do not have permission to reject this grade.' });
+      }
+    }
+
+    const graderIds = [milestone.supervisorId, ...(milestone.examinerIds ?? [])].filter(Boolean);
+
+    await milestoneRef.update({
+      supervisorScore: null, supervisorComment: admin.firestore.FieldValue.delete(),
+      examiner1Score: null, examiner1Comments: admin.firestore.FieldValue.delete(),
+      examiner2Score: null, examiner2Comments: admin.firestore.FieldValue.delete(),
+      finalGrade: null,
+      finalGradeByStudent: admin.firestore.FieldValue.delete(),
+      gradedAt: admin.firestore.FieldValue.delete(),
+      status: 'submitted',
+      gradeRejectionReason: reason,
+      gradeRejectedBy: uid,
+      gradeRejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? 'grad_school_head',
+      action: 'final_grade_rejected',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { finalGrade: milestone.finalGrade },
+      newValue: { finalGrade: null, status: 'submitted' },
+      explanation: reason,
+    });
+
+    try {
+      await Promise.all(graderIds.map((graderId: string) =>
+        db.collection('notifications').add({
+          recipientId: graderId,
+          type: 'general',
+          titleHe: 'הציון הסופי נדחה — נדרש דירוג מחדש',
+          titleEn: 'Final grade rejected — re-grading required',
+          bodyHe: `הציון שהוזן עבור אבן דרך זו נדחה. סיבה: ${reason}`,
+          bodyEn: `The grade submitted for this milestone was rejected. Reason: ${reason}`,
+          isRead: false,
+          relatedProjectId: milestone.projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      ));
+    } catch (notifyErr) {
+      console.error(`rejectFinalGrade: failed to notify graders for milestone ${milestoneId}:`, notifyErr);
+    }
+
+    return res.status(200).json({ success: true, message: 'Grade rejected — sent back for re-grading.' });
+  } catch (error: any) {
+    console.error('rejectFinalGrade error:', error);
+    return res.status(500).json({ message: 'Failed to reject grade.' });
   }
 };
 

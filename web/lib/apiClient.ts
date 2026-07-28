@@ -1164,6 +1164,7 @@ export const apiClient = {
         applyMode: 'now' | 'from_now_on';
         defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
         examinerSignoffRole?: string;
+        finalGradeSignoffRole?: string;
         approvedBy?: string;
         approvedAt?: string;
         retroactiveAppliedAt?: string;
@@ -1195,6 +1196,10 @@ export const apiClient = {
      *  ChainRole, or 'none' to skip the second tier. Valid for any process
      *  type. Omitted uses the server's legacy default. */
     examinerSignoffRole?: string;
+    /** Who signs off on a defense milestone's already-computed final grade —
+     *  a ChainRole (no 'none' option, this step is always required). Omitted
+     *  uses the server's legacy default (grad_school_head). */
+    finalGradeSignoffRole?: string;
   }) {
     return request<{ success: boolean; id: string; status: string }>('/api/workflow-templates', {
       method: 'POST',
@@ -1368,6 +1373,15 @@ export const apiClient = {
   /** Reopens an already-approved final grade for correction — requires a reason. */
   async unlockFinalGrade(milestoneId: string, reason: string) {
     return request<{ success: boolean; message: string }>(`/api/grad-school-head/milestones/${milestoneId}/unlock-grade`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
+  /** Rejects a computed (not yet approved) final grade, sending it back for
+   *  re-grading — requires a reason. See gradSchoolHeadController.ts's rejectFinalGrade. */
+  async rejectFinalGrade(milestoneId: string, reason: string) {
+    return request<{ success: boolean; message: string }>(`/api/grad-school-head/milestones/${milestoneId}/reject-grade`, {
       method: 'POST',
       body: { reason },
     });

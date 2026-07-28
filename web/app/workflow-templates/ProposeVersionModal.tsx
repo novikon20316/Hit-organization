@@ -38,12 +38,16 @@ interface ProposeVersionModalProps {
    *  very first version) falls back to the same legacy default the server
    *  applies: grad_school_head for msc_thesis, none otherwise. */
   initialExaminerSignoffRole?: ChainRole | 'none';
+  /** Pre-fills from the currently approved version's finalGradeSignoffRole,
+   *  if any. Omitted falls back to the server's own legacy default:
+   *  grad_school_head, for every process type. */
+  initialFinalGradeSignoffRole?: ChainRole;
   onClose: () => void;
   onProposed: () => void;
 }
 
 export function ProposeVersionModal({
-  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, onClose, onProposed,
+  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, initialFinalGradeSignoffRole, onClose, onProposed,
 }: ProposeVersionModalProps) {
   const { lang, t } = useLanguage();
   const [milestones, setMilestones] = useState<MilestoneSpec[]>(initialMilestones.length > 0 ? initialMilestones.map((m) => ({ ...m })) : [emptyMilestone(1)]);
@@ -52,6 +56,9 @@ export function ProposeVersionModal({
   );
   const [examinerSignoffRole, setExaminerSignoffRole] = useState<ChainRole | 'none'>(
     initialExaminerSignoffRole ?? (processType === 'msc_thesis' ? 'grad_school_head' : 'none')
+  );
+  const [finalGradeSignoffRole, setFinalGradeSignoffRole] = useState<ChainRole>(
+    initialFinalGradeSignoffRole ?? 'grad_school_head'
   );
   const [note, setNote] = useState('');
   const [applyMode, setApplyMode] = useState<'now' | 'from_now_on'>('from_now_on');
@@ -131,6 +138,7 @@ export function ProposeVersionModal({
         applyMode,
         defaultRouting,
         examinerSignoffRole,
+        finalGradeSignoffRole,
       });
       onProposed();
       onClose();
@@ -222,6 +230,26 @@ export function ProposeVersionModal({
             className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
           >
             <option value="none">{lang === 'he' ? 'ללא אישור נוסף' : 'No second sign-off'}</option>
+            {CHAIN_ROLES.map((r) => (
+              <option key={r.key} value={r.key}>{chainRoleLabel(r.key, lang)}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'אישור הציון הסופי (הגנה)' : 'Final grade sign-off (defense)'}
+          </span>
+          <p className="mb-1.5 text-xs text-muted">
+            {lang === 'he'
+              ? 'לאחר שהציון הסופי מחושב, תפקיד זה יאשר (או ידחה) אותו לפני ההעברה למכלול.'
+              : "Once a defense milestone's final grade is computed, this role approves (or rejects) it before it transfers to Michlol."}
+          </p>
+          <select
+            value={finalGradeSignoffRole}
+            onChange={(e) => setFinalGradeSignoffRole(e.target.value as ChainRole)}
+            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+          >
             {CHAIN_ROLES.map((r) => (
               <option key={r.key} value={r.key}>{chainRoleLabel(r.key, lang)}</option>
             ))}

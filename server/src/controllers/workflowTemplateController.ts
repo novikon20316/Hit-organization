@@ -285,12 +285,23 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     }
     examinerSignoffRole = req.body.examinerSignoffRole;
   }
+  // Who signs off on a defense milestone's already-computed final grade — any
+  // ChainRole (no 'none' option, unlike examinerSignoffRole — this is the
+  // terminal gate before Michlol transfer, always required).
+  let finalGradeSignoffRole: ChainRole | undefined;
+  if (req.body.finalGradeSignoffRole !== undefined) {
+    if (!CHAIN_ROLES.includes(req.body.finalGradeSignoffRole)) {
+      return res.status(400).json({ message: `Invalid finalGradeSignoffRole: ${req.body.finalGradeSignoffRole}` });
+    }
+    finalGradeSignoffRole = req.body.finalGradeSignoffRole;
+  }
 
   try {
     const result = await proposeWorkflowTemplate({
       facultyId: facultyId!, processType, major, milestones, createdBy: uid, note: note ?? null, applyMode,
       ...(defaultRouting.value ? { defaultRouting: defaultRouting.value } : {}),
       ...(examinerSignoffRole !== undefined ? { examinerSignoffRole } : {}),
+      ...(finalGradeSignoffRole !== undefined ? { finalGradeSignoffRole } : {}),
     });
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval' });
   } catch (error: any) {

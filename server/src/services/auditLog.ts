@@ -26,6 +26,7 @@ export type AuditAction =
   | 'template_proposal_approved'
   | 'template_proposal_rejected'
   | 'final_grade_approved'
+  | 'final_grade_rejected'
   | 'grade_approval_reverted'
   | 'workflow_template_approved'
   | 'workflow_template_rejected'
