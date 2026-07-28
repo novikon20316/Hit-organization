@@ -11,13 +11,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
-import { TopBar, getFacultyColor } from '../../components/shared';
+import { TopBar, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
-import { BulkDueDateModal } from '@/components/modals';
-import { AdministrativeSecretaryDashboardStyles, AdministrativeSecretaryModalStyles } from '../../constants/styles';
+import { BulkDueDateModal, NewProjectModal } from '@/components/modals';
+import { AdministrativeSecretaryDashboardStyles, AdministrativeSecretaryModalStyles, adminPanelStyles } from '../../constants/styles';
+import type { AppUser } from '@/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -369,6 +371,33 @@ export default function ProjectCoordinatorDashboard() {
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
 
+  // ── Add Project modal state ─────────────────────────────────────────────
+  // Net-new — administrative_secretary previously had no project-creation
+  // capability at all (POST /api/admin/projects hard-403'd every role
+  // except faculty_admin/system_admin; now widened). She's a cross-faculty
+  // role (facultyId 'all' by convention, no single "own" faculty), so this
+  // reuses NewProjectModal's mode="admin" — full faculty checkbox list
+  // scoped to whatever add_projects grants she holds (see
+  // FacultyCheckboxes) plus a supervisor picker, same as the system_admin flow.
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newProjectFacultyIds, setNewProjectFacultyIds] = useState<string[]>([]);
+  const [newTitleHe, setNewTitleHe] = useState('');
+  const [newTitleEn, setNewTitleEn] = useState('');
+  const [newDescHe, setNewDescHe] = useState('');
+  const [newDescEn, setNewDescEn] = useState('');
+  const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
+  const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
+  const [newSkills, setNewSkills] = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState('');
+  const [newMaxStudents, setNewMaxStudents] = useState(1);
+  const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
+  const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
+  const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [projectFile, setProjectFile] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
+
   const uid  = auth.currentUser?.uid ?? '';
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -390,6 +419,76 @@ export default function ProjectCoordinatorDashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   const onRefresh = () => { setRefreshing(true); fetchData(); };
+
+  // Fetches per selected faculty and merges (dedup by id).
+  useEffect(() => {
+    if (!showNewProject || newProjectFacultyIds.length === 0) {
+      setAllSupervisors([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(newProjectFacultyIds.map((facultyId) => apiClient.get('/api/admin/supervisors', { params: { facultyId } })))
+      .then((responses) => {
+        if (cancelled) return;
+        const byId = new Map<string, AppUser>();
+        responses.forEach((r) => (r.data || []).forEach((sup: AppUser) => byId.set(sup.id, sup)));
+        setAllSupervisors([...byId.values()]);
+      })
+      .catch((err) => console.error('Error loading supervisors for selected faculties:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [newProjectFacultyIds.join(','), showNewProject]);
+
+  const pickProjectFile = async (isNew: boolean) => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    if (isNew) {
+      setProjectFile(asset.uri);
+      setProjectName(asset.name);
+    }
+  };
+
+  const handleCreateProject = async () => {
+    if (!selectedSupervisor || !newTitleHe.trim() || !newTitleEn.trim() || newProjectFacultyIds.length === 0) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש למלא את כל השדות' : 'Missing required fields');
+      return;
+    }
+    if (newDegreeTypes.length === 0 || newProjectTypes.length === 0) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור לפחות סוג תואר אחד וסוג פרויקט אחד' : 'Select at least one degree type and one project type');
+      return;
+    }
+    setCreatingProject(true);
+    try {
+      await apiClient.post('/api/admin/projects', {
+        supervisorId: selectedSupervisor.id,
+        facultyIds: newProjectFacultyIds,
+        titleHe: newTitleHe.trim(),
+        titleEn: newTitleEn.trim(),
+        descriptionHe: newDescHe.trim(),
+        descriptionEn: newDescEn.trim(),
+        degreeTypes: newDegreeTypes,
+        projectTypes: newProjectTypes,
+        maxStudents: newMaxStudents,
+        requiredSkills: newSkills.split(',').map((sk) => sk.trim()).filter(Boolean),
+        prerequisites: newPrerequisites.split(',').map((p) => p.trim()).filter(Boolean),
+        major: selectedProgram || undefined,
+      });
+      setShowNewProject(false);
+      setNewTitleHe(''); setNewTitleEn('');
+      setNewDescHe(''); setNewDescEn('');
+      setNewSkills(''); setNewPrerequisites('');
+      setSelectedProgram(null);
+      setSelectedSupervisor(null);
+      Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
+      fetchData();
+    } catch (e: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e?.response?.data?.message || (lang === 'he' ? 'פרסום הפרויקט נכשל' : 'Failed to publish the project'));
+    } finally {
+      setCreatingProject(false);
+    }
+  };
 
   // ── Filter ─────────────────────────────────────────────────────────────────
   const filteredGroups = (data?.groups ?? []).filter(g => {
@@ -423,6 +522,11 @@ export default function ProjectCoordinatorDashboard() {
         isRtl={lang === 'he'}
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
         extraMenuItems={[
+          {
+            key: 'new-project', icon: '📁',
+            label: lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project',
+            onPress: () => setShowNewProject(true),
+          },
           {
             key: 'bulk-due-dates', icon: '📅',
             label: lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates',
@@ -613,6 +717,41 @@ export default function ProjectCoordinatorDashboard() {
         lang={lang}
         projects={(data?.groups ?? []).map((g) => ({ id: g.id, label: g.projectTitle }))}
         onSaved={fetchData}
+      />
+
+      <NewProjectModal
+        visible={showNewProject}
+        setVisible={setShowNewProject}
+        mode="admin"
+        lang={lang}
+        isRtl={lang === 'he'}
+        titleHe={newTitleHe} setTitleHe={setNewTitleHe}
+        titleEn={newTitleEn} setTitleEn={setNewTitleEn}
+        descHe={newDescHe} setDescHe={setNewDescHe}
+        descEn={newDescEn} setDescEn={setNewDescEn}
+        skills={newSkills} setSkills={setNewSkills}
+        prerequisites={newPrerequisites} setPrerequisites={setNewPrerequisites}
+        facultyIds={newProjectFacultyIds}
+        setFacultyIds={setNewProjectFacultyIds}
+        degreeTypes={newDegreeTypes} setDegreeTypes={setNewDegreeTypes}
+        projectTypes={newProjectTypes} setProjectTypes={setNewProjectTypes}
+        selectedProgram={selectedProgram}
+        setSelectedProgram={setSelectedProgram}
+        supervisors={allSupervisors}
+        selectedSupervisor={selectedSupervisor}
+        setSelectedSupervisor={setSelectedSupervisor}
+        setShowConfirm={setShowConfirm}
+        onCreate={handleCreateProject}
+        creating={creatingProject}
+        maxStudents={newMaxStudents}
+        setMaxStudents={setNewMaxStudents}
+        projectName={projectName}
+        setProjectName={setProjectName}
+        projectFile={projectFile}
+        setProjectFile={setProjectFile}
+        pickFile={pickProjectFile}
+        facultyColors={FACULTY_COLORS}
+        styles={adminPanelStyles}
       />
     </SafeAreaView>
   );

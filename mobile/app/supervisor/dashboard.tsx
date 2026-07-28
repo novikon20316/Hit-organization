@@ -86,8 +86,8 @@ export default function SupervisorHome() {
   const [newTitleEn,  setNewTitleEn]  = useState('');
   const [newDescHe,   setNewDescHe]   = useState('');
   const [newDescEn,   setNewDescEn]   = useState('');
-  const [newDegree,   setNewDegree]   = useState<'bachelors' | 'masters' | 'both'>('bachelors');
-  const [newType,     setNewType]     = useState<'project' | 'thesis'>('project');
+  const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
+  const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills,   setNewSkills]   = useState('');
   const [newPrerequisites, setNewPrerequisites] = useState('');
   const [creating,    setCreating]    = useState(false);
@@ -417,6 +417,10 @@ export default function SupervisorHome() {
       );
       return;
     }
+    if (newDegreeTypes.length === 0 || newProjectTypes.length === 0) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור לפחות סוג תואר אחד וסוג פרויקט אחד' : 'Select at least one degree type and one project type');
+      return;
+    }
     setCreating(true);
     try {
       await apiClient.post('/api/supervisor/projects', {
@@ -424,8 +428,8 @@ export default function SupervisorHome() {
         titleEn: newTitleEn,
         descriptionHe: newDescHe,
         descriptionEn: newDescEn,
-        degreeType: newDegree,
-        projectType: newType,
+        degreeTypes: newDegreeTypes,
+        projectTypes: newProjectTypes,
         projectInfo: projectFile,
         NumberOfStudents: maxStudents,
         requiredSkills: newSkills.split(',').map(s => s.trim()).filter(Boolean),
@@ -1194,8 +1198,8 @@ export default function SupervisorHome() {
         skills={newSkills}     setSkills={setNewSkills}
         prerequisites={newPrerequisites} setPrerequisites={setNewPrerequisites}
         faculty={facultyId}    setFaculty={setFacultyId}
-        degree={newDegree}     setDegree={setNewDegree}
-        type={newType}         setType={setNewType}
+        degreeTypes={newDegreeTypes}     setDegreeTypes={setNewDegreeTypes}
+        projectTypes={newProjectTypes}   setProjectTypes={setNewProjectTypes}
         onCreate={handleCreateProject}
         creating={creating}
         maxStudents={maxStudents}

@@ -78,7 +78,7 @@ export default function PanelScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
   const [showNewUser, setShowNewUser] = useState(false);
-  const [newProjectFaculty, setNewProjectFaculty] = useState('');
+  const [newProjectFacultyIds, setNewProjectFacultyIds] = useState<string[]>([]);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectFile, setProjectFile] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string | null>(null);
@@ -86,8 +86,8 @@ export default function PanelScreen() {
   const [newTitleEn, setNewTitleEn] = useState('');
   const [newDescHe, setNewDescHe] = useState('');
   const [newDescEn, setNewDescEn] = useState('');
-  const [newDegree, setNewDegree] = useState<'bachelors' | 'masters'>('bachelors');
-  const [newType, setNewType] = useState<'project' | 'thesis'>('project');
+  const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
+  const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills, setNewSkills] = useState('');
   const [newPrerequisites, setNewPrerequisites] = useState('');
   const [creating, setCreating] = useState(false);
@@ -124,6 +124,27 @@ export default function PanelScreen() {
   useEffect(() => {
     fetchAdminDashboard();
   }, []);
+
+  // Re-fetches supervisors per selected faculty when the Add Project picker
+  // changes — a project can now be posted open to more than one faculty
+  // (own faculty plus any additionally granted ones), so the initial
+  // dashboard fetch's own-faculty-only supervisor list isn't enough once the
+  // caller selects beyond it.
+  useEffect(() => {
+    if (!showNewProject || newProjectFacultyIds.length === 0) return;
+    let cancelled = false;
+    Promise.all(newProjectFacultyIds.map((facultyId) => apiClient.get('/api/admin/supervisors', { params: { facultyId } })))
+      .then((responses) => {
+        if (cancelled) return;
+        const byId = new Map<string, AppUser>();
+        responses.forEach((r) => (r.data || []).forEach((s: AppUser) => byId.set(s.id, s)));
+        setAllSupervisors([...byId.values()]);
+      })
+      .catch((err) => console.error('Error loading supervisors for selected faculties:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [newProjectFacultyIds.join(','), showNewProject]);
 
   // Student status option lists — fetched once at screen load, not per row
   // (see server/src/controllers/studentStatusController.ts's GET, open to
@@ -228,19 +249,21 @@ export default function PanelScreen() {
   // CREATE PROJECT
   // ───────────────────────────────
   const handleCreateProject = async () => {
-    if (!selectedSupervisor || !adminFacultyId) return;
+    if (!selectedSupervisor || newProjectFacultyIds.length === 0) return;
+    if (newDegreeTypes.length === 0 || newProjectTypes.length === 0) return;
 
     try {
       setSaving(true);
+      setCreating(true);
       await apiClient.post('/api/admin/projects', {
         supervisorId: selectedSupervisor.id,
-        facultyId: adminFacultyId,
+        facultyIds: newProjectFacultyIds,
         titleHe: newTitleHe,
         titleEn: newTitleEn,
         descriptionHe: newDescHe,
         descriptionEn: newDescEn,
-        degreeType: newDegree,
-        projectType: newType,
+        degreeTypes: newDegreeTypes,
+        projectTypes: newProjectTypes,
         requiredSkills: newSkills.split(',').map((s) => s.trim()),
         prerequisites: newPrerequisites.split(',').map((s) => s.trim()).filter(Boolean),
         status: 'published',
@@ -250,14 +273,6 @@ export default function PanelScreen() {
       });
 
       setShowNewProject(false);
-
-      /*
-      await createMilestonesOnApproval({
-        projectId: ref.id,
-        studentIds: [],
-        facultyId: adminFacultyId,
-        supervisorId: selectedSupervisor.id,
-      });*/
 
       await fetchAdminDashboard();
     } catch (e) {
@@ -363,6 +378,15 @@ export default function PanelScreen() {
       </Pressable>
       <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('staff')}>
         <Text style={localStyles.tabLabel}>{lang === 'he' ? 'סגל' : 'Staff'}</Text>
+      </Pressable>
+      <Pressable
+        style={localStyles.tabBar}
+        onPress={() => {
+          if (newProjectFacultyIds.length === 0 && adminFacultyId) setNewProjectFacultyIds([adminFacultyId]);
+          setShowNewProject(true);
+        }}
+      >
+        <Text style={localStyles.tabLabel}>📁 {lang === 'he' ? 'פרויקט חדש' : 'New Project'}</Text>
       </Pressable>
 
       <ScrollView>
@@ -532,14 +556,14 @@ export default function PanelScreen() {
         prerequisites={newPrerequisites}
         setPrerequisites={setNewPrerequisites}
 
-        faculty={adminFacultyId}
-        setFaculty={() => {}}
+        facultyIds={newProjectFacultyIds}
+        setFacultyIds={setNewProjectFacultyIds}
 
-        degree={newDegree}
-        setDegree={setNewDegree}
+        degreeTypes={newDegreeTypes}
+        setDegreeTypes={setNewDegreeTypes}
 
-        type={newType}
-        setType={setNewType}
+        projectTypes={newProjectTypes}
+        setProjectTypes={setNewProjectTypes}
 
         supervisors={allSupervisors}
         selectedSupervisor={selectedSupervisor}

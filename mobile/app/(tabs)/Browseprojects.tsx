@@ -34,6 +34,10 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all');
   const [selected,     setSelected]     = useState<ProjectProposal | null>(null);
   const [showApply,    setShowApply]    = useState(false);
+  // The student's track choice for projects open to more than one project
+  // type (project vs. thesis) — auto-filled with no UI step when the
+  // project only offers one, same as today's single-select projects.
+  const [selectedProjectType, setSelectedProjectType] = useState<'project' | 'thesis' | ''>('');
 
   // ── Apply form state ───────────────────────────────────────────────────────
   const [coverNote,       setCoverNote]       = useState('');
@@ -67,11 +71,13 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       const textOk =
         !search || titleMatch || supervisorMatch || skillMatch;
 
+      // `?? [scalar]` keeps this correct against pre-migration projects that
+      // only ever had the single scalar degreeType/projectType field.
       const degreeOk =
         degreeFilter === 'all' ||
-        p.degreeType === degreeFilter 
+        (p.degreeTypes ?? [p.degreeType]).includes(degreeFilter);
       const typeOk =
-        typeFilter === 'all' || p.projectType === typeFilter;
+        typeFilter === 'all' || (p.projectTypes ?? [p.projectType]).includes(typeFilter);
 
       return textOk && degreeOk && typeOk;
     });
@@ -80,6 +86,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   // ── Prerequisite/qualification check ──────────────────────────────────────
   const getMissingCourses = (p: ProjectProposal): string[] =>
     (p.prerequisites ?? []).filter((course) => !completedCourses.includes(course));
+
+  const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
 
   // ── File picker ────────────────────────────────────────────────────────────
   const pickFile = async (type: 'transcript' | 'cv') => {
@@ -148,6 +156,12 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       : 'Please upload transcript and CV');
     return;
   }
+  if (projectTypesOf(selected).length > 1 && !selectedProjectType) {
+    setApplyMessage(lang === 'he'
+      ? 'פרויקט זה מציע יותר ממסלול אחד — יש לבחור מסלול'
+      : 'This project offers more than one track — please choose one');
+    return;
+  }
 
   const uid = auth.currentUser?.uid;
   if (!uid) return;
@@ -166,6 +180,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       transcriptUrl,
       cvUrl,
       notes: coverNote,
+      ...(selectedProjectType ? { selectedProjectType } : {}),
     });
 
     setApplyMessage('✅ ' + tx('applySuccess', lang));
@@ -176,6 +191,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       setCoverNote('');
       setTranscriptUri(null);
       setCvUri(null);
+      setSelectedProjectType('');
     }, 1500);
 
   } catch (e: any) {
@@ -256,16 +272,20 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                   {/* Header row */}
                   <View style={styles.cardHeader}>
                     <View style={styles.badges}>
-                      <View style={[styles.badge, p.degreeType === 'masters' ? styles.badgeMasters : styles.badgeBachelors]}>
-                        <Text style={styles.badgeText}>
-                          {tx(p.degreeType === 'bachelors' ? 'bachelors' : 'masters', lang)}
-                        </Text>
-                      </View>
-                      <View style={[styles.badge, styles.badgeType]}>
-                        <Text style={styles.badgeText}>
-                          {tx(p.projectType === 'project' ? 'projectType' : 'thesisType', lang)}
-                        </Text>
-                      </View>
+                      {(p.degreeTypes ?? [p.degreeType]).map((d) => (
+                        <View key={d} style={[styles.badge, d === 'masters' ? styles.badgeMasters : styles.badgeBachelors]}>
+                          <Text style={styles.badgeText}>
+                            {tx(d === 'bachelors' ? 'bachelors' : 'masters', lang)}
+                          </Text>
+                        </View>
+                      ))}
+                      {(p.projectTypes ?? [p.projectType]).map((tp) => (
+                        <View key={tp} style={[styles.badge, styles.badgeType]}>
+                          <Text style={styles.badgeText}>
+                            {tx(tp === 'project' ? 'projectType' : 'thesisType', lang)}
+                          </Text>
+                        </View>
+                      ))}
                     </View>
                     <Text style={{ fontSize: 16, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
                   </View>
@@ -411,6 +431,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                               onPress={(e) => {
                                 e.stopPropagation?.();
                                 setSelected(p);
+                                const types = projectTypesOf(p);
+                                setSelectedProjectType(types.length === 1 ? types[0] : '');
                                 setShowApply(true);
                               }}
                             >
@@ -459,6 +481,37 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
               <Text style={[styles.applyProjectTitle, isRtl && styles.textRight]}>
                 {lang === 'he' ? selected.titleHe : selected.titleEn}
               </Text>
+            </View>
+          )}
+
+          {selected && projectTypesOf(selected).length > 1 && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'מסלול *' : 'Track *'}
+              </Text>
+              <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 12, marginTop: 6 }}>
+                {projectTypesOf(selected).map((tp) => {
+                  const isActive = selectedProjectType === tp;
+                  return (
+                    <Pressable
+                      key={tp}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                      onPress={() => setSelectedProjectType(tp)}
+                    >
+                      <View style={{
+                        width: 20, height: 20, borderRadius: 10, borderWidth: 2,
+                        borderColor: isActive ? '#2E86FF' : '#D0DEFF',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {isActive && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#2E86FF' }} />}
+                      </View>
+                      <Text style={{ fontSize: 14, color: '#111' }}>
+                        {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : (lang === 'he' ? 'תזה' : 'Thesis')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           )}
 

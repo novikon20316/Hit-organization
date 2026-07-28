@@ -193,8 +193,18 @@ export interface ProjectDocument {
   status: ProjectStatus;
   supervisorId: string;
   supervisorName: string;
+  /** Primary/first value — prefer degreeTypes/projectTypes (the full
+   *  multi-select set) for anything eligibility- or filter-related. */
   degreeType: DegreeLevel | 'both';
   projectType: ProjectType;
+  /** Full multi-select set — a project can be open to more than one degree
+   *  type and/or project type at once (see server's createAdminProject/
+   *  createSupervisorProject). Absent on pre-migration projects. */
+  degreeTypes?: DegreeLevel[];
+  projectTypes?: ProjectType[];
+  /** Links sibling docs created from one multi-faculty Add Project
+   *  submission (see server's createAdminProject). */
+  postingGroupId?: string | null;
   academicYear: string;
   enrolledStudentIds: string[];
   maxStudents: number;
@@ -439,6 +449,8 @@ export interface ProjectRecord {
   supervisorName: string;
   degreeType: string;
   projectType: string;
+  degreeTypes?: string[];
+  projectTypes?: string[];
   academicYear: string;
   enrolledStudentIds: string[];
 }
@@ -610,6 +622,8 @@ export interface ProjectProposal {
   facultyId:     string;
   degreeType:    DegreeType;
   projectType:   ProjectType;
+  degreeTypes?:  DegreeType[];
+  projectTypes?: ProjectType[];
   NumberOfStudents:   number;
   requiredSkills:string[];
   prerequisites?: string[];
@@ -684,6 +698,7 @@ export interface MyProject {
   facultyId: string; status: string; degreeType: string;
   enrolledStudentIds: string[]; applicationIds: string[];
   academicYear: string; projectType: string;
+  degreeTypes?: string[]; projectTypes?: string[];
   descriptionHe: string; descriptionEn: string;
   NumberOfStudents:number;
 }

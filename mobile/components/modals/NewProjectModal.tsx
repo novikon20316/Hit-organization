@@ -1,4 +1,13 @@
 // components/modals/NewProjectModal.tsx
+//
+// Faculty (admin/faculty_admin modes), degree type, and project type are all
+// checkbox multi-selects — a project can now be posted open to more than one
+// faculty (admin/faculty_admin only — see FacultyCheckboxes, options scoped
+// to GET /api/permissions/my-grants) and more than one degree/track
+// simultaneously. Supervisor mode keeps faculty locked/single (unaffected —
+// not one of the multi-faculty roles), but also gets the degree/type
+// checkbox conversion. Every selected combination must resolve to an
+// approved workflow template — see WorkflowTemplatePreview.
 import React from "react";
 import {AppUser, DegreeLevel, Program, Faculty, UserRole }from '@/types'
 import { tx } from '../../components/i18n';
@@ -8,6 +17,8 @@ import {
   TextInput, ActivityIndicator
 } from "react-native";
 import { NewProjectModalStyles } from '../../constants/styles';
+import FacultyCheckboxes from '../FacultyCheckboxes';
+import WorkflowTemplatePreview from '../WorkflowTemplatePreview';
 
 // Returns true if the user holds a given role (checks both roles[] and the
 // legacy single role field so old data keeps working)
@@ -40,13 +51,21 @@ type Props = {
   skills:  string; setSkills:  (v: string) => void;
   prerequisites: string; setPrerequisites: (v: string) => void;
 
+  // Supervisor mode only — locked/single, unaffected by the multi-faculty
+  // feature (supervisor isn't one of the allowed roles).
   faculty?:    string;
   setFaculty?: (v: string) => void;
 
-  degree:    "bachelors" | "masters" | "both";
-  setDegree: (v: "bachelors" | "masters") => void;
-  type:      "project" | "thesis";
-  setType:   (v: "project" | "thesis") => void;
+  // Admin/faculty_admin modes — multi-select, options scoped to whatever
+  // add_projects grants the caller holds (see FacultyCheckboxes). Unused in
+  // supervisor mode (faculty stays locked/single there — see faculty above).
+  facultyIds?:    string[];
+  setFacultyIds?: (v: string[]) => void;
+
+  degreeTypes:    ("bachelors" | "masters")[];
+  setDegreeTypes: (v: ("bachelors" | "masters")[]) => void;
+  projectTypes:   ("project" | "thesis")[];
+  setProjectTypes: (v: ("project" | "thesis")[]) => void;
 
   // NEW: selected program
   selectedProgram?:    string | null;
@@ -90,9 +109,10 @@ export default function NewProjectModal({
   descHe,  setDescHe,  descEn,  setDescEn,
   skills,  setSkills,
   prerequisites, setPrerequisites,
-  faculty, setFaculty,
-  degree,  setDegree,
-  type,    setType,
+  faculty,
+  facultyIds = [], setFacultyIds,
+  degreeTypes, setDegreeTypes,
+  projectTypes, setProjectTypes,
   selectedProgram, setSelectedProgram,
   restrictedMajors,
   supervisors, selectedSupervisor, setSelectedSupervisor, setShowConfirm,
@@ -106,6 +126,7 @@ export default function NewProjectModal({
 }: Props) {
 
   const isAdmin = mode === "admin";
+  const isFacultyAdmin = mode === "faculty_admin";
 
   // A user is treated as a supervisor (faculty-locked) when:
   //   - the screen passes mode="supervisor", OR
@@ -113,27 +134,29 @@ export default function NewProjectModal({
   // Admins and faculty_admins are never locked even if they also supervise.
   const isSupervisor =
     mode === "supervisor" ||
-    (!isAdmin && mode !== "faculty_admin" && userHasRole(currentUser, "supervisor"));
+    (!isAdmin && !isFacultyAdmin && userHasRole(currentUser, "supervisor"));
 
   // ── For supervisors: faculty is fixed to their own facultyId ────────────────
-  // The parent should still pass faculty / setFaculty; we just auto-lock it.
-  const effectiveFaculty = isSupervisor ? (currentUser?.facultyId ?? faculty) : faculty;
+  const effectiveFaculty = isSupervisor ? (currentUser?.facultyId ?? faculty) : undefined;
   const supervisorFacultyObj = isSupervisor
     ? getFacultyByKey(effectiveFaculty ?? "")
     : null;
 
-  // ── Faculty selection handler: reset program when faculty changes ────────────
-  const handleFacultyChange = (fid: string) => {
-    setFaculty?.(fid);
-    setSelectedProgram?.(null); // reset program selection
-  };
+  // The program/major picker only makes unambiguous sense against exactly
+  // one faculty + one degree type — with more than one of either selected,
+  // there's no single program list to show, so the picker is hidden and
+  // major stays unset (open to every major across every selected combo),
+  // same simplification the web port makes for its own major dropdown.
+  const singleFaculty = isSupervisor ? effectiveFaculty : (facultyIds.length === 1 ? facultyIds[0] : undefined);
+  const singleDegreeType = degreeTypes.length === 1 ? degreeTypes[0] : undefined;
 
-  // ── Degree selection handler: reset program when degree changes ─────────────
-  const handleDegreeChange = (d: "bachelors" | "masters") => {
-    setDegree(d);
-    setSelectedProgram?.(null); // reset program selection
+  const toggleDegreeType = (d: "bachelors" | "masters") => {
+    setDegreeTypes(degreeTypes.includes(d) ? degreeTypes.filter((x) => x !== d) : [...degreeTypes, d]);
+    setSelectedProgram?.(null);
   };
-
+  const toggleProjectType = (t: "project" | "thesis") => {
+    setProjectTypes(projectTypes.includes(t) ? projectTypes.filter((x) => x !== t) : [...projectTypes, t]);
+  };
 
   const hasOnlySupervisorRole =
     currentUser &&
@@ -142,8 +165,8 @@ export default function NewProjectModal({
     !userHasRole(currentUser, "faculty_admin");
 
   // ── Programs available for current faculty + degree ─────────────────────────
-  const availablePrograms: Program[] = effectiveFaculty
-    ? getFilteredPrograms(effectiveFaculty, degree)
+  const availablePrograms: Program[] = singleFaculty && singleDegreeType
+    ? getFilteredPrograms(singleFaculty, singleDegreeType)
     : [];
 
   // A supervisor restricted to specific majors (restrictedMajors, set by
@@ -159,7 +182,7 @@ export default function NewProjectModal({
   const showProgramPicker = visiblePrograms.length > 0;
 
   const shouldShowClassSelection =
-    hasOnlySupervisorRole && effectiveFaculty && !showProgramPicker;
+    hasOnlySupervisorRole && singleFaculty && !showProgramPicker;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -215,34 +238,20 @@ export default function NewProjectModal({
           </Text>
         </Pressable>
 
-        {/* ── Faculty: picker for admin, read-only badge for supervisor ──────── */}
-        {isAdmin && (
+        {/* ── Faculty: checkboxes for admin/faculty_admin, read-only badge for supervisor ──── */}
+        {(isAdmin || isFacultyAdmin) && (
           <>
             <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
-              {lang === "he" ? "פקולטה *" : "Faculty *"}
+              {lang === "he" ? "פקולטה/ות *" : "Faculty/Faculties *"}
             </Text>
-            <View style={programStyles.facultyList}>
-              {HIT_FACULTIES.map((f) => {
-                const isSelected = faculty === f.key;
-                const fc = facultyColors[f.key] ?? facultyColors["default"];
-                const accentColor = fc?.primary ?? "#2E86FF";
-                return (
-                  <Pressable
-                    key={f.key}
-                    style={[
-                      programStyles.facultyBtn,
-                      isSelected && { backgroundColor: accentColor, borderColor: accentColor },
-                    ]}
-                    onPress={() => handleFacultyChange(f.key)}
-                  >
-                    <View style={[programStyles.facultyDot, { backgroundColor: accentColor }]} />
-                    <Text style={[programStyles.facultyBtnText, isSelected && { color: "#fff" }]}>
-                      {f.label[lang]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <FacultyCheckboxes
+              selected={facultyIds}
+              onChange={(ids) => {
+                setFacultyIds?.(ids);
+                setSelectedProgram?.(null);
+              }}
+              lang={lang}
+            />
           </>
         )}
 
@@ -290,22 +299,26 @@ export default function NewProjectModal({
           {lang === "he" ? "סוג תואר" : "Degree Type"}
         </Text>
         <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
-          {(["bachelors", "masters"] as const).map((d) => (
-            <Pressable
-              key={d}
-              style={[styles.toggleBtn, degree === d && styles.toggleBtnActive]}
-              onPress={() => handleDegreeChange(d)}
-            >
-              <Text style={[styles.toggleText, degree === d && styles.toggleTextActive]}>
-                {d === "bachelors"
-                  ? (lang === "he" ? "תואר ראשון" : "Bachelor's")
-                  : (lang === "he" ? "תואר שני"   : "Master's")}
-              </Text>
-            </Pressable>
-          ))}
+          {(["bachelors", "masters"] as const).map((d) => {
+            const isSelected = degreeTypes.includes(d);
+            return (
+              <Pressable
+                key={d}
+                style={[styles.toggleBtn, isSelected && styles.toggleBtnActive]}
+                onPress={() => toggleDegreeType(d)}
+              >
+                <Text style={[styles.toggleText, isSelected && styles.toggleTextActive]}>
+                  {isSelected ? "✓ " : ""}
+                  {d === "bachelors"
+                    ? (lang === "he" ? "תואר ראשון" : "Bachelor's")
+                    : (lang === "he" ? "תואר שני"   : "Master's")}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* ── Program picker (shown when faculty + degree are selected) ───────── */}
+        {/* ── Program picker (shown when exactly one faculty + one degree are selected) ── */}
         {showProgramPicker && (
           <View style={programStyles.section}>
             <Text style={[programStyles.sectionTitle, { marginBottom: 10 }]}>
@@ -347,7 +360,7 @@ export default function NewProjectModal({
         )}
 
         {/* Hint when faculty is selected but no programs match degree */}
-        {effectiveFaculty && !showProgramPicker && (
+        {singleFaculty && !showProgramPicker && (
           hasOnlySupervisorRole ? (
             <View style={programStyles.section}>
               <Text style={[programStyles.sectionTitle, { marginBottom: 10 }]}>
@@ -411,20 +424,33 @@ export default function NewProjectModal({
           {lang === "he" ? "סוג פרויקט" : "Project Type"}
         </Text>
         <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
-          {(["project", "thesis"] as const).map((t) => (
-            <Pressable
-              key={t}
-              style={[styles.toggleBtn, type === t && styles.toggleBtnActive]}
-              onPress={() => setType(t)}
-            >
-              <Text style={[styles.toggleText, type === t && styles.toggleTextActive]}>
-                {t === "project"
-                  ? (lang === "he" ? "פרויקט" : "Project")
-                  : (lang === "he" ? "תזה"    : "Thesis")}
-              </Text>
-            </Pressable>
-          ))}
+          {(["project", "thesis"] as const).map((t) => {
+            const isSelected = projectTypes.includes(t);
+            return (
+              <Pressable
+                key={t}
+                style={[styles.toggleBtn, isSelected && styles.toggleBtnActive]}
+                onPress={() => toggleProjectType(t)}
+              >
+                <Text style={[styles.toggleText, isSelected && styles.toggleTextActive]}>
+                  {isSelected ? "✓ " : ""}
+                  {t === "project"
+                    ? (lang === "he" ? "פרויקט" : "Project")
+                    : (lang === "he" ? "תזה"    : "Thesis")}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
+
+        {/* ── Workflow template preview ───────────────────────────────────────── */}
+        <WorkflowTemplatePreview
+          facultyIds={isSupervisor ? (singleFaculty ? [singleFaculty] : []) : facultyIds}
+          degreeTypes={degreeTypes}
+          projectTypes={projectTypes}
+          major={selectedProgram ? getFilteredPrograms(singleFaculty ?? "", singleDegreeType ?? "bachelors").find((p) => p.key === selectedProgram)?.slug ?? null : null}
+          lang={lang}
+        />
 
         {/* ── Prerequisites ─────────────────────────────────────────────────────── */}
         <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>
@@ -444,8 +470,8 @@ export default function NewProjectModal({
           placeholderTextColor="#9BA8C0"
         />
 
-        {/* ── Supervisors (admin only) ─────────────────────────────────────────── */}
-        {isAdmin && supervisors?.length ? (
+        {/* ── Supervisors (admin/faculty_admin only) ────────────────────────────── */}
+        {(isAdmin || isFacultyAdmin) && supervisors?.length ? (
           <>
             <Text style={styles.fieldLabel}>
               {lang === "he" ? "בחר מנחה" : "Select Supervisor"}

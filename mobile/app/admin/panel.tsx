@@ -169,14 +169,14 @@ export default function PanelScreen() {
   const [maintenanceStatus, setMaintenanceStatus] = useState<{ isActive: boolean; title: string; endsAt: string | null } | null>(null);
   const [deactivatingMaintenance, setDeactivatingMaintenance] = useState(false);
   // ── New project modal state ───────────────────────────────────────────────
-  const [newProjectFaculty, setNewProjectFaculty] = useState('');
+  const [newProjectFacultyIds, setNewProjectFacultyIds] = useState<string[]>([]);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newTitleHe,  setNewTitleHe]  = useState('');
   const [newTitleEn,  setNewTitleEn]  = useState('');
   const [newDescHe,   setNewDescHe]   = useState('');
   const [newDescEn,   setNewDescEn]   = useState('');
-  const [newDegree,   setNewDegree]   = useState<'bachelors' | 'masters'>('bachelors');
-  const [newType,     setNewType]     = useState<'project' | 'thesis'>('project');
+  const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
+  const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills,   setNewSkills]   = useState('');
   const [newPrerequisites, setNewPrerequisites] = useState('');
   const [creating,    setCreating]    = useState(false);
@@ -284,20 +284,27 @@ export default function PanelScreen() {
   }, [projectId]);
 
   // ── 2. Supervisor Picker Sync ────────────────────────────────────────
+  // Fetches per selected faculty and merges (dedup by id) — a project can
+  // now be posted open to more than one faculty at once.
   useEffect(() => {
     const fetchSupervisors = async () => {
+      if (newProjectFacultyIds.length === 0) {
+        setAllSupervisors([]);
+        return;
+      }
       try {
-        // 🚀 Moved query filtering constraints parameters directly to your backend service router parameters
-        const response = await apiClient.get('/api/admin/supervisors', {
-          params: { facultyId: newProjectFaculty }
-        });
-        setAllSupervisors(response.data || []);
+        const responses = await Promise.all(
+          newProjectFacultyIds.map((facultyId) => apiClient.get('/api/admin/supervisors', { params: { facultyId } }))
+        );
+        const byId = new Map<string, AppUser>();
+        responses.forEach((r) => (r.data || []).forEach((s: AppUser) => byId.set(s.id, s)));
+        setAllSupervisors([...byId.values()]);
       } catch (err) {
         console.error("Error loading panel supervisors:", err);
       }
     };
     if (showNewProject) fetchSupervisors();
-  }, [newProjectFaculty, showNewProject]);
+  }, [newProjectFacultyIds.join(','), showNewProject]);
 
   // ── Defense-day access grants — external examiners who missed their window ──
   useEffect(() => {
@@ -713,8 +720,12 @@ export default function PanelScreen() {
 
   // ── Create project ─────────────────────────────────────────────────────────
   const handleCreateProject = async () => {
-    if (!selectedSupervisor || !newTitleHe.trim() || !newTitleEn.trim() || !newProjectFaculty) {
+    if (!selectedSupervisor || !newTitleHe.trim() || !newTitleEn.trim() || newProjectFacultyIds.length === 0) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש למלא את כל השדות' : 'Missing required arguments');
+      return;
+    }
+    if (newDegreeTypes.length === 0 || newProjectTypes.length === 0) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור לפחות סוג תואר אחד וסוג פרויקט אחד' : 'Select at least one degree type and one project type');
       return;
     }
     setCreating(true);
@@ -722,13 +733,13 @@ export default function PanelScreen() {
       // 🚀 Replaced client-side addDoc write allocation loop
       await apiClient.post('/api/admin/projects', {
         supervisorId: selectedSupervisor.id,
-        facultyId: newProjectFaculty,
+        facultyIds: newProjectFacultyIds,
         titleHe: newTitleHe.trim(),
         titleEn: newTitleEn.trim(),
         descriptionHe: newDescHe.trim(),
         descriptionEn: newDescEn.trim(),
-        degreeType: newDegree,
-        projectType: newType,
+        degreeTypes: newDegreeTypes,
+        projectTypes: newProjectTypes,
         maxStudents: maxStudents,
         requiredSkills: newSkills.split(',').map((s) => s.trim()).filter(Boolean),
         prerequisites: newPrerequisites.split(',').map((s) => s.trim()).filter(Boolean),
@@ -2051,14 +2062,14 @@ export default function PanelScreen() {
         prerequisites={newPrerequisites}
         setPrerequisites={setNewPrerequisites}
 
-        faculty={newProjectFaculty}
-        setFaculty={setNewProjectFaculty}
+        facultyIds={newProjectFacultyIds}
+        setFacultyIds={setNewProjectFacultyIds}
 
-        degree={newDegree}
-        setDegree={setNewDegree}
+        degreeTypes={newDegreeTypes}
+        setDegreeTypes={setNewDegreeTypes}
 
-        type={newType}
-        setType={setNewType}
+        projectTypes={newProjectTypes}
+        setProjectTypes={setNewProjectTypes}
 
         supervisors={allSupervisors}
         selectedSupervisor={selectedSupervisor}
