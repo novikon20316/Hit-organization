@@ -5,7 +5,7 @@ import admin from 'firebase-admin';
 import crypto from 'crypto';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
-import { checkDeletionEligibility, purgeAccount } from '../services/accountDeletion.js';
+import { checkDeletionEligibility, purgeAccount, getEffectiveRoles } from '../services/accountDeletion.js';
 import { VALID_ROLES, generateTempPassword, hashPassword } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
@@ -113,17 +113,48 @@ export const getAdminProjectMilestones = async (req: AuthenticatedRequest, res: 
   }
 };
 
+// Whoever may post a project may also see the supervisor pool to assign one
+// to it — same roles createAdminProject itself authorizes below.
+const PROJECT_CREATOR_ROLES = ['faculty_admin', 'system_admin', 'grad_school_head', 'administrative_secretary'];
+
 /**
- * 2. GET /api/admin/supervisors
- * Fetches all users currently registered with the 'supervisor' role.
+ * 2. GET /api/admin/supervisors?facultyIds=a&facultyIds=b
+ * Staff holding the 'supervisor' role — either as their primary role or
+ * among their additionalRoles/roles (a program_head or coordinator can also
+ * supervise) — in any of the given faculties. Previously system_admin-only
+ * and ignored the faculty filter entirely (returned every supervisor,
+ * institution-wide, regardless of what was requested); that 403'd every
+ * other Add Project modal that calls this (faculty_admin/grad_school_head/
+ * administrative_secretary), which silently rendered as an empty dropdown
+ * since the client swallows the error.
  */
 export const getSupervisorsList = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  const role  = req.user?.role;
+  const roles = req.user?.roles ?? [];
+  const isAuthorized = PROJECT_CREATOR_ROLES.includes(role ?? '') || roles.some((r) => PROJECT_CREATOR_ROLES.includes(r));
+  if (!isAuthorized) {
+    return res.status(403).json({ message: 'Access denied: faculty_admin, grad_school_head, administrative_secretary, or system_admin only.' });
   }
+
+  const rawFacultyIds = req.query.facultyIds;
+  const facultyIds: string[] = Array.isArray(rawFacultyIds)
+    ? rawFacultyIds.filter((id): id is string => typeof id === 'string')
+    : typeof rawFacultyIds === 'string' && rawFacultyIds
+    ? [rawFacultyIds]
+    : [];
+  // A supervisor list is only meaningful once at least one faculty is
+  // selected — matches every caller's own client-side gating.
+  if (facultyIds.length === 0) {
+    return res.status(200).json([]);
+  }
+
   try {
-    const snap = await db.collection('users').where('role', '==', 'supervisor').get();
-    const supervisors = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Firestore 'in' caps at 30 values — the canonical faculty list is a
+    // handful of entries, nowhere near that.
+    const snap = await db.collection('users').where('facultyId', 'in', facultyIds).get();
+    const supervisors = snap.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .filter((u: any) => getEffectiveRoles(u).includes('supervisor'));
     return res.status(200).json(supervisors);
   } catch (error: any) {
     console.error('getSupervisorsList Error:', error);
@@ -150,9 +181,7 @@ const VALID_FACULTY_IDS_NO_ALL = VALID_SCOPE_FACULTY_IDS.filter((id) => id !== '
 export const createAdminProject = async (req: AuthenticatedRequest, res: Response) => {
   const role  = req.user?.role;
   const roles = req.user?.roles ?? [];
-  const isAuthorized =
-    ['faculty_admin', 'system_admin', 'grad_school_head', 'administrative_secretary'].includes(role ?? '') ||
-    roles.some((r) => ['faculty_admin', 'system_admin', 'grad_school_head', 'administrative_secretary'].includes(r));
+  const isAuthorized = PROJECT_CREATOR_ROLES.includes(role ?? '') || roles.some((r) => PROJECT_CREATOR_ROLES.includes(r));
   if (!isAuthorized) {
     return res.status(403).json({ message: 'Access denied: faculty_admin, grad_school_head, administrative_secretary, or system_admin only.' });
   }
@@ -170,9 +199,18 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
     const projectTypesInput: string[] = Array.isArray(projectData.projectTypes)
       ? projectData.projectTypes
       : projectData.projectType ? [projectData.projectType] : [];
+    // A project can now have more than one supervisor (e.g. a primary +
+    // secondary) — supervisorId (old singular field) is accepted as a
+    // fallback for any caller still on the old shape.
+    const supervisorIds: string[] = Array.isArray(projectData.supervisorIds)
+      ? projectData.supervisorIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+      : projectData.supervisorId ? [projectData.supervisorId] : [];
 
     if (facultyIds.length === 0) {
       return res.status(400).json({ message: 'At least one faculty must be selected.' });
+    }
+    if (supervisorIds.length === 0) {
+      return res.status(400).json({ message: 'At least one supervisor must be selected.' });
     }
     if (facultyIds.some((id) => !VALID_FACULTY_IDS_NO_ALL.includes(id))) {
       return res.status(400).json({ message: 'One or more selected faculties are invalid.' });
@@ -211,9 +249,9 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
     // A project's major is optional — omitted means open to every major in
     // its faculty (today's implicit behavior, unchanged for existing
     // projects with no major field). If set, it must be a real program of
-    // EVERY selected faculty, and — if a supervisor is being assigned —
-    // within that supervisor's own assignedMajors restriction, if they have
-    // one. Enforced for real by applyApplication + firestore.rules.
+    // EVERY selected faculty, and — within EVERY selected supervisor's own
+    // assignedMajors restriction, if they have one. Enforced for real by
+    // applyApplication + firestore.rules.
     if (projectData.major) {
       for (const facultyId of facultyIds) {
         const validForFaculty = majorsForFaculty(facultyId);
@@ -221,11 +259,11 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
           return res.status(400).json({ message: `Invalid major "${projectData.major}" for faculty "${facultyId}".` });
         }
       }
-      if (projectData.supervisorId) {
-        const supervisorSnap = await db.collection('users').doc(projectData.supervisorId).get();
+      for (const supervisorId of supervisorIds) {
+        const supervisorSnap = await db.collection('users').doc(supervisorId).get();
         const supervisorMajors: string[] = supervisorSnap.data()?.assignedMajors ?? [];
         if (supervisorMajors.length > 0 && !supervisorMajors.includes(projectData.major)) {
-          return res.status(400).json({ message: `Major "${projectData.major}" is outside this supervisor's assigned majors.` });
+          return res.status(400).json({ message: `Major "${projectData.major}" is outside supervisor "${supervisorSnap.data()?.displayName ?? supervisorId}"'s assigned majors.` });
         }
       }
     }
@@ -252,6 +290,7 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
       facultyId: _omitFacultyId, facultyIds: _omitFacultyIds,
       degreeType: _omitDegreeType, degreeTypes: _omitDegreeTypes,
       projectType: _omitProjectType, projectTypes: _omitProjectTypes,
+      supervisorId: _omitSupervisorId, supervisorIds: _omitSupervisorIds,
       ...sharedFields
     } = projectData;
 
@@ -267,6 +306,14 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
         degreeTypes,
         projectType: projectTypes[0]!,
         projectTypes,
+        // supervisorId/secondarySupervisorId stay scalar (the "primary"/
+        // "second" value, in submitted order) so every existing reader of
+        // those two fields keeps working unchanged; supervisorIds carries
+        // the full set for a future 3rd+ supervisor, which nothing else
+        // reads yet.
+        supervisorId: supervisorIds[0]!,
+        secondarySupervisorId: supervisorIds[1] ?? null,
+        supervisorIds,
         workflowTemplateRefs: refsByFaculty.get(facultyId),
         postingGroupId,
         projectId: newProjectRef.id,

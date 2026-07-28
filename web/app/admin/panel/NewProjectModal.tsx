@@ -24,16 +24,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { majorsForFaculty } from '@/lib/permissions';
 import { FacultyCheckboxes } from '@/components/FacultyCheckboxes';
+import { SupervisorCheckboxes, type SupervisorOption } from '@/components/SupervisorCheckboxes';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
-
-interface SupervisorOption {
-  id: string;
-  displayName: string;
-  /** Present when that supervisor is restricted to specific majors within
-   *  their own faculty — see server/src/controllers/adminController.ts.
-   *  Absent/empty means unrestricted. */
-  assignedMajors?: string[];
-}
 
 interface NewProjectModalProps {
   open: boolean;
@@ -49,7 +41,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   // the effect only ever flips it to false — matches the codebase's
   // set-state-in-effect convention (see AcademicCalendarModal.tsx).
   const [loadingSupervisors, setLoadingSupervisors] = useState(true);
-  const [supervisorId, setSupervisorId] = useState('');
+  const [supervisorIds, setSupervisorIds] = useState<string[]>([]);
   const [facultyIds, setFacultyIds] = useState<string[]>([]);
   const [titleHe, setTitleHe] = useState('');
   const [titleEn, setTitleEn] = useState('');
@@ -64,8 +56,14 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const selectedSupervisor = supervisors.find((s) => s.id === supervisorId);
-  const supervisorAssignedMajors = useMemo(() => selectedSupervisor?.assignedMajors ?? [], [selectedSupervisor]);
+  const selectedSupervisors = useMemo(() => supervisors.filter((s) => supervisorIds.includes(s.id)), [supervisors, supervisorIds]);
+  // Intersection of every selected supervisor's own restriction, if any —
+  // a major must satisfy ALL of them, not just one.
+  const supervisorAssignedMajors = useMemo(() => {
+    const restricted = selectedSupervisors.map((s) => s.assignedMajors ?? []).filter((list) => list.length > 0);
+    if (restricted.length === 0) return [];
+    return restricted.reduce((acc, list) => acc.filter((m) => list.includes(m)));
+  }, [selectedSupervisors]);
 
   // Scoped to the selected supervisor's own restriction when they have one;
   // otherwise the intersection of every selected faculty's majors (a major
@@ -80,10 +78,15 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   }, [facultyIds, supervisorAssignedMajors]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || facultyIds.length === 0) {
+      setSupervisors([]);
+      setLoadingSupervisors(false);
+      return;
+    }
     let cancelled = false;
+    setLoadingSupervisors(true);
     apiClient
-      .getAdminSupervisors()
+      .getAdminSupervisors(facultyIds)
       .then((list) => {
         if (!cancelled) setSupervisors(list as unknown as SupervisorOption[]);
       })
@@ -96,10 +99,10 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, facultyIds.join(',')]);
 
   const reset = () => {
-    setSupervisorId('');
+    setSupervisorIds([]);
     setFacultyIds([]);
     setTitleHe('');
     setTitleEn('');
@@ -123,7 +126,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!supervisorId || !titleHe.trim() || !titleEn.trim() || facultyIds.length === 0) {
+    if (supervisorIds.length === 0 || !titleHe.trim() || !titleEn.trim() || facultyIds.length === 0) {
       setError(lang === 'he' ? 'יש למלא את כל השדות' : 'Missing required fields');
       return;
     }
@@ -135,7 +138,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
     setError('');
     try {
       await apiClient.createAdminProject({
-        supervisorId,
+        supervisorIds,
         facultyIds,
         titleHe: titleHe.trim(),
         titleEn: titleEn.trim(),
@@ -185,28 +188,22 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
               onChange={(ids) => {
                 setFacultyIds(ids);
                 setMajor('');
+                setSupervisorIds([]);
               }}
             />
           </Field>
 
-          <Field label={lang === 'he' ? 'מנחה *' : 'Supervisor *'}>
-            <select
-              value={supervisorId}
-              onChange={(e) => {
-                setSupervisorId(e.target.value);
+          <Field label={lang === 'he' ? 'מנחה/ים *' : 'Supervisor(s) *'}>
+            <SupervisorCheckboxes
+              facultyIds={facultyIds}
+              options={supervisors}
+              loading={loadingSupervisors}
+              selected={supervisorIds}
+              onChange={(ids) => {
+                setSupervisorIds(ids);
                 setMajor('');
               }}
-              className={inputCls}
-              required
-              disabled={loadingSupervisors}
-            >
-              <option value="">{loadingSupervisors ? '…' : lang === 'he' ? 'בחר מנחה' : 'Select supervisor'}</option>
-              {supervisors.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.displayName}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
 
           <Field label={lang === 'he' ? 'מגמה / תוכנית (אופציונלי)' : 'Major/Program (optional)'}>
@@ -220,7 +217,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
             </select>
             {supervisorAssignedMajors.length > 0 && (
               <p className="mt-1 text-xs text-muted">
-                {lang === 'he' ? 'המנחה שנבחר מוגבל למגמות מסוימות.' : 'The selected supervisor is restricted to specific majors.'}
+                {lang === 'he' ? 'אחד או יותר מהמנחים שנבחרו מוגבלים למגמות מסוימות.' : 'One or more selected supervisors are restricted to specific majors.'}
               </p>
             )}
           </Field>

@@ -17,13 +17,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { majorsForFaculty } from '@/lib/permissions';
 import { FacultyCheckboxes } from '@/components/FacultyCheckboxes';
+import { SupervisorCheckboxes, type SupervisorOption } from '@/components/SupervisorCheckboxes';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
-
-interface SupervisorOption {
-  id: string;
-  displayName: string;
-  assignedMajors?: string[];
-}
 
 interface NewProjectModalProps {
   open: boolean;
@@ -36,7 +31,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
 
   const [supervisors, setSupervisors] = useState<SupervisorOption[]>([]);
   const [loadingSupervisors, setLoadingSupervisors] = useState(true);
-  const [supervisorId, setSupervisorId] = useState('');
+  const [supervisorIds, setSupervisorIds] = useState<string[]>([]);
   const [facultyIds, setFacultyIds] = useState<string[]>([]);
   const [titleHe, setTitleHe] = useState('');
   const [titleEn, setTitleEn] = useState('');
@@ -59,12 +54,10 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
     }
     let cancelled = false;
     setLoadingSupervisors(true);
-    Promise.all(facultyIds.map((id) => apiClient.getAdminSupervisors(id)))
-      .then((lists) => {
-        if (cancelled) return;
-        const byId = new Map<string, SupervisorOption>();
-        lists.flat().forEach((s) => byId.set(s.id as string, s as unknown as SupervisorOption));
-        setSupervisors([...byId.values()]);
+    apiClient
+      .getAdminSupervisors(facultyIds)
+      .then((list) => {
+        if (!cancelled) setSupervisors(list as unknown as SupervisorOption[]);
       })
       .catch(() => {
         if (!cancelled) setSupervisors([]);
@@ -84,7 +77,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   };
 
   const reset = () => {
-    setSupervisorId('');
+    setSupervisorIds([]);
     setFacultyIds([]);
     setTitleHe('');
     setTitleEn('');
@@ -108,7 +101,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!supervisorId || !titleHe.trim() || !titleEn.trim() || facultyIds.length === 0) {
+    if (supervisorIds.length === 0 || !titleHe.trim() || !titleEn.trim() || facultyIds.length === 0) {
       setError(lang === 'he' ? 'יש למלא את כל השדות' : 'Missing required fields');
       return;
     }
@@ -120,7 +113,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
     setError('');
     try {
       await apiClient.createAdminProject({
-        supervisorId,
+        supervisorIds,
         facultyIds,
         titleHe: titleHe.trim(),
         titleEn: titleEn.trim(),
@@ -170,25 +163,19 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
               onChange={(ids) => {
                 setFacultyIds(ids);
                 setMajor('');
+                setSupervisorIds([]);
               }}
             />
           </Field>
 
-          <Field label={lang === 'he' ? 'מנחה *' : 'Supervisor *'}>
-            <select
-              value={supervisorId}
-              onChange={(e) => setSupervisorId(e.target.value)}
-              className={inputCls}
-              required
-              disabled={loadingSupervisors || facultyIds.length === 0}
-            >
-              <option value="">{loadingSupervisors ? '…' : lang === 'he' ? 'בחר מנחה' : 'Select supervisor'}</option>
-              {supervisors.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.displayName}
-                </option>
-              ))}
-            </select>
+          <Field label={lang === 'he' ? 'מנחה/ים *' : 'Supervisor(s) *'}>
+            <SupervisorCheckboxes
+              facultyIds={facultyIds}
+              options={supervisors}
+              loading={loadingSupervisors}
+              selected={supervisorIds}
+              onChange={setSupervisorIds}
+            />
           </Field>
 
           <Field label={lang === 'he' ? 'מגמה / תוכנית (אופציונלי)' : 'Major/Program (optional)'}>

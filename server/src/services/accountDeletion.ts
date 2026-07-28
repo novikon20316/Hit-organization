@@ -31,7 +31,7 @@ export interface EligibilityResult {
   reason?: string;
 }
 
-function getEffectiveRoles(userData: FirebaseFirestore.DocumentData): string[] {
+export function getEffectiveRoles(userData: FirebaseFirestore.DocumentData): string[] {
   const set = new Set<string>();
   if (userData.role) set.add(userData.role);
   (userData.additionalRoles ?? []).forEach((r: string) => set.add(r));

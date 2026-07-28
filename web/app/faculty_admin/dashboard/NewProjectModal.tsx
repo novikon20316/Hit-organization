@@ -28,6 +28,7 @@ import { apiClient } from '@/lib/apiClient';
 import type { FacultyId } from '@/lib/i18n';
 import type { SupervisorOption } from './types';
 import { FacultyCheckboxes } from '@/components/FacultyCheckboxes';
+import { SupervisorCheckboxes } from '@/components/SupervisorCheckboxes';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 
 interface NewProjectModalProps {
@@ -44,7 +45,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
   // the effect only ever flips it to false — matches the codebase's
   // set-state-in-effect convention (see admin/panel/NewProjectModal.tsx).
   const [loadingSupervisors, setLoadingSupervisors] = useState(true);
-  const [supervisorId, setSupervisorId] = useState('');
+  const [supervisorIds, setSupervisorIds] = useState<string[]>([]);
   const [facultyIds, setFacultyIds] = useState<string[]>([ownFacultyId]);
   const [titleHe, setTitleHe] = useState('');
   const [titleEn, setTitleEn] = useState('');
@@ -66,12 +67,10 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
     }
     let cancelled = false;
     setLoadingSupervisors(true);
-    Promise.all(facultyIds.map((id) => apiClient.getAdminSupervisors(id)))
-      .then((lists) => {
-        if (cancelled) return;
-        const byId = new Map<string, SupervisorOption>();
-        lists.flat().forEach((s) => byId.set(s.id as string, s as unknown as SupervisorOption));
-        setSupervisors([...byId.values()]);
+    apiClient
+      .getAdminSupervisors(facultyIds)
+      .then((list) => {
+        if (!cancelled) setSupervisors(list as unknown as SupervisorOption[]);
       })
       .catch(() => {
         if (!cancelled) setSupervisors([]);
@@ -93,7 +92,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!supervisorId || !titleHe.trim() || !titleEn.trim() || facultyIds.length === 0) {
+    if (supervisorIds.length === 0 || !titleHe.trim() || !titleEn.trim() || facultyIds.length === 0) {
       setError(lang === 'he' ? 'יש למלא את כל השדות' : 'Missing required fields');
       return;
     }
@@ -105,7 +104,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
     setError('');
     try {
       await apiClient.createAdminProject({
-        supervisorId,
+        supervisorIds,
         facultyIds,
         titleHe: titleHe.trim(),
         titleEn: titleEn.trim(),
@@ -153,21 +152,23 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
           </Field>
 
           <Field label={lang === 'he' ? 'פקולטה/ות *' : 'Faculty/Faculties *'}>
-            <FacultyCheckboxes selected={facultyIds} onChange={setFacultyIds} />
+            <FacultyCheckboxes
+              selected={facultyIds}
+              onChange={(ids) => {
+                setFacultyIds(ids);
+                setSupervisorIds([]);
+              }}
+            />
           </Field>
 
-          <Field label={lang === 'he' ? 'מנחה *' : 'Supervisor *'}>
-            <select value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)} className={inputCls} required disabled={loadingSupervisors}>
-              <option value="">{loadingSupervisors ? '…' : lang === 'he' ? 'בחר מנחה' : 'Select supervisor'}</option>
-              {supervisors.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.displayName}
-                </option>
-              ))}
-            </select>
-            {!loadingSupervisors && supervisors.length === 0 && (
-              <p className="mt-1 text-xs text-muted">{lang === 'he' ? 'אין מנחים זמינים בפקולטה' : 'No supervisors available in this faculty'}</p>
-            )}
+          <Field label={lang === 'he' ? 'מנחה/ים *' : 'Supervisor(s) *'}>
+            <SupervisorCheckboxes
+              facultyIds={facultyIds}
+              options={supervisors}
+              loading={loadingSupervisors}
+              selected={supervisorIds}
+              onChange={setSupervisorIds}
+            />
           </Field>
 
           <div className="grid grid-cols-2 gap-4">

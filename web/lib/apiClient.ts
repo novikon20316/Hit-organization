@@ -436,7 +436,10 @@ export const apiClient = {
    *  entry per faculty selected; `id` is just `ids[0]`, kept for callers that
    *  only ever create a single-faculty project. */
   async createAdminProject(payload: {
-    supervisorId: string;
+    /** One or more supervisors (e.g. a primary + secondary) — server writes
+     *  supervisorIds[0]/[1] to the back-compat supervisorId/
+     *  secondarySupervisorId fields, plus the full array. */
+    supervisorIds: string[];
     facultyIds: string[];
     titleHe: string;
     titleEn: string;
@@ -484,13 +487,16 @@ export const apiClient = {
     });
   },
 
-  /** GET /api/admin/supervisors — the server ignores any facultyId filter
-   *  today (returns every user with role 'supervisor' regardless), so this
-   *  always returns the full list; kept param-shaped in case that changes. */
-  async getAdminSupervisors(facultyId?: string) {
+  /** GET /api/admin/supervisors?facultyIds=a&facultyIds=b — staff holding the
+   *  'supervisor' role (primary or among additionalRoles/roles) in any of the
+   *  given faculties. Returns [] without a request when facultyIds is empty —
+   *  a supervisor list is only meaningful once at least one faculty is
+   *  selected. */
+  async getAdminSupervisors(facultyIds: string[]) {
+    if (facultyIds.length === 0) return [];
     return request<Array<Record<string, unknown> & { id: string; displayName: string }>>('/api/admin/supervisors', {
       method: 'GET',
-      params: { facultyId },
+      params: { facultyIds },
     });
   },
 
