@@ -21,6 +21,7 @@ import { db } from '../config/firebase.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { ActionType, ViewType, ScopeDescriptor } from '../config/permissionScopes.js';
 import { VALID_SCOPE_FACULTY_IDS } from '../config/permissionScopes.js';
+import type { ChainRole } from './workflowTemplates.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
@@ -128,6 +129,41 @@ export async function resolveProjectScope(projectId: string | undefined | null):
     degreeLevel: data.degreeType || undefined,
     processType: data.projectType || undefined,
   };
+}
+
+/** Resolves an abstract chain role (see workflowTemplates.ts's ChainRole) to
+ *  concrete candidate uids for a resource scope — "any one suffices"
+ *  semantics, matching the existing convention of fanning out to every match
+ *  rather than picking one. Replaces the ad hoc "notify coordinators" queries
+ *  in defenseScheduling.ts/examinerEscalation.ts/notificationScheduler.ts,
+ *  each of which only matched a plain facultyId equality and so silently
+ *  missed administrative_secretary-style accounts whose real scope lives in
+ *  coordinatorScopes instead of facultyId. */
+export async function resolveStaffForScope(
+  role: ChainRole,
+  resource: ResourceScope,
+  projectSupervisorIds: string[]
+): Promise<string[]> {
+  if (role === 'supervisor') return [...new Set(projectSupervisorIds.filter(Boolean))];
+
+  const uids = new Set<string>();
+
+  const roleSnap = await db.collection('users').where('roles', 'array-contains', role).get();
+  roleSnap.docs.forEach((doc) => {
+    const data = doc.data();
+    const descriptor: ScopeDescriptor = { facultyId: data.facultyId ?? '' };
+    const coordinatorScopes: ScopeDescriptor[] = data.coordinatorScopes ?? [];
+    if (scopeMatches(descriptor, resource) || coordinatorScopes.some((scope) => scopeMatches(scope, resource))) {
+      uids.add(doc.id);
+    }
+  });
+
+  // system_admin always included, matching the isSystemAdmin() bypass
+  // convention used by every other function in this file.
+  const adminSnap = await db.collection('users').where('roles', 'array-contains', 'system_admin').get();
+  adminSnap.docs.forEach((doc) => uids.add(doc.id));
+
+  return [...uids];
 }
 
 /** Resolves a milestone's scope for scope-matching, preferring its parent

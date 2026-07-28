@@ -20,6 +20,7 @@ import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 import { promoteNextExaminer } from './examinerEscalation.js';
 import { notifyUser } from './notify.js';
+import { resolveStaffForScope } from './scopeAuthorization.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -131,16 +132,11 @@ async function escalateOverdueExaminerToCoordinators(
   }
   if (!facultyId) return;
 
-  // array-contains + one equality clause is automatically indexed by
-  // Firestore — no composite index needed for this combination.
-  const coordinatorsSnap = await db.collection('users')
-    .where('facultyId', '==', facultyId)
-    .where('roles', 'array-contains', 'coordinator')
-    .get();
+  const coordinatorUids = await resolveStaffForScope('coordinator', { facultyId }, []);
 
-  await Promise.all(coordinatorsSnap.docs.map((coordDoc) =>
+  await Promise.all(coordinatorUids.map((uid) =>
     db.collection('notifications').add({
-      recipientId: coordDoc.id,
+      recipientId: uid,
       type: 'general',
       titleHe: '⚠️ בוחן חיצוני לא הגיב בזמן',
       titleEn: '⚠️ External examiner overdue',
@@ -153,7 +149,7 @@ async function escalateOverdueExaminerToCoordinators(
     })
   ));
 
-  console.log(`escalateOverdueExaminerToCoordinators: notified ${coordinatorsSnap.size} coordinator(s) of faculty ${facultyId} — overdue token ${tokenId}`);
+  console.log(`escalateOverdueExaminerToCoordinators: notified ${coordinatorUids.length} coordinator(s) of faculty ${facultyId} — overdue token ${tokenId}`);
 }
 
 /**

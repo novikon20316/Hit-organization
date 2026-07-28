@@ -51,6 +51,35 @@ export interface GradingComponentSpec {
   visibleToStudent: boolean;
 }
 
+// P1 backlog item — configurable approval/rejection routing per milestone.
+// Schema + template-editor UI + versioning/approval only for now: the actual
+// submit/grade/approve/reject endpoints still run today's hardcoded
+// supervisor-then-coordinator chain (see DEFAULT_ROUTING below) until a
+// separate follow-up rewires them to read a milestone's resolved routing.
+export type ChainRole = 'supervisor' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+// 'student', or another stage's `id` within the same chain (self-reference allowed).
+export type RejectionTarget = 'student' | string;
+
+export interface ChainStage {
+  /** Stable id (client-generated), used for rejectTo references + reordering. */
+  id: string;
+  role: ChainRole;
+  /** 'grade' submits a numeric score against the milestone's rubric; 'approve' is a pure sign-off. */
+  action: 'grade' | 'approve';
+  rejectTo: RejectionTarget;
+}
+
+export type MilestoneRoutingSpec = ChainStage[];
+
+// Matches today's actual hardcoded behavior — the fallback whenever a
+// template has neither its own defaultRouting nor a milestone-level override
+// (i.e. every template that predates this feature), so nothing currently
+// approved changes behavior until staff explicitly configure a chain.
+export const DEFAULT_ROUTING: MilestoneRoutingSpec = [
+  { id: 'supervisor', role: 'supervisor', action: 'grade', rejectTo: 'student' },
+  { id: 'coordinator', role: 'coordinator', action: 'approve', rejectTo: 'student' },
+];
+
 export interface WorkflowMilestoneSpec {
   type: string;
   nameHe: string;
@@ -61,6 +90,11 @@ export interface WorkflowMilestoneSpec {
   /** Optional — omitted/empty means this milestone still uses the hardcoded
    *  default rubric until the grading endpoints are wired to read this. */
   gradingComponents?: GradingComponentSpec[];
+  /** Per-milestone override of the template's defaultRouting. Omitted means
+   *  this milestone inherits defaultRouting (or DEFAULT_ROUTING if the
+   *  template has none) — staff only sets this when one milestone genuinely
+   *  needs a different chain than the rest of the template. */
+  routing?: MilestoneRoutingSpec;
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';
@@ -86,6 +120,15 @@ export interface WorkflowTemplateDoc {
    *  projects/theses already using an older version (see
    *  applyTemplateRetroactively) — chosen once, at proposal time. */
   applyMode: ApplyMode;
+  /** Template-level default chain — any milestone without its own `routing`
+   *  inherits this. Omitted means DEFAULT_ROUTING (today's hardcoded chain). */
+  defaultRouting?: MilestoneRoutingSpec;
+  /** msc_thesis-only carve-out: whether examiner invitations need a
+   *  grad_school_head sign-off before going out. Distinct from the milestone
+   *  routing model above — this governs the separate examinerRecommendations
+   *  flow, not milestone approval/rejection. Meaningless for other process
+   *  types. */
+  requireGradSchoolHeadExaminerSignoff?: boolean;
   approvedBy?: string;
   approvedAt?: string;
   /** Set once, at approval time, only when applyMode === 'now'. */
@@ -229,6 +272,8 @@ export async function proposeWorkflowTemplate(params: {
   createdBy: string;
   note?: string | null;
   applyMode: ApplyMode;
+  defaultRouting?: MilestoneRoutingSpec;
+  requireGradSchoolHeadExaminerSignoff?: boolean;
 }): Promise<{ id: string }> {
   // Version numbering is scoped per facultyId+processType+major — each
   // subject gets its own clean version history, rather than an unrelated
@@ -252,6 +297,8 @@ export async function proposeWorkflowTemplate(params: {
     createdAt: new Date().toISOString(),
     proposedNote: params.note ?? null,
     applyMode: params.applyMode,
+    defaultRouting: params.defaultRouting ?? null,
+    requireGradSchoolHeadExaminerSignoff: params.requireGradSchoolHeadExaminerSignoff ?? false,
   });
   return { id: ref.id };
 }

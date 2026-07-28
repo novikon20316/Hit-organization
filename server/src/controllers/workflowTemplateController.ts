@@ -12,6 +12,10 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import {
   ProcessType,
   WorkflowMilestoneSpec,
+  GradingComponentSpec,
+  ChainRole,
+  ChainStage,
+  MilestoneRoutingSpec,
   listWorkflowTemplates,
   proposeWorkflowTemplate,
   approveWorkflowTemplate,
@@ -69,6 +73,67 @@ function resolveSecretaryScope(
   return match ? { facultyId: match.facultyId, major: match.major ?? null } : null;
 }
 
+const CHAIN_ROLES: ChainRole[] = ['supervisor', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'program_head'];
+
+/** Validates a routing chain (either a template's defaultRouting or a
+ *  milestone's per-milestone override). Returns null on malformed input —
+ *  the caller decides whether "field absent entirely" (meaning "inherit",
+ *  always valid) is distinguished from this, since `undefined`/`null` never
+ *  reach this function directly (see validateOptionalRouting). */
+function validateRoutingChain(input: any): MilestoneRoutingSpec | null {
+  if (!Array.isArray(input) || input.length === 0) return null;
+  const ids = new Set<string>();
+  const cleaned: ChainStage[] = [];
+  for (const stage of input) {
+    if (!stage || typeof stage.id !== 'string' || !stage.id.trim()) return null;
+    if (!CHAIN_ROLES.includes(stage.role)) return null;
+    if (stage.action !== 'grade' && stage.action !== 'approve') return null;
+    if (typeof stage.rejectTo !== 'string' || !stage.rejectTo.trim()) return null;
+    const id = stage.id.trim();
+    if (ids.has(id)) return null; // duplicate stage id within the same chain
+    ids.add(id);
+    cleaned.push({ id, role: stage.role, action: stage.action, rejectTo: stage.rejectTo.trim() });
+  }
+  // rejectTo must resolve to 'student' or another stage's id within this same chain.
+  for (const stage of cleaned) {
+    if (stage.rejectTo !== 'student' && !ids.has(stage.rejectTo)) return null;
+  }
+  return cleaned;
+}
+
+/** Wraps validateRoutingChain so "field not sent at all" (meaning "inherit
+ *  the template default / DEFAULT_ROUTING") is a distinct, always-valid case
+ *  from "field sent but malformed" (rejected). */
+function validateOptionalRouting(input: any): { ok: true; value?: MilestoneRoutingSpec } | { ok: false } {
+  if (input === undefined || input === null) return { ok: true };
+  const parsed = validateRoutingChain(input);
+  return parsed ? { ok: true, value: parsed } : { ok: false };
+}
+
+function validateGradingComponents(input: any): GradingComponentSpec[] | null {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) return null;
+  const cleaned: GradingComponentSpec[] = [];
+  for (const c of input) {
+    if (!c || typeof c.key !== 'string' || !c.key.trim()) return null;
+    if (typeof c.labelHe !== 'string' || typeof c.labelEn !== 'string') return null;
+    const maxScore = Number(c.maxScore);
+    const weight = Number(c.weight);
+    if (!Number.isFinite(maxScore) || maxScore <= 0) return null;
+    if (!Number.isFinite(weight) || weight < 0) return null;
+    cleaned.push({
+      key: c.key.trim(),
+      labelHe: c.labelHe.trim(),
+      labelEn: c.labelEn.trim(),
+      maxScore,
+      weight,
+      hasComment: !!c.hasComment,
+      visibleToStudent: !!c.visibleToStudent,
+    });
+  }
+  return cleaned;
+}
+
 function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
   if (!Array.isArray(input) || input.length === 0) return null;
   const cleaned: WorkflowMilestoneSpec[] = [];
@@ -78,14 +143,24 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     const order = Number(m.order);
     const dueDaysFromStart = Number(m.dueDaysFromStart);
     if (!Number.isFinite(order) || !Number.isFinite(dueDaysFromStart) || dueDaysFromStart < 0) return null;
-    cleaned.push({
+
+    const gradingComponents = validateGradingComponents(m.gradingComponents);
+    if (gradingComponents === null) return null;
+
+    const routing = validateOptionalRouting(m.routing);
+    if (!routing.ok) return null;
+
+    const spec: WorkflowMilestoneSpec = {
       type: m.type.trim(),
       nameHe: m.nameHe.trim(),
       nameEn: m.nameEn.trim(),
       order,
       dueDaysFromStart,
       requiresExaminers: !!m.requiresExaminers,
-    });
+    };
+    if (gradingComponents.length > 0) spec.gradingComponents = gradingComponents;
+    if (routing.value) spec.routing = routing.value;
+    cleaned.push(spec);
   }
   return cleaned;
 }
@@ -194,9 +269,21 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     return res.status(400).json({ message: 'Invalid milestones — each needs type, nameHe, nameEn, order, dueDaysFromStart.' });
   }
 
+  const defaultRouting = validateOptionalRouting(req.body.defaultRouting);
+  if (!defaultRouting.ok) {
+    return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"), and a rejectTo ("student" or another stage\'s id).' });
+  }
+  // Meaningful only for msc_thesis (the examiner-invitation sign-off carve-out
+  // — see workflowTemplates.ts's WorkflowTemplateDoc doc comment); ignored
+  // (forced false) for every other process type so it can never be
+  // silently-true where it has no effect.
+  const requireGradSchoolHeadExaminerSignoff = processType === 'msc_thesis' ? !!req.body.requireGradSchoolHeadExaminerSignoff : false;
+
   try {
     const result = await proposeWorkflowTemplate({
       facultyId: facultyId!, processType, major, milestones, createdBy: uid, note: note ?? null, applyMode,
+      ...(defaultRouting.value ? { defaultRouting: defaultRouting.value } : {}),
+      requireGradSchoolHeadExaminerSignoff,
     });
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval' });
   } catch (error: any) {

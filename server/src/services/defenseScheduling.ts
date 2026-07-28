@@ -14,6 +14,7 @@ import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
 import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
+import { resolveStaffForScope } from './scopeAuthorization.js';
 import {
   assignExaminersAndNotify,
   createDefenseAccessGrant,
@@ -452,14 +453,11 @@ async function flagConflict(
   // Resolving "the coordinator(s) of this faculty" is a plain read, done
   // ahead of the write below — coordinator rosters don't change fast enough
   // for this to need transactional consistency.
-  const coordinatorSnap = await db.collection('users')
-    .where('role', '==', 'coordinator')
-    .where('facultyId', '==', facultyId)
-    .get();
+  const coordinatorUids = await resolveStaffForScope('coordinator', { facultyId }, []);
 
-  coordinatorSnap.docs.forEach((doc) => {
+  coordinatorUids.forEach((uid) => {
     transaction.set(db.collection('notifications').doc(), {
-      recipientId: doc.id,
+      recipientId: uid,
       type: 'defense_date_conflict_urgent',
       priority: 'urgent',
       titleHe: '⚠️ דחוף: לא נמצא מועד הגנה משותף',

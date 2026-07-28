@@ -16,6 +16,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
 import { sendNotificationEmail } from './emailService.js';
+import { resolveStaffForScope } from './scopeAuthorization.js';
 
 const ACTIVE_MILESTONE_STATUSES = new Set([
   'examiners_assigned', 'examiner_graded', 'both_examiners_graded',
@@ -75,14 +76,11 @@ async function notifyCoordinators(
   relatedMilestoneId: string | null,
 ): Promise<void> {
   try {
-    const coordinatorsSnap = await db.collection('users')
-      .where('facultyId', '==', facultyId)
-      .where('roles', 'array-contains', 'coordinator')
-      .get();
+    const coordinatorUids = await resolveStaffForScope('coordinator', { facultyId }, []);
 
-    await Promise.all(coordinatorsSnap.docs.map((coordDoc) =>
+    await Promise.all(coordinatorUids.map((uid) =>
       db.collection('notifications').add({
-        recipientId: coordDoc.id,
+        recipientId: uid,
         type: 'general',
         titleHe, titleEn, bodyHe, bodyEn,
         isRead: false,
