@@ -255,13 +255,6 @@ export interface UserDoc {
    *  unrestricted (all majors in their faculty). See
    *  server/src/controllers/adminController.ts. */
   assignedMajors?: string[];
-  /** Faculty/faculties a supervisor-like (primary or additional) role
-   *  applies to — lets a cross-faculty account (facultyId is the 'all'
-   *  sentinel, e.g. system_admin) still be surfaced as a supervisor option
-   *  for a specific faculty's Add Project modal. Empty/unset means "rely on
-   *  facultyId alone" (unchanged behavior for a plain single-faculty
-   *  supervisor). See server/src/controllers/adminController.ts. */
-  supervisorFacultyIds?: string[];
   /** Elastic per-user scope-rule grants (system_admin-managed) — see
    *  lib/permissions.ts. Empty/unset means no granular grants beyond the
    *  account's role. */
