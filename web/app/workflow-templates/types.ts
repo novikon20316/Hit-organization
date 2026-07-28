@@ -28,6 +28,40 @@ export interface GradingComponentSpec {
   visibleToStudent: boolean;
 }
 
+// Mirrors ChainRole/RejectionTarget/ChainStage/MilestoneRoutingSpec in
+// server/src/services/workflowTemplates.ts.
+export type ChainRole = 'supervisor' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+export type RejectionTarget = 'student' | string;
+
+export interface ChainStage {
+  id: string;
+  role: ChainRole;
+  action: 'grade' | 'approve';
+  rejectTo: RejectionTarget;
+}
+
+export type MilestoneRoutingSpec = ChainStage[];
+
+export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
+  { key: 'supervisor', he: 'מנחה', en: 'Supervisor' },
+  { key: 'coordinator', he: 'רכז', en: 'Coordinator' },
+  { key: 'faculty_admin', he: 'מנהל פקולטה', en: 'Faculty Admin' },
+  { key: 'administrative_secretary', he: 'מזכירה אקדמית', en: 'Administrative Secretary' },
+  { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
+  { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
+];
+
+export function chainRoleLabel(role: ChainRole, lang: 'he' | 'en'): string {
+  return CHAIN_ROLES.find((r) => r.key === role)?.[lang] ?? role;
+}
+
+// Matches today's actual hardcoded runtime behavior — the fallback whenever a
+// template has neither its own defaultRouting nor a milestone-level override.
+export const DEFAULT_ROUTING: MilestoneRoutingSpec = [
+  { id: 'supervisor', role: 'supervisor', action: 'grade', rejectTo: 'student' },
+  { id: 'coordinator', role: 'coordinator', action: 'approve', rejectTo: 'student' },
+];
+
 export interface MilestoneSpec {
   type: string;
   nameHe: string;
@@ -38,6 +72,9 @@ export interface MilestoneSpec {
   /** Optional — see GradingComponentSpec's comment server-side: schema and
    *  editor exist now, the grading UI itself doesn't read this yet. */
   gradingComponents?: GradingComponentSpec[];
+  /** Per-milestone override of the template's defaultRouting. Omitted means
+   *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */
+  routing?: MilestoneRoutingSpec;
 }
 
 export type ApplyMode = 'now' | 'from_now_on';
@@ -57,6 +94,13 @@ export interface WorkflowTemplateDoc {
   createdAt: string;
   proposedNote: string | null;
   applyMode: ApplyMode;
+  /** Template-level default chain — any milestone without its own `routing`
+   *  inherits this. Omitted means DEFAULT_ROUTING (today's hardcoded chain). */
+  defaultRouting?: MilestoneRoutingSpec;
+  /** msc_thesis-only carve-out: whether examiner invitations need a
+   *  grad_school_head sign-off before going out. Distinct from milestone
+   *  routing — governs the separate examinerRecommendations flow. */
+  requireGradSchoolHeadExaminerSignoff?: boolean;
   approvedBy?: string;
   approvedAt?: string;
   retroactiveAppliedAt?: string;

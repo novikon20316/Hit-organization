@@ -9,7 +9,8 @@ import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { MilestoneRowModal } from './MilestoneRowModal';
-import { emptyMilestone, processTypeLabel, type GradingComponentSpec, type MilestoneSpec, type ProcessType } from './types';
+import { ChainEditor } from './ChainEditor';
+import { DEFAULT_ROUTING, emptyMilestone, processTypeLabel, type GradingComponentSpec, type MilestoneRoutingSpec, type MilestoneSpec, type ProcessType } from './types';
 
 interface ProposeVersionModalProps {
   processType: ProcessType;
@@ -25,13 +26,24 @@ interface ProposeVersionModalProps {
    *  own scope), never asked again in here. */
   major: string | null;
   initialMilestones: MilestoneSpec[];
+  /** Pre-fills from the currently approved version's chain, if any —
+   *  matches how initialMilestones works. Falls back to DEFAULT_ROUTING
+   *  (today's hardcoded behavior) when proposing the very first version. */
+  initialDefaultRouting?: MilestoneRoutingSpec;
+  initialRequireGradSchoolHeadExaminerSignoff?: boolean;
   onClose: () => void;
   onProposed: () => void;
 }
 
-export function ProposeVersionModal({ processType, facultyId, major, initialMilestones, onClose, onProposed }: ProposeVersionModalProps) {
+export function ProposeVersionModal({
+  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialRequireGradSchoolHeadExaminerSignoff, onClose, onProposed,
+}: ProposeVersionModalProps) {
   const { lang, t } = useLanguage();
   const [milestones, setMilestones] = useState<MilestoneSpec[]>(initialMilestones.length > 0 ? initialMilestones.map((m) => ({ ...m })) : [emptyMilestone(1)]);
+  const [defaultRouting, setDefaultRouting] = useState<MilestoneRoutingSpec>(
+    initialDefaultRouting && initialDefaultRouting.length > 0 ? initialDefaultRouting.map((s) => ({ ...s })) : DEFAULT_ROUTING.map((s) => ({ ...s }))
+  );
+  const [requireSignoff, setRequireSignoff] = useState(!!initialRequireGradSchoolHeadExaminerSignoff);
   const [note, setNote] = useState('');
   const [applyMode, setApplyMode] = useState<'now' | 'from_now_on'>('from_now_on');
   const [preview, setPreview] = useState<{ count: number } | null>(null);
@@ -65,11 +77,26 @@ export function ProposeVersionModal({ processType, facultyId, major, initialMile
     setRowModalOpen(true);
   };
 
-  const handleSaveRow = (values: { nameHe: string; nameEn: string; dueDaysFromStart: number; requiresExaminers: boolean; gradingComponents: GradingComponentSpec[] }) => {
+  const handleSaveRow = (values: { nameHe: string; nameEn: string; dueDaysFromStart: number; requiresExaminers: boolean; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec }) => {
+    // `routing` is only present in `values` when the row's chain override is
+    // ON — spread it in when present, but explicitly drop any pre-existing
+    // `routing` on the milestone being edited when it's absent (turning the
+    // override off must actually clear it, not leave the stale chain behind).
+    const { routing, ...rest } = values;
     if (editingRow) {
-      setMilestones((prev) => prev.map((m) => (m === editingRow ? { ...m, ...values } : m)));
+      setMilestones((prev) => prev.map((m) => {
+        if (m !== editingRow) return m;
+        const next: MilestoneSpec = { ...m, ...rest };
+        if (routing) next.routing = routing;
+        else delete next.routing;
+        return next;
+      }));
     } else {
-      setMilestones((prev) => [...prev, { type: `custom_${Math.random().toString(36).slice(2, 10)}`, order: prev.length + 1, ...values }]);
+      setMilestones((prev) => {
+        const next: MilestoneSpec = { type: `custom_${Math.random().toString(36).slice(2, 10)}`, order: prev.length + 1, ...rest };
+        if (routing) next.routing = routing;
+        return [...prev, next];
+      });
     }
     setRowModalOpen(false);
   };
@@ -93,6 +120,8 @@ export function ProposeVersionModal({ processType, facultyId, major, initialMile
         facultyId,
         major,
         applyMode,
+        defaultRouting,
+        requireGradSchoolHeadExaminerSignoff: processType === 'msc_thesis' ? requireSignoff : undefined,
       });
       onProposed();
       onClose();
@@ -140,6 +169,9 @@ export function ProposeVersionModal({ processType, facultyId, major, initialMile
                   {ms.gradingComponents && ms.gradingComponents.length > 0
                     ? ` · 📊 ${ms.gradingComponents.length} ${lang === 'he' ? 'מרכיבי ציון' : 'grading components'}`
                     : ''}
+                  {ms.routing && ms.routing.length > 0
+                    ? ` · 🔀 ${lang === 'he' ? 'שרשרת מותאמת אישית' : 'custom chain'}`
+                    : ''}
                 </p>
               </div>
               <div className="flex shrink-0 gap-1">
@@ -153,6 +185,32 @@ export function ProposeVersionModal({ processType, facultyId, major, initialMile
             </div>
           ))}
         </div>
+
+        <div className="mt-4">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'שרשרת אישור/דחייה ברירת מחדל' : 'Default approval/rejection chain'}
+          </span>
+          <p className="mb-1.5 text-xs text-muted">
+            {lang === 'he'
+              ? 'חלה על כל אבן דרך שאין לה שרשרת משלה (ניתן לשנות לפי אבן דרך בעריכה שלה).'
+              : 'Applies to every milestone without its own override (set per-milestone via its own edit screen).'}
+          </p>
+          <ChainEditor stages={defaultRouting} onChange={setDefaultRouting} />
+        </div>
+
+        {processType === 'msc_thesis' && (
+          <label className="mt-4 flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
+            <span className="text-sm font-medium text-ink">
+              {lang === 'he' ? 'דורש אישור ראש בית הספר ללימודי מוסמכים להזמנת בוחנים' : 'Requires grad school head sign-off before examiner invitations go out'}
+            </span>
+            <input
+              type="checkbox"
+              checked={requireSignoff}
+              onChange={(e) => setRequireSignoff(e.target.checked)}
+              className="h-4 w-4 accent-[var(--primary)]"
+            />
+          </label>
+        )}
 
         <div className="mt-4">
           <span className="mb-1.5 block text-sm font-medium text-ink">

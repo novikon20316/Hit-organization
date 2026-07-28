@@ -401,6 +401,12 @@ export const apiClient = {
       roles?: string[];
       facultyId?: string;
       assignedMajors?: string[];
+      /** Faculty/faculties a supervisor-like (primary or additional) role
+       *  applies to — only needed for a cross-faculty account whose own
+       *  facultyId is the 'all' sentinel (e.g. system_admin), so they can
+       *  still be surfaced as a supervisor option for a specific faculty's
+       *  Add Project modal. See adminController.ts's getSupervisorsList. */
+      supervisorFacultyIds?: string[];
       /** system_admin, or a delegate (faculty_admin/program_head/
        *  grad_school_head) granting within their own scope — see
        *  server/src/config/permissionScopes.ts's DELEGATE_RESTRICTED_ACTIONS
@@ -1145,11 +1151,17 @@ export const apiClient = {
         major: string | null;
         version: number;
         status: 'pending_approval' | 'approved' | 'rejected' | 'superseded';
-        milestones: Array<{ type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean }>;
+        milestones: Array<{
+          type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean;
+          gradingComponents?: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>;
+          routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+        }>;
         createdBy: string;
         createdAt: string;
         proposedNote: string | null;
         applyMode: 'now' | 'from_now_on';
+        defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+        requireGradSchoolHeadExaminerSignoff?: boolean;
         approvedBy?: string;
         approvedAt?: string;
         retroactiveAppliedAt?: string;
@@ -1163,7 +1175,11 @@ export const apiClient = {
 
   async createWorkflowTemplateProposal(payload: {
     processType: 'msc_thesis' | 'msc_project' | 'bsc_project';
-    milestones: Array<{ type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean }>;
+    milestones: Array<{
+      type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean;
+      gradingComponents?: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>;
+      routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+    }>;
     note?: string;
     /** system_admin only — proposes on behalf of another faculty. Ignored
      *  (and derived server-side from her own assigned subject) for
@@ -1172,6 +1188,9 @@ export const apiClient = {
     /** A major slug, or `null`/omitted for "all majors in this faculty." */
     major?: string | null;
     applyMode: 'now' | 'from_now_on';
+    defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+    /** msc_thesis-only carve-out — ignored server-side for any other process type. */
+    requireGradSchoolHeadExaminerSignoff?: boolean;
   }) {
     return request<{ success: boolean; id: string; status: string }>('/api/workflow-templates', {
       method: 'POST',

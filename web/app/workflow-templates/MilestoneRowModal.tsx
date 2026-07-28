@@ -6,7 +6,8 @@
 
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import type { GradingComponentSpec, MilestoneSpec } from './types';
+import { ChainEditor, emptyStage } from './ChainEditor';
+import type { GradingComponentSpec, MilestoneRoutingSpec, MilestoneSpec } from './types';
 
 function emptyComponent(): GradingComponentSpec {
   return { key: `c_${Math.random().toString(36).slice(2, 8)}`, labelHe: '', labelEn: '', maxScore: 20, weight: 20, hasComment: true, visibleToStudent: true };
@@ -22,6 +23,7 @@ interface MilestoneRowModalProps {
     dueDaysFromStart: number;
     requiresExaminers: boolean;
     gradingComponents: GradingComponentSpec[];
+    routing?: MilestoneRoutingSpec;
   }) => void;
 }
 
@@ -32,6 +34,8 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
   const [days, setDays] = useState(String(editing?.dueDaysFromStart ?? 90));
   const [requiresExaminers, setRequiresExaminers] = useState(editing?.requiresExaminers ?? false);
   const [components, setComponents] = useState<GradingComponentSpec[]>(editing?.gradingComponents ?? []);
+  const [overrideChain, setOverrideChain] = useState(!!(editing?.routing && editing.routing.length > 0));
+  const [routing, setRouting] = useState<MilestoneRoutingSpec>(editing?.routing && editing.routing.length > 0 ? editing.routing.map((s) => ({ ...s })) : [emptyStage()]);
   const [error, setError] = useState('');
 
   if (!open) return null;
@@ -63,12 +67,17 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
         return;
       }
     }
+    if (overrideChain && routing.length === 0) {
+      setError(lang === 'he' ? 'שרשרת מותאמת אישית חייבת לכלול לפחות שלב אחד' : 'A custom chain needs at least one stage');
+      return;
+    }
     onSave({
       nameHe: nameHe.trim(),
       nameEn: nameEn.trim(),
       dueDaysFromStart: parsedDays,
       requiresExaminers,
       gradingComponents: components,
+      ...(overrideChain ? { routing } : {}),
     });
   };
 
@@ -190,6 +199,29 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-line bg-paper p-3">
+            <label className="flex items-center justify-between">
+              <span className="text-sm font-medium text-ink">
+                {lang === 'he' ? 'שרשרת אישור מותאמת לאבן דרך זו' : 'Override chain for this milestone'}
+              </span>
+              <input
+                type="checkbox"
+                checked={overrideChain}
+                onChange={(e) => setOverrideChain(e.target.checked)}
+                className="h-4 w-4 accent-[var(--primary)]"
+              />
+            </label>
+            {overrideChain ? (
+              <div className="mt-2">
+                <ChainEditor stages={routing} onChange={setRouting} />
+              </div>
+            ) : (
+              <p className="mt-1.5 text-xs text-muted">
+                {lang === 'he' ? 'ללא שינוי — ישתמש בשרשרת ברירת המחדל של התבנית.' : 'Unchanged — inherits the template\'s default chain.'}
+              </p>
             )}
           </div>
 

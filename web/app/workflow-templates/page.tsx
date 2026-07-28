@@ -16,7 +16,19 @@ import type { AppRole } from '@/lib/roles';
 import { FACULTY_LABELS, facultyLabel, type FacultyId } from '@/lib/i18n';
 import { ProposeVersionModal } from './ProposeVersionModal';
 import { RejectModal } from './RejectModal';
-import { PROCESS_TYPES, canApproveRole, isMastersProcess, processTypeLabel, majorOptionsFor, type ProcessType, type WorkflowTemplateDoc } from './types';
+import {
+  PROCESS_TYPES, canApproveRole, isMastersProcess, processTypeLabel, majorOptionsFor, chainRoleLabel, DEFAULT_ROUTING,
+  type ProcessType, type WorkflowTemplateDoc, type MilestoneRoutingSpec,
+} from './types';
+
+// Renders a chain's stages as "Role (grades/approves)" joined by arrows —
+// used for both the template-level default and any milestone override in
+// the read-only Current Template view.
+function chainSummary(chain: MilestoneRoutingSpec, lang: 'he' | 'en'): string {
+  return chain
+    .map((stage) => `${chainRoleLabel(stage.role, lang)} (${stage.action === 'grade' ? (lang === 'he' ? 'מדרג' : 'grades') : (lang === 'he' ? 'מאשר' : 'approves')})`)
+    .join(' → ');
+}
 
 const WORKFLOW_TEMPLATE_ROLES: AppRole[] = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
 // These roles have no single "home" faculty (facultyId === 'all') — they
@@ -290,6 +302,15 @@ export default function WorkflowTemplatesPage() {
               <p className="mb-2 text-xs text-muted">
                 {lang === 'he' ? `גרסה ${approvedForActive.version} · מאושר` : `Version ${approvedForActive.version} · Approved`}
               </p>
+              <p className="mb-2 rounded-md bg-paper px-2.5 py-1.5 text-xs text-ink">
+                🔀 {lang === 'he' ? 'שרשרת ברירת מחדל: ' : 'Default chain: '}
+                {chainSummary(approvedForActive.defaultRouting && approvedForActive.defaultRouting.length > 0 ? approvedForActive.defaultRouting : DEFAULT_ROUTING, lang)}
+              </p>
+              {approvedForActive.processType === 'msc_thesis' && approvedForActive.requireGradSchoolHeadExaminerSignoff && (
+                <p className="mb-2 rounded-md bg-[#EFEBF6] px-2.5 py-1.5 text-xs font-medium" style={{ color: '#5B21B6' }}>
+                  🎓 {lang === 'he' ? 'הזמנת בוחנים דורשת אישור ראש בית הספר ללימודי מוסמכים' : 'Examiner invitations require grad school head sign-off'}
+                </p>
+              )}
               {[...approvedForActive.milestones]
                 .sort((a, b) => a.order - b.order)
                 .map((m, idx) => (
@@ -304,6 +325,11 @@ export default function WorkflowTemplatesPage() {
                           ? ` · 📊 ${m.gradingComponents.length} ${lang === 'he' ? 'מרכיבי ציון' : 'grading components'}`
                           : ''}
                       </p>
+                      {m.routing && m.routing.length > 0 && (
+                        <p className="mt-0.5 text-[11px] text-accent">
+                          🔀 {lang === 'he' ? 'שרשרת מותאמת: ' : 'Custom chain: '}{chainSummary(m.routing, lang)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -477,6 +503,8 @@ export default function WorkflowTemplatesPage() {
           facultyId={facultyId}
           major={major}
           initialMilestones={approvedForActive?.milestones ?? []}
+          initialDefaultRouting={approvedForActive?.defaultRouting}
+          initialRequireGradSchoolHeadExaminerSignoff={approvedForActive?.requireGradSchoolHeadExaminerSignoff}
           onClose={() => setProposeOpen(false)}
           onProposed={() => {
             fetchTemplates();
