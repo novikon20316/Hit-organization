@@ -23,7 +23,7 @@ import {
 } from '../services/studentProgress.js';
 import { transferGradeToMichlol } from '../services/gradeEngine.js';
 import { logAuditEvent } from '../services/auditLog.js';
-import { hasActionGrant, resolveProjectScope } from '../services/scopeAuthorization.js';
+import { hasActionGrant, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { openDefenseSchedulingIfPanelReady } from '../services/defenseScheduling.js';
 
@@ -512,9 +512,6 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
 export const approveExaminerRecommendationFinal = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role)) {
-    return res.status(403).json({ message: 'You do not have permission to approve examiner lists.' });
-  }
   const { id } = req.params;
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
 
@@ -525,13 +522,29 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
     const rec = recSnap.data()!;
 
     if (rec.status !== 'coordinator_approved') {
-      return res.status(400).json({ message: `This recommendation is not awaiting grad-school-head approval (status: ${rec.status}).` });
+      return res.status(400).json({ message: `This recommendation is not awaiting sign-off (status: ${rec.status}).` });
     }
 
     const projectId = rec.projectId;
     const projectSnap = await db.collection('projects').doc(projectId).get();
     if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
     const project = projectSnap.data()!;
+
+    // The role required here is whatever was snapshotted onto this
+    // recommendation when the coordinator approved it (see
+    // coordinatorController.ts's approveExaminerRecommendation) — any
+    // ChainRole, not hardcoded to grad_school_head anymore. Recommendation
+    // docs from before this generalization have no `signoffRole` snapshot;
+    // all of those were msc_thesis, so `grad_school_head` is the correct
+    // legacy meaning. system_admin stays a bypass via resolveStaffForScope
+    // — deliberately NOT short-circuited by req.user.role here, since a
+    // plain grad_school_head must NOT bypass a template that configured a
+    // different role.
+    const resource = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+    const uids = await resolveStaffForScope(rec.signoffRole ?? 'grad_school_head', resource, [project.supervisorId].filter(Boolean));
+    if (!uids.includes(uid)) {
+      return res.status(403).json({ message: 'You do not have permission to approve this examiner list.' });
+    }
 
     const studentSnaps = await Promise.all(
       (project.enrolledStudentIds ?? []).map((sid: string) => db.collection('users').doc(sid).get())
@@ -566,7 +579,7 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
 
     await logAuditEvent({
       userId: uid,
-      userRole: req.user.role,
+      userRole: req.user?.role ?? '',
       action: 'examiner_approval_decided',
       entityType: 'examinerRecommendation',
       entityId: id,
@@ -595,9 +608,6 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
 export const rejectExaminerRecommendationFinal = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role)) {
-    return res.status(403).json({ message: 'You do not have permission to reject examiner lists.' });
-  }
   const { id } = req.params;
   const { reason } = req.body;
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
@@ -612,7 +622,19 @@ export const rejectExaminerRecommendationFinal = async (req: AuthenticatedReques
     const rec = recSnap.data()!;
 
     if (rec.status !== 'coordinator_approved') {
-      return res.status(400).json({ message: `This recommendation is not awaiting grad-school-head approval (status: ${rec.status}).` });
+      return res.status(400).json({ message: `This recommendation is not awaiting sign-off (status: ${rec.status}).` });
+    }
+
+    const projectSnap = await db.collection('projects').doc(rec.projectId).get();
+    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    const project = projectSnap.data()!;
+
+    // Same role check as approveExaminerRecommendationFinal — see its
+    // comment for why this deliberately never short-circuits on req.user.role.
+    const resource = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+    const uids = await resolveStaffForScope(rec.signoffRole ?? 'grad_school_head', resource, [project.supervisorId].filter(Boolean));
+    if (!uids.includes(uid)) {
+      return res.status(403).json({ message: 'You do not have permission to reject this examiner list.' });
     }
 
     await recRef.update({
@@ -624,7 +646,7 @@ export const rejectExaminerRecommendationFinal = async (req: AuthenticatedReques
 
     await logAuditEvent({
       userId: uid,
-      userRole: req.user.role,
+      userRole: req.user?.role ?? '',
       action: 'examiner_approval_decided',
       entityType: 'examinerRecommendation',
       entityId: id,

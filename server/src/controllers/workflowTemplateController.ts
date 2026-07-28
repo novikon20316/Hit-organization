@@ -273,17 +273,24 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   if (!defaultRouting.ok) {
     return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"), and a rejectTo ("student" or another stage\'s id).' });
   }
-  // Meaningful only for msc_thesis (the examiner-invitation sign-off carve-out
-  // — see workflowTemplates.ts's WorkflowTemplateDoc doc comment); ignored
-  // (forced false) for every other process type so it can never be
-  // silently-true where it has no effect.
-  const requireGradSchoolHeadExaminerSignoff = processType === 'msc_thesis' ? !!req.body.requireGradSchoolHeadExaminerSignoff : false;
+  // Who signs off on examiner invitations before they go out — any
+  // ChainRole, or 'none' to skip the second tier entirely. Valid for every
+  // process type now (not msc_thesis-only — see workflowTemplates.ts's
+  // WorkflowTemplateDoc doc comment for the legacy-default fallback when
+  // this is omitted).
+  let examinerSignoffRole: ChainRole | 'none' | undefined;
+  if (req.body.examinerSignoffRole !== undefined) {
+    if (req.body.examinerSignoffRole !== 'none' && !CHAIN_ROLES.includes(req.body.examinerSignoffRole)) {
+      return res.status(400).json({ message: `Invalid examinerSignoffRole: ${req.body.examinerSignoffRole}` });
+    }
+    examinerSignoffRole = req.body.examinerSignoffRole;
+  }
 
   try {
     const result = await proposeWorkflowTemplate({
       facultyId: facultyId!, processType, major, milestones, createdBy: uid, note: note ?? null, applyMode,
       ...(defaultRouting.value ? { defaultRouting: defaultRouting.value } : {}),
-      requireGradSchoolHeadExaminerSignoff,
+      ...(examinerSignoffRole !== undefined ? { examinerSignoffRole } : {}),
     });
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval' });
   } catch (error: any) {

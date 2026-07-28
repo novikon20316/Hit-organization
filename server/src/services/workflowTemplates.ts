@@ -133,12 +133,16 @@ export interface WorkflowTemplateDoc {
   /** Template-level default chain — any milestone without its own `routing`
    *  inherits this. Omitted means DEFAULT_ROUTING (today's hardcoded chain). */
   defaultRouting?: MilestoneRoutingSpec;
-  /** msc_thesis-only carve-out: whether examiner invitations need a
-   *  grad_school_head sign-off before going out. Distinct from the milestone
-   *  routing model above — this governs the separate examinerRecommendations
-   *  flow, not milestone approval/rejection. Meaningless for other process
-   *  types. */
-  requireGradSchoolHeadExaminerSignoff?: boolean;
+  /** Who must sign off on examiner invitations before they go out, once a
+   *  coordinator has approved the recommended list — distinct from the
+   *  milestone routing model above, this governs the separate
+   *  examinerRecommendations flow, not milestone approval/rejection.
+   *  Omitted → legacy default (`grad_school_head` for msc_thesis, `'none'`
+   *  for everything else — today's exact hardcoded behavior, so nothing
+   *  already-approved changes). `'none'` → no second tier at all, for any
+   *  process type. A ChainRole → that role must sign off, for any process
+   *  type (not msc_thesis-only anymore) — see resolveExaminerSignoffRole. */
+  examinerSignoffRole?: ChainRole | 'none';
   approvedBy?: string;
   approvedAt?: string;
   /** Set once, at approval time, only when applyMode === 'now'. */
@@ -185,7 +189,7 @@ export async function findApprovedTemplateId(
   facultyId: string,
   processType: ProcessType,
   major: string | null
-): Promise<{ id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec } | null> {
+): Promise<{ id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec; examinerSignoffRole?: ChainRole | 'none' } | null> {
   const tryMajor = async (m: string | null) => {
     const snap = await db.collection(COLLECTION)
       .where('facultyId', '==', facultyId)
@@ -199,13 +203,41 @@ export async function findApprovedTemplateId(
     const data = doc.data();
     const milestones = (data.milestones ?? []) as WorkflowMilestoneSpec[];
     if (milestones.length === 0) return null;
-    const result: { id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec } = { id: doc.id, milestones };
+    const result: { id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec; examinerSignoffRole?: ChainRole | 'none' } = { id: doc.id, milestones };
     if (data.defaultRouting) result.defaultRouting = data.defaultRouting as MilestoneRoutingSpec;
+    if (data.examinerSignoffRole) result.examinerSignoffRole = data.examinerSignoffRole as ChainRole | 'none';
     return result;
   };
 
-  const exact = major ? await tryMajor(major) : null;
-  return exact ?? (major ? await tryMajor(null) : null);
+  // Bug fix: the previous `major ? await tryMajor(major) : null` / `exact ??
+  // (major ? await tryMajor(null) : null)` pairing skipped the "all majors"
+  // (major === null) query entirely whenever the CALLER's own `major` was
+  // already null — the single most common case (a project/subject with no
+  // specific major). It always returned null without ever checking for an
+  // approved whole-faculty template, silently falling back to
+  // DEFAULT_MILESTONES/"missing template" for every major-agnostic subject.
+  if (major) {
+    const exact = await tryMajor(major);
+    if (exact) return exact;
+  }
+  return tryMajor(null);
+}
+
+/** Who must sign off on examiner invitations for this subject before they go
+ *  out, once a coordinator has approved the recommended list (see
+ *  coordinatorController.ts's approveExaminerRecommendation) — or `null` for
+ *  no second tier (invitations go out immediately on coordinator approval).
+ *  Falls back to today's exact hardcoded behavior when no template is
+ *  approved yet, or the approved template predates this field entirely. */
+export async function resolveExaminerSignoffRole(
+  facultyId: string, processType: ProcessType, major: string | null
+): Promise<ChainRole | null> {
+  const resolved = await findApprovedTemplateId(facultyId, processType, major);
+  const configured = resolved?.examinerSignoffRole;
+  if (configured === 'none') return null;
+  if (configured) return configured;
+  // Legacy default — matches today's hardcoded behavior exactly.
+  return processType === 'msc_thesis' ? 'grad_school_head' : null;
 }
 
 /** The milestone list a NEW enrollment should use, falling back to the app
@@ -301,7 +333,7 @@ export async function proposeWorkflowTemplate(params: {
   note?: string | null;
   applyMode: ApplyMode;
   defaultRouting?: MilestoneRoutingSpec;
-  requireGradSchoolHeadExaminerSignoff?: boolean;
+  examinerSignoffRole?: ChainRole | 'none';
 }): Promise<{ id: string }> {
   // Version numbering is scoped per facultyId+processType+major — each
   // subject gets its own clean version history, rather than an unrelated
@@ -326,7 +358,7 @@ export async function proposeWorkflowTemplate(params: {
     proposedNote: params.note ?? null,
     applyMode: params.applyMode,
     defaultRouting: params.defaultRouting ?? null,
-    requireGradSchoolHeadExaminerSignoff: params.requireGradSchoolHeadExaminerSignoff ?? false,
+    examinerSignoffRole: params.examinerSignoffRole ?? null,
   });
   return { id: ref.id };
 }

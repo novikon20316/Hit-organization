@@ -97,10 +97,13 @@ export interface WorkflowTemplateDoc {
   /** Template-level default chain — any milestone without its own `routing`
    *  inherits this. Omitted means DEFAULT_ROUTING (today's hardcoded chain). */
   defaultRouting?: MilestoneRoutingSpec;
-  /** msc_thesis-only carve-out: whether examiner invitations need a
-   *  grad_school_head sign-off before going out. Distinct from milestone
-   *  routing — governs the separate examinerRecommendations flow. */
-  requireGradSchoolHeadExaminerSignoff?: boolean;
+  /** Who must sign off on examiner invitations before they go out, once a
+   *  coordinator has approved the recommended list — distinct from milestone
+   *  routing, this governs the separate examinerRecommendations flow.
+   *  Omitted → legacy default (grad_school_head for msc_thesis, none for
+   *  everything else). 'none' → no second tier, for any process type. A
+   *  ChainRole → that role signs off, for any process type. */
+  examinerSignoffRole?: ChainRole | 'none';
   approvedBy?: string;
   approvedAt?: string;
   retroactiveAppliedAt?: string;

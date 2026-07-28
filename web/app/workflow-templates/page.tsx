@@ -306,11 +306,19 @@ export default function WorkflowTemplatesPage() {
                 🔀 {lang === 'he' ? 'שרשרת ברירת מחדל: ' : 'Default chain: '}
                 {chainSummary(approvedForActive.defaultRouting && approvedForActive.defaultRouting.length > 0 ? approvedForActive.defaultRouting : DEFAULT_ROUTING, lang)}
               </p>
-              {approvedForActive.processType === 'msc_thesis' && approvedForActive.requireGradSchoolHeadExaminerSignoff && (
-                <p className="mb-2 rounded-md bg-[#EFEBF6] px-2.5 py-1.5 text-xs font-medium" style={{ color: '#5B21B6' }}>
-                  🎓 {lang === 'he' ? 'הזמנת בוחנים דורשת אישור ראש בית הספר ללימודי מוסמכים' : 'Examiner invitations require grad school head sign-off'}
-                </p>
-              )}
+              {(() => {
+                // Mirrors the server's own legacy-default fallback (workflowTemplates.ts's
+                // resolveExaminerSignoffRole): omitted -> grad_school_head for msc_thesis,
+                // none otherwise. 'none' (explicit opt-out) never displays.
+                const resolvedSignoff = approvedForActive.examinerSignoffRole
+                  ?? (approvedForActive.processType === 'msc_thesis' ? 'grad_school_head' : 'none');
+                if (resolvedSignoff === 'none') return null;
+                return (
+                  <p className="mb-2 rounded-md bg-[#EFEBF6] px-2.5 py-1.5 text-xs font-medium" style={{ color: '#5B21B6' }}>
+                    🎓 {lang === 'he' ? `הזמנת בוחנים דורשת אישור: ${chainRoleLabel(resolvedSignoff as any, lang)}` : `Examiner invitations require sign-off from: ${chainRoleLabel(resolvedSignoff as any, lang)}`}
+                  </p>
+                );
+              })()}
               {[...approvedForActive.milestones]
                 .sort((a, b) => a.order - b.order)
                 .map((m, idx) => (
@@ -504,7 +512,7 @@ export default function WorkflowTemplatesPage() {
           major={major}
           initialMilestones={approvedForActive?.milestones ?? []}
           initialDefaultRouting={approvedForActive?.defaultRouting}
-          initialRequireGradSchoolHeadExaminerSignoff={approvedForActive?.requireGradSchoolHeadExaminerSignoff}
+          initialExaminerSignoffRole={approvedForActive?.examinerSignoffRole}
           onClose={() => setProposeOpen(false)}
           onProposed={() => {
             fetchTemplates();

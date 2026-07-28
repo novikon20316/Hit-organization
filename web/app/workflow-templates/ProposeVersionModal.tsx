@@ -10,7 +10,10 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { MilestoneRowModal } from './MilestoneRowModal';
 import { ChainEditor } from './ChainEditor';
-import { DEFAULT_ROUTING, emptyMilestone, processTypeLabel, type GradingComponentSpec, type MilestoneRoutingSpec, type MilestoneSpec, type ProcessType } from './types';
+import {
+  CHAIN_ROLES, DEFAULT_ROUTING, chainRoleLabel, emptyMilestone, processTypeLabel,
+  type ChainRole, type GradingComponentSpec, type MilestoneRoutingSpec, type MilestoneSpec, type ProcessType,
+} from './types';
 
 interface ProposeVersionModalProps {
   processType: ProcessType;
@@ -30,20 +33,26 @@ interface ProposeVersionModalProps {
    *  matches how initialMilestones works. Falls back to DEFAULT_ROUTING
    *  (today's hardcoded behavior) when proposing the very first version. */
   initialDefaultRouting?: MilestoneRoutingSpec;
-  initialRequireGradSchoolHeadExaminerSignoff?: boolean;
+  /** Pre-fills from the currently approved version's examinerSignoffRole, if
+   *  any — matches how initialDefaultRouting works. Omitted (proposing the
+   *  very first version) falls back to the same legacy default the server
+   *  applies: grad_school_head for msc_thesis, none otherwise. */
+  initialExaminerSignoffRole?: ChainRole | 'none';
   onClose: () => void;
   onProposed: () => void;
 }
 
 export function ProposeVersionModal({
-  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialRequireGradSchoolHeadExaminerSignoff, onClose, onProposed,
+  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, onClose, onProposed,
 }: ProposeVersionModalProps) {
   const { lang, t } = useLanguage();
   const [milestones, setMilestones] = useState<MilestoneSpec[]>(initialMilestones.length > 0 ? initialMilestones.map((m) => ({ ...m })) : [emptyMilestone(1)]);
   const [defaultRouting, setDefaultRouting] = useState<MilestoneRoutingSpec>(
     initialDefaultRouting && initialDefaultRouting.length > 0 ? initialDefaultRouting.map((s) => ({ ...s })) : DEFAULT_ROUTING.map((s) => ({ ...s }))
   );
-  const [requireSignoff, setRequireSignoff] = useState(!!initialRequireGradSchoolHeadExaminerSignoff);
+  const [examinerSignoffRole, setExaminerSignoffRole] = useState<ChainRole | 'none'>(
+    initialExaminerSignoffRole ?? (processType === 'msc_thesis' ? 'grad_school_head' : 'none')
+  );
   const [note, setNote] = useState('');
   const [applyMode, setApplyMode] = useState<'now' | 'from_now_on'>('from_now_on');
   const [preview, setPreview] = useState<{ count: number } | null>(null);
@@ -121,7 +130,7 @@ export function ProposeVersionModal({
         major,
         applyMode,
         defaultRouting,
-        requireGradSchoolHeadExaminerSignoff: processType === 'msc_thesis' ? requireSignoff : undefined,
+        examinerSignoffRole,
       });
       onProposed();
       onClose();
@@ -198,19 +207,26 @@ export function ProposeVersionModal({
           <ChainEditor stages={defaultRouting} onChange={setDefaultRouting} />
         </div>
 
-        {processType === 'msc_thesis' && (
-          <label className="mt-4 flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
-            <span className="text-sm font-medium text-ink">
-              {lang === 'he' ? 'דורש אישור ראש בית הספר ללימודי מוסמכים להזמנת בוחנים' : 'Requires grad school head sign-off before examiner invitations go out'}
-            </span>
-            <input
-              type="checkbox"
-              checked={requireSignoff}
-              onChange={(e) => setRequireSignoff(e.target.checked)}
-              className="h-4 w-4 accent-[var(--primary)]"
-            />
-          </label>
-        )}
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'אישור נוסף להזמנת בוחנים' : 'Second sign-off before examiner invitations go out'}
+          </span>
+          <p className="mb-1.5 text-xs text-muted">
+            {lang === 'he'
+              ? 'לאחר שהרכז מאשר את רשימת הבוחנים, ניתן לדרוש אישור נוסף מתפקיד ספציפי לפני שההזמנות נשלחות בפועל.'
+              : "After a coordinator approves the recommended examiner list, require sign-off from a specific role before invitations actually go out."}
+          </p>
+          <select
+            value={examinerSignoffRole}
+            onChange={(e) => setExaminerSignoffRole(e.target.value as ChainRole | 'none')}
+            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+          >
+            <option value="none">{lang === 'he' ? 'ללא אישור נוסף' : 'No second sign-off'}</option>
+            {CHAIN_ROLES.map((r) => (
+              <option key={r.key} value={r.key}>{chainRoleLabel(r.key, lang)}</option>
+            ))}
+          </select>
+        </label>
 
         <div className="mt-4">
           <span className="mb-1.5 block text-sm font-medium text-ink">

@@ -1163,7 +1163,7 @@ export const apiClient = {
         proposedNote: string | null;
         applyMode: 'now' | 'from_now_on';
         defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
-        requireGradSchoolHeadExaminerSignoff?: boolean;
+        examinerSignoffRole?: string;
         approvedBy?: string;
         approvedAt?: string;
         retroactiveAppliedAt?: string;
@@ -1191,8 +1191,10 @@ export const apiClient = {
     major?: string | null;
     applyMode: 'now' | 'from_now_on';
     defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
-    /** msc_thesis-only carve-out — ignored server-side for any other process type. */
-    requireGradSchoolHeadExaminerSignoff?: boolean;
+    /** Who must sign off on examiner invitations before they go out — a
+     *  ChainRole, or 'none' to skip the second tier. Valid for any process
+     *  type. Omitted uses the server's legacy default. */
+    examinerSignoffRole?: string;
   }) {
     return request<{ success: boolean; id: string; status: string }>('/api/workflow-templates', {
       method: 'POST',

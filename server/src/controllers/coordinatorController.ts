@@ -10,7 +10,7 @@ import {
   openDefenseSchedulingIfPanelReady,
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
-import { deriveProcessType, type ChainStage } from '../services/workflowTemplates.js';
+import { deriveProcessType, resolveExaminerSignoffRole, type ChainStage } from '../services/workflowTemplates.js';
 import { authorizeStageActor, isChainDriven, statusForStage } from '../services/milestoneRouting.js';
 import { notifyUser } from '../services/notify.js';
 
@@ -251,16 +251,21 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
     );
     const studentName = studentSnaps.map((s) => s.data()?.displayName).filter(Boolean).join(', ');
 
-    // P1 backlog item #5 — master's thesis examiner lists need a second,
-    // grad_school_head sign-off before invitations actually go out. Every
-    // other process type keeps the coordinator's approval as final, exactly
-    // as before.
+    // Some faculties require a second sign-off on the recommended examiner
+    // list before invitations actually go out — configurable per template
+    // (see workflowTemplates.ts's examinerSignoffRole; defaults to
+    // grad_school_head for msc_thesis, none for everything else, matching
+    // this app's original hardcoded behavior). Snapshotting the resolved
+    // role onto the recommendation doc now means the second-tier approver
+    // doesn't shift if the template changes again later.
     const processType = deriveProcessType(project.degreeType, project.projectType);
-    if (processType === 'msc_thesis') {
+    const signoffRole = await resolveExaminerSignoffRole(project.facultyId, processType, project.major ?? null);
+    if (signoffRole) {
       await recRef.update({
         status: 'coordinator_approved',
         coordinatorApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
         coordinatorApprovedBy: coordinatorId,
+        signoffRole,
       });
       await logAuditEvent({
         userId: coordinatorId,
@@ -268,12 +273,13 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
         action: 'examiner_approval_requested',
         entityType: 'examinerRecommendation',
         entityId: id,
-        newValue: { projectId, processType },
+        newValue: { projectId, processType, signoffRole },
       });
       return res.status(200).json({
         success: true,
-        message: 'Approved — awaiting grad-school-head sign-off before invitations are sent.',
-        requiresGradSchoolHeadApproval: true,
+        message: `Approved — awaiting sign-off (${signoffRole}) before invitations are sent.`,
+        requiresFurtherApproval: true,
+        signoffRole,
       });
     }
 
