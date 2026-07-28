@@ -19,6 +19,7 @@ import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { TrackChangeControl } from '@/components/TrackChangeControl';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
 
@@ -237,6 +238,9 @@ export default function ProgramHeadDashboardPage() {
         </div>
       ) : tab === 'approvals' ? (
         <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <PendingSignoffsWidget showEmptyState />
+          </div>
           <div className="sm:col-span-2">
             <ExceptionalActionQueue />
           </div>

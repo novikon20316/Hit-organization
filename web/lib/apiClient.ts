@@ -743,6 +743,24 @@ export const apiClient = {
     });
   },
 
+  /** Whatever examiner-invitation / final-grade sign-offs the calling user is
+   *  currently authorized to act on, regardless of role — see
+   *  services/pendingSignoffs.ts. Always "my own" (derived from the auth
+   *  token), no uid param. */
+  async getMyPendingSignoffs() {
+    return request<{
+      items: Array<{
+        id: string;
+        type: 'examiners' | 'final_grade';
+        studentName: string;
+        facultyId: string;
+        title: string;
+        submittedAt: string;
+        urgency: 'low' | 'medium' | 'high';
+      }>;
+    }>('/api/staff/pending-signoffs', { method: 'GET' });
+  },
+
   // ─── 7. STUDENT ─────────────────────────────────────────────────────────────
   async getMyProfile() {
     return request<Record<string, unknown>>('/api/users/profile', { method: 'GET' });

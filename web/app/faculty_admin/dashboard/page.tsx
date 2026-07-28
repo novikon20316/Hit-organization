@@ -30,11 +30,12 @@ import { ProjectCard } from './ProjectCard';
 import { EnrollStudentModal } from './EnrollStudentModal';
 import { NewProjectModal } from './NewProjectModal';
 import { DeadlinesTab } from './DeadlinesTab';
+import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline } from './types';
 
 const FACULTY_ADMIN_ROLES: AppRole[] = ['faculty_admin', 'system_admin'];
 
-type Tab = 'overview' | 'users' | 'projects' | 'deadlines';
+type Tab = 'overview' | 'users' | 'projects' | 'deadlines' | 'signoffs';
 
 export default function FacultyAdminDashboardPage() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(FACULTY_ADMIN_ROLES);
@@ -121,7 +122,7 @@ export default function FacultyAdminDashboardPage() {
       }
     >
       <div className="mb-5 flex gap-1 border-b border-line">
-        {(['overview', 'users', 'projects', 'deadlines'] as const).map((key) => (
+        {(['overview', 'users', 'projects', 'deadlines', 'signoffs'] as const).map((key) => (
           <button
             key={key}
             type="button"
@@ -136,7 +137,9 @@ export default function FacultyAdminDashboardPage() {
                 ? lang === 'he' ? 'משתמשים' : 'Users'
                 : key === 'projects'
                   ? lang === 'he' ? 'פרויקטים' : 'Projects'
-                  : lang === 'he' ? 'מועדי הגשה' : 'Deadlines'}
+                  : key === 'deadlines'
+                    ? lang === 'he' ? 'מועדי הגשה' : 'Deadlines'
+                    : lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off'}
           </button>
         ))}
       </div>
@@ -165,8 +168,10 @@ export default function FacultyAdminDashboardPage() {
           ))}
           {projects.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין פרויקטים בפקולטה' : 'No projects in this faculty'}</p>}
         </div>
-      ) : (
+      ) : tab === 'deadlines' ? (
         <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchDashboard} />
+      ) : (
+        <PendingSignoffsWidget showEmptyState />
       )}
 
       {enrollingProject && (

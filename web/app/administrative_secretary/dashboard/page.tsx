@@ -17,6 +17,7 @@ import type { AppRole } from '@/lib/roles';
 import { BulkDueDateModal } from '@/components/BulkDueDateModal';
 import { AcademicYearLink } from '@/components/AcademicYearLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
+import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { SendExaminerModal } from './SendExaminerModal';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import { NewProjectModal } from './NewProjectModal';
@@ -125,6 +126,8 @@ export default function AdministrativeSecretaryDashboardPage() {
         <StatCard value={stats.scheduledDefenses} label={lang === 'he' ? 'הגנות מתוכננות' : 'Defenses'} color="#3E6C8C" />
         <StatCard value={stats.overdueGroups} label={lang === 'he' ? 'באיחור' : 'Overdue'} color="var(--danger)" />
       </div>
+
+      <PendingSignoffsWidget />
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 

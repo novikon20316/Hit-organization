@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
+import { resolveMyPendingSignoffs } from '../services/pendingSignoffs.js';
 
 
 export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => {
@@ -60,3 +61,20 @@ export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => 
         return res.status(500).json({ error: error.message });
     }
 }
+
+/**
+ * GET /api/staff/pending-signoffs
+ * Whatever examiner-invitation / final-grade sign-offs the calling user is
+ * currently authorized to act on, regardless of role — see
+ * services/pendingSignoffs.ts. Always "my own"; no route params.
+ */
+export const getMyPendingSignoffs = async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+    try {
+        const items = await resolveMyPendingSignoffs(req.user);
+        return res.status(200).json({ items });
+    } catch (error: any) {
+        console.error('getMyPendingSignoffs error:', error);
+        return res.status(500).json({ message: error.message || 'Failed to load pending sign-offs.' });
+    }
+};

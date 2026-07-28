@@ -20,11 +20,12 @@ import { DefenseTab, buildDefenseCards } from './DefenseTab';
 import { InProgressTab } from './InProgressTab';
 import { DeadlinesTab } from './DeadlinesTab';
 import { BulkImportModal } from '@/components/BulkImportModal';
+import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import type { CoordinatorDeadline, CoordinatorPendingMilestone, ExaminerRecommendation, ExaminerUser, InProgressProject, Project } from './types';
 
 const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
 
-type Tab = 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations';
+type Tab = 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs';
 
 export default function CoordinatorHomePage() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(COORDINATOR_ROLES);
@@ -107,6 +108,7 @@ export default function CoordinatorHomePage() {
     { key: 'inProgress', label: lang === 'he' ? 'פרויקטים פעילים' : 'In Progress', count: inProgressProjects.length },
     { key: 'deadlines', label: lang === 'he' ? 'מועדי הגשה' : 'Deadlines' },
     { key: 'recommendations', label: lang === 'he' ? 'המלצות בוחנים' : 'Examiner Recommendations', count: recommendations.length },
+    { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
   ];
 
   if (guardLoading) {
@@ -177,7 +179,7 @@ export default function CoordinatorHomePage() {
         <InProgressTab projects={inProgressProjects} />
       ) : tab === 'deadlines' ? (
         <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchAll} />
-      ) : (
+      ) : tab === 'recommendations' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {recommendations.map((rec) => (
             <RecommendationCard key={rec.id} recommendation={rec} onChanged={fetchAll} />
@@ -186,6 +188,8 @@ export default function CoordinatorHomePage() {
             <p className="text-sm text-muted">{lang === 'he' ? '👥 אין המלצות בוחנים ממתינות' : '👥 No pending examiner recommendations'}</p>
           )}
         </div>
+      ) : (
+        <PendingSignoffsWidget showEmptyState />
       )}
 
       {assigningMilestone && (

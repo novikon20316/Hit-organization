@@ -23,7 +23,7 @@ import type { ActionType, ViewType, ScopeDescriptor } from '../config/permission
 import { VALID_SCOPE_FACULTY_IDS } from '../config/permissionScopes.js';
 import type { ChainRole } from './workflowTemplates.js';
 
-type AuthUser = NonNullable<AuthenticatedRequest['user']>;
+export type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
 export interface ResourceScope {
   facultyId: string;
