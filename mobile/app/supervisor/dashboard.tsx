@@ -15,6 +15,7 @@ import { SupervisorExtraStyles } from '../../constants/styles';
 import { NewProjectModal, RecommendedExaminerModal } from '@/components/modals';
 import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
+import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 // Adjust this import path to match your firebase config file location
@@ -69,7 +70,7 @@ export default function SupervisorHome() {
   const [supervisorId,   setSupervisorId]   = useState('');  
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loading,        setLoading]        = useState(true);
-  const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines' | 'recommend'>('projects');
+  const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines' | 'recommend' | 'signoffs'>('projects');
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
   const [deadlines, setDeadlines] = useState<any[]>([]);
@@ -714,6 +715,14 @@ export default function SupervisorHome() {
             {lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}
           </Text>
         </Pressable>
+        <Pressable
+          style={[styles.tab, activeTab === 'signoffs' && styles.tabActive]}
+          onPress={() => setActiveTab('signoffs')}
+        >
+          <Text style={[styles.tabText, activeTab === 'signoffs' && styles.tabTextActive]} numberOfLines={1}>
+            {lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off'}
+          </Text>
+        </Pressable>
       </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -1181,6 +1190,9 @@ export default function SupervisorHome() {
             )}
           </>
         )}
+
+        {activeTab === 'signoffs' && <PendingSignoffsWidget lang={lang} showEmptyState />}
+
         <View style={{ height: 40 }} />
       </ScrollView>
 

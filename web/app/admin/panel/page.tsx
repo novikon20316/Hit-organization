@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { ReportsLink } from '@/components/ReportsLink';
 import { InfoFilesLink } from '@/components/InfoFilesLink';
 import { AcademicYearLink } from '@/components/AcademicYearLink';
@@ -38,7 +39,7 @@ const ADMIN_ROLES: AppRole[] = ['system_admin'];
 const DISPLAYED_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
 const selectCls = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none';
 
-type AdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster';
+type AdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs';
 
 export default function AdminPanelPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_ROLES);
@@ -181,7 +182,7 @@ export default function AdminPanelPage() {
       }
     >
       <div className="mb-5 flex flex-wrap gap-1 border-b border-line">
-        {(['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster'] as const).map((key) => (
+        {(['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster', 'signoffs'] as const).map((key) => (
           <button
             key={key}
             type="button"
@@ -239,6 +240,8 @@ export default function AdminPanelPage() {
         <DefenseAccessTab />
       ) : tab === 'studentRoster' ? (
         <StudentRosterTab key={rosterRefreshKey} />
+      ) : tab === 'signoffs' ? (
+        <PendingSignoffsWidget showEmptyState />
       ) : (
         <FeedbackTab />
       )}
@@ -279,6 +282,7 @@ const TAB_LABELS: Record<AdminTab, { he: string; en: string }> = {
   defenseAccess: { he: 'גישת הגנה', en: 'Defense Access' },
   feedback: { he: 'משוב', en: 'Feedback' },
   studentRoster: { he: 'רשימת סטודנטים', en: 'Student Roster' },
+  signoffs: { he: 'ממתין לאישורך', en: 'Awaiting Your Sign-off' },
 };
 
 function OverviewTab({

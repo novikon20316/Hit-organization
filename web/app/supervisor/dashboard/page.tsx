@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -24,7 +25,7 @@ import type { MyProject, Application, SupervisorPendingMilestone, SupervisorDead
 
 const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
-type Tab = 'applications' | 'grading' | 'projects' | 'deadlines' | 'recommend';
+type Tab = 'applications' | 'grading' | 'projects' | 'deadlines' | 'recommend' | 'signoffs';
 
 export default function SupervisorDashboardPage() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(SUPERVISOR_ROLES);
@@ -104,6 +105,7 @@ export default function SupervisorDashboardPage() {
     { key: 'projects', label: lang === 'he' ? 'הפרויקטים שלי' : 'My Projects' },
     { key: 'deadlines', label: lang === 'he' ? 'מועדי הגשה' : 'Deadlines' },
     { key: 'recommend', label: lang === 'he' ? 'המלצת בוחנים' : 'Recommend Examiners' },
+    { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
   ];
 
   return (
@@ -198,6 +200,8 @@ export default function SupervisorDashboardPage() {
               )}
             </div>
           )}
+
+          {tab === 'signoffs' && <PendingSignoffsWidget showEmptyState />}
         </>
       )}
 

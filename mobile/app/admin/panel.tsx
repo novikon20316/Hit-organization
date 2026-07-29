@@ -38,6 +38,7 @@ import { adminPanelStyles } from '../../constants/styles';
 import {ROLE_LABELS} from '../../constants';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal} from '@/components/modals';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
+import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 
 export default function PanelScreen() {
   const router = useRouter();
@@ -63,7 +64,7 @@ export default function PanelScreen() {
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster'
+    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs'
   >('overview');
 
   // ── Real feedback awaiting review — one-way (see feedbackController.ts);
@@ -1161,6 +1162,10 @@ export default function PanelScreen() {
             key: 'studentRoster',
             label: lang === 'he' ? 'רשימת סטודנטים' : 'Student Roster',
           },
+          {
+            key: 'signoffs',
+            label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off',
+          },
         ].map((tab) => (
           <Pressable
             key={tab.key}
@@ -1942,6 +1947,8 @@ export default function PanelScreen() {
             )}
           </>
         )}
+
+        {activeTab === 'signoffs' && <PendingSignoffsWidget lang={lang} showEmptyState />}
 
         <View style={{ height: 80 }} />
       </ScrollView>
