@@ -30,6 +30,41 @@ import { apiClient } from '../../src/api/apiClient';
 export type ProcessType = 'msc_thesis' | 'msc_project' | 'bsc_project';
 export type TemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';
 
+// Configurable approval/rejection routing — mirrors web/app/workflow-templates/types.ts.
+// gradingComponents (the other web-only addition alongside this) stays
+// web-editor-only on purpose, not ported here.
+export type ChainRole = 'supervisor' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+export type RejectionTarget = 'student' | string;
+
+export interface ChainStage {
+  id: string;
+  role: ChainRole;
+  action: 'grade' | 'approve';
+  rejectTo: RejectionTarget;
+}
+
+export type MilestoneRoutingSpec = ChainStage[];
+
+export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
+  { key: 'supervisor', he: 'מנחה', en: 'Supervisor' },
+  { key: 'coordinator', he: 'רכז', en: 'Coordinator' },
+  { key: 'faculty_admin', he: 'מנהל פקולטה', en: 'Faculty Admin' },
+  { key: 'administrative_secretary', he: 'מזכירה אקדמית', en: 'Administrative Secretary' },
+  { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
+  { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
+];
+
+function chainRoleLabel(role: ChainRole, lang: Lang): string {
+  return CHAIN_ROLES.find((r) => r.key === role)?.[lang] ?? role;
+}
+
+// Matches today's actual hardcoded runtime behavior — the fallback whenever a
+// template has neither its own defaultRouting nor a milestone-level override.
+export const DEFAULT_ROUTING: MilestoneRoutingSpec = [
+  { id: 'supervisor', role: 'supervisor', action: 'grade', rejectTo: 'student' },
+  { id: 'coordinator', role: 'coordinator', action: 'approve', rejectTo: 'student' },
+];
+
 export interface MilestoneSpec {
   type: string;
   nameHe: string;
@@ -37,6 +72,9 @@ export interface MilestoneSpec {
   order: number;
   dueDaysFromStart: number;
   requiresExaminers: boolean;
+  /** Per-milestone override of the template's defaultRouting. Omitted means
+   *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */
+  routing?: MilestoneRoutingSpec;
 }
 
 export type ApplyMode = 'now' | 'from_now_on';
@@ -55,6 +93,17 @@ export interface WorkflowTemplateDoc {
   createdAt: string;
   proposedNote: string | null;
   applyMode: ApplyMode;
+  /** Template-level default chain — any milestone without its own `routing`
+   *  inherits this. Omitted means DEFAULT_ROUTING (today's hardcoded chain). */
+  defaultRouting?: MilestoneRoutingSpec;
+  /** Who must sign off on examiner invitations before they go out. Omitted →
+   *  legacy default (grad_school_head for msc_thesis, none otherwise).
+   *  'none' → no second tier, for any process type. */
+  examinerSignoffRole?: ChainRole | 'none';
+  /** Who signs off on a defense milestone's already-computed final grade.
+   *  No 'none' option — always required. Omitted → legacy default
+   *  (grad_school_head, for any process type). */
+  finalGradeSignoffRole?: ChainRole;
   approvedBy?: string;
   approvedAt?: string;
   retroactiveAppliedAt?: string;
@@ -106,6 +155,127 @@ function emptyMilestone(order: number): MilestoneSpec {
   return { type: `custom_${makeId()}`, nameHe: '', nameEn: '', order, dueDaysFromStart: 90, requiresExaminers: false };
 }
 
+function makeStageId(): string {
+  return `stage_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function emptyStage(): ChainStage {
+  return { id: makeStageId(), role: 'coordinator', action: 'approve', rejectTo: 'student' };
+}
+
+function chainSummary(chain: MilestoneRoutingSpec, lang: Lang): string {
+  return chain
+    .map((stage) => `${chainRoleLabel(stage.role, lang)} (${stage.action === 'grade' ? (lang === 'he' ? 'מדרג' : 'grades') : (lang === 'he' ? 'מאשר' : 'approves')})`)
+    .join(' → ');
+}
+
+// ─── Approval-chain editor ──────────────────────────────────────────────────
+// Ordered stage list — reuses the same chip-row Pressable idiom this screen
+// already uses 3x for faculty/process-type/major selection. Reordering
+// (▲/▼, swap-adjacent-elements) ports web/app/workflow-templates/ChainEditor.tsx's
+// own logic verbatim; no reorderable-list precedent existed on mobile before this.
+function ChainEditor({ stages, onChange, lang }: { stages: ChainStage[]; onChange: (s: ChainStage[]) => void; lang: Lang }) {
+  const updateStage = (idx: number, patch: Partial<ChainStage>) => {
+    onChange(stages.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  };
+  const removeStage = (idx: number) => {
+    const removedId = stages[idx]?.id;
+    onChange(
+      stages
+        .filter((_, i) => i !== idx)
+        .map((s) => (s.rejectTo === removedId ? { ...s, rejectTo: 'student' } : s))
+    );
+  };
+  const moveStage = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= stages.length) return;
+    const next = [...stages];
+    [next[idx], next[target]] = [next[target]!, next[idx]!];
+    onChange(next);
+  };
+  const addStage = () => onChange([...stages, emptyStage()]);
+
+  const chip = (selected: boolean) => ({
+    borderWidth: 1.5, borderColor: selected ? '#7C3AED' : '#DDD6FE',
+    backgroundColor: selected ? '#7C3AED' : '#fff',
+    borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginEnd: 6,
+  });
+  const chipText = (selected: boolean) => ({ fontSize: 11, fontWeight: '600' as const, color: selected ? '#fff' : '#7C3AED' });
+
+  return (
+    <View>
+      {stages.map((stage, idx) => {
+        const rejectsForward = stage.rejectTo !== 'student' && stages.findIndex((s) => s.id === stage.rejectTo) > idx;
+        return (
+          <View key={stage.id} style={{ backgroundColor: '#F5F3FF', borderRadius: 10, padding: 10, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#7C3AED' }}>{idx + 1}</Text>
+              </View>
+              <View style={{ flex: 1 }} />
+              <Pressable onPress={() => moveStage(idx, -1)} disabled={idx === 0} style={{ padding: 4, opacity: idx === 0 ? 0.3 : 1 }}>
+                <Text>▲</Text>
+              </Pressable>
+              <Pressable onPress={() => moveStage(idx, 1)} disabled={idx === stages.length - 1} style={{ padding: 4, opacity: idx === stages.length - 1 ? 0.3 : 1 }}>
+                <Text>▼</Text>
+              </Pressable>
+              <Pressable onPress={() => removeStage(idx)} style={{ padding: 4 }}>
+                <Text>🗑️</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+              {CHAIN_ROLES.map((r) => (
+                <Pressable key={r.key} onPress={() => updateStage(idx, { role: r.key })} style={chip(stage.role === r.key)}>
+                  <Text style={chipText(stage.role === r.key)}>{lang === 'he' ? r.he : r.en}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+              {(['grade', 'approve'] as const).map((a) => (
+                <Pressable
+                  key={a}
+                  onPress={() => updateStage(idx, { action: a })}
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: stage.action === a ? '#7C3AED' : '#DDD6FE', backgroundColor: stage.action === a ? '#7C3AED' : '#fff', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
+                >
+                  <Text style={chipText(stage.action === a)}>
+                    {a === 'grade' ? (lang === 'he' ? 'מדרג' : 'Grades') : (lang === 'he' ? 'מאשר' : 'Approves')}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 4 }}>
+              {lang === 'he' ? 'אם נדחה, יעבור אל:' : 'If rejected, goes to:'}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <Pressable onPress={() => updateStage(idx, { rejectTo: 'student' })} style={chip(stage.rejectTo === 'student')}>
+                <Text style={chipText(stage.rejectTo === 'student')}>{lang === 'he' ? 'הסטודנט' : 'Student'}</Text>
+              </Pressable>
+              {stages.map((s, i) => (
+                <Pressable key={s.id} onPress={() => updateStage(idx, { rejectTo: s.id })} style={chip(stage.rejectTo === s.id)}>
+                  <Text style={chipText(stage.rejectTo === s.id)}>
+                    {chainRoleLabel(s.role, lang)}{i === idx ? (lang === 'he' ? ' (לשלב זה)' : ' (this stage)') : ''}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            {rejectsForward && (
+              <Text style={{ fontSize: 10, color: '#F59E0B', marginTop: 4 }}>
+                ⚠️ {lang === 'he' ? 'הדחייה קופצת קדימה בשרשרת' : 'This rejection jumps forward in the chain'}
+              </Text>
+            )}
+          </View>
+        );
+      })}
+      <Pressable onPress={addStage} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: '#DDD6FE', borderRadius: 8, paddingVertical: 8, alignItems: 'center', marginTop: 8 }}>
+        <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151' }}>＋ {lang === 'he' ? 'הוסף שלב' : 'Add Stage'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WorkflowTemplateManager() {
@@ -151,6 +321,9 @@ export default function WorkflowTemplateManager() {
   const [editorApplyMode, setEditorApplyMode] = useState<ApplyMode>('from_now_on');
   const [editorPreview, setEditorPreview] = useState<{ count: number } | null>(null);
   const [editorPreviewLoading, setEditorPreviewLoading] = useState(false);
+  const [editorDefaultRouting, setEditorDefaultRouting] = useState<MilestoneRoutingSpec>(DEFAULT_ROUTING.map((s) => ({ ...s })));
+  const [editorExaminerSignoffRole, setEditorExaminerSignoffRole] = useState<ChainRole | 'none'>('none');
+  const [editorFinalGradeSignoffRole, setEditorFinalGradeSignoffRole] = useState<ChainRole>('grad_school_head');
 
   // Milestone row editor (inside the propose modal)
   const [msModalOpen, setMsModalOpen] = useState(false);
@@ -159,6 +332,8 @@ export default function WorkflowTemplateManager() {
   const [msNameEn, setMsNameEn] = useState('');
   const [msDays, setMsDays] = useState('90');
   const [msExaminers, setMsExaminers] = useState(false);
+  const [msOverrideChain, setMsOverrideChain] = useState(false);
+  const [msRouting, setMsRouting] = useState<MilestoneRoutingSpec>([emptyStage()]);
 
   // Reject-reason modal
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -225,6 +400,14 @@ export default function WorkflowTemplateManager() {
     setEditorNote('');
     setEditorApplyMode('from_now_on');
     setEditorPreview(null);
+    setEditorDefaultRouting(
+      approvedForActive?.defaultRouting && approvedForActive.defaultRouting.length > 0
+        ? approvedForActive.defaultRouting.map((s) => ({ ...s }))
+        : DEFAULT_ROUTING.map((s) => ({ ...s }))
+    );
+    // Legacy default matches the server's own resolveExaminerSignoffRole fallback.
+    setEditorExaminerSignoffRole(approvedForActive?.examinerSignoffRole ?? (activeProcessType === 'msc_thesis' ? 'grad_school_head' : 'none'));
+    setEditorFinalGradeSignoffRole(approvedForActive?.finalGradeSignoffRole ?? 'grad_school_head');
     setEditorOpen(true);
   };
 
@@ -251,9 +434,13 @@ export default function WorkflowTemplateManager() {
       setMsNameEn(ms.nameEn);
       setMsDays(String(ms.dueDaysFromStart));
       setMsExaminers(ms.requiresExaminers);
+      setMsOverrideChain(!!(ms.routing && ms.routing.length > 0));
+      setMsRouting(ms.routing && ms.routing.length > 0 ? ms.routing.map((s) => ({ ...s })) : [emptyStage()]);
     } else {
       setEditingMs(null);
       setMsNameHe(''); setMsNameEn(''); setMsDays('90'); setMsExaminers(false);
+      setMsOverrideChain(false);
+      setMsRouting([emptyStage()]);
     }
     setMsModalOpen(true);
   };
@@ -269,14 +456,21 @@ export default function WorkflowTemplateManager() {
       return;
     }
     if (editingMs) {
-      setEditorMilestones((prev) => prev.map((m) => (m === editingMs
-        ? { ...m, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), dueDaysFromStart: days, requiresExaminers: msExaminers }
-        : m)));
+      setEditorMilestones((prev) => prev.map((m) => {
+        if (m !== editingMs) return m;
+        const next: MilestoneSpec = { ...m, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), dueDaysFromStart: days, requiresExaminers: msExaminers };
+        // Turning the override off must actually clear a pre-existing
+        // routing, not leave the stale chain behind.
+        if (msOverrideChain) next.routing = msRouting;
+        else delete next.routing;
+        return next;
+      }));
     } else {
-      setEditorMilestones((prev) => [
-        ...prev,
-        { type: `custom_${makeId()}`, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), order: prev.length + 1, dueDaysFromStart: days, requiresExaminers: msExaminers },
-      ]);
+      setEditorMilestones((prev) => {
+        const next: MilestoneSpec = { type: `custom_${makeId()}`, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), order: prev.length + 1, dueDaysFromStart: days, requiresExaminers: msExaminers };
+        if (msOverrideChain) next.routing = msRouting;
+        return [...prev, next];
+      });
     }
     setMsModalOpen(false);
   };
@@ -298,6 +492,9 @@ export default function WorkflowTemplateManager() {
         note: editorNote.trim() || undefined,
         major: activeMajor === null ? 'all' : activeMajor,
         applyMode: editorApplyMode,
+        defaultRouting: editorDefaultRouting,
+        examinerSignoffRole: editorExaminerSignoffRole,
+        finalGradeSignoffRole: editorFinalGradeSignoffRole,
         ...(isFreeChoiceCrossFaculty || isSecretary ? { facultyId } : {}),
       });
       setEditorOpen(false);
@@ -553,6 +750,27 @@ export default function WorkflowTemplateManager() {
                 <Text style={{ fontSize: 13, color: '#8899BB', marginBottom: 8 }}>
                   {lang === 'he' ? `גרסה ${approvedForActive.version} · מאושר` : `Version ${approvedForActive.version} · Approved`}
                 </Text>
+                <Text style={{ fontSize: 11, color: '#1F1235', backgroundColor: '#F5F3FF', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 8 }}>
+                  🔀 {lang === 'he' ? 'שרשרת ברירת מחדל: ' : 'Default chain: '}
+                  {chainSummary(approvedForActive.defaultRouting && approvedForActive.defaultRouting.length > 0 ? approvedForActive.defaultRouting : DEFAULT_ROUTING, lang)}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#5B21B6', backgroundColor: '#EFEBF6', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 8, fontWeight: '600' }}>
+                  🎓 {lang === 'he'
+                    ? `אישור ציון סופי (הגנה): ${chainRoleLabel(approvedForActive.finalGradeSignoffRole ?? 'grad_school_head', lang)}`
+                    : `Final grade sign-off (defense): ${chainRoleLabel(approvedForActive.finalGradeSignoffRole ?? 'grad_school_head', lang)}`}
+                </Text>
+                {(() => {
+                  const resolvedSignoff = approvedForActive.examinerSignoffRole
+                    ?? (approvedForActive.processType === 'msc_thesis' ? 'grad_school_head' : 'none');
+                  if (resolvedSignoff === 'none') return null;
+                  return (
+                    <Text style={{ fontSize: 11, color: '#5B21B6', backgroundColor: '#EFEBF6', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 8, fontWeight: '600' }}>
+                      🎓 {lang === 'he'
+                        ? `הזמנת בוחנים דורשת אישור: ${chainRoleLabel(resolvedSignoff as ChainRole, lang)}`
+                        : `Examiner invitations require sign-off from: ${chainRoleLabel(resolvedSignoff as ChainRole, lang)}`}
+                    </Text>
+                  );
+                })()}
                 {approvedForActive.milestones.sort((a, b) => a.order - b.order).map((m, idx) => (
                   <View key={m.type} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#F3F0FF', gap: 10 }}>
                     <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center' }}>
@@ -564,6 +782,11 @@ export default function WorkflowTemplateManager() {
                         📅 {lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`}
                         {m.requiresExaminers ? `  ·  👥 ${lang === 'he' ? 'בוחנים' : 'Examiners'}` : ''}
                       </Text>
+                      {m.routing && m.routing.length > 0 && (
+                        <Text style={{ fontSize: 10, color: '#F59E0B', marginTop: 2 }}>
+                          🔀 {lang === 'he' ? 'שרשרת מותאמת: ' : 'Custom chain: '}{chainSummary(m.routing, lang)}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 ))}
@@ -791,6 +1014,7 @@ export default function WorkflowTemplateManager() {
                   <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>
                     📅 {lang === 'he' ? `יום ${ms.dueDaysFromStart}` : `Day ${ms.dueDaysFromStart}`}
                     {ms.requiresExaminers ? '  ·  👥' : ''}
+                    {ms.routing && ms.routing.length > 0 ? `  ·  🔀 ${lang === 'he' ? 'שרשרת מותאמת' : 'custom chain'}` : ''}
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -799,6 +1023,58 @@ export default function WorkflowTemplateManager() {
                 </View>
               </View>
             ))}
+
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 20 }}>
+              {lang === 'he' ? 'שרשרת אישור/דחייה ברירת מחדל' : 'Default approval/rejection chain'}
+            </Text>
+            <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 4 }}>
+              {lang === 'he'
+                ? 'חלה על כל אבן דרך שאין לה שרשרת משלה.'
+                : "Applies to every milestone without its own override."}
+            </Text>
+            <ChainEditor stages={editorDefaultRouting} onChange={setEditorDefaultRouting} lang={lang} />
+
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 20 }}>
+              {lang === 'he' ? 'אישור נוסף להזמנת בוחנים' : 'Second sign-off before examiner invitations go out'}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+              <Pressable
+                onPress={() => setEditorExaminerSignoffRole('none')}
+                style={{ borderWidth: 1.5, borderColor: editorExaminerSignoffRole === 'none' ? '#7C3AED' : '#DDD6FE', backgroundColor: editorExaminerSignoffRole === 'none' ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginEnd: 6 }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '600', color: editorExaminerSignoffRole === 'none' ? '#fff' : '#7C3AED' }}>
+                  {lang === 'he' ? 'ללא אישור נוסף' : 'No second sign-off'}
+                </Text>
+              </Pressable>
+              {CHAIN_ROLES.map((r) => (
+                <Pressable
+                  key={r.key}
+                  onPress={() => setEditorExaminerSignoffRole(r.key)}
+                  style={{ borderWidth: 1.5, borderColor: editorExaminerSignoffRole === r.key ? '#7C3AED' : '#DDD6FE', backgroundColor: editorExaminerSignoffRole === r.key ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginEnd: 6 }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: editorExaminerSignoffRole === r.key ? '#fff' : '#7C3AED' }}>
+                    {lang === 'he' ? r.he : r.en}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 16 }}>
+              {lang === 'he' ? 'אישור הציון הסופי (הגנה)' : 'Final grade sign-off (defense)'}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+              {CHAIN_ROLES.map((r) => (
+                <Pressable
+                  key={r.key}
+                  onPress={() => setEditorFinalGradeSignoffRole(r.key)}
+                  style={{ borderWidth: 1.5, borderColor: editorFinalGradeSignoffRole === r.key ? '#7C3AED' : '#DDD6FE', backgroundColor: editorFinalGradeSignoffRole === r.key ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginEnd: 6 }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: editorFinalGradeSignoffRole === r.key ? '#fff' : '#7C3AED' }}>
+                    {lang === 'he' ? r.he : r.en}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
 
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 20 }}>
               {lang === 'he' ? 'מתי התבנית תיכנס לתוקף?' : 'When should this take effect?'}
@@ -880,6 +1156,23 @@ export default function WorkflowTemplateManager() {
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</Text>
               <Switch value={msExaminers} onValueChange={setMsExaminers} trackColor={{ true: '#7C3AED' }} />
             </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
+                {lang === 'he' ? 'שרשרת אישור מותאמת לאבן דרך זו' : 'Override chain for this milestone'}
+              </Text>
+              <Switch value={msOverrideChain} onValueChange={setMsOverrideChain} trackColor={{ true: '#7C3AED' }} />
+            </View>
+            {msOverrideChain ? (
+              <View style={{ marginTop: 10 }}>
+                <ChainEditor stages={msRouting} onChange={setMsRouting} lang={lang} />
+              </View>
+            ) : (
+              <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 6 }}>
+                {lang === 'he' ? 'ללא שינוי — ישתמש בשרשרת ברירת המחדל של התבנית.' : "Unchanged — inherits the template's default chain."}
+              </Text>
+            )}
+
             <Pressable style={{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 }} onPress={saveMilestoneRow}>
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{lang === 'he' ? 'שמור אבן דרך' : 'Save Milestone'}</Text>
             </Pressable>
