@@ -38,6 +38,59 @@ export function computeWeightedFinalGrade(
   return Math.round(weighted);
 }
 
+// Shared read helper for the ~5 sites that display an examiner's score by
+// position (idx into examinerIds) — resolves from whichever shape the
+// milestone actually has, so those sites don't need their own branching.
+export function examinerScoreFor(
+  milestone: {
+    examinerScores?: Record<string, { score: number }>;
+    examiner1Score?: number | null;
+    examiner2Score?: number | null;
+  },
+  uid: string,
+  positionalIndex: number,
+): number | null {
+  if (milestone.examinerScores) return milestone.examinerScores[uid]?.score ?? null;
+  return positionalIndex === 0 ? (milestone.examiner1Score ?? null) : (milestone.examiner2Score ?? null);
+}
+
+// Identity-keyed sibling of the above, for defense milestones created after
+// the examiner1Score/examiner2Score -> examinerScores generalization (see
+// projectController.ts's isIdentityKeyedDefense). Legacy milestones keep
+// using computeWeightedFinalGrade above, untouched. Within a given examiner
+// count the old per-slot weights were always equal (0.3/0.3, 0.5/0.5, 0/0) —
+// there's no mechanism to configure them asymmetrically since a coordinator
+// can't know in advance which physical examiner becomes "#1" — so a single
+// shared per-examiner weight is a lossless restructuring, not a behavior change.
+export interface IdentityGradeWeights {
+  supervisorWeight: number;
+  examinerWeight: number;
+}
+
+const DEFAULT_IDENTITY_WEIGHTS_BY_COUNT: Record<number, IdentityGradeWeights> = {
+  0: { supervisorWeight: 1,   examinerWeight: 0 },
+  1: { supervisorWeight: 0.5, examinerWeight: 0.5 },
+  2: { supervisorWeight: 0.4, examinerWeight: 0.3 },
+};
+
+const FALLBACK_IDENTITY_WEIGHTS: IdentityGradeWeights = { supervisorWeight: 0.4, examinerWeight: 0.3 };
+
+export function computeIdentityWeightedFinalGrade(
+  supervisorScore: number,
+  examinerScores: Record<string, { score: number }>,
+  configuredWeights?: IdentityGradeWeights | null,
+): number {
+  const entries = Object.values(examinerScores);
+  const weights = configuredWeights ?? DEFAULT_IDENTITY_WEIGHTS_BY_COUNT[entries.length] ?? FALLBACK_IDENTITY_WEIGHTS;
+
+  const examinerTotal = entries.reduce(
+    (sum, entry) => sum + entry.score * weights.examinerWeight,
+    0,
+  );
+
+  return Math.round(supervisorScore * weights.supervisorWeight + examinerTotal);
+}
+
 // Group-project defense grades (research_proposal/progress_report/final_report
 // stay one score for the whole group — the spec only calls out a personal
 // component at the oral defense, e.g. "ציון אישי במבחן בעל פה"). How much a

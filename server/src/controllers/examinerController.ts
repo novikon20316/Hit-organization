@@ -82,6 +82,11 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           supervisorScore: milestoneData.supervisorScore || null,
           supervisorName: milestoneData.supervisorName || 'Unknown',
           examinerIds: milestoneData.examinerIds || [],
+          // Identity-keyed defense milestones (post-generalization) carry
+          // examinerScores instead — echoed alongside the legacy fields
+          // (which stay null/absent for a new-model milestone) so the client
+          // can branch on whichever is present.
+          examinerScores: milestoneData.examinerScores ?? null,
           examiner1Score: milestoneData.examiner1Score || null,
           examiner2Score: milestoneData.examiner2Score || null,
           examiner1GradeId: milestoneData.examiner1GradeId || null,

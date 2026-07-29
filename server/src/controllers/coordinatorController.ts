@@ -11,7 +11,7 @@ import {
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType, resolveExaminerSignoffRole, type ChainStage } from '../services/workflowTemplates.js';
-import { authorizeStageActor, isChainDriven, statusForStage } from '../services/milestoneRouting.js';
+import { authorizeStageActor, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
 import { notifyUser } from '../services/notify.js';
 
 // Matches the Firestore project document shape exactly
@@ -80,26 +80,6 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
     return res.status(400).json({ message: 'Invalid examiner list' });
   }
 
-  // Optional custom grade weights (web's AssignExaminersModal / mobile's
-  // equivalent both collect and validate these client-side, but nothing
-  // ever sent them on — gradeEngine.ts's computeWeightedFinalGrade has
-  // always supported a milestone's own gradeWeights field, it just never
-  // got written). Fractions summing to 1, re-validated here since the
-  // client-side 100% check is only a UX nicety.
-  let gradeWeights: { supervisorWeight: number; examiner1Weight: number; examiner2Weight: number } | null = null;
-  if (weights && typeof weights === 'object') {
-    const supervisorWeight = Number(weights.supervisorWeight);
-    const examiner1Weight = Number(weights.examiner1Weight);
-    const examiner2Weight = Number(weights.examiner2Weight);
-    if (![supervisorWeight, examiner1Weight, examiner2Weight].every((w) => Number.isFinite(w) && w >= 0)) {
-      return res.status(400).json({ message: 'Invalid grade weights.' });
-    }
-    if (Math.abs(supervisorWeight + examiner1Weight + examiner2Weight - 1) > 0.01) {
-      return res.status(400).json({ message: 'Grade weights must sum to 100%.' });
-    }
-    gradeWeights = { supervisorWeight, examiner1Weight, examiner2Weight };
-  }
-
   try {
     const projectRef = db.collection('projects').doc(projectId);
     const projectSnap = await projectRef.get();
@@ -129,10 +109,36 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
         return res.status(400).json({ message: 'milestoneId does not belong to this project.' });
       }
       thesisUrl = milestoneSnap.data()?.fileUrls?.[0] ?? '';
-      // Only meaningful once graders are actually assigned to this
-      // milestone — computeWeightedFinalGrade reads it off the milestone
-      // doc when submitMilestoneGrade finishes scoring.
-      if (gradeWeights && milestoneSnap.exists) {
+
+      // Optional custom grade weights (web's AssignExaminersModal / mobile's
+      // equivalent both collect and validate these client-side, but nothing
+      // ever sent them on until this was wired up). Only meaningful once
+      // graders are actually assigned — computeWeightedFinalGrade /
+      // computeIdentityWeightedFinalGrade reads it off the milestone doc
+      // when submitMilestoneGrade finishes scoring. Fractions re-validated
+      // here since the client-side 100% check is only a UX nicety.
+      // Shape depends on the milestone's model: legacy defense milestones
+      // persist the old {supervisorWeight, examiner1Weight, examiner2Weight}
+      // triple; identity-keyed ones (examinerScores present) persist a
+      // single per-examiner {supervisorWeight, examinerWeight} — accept
+      // either input key name (examiner1/2Weight are always configured
+      // equal in practice, no client offers asymmetric slots) and persist
+      // whichever shape this milestone expects.
+      if (weights && typeof weights === 'object' && milestoneSnap.exists) {
+        const milestoneData = milestoneSnap.data()!;
+        const supervisorWeight = Number(weights.supervisorWeight);
+        const examinerWeight = Number(weights.examinerWeight ?? weights.examiner1Weight ?? weights.examiner2Weight);
+        if (![supervisorWeight, examinerWeight].every((w) => Number.isFinite(w) && w >= 0)) {
+          return res.status(400).json({ message: 'Invalid grade weights.' });
+        }
+        // Panels are always exactly 2 examiners (business rule) — total
+        // examiner allocation is 2 * examinerWeight either way.
+        if (Math.abs(supervisorWeight + 2 * examinerWeight - 1) > 0.01) {
+          return res.status(400).json({ message: 'Grade weights must sum to 100%.' });
+        }
+        const gradeWeights = isIdentityKeyedDefense(milestoneData)
+          ? { supervisorWeight, examinerWeight }
+          : { supervisorWeight, examiner1Weight: examinerWeight, examiner2Weight: examinerWeight };
         await milestoneRef.update({ gradeWeights });
       }
     }
@@ -472,10 +478,11 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
                                ? (usersById[project.supervisorId] ?? 'Unknown')
                                : 'Unassigned',
 
-          examinerIds:       data.examinerIds    ?? [],
-          examiner1Score:    data.examiner1Score ?? null,
-          examiner2Score:    data.examiner2Score ?? null,
-          gradeWeights:      data.gradeWeights   ?? null,
+          examinerIds:       data.examinerIds     ?? [],
+          examinerScores:    data.examinerScores  ?? null,
+          examiner1Score:    data.examiner1Score  ?? null,
+          examiner2Score:    data.examiner2Score  ?? null,
+          gradeWeights:      data.gradeWeights    ?? null,
           dueDate:           data.dueDate        ?? null,
           defenseDate:       data.defenseDate    ?? null,
           defenseRoom:       data.defenseRoom    ?? null,

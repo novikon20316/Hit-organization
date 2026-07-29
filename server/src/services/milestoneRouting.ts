@@ -25,6 +25,15 @@ export function isChainDriven(milestone: { routing?: ChainStage[]; type?: string
   return !!milestone.routing && milestone.routing.length > 0 && milestone.type !== 'defense';
 }
 
+/** A defense milestone created after the examiner1Score/examiner2Score ->
+ *  examinerScores generalization (see projectController.ts's
+ *  submitMilestoneGrade). Legacy defense milestones (no `examinerScores`
+ *  field at all) fall through to the original positional dispatch, forever —
+ *  same no-migration precedent as isChainDriven above. */
+export function isIdentityKeyedDefense(milestone: { type?: string; examinerScores?: unknown }): boolean {
+  return milestone.type === 'defense' && milestone.examinerScores !== undefined;
+}
+
 /** The coarse legacy `status` value a chain position maps to — reused
  *  (rather than introducing new vocabulary) so the ~20 existing dashboard/
  *  report/notification read sites keyed on today's status strings keep

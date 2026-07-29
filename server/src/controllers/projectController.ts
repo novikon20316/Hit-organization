@@ -5,10 +5,10 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { logAuditEvent } from '../services/auditLog.js';
-import { computeWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
+import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
-import { authorizeStageActor, computeChainFinalGrade, isChainDriven } from '../services/milestoneRouting.js';
+import { authorizeStageActor, computeChainFinalGrade, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
@@ -211,6 +211,103 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       });
 
       return res.status(200).json({ success: true, status: responseStatus });
+    }
+
+    // Identity-keyed defense milestone (created after the examiner1Score/
+    // examiner2Score generalization) — dispatch off uid membership in
+    // examinerIds rather than array position. Legacy defense milestones (no
+    // examinerScores field) fall straight through to the original positional
+    // dispatch below, unchanged.
+    if (isIdentityKeyedDefense(data)) {
+      const isSupervisor = uid === supervisorId;
+      const isExaminer    = examinerIds.includes(uid);
+      if (!isSupervisor && !isExaminer) {
+        return res.status(403).json({ message: 'Not authorized to grade this milestone' });
+      }
+
+      const scoreValue = Number(givenScore);
+      const gradesRef  = db.collection('grades').doc();
+      let responseStatus = '';
+      let previousScore: number | null = null;
+      let isFinalized = false;
+
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        if (!freshSnap.exists) throw new Error('Milestone not found.');
+        const fresh = freshSnap.data()!;
+        if (fresh.gradeApproved) {
+          throw new Error('This grade has already been approved by the grad school head and cannot be edited directly.');
+        }
+
+        const freshExaminerIds: string[] = fresh.examinerIds ?? [];
+        const freshExaminerScores: Record<string, { score: number; comments: string }> = fresh.examinerScores ?? {};
+
+        const update: Record<string, any> = {
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        let nextSupervisorScore: number | null = fresh.supervisorScore ?? null;
+        let nextExaminerScores = freshExaminerScores;
+
+        if (isSupervisor) {
+          previousScore = fresh.supervisorScore ?? null;
+          update.supervisorScore   = scoreValue;
+          update.supervisorComment = comments?.trim() ?? '';
+          update.status            = 'supervisor_graded';
+          nextSupervisorScore = scoreValue;
+        } else {
+          previousScore = freshExaminerScores[uid]?.score ?? null;
+          nextExaminerScores = { ...freshExaminerScores, [uid]: { score: scoreValue, comments: comments?.trim() ?? '' } };
+          update.examinerScores = nextExaminerScores;
+        }
+
+        const allDone =
+          nextSupervisorScore !== null &&
+          freshExaminerIds.every((id) => nextExaminerScores[id] != null);
+
+        if (allDone) {
+          update.status     = 'graded';
+          update.gradedAt   = admin.firestore.FieldValue.serverTimestamp();
+          update.finalGrade = computeIdentityWeightedFinalGrade(
+            nextSupervisorScore!,
+            nextExaminerScores,
+            fresh.gradeWeights ?? null,
+          );
+
+          const studentIds: string[] = fresh.studentIds ?? [];
+          update.finalGradeByStudent = computeFinalGradeByStudent(
+            studentIds,
+            update.finalGrade,
+            fresh.individualScores ?? null,
+            fresh.individualWeight ?? DEFAULT_INDIVIDUAL_WEIGHT,
+          );
+        }
+
+        isFinalized     = allDone;
+        responseStatus  = update.status ?? fresh.status ?? '';
+
+        transaction.update(milestoneRef, update);
+        transaction.set(gradesRef, {
+          milestoneId, projectId, graderId: uid,
+          graderRole: isSupervisor ? 'supervisor' : 'examiner',
+          comments: comments?.trim() ?? '',
+          isFinalized: allDone,
+          submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+          grading: { total: Math.round(scoreValue) },
+        });
+      });
+
+      await logAuditEvent({
+        userId: uid,
+        userRole: req.user?.role ?? (isSupervisor ? 'supervisor' : 'examiner'),
+        action: previousScore !== null ? 'grade_changed' : 'grade_entered',
+        entityType: 'milestone',
+        entityId: milestoneId,
+        oldValue: { score: previousScore },
+        newValue: { score: scoreValue },
+      });
+
+      return res.status(200).json({ success: true, status: responseStatus, isFinalized });
     }
 
     const updatePayload: Record<string, any> = {

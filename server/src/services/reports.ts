@@ -10,6 +10,7 @@ import { db } from '../config/firebase.js';
 import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
 import { getAcademicCalendar } from './academicCalendar.js';
 import { computeGraduationEligibleDate, programLengthYearsFor } from './accountDeletion.js';
+import { examinerScoreFor } from './gradeEngine.js';
 import {
   computeMilestoneProgress,
   facultyName,
@@ -290,7 +291,7 @@ export async function examinerTrackingReport(filters: ReportFilters): Promise<Ex
     if (!defenseMs) continue;
     (defenseMs.examinerIds ?? []).forEach((eid, idx) => {
       if (filters.examinerId && eid !== filters.examinerId) return;
-      const score = idx === 0 ? defenseMs.examiner1Score : defenseMs.examiner2Score;
+      const score = examinerScoreFor(defenseMs, eid, idx);
       rows.push({
         examinerName: usersById[eid] ?? 'Unknown',
         examinerType: 'internal',
@@ -442,7 +443,7 @@ export async function loadReport(filters: ReportFilters): Promise<LoadRow[]> {
     const defenseMs = r.milestones.find((m) => m.type === 'defense');
     if (defenseMs) {
       (defenseMs.examinerIds ?? []).forEach((eid, idx) => {
-        const score = idx === 0 ? defenseMs.examiner1Score : defenseMs.examiner2Score;
+        const score = examinerScoreFor(defenseMs, eid, idx);
         if (!byExaminer[eid]) byExaminer[eid] = { name: usersById[eid] ?? 'Unknown', active: 0, pending: 0 };
         if (score != null) byExaminer[eid]!.active++;
         else byExaminer[eid]!.pending++;

@@ -125,7 +125,7 @@ export async function changeProjectTrack(
       finalGrade: null,
       fileUrls: [],
       ...(t.requiresExaminers
-        ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
+        ? { examinerIds: [], examinerScores: {} }
         : {
             routing: resolveMilestoneRouting(t, templateDefaultRouting),
             currentStageIndex: 0,

@@ -125,7 +125,7 @@ export async function enrollStudentInProject(
         // (defense) milestones keep running their own separate engine
         // untouched (see milestoneRouting.ts's isChainDriven).
         ...(t.requiresExaminers
-          ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
+          ? { examinerIds: [], examinerScores: {} }
           : {
               routing: resolveMilestoneRouting(t, templateDefaultRouting),
               currentStageIndex: 0,

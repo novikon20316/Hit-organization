@@ -367,6 +367,12 @@ export interface GradeWeights {
   examiner2Weight: number;   // e.g. 0.35
 }
 
+// Identity-keyed sibling — see components/Milestoneservice.ts's copy.
+export interface IdentityGradeWeights {
+  supervisorWeight: number;
+  examinerWeight: number;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. NOTIFICATIONS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -468,11 +474,14 @@ export interface AssignedMilestone {
   supervisorScore: number | null;
   supervisorName: string;                // ← new
   examinerIds: string[];
+  // Identity-keyed defense milestones (post-generalization) carry this
+  // instead of the legacy positional pair below.
+  examinerScores?: Record<string, { score: number; comments: string }> | null;
   examiner1Score: number | null;
   examiner2Score: number | null;
   examiner1GradeId: string | null;
   examiner2GradeId: string | null;
-  gradeWeights: GradeWeights | null;
+  gradeWeights: GradeWeights | IdentityGradeWeights | null;
   defenseDate: string | null;
   dueDate?: any;                          // ← add — actual defense date lives here (Firestore Timestamp shape), not defenseDate
   defenseRoom: string | null;

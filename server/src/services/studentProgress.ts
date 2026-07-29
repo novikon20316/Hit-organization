@@ -30,6 +30,10 @@ export interface MilestoneDoc {
   coordinatorApprovedAt?: FirebaseFirestore.Timestamp | null;
   approvedAt?: FirebaseFirestore.Timestamp | null;
   examinerIds?: string[];
+  /** Identity-keyed defense milestones (post-generalization) carry this
+   *  instead of the legacy positional pair below — see gradeEngine.ts's
+   *  examinerScoreFor / milestoneRouting.ts's isIdentityKeyedDefense. */
+  examinerScores?: Record<string, { score: number; comments: string }>;
   examiner1Score?: number | null;
   examiner2Score?: number | null;
   finalGrade?: number | null;

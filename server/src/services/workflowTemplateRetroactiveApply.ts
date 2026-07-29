@@ -216,7 +216,7 @@ export async function applyTemplateRetroactively(
           fileUrls: [],
           supervisorScore: null,
           ...(spec.requiresExaminers
-            ? { examinerIds: [], examiner1Score: null, examiner2Score: null }
+            ? { examinerIds: [], examinerScores: {} }
             : {
                 routing: resolveMilestoneRouting(spec, templateDefaultRouting),
                 currentStageIndex: 0,

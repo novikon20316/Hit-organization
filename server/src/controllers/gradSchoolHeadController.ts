@@ -21,7 +21,8 @@ import {
   urgencyFromAge,
   MilestoneDoc,
 } from '../services/studentProgress.js';
-import { transferGradeToMichlol } from '../services/gradeEngine.js';
+import { transferGradeToMichlol, examinerScoreFor } from '../services/gradeEngine.js';
+import { isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../services/examinerAccess.js';
@@ -192,7 +193,7 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
 
       examinerIds.forEach((eid, idx) => {
         if (!examinerLoadById[eid]) examinerLoadById[eid] = { activeReviews: 0, pending: 0, overdue: 0 };
-        const scored = idx === 0 ? defenseMilestone.examiner1Score : defenseMilestone.examiner2Score;
+        const scored = examinerScoreFor(defenseMilestone, eid, idx);
         if (scored != null) examinerLoadById[eid].activeReviews++;
         else examinerLoadById[eid].pending++;
         if (isOverdue && scored == null) examinerLoadById[eid].overdue++;
@@ -571,8 +572,15 @@ export const rejectFinalGrade = async (req: AuthenticatedRequest, res: Response)
 
     await milestoneRef.update({
       supervisorScore: null, supervisorComment: admin.firestore.FieldValue.delete(),
-      examiner1Score: null, examiner1Comments: admin.firestore.FieldValue.delete(),
-      examiner2Score: null, examiner2Comments: admin.firestore.FieldValue.delete(),
+      // Clear whichever shape this milestone actually uses — legacy
+      // positional fields, or the identity-keyed map (reset to {}, matching
+      // how a fresh defense milestone is seeded).
+      ...(isIdentityKeyedDefense(milestone)
+        ? { examinerScores: {} }
+        : {
+            examiner1Score: null, examiner1Comments: admin.firestore.FieldValue.delete(),
+            examiner2Score: null, examiner2Comments: admin.firestore.FieldValue.delete(),
+          }),
       finalGrade: null,
       finalGradeByStudent: admin.firestore.FieldValue.delete(),
       gradedAt: admin.firestore.FieldValue.delete(),

@@ -6,6 +6,15 @@ export interface GradeWeights {
   examiner2Weight: number;
 }
 
+// Shape used once a defense milestone carries examinerScores (identity-keyed,
+// post-generalization) instead of the legacy examiner1Score/examiner2Score
+// pair — a single shared per-examiner weight, since the two slots were always
+// configured equal in practice.
+export interface IdentityGradeWeights {
+  supervisorWeight: number;
+  examinerWeight: number;
+}
+
 export interface DefensePanelMember {
   type: 'internal' | 'external';
   ref: string;
@@ -42,9 +51,12 @@ export interface AssignedMilestone {
   supervisorName: string;
   facultyId: string;
   examinerIds: string[];
+  // Identity-keyed defense milestones (post-generalization) carry this
+  // instead of the legacy positional pair below.
+  examinerScores?: Record<string, { score: number; comments: string }> | null;
   examiner1Score: number | null;
   examiner2Score: number | null;
-  gradeWeights: GradeWeights | null;
+  gradeWeights: GradeWeights | IdentityGradeWeights | null;
   defenseDate: string | null;
   defenseRoom: string | null;
   defenseBuilding?: string | null;

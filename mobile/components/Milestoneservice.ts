@@ -6,6 +6,15 @@ export interface GradeWeights {
   examiner2Weight:  number;   // e.g. 0.35
 }
 
+// Shape used once a defense milestone carries examinerScores (identity-keyed,
+// post-generalization) instead of the legacy examiner1Score/examiner2Score
+// pair — a single shared per-examiner weight (the two slots were always
+// configured equal in practice). Mirrors web/app/examinor/home/types.ts.
+export interface IdentityGradeWeights {
+  supervisorWeight: number;
+  examinerWeight: number;
+}
+
 export function daysUntil(dueDate: Timestamp | string | null | undefined): number {
   if (!dueDate) return 0;
   

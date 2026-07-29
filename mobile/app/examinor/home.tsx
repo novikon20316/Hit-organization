@@ -7,7 +7,7 @@ import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, getFacultyColor } from '../../components/shared';
-import {type GradeWeights } from '../../components/Milestoneservice';
+import {type GradeWeights, type IdentityGradeWeights } from '../../components/Milestoneservice';
 import { examinerHomeStyles } from '../../constants/styles';
 import { apiClient } from '@/src/api/apiClient';
 import {AssignedMilestone} from '@/types'
@@ -102,6 +102,11 @@ export default function ExaminerHome() {
  
   // ── Helpers (unchanged) ─────────────────────────────────────────────────
   const alreadyGraded = (m: AssignedMilestone): boolean => {
+    // Identity-keyed defense milestones (post-generalization) carry
+    // examinerScores instead of the legacy examiner1Score/examiner2Score
+    // pair — legacy milestones (no examinerScores at all) keep the old
+    // "#1/#2" positional check, forever (no migration).
+    if (m.examinerScores != null) return m.examinerScores[uid ?? ''] != null;
     const isExaminer1 = m.examinerIds[0] === uid;
     return isExaminer1 ? m.examiner1Score !== null : m.examiner2Score !== null;
   };
@@ -277,7 +282,13 @@ export default function ExaminerHome() {
                 const graded        = alreadyGraded(m);
                 const fc            = getFacultyColor(m.facultyId);
                 const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
- 
+                const isIdentityKeyed = m.examinerScores != null;
+                const otherExaminerUid = m.examinerIds.find((id) => id !== uid);
+                const coExaminerName = otherExaminerUid
+                  ? (m.defensePanel ?? []).find((p) => p.ref === otherExaminerUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown')
+                  : null;
+                const coExaminerGraded = otherExaminerUid ? m.examinerScores?.[otherExaminerUid] != null : false;
+
                 return (
                   <Pressable
                     key={m.id}
@@ -300,12 +311,21 @@ export default function ExaminerHome() {
                       👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}
                     </Text>
  
-                    {/* My slot */}
-                    <Text style={styles.cardMeta}>
-                      🔢 {lang === 'he'
-                        ? `אני בוחן #${examinerIndex}`
-                        : `I am Examiner #${examinerIndex}`}
-                    </Text>
+                    {/* My slot / co-examiner */}
+                    {isIdentityKeyed ? (
+                      otherExaminerUid && (
+                        <Text style={styles.cardMeta}>
+                          🤝 {lang === 'he' ? 'בוחן/ת נוסף/ת:' : 'Co-examiner:'} {coExaminerName} ·{' '}
+                          {coExaminerGraded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : (lang === 'he' ? 'טרם הוגש' : 'pending')}
+                        </Text>
+                      )
+                    ) : (
+                      <Text style={styles.cardMeta}>
+                        🔢 {lang === 'he'
+                          ? `אני בוחן #${examinerIndex}`
+                          : `I am Examiner #${examinerIndex}`}
+                      </Text>
+                    )}
  
                     {/* Defense date pill */}
                     {m.defenseDate && (
@@ -363,11 +383,17 @@ export default function ExaminerHome() {
                     {/* Grade weights */}
                     {m.gradeWeights && (
                       <View style={styles.weightsRow}>
-                        {[
-                          { label: lang === 'he' ? 'מנחה'   : 'Supervisor', w: m.gradeWeights.supervisorWeight, hl: false },
-                          { label: lang === 'he' ? 'בוחן 1' : 'Examiner 1', w: m.gradeWeights.examiner1Weight,  hl: examinerIndex === 1 },
-                          { label: lang === 'he' ? 'בוחן 2' : 'Examiner 2', w: m.gradeWeights.examiner2Weight,  hl: examinerIndex === 2 },
-                        ].map((wt) => (
+                        {(isIdentityKeyed
+                          ? [
+                              { label: lang === 'he' ? 'מנחה' : 'Supervisor', w: m.gradeWeights.supervisorWeight, hl: false },
+                              { label: lang === 'he' ? 'בוחנים (לכל אחד)' : 'Examiners (each)', w: (m.gradeWeights as IdentityGradeWeights).examinerWeight, hl: true },
+                            ]
+                          : [
+                              { label: lang === 'he' ? 'מנחה'   : 'Supervisor', w: m.gradeWeights.supervisorWeight, hl: false },
+                              { label: lang === 'he' ? 'בוחן 1' : 'Examiner 1', w: (m.gradeWeights as GradeWeights).examiner1Weight,  hl: examinerIndex === 1 },
+                              { label: lang === 'he' ? 'בוחן 2' : 'Examiner 2', w: (m.gradeWeights as GradeWeights).examiner2Weight,  hl: examinerIndex === 2 },
+                            ]
+                        ).map((wt) => (
                           <View key={wt.label} style={[styles.weightChip, wt.hl && styles.weightChipHL]}>
                             <Text style={[styles.weightChipLabel, wt.hl && { color: '#fff' }]}>{wt.label}</Text>
                             <Text style={[styles.weightChipValue, wt.hl && { color: '#fff' }]}>{Math.round(wt.w * 100)}%</Text>

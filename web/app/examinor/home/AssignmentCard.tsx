@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
-import { MILESTONE_LABEL, type AssignedMilestone } from './types';
+import { MILESTONE_LABEL, type AssignedMilestone, type GradeWeights, type IdentityGradeWeights } from './types';
 
 interface AssignmentCardProps {
   milestone: AssignedMilestone;
@@ -29,8 +29,20 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: Assign
   const [dateMessage, setDateMessage] = useState('');
 
   const facultyColor = getFacultyColor(m.facultyId);
+  // Identity-keyed defense milestones (post-generalization) carry
+  // examinerScores instead of the legacy examiner1Score/examiner2Score pair —
+  // legacy milestones (no examinerScores at all) keep the old "#1/#2"
+  // positional display, forever (no migration).
+  const isIdentityKeyed = m.examinerScores != null;
   const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
-  const graded = examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
+  const graded = isIdentityKeyed
+    ? m.examinerScores?.[uid] != null
+    : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
+  const otherExaminerUid = m.examinerIds.find((id) => id !== uid);
+  const coExaminerName = otherExaminerUid
+    ? (m.defensePanel ?? []).find((p) => p.ref === otherExaminerUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown')
+    : null;
+  const coExaminerGraded = otherExaminerUid ? m.examinerScores?.[otherExaminerUid] != null : false;
   const isMyDefensePanel = (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
   const isBeforeDefense = m.defenseDate ? new Date() < new Date(m.defenseDate) : false;
 
@@ -68,7 +80,16 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: Assign
         <p className="mt-0.5 text-xs text-muted">
           👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}
         </p>
-        <p className="mt-0.5 text-xs text-muted">🔢 {lang === 'he' ? `אני בוחן #${examinerIndex}` : `I am Examiner #${examinerIndex}`}</p>
+        {isIdentityKeyed ? (
+          otherExaminerUid && (
+            <p className="mt-0.5 text-xs text-muted">
+              🤝 {lang === 'he' ? 'בוחן/ת נוסף/ת:' : 'Co-examiner:'} {coExaminerName} ·{' '}
+              {coExaminerGraded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : (lang === 'he' ? 'טרם הוגש' : 'pending')}
+            </p>
+          )
+        ) : (
+          <p className="mt-0.5 text-xs text-muted">🔢 {lang === 'he' ? `אני בוחן #${examinerIndex}` : `I am Examiner #${examinerIndex}`}</p>
+        )}
         {m.defenseDate && (
           <p className="mt-1.5 inline-block rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-ink">
             📅 {new Date(m.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
@@ -112,11 +133,17 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: Assign
 
       {m.gradeWeights && (
         <div className="mt-3 flex gap-1.5">
-          {[
-            { label: lang === 'he' ? 'מנחה' : 'Supervisor', w: m.gradeWeights.supervisorWeight, hl: false },
-            { label: lang === 'he' ? 'בוחן 1' : 'Examiner 1', w: m.gradeWeights.examiner1Weight, hl: examinerIndex === 1 },
-            { label: lang === 'he' ? 'בוחן 2' : 'Examiner 2', w: m.gradeWeights.examiner2Weight, hl: examinerIndex === 2 },
-          ].map((wt) => (
+          {(isIdentityKeyed
+            ? [
+                { label: lang === 'he' ? 'מנחה' : 'Supervisor', w: m.gradeWeights.supervisorWeight, hl: false },
+                { label: lang === 'he' ? 'בוחנים (לכל אחד)' : 'Examiners (each)', w: (m.gradeWeights as IdentityGradeWeights).examinerWeight, hl: true },
+              ]
+            : [
+                { label: lang === 'he' ? 'מנחה' : 'Supervisor', w: m.gradeWeights.supervisorWeight, hl: false },
+                { label: lang === 'he' ? 'בוחן 1' : 'Examiner 1', w: (m.gradeWeights as GradeWeights).examiner1Weight, hl: examinerIndex === 1 },
+                { label: lang === 'he' ? 'בוחן 2' : 'Examiner 2', w: (m.gradeWeights as GradeWeights).examiner2Weight, hl: examinerIndex === 2 },
+              ]
+          ).map((wt) => (
             <span
               key={wt.label}
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${wt.hl ? 'bg-primary text-primary-ink' : 'bg-paper text-ink'}`}

@@ -107,9 +107,30 @@ export async function promoteNextExaminer(
   triggeredByRole: string,
 ): Promise<{ promoted: ExaminerCandidate | null }> {
   const tokenRef = db.collection('examinerTokens').doc(tokenId);
-  const tokenSnap = await tokenRef.get();
-  if (!tokenSnap.exists) throw new Error('Examiner token not found.');
-  const token = tokenSnap.data()!;
+
+  // Atomically claim this token for promotion, exactly once. An external
+  // examiner's decline never leaves a uid in examinerIds to remove (they're
+  // never added there in the first place — only internal candidates are), so
+  // a second promotion for the same already-superseded token would arrayUnion
+  // in a second candidate on top of the first, growing the panel past 2 with
+  // nothing to swap out. This guard makes a duplicate/racing invocation for
+  // the same token a no-op instead.
+  const claimResult = await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(tokenRef);
+    if (!snap.exists) throw new Error('Examiner token not found.');
+    const data = snap.data()!;
+    if (data.status === 'superseded') return null;
+    transaction.update(tokenRef, {
+      status: 'superseded',
+      supersededAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    // The doc's pre-claim status ('declined'/'expired') drives the
+    // notification wording below — capture it now, since the doc itself
+    // will read back as 'superseded' after this transaction commits.
+    return { token: data, preClaimStatus: data.status as string };
+  });
+  if (!claimResult) return { promoted: null };
+  const { token, preClaimStatus } = claimResult;
 
   if (!token.projectId) throw new Error('This token has no associated project.');
   const projectSnap = await db.collection('projects').doc(token.projectId).get();
@@ -133,8 +154,8 @@ export async function promoteNextExaminer(
         type: 'general',
         titleHe: '📋 מונית כבוחן חלופי',
         titleEn: '📋 Appointed as replacement examiner',
-        bodyHe: `הוקצית לשפוט את "${token.thesisTitle ?? ''}" לאחר שהבוחן החיצוני הקודם ${token.status === 'declined' ? 'סירב' : 'לא הגיב בזמן'}.`,
-        bodyEn: `You've been assigned to review "${token.thesisTitle ?? ''}" after the previous external examiner ${token.status === 'declined' ? 'declined' : 'did not respond in time'}.`,
+        bodyHe: `הוקצית לשפוט את "${token.thesisTitle ?? ''}" לאחר שהבוחן החיצוני הקודם ${preClaimStatus === 'declined' ? 'סירב' : 'לא הגיב בזמן'}.`,
+        bodyEn: `You've been assigned to review "${token.thesisTitle ?? ''}" after the previous external examiner ${preClaimStatus === 'declined' ? 'declined' : 'did not respond in time'}.`,
         isRead: false,
         relatedProjectId: token.projectId,
         relatedMilestoneId: token.milestoneId,
@@ -145,11 +166,9 @@ export async function promoteNextExaminer(
     }
   }
 
-  await tokenRef.update({
-    status: 'superseded',
-    supersededAt: admin.firestore.FieldValue.serverTimestamp(),
-    supersededBy: candidate?.uid ?? null,
-  });
+  // status/supersededAt already claimed transactionally above — just record
+  // who ended up promoted (informational only, nothing else reads it).
+  await tokenRef.update({ supersededBy: candidate?.uid ?? null });
 
   await logAuditEvent({
     userId: triggeredBy,
@@ -165,10 +184,10 @@ export async function promoteNextExaminer(
     candidate ? '✅ בוחן חלופי מונה אוטומטית' : '⚠️ נדרש מינוי בוחן חלופי',
     candidate ? '✅ Replacement examiner auto-appointed' : '⚠️ A replacement examiner is needed',
     candidate
-      ? `${candidate.displayName} מונה כבוחן חלופי עבור "${token.thesisTitle ?? ''}" לאחר ש${token.status === 'declined' ? 'הבוחן הקודם סירב' : 'הבוחן הקודם לא הגיב בזמן'}.`
+      ? `${candidate.displayName} מונה כבוחן חלופי עבור "${token.thesisTitle ?? ''}" לאחר ש${preClaimStatus === 'declined' ? 'הבוחן הקודם סירב' : 'הבוחן הקודם לא הגיב בזמן'}.`
       : `לא נמצא בוחן פנימי פנוי באופן אוטומטי עבור "${token.thesisTitle ?? ''}" — נדרשת הקצאה ידנית.`,
     candidate
-      ? `${candidate.displayName} was auto-appointed as replacement examiner for "${token.thesisTitle ?? ''}" after the previous examiner ${token.status === 'declined' ? 'declined' : 'did not respond in time'}.`
+      ? `${candidate.displayName} was auto-appointed as replacement examiner for "${token.thesisTitle ?? ''}" after the previous examiner ${preClaimStatus === 'declined' ? 'declined' : 'did not respond in time'}.`
       : `No available internal examiner could be found automatically for "${token.thesisTitle ?? ''}" — manual assignment is needed.`,
     token.projectId,
     token.milestoneId ?? null,
