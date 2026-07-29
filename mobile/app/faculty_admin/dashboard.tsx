@@ -35,6 +35,7 @@ import {
 } from '@/components/modals';
 import ManagedStaffSection from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
+import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 
 const { width } = Dimensions.get('window');
 
@@ -52,7 +53,7 @@ export default function PanelScreen() {
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones' | 'deadlines' | 'staff'
+    'overview' | 'users' | 'projects' | 'milestones' | 'deadlines' | 'staff' | 'signoffs'
   >('overview');
 
   const [deadlines, setDeadlines] = useState<any[]>([]);
@@ -379,6 +380,9 @@ export default function PanelScreen() {
       <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('staff')}>
         <Text style={localStyles.tabLabel}>{lang === 'he' ? 'סגל' : 'Staff'}</Text>
       </Pressable>
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('signoffs')}>
+        <Text style={localStyles.tabLabel}>{lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off'}</Text>
+      </Pressable>
       <Pressable
         style={localStyles.tabBar}
         onPress={() => {
@@ -474,6 +478,8 @@ export default function PanelScreen() {
               ))
             )
           )
+        ) : activeTab === 'signoffs' ? (
+          <PendingSignoffsWidget lang={lang} showEmptyState />
         ) : (
           /* USERS */
           users.map((u) => (

@@ -19,6 +19,7 @@ import { t, tx, type Lang } from '../../components/i18n';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal, NewProjectModal } from '@/components/modals';
 import { AdministrativeSecretaryDashboardStyles, AdministrativeSecretaryModalStyles, adminPanelStyles } from '../../constants/styles';
+import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import type { AppUser } from '@/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -567,6 +568,8 @@ export default function ProjectCoordinatorDashboard() {
         {/* Bulk Update Due Dates / Academic Year moved into the TopBar's ☰
             menu (extraMenuItems above) — same actions, no functionality
             dropped, just decluttered off this row. */}
+        <PendingSignoffsWidget lang={lang} />
+
         <TextInput
           style={s.searchInput}
           value={searchText}

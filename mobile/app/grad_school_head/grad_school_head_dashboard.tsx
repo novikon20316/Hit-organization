@@ -125,6 +125,8 @@ export default function GradSchoolHeadDashboard() {
   const [unlockReason, setUnlockReason] = useState('');
   const [examinerRejectTargetId, setExaminerRejectTargetId] = useState<string | null>(null);
   const [examinerRejectReason, setExaminerRejectReason] = useState('');
+  const [finalGradeRejectTargetId, setFinalGradeRejectTargetId] = useState<string | null>(null);
+  const [finalGradeRejectReason, setFinalGradeRejectReason] = useState('');
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
   // ── Add Project modal state ─────────────────────────────────────────────
@@ -269,6 +271,27 @@ export default function GradSchoolHeadDashboard() {
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         e.response?.data?.message || (lang === 'he' ? 'אישור הציון נכשל' : 'Failed to approve the grade'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  // New capability — previously a computed final grade could only be
+  // approved, never rejected pre-approval. See gradSchoolHeadController.ts's
+  // rejectFinalGrade.
+  const handleRejectFinalGrade = async (item: PendingApproval) => {
+    if (!finalGradeRejectReason.trim()) return;
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/grad-school-head/milestones/${item.id}/reject-grade`, { reason: finalGradeRejectReason.trim() });
+      setFinalGradeRejectTargetId(null);
+      setFinalGradeRejectReason('');
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'דחיית הציון נכשלה' : 'Failed to reject the grade'),
       );
     } finally {
       setApprovingId(null);
@@ -440,19 +463,55 @@ export default function GradSchoolHeadDashboard() {
                   <Text style={s.cardTitle}>{item.studentName}</Text>
                   <Text style={s.cardSub}>{item.title}</Text>
                   {item.type === 'final_grade' ? (
-                    <View style={s.actionRow}>
-                      <Pressable
-                        style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
-                        onPress={() => handleApproveFinalGrade(item)}
-                        disabled={approvingId === item.id}
-                      >
-                        <Text style={s.btnApproveText}>
-                          {approvingId === item.id
-                            ? (lang === 'he' ? 'מאשר...' : 'Approving...')
-                            : `✅ ${tx('gradeApproved', lang)}`}
-                        </Text>
-                      </Pressable>
-                    </View>
+                    finalGradeRejectTargetId === item.id ? (
+                      <View style={{ marginTop: 10 }}>
+                        <TextInput
+                          value={finalGradeRejectReason}
+                          onChangeText={setFinalGradeRejectReason}
+                          placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
+                          multiline
+                          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                          <Pressable
+                            style={[s.btnReturn, { flex: 1, backgroundColor: finalGradeRejectReason.trim() ? '#EF4444' : '#FCA5A5' }]}
+                            onPress={() => handleRejectFinalGrade(item)}
+                            disabled={!finalGradeRejectReason.trim() || approvingId === item.id}
+                          >
+                            <Text style={[s.btnReturnText, { color: '#fff' }]}>
+                              {lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[s.btnReturn, { flex: 1 }]}
+                            onPress={() => { setFinalGradeRejectTargetId(null); setFinalGradeRejectReason(''); }}
+                          >
+                            <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={s.actionRow}>
+                        <Pressable
+                          style={s.btnReturn}
+                          onPress={() => setFinalGradeRejectTargetId(item.id)}
+                          disabled={approvingId === item.id}
+                        >
+                          <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
+                          onPress={() => handleApproveFinalGrade(item)}
+                          disabled={approvingId === item.id}
+                        >
+                          <Text style={s.btnApproveText}>
+                            {approvingId === item.id
+                              ? (lang === 'he' ? 'מאשר...' : 'Approving...')
+                              : `✅ ${tx('gradeApproved', lang)}`}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )
                   ) : item.type === 'examiners' ? (
                     examinerRejectTargetId === item.id ? (
                       <View style={{ marginTop: 10 }}>

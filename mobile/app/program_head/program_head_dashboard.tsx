@@ -17,6 +17,7 @@ import { TopBar, getFacultyColor } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { ProgramHeadDashboardStyles } from '../../constants/styles';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 
@@ -285,6 +286,7 @@ export default function ProgramHeadDashboard() {
         {/* ── APPROVALS TAB ── */}
         {activeTab === 'approvals' && (
           <>
+            <PendingSignoffsWidget lang={lang} showEmptyState />
             <ExceptionalActionQueue lang={lang} />
             {(data?.pendingApprovals.length ?? 0) === 0 ? (
               <EmptyState emoji="✅" text={lang === 'he' ? 'אין פריטים ממתינים' : 'Nothing pending'} />

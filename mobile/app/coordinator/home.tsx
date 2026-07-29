@@ -20,6 +20,7 @@ import FloatingActionMenu from '@/components/FloatingActionMenu';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal } from '@/components/modals';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
+import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -45,7 +46,7 @@ export default function CoordinatorHome() {
   const [coordinatorName, setCoordinatorName] = useState('');
   const [loading, setLoading]     = useState(true);
   
-  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs'>('pending');
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
@@ -770,6 +771,7 @@ export default function CoordinatorHome() {
           { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: sortedDefenseCards.length },
           { key: 'inProgress', heLabel: 'פרויקטים פעילים', enLabel: 'In Progress',       badge: inProgressProjects.length },
           { key: 'recommendations', heLabel: 'המלצות בוחנים', enLabel: 'Examiner Recs', badge: examinerRecs.length },
+          { key: 'signoffs', heLabel: 'ממתין לאישורך', enLabel: 'Awaiting Your Sign-off', badge: 0 },
         ] as const).map((tab) => (
           <Pressable
             key={tab.key}
@@ -1534,6 +1536,10 @@ export default function CoordinatorHome() {
               ))
             )}
           </>
+        )}
+
+        {activeTab === 'signoffs' && (
+          <PendingSignoffsWidget lang={lang} showEmptyState />
         )}
 
         <View style={{ height: 60 }} />
