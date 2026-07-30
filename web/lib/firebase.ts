@@ -13,7 +13,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import { getAuth, browserLocalPersistence, setPersistence, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyD7v2PB_ics4bDV346BxeIZjFvkbSHvjiM',
@@ -29,6 +29,11 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// "Sign in with Google" — requires Google enabled as a sign-in provider in
+// Firebase Console (Authentication > Sign-in method) before this does
+// anything useful; the provider instance itself needs no config.
+export const googleProvider = new GoogleAuthProvider();
 
 // Explicit, rather than relying on the default — makes the "stay signed in
 // across tabs/refreshes" behavior a documented choice, not an SDK default

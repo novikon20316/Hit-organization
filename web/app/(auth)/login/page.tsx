@@ -14,8 +14,15 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
-import { signInWithEmailAndPassword, type AuthError } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import {
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  linkWithCredential,
+  GoogleAuthProvider,
+  type AuthError,
+  type AuthCredential,
+} from 'firebase/auth';
+import { auth, db, googleProvider } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { getHomeRoute, type UserDoc } from '@/lib/roles';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
@@ -43,6 +50,18 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // "Sign in with Google" — a Google account whose email already has an
+  // existing password-based account throws auth/account-exists-with-
+  // -different-credential instead of silently creating a second, orphaned
+  // uid. This prompts for that account's password so we can link the Google
+  // credential onto it (Firebase's own documented recipe), rather than ever
+  // ending up with two identities for the same person.
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const [linkingPrompt, setLinkingPrompt] = useState<{ email: string; pendingCredential: AuthCredential } | null>(null);
+  const [linkingPassword, setLinkingPassword] = useState('');
+  const [linkingSubmitting, setLinkingSubmitting] = useState(false);
+  const [linkingError, setLinkingError] = useState('');
 
   // Shared by both redirect paths below so they can never disagree on
   // where a signed-in user should land — see the useEffect just below this
@@ -180,6 +199,82 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    if (googleSubmitting) return;
+    setGoogleSubmitting(true);
+    setError('');
+    try {
+      const cred = await signInWithPopup(auth, googleProvider);
+      apiClient.post('/api/users/log-login').catch(() => {});
+
+      const userSnap = await getDoc(doc(db, 'users', cred.user.uid));
+      const data = userSnap.exists() ? (userSnap.data() as UserDoc) : null;
+
+      if (!data) {
+        // Brand-new Google identity, no matching Firestore doc — this is a
+        // genuinely new account, not an existing one. Route to the same
+        // academic-info completion form self-signup would otherwise collect,
+        // rather than silently creating a bare account.
+        router.push('/complete-profile');
+        return;
+      }
+      await redirectAfterAuth(data);
+    } catch (err) {
+      const e = err as AuthError;
+      if (e.code === 'auth/account-exists-with-different-credential') {
+        // This email already has a password-based account under a different
+        // uid — link the Google credential onto THAT account instead of
+        // ending up with two identities for the same person (every project/
+        // milestone/grade in this app references a person by uid).
+        const pendingCredential = GoogleAuthProvider.credentialFromError(e);
+        const email = (e.customData as { email?: string } | undefined)?.email;
+        if (pendingCredential && email) {
+          setLinkingPrompt({ email, pendingCredential });
+        } else {
+          setError(t('loginError'));
+        }
+      } else if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+        // User closed the popup — not an error worth surfacing.
+      } else {
+        setError(t('loginError'));
+      }
+    } finally {
+      setGoogleSubmitting(false);
+    }
+  };
+
+  const handleLinkSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!linkingPrompt || linkingSubmitting) return;
+    setLinkingSubmitting(true);
+    setLinkingError('');
+    try {
+      const cred = await signInWithEmailAndPassword(auth, linkingPrompt.email, linkingPassword);
+      await linkWithCredential(cred.user, linkingPrompt.pendingCredential);
+      apiClient.post('/api/users/log-login').catch(() => {});
+
+      const userSnap = await getDoc(doc(db, 'users', cred.user.uid));
+      const data = userSnap.exists() ? (userSnap.data() as UserDoc) : null;
+      if (!data) {
+        // Shouldn't happen (this uid already had a password-based account by
+        // definition), but fail safely rather than assume.
+        setLinkingError(t('loginError'));
+        return;
+      }
+      setLinkingPrompt(null);
+      await redirectAfterAuth(data);
+    } catch (err) {
+      const code = (err as AuthError)?.code;
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
+        setLinkingError(lang === 'he' ? 'דוא"ל או סיסמה שגויים.' : 'Incorrect email or password.');
+      } else {
+        setLinkingError(t('loginError'));
+      }
+    } finally {
+      setLinkingSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-paper">
       <header className="flex justify-end p-4">
@@ -270,6 +365,22 @@ export default function LoginPage() {
               {submitting ? '…' : t('login')}
             </button>
 
+            <div className="my-4 flex items-center gap-3 text-xs text-muted">
+              <span className="h-px flex-1 bg-line" />
+              {lang === 'he' ? 'או' : 'or'}
+              <span className="h-px flex-1 bg-line" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={googleSubmitting}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-surface py-2.5 text-sm font-medium text-ink transition-colors hover:bg-paper disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <GoogleIcon />
+              {googleSubmitting ? '…' : lang === 'he' ? 'המשך עם Google' : 'Continue with Google'}
+            </button>
+
             <div className="mt-5 flex flex-col items-center gap-2 text-sm">
               <Link href="/signup" className="text-primary hover:underline">
                 {lang === 'he' ? 'אין לך חשבון? הירשם' : "Don't have an account? Sign up"}
@@ -282,11 +393,73 @@ export default function LoginPage() {
         </div>
       </main>
 
+      {linkingPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-[var(--radius)] border border-line bg-surface p-6 shadow-lg">
+            <h2 className="text-base font-semibold text-ink">
+              {lang === 'he' ? 'חשבון עם דוא"ל זה כבר קיים' : 'An account with this email already exists'}
+            </h2>
+            <p className="mt-1.5 text-sm text-muted">
+              {lang === 'he'
+                ? `הזן/י את הסיסמה של ${linkingPrompt.email} כדי לחבר את ההתחברות עם Google לחשבון הקיים שלך.`
+                : `Enter the password for ${linkingPrompt.email} to link Google sign-in to your existing account.`}
+            </p>
+            <form onSubmit={handleLinkSubmit} className="mt-4">
+              <input
+                type="password"
+                dir="ltr"
+                autoFocus
+                value={linkingPassword}
+                onChange={(e) => {
+                  setLinkingPassword(e.target.value);
+                  setLinkingError('');
+                }}
+                className="w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                placeholder={lang === 'he' ? 'סיסמה' : 'Password'}
+                required
+              />
+              {linkingError && <p className="mt-2 text-sm text-danger">{linkingError}</p>}
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLinkingPrompt(null);
+                    setLinkingPassword('');
+                    setLinkingError('');
+                  }}
+                  className="flex-1 rounded-lg border border-line py-2.5 text-sm font-medium text-ink hover:bg-paper"
+                >
+                  {lang === 'he' ? 'ביטול' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={linkingSubmitting}
+                  className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                >
+                  {linkingSubmitting ? '…' : lang === 'he' ? 'חבר חשבון' : 'Link account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <footer className="pb-6 text-center text-xs text-muted">
         {lang === 'he'
           ? `כל הזכויות שמורות ל-HIT ${new Date().getFullYear()}`
           : `All rights reserved to HIT ${new Date().getFullYear()}`}
       </footer>
     </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.87 2.7-6.62z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z" />
+      <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.17.29-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97l3.05 2.33C4.66 5.17 6.65 3.58 9 3.58z" />
+    </svg>
   );
 }
