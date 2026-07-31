@@ -68,6 +68,15 @@ export default function LoginScreen() {
     androidClientId: googleExtra.googleAndroidClientId || undefined,
   });
 
+  // TEMPORARY — logs the exact redirect URI this build generates, so it can
+  // be registered as an Authorized redirect URI on the Google OAuth client
+  // in Google Cloud Console. Remove once Google sign-in is confirmed working.
+  useEffect(() => {
+    if (googleRequest?.redirectUri) {
+      console.log('Google OAuth redirect URI (register this in Google Cloud Console):', googleRequest.redirectUri);
+    }
+  }, [googleRequest]);
+
   // Shared by both the direct Google sign-in path and the post-linking path
   // below, so they can never disagree on where a signed-in user should land.
   const proceedAfterGoogleAuth = async (uid: string) => {
