@@ -97,6 +97,12 @@ export interface WorkflowMilestoneSpec {
   order: number;
   dueDaysFromStart: number;
   requiresExaminers: boolean;
+  /** How many examiner slots a defense panel needs for this milestone.
+   *  Only meaningful when requiresExaminers is true. Omitted means the
+   *  legacy default of 2 (today's hardcoded business rule) — see
+   *  coordinatorController.ts's assignExaminers and
+   *  defenseScheduling.ts's openDefenseSchedulingIfPanelReady. */
+  examinerCount?: number;
   /** Optional — omitted/empty means this milestone still uses the hardcoded
    *  default rubric until the grading endpoints are wired to read this. */
   gradingComponents?: GradingComponentSpec[];

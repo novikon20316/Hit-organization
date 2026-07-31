@@ -38,11 +38,16 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: Assign
   const graded = isIdentityKeyed
     ? m.examinerScores?.[uid] != null
     : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
-  const otherExaminerUid = m.examinerIds.find((id) => id !== uid);
-  const coExaminerName = otherExaminerUid
-    ? (m.defensePanel ?? []).find((p) => p.ref === otherExaminerUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown')
-    : null;
-  const coExaminerGraded = otherExaminerUid ? m.examinerScores?.[otherExaminerUid] != null : false;
+  // Panel size is configurable per faculty/degree (see workflowTemplates.ts's
+  // examinerCount) — every OTHER examiner on the panel, not just a single
+  // assumed peer.
+  const otherExaminers = m.examinerIds
+    .filter((id) => id !== uid)
+    .map((otherUid) => ({
+      uid: otherUid,
+      name: (m.defensePanel ?? []).find((p) => p.ref === otherUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown'),
+      graded: m.examinerScores?.[otherUid] != null,
+    }));
   const isMyDefensePanel = (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
   const isBeforeDefense = m.defenseDate ? new Date() < new Date(m.defenseDate) : false;
 
@@ -63,7 +68,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: Assign
       const res = await apiClient.submitExaminerDefenseDates(m.id, raw);
       if (res.matched) setDateMessage(lang === 'he' ? `✅ נמצא תאריך משותף: ${res.matchedDate}` : `✅ Common date found: ${res.matchedDate}`);
       else if (res.conflict) setDateMessage(lang === 'he' ? 'לא נמצא תאריך משותף — הרכז/ת יפתור/תפתור' : 'No common date — the coordinator will resolve this');
-      else setDateMessage(lang === 'he' ? '✅ התאריכים נשלחו — ממתין לבוחן/ת השני/ה' : '✅ Dates submitted — waiting on the other examiner');
+      else setDateMessage(lang === 'he' ? '✅ התאריכים נשלחו — ממתין לשאר הבוחנים' : '✅ Dates submitted — waiting on the other examiners');
       onChanged();
     } catch (err) {
       setDateMessage(err instanceof Error ? err.message : 'Failed to submit candidate dates');
@@ -81,10 +86,12 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: Assign
           👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}
         </p>
         {isIdentityKeyed ? (
-          otherExaminerUid && (
+          otherExaminers.length > 0 && (
             <p className="mt-0.5 text-xs text-muted">
-              🤝 {lang === 'he' ? 'בוחן/ת נוסף/ת:' : 'Co-examiner:'} {coExaminerName} ·{' '}
-              {coExaminerGraded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : (lang === 'he' ? 'טרם הוגש' : 'pending')}
+              🤝 {lang === 'he' ? (otherExaminers.length > 1 ? 'בוחנים נוספים:' : 'בוחן/ת נוסף/ת:') : otherExaminers.length > 1 ? 'Co-examiners:' : 'Co-examiner:'}{' '}
+              {otherExaminers
+                .map((oe) => `${oe.name} (${oe.graded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : lang === 'he' ? 'טרם הוגש' : 'pending'})`)
+                .join(', ')}
             </p>
           )
         ) : (

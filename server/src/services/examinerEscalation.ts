@@ -112,9 +112,13 @@ export async function promoteNextExaminer(
   // examiner's decline never leaves a uid in examinerIds to remove (they're
   // never added there in the first place — only internal candidates are), so
   // a second promotion for the same already-superseded token would arrayUnion
-  // in a second candidate on top of the first, growing the panel past 2 with
-  // nothing to swap out. This guard makes a duplicate/racing invocation for
-  // the same token a no-op instead.
+  // in a second candidate on top of the first, growing the panel with nothing
+  // to swap out for it. This guard makes a duplicate/racing invocation for
+  // the same token a no-op instead. Note: this only reconciles examinerIds —
+  // it does NOT add the promoted candidate into an already-open
+  // dateMatching round (see defenseScheduling.ts), so a promotion after
+  // scheduling has started needs a separate follow-up fix, tracked outside
+  // this change.
   const claimResult = await db.runTransaction(async (transaction) => {
     const snap = await transaction.get(tokenRef);
     if (!snap.exists) throw new Error('Examiner token not found.');

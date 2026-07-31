@@ -93,7 +93,7 @@ export function ProposeVersionModal({
     setRowModalOpen(true);
   };
 
-  const handleSaveRow = (values: { nameHe: string; nameEn: string; dueDaysFromStart: number; requiresExaminers: boolean; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec }) => {
+  const handleSaveRow = (values: { nameHe: string; nameEn: string; dueDaysFromStart: number; requiresExaminers: boolean; examinerCount?: number; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec }) => {
     // `routing` is only present in `values` when the row's chain override is
     // ON — spread it in when present, but explicitly drop any pre-existing
     // `routing` on the milestone being edited when it's absent (turning the

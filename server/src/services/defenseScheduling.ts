@@ -1,12 +1,15 @@
 // src/services/defenseScheduling.ts
 //
-// Defense date matching: each of the 2 examiners on a project's defense panel
-// submits a list of candidate dates (within a window anchored to when the
-// panel was assigned); if they share a date it's locked in automatically, if
-// not the coordinator resolves the conflict (see resolveKeepExaminers /
-// resolveReplaceExaminer). All cross-examiner state lives on the project's
-// `type: 'defense'` milestone doc under `dateMatching` — see the plan doc for
-// the full shape.
+// Defense date matching: each examiner on a project's defense panel (any
+// size — the panel size is configured per faculty/degree via workflow
+// templates, see workflowTemplates.ts's examinerCount) submits a list of
+// candidate dates (within a window anchored to when the panel was assigned);
+// once every panel member has submitted, a date common to ALL of them is
+// locked in automatically — if none exists the coordinator resolves the
+// conflict (see resolveKeepExaminers / resolveReplaceExaminer, which replaces
+// exactly one member while keeping everyone else's already-submitted dates).
+// All cross-examiner state lives on the project's `type: 'defense'` milestone
+// doc under `dateMatching` — see the plan doc for the full shape.
 
 import admin from 'firebase-admin';
 import dayjs from 'dayjs';
@@ -56,11 +59,16 @@ export function computeDefenseWindow(anchor: Date): { windowStart: Date; windowE
   };
 }
 
-// ── Common-date matching: earliest shared date wins ─────────────────────────
-export function computeCommonDate(datesA: string[], datesB: string[]): string | null {
-  const setB = new Set(datesB);
-  const common = datesA.filter((d) => setB.has(d)).sort();
-  return common[0] ?? null;
+// ── Common-date matching: earliest date shared by EVERY list wins ──────────
+export function computeCommonDateAcross(dateLists: string[][]): string | null {
+  if (dateLists.length === 0) return null;
+  let common = new Set(dateLists[0]);
+  for (const dates of dateLists.slice(1)) {
+    if (common.size === 0) break;
+    const next = new Set(dates);
+    common = new Set([...common].filter((d) => next.has(d)));
+  }
+  return [...common].sort()[0] ?? null;
 }
 
 // ── Auto-pick fallback: nearest Sun-Thu to day 32, clamped to [+25,+40] ─────
@@ -100,7 +108,7 @@ export function validateCandidateDates(dates: string[], windowStart: Date, windo
   return null;
 }
 
-async function findDefenseMilestoneRef(projectId: string) {
+export async function findDefenseMilestoneRef(projectId: string) {
   const snap = await db.collection('milestones')
     .where('projectId', '==', projectId)
     .where('type', '==', 'defense')
@@ -111,10 +119,11 @@ async function findDefenseMilestoneRef(projectId: string) {
 }
 
 /**
- * Builds the 2-member defense panel from an assignExaminersAndNotify() result
- * and opens the defense date-matching window for it. Only fires once exactly
- * 2 examiners were assigned — a defense panel is always 2 people; assignments
- * of 1 (e.g. re-assigning a single examiner) don't start scheduling.
+ * Builds the defense panel from an assignExaminersAndNotify() result and
+ * opens the defense date-matching window for it. Only fires once at least 1
+ * examiner was assigned — a re-assignment that ends up with 0 (shouldn't
+ * normally happen) doesn't start scheduling since there's no one to gather
+ * dates from.
  *
  * Shared between coordinatorController.ts's single-tier approval path and
  * gradSchoolHeadController.ts's msc_thesis second-tier approval (P1 #5) —
@@ -136,7 +145,7 @@ export async function openDefenseSchedulingIfPanelReady(
   }));
   const panel = [...internalMembers, ...externalMembers];
 
-  if (panel.length !== 2) return;
+  if (panel.length === 0) return;
 
   try {
     await initDefenseScheduling(projectId, panel);
@@ -148,15 +157,15 @@ export async function openDefenseSchedulingIfPanelReady(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Opening the window — called once a 2-person defense panel is confirmed.
+// Opening the window — called once a defense panel of any size is confirmed.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function initDefenseScheduling(projectId: string, panel: DefensePanelMember[]): Promise<void> {
-  if (panel.length !== 2) throw new Error('A defense panel must have exactly 2 examiners.');
+  if (panel.length === 0) throw new Error('A defense panel must have at least 1 examiner.');
 
   const milestoneRef = await findDefenseMilestoneRef(projectId);
   const { windowStart, windowEnd } = computeDefenseWindow(new Date());
-  const panelKeys = panel.map(examinerKeyOf) as [string, string];
+  const panelKeys = panel.map(examinerKeyOf);
   // Internal examiners' dashboards are found via an `examinerIds
   // array-contains uid` query — set it now (not only once assignDefense
   // runs at the very end) so they see this milestone from round 0 onward.
@@ -231,7 +240,11 @@ export interface SubmitDatesResult {
   matched: boolean;
   matchedDate?: string;
   conflict?: boolean;
-  waitingOnOtherExaminer?: boolean;
+  /** Examiner keys in the current round who haven't submitted their
+   *  candidate dates yet — empty/absent once everyone has (that's exactly
+   *  when matched/conflict gets decided). Replaces the old singular
+   *  waitingOnOtherExaminer, which assumed exactly one other panelist. */
+  waitingOn?: ExaminerKey[];
 }
 
 export async function submitCandidateDatesAndResolve(
@@ -290,17 +303,18 @@ export async function submitCandidateDatesAndResolve(
       submittedAt: admin.firestore.Timestamp.now(),
     };
 
-    const otherKey = round.panel.find((k: string) => k !== examinerKey)!;
-    const otherSubmission = submissions[otherKey];
-    const bothSubmitted = !!otherSubmission && otherSubmission.roundIndex === currentRound;
+    const waitingOn: ExaminerKey[] = round.panel.filter((k: string) => {
+      const s = submissions[k];
+      return !(s && s.roundIndex === currentRound);
+    });
 
     // ── writes ──
-    if (!bothSubmitted) {
+    if (waitingOn.length > 0) {
       transaction.update(milestoneRef, { 'dateMatching.submissions': submissions });
-      return { matched: false, waitingOnOtherExaminer: true } as SubmitDatesResult;
+      return { matched: false, waitingOn } as SubmitDatesResult;
     }
 
-    const matchedDate = computeCommonDate(submissions[examinerKey].candidateDates, otherSubmission.candidateDates);
+    const matchedDate = computeCommonDateAcross(round.panel.map((k: string) => submissions[k].candidateDates));
     const panel: DefensePanelMember[] = milestone.defensePanel ?? [];
 
     if (matchedDate) {
@@ -567,8 +581,10 @@ export async function resolveReplaceExaminer(
   if (!round.panel.includes(replacedExaminerKey)) {
     throw new Error('The examiner to replace is not part of the current round.');
   }
-  const retainedKey: string = round.panel.find((k: string) => k !== replacedExaminerKey);
-  const retainedSubmission = (dateMatching.submissions ?? {})[retainedKey];
+  // Every OTHER panel member — not just a single one — carries their
+  // already-submitted dates forward into the new round unchanged; only the
+  // replaced slot needs fresh submission.
+  const retainedKeys: string[] = round.panel.filter((k: string) => k !== replacedExaminerKey);
 
   const projectSnap = await db.collection('projects').doc(milestone.projectId).get();
   const project = projectSnap.data()!;
@@ -594,10 +610,10 @@ export async function resolveReplaceExaminer(
     newMember.displayName = userSnap.data()?.displayName ?? 'Unknown';
   }
 
-  const retainedMember = (milestone.defensePanel as DefensePanelMember[]).find(
-    (m) => examinerKeyOf(m) === retainedKey,
-  )!;
-  const newPanel = [retainedMember, newMember];
+  const retainedMembers = (milestone.defensePanel as DefensePanelMember[]).filter(
+    (m) => retainedKeys.includes(examinerKeyOf(m)),
+  );
+  const newPanel = [...retainedMembers, newMember];
   const newRoundIndex = currentRound + 1;
   const newKey = examinerKeyOf(newMember);
 
@@ -609,10 +625,10 @@ export async function resolveReplaceExaminer(
     },
   };
   // Same window carried forward on purpose — see plan: recomputing it would
-  // make the retained examiner's already-submitted dates incomparable.
+  // make the retained examiners' already-submitted dates incomparable.
   rounds.push({
     roundIndex: newRoundIndex,
-    panel: [retainedKey, newKey],
+    panel: [...retainedKeys, newKey],
     startedAt: admin.firestore.Timestamp.now(),
     outcome: 'pending',
     matchedDate: null,
@@ -620,8 +636,11 @@ export async function resolveReplaceExaminer(
   });
 
   const submissions = { ...(dateMatching.submissions ?? {}) };
-  if (retainedSubmission) {
-    submissions[retainedKey] = { ...retainedSubmission, roundIndex: newRoundIndex };
+  for (const retainedKey of retainedKeys) {
+    const retainedSubmission = (dateMatching.submissions ?? {})[retainedKey];
+    if (retainedSubmission) {
+      submissions[retainedKey] = { ...retainedSubmission, roundIndex: newRoundIndex };
+    }
   }
 
   await milestoneRef.update({

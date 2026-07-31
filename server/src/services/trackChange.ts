@@ -128,7 +128,7 @@ export async function changeProjectTrack(
       // projectEnrollment.ts's identical comment.
       ...(t.gradingComponents?.length ? { gradingComponents: t.gradingComponents } : {}),
       ...(t.requiresExaminers
-        ? { examinerIds: [], examinerScores: {} }
+        ? { examinerIds: [], examinerScores: {}, examinerCount: t.examinerCount ?? 2 }
         : {
             routing: resolveMilestoneRouting(t, templateDefaultRouting),
             currentStageIndex: 0,

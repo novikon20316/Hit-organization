@@ -72,6 +72,10 @@ export interface MilestoneSpec {
   order: number;
   dueDaysFromStart: number;
   requiresExaminers: boolean;
+  /** How many examiner slots a defense panel needs for this milestone. Only
+   *  meaningful when requiresExaminers is true. Omitted means the legacy
+   *  default of 2. Mirrors web/app/workflow-templates/types.ts. */
+  examinerCount?: number;
   /** Per-milestone override of the template's defaultRouting. Omitted means
    *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */
   routing?: MilestoneRoutingSpec;
@@ -332,6 +336,7 @@ export default function WorkflowTemplateManager() {
   const [msNameEn, setMsNameEn] = useState('');
   const [msDays, setMsDays] = useState('90');
   const [msExaminers, setMsExaminers] = useState(false);
+  const [msExaminerCount, setMsExaminerCount] = useState('2');
   const [msOverrideChain, setMsOverrideChain] = useState(false);
   const [msRouting, setMsRouting] = useState<MilestoneRoutingSpec>([emptyStage()]);
 
@@ -434,11 +439,12 @@ export default function WorkflowTemplateManager() {
       setMsNameEn(ms.nameEn);
       setMsDays(String(ms.dueDaysFromStart));
       setMsExaminers(ms.requiresExaminers);
+      setMsExaminerCount(String(ms.examinerCount ?? 2));
       setMsOverrideChain(!!(ms.routing && ms.routing.length > 0));
       setMsRouting(ms.routing && ms.routing.length > 0 ? ms.routing.map((s) => ({ ...s })) : [emptyStage()]);
     } else {
       setEditingMs(null);
-      setMsNameHe(''); setMsNameEn(''); setMsDays('90'); setMsExaminers(false);
+      setMsNameHe(''); setMsNameEn(''); setMsDays('90'); setMsExaminers(false); setMsExaminerCount('2');
       setMsOverrideChain(false);
       setMsRouting([emptyStage()]);
     }
@@ -455,10 +461,19 @@ export default function WorkflowTemplateManager() {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'מספר ימים לא תקין' : 'Invalid number of days');
       return;
     }
+    const examinerCount = parseInt(msExaminerCount, 10);
+    if (msExaminers && (!Number.isFinite(examinerCount) || examinerCount < 1)) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'מספר בוחנים לא תקין' : 'Invalid examiner count');
+      return;
+    }
     if (editingMs) {
       setEditorMilestones((prev) => prev.map((m) => {
         if (m !== editingMs) return m;
-        const next: MilestoneSpec = { ...m, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), dueDaysFromStart: days, requiresExaminers: msExaminers };
+        const next: MilestoneSpec = {
+          ...m, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), dueDaysFromStart: days, requiresExaminers: msExaminers,
+        };
+        if (msExaminers) next.examinerCount = examinerCount;
+        else delete next.examinerCount;
         // Turning the override off must actually clear a pre-existing
         // routing, not leave the stale chain behind.
         if (msOverrideChain) next.routing = msRouting;
@@ -467,7 +482,10 @@ export default function WorkflowTemplateManager() {
       }));
     } else {
       setEditorMilestones((prev) => {
-        const next: MilestoneSpec = { type: `custom_${makeId()}`, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), order: prev.length + 1, dueDaysFromStart: days, requiresExaminers: msExaminers };
+        const next: MilestoneSpec = {
+          type: `custom_${makeId()}`, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), order: prev.length + 1, dueDaysFromStart: days, requiresExaminers: msExaminers,
+        };
+        if (msExaminers) next.examinerCount = examinerCount;
         if (msOverrideChain) next.routing = msRouting;
         return [...prev, next];
       });
@@ -1156,6 +1174,21 @@ export default function WorkflowTemplateManager() {
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</Text>
               <Switch value={msExaminers} onValueChange={setMsExaminers} trackColor={{ true: '#7C3AED' }} />
             </View>
+
+            {msExaminers && (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12, marginBottom: 6 }}>
+                  {lang === 'he' ? 'מספר בוחנים נדרש' : 'Required number of examiners'}
+                </Text>
+                <TextInput
+                  style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14 }}
+                  value={msExaminerCount}
+                  onChangeText={setMsExaminerCount}
+                  keyboardType="numeric"
+                  placeholder="2"
+                />
+              </>
+            )}
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>

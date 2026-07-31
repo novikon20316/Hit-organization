@@ -69,8 +69,13 @@ export interface MilestoneSpec {
   order: number;
   dueDaysFromStart: number;
   requiresExaminers: boolean;
-  /** Optional — see GradingComponentSpec's comment server-side: schema and
-   *  editor exist now, the grading UI itself doesn't read this yet. */
+  /** How many examiner slots a defense panel needs for this milestone. Only
+   *  meaningful when requiresExaminers is true. Omitted means the legacy
+   *  default of 2. See AssignExaminersModal.tsx and
+   *  server/src/services/defenseScheduling.ts. */
+  examinerCount?: number;
+  /** Optional — omitted/empty means the grading form falls back to its
+   *  hardcoded default rubric. */
   gradingComponents?: GradingComponentSpec[];
   /** Per-milestone override of the template's defaultRouting. Omitted means
    *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */

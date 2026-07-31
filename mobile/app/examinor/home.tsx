@@ -176,7 +176,7 @@ export default function ExaminerHome() {
           lang === 'he' ? 'הרכז/ת עודכן/ה ותפתור/תפתור את ההתנגשות.' : 'The coordinator has been notified and will resolve this.'
         );
       } else {
-        Alert.alert('✅', lang === 'he' ? 'התאריכים נשלחו — ממתין לבוחן/ת השני/ה' : 'Dates submitted — waiting on the other examiner');
+        Alert.alert('✅', lang === 'he' ? 'התאריכים נשלחו — ממתין לשאר הבוחנים' : 'Dates submitted — waiting on the other examiners');
       }
       await fetchDashboardData();
     } catch (err: any) {
@@ -306,11 +306,16 @@ export default function ExaminerHome() {
                 const fc            = getFacultyColor(m.facultyId);
                 const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
                 const isIdentityKeyed = m.examinerScores != null;
-                const otherExaminerUid = m.examinerIds.find((id) => id !== uid);
-                const coExaminerName = otherExaminerUid
-                  ? (m.defensePanel ?? []).find((p) => p.ref === otherExaminerUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown')
-                  : null;
-                const coExaminerGraded = otherExaminerUid ? m.examinerScores?.[otherExaminerUid] != null : false;
+                // Panel size is configurable per faculty/degree (see
+                // workflowTemplates.ts's examinerCount) — every OTHER
+                // examiner on the panel, not just a single assumed peer.
+                const otherExaminers = m.examinerIds
+                  .filter((id) => id !== uid)
+                  .map((otherUid) => ({
+                    uid: otherUid,
+                    name: (m.defensePanel ?? []).find((p) => p.ref === otherUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown'),
+                    graded: m.examinerScores?.[otherUid] != null,
+                  }));
 
                 return (
                   <Pressable
@@ -336,10 +341,12 @@ export default function ExaminerHome() {
  
                     {/* My slot / co-examiner */}
                     {isIdentityKeyed ? (
-                      otherExaminerUid && (
+                      otherExaminers.length > 0 && (
                         <Text style={styles.cardMeta}>
-                          🤝 {lang === 'he' ? 'בוחן/ת נוסף/ת:' : 'Co-examiner:'} {coExaminerName} ·{' '}
-                          {coExaminerGraded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : (lang === 'he' ? 'טרם הוגש' : 'pending')}
+                          🤝 {lang === 'he' ? (otherExaminers.length > 1 ? 'בוחנים נוספים:' : 'בוחן/ת נוסף/ת:') : otherExaminers.length > 1 ? 'Co-examiners:' : 'Co-examiner:'}{' '}
+                          {otherExaminers
+                            .map((oe) => `${oe.name} (${oe.graded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : lang === 'he' ? 'טרם הוגש' : 'pending'})`)
+                            .join(', ')}
                         </Text>
                       )
                     ) : (

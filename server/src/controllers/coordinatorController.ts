@@ -8,6 +8,7 @@ import {
   resolveKeepExaminers,
   resolveReplaceExaminer,
   openDefenseSchedulingIfPanelReady,
+  findDefenseMilestoneRef,
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType, resolveExaminerSignoffRole, type ChainStage } from '../services/workflowTemplates.js';
@@ -117,6 +118,18 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
       // computeIdentityWeightedFinalGrade reads it off the milestone doc
       // when submitMilestoneGrade finishes scoring. Fractions re-validated
       // here since the client-side 100% check is only a UX nicety.
+      //
+      // BUG FIX: `milestoneId` here is the FINAL_REPORT milestone (the one
+      // whose approval opens this modal — see its own fileUrls lookup just
+      // above), but grading/scheduling happens on a SEPARATE `type:
+      // 'defense'` milestone doc for the same project (found by
+      // findDefenseMilestoneRef, same as defenseScheduling.ts's own lookup).
+      // Writing gradeWeights onto milestoneRef (final_report) previously
+      // landed on a doc nothing ever reads scoring weights from — configured
+      // weights silently never took effect, always falling back to
+      // gradeEngine.ts's default split regardless of what a coordinator
+      // entered. Resolve and write onto the actual defense doc instead.
+      //
       // Shape depends on the milestone's model: legacy defense milestones
       // persist the old {supervisorWeight, examiner1Weight, examiner2Weight}
       // triple; identity-keyed ones (examinerScores present) persist a
@@ -125,21 +138,31 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
       // equal in practice, no client offers asymmetric slots) and persist
       // whichever shape this milestone expects.
       if (weights && typeof weights === 'object' && milestoneSnap.exists) {
-        const milestoneData = milestoneSnap.data()!;
         const supervisorWeight = Number(weights.supervisorWeight);
         const examinerWeight = Number(weights.examinerWeight ?? weights.examiner1Weight ?? weights.examiner2Weight);
         if (![supervisorWeight, examinerWeight].every((w) => Number.isFinite(w) && w >= 0)) {
           return res.status(400).json({ message: 'Invalid grade weights.' });
         }
-        // Panels are always exactly 2 examiners (business rule) — total
-        // examiner allocation is 2 * examinerWeight either way.
-        if (Math.abs(supervisorWeight + 2 * examinerWeight - 1) > 0.01) {
+        // Panel size is configurable per faculty/degree (see
+        // workflowTemplates.ts's examinerCount) — total examiner allocation
+        // is examinerInputs.length * examinerWeight either way, since every
+        // examiner slot shares the same weight (see IdentityGradeWeights).
+        if (Math.abs(supervisorWeight + examinerInputs.length * examinerWeight - 1) > 0.01) {
           return res.status(400).json({ message: 'Grade weights must sum to 100%.' });
         }
-        const gradeWeights = isIdentityKeyedDefense(milestoneData)
-          ? { supervisorWeight, examinerWeight }
-          : { supervisorWeight, examiner1Weight: examinerWeight, examiner2Weight: examinerWeight };
-        await milestoneRef.update({ gradeWeights });
+        try {
+          const defenseRef = await findDefenseMilestoneRef(projectId);
+          const defenseSnap = await defenseRef.get();
+          const gradeWeights = isIdentityKeyedDefense(defenseSnap.data() ?? {})
+            ? { supervisorWeight, examinerWeight }
+            : { supervisorWeight, examiner1Weight: examinerWeight, examiner2Weight: examinerWeight };
+          await defenseRef.update({ gradeWeights });
+        } catch (err) {
+          // No 'defense' milestone exists yet for this project — same
+          // best-effort tolerance as openDefenseSchedulingIfPanelReady below;
+          // don't fail the whole examiner-assignment request over it.
+          console.error(`Failed to persist gradeWeights for project ${projectId}:`, err);
+        }
       }
     }
 

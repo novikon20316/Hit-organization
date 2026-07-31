@@ -66,7 +66,7 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
       } else if (res.conflict) {
         setStatus('conflict');
       } else {
-        setStatus('awaiting_other_examiner');
+        setStatus('awaiting_other_examiners');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -108,7 +108,7 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
         </>
       )}
 
-      {status === 'awaiting_other_examiner' && <p className="mt-2 text-sm text-muted">{t('examinerDefenseDateWaiting')}</p>}
+      {status === 'awaiting_other_examiners' && <p className="mt-2 text-sm text-muted">{t('examinerDefenseDateWaiting')}</p>}
 
       {status === 'matched' && (
         <p className="mt-2 text-sm font-semibold text-success">

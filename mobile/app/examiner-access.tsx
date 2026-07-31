@@ -40,7 +40,7 @@ import { t } from '@/components/i18n';
 // flow above (see server/src/services/defenseScheduling.ts). Routed through
 // the public examiner-access API (not direct Firestore writes) since it
 // requires reconciling both examiners' submissions atomically.
-type DefenseDateStatus = 'not_open' | 'awaiting_your_dates' | 'awaiting_other_examiner' | 'matched' | 'conflict';
+type DefenseDateStatus = 'not_open' | 'awaiting_your_dates' | 'awaiting_other_examiners' | 'matched' | 'conflict';
 
 // ─── Opinion form fields ───────────────────────────────────────────────────────
 // Adjust these to match your institution's review criteria.
@@ -146,7 +146,7 @@ export default function ExaminerAccessScreen() {
       } else if (res.data.conflict) {
         setDateStatus('conflict');
       } else {
-        setDateStatus('awaiting_other_examiner');
+        setDateStatus('awaiting_other_examiners');
       }
     } catch (e: any) {
       Alert.alert(L('שגיאה', 'Error'), e.response?.data?.message || String(e));
@@ -676,8 +676,8 @@ export default function ExaminerAccessScreen() {
                 </Pressable>
               </>
             )}
-            {dateStatus === 'awaiting_other_examiner' && (
-              <Text style={s.errorSub}>{L('התאריכים נשלחו — ממתין לבוחן/ת השני/ה', 'Dates submitted — waiting on the other examiner')}</Text>
+            {dateStatus === 'awaiting_other_examiners' && (
+              <Text style={s.errorSub}>{L('התאריכים נשלחו — ממתין לשאר הבוחנים', 'Dates submitted — waiting on the other examiners')}</Text>
             )}
             {dateStatus === 'matched' && (
               <Text style={[s.errorSub, { color: '#10B981', fontWeight: '700' }]}>

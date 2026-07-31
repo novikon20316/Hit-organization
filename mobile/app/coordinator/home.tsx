@@ -36,6 +36,18 @@ const MILESTONE_PROGRESS: Record<string, number> = {
   defense:           100,
 };
 
+// External examiner support — no app account, gets a one-time access link by
+// email instead of being picked from the internal examiner list. Examiner
+// count is not fixed at exactly 2 — the coordinator can add/remove slots.
+interface ExaminerSlotState {
+  type: 'internal' | 'external';
+  id: string;
+  ext: { name: string; email: string; institution: string };
+}
+function emptyExaminerSlot(): ExaminerSlotState {
+  return { type: 'internal', id: '', ext: { name: '', email: '', institution: '' } };
+}
+
 
 
 export default function CoordinatorHome() {
@@ -61,19 +73,14 @@ export default function CoordinatorHome() {
   const [approveModal,     setApproveModal]     = useState(false);
   const [selectedMilestone,setSelectedMilestone]= useState<PendingMilestone | null>(null);
 
-  // Assign examiners modal (milestone 3)
+  // Assign examiners modal (milestone 3) — examiner count is no longer fixed
+  // at exactly 2; the coordinator can add/remove slots freely (minimum 1).
+  // Every slot shares the same grade weight (see IdentityGradeWeights
+  // server-side), so the weight UI is just 2 fields regardless of slot count.
   const [assignModal,      setAssignModal]      = useState(false);
-  const [examiner1Id,      setExaminer1Id]      = useState('');
-  const [examiner2Id,      setExaminer2Id]      = useState('');
-  const [weightSupervisor, setWeightSupervisor] = useState('30');
-  const [weightExaminer1,  setWeightExaminer1]  = useState('35');
-  const [weightExaminer2,  setWeightExaminer2]  = useState('35');
-  // External examiner support — no app account, gets a one-time access link
-  // by email instead of being picked from the internal examiner list.
-  const [examiner1Type, setExaminer1Type] = useState<'internal' | 'external'>('internal');
-  const [examiner2Type, setExaminer2Type] = useState<'internal' | 'external'>('internal');
-  const [examiner1Ext,  setExaminer1Ext]  = useState({ name: '', email: '', institution: '' });
-  const [examiner2Ext,  setExaminer2Ext]  = useState({ name: '', email: '', institution: '' });
+  const [examinerSlots, setExaminerSlots] = useState<ExaminerSlotState[]>([emptyExaminerSlot(), emptyExaminerSlot()]);
+  const [weightSupervisor,    setWeightSupervisor]    = useState('40');
+  const [weightEachExaminer,  setWeightEachExaminer]  = useState('30');
 
   // Defense logistics modal (time/room/building only — the DATE itself comes
   // from the examiner date-matching flow, not from the coordinator).
@@ -282,15 +289,13 @@ export default function CoordinatorHome() {
       // Open assign examiners modal instead
       setSelectedMilestone(milestone);
       setProjectId(milestone.projectId);
-      setExaminer1Id('');
-      setExaminer2Id('');
-      setExaminer1Type('internal');
-      setExaminer2Type('internal');
-      setExaminer1Ext({ name: '', email: '', institution: '' });
-      setExaminer2Ext({ name: '', email: '', institution: '' });
-      setWeightSupervisor('30');
-      setWeightExaminer1('35');
-      setWeightExaminer2('35');
+      // milestone.examinerCount is an optional hint from the faculty's
+      // workflow template — used only as the starting slot count; the
+      // coordinator can still add/remove slots freely regardless.
+      const startingCount = Math.max(1, milestone.examinerCount ?? 2);
+      setExaminerSlots(Array.from({ length: startingCount }, emptyExaminerSlot));
+      setWeightSupervisor('40');
+      setWeightEachExaminer(String(Math.round((60 / startingCount) * 10) / 10));
       setAssignModal(true);
       return;
     }
@@ -333,57 +338,48 @@ export default function CoordinatorHome() {
   // Each slot is either an internal examiner (existing app user, picked from
   // the dropdown) or an external one (no app account — gets a one-time
   // access link by email instead; see server/src/services/examinerAccess.ts).
-  const buildExaminerPayload = (
-    type: 'internal' | 'external',
-    id: string,
-    ext: { name: string; email: string; institution: string }
-  ) =>
-    type === 'internal'
-      ? { type: 'internal' as const, uid: id }
-      : { type: 'external' as const, name: ext.name.trim(), email: ext.email.trim(), institution: ext.institution.trim() };
+  const buildExaminerPayload = (slot: ExaminerSlotState) =>
+    slot.type === 'internal'
+      ? { type: 'internal' as const, uid: slot.id }
+      : { type: 'external' as const, name: slot.ext.name.trim(), email: slot.ext.email.trim(), institution: slot.ext.institution.trim() };
+
+  const updateExaminerSlot = (idx: number, patch: Partial<ExaminerSlotState>) => {
+    setExaminerSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  };
+  const addExaminerSlot = () => setExaminerSlots((prev) => [...prev, emptyExaminerSlot()]);
+  const removeExaminerSlot = (idx: number) =>
+    setExaminerSlots((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
 
   const handleAssignExaminers = async () => {
     if (!selectedMilestone) return;
     const currentProjectId = selectedMilestone.projectId;
 
-    if (examiner1Type === 'internal' && !examiner1Id) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש לבחור בוחן 1' : 'Please select examiner 1');
+    for (let i = 0; i < examinerSlots.length; i++) {
+      const slot = examinerSlots[i];
+      const label = lang === 'he' ? `בוחן ${i + 1}` : `Examiner ${i + 1}`;
+      if (slot.type === 'internal' && !slot.id) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש לבחור ${label}` : `Please select ${label}`);
+        return;
+      }
+      if (slot.type === 'external' && (!slot.ext.name.trim() || !slot.ext.email.trim())) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `שם ואימייל ל${label} הם שדות חובה` : `Name and email are required for ${label}`);
+        return;
+      }
+    }
+    const internalIds = examinerSlots.filter((s) => s.type === 'internal').map((s) => s.id);
+    if (new Set(internalIds).size !== internalIds.length) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור בוחנים שונים זה מזה' : 'Please select distinct examiners');
       return;
     }
-    if (examiner1Type === 'external' && (!examiner1Ext.name.trim() || !examiner1Ext.email.trim())) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'שם ואימייל לבוחן 1 הם שדות חובה' : 'Name and email are required for examiner 1');
-      return;
-    }
-    if (examiner2Type === 'internal' && !examiner2Id) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש לבחור בוחן 2' : 'Please select examiner 2');
-      return;
-    }
-    if (examiner2Type === 'external' && (!examiner2Ext.name.trim() || !examiner2Ext.email.trim())) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'שם ואימייל לבוחן 2 הם שדות חובה' : 'Name and email are required for examiner 2');
-      return;
-    }
-    if (examiner1Type === 'internal' && examiner2Type === 'internal' && examiner1Id === examiner2Id) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש לבחור שני בוחנים שונים' : 'Please select two different examiners');
-      return;
-    }
-    if (
-      examiner1Type === 'external' && examiner2Type === 'external' &&
-      examiner1Ext.email.trim().toLowerCase() === examiner2Ext.email.trim().toLowerCase()
-    ) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש להזין שני בוחנים חיצוניים שונים' : 'Please enter two different external examiners');
+    const externalEmails = examinerSlots.filter((s) => s.type === 'external').map((s) => s.ext.email.trim().toLowerCase());
+    if (new Set(externalEmails).size !== externalEmails.length) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין בוחנים חיצוניים שונים זה מזה' : 'Please enter distinct external examiners');
       return;
     }
 
-    const w1 = parseFloat(weightSupervisor) / 100;
-    const w2 = parseFloat(weightExaminer1) / 100;
-    const w3 = parseFloat(weightExaminer2) / 100;
-    if (Math.abs(w1 + w2 + w3 - 1) > 0.01) {
+    const supervisorWeight = parseFloat(weightSupervisor) / 100;
+    const examinerWeight = parseFloat(weightEachExaminer) / 100;
+    if (Math.abs(supervisorWeight + examinerSlots.length * examinerWeight - 1) > 0.01) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'סך המשקלות חייב להיות 100%' : 'Weights must sum to 100%');
       return;
@@ -391,24 +387,19 @@ export default function CoordinatorHome() {
     try {
       setSaving(true);
 
-      const examinerPayload = [
-        buildExaminerPayload(examiner1Type, examiner1Id, examiner1Ext),
-        buildExaminerPayload(examiner2Type, examiner2Id, examiner2Ext),
-      ];
-
       // 🚀 The server validates the examiners, assigns the internal ones,
       // emails a one-time access link to any external examiner, AND opens
-      // the defense date-matching window — both examiners will be prompted
+      // the defense date-matching window — every examiner will be prompted
       // to submit candidate dates; the coordinator no longer picks a date.
       await apiClient.post(`/api/coordinator/projects/${projectId}/assign-examiners`, {
-        examiners: examinerPayload,
+        examiners: examinerSlots.map(buildExaminerPayload),
         milestoneId: selectedMilestone.id,
         studentIds: selectedMilestone.studentIds,
         // Written onto the milestone's gradeWeights field server-side —
         // previously validated here (the check above) but never actually
-        // sent, so the final grade always used the hardcoded 40/30/30
-        // default regardless of what was entered.
-        weights: { supervisorWeight: w1, examiner1Weight: w2, examiner2Weight: w3 },
+        // sent, so the final grade always used the default split regardless
+        // of what was entered.
+        weights: { supervisorWeight, examinerWeight },
       });
 
       setAssignModal(false);
@@ -434,7 +425,7 @@ export default function CoordinatorHome() {
   //    submitting it re-runs the normal assign-examiners flow, which is what
   //    actually opens the panel on the milestone.
   const handleReopenDefenseScheduling = (project: Project, milestone: AssignedMilestone) => {
-    const [e1, e2] = project.examinerIds ?? [];
+    const knownExaminerIds = project.examinerIds ?? [];
     setSelectedMilestone({
       id: milestone.id,
       projectId: project.id,
@@ -456,15 +447,14 @@ export default function CoordinatorHome() {
       defenseRoom: milestone.defenseRoom,
     });
     setProjectId(project.id);
-    setExaminer1Id(e1 ?? '');
-    setExaminer2Id(e2 ?? '');
-    setExaminer1Type('internal');
-    setExaminer2Type('internal');
-    setExaminer1Ext({ name: '', email: '', institution: '' });
-    setExaminer2Ext({ name: '', email: '', institution: '' });
-    setWeightSupervisor('30');
-    setWeightExaminer1('35');
-    setWeightExaminer2('35');
+    const startingCount = Math.max(1, knownExaminerIds.length || 2);
+    setExaminerSlots(
+      knownExaminerIds.length > 0
+        ? knownExaminerIds.map((id) => ({ type: 'internal' as const, id, ext: { name: '', email: '', institution: '' } }))
+        : Array.from({ length: startingCount }, emptyExaminerSlot)
+    );
+    setWeightSupervisor('40');
+    setWeightEachExaminer(String(Math.round((60 / startingCount) * 10) / 10));
     setAssignModal(true);
   };
 
@@ -560,7 +550,7 @@ export default function CoordinatorHome() {
       await apiClient.post(`/api/coordinator/milestones/${conflictMilestone.id}/resolve-date-conflict`, {
         action: 'replace_examiner',
         replacedExaminerKey,
-        newExaminer: buildExaminerPayload(replacementType, replacementInternalId, replacementExt),
+        newExaminer: buildExaminerPayload({ type: replacementType, id: replacementInternalId, ext: replacementExt }),
       });
       setConflictModal(false);
       Alert.alert('✅', lang === 'he' ? 'הבוחן הוחלף — ממתין לתאריכים מהבוחן החדש' : 'Examiner replaced — awaiting the new examiner\'s dates');
@@ -1597,115 +1587,81 @@ export default function CoordinatorHome() {
             {lang === 'he' ? '👥 הקצאת בוחנים ומשקלות' : '👥 Assign Examiners & Weights'}
           </Text>
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'בוחן 1' : 'Examiner 1'}
-          </Text>
-          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 8, marginBottom: 8 }}>
-            <Pressable
-              style={[styles.examinerOption, { flex: 1 }, examiner1Type === 'internal' && styles.examinerOptionActive]}
-              onPress={() => setExaminer1Type('internal')}
-            >
-              <Text style={[styles.examinerOptionText, examiner1Type === 'internal' && { color: '#fff' }]}>
-                {lang === 'he' ? 'בוחן פנימי' : 'Internal'}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.examinerOption, { flex: 1 }, examiner1Type === 'external' && styles.examinerOptionActive]}
-              onPress={() => setExaminer1Type('external')}
-            >
-              <Text style={[styles.examinerOptionText, examiner1Type === 'external' && { color: '#fff' }]}>
-                {lang === 'he' ? 'בוחן חיצוני' : 'External'}
-              </Text>
-            </Pressable>
-          </View>
+          {examinerSlots.map((slot, idx) => {
+            const otherSelectedIds = examinerSlots.filter((_, i) => i !== idx).map((s) => s.id);
+            return (
+              <View key={idx} style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.fieldLabel}>
+                    {lang === 'he' ? `בוחן ${idx + 1}` : `Examiner ${idx + 1}`}
+                  </Text>
+                  {examinerSlots.length > 1 && (
+                    <Pressable onPress={() => removeExaminerSlot(idx)}>
+                      <Text style={{ color: '#EF4444', fontSize: 13 }}>✕ {lang === 'he' ? 'הסר' : 'Remove'}</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 8, marginBottom: 8 }}>
+                  <Pressable
+                    style={[styles.examinerOption, { flex: 1 }, slot.type === 'internal' && styles.examinerOptionActive]}
+                    onPress={() => updateExaminerSlot(idx, { type: 'internal' })}
+                  >
+                    <Text style={[styles.examinerOptionText, slot.type === 'internal' && { color: '#fff' }]}>
+                      {lang === 'he' ? 'בוחן פנימי' : 'Internal'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.examinerOption, { flex: 1 }, slot.type === 'external' && styles.examinerOptionActive]}
+                    onPress={() => updateExaminerSlot(idx, { type: 'external' })}
+                  >
+                    <Text style={[styles.examinerOptionText, slot.type === 'external' && { color: '#fff' }]}>
+                      {lang === 'he' ? 'בוחן חיצוני' : 'External'}
+                    </Text>
+                  </Pressable>
+                </View>
 
-          {examiner1Type === 'internal' ? (
-            allExaminers
-              .filter((ex) => ex.id !== examiner2Id)
-              .map((ex) => (
-              <Pressable
-                key={ex.id}
-                style={[styles.examinerOption, examiner1Id === ex.id && styles.examinerOptionActive]}
-                onPress={() => setExaminer1Id(ex.id)}
-              >
-                <Text style={[styles.examinerOptionText, examiner1Id === ex.id && { color: '#fff' }]}>
-                  {ex.displayName} · {ex.email}
-                </Text>
-              </Pressable>
-            ))
-          ) : (
-            [
-              { label: lang === 'he' ? 'שם *' : 'Name *', value: examiner1Ext.name, key: 'name' as const },
-              { label: lang === 'he' ? 'אימייל *' : 'Email *', value: examiner1Ext.email, key: 'email' as const },
-              { label: lang === 'he' ? 'מוסד' : 'Institution', value: examiner1Ext.institution, key: 'institution' as const },
-            ].map((f) => (
-              <View key={f.key} style={{ marginBottom: 8 }}>
-                <Text style={styles.weightLabel}>{f.label}</Text>
-                <TextInput
-                  style={styles.weightInput}
-                  value={f.value}
-                  onChangeText={(v) => setExaminer1Ext((prev) => ({ ...prev, [f.key]: v }))}
-                  keyboardType={f.key === 'email' ? 'email-address' : 'default'}
-                  autoCapitalize={f.key === 'email' ? 'none' : 'sentences'}
-                />
+                {slot.type === 'internal' ? (
+                  allExaminers
+                    .filter((ex) => !otherSelectedIds.includes(ex.id))
+                    .map((ex) => (
+                    <Pressable
+                      key={ex.id}
+                      style={[styles.examinerOption, slot.id === ex.id && styles.examinerOptionActive]}
+                      onPress={() => updateExaminerSlot(idx, { id: ex.id })}
+                    >
+                      <Text style={[styles.examinerOptionText, slot.id === ex.id && { color: '#fff' }]}>
+                        {ex.displayName} · {ex.email}
+                      </Text>
+                    </Pressable>
+                  ))
+                ) : (
+                  [
+                    { label: lang === 'he' ? 'שם *' : 'Name *', value: slot.ext.name, key: 'name' as const },
+                    { label: lang === 'he' ? 'אימייל *' : 'Email *', value: slot.ext.email, key: 'email' as const },
+                    { label: lang === 'he' ? 'מוסד' : 'Institution', value: slot.ext.institution, key: 'institution' as const },
+                  ].map((f) => (
+                    <View key={f.key} style={{ marginBottom: 8 }}>
+                      <Text style={styles.weightLabel}>{f.label}</Text>
+                      <TextInput
+                        style={styles.weightInput}
+                        value={f.value}
+                        onChangeText={(v) => updateExaminerSlot(idx, { ext: { ...slot.ext, [f.key]: v } })}
+                        keyboardType={f.key === 'email' ? 'email-address' : 'default'}
+                        autoCapitalize={f.key === 'email' ? 'none' : 'sentences'}
+                      />
+                    </View>
+                  ))
+                )}
               </View>
-            ))
-          )}
+            );
+          })}
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'בוחן 2' : 'Examiner 2'}
-          </Text>
-          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 8, marginBottom: 8 }}>
-            <Pressable
-              style={[styles.examinerOption, { flex: 1 }, examiner2Type === 'internal' && styles.examinerOptionActive]}
-              onPress={() => setExaminer2Type('internal')}
-            >
-              <Text style={[styles.examinerOptionText, examiner2Type === 'internal' && { color: '#fff' }]}>
-                {lang === 'he' ? 'בוחן פנימי' : 'Internal'}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.examinerOption, { flex: 1 }, examiner2Type === 'external' && styles.examinerOptionActive]}
-              onPress={() => setExaminer2Type('external')}
-            >
-              <Text style={[styles.examinerOptionText, examiner2Type === 'external' && { color: '#fff' }]}>
-                {lang === 'he' ? 'בוחן חיצוני' : 'External'}
-              </Text>
-            </Pressable>
-          </View>
-
-          {examiner2Type === 'internal' ? (
-            allExaminers
-              .filter((ex) => ex.id !== examiner1Id)
-              .map((ex) => (
-              <Pressable
-                key={ex.id}
-                style={[styles.examinerOption, examiner2Id === ex.id && styles.examinerOptionActive]}
-                onPress={() => setExaminer2Id(ex.id)}
-              >
-                <Text style={[styles.examinerOptionText, examiner2Id === ex.id && { color: '#fff' }]}>
-                  {ex.displayName} · {ex.email}
-                </Text>
-              </Pressable>
-            ))
-          ) : (
-            [
-              { label: lang === 'he' ? 'שם *' : 'Name *', value: examiner2Ext.name, key: 'name' as const },
-              { label: lang === 'he' ? 'אימייל *' : 'Email *', value: examiner2Ext.email, key: 'email' as const },
-              { label: lang === 'he' ? 'מוסד' : 'Institution', value: examiner2Ext.institution, key: 'institution' as const },
-            ].map((f) => (
-              <View key={f.key} style={{ marginBottom: 8 }}>
-                <Text style={styles.weightLabel}>{f.label}</Text>
-                <TextInput
-                  style={styles.weightInput}
-                  value={f.value}
-                  onChangeText={(v) => setExaminer2Ext((prev) => ({ ...prev, [f.key]: v }))}
-                  keyboardType={f.key === 'email' ? 'email-address' : 'default'}
-                  autoCapitalize={f.key === 'email' ? 'none' : 'sentences'}
-                />
-              </View>
-            ))
-          )}
+          <Pressable
+            style={{ borderWidth: 1.5, borderColor: '#7C3AED', borderStyle: 'dashed', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
+            onPress={addExaminerSlot}
+          >
+            <Text style={{ color: '#7C3AED', fontWeight: '600', fontSize: 13 }}>＋ {lang === 'he' ? 'הוסף בוחן' : 'Add examiner'}</Text>
+          </Pressable>
 
           <Text style={styles.fieldLabel}>
             {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
@@ -1713,8 +1669,11 @@ export default function CoordinatorHome() {
 
           {[
             { label: lang === 'he' ? 'משקל מנחה (%)' : 'Supervisor weight (%)', value: weightSupervisor, set: setWeightSupervisor },
-            { label: lang === 'he' ? 'משקל בוחן 1 (%)' : 'Examiner 1 weight (%)', value: weightExaminer1, set: setWeightExaminer1 },
-            { label: lang === 'he' ? 'משקל בוחן 2 (%)' : 'Examiner 2 weight (%)', value: weightExaminer2, set: setWeightExaminer2 },
+            {
+              label: lang === 'he' ? `משקל כל בוחן (מתוך ${examinerSlots.length}) (%)` : `Each examiner weight (of ${examinerSlots.length}) (%)`,
+              value: weightEachExaminer,
+              set: setWeightEachExaminer,
+            },
           ].map((field) => (
             <View key={field.label}>
               <Text style={styles.weightLabel}>{field.label}</Text>
@@ -1730,7 +1689,7 @@ export default function CoordinatorHome() {
 
           <Text style={styles.weightSum}>
             {lang === 'he' ? 'סה"כ:' : 'Total:'}{' '}
-            {(parseFloat(weightSupervisor || '0') + parseFloat(weightExaminer1 || '0') + parseFloat(weightExaminer2 || '0'))}%
+            {(parseFloat(weightSupervisor || '0') + examinerSlots.length * parseFloat(weightEachExaminer || '0'))}%
           </Text>
 
           <Pressable

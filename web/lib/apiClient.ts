@@ -674,11 +674,13 @@ export const apiClient = {
       studentIds?: string[];
       /** Language for the external-examiner access-link email. Defaults to 'he' server-side. */
       lang?: 'he' | 'en';
-      /** Fractions (0-1, summing to 1) — written onto the milestone's own
+      /** Fractions (0-1) — supervisorWeight + examiners.length *
+       *  examinerWeight must sum to 1. Written onto the milestone's own
        *  gradeWeights field (see gradeEngine.ts) so the final grade is
-       *  actually computed with them instead of the hardcoded 40/30/30
-       *  default. Requires milestoneId. */
-      weights?: { supervisorWeight: number; examiner1Weight: number; examiner2Weight: number };
+       *  actually computed with them instead of the default split. Every
+       *  examiner slot shares the same weight (see IdentityGradeWeights) —
+       *  there's no per-slot asymmetric weighting. Requires milestoneId. */
+      weights?: { supervisorWeight: number; examinerWeight: number };
     }
   ) {
     return request<{ message: string; internalAssigned: string[]; externalNotified: unknown[]; externalFailed: unknown[] }>(
@@ -1457,7 +1459,7 @@ export const apiClient = {
    *  the opinion/review flow above). */
   async getExaminerAccessDefenseDateStatus(token: string) {
     return request<{
-      status: 'not_open' | 'awaiting_your_dates' | 'awaiting_other_examiner' | 'matched';
+      status: 'not_open' | 'awaiting_your_dates' | 'awaiting_other_examiners' | 'matched';
       windowStart?: string;
       windowEnd?: string;
       matchedDate?: string | null;
@@ -1471,7 +1473,9 @@ export const apiClient = {
       matched?: boolean;
       matchedDate?: string;
       conflict?: boolean;
-      waitingOnOtherExaminer?: boolean;
+      /** Examiner keys still to submit — see defenseScheduling.ts's
+       *  SubmitDatesResult.waitingOn. */
+      waitingOn?: string[];
     }>(`/api/examiner-access/${encodeURIComponent(token)}/defense-dates`, { method: 'POST', body: { candidateDates } });
   },
 

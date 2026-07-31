@@ -123,6 +123,10 @@ export interface CoordinatorPendingMilestone {
   defenseDate?: string | null;
   defenseRoom?: string | null;
   milestoneGrades?: Array<{ type: string; score: number | null }>;
+  /** How many examiner slots this milestone's defense panel needs — see
+   *  server/src/services/workflowTemplates.ts's examinerCount. Omitted
+   *  means the legacy default of 2. */
+  examinerCount?: number;
 }
 
 export interface ExaminerUser {

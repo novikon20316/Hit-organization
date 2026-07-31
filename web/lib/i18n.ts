@@ -162,7 +162,7 @@ export const t = {
   examinerDefenseDateSunThu:       { he: 'ראשון–חמישי בלבד',            en: 'Sun-Thu only' },
   examinerDefenseDateSubmitBtn:    { he: 'שלח תאריכים',                  en: 'Submit dates' },
   examinerDefenseDateInvalidFormat:{ he: 'יש להזין תאריכים בפורמט YYYY-MM-DD', en: 'Enter dates as YYYY-MM-DD' },
-  examinerDefenseDateWaiting:      { he: 'התאריכים נשלחו — ממתין לבוחן/ת השני/ה', en: 'Dates submitted — waiting on the other examiner' },
+  examinerDefenseDateWaiting:      { he: 'התאריכים נשלחו — ממתין לשאר הבוחנים', en: 'Dates submitted — waiting on the other examiners' },
   examinerDefenseDateMatched:      { he: 'נמצא תאריך משותף:',           en: 'Common date found:' },
   examinerDefenseDateConflict:     { he: 'לא נמצא תאריך משותף — הרכז/ת פותר/ת', en: 'No common date found — coordinator resolving' },
 

@@ -67,13 +67,29 @@ export interface IdentityGradeWeights {
   examinerWeight: number;
 }
 
+// Historical defaults, preserved exactly — this codebase never supported a
+// panel of any other size until the examiner-count generalization, so 0/1/2
+// are the only counts with a real behavioral precedent to keep.
 const DEFAULT_IDENTITY_WEIGHTS_BY_COUNT: Record<number, IdentityGradeWeights> = {
   0: { supervisorWeight: 1,   examinerWeight: 0 },
   1: { supervisorWeight: 0.5, examinerWeight: 0.5 },
   2: { supervisorWeight: 0.4, examinerWeight: 0.3 },
 };
 
-const FALLBACK_IDENTITY_WEIGHTS: IdentityGradeWeights = { supervisorWeight: 0.4, examinerWeight: 0.3 };
+/** Default weights for any examiner count with no historical precedent
+ *  (3+) — same 40% supervisor / 60% split-evenly-among-examiners ratio as
+ *  the 2-examiner default, generalized to any count, rather than a flat
+ *  constant that wouldn't sum to 1 for anything but exactly 2. In practice
+ *  this rarely matters: AssignExaminersModal always collects and persists
+ *  explicit gradeWeights at assignment time regardless of count — this is
+ *  only the fallback for a milestone that was never explicitly configured. */
+function defaultIdentityWeightsFor(examinerCount: number): IdentityGradeWeights {
+  const known = DEFAULT_IDENTITY_WEIGHTS_BY_COUNT[examinerCount];
+  if (known) return known;
+  return examinerCount > 0
+    ? { supervisorWeight: 0.4, examinerWeight: 0.6 / examinerCount }
+    : { supervisorWeight: 1, examinerWeight: 0 };
+}
 
 export function computeIdentityWeightedFinalGrade(
   supervisorScore: number,
@@ -81,7 +97,7 @@ export function computeIdentityWeightedFinalGrade(
   configuredWeights?: IdentityGradeWeights | null,
 ): number {
   const entries = Object.values(examinerScores);
-  const weights = configuredWeights ?? DEFAULT_IDENTITY_WEIGHTS_BY_COUNT[entries.length] ?? FALLBACK_IDENTITY_WEIGHTS;
+  const weights = configuredWeights ?? defaultIdentityWeightsFor(entries.length);
 
   const examinerTotal = entries.reduce(
     (sum, entry) => sum + entry.score * weights.examinerWeight,

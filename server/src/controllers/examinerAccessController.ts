@@ -119,7 +119,7 @@ export const getDefenseDateStatus = async (req: Request, res: Response) => {
     const submittedThisRound = mySubmission && mySubmission.roundIndex === dateMatching.currentRound;
 
     return res.status(200).json({
-      status: submittedThisRound ? 'awaiting_other_examiner' : 'awaiting_your_dates',
+      status: submittedThisRound ? 'awaiting_other_examiners' : 'awaiting_your_dates',
       windowStart: dayjs(dateMatching.windowStart.toDate()).tz(TZ).format('YYYY-MM-DD'),
       windowEnd: dayjs(dateMatching.windowEnd.toDate()).tz(TZ).format('YYYY-MM-DD'),
     });

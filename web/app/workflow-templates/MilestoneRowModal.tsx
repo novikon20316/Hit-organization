@@ -22,6 +22,7 @@ interface MilestoneRowModalProps {
     nameEn: string;
     dueDaysFromStart: number;
     requiresExaminers: boolean;
+    examinerCount?: number;
     gradingComponents: GradingComponentSpec[];
     routing?: MilestoneRoutingSpec;
   }) => void;
@@ -33,6 +34,7 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
   const [nameEn, setNameEn] = useState(editing?.nameEn ?? '');
   const [days, setDays] = useState(String(editing?.dueDaysFromStart ?? 90));
   const [requiresExaminers, setRequiresExaminers] = useState(editing?.requiresExaminers ?? false);
+  const [examinerCount, setExaminerCount] = useState(String(editing?.examinerCount ?? 2));
   const [components, setComponents] = useState<GradingComponentSpec[]>(editing?.gradingComponents ?? []);
   const [overrideChain, setOverrideChain] = useState(!!(editing?.routing && editing.routing.length > 0));
   const [routing, setRouting] = useState<MilestoneRoutingSpec>(editing?.routing && editing.routing.length > 0 ? editing.routing.map((s) => ({ ...s })) : [emptyStage()]);
@@ -57,6 +59,11 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
       setError(lang === 'he' ? 'מספר ימים לא תקין' : 'Invalid number of days');
       return;
     }
+    const parsedExaminerCount = parseInt(examinerCount, 10);
+    if (requiresExaminers && (!Number.isFinite(parsedExaminerCount) || parsedExaminerCount < 1)) {
+      setError(lang === 'he' ? 'מספר בוחנים לא תקין' : 'Invalid examiner count');
+      return;
+    }
     if (components.length > 0) {
       if (components.some((c) => !c.labelHe.trim() || !c.labelEn.trim())) {
         setError(lang === 'he' ? 'יש להזין שם לכל מרכיב ציון (עברית ואנגלית)' : 'Enter a name for every grading component (Hebrew and English)');
@@ -76,6 +83,7 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
       nameEn: nameEn.trim(),
       dueDaysFromStart: parsedDays,
       requiresExaminers,
+      ...(requiresExaminers ? { examinerCount: parsedExaminerCount } : {}),
       gradingComponents: components,
       ...(overrideChain ? { routing } : {}),
     });
@@ -112,6 +120,21 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
               className="h-4 w-4 accent-[var(--primary)]"
             />
           </label>
+
+          {requiresExaminers && (
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'מספר בוחנים נדרש' : 'Required number of examiners'}
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={examinerCount}
+                onChange={(e) => setExaminerCount(e.target.value)}
+                className={inputCls}
+              />
+            </label>
+          )}
 
           <div className="rounded-lg border border-line bg-paper p-3">
             <div className="flex items-center justify-between">

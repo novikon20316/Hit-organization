@@ -52,4 +52,4 @@ export type Recommendation = (typeof RECOMMENDATION_OPTIONS)[number]['value'];
 // flow (see server/src/services/defenseScheduling.ts). Routed through the
 // public examiner-access API (not direct Firestore writes) since it requires
 // reconciling both examiners' submissions atomically.
-export type DefenseDateStatus = 'not_open' | 'awaiting_your_dates' | 'awaiting_other_examiner' | 'matched' | 'conflict';
+export type DefenseDateStatus = 'not_open' | 'awaiting_your_dates' | 'awaiting_other_examiners' | 'matched' | 'conflict';
