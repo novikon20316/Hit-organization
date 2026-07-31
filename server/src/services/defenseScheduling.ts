@@ -641,3 +641,114 @@ export async function resolveReplaceExaminer(
 
   await notifyPanelToSubmitDates([newMember], milestone.projectId);
 }
+
+/**
+ * Auto-promotion counterpart to resolveReplaceExaminer: called from
+ * examinerEscalation.promoteNextExaminer() when a declined/overdue external
+ * examiner is replaced by an internal candidate. initDefenseScheduling()
+ * fires as soon as the panel is assigned — before an external examiner has
+ * even opened their invite — so their decline can land after date matching
+ * is already open. If so, the retiring examiner's key in the CURRENT
+ * round's panel needs swapping for the new one, or they'd sit in a dead
+ * panel slot that's never asked for dates and never counted as submitted.
+ *
+ * No-op (returns false) if dateMatching hasn't opened yet, or the declined
+ * examiner's key isn't in the current round — in either case there's no
+ * stale panel slot to fix and the caller should fall back to its own
+ * examinerIds bookkeeping.
+ */
+export async function replaceExaminerInOpenRound(
+  milestoneId: string,
+  declinedExaminerKey: ExaminerKey,
+  newMember: DefensePanelMember,
+): Promise<boolean> {
+  const milestoneRef = db.collection('milestones').doc(milestoneId);
+
+  const projectId = await db.runTransaction(async (transaction) => {
+    const milestoneSnap = await transaction.get(milestoneRef);
+    if (!milestoneSnap.exists) return null;
+    const milestone = milestoneSnap.data()!;
+
+    const dateMatching = milestone.dateMatching;
+    if (!dateMatching) return null;
+
+    const currentRound: number = dateMatching.currentRound;
+    const rounds: any[] = [...dateMatching.rounds];
+    const round = rounds[currentRound];
+    if (!round || !round.panel.includes(declinedExaminerKey)) return null;
+
+    const newKey = examinerKeyOf(newMember);
+    const defensePanel: DefensePanelMember[] = milestone.defensePanel ?? [];
+    const newDefensePanel = defensePanel.map((m) =>
+      examinerKeyOf(m) === declinedExaminerKey ? newMember : m,
+    );
+    const newExaminerIds = newDefensePanel.filter((m) => m.type === 'internal').map((m) => m.ref);
+    const projectRef = db.collection('projects').doc(milestone.projectId);
+    const submissions = { ...(dateMatching.submissions ?? {}) };
+    delete submissions[declinedExaminerKey];
+
+    if (round.outcome === 'pending') {
+      // Round is still open and undecided — swap the panel member in place.
+      // Nothing has been resolved yet, so there's no outcome/matchedDate to
+      // reconcile; the other member's submission (if any) stays as-is.
+      rounds[currentRound] = {
+        ...round,
+        panel: round.panel.map((k: string) => (k === declinedExaminerKey ? newKey : k)),
+      };
+
+      transaction.update(milestoneRef, {
+        defensePanel: newDefensePanel,
+        examinerIds: newExaminerIds,
+        'dateMatching.rounds': rounds,
+        'dateMatching.submissions': submissions,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      transaction.update(projectRef, {
+        defensePanel: newDefensePanel,
+        examinerIds: newExaminerIds,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } else {
+      // Round already concluded with no common date (status 'date_conflict')
+      // — mirror resolveReplaceExaminer: open a fresh round carrying forward
+      // the retained member's submission, rather than mutating the closed one.
+      const retainedKey: string = round.panel.find((k: string) => k !== declinedExaminerKey);
+      const retainedSubmission = submissions[retainedKey];
+      const newRoundIndex = currentRound + 1;
+
+      rounds.push({
+        roundIndex: newRoundIndex,
+        panel: [retainedKey, newKey],
+        startedAt: admin.firestore.Timestamp.now(),
+        outcome: 'pending',
+        matchedDate: null,
+        resolvedBy: null,
+      });
+      if (retainedSubmission) {
+        submissions[retainedKey] = { ...retainedSubmission, roundIndex: newRoundIndex };
+      }
+
+      transaction.update(milestoneRef, {
+        defensePanel: newDefensePanel,
+        examinerIds: newExaminerIds,
+        'dateMatching.currentRound': newRoundIndex,
+        'dateMatching.rounds': rounds,
+        'dateMatching.submissions': submissions,
+        status: 'awaiting_defense_date',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      transaction.update(projectRef, {
+        defensePanel: newDefensePanel,
+        examinerIds: newExaminerIds,
+        defenseSchedulingState: 'awaiting_defense_date',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    return milestone.projectId as string;
+  });
+
+  if (!projectId) return false;
+  await notifyPanelToSubmitDates([newMember], projectId);
+  return true;
+}

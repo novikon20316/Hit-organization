@@ -17,6 +17,7 @@ import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
 import { sendNotificationEmail } from './emailService.js';
 import { resolveStaffForScope } from './scopeAuthorization.js';
+import { examinerKeyOf, replaceExaminerInOpenRound, type DefensePanelMember } from './defenseScheduling.js';
 
 const ACTIVE_MILESTONE_STATUSES = new Set([
   'examiners_assigned', 'examiner_graded', 'both_examiners_graded',
@@ -143,10 +144,20 @@ export async function promoteNextExaminer(
 
   if (candidate && token.milestoneId) {
     const milestoneRef = db.collection('milestones').doc(token.milestoneId);
-    await Promise.all([
-      milestoneRef.update({ examinerIds: admin.firestore.FieldValue.arrayUnion(candidate.uid) }),
-      db.collection('projects').doc(token.projectId).update({ examinerIds: admin.firestore.FieldValue.arrayUnion(candidate.uid) }),
-    ]);
+    const newMember: DefensePanelMember = { type: 'internal', ref: candidate.uid, displayName: candidate.displayName };
+    // The declined/overdue examiner is always external (see file header) —
+    // if date matching is already open, its panel still has that dead token
+    // in a slot that will never submit. Swap it for the promoted candidate
+    // rather than just growing examinerIds, or the round can never resolve.
+    const declinedExaminerKey = examinerKeyOf({ type: 'external', ref: tokenId });
+    const swappedIntoPanel = await replaceExaminerInOpenRound(token.milestoneId, declinedExaminerKey, newMember);
+
+    if (!swappedIntoPanel) {
+      await Promise.all([
+        milestoneRef.update({ examinerIds: admin.firestore.FieldValue.arrayUnion(candidate.uid) }),
+        db.collection('projects').doc(token.projectId).update({ examinerIds: admin.firestore.FieldValue.arrayUnion(candidate.uid) }),
+      ]);
+    }
 
     try {
       await db.collection('notifications').add({
