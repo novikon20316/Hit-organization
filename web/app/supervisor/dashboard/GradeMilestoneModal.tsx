@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
-import { GRADING_CRITERIA, MILESTONE_LABEL, type GradingCriterionKey, type SupervisorPendingMilestone } from './types';
+import { GRADING_CRITERIA, MILESTONE_LABEL, type SupervisorPendingMilestone } from './types';
 
 interface GradeMilestoneModalProps {
   milestone: SupervisorPendingMilestone;
@@ -12,15 +12,30 @@ interface GradeMilestoneModalProps {
   onGraded: () => void;
 }
 
+// A unified {key, max, weight, he, en} shape covers both the legacy fixed
+// rubric and a milestone's configured gradingComponents — for the legacy
+// rubric, weight === max, which makes the shared weighted-total formula
+// below ((score/max)*weight) collapse to a plain sum, exactly matching
+// today's behavior. See server/src/services/milestoneRouting.ts's
+// computeGradingComponentsScore for the server-side twin of this formula.
+interface ActiveGradingField {
+  key: string;
+  max: number;
+  weight: number;
+  he: string;
+  en: string;
+}
+
 export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMilestoneModalProps) {
   const { lang, t } = useLanguage();
-  const [criteria, setCriteria] = useState<Record<GradingCriterionKey, string>>({
-    clarity: '',
-    methodology: '',
-    feasibility: '',
-    innovation: '',
-    writing: '',
-  });
+
+  const activeFields: ActiveGradingField[] = m.gradingComponents?.length
+    ? m.gradingComponents.map((c) => ({ key: c.key, max: c.maxScore, weight: c.weight, he: c.labelHe, en: c.labelEn }))
+    : GRADING_CRITERIA.map((c) => ({ key: c.key, max: c.max, weight: c.max, he: c.he, en: c.en }));
+
+  const [criteria, setCriteria] = useState<Record<string, string>>(() =>
+    Object.fromEntries(activeFields.map((f) => [f.key, '']))
+  );
   const [comment, setComment] = useState('');
   // Group projects only (studentIds.length > 1) — optional per-student score
   // layered on top of the shared group score above, keyed by studentId.
@@ -28,7 +43,9 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const totalScore = GRADING_CRITERIA.reduce((sum, c) => sum + (Number(criteria[c.key]) || 0), 0);
+  const totalScore = Math.round(
+    activeFields.reduce((sum, f) => sum + ((Number(criteria[f.key]) || 0) / f.max) * f.weight, 0)
+  );
   const isGroupProject = m.studentIds.length > 1;
 
   const handleSubmit = async () => {
@@ -39,13 +56,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         givenScore: totalScore,
         comments: comment,
         projectId: m.projectId,
-        criteria: {
-          clarity: Number(criteria.clarity) || 0,
-          methodology: Number(criteria.methodology) || 0,
-          feasibility: Number(criteria.feasibility) || 0,
-          innovation: Number(criteria.innovation) || 0,
-          writing: Number(criteria.writing) || 0,
-        },
+        criteria: Object.fromEntries(activeFields.map((f) => [f.key, Number(criteria[f.key]) || 0])),
       });
 
       // Individual components are optional per student and independent of
@@ -104,9 +115,11 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         </div>
 
         <div className="mt-4 grid gap-3">
-          {GRADING_CRITERIA.map((field) => (
+          {activeFields.map((field) => (
             <label key={field.key} className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{field[lang]}</span>
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? field.he : field.en} (0–{field.max})
+              </span>
               <input
                 type="number"
                 min={0}

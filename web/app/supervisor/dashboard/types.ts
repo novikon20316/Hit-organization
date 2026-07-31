@@ -42,6 +42,17 @@ export interface Application {
   };
 }
 
+// Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
+export interface GradingComponentSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  maxScore: number;
+  weight: number;
+  hasComment: boolean;
+  visibleToStudent: boolean;
+}
+
 // Shape returned by GET /api/supervisor/dashboard's pendingGrades.
 export interface SupervisorPendingMilestone {
   id: string;
@@ -60,6 +71,10 @@ export interface SupervisorPendingMilestone {
   facultyId: FacultyId;
   dueDate: string | null;
   submittedAt: string | null;
+  // Per-milestone configured grading rubric (see workflowTemplates.ts) —
+  // empty means GradeMilestoneModal falls back to the hardcoded
+  // GRADING_CRITERIA below.
+  gradingComponents?: GradingComponentSpec[];
 }
 
 export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {

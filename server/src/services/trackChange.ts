@@ -124,6 +124,9 @@ export async function changeProjectTrack(
       supervisorScore: null,
       finalGrade: null,
       fileUrls: [],
+      // Snapshot the template's per-milestone grading rubric (if any) — see
+      // projectEnrollment.ts's identical comment.
+      ...(t.gradingComponents?.length ? { gradingComponents: t.gradingComponents } : {}),
       ...(t.requiresExaminers
         ? { examinerIds: [], examinerScores: {} }
         : {

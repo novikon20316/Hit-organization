@@ -9,40 +9,56 @@
 import { useState } from 'react';
 import { submitExaminerOpinion } from '@/lib/examinerTokens';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { OPINION_CRITERIA, RECOMMENDATION_OPTIONS, type CriterionKey, type Recommendation } from './types';
+import { OPINION_CRITERIA, RECOMMENDATION_OPTIONS, type Recommendation, type GradingComponentSpec } from './types';
 
 interface OpinionFormProps {
   token: string;
   examinerName: string;
+  gradingComponents?: GradingComponentSpec[];
   onSubmitted: () => void;
 }
 
-export function OpinionForm({ token, examinerName, onSubmitted }: OpinionFormProps) {
+// See supervisor/dashboard/GradeMilestoneModal.tsx's identical
+// ActiveGradingField for why weight === max exactly reproduces today's
+// plain-sum legacy behavior.
+interface ActiveGradingField {
+  key: string;
+  max: number;
+  weight: number;
+  he: string;
+  en: string;
+}
+
+export function OpinionForm({ token, examinerName, gradingComponents, onSubmitted }: OpinionFormProps) {
   const { lang, t } = useLanguage();
 
-  const [scores, setScores] = useState<Record<CriterionKey, string>>({
-    originality: '',
-    methodology: '',
-    presentation: '',
-    knowledge: '',
-  });
+  const activeFields: ActiveGradingField[] = gradingComponents?.length
+    ? gradingComponents.map((c) => ({ key: c.key, max: c.maxScore, weight: c.weight, he: c.labelHe, en: c.labelEn }))
+    : OPINION_CRITERIA.map((c) => ({ key: c.key, max: c.max, weight: c.max, he: c.he, en: c.en }));
+
+  const [scores, setScores] = useState<Record<string, string>>(() =>
+    Object.fromEntries(activeFields.map((f) => [f.key, '']))
+  );
   const [overallComments, setOverallComments] = useState('');
   const [recommendation, setRecommendation] = useState<Recommendation | ''>('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const totalScore = OPINION_CRITERIA.reduce((sum, c) => sum + (parseFloat(scores[c.key] || '0') || 0), 0);
+  const totalScore = Math.round(
+    activeFields.reduce((sum, f) => sum + ((parseFloat(scores[f.key]) || 0) / f.max) * f.weight, 0)
+  );
 
   const handleSubmit = async () => {
     setFormError('');
 
-    for (const c of OPINION_CRITERIA) {
-      const v = parseFloat(scores[c.key] || '');
-      if (isNaN(v) || v < 0 || v > c.max) {
+    for (const f of activeFields) {
+      const v = parseFloat(scores[f.key] || '');
+      const label = lang === 'he' ? f.he : f.en;
+      if (isNaN(v) || v < 0 || v > f.max) {
         setFormError(
           lang === 'he'
-            ? `הציון עבור "${c.he}" חייב להיות בין 0 ל-${c.max}`
-            : `Score for "${c.en}" must be between 0 and ${c.max}`
+            ? `הציון עבור "${label}" חייב להיות בין 0 ל-${f.max}`
+            : `Score for "${label}" must be between 0 and ${f.max}`
         );
         return;
       }
@@ -56,13 +72,11 @@ export function OpinionForm({ token, examinerName, onSubmitted }: OpinionFormPro
       return;
     }
 
-    const total = OPINION_CRITERIA.reduce((sum, c) => sum + parseFloat(scores[c.key] || '0'), 0);
-
     setSubmitting(true);
     try {
       await submitExaminerOpinion(token, {
-        criteria: Object.fromEntries(OPINION_CRITERIA.map((c) => [c.key, parseFloat(scores[c.key])])),
-        totalScore: total,
+        criteria: Object.fromEntries(activeFields.map((f) => [f.key, parseFloat(scores[f.key])])),
+        totalScore,
         overallComments: overallComments.trim(),
         recommendation,
         submittedBy: examinerName,
@@ -81,18 +95,18 @@ export function OpinionForm({ token, examinerName, onSubmitted }: OpinionFormPro
       <h2 className="text-base font-semibold text-ink">{t('examinerSubmitOpinion')}</h2>
 
       <div className="mt-3 grid gap-3">
-        {OPINION_CRITERIA.map((c) => (
-          <div key={c.key}>
+        {activeFields.map((f) => (
+          <div key={f.key}>
             <div className="mb-1 flex items-baseline justify-between">
-              <label className="text-sm font-medium text-ink">{lang === 'he' ? c.he : c.en}</label>
-              <span className="text-xs text-muted">/ {c.max}</span>
+              <label className="text-sm font-medium text-ink">{lang === 'he' ? f.he : f.en}</label>
+              <span className="text-xs text-muted">/ {f.max}</span>
             </div>
             <input
               type="number"
               min={0}
-              max={c.max}
-              value={scores[c.key]}
-              onChange={(e) => setScores((prev) => ({ ...prev, [c.key]: e.target.value }))}
+              max={f.max}
+              value={scores[f.key]}
+              onChange={(e) => setScores((prev) => ({ ...prev, [f.key]: e.target.value }))}
               placeholder="0"
               className="w-full rounded-lg border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
             />

@@ -498,6 +498,13 @@ export interface AssignedMilestone {
     status: string;
   }[];
   examinerGrading?: Record<string, { gradedAt: string }>;
+  // Per-milestone configured grading rubric (see
+  // server/src/services/workflowTemplates.ts) — empty means the grading
+  // modal falls back to the hardcoded default rubric.
+  gradingComponents?: {
+    key: string; labelHe: string; labelEn: string;
+    maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean;
+  }[];
 }
 
 

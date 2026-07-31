@@ -318,7 +318,14 @@ function ExaminerAccessContent() {
 
       {token && <DefenseDateSection token={token} />}
 
-      {token && <OpinionForm token={token} examinerName={tokenDoc?.examinerName ?? ''} onSubmitted={() => setPhase('submitted')} />}
+      {token && (
+        <OpinionForm
+          token={token}
+          examinerName={tokenDoc?.examinerName ?? ''}
+          gradingComponents={tokenDoc?.gradingComponents}
+          onSubmitted={() => setPhase('submitted')}
+        />
+      )}
     </div>
   );
 }

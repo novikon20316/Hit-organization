@@ -8,8 +8,8 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
-import { authorizeStageActor, computeChainFinalGrade, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
-import type { ChainStage } from '../services/workflowTemplates.js';
+import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
+import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -145,7 +145,26 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds);
       if (!authorized) return res.status(403).json({ message: 'Not authorized to grade this milestone at its current stage.' });
 
-      const scoreValue = Number(givenScore);
+      // A milestone with its own configured rubric (see workflowTemplates.ts's
+      // GradingComponentSpec) computes its score SERVER-SIDE from the
+      // submitted per-component criteria — the same integrity bar every other
+      // final-grade computation in this file already holds to, rather than
+      // trusting whatever givenScore the client computed. An unconfigured
+      // milestone keeps today's exact behavior: trust the client's givenScore.
+      let scoreValue: number;
+      let criteriaBreakdown: Record<string, { score: number; maxScore: number; weight: number }> | undefined;
+      const gradingComponents: GradingComponentSpec[] = data.gradingComponents ?? [];
+      if (gradingComponents.length > 0) {
+        try {
+          const computed = computeGradingComponentsScore(gradingComponents, criteria ?? {});
+          scoreValue = computed.total;
+          criteriaBreakdown = computed.breakdown;
+        } catch (err: any) {
+          return res.status(400).json({ message: err.message || 'Invalid grading criteria.' });
+        }
+      } else {
+        scoreValue = Number(givenScore);
+      }
       const gradesRef = db.collection('grades').doc();
       let responseStatus = '';
 
@@ -167,6 +186,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
             comments: comments?.trim() ?? '',
             gradedBy: uid,
             gradedAt: admin.firestore.FieldValue.serverTimestamp(),
+            ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}),
           },
         };
         const nextStage = freshRouting[freshIndex + 1];
@@ -197,7 +217,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           comments: comments?.trim() ?? '',
           isFinalized: responseStatus === 'graded',
           submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-          grading: { total: Math.round(scoreValue) },
+          grading: { total: Math.round(scoreValue), ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}) },
         });
       });
 
@@ -225,7 +245,23 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         return res.status(403).json({ message: 'Not authorized to grade this milestone' });
       }
 
-      const scoreValue = Number(givenScore);
+      // Same server-side rubric computation as the chain-driven branch above
+      // — see its comment for why this doesn't just trust the client's
+      // givenScore once a rubric is configured.
+      let scoreValue: number;
+      let criteriaBreakdown: Record<string, { score: number; maxScore: number; weight: number }> | undefined;
+      const gradingComponents: GradingComponentSpec[] = data.gradingComponents ?? [];
+      if (gradingComponents.length > 0) {
+        try {
+          const computed = computeGradingComponentsScore(gradingComponents, criteria ?? {});
+          scoreValue = computed.total;
+          criteriaBreakdown = computed.breakdown;
+        } catch (err: any) {
+          return res.status(400).json({ message: err.message || 'Invalid grading criteria.' });
+        }
+      } else {
+        scoreValue = Number(givenScore);
+      }
       const gradesRef  = db.collection('grades').doc();
       let responseStatus = '';
       let previousScore: number | null = null;
@@ -254,10 +290,18 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           update.supervisorScore   = scoreValue;
           update.supervisorComment = comments?.trim() ?? '';
           update.status            = 'supervisor_graded';
+          if (criteriaBreakdown) update.supervisorCriteria = criteriaBreakdown;
           nextSupervisorScore = scoreValue;
         } else {
           previousScore = freshExaminerScores[uid]?.score ?? null;
-          nextExaminerScores = { ...freshExaminerScores, [uid]: { score: scoreValue, comments: comments?.trim() ?? '' } };
+          nextExaminerScores = {
+            ...freshExaminerScores,
+            [uid]: {
+              score: scoreValue,
+              comments: comments?.trim() ?? '',
+              ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}),
+            },
+          };
           update.examinerScores = nextExaminerScores;
         }
 
@@ -293,7 +337,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           comments: comments?.trim() ?? '',
           isFinalized: allDone,
           submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-          grading: { total: Math.round(scoreValue) },
+          grading: { total: Math.round(scoreValue), ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}) },
         });
       });
 

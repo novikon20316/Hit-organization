@@ -31,10 +31,19 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+// Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
+interface GradingComponentSpec {
+  key: string; labelHe: string; labelEn: string;
+  maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean;
+}
+
 interface PendingMilestone {
   id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
   type: string; status: string; studentNames: string[]; studentIds: string[]; dueDate: any; submittedAt: any;
   fileUrls: string[]; submissionNote: string; facultyId: string;
+  // Per-milestone configured grading rubric — empty means the grading modal
+  // falls back to the hardcoded default rubric below.
+  gradingComponents?: GradingComponentSpec[];
 }
 
 interface Examiner {
@@ -55,6 +64,35 @@ const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   final_report:      { he: 'דו"ח מסכם',    en: 'Final Report'      },
   defense:           { he: 'הגנה',          en: 'Defense'           },
 };
+
+// ─── Grading rubric ───────────────────────────────────────────────────────────
+// A unified {key, max, weight, he, en} shape covers both this hardcoded
+// legacy rubric and a milestone's configured gradingComponents — for the
+// legacy rubric, weight === max, which makes the shared weighted-total
+// formula ((score/max)*weight) collapse to a plain sum, exactly matching
+// today's behavior. See server/src/services/milestoneRouting.ts's
+// computeGradingComponentsScore for the server-side twin of this formula,
+// and web/app/supervisor/dashboard/GradeMilestoneModal.tsx for the same
+// pattern there.
+interface ActiveGradingField { key: string; max: number; weight: number; he: string; en: string }
+
+const DEFAULT_GRADING_FIELDS: ActiveGradingField[] = [
+  { key: 'clarity',     max: 20, weight: 20, he: 'בהירות המחקר (0–20)', en: 'Research Clarity (0–20)' },
+  { key: 'methodology', max: 25, weight: 25, he: 'מתודולוגיה (0–25)',   en: 'Methodology (0–25)'      },
+  { key: 'feasibility', max: 20, weight: 20, he: 'ישימות (0–20)',       en: 'Feasibility (0–20)'      },
+  { key: 'innovation',  max: 15, weight: 15, he: 'חדשנות (0–15)',       en: 'Innovation (0–15)'       },
+  { key: 'writing',     max: 20, weight: 20, he: 'כתיבה (0–20)',        en: 'Writing Quality (0–20)'  },
+];
+
+function activeGradingFields(m: PendingMilestone | null): ActiveGradingField[] {
+  if (m?.gradingComponents?.length) {
+    return m.gradingComponents.map((c) => ({
+      key: c.key, max: c.maxScore, weight: c.weight,
+      he: `${c.labelHe} (0–${c.maxScore})`, en: `${c.labelEn} (0–${c.maxScore})`,
+    }));
+  }
+  return DEFAULT_GRADING_FIELDS;
+}
 
 export default function SupervisorHome() {
   const router = useRouter();
@@ -138,12 +176,10 @@ export default function SupervisorHome() {
     setExpandedCards((prev) => ({ ...prev, [milestoneId]: !prev[milestoneId] }));
   };
 
-  const totalScore =
-    Number(criteria.clarity     || 0) +
-    Number(criteria.methodology || 0) +
-    Number(criteria.feasibility || 0) +
-    Number(criteria.innovation  || 0) +
-    Number(criteria.writing     || 0);
+  const activeFields = activeGradingFields(gradeMilestone);
+  const totalScore = Math.round(
+    activeFields.reduce((sum, f) => sum + ((Number(criteria[f.key]) || 0) / f.max) * f.weight, 0)
+  );
 
   // ── Fetch dashboard (projects + grading stay on API) ─────────────────────
   const fetchDashboardData = async () => {
@@ -387,6 +423,7 @@ export default function SupervisorHome() {
             facultyId:      data.facultyId      ?? '',
             dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
             submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
+            gradingComponents: data.gradingComponents ?? [],
           };
         })
       );
@@ -509,13 +546,7 @@ export default function SupervisorHome() {
         givenScore: totalScore, // Map your calculated total score
         comments: gradeComment, // Map your text input comment
         projectId: activeMilestone.projectId,
-        criteria: {
-          clarity: Number(criteria.clarity) || 0,
-          methodology: Number(criteria.methodology) || 0,
-          feasibility: Number(criteria.feasibility) || 0,
-          innovation: Number(criteria.innovation) || 0,
-          writing: Number(criteria.writing) || 0,
-        },
+        criteria: Object.fromEntries(activeFields.map((f) => [f.key, Number(criteria[f.key]) || 0])),
       });
       // Group projects: layer each student's individual component on top of
       // the shared group score just submitted above (see
@@ -1111,7 +1142,7 @@ export default function SupervisorHome() {
                             e.stopPropagation(); // prevent collapsing layout card
                             setActiveMilestone(m);
                             setGradeComment('');
-                            setCriteria({ clarity: '', methodology: '', feasibility: '', innovation: '', writing: '' });
+                            setCriteria(Object.fromEntries(activeGradingFields(m).map((f) => [f.key, ''])));
                             setIndividualScores({});
                             setGradeMilestone(m);
                             setGradeModal(true);
@@ -1254,13 +1285,7 @@ export default function SupervisorHome() {
               </View>
             )}
 
-            {[
-              { key: 'clarity',      he: 'בהירות המחקר (0–20)',  en: 'Research Clarity (0–20)'  },
-              { key: 'methodology',  he: 'מתודולוגיה (0–25)',    en: 'Methodology (0–25)'        },
-              { key: 'feasibility',  he: 'ישימות (0–20)',        en: 'Feasibility (0–20)'        },
-              { key: 'innovation',   he: 'חדשנות (0–15)',        en: 'Innovation (0–15)'         },
-              { key: 'writing',      he: 'כתיבה (0–20)',         en: 'Writing Quality (0–20)'    },
-            ].map((field) => (
+            {activeFields.map((field) => (
               <View key={field.key}>
                 <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
                   {lang === 'he' ? field.he : field.en}

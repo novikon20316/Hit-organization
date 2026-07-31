@@ -117,6 +117,12 @@ export async function enrollStudentInProject(
         createdAt:       admin.firestore.FieldValue.serverTimestamp(),
         finalGrade:      null, fileUrls: [],
         supervisorScore: null,
+        // Snapshot the template's per-milestone grading rubric (if any) —
+        // independent of the examiner/routing branch below, a defense
+        // milestone can have its own configured rubric same as any other.
+        // Omitted means the grading endpoints fall back to the hardcoded
+        // default rubric (see workflowTemplates.ts's GradingComponentSpec).
+        ...(t.gradingComponents?.length ? { gradingComponents: t.gradingComponents } : {}),
         // Examiner/defense-panel fields only make sense on a milestone the
         // template marked as requiring examiners — writing them onto e.g.
         // research_proposal/progress_report otherwise just leaves permanent

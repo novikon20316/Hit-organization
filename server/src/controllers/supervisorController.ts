@@ -115,6 +115,10 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         fileUrls:       data.fileUrls       ?? [],
         submissionNote: data.submissionNote ?? '',
         facultyId:      data.facultyId      ?? '',
+        // Per-milestone configured grading rubric (see workflowTemplates.ts's
+        // GradingComponentSpec) — empty means GradeMilestoneModal falls back
+        // to its hardcoded default rubric.
+        gradingComponents: data.gradingComponents ?? [],
         dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
         submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
       };

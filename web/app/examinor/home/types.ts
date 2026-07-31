@@ -64,6 +64,22 @@ export interface AssignedMilestone {
   defensePanel?: DefensePanelMember[];
   dateMatching?: DefenseDateMatching;
   milestoneHistory: MilestoneHistoryEntry[];
+  // Per-milestone configured grading rubric (see
+  // server/src/services/workflowTemplates.ts) — empty means
+  // GradeExaminerModal falls back to the hardcoded EXAMINER_GRADING_CRITERIA
+  // below.
+  gradingComponents?: GradingComponentSpec[];
+}
+
+// Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
+export interface GradingComponentSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  maxScore: number;
+  weight: number;
+  hasComment: boolean;
+  visibleToStudent: boolean;
 }
 
 export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {

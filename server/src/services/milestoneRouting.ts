@@ -9,7 +9,7 @@
 
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { resolveStaffForScope, type ResourceScope } from './scopeAuthorization.js';
-import type { ChainStage } from './workflowTemplates.js';
+import type { ChainStage, GradingComponentSpec } from './workflowTemplates.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
@@ -56,6 +56,43 @@ export async function authorizeStageActor(
   if (!user) return false;
   const uids = await resolveStaffForScope(stage.role, resource, projectSupervisorIds);
   return uids.includes(user.uid);
+}
+
+/**
+ * One grader's weighted total from their milestone's configured grading
+ * rubric — normalizes each component's raw score against its own maxScore
+ * before applying its weight (weights sum to 100 by construction, enforced
+ * at template-proposal time in web/app/workflow-templates/MilestoneRowModal.tsx,
+ * so a fully-maxed rubric always totals exactly 100). This is the P1 backlog
+ * item flagged in workflowTemplates.ts's GradingComponentSpec comment —
+ * "schema only for now... reading this into the actual grading endpoints is
+ * deferred." Distinct from computeWeightedFinalGrade/
+ * computeIdentityWeightedFinalGrade's cross-grader weighting (supervisor vs
+ * examiner1 vs examiner2) — this only ever combines ONE grader's own rubric
+ * components into that one grader's single score.
+ *
+ * Throws on a missing/out-of-range component score rather than silently
+ * clamping or defaulting — a malformed grade submission should fail loudly,
+ * not corrupt a real academic record.
+ */
+export function computeGradingComponentsScore(
+  components: GradingComponentSpec[],
+  criteria: Record<string, unknown>,
+): { total: number; breakdown: Record<string, { score: number; maxScore: number; weight: number }> } {
+  const breakdown: Record<string, { score: number; maxScore: number; weight: number }> = {};
+  let total = 0;
+  for (const c of components) {
+    const raw = Number(criteria[c.key]);
+    if (criteria[c.key] === undefined || Number.isNaN(raw)) {
+      throw new Error(`Missing or invalid score for "${c.labelEn}".`);
+    }
+    if (raw < 0 || raw > c.maxScore) {
+      throw new Error(`Score for "${c.labelEn}" must be between 0 and ${c.maxScore}.`);
+    }
+    breakdown[c.key] = { score: raw, maxScore: c.maxScore, weight: c.weight };
+    total += (raw / c.maxScore) * c.weight;
+  }
+  return { total: Math.round(total), breakdown };
 }
 
 /** Combines every stage's recorded score into the milestone's final grade —

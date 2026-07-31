@@ -25,6 +25,20 @@ export const OPINION_CRITERIA = [
 
 export type CriterionKey = (typeof OPINION_CRITERIA)[number]['key'];
 
+// Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts —
+// denormalized onto the examinerTokens doc at creation time (external
+// examiners can't read the milestones collection directly; see
+// server/src/services/examinerAccess.ts's createExternalExaminerAccess).
+export interface GradingComponentSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  maxScore: number;
+  weight: number;
+  hasComment: boolean;
+  visibleToStudent: boolean;
+}
+
 export const RECOMMENDATION_OPTIONS = [
   { value: 'approve', he: 'מאשר ללא תיקונים', en: 'Approve without revisions' },
   { value: 'approve_with_corrections', he: 'מאשר עם תיקונים קלים', en: 'Approve with minor corrections' },

@@ -82,6 +82,10 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           supervisorScore: milestoneData.supervisorScore || null,
           supervisorName: milestoneData.supervisorName || 'Unknown',
           examinerIds: milestoneData.examinerIds || [],
+          // Per-milestone configured grading rubric (see workflowTemplates.ts's
+          // GradingComponentSpec) — empty means GradeExaminerModal falls back
+          // to its hardcoded default rubric.
+          gradingComponents: milestoneData.gradingComponents || [],
           // Identity-keyed defense milestones (post-generalization) carry
           // examinerScores instead — echoed alongside the legacy fields
           // (which stay null/absent for a new-model milestone) so the client

@@ -992,11 +992,12 @@ export const apiClient = {
       givenScore: number;
       comments: string;
       projectId: string;
-      /** Optional — an examiner grading via their own rubric sends only
-       *  givenScore, with no criteria breakdown (matches the server's own
-       *  handling in submitMilestoneGrade, which computes `grade` from
-       *  criteria only when criteria is present). */
-      criteria?: { clarity: number; methodology: number; feasibility: number; innovation: number; writing: number };
+      /** Optional — keyed by GradingComponentSpec.key when the milestone has
+       *  a configured rubric (server recomputes givenScore from this rather
+       *  than trusting it — see projectController.ts's submitMilestoneGrade);
+       *  omitted entirely for a milestone with no configured rubric, which
+       *  falls back to trusting the plain givenScore number. */
+      criteria?: Record<string, number>;
     }
   ) {
     return request<{ success?: boolean; message?: string }>(`/api/projects/milestones/${milestoneId}/grade`, { method: 'POST', body: payload });

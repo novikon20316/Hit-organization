@@ -20,6 +20,22 @@ const GRADING_CRITERIA = [
   { key: 'presentation',  heLabel: 'מצגת והצגה',    enLabel: 'Presentation',          maxScore: 25 },
   { key: 'answers',       heLabel: 'תשובות לשאלות', enLabel: 'Answers to Questions',  maxScore: 25 },
 ];
+
+// A unified {key, max, weight, heLabel, enLabel} shape covers both the
+// hardcoded legacy rubric above and a milestone's configured
+// gradingComponents — for the legacy rubric, weight === maxScore, which
+// makes the shared weighted-total formula ((score/max)*weight) collapse to
+// a plain sum, exactly matching today's behavior. See
+// server/src/services/milestoneRouting.ts's computeGradingComponentsScore
+// for the server-side twin of this formula.
+interface ActiveGradingField { key: string; maxScore: number; weight: number; heLabel: string; enLabel: string }
+
+function activeGradingFields(m: AssignedMilestone | null): ActiveGradingField[] {
+  if (m?.gradingComponents?.length) {
+    return m.gradingComponents.map((c) => ({ key: c.key, maxScore: c.maxScore, weight: c.weight, heLabel: c.labelHe, enLabel: c.labelEn }));
+  }
+  return GRADING_CRITERIA.map((c) => ({ ...c, weight: c.maxScore }));
+}
  
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -120,14 +136,14 @@ export default function ExaminerHome() {
   const openGradeModal = (m: AssignedMilestone) => {
     setSelected(m);
     const initial: Record<string, string> = {};
-    GRADING_CRITERIA.forEach((c) => { initial[c.key] = ''; });
+    activeGradingFields(m).forEach((c) => { initial[c.key] = ''; });
     setScores(initial);
     setComments('');
     setGradeModal(true);
   };
- 
+
   const totalScore = () =>
-    GRADING_CRITERIA.reduce((sum, c) => sum + (parseFloat(scores[c.key] || '0')), 0);
+    Math.round(activeGradingFields(selected).reduce((sum, c) => sum + ((parseFloat(scores[c.key] || '0')) / c.maxScore) * c.weight, 0));
 
   // ── Submit candidate defense dates ────────────────────────────────────────
   // Window/Sun-Thu validation is enforced server-side too — this is just a
@@ -174,7 +190,8 @@ export default function ExaminerHome() {
   const handleSubmitGrade = async () => {
     if (!selected || !uid) return;
  
-    for (const c of GRADING_CRITERIA) {
+    const activeFields = activeGradingFields(selected);
+    for (const c of activeFields) {
       const v = parseFloat(scores[c.key] || '');
       if (isNaN(v) || v < 0 || v > c.maxScore) {
         Alert.alert(
@@ -186,19 +203,25 @@ export default function ExaminerHome() {
         return;
       }
     }
- 
+
     const score = totalScore();
     try {
       setSubmitting(true);
 
       // Goes through the shared grading endpoint (the same one the
-      // supervisor UI uses) — the examiner's own rubric doesn't share field
-      // names with the supervisor's, so this sends only the already-computed
-      // total, no criteria breakdown.
+      // supervisor UI uses). When the milestone has its own configured
+      // rubric (see workflowTemplates.ts's GradingComponentSpec), the
+      // per-component breakdown is sent as criteria too — the server
+      // recomputes/validates the total from it rather than trusting the
+      // client's score. Without a configured rubric, only the already-
+      // computed total is sent, matching the prior behavior exactly.
       await apiClient.post(`/api/projects/milestones/${selected.id}/grade`, {
         projectId: selected.projectId,
         givenScore: score,
         comments,
+        ...(selected.gradingComponents?.length
+          ? { criteria: Object.fromEntries(activeFields.map((c) => [c.key, parseFloat(scores[c.key]) || 0])) }
+          : {}),
       });
 
       Alert.alert(
@@ -620,7 +643,7 @@ export default function ExaminerHome() {
             </View>
           )}
  
-          {GRADING_CRITERIA.map((c) => (
+          {activeGradingFields(selected).map((c) => (
             <View key={c.key} style={styles.criterionRow}>
               <View style={styles.criterionHeader}>
                 <Text style={styles.criterionLabel}>

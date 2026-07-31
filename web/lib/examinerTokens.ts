@@ -52,6 +52,20 @@ export interface ExaminerTokenDoc {
     action: 'opened' | 'downloaded_thesis' | 'accepted' | 'declined' | 'submitted_opinion';
     timestamp: Timestamp | null;
   }>;
+  // Per-milestone configured grading rubric, denormalized at creation time
+  // (see server/src/services/examinerAccess.ts's createExternalExaminerAccess)
+  // since an external examiner can't read the milestones collection
+  // directly. Absent/empty means OpinionForm falls back to its hardcoded
+  // OPINION_CRITERIA.
+  gradingComponents?: Array<{
+    key: string;
+    labelHe: string;
+    labelEn: string;
+    maxScore: number;
+    weight: number;
+    hasComment: boolean;
+    visibleToStudent: boolean;
+  }>;
   // Opinion data (filled when status === 'submitted')
   opinion?: Record<string, unknown>;
   opinionVisible: boolean; // whether student can see the opinion

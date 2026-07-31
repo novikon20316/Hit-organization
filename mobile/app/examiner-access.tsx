@@ -51,7 +51,22 @@ const OPINION_CRITERIA = [
   { key: 'knowledge',     he: 'שליטה בתחום',             en: 'Domain Knowledge',                      max: 20 },
 ] as const;
 
-type CriterionKey = typeof OPINION_CRITERIA[number]['key'];
+// A unified {key, max, weight, he, en} shape covers both the hardcoded
+// legacy rubric above and a milestone's configured gradingComponents
+// (denormalized onto the token doc — see
+// server/src/services/examinerAccess.ts's createExternalExaminerAccess,
+// since an external examiner can't read the milestones collection
+// directly). For the legacy rubric, weight === max, which makes the shared
+// weighted-total formula ((score/max)*weight) collapse to a plain sum,
+// exactly matching today's behavior.
+interface ActiveGradingField { key: string; max: number; weight: number; he: string; en: string }
+
+function activeGradingFields(doc: ExaminerTokenDoc | null): ActiveGradingField[] {
+  if (doc?.gradingComponents?.length) {
+    return doc.gradingComponents.map((c) => ({ key: c.key, max: c.maxScore, weight: c.weight, he: c.labelHe, en: c.labelEn }));
+  }
+  return OPINION_CRITERIA.map((c) => ({ key: c.key, max: c.max, weight: c.max, he: c.he, en: c.en }));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ExaminerAccessScreen() {
@@ -83,10 +98,11 @@ export default function ExaminerAccessScreen() {
   const [showDeclineForm, setShowDeclineForm] = useState(false);
   const [actionBusy, setActionBusy]        = useState(false);
 
-  // Opinion form
-  const [scores, setScores]      = useState<Record<CriterionKey, string>>({
-    originality: '', methodology: '', presentation: '', knowledge: '',
-  });
+  // Opinion form — keyed dynamically once tokenDoc's gradingComponents (if
+  // any) is known; see the reset effect below.
+  const [scores, setScores] = useState<Record<string, string>>(
+    Object.fromEntries(OPINION_CRITERIA.map((c) => [c.key, '']))
+  );
   const [overallComments, setOverallComments] = useState('');
   const [recommendation, setRecommendation]   = useState<
     'approve' | 'approve_with_corrections' | 'major_revisions' | 'reject' | ''
@@ -148,6 +164,10 @@ export default function ExaminerAccessScreen() {
       if (!doc) { setPhase('invalid'); return; }
 
       setTokenDoc(doc);
+      // Reset the opinion form's field keys to match this token's rubric
+      // (its configured gradingComponents, if any, else the hardcoded
+      // default) — the fixed initial state above only covers the default.
+      setScores(Object.fromEntries(activeGradingFields(doc).map((f) => [f.key, ''])));
       const status = effectiveStatus(doc);
 
       if (status === 'expired')   { setPhase('expired');   return; }
@@ -267,7 +287,8 @@ export default function ExaminerAccessScreen() {
     if (!token) return;
 
     // Validate scores
-    for (const c of OPINION_CRITERIA) {
+    const activeFields = activeGradingFields(tokenDoc);
+    for (const c of activeFields) {
       const v = parseFloat(scores[c.key] || '');
       if (isNaN(v) || v < 0 || v > c.max) {
         Alert.alert(
@@ -295,13 +316,13 @@ export default function ExaminerAccessScreen() {
       return;
     }
 
-    const total = OPINION_CRITERIA.reduce((s, c) => s + parseFloat(scores[c.key] || '0'), 0);
+    const total = Math.round(activeFields.reduce((s, c) => s + ((parseFloat(scores[c.key] || '0')) / c.max) * c.weight, 0));
 
     setSubmittingOpinion(true);
     try {
       await submitExaminerOpinion(token, {
         criteria: Object.fromEntries(
-          OPINION_CRITERIA.map(c => [c.key, parseFloat(scores[c.key])])
+          activeFields.map(c => [c.key, parseFloat(scores[c.key])])
         ),
         totalScore:     total,
         overallComments: overallComments.trim(),
@@ -317,8 +338,8 @@ export default function ExaminerAccessScreen() {
     }
   };
 
-  const totalScore = OPINION_CRITERIA.reduce(
-    (s, c) => s + (parseFloat(scores[c.key] || '0') || 0), 0
+  const totalScore = Math.round(
+    activeGradingFields(tokenDoc).reduce((s, c) => s + ((parseFloat(scores[c.key] || '0') || 0) / c.max) * c.weight, 0)
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -676,7 +697,7 @@ export default function ExaminerAccessScreen() {
           <Text style={s.sectionTitle}>{t.examinerSubmitOpinion[lang]}</Text>
 
           {/* Criteria */}
-          {OPINION_CRITERIA.map(c => (
+          {activeGradingFields(tokenDoc).map(c => (
             <View key={c.key} style={s.criterionRow}>
               <View style={s.criterionHeader}>
                 <Text style={s.criterionLabel}>{lang === 'he' ? c.he : c.en}</Text>

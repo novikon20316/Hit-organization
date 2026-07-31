@@ -75,6 +75,20 @@ export async function createExternalExaminerAccess(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + reviewDays);
 
+  // External examiners have no Firebase Auth account, so they can never read
+  // the `milestones` collection directly (locked down to authenticated staff
+  // — see firestore.rules) — the milestone's configured grading rubric (see
+  // workflowTemplates.ts's GradingComponentSpec) has to be denormalized onto
+  // this doc at creation time instead, same as thesisTitle/studentName/
+  // thesisUrl below. Omitted (undefined/empty) means the opinion form falls
+  // back to its hardcoded default rubric.
+  let gradingComponents: unknown[] | undefined;
+  if (params.milestoneId) {
+    const milestoneSnap = await db.collection('milestones').doc(params.milestoneId).get();
+    const components = milestoneSnap.data()?.gradingComponents;
+    if (Array.isArray(components) && components.length > 0) gradingComponents = components;
+  }
+
   await db.collection('examinerTokens').doc(code).set({
     token: code,
     milestoneId: params.milestoneId,
@@ -95,6 +109,7 @@ export async function createExternalExaminerAccess(
     // Second factor — not verified until the examiner completes the
     // request-otp/verify-otp round trip. See firestore.rules' `allow get`.
     otpVerified: false,
+    ...(gradingComponents ? { gradingComponents } : {}),
   });
 
   const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || ''; // TODO: set once the app has a public web/deep-link URL
