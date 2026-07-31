@@ -12,7 +12,7 @@ import {
 import { ROLE_LABELS } from '../../constants'; // adjust path if needed
 import { FACULTY_COLORS, getRoleAccent } from '../../components/shared'; // adjust path if needed
 import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
-import { getFilteredPrograms } from '../../constants/faculties';
+import { getFilteredPrograms, getFacultyByKey } from '../../constants/faculties';
 import { majorsForFaculty } from '../../constants/permissions';
 
 // Roles that can optionally be restricted to a subset of their faculty's
@@ -127,6 +127,16 @@ export default function NewUserModal({
   const roleEntries = selectableRoles?.length
     ? Object.entries(ROLE_LABELS).filter(([r]) => selectableRoles.includes(r))
     : Object.entries(ROLE_LABELS);
+
+  // Some faculties only offer one degree level (e.g. data_science is
+  // masters-only, medical_tech is bachelors-only) — lock the degree picker
+  // to that level instead of letting the admin pick the other one and get an
+  // empty major list. No faculty selected yet → both levels stay available.
+  const faculty = getFacultyByKey(newUserFaculty);
+  const availableDegreeLevels: Array<'bachelors' | 'masters'> = faculty
+    ? Array.from(new Set(faculty.programs.map((p) => p.level)))
+    : ['bachelors', 'masters'];
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
@@ -279,7 +289,14 @@ export default function NewUserModal({
                       styles.facultyPickerBtn,
                       newUserFaculty === fid && { backgroundColor: fc.primary },
                     ]}
-                    onPress={() => { setNewUserFaculty(fid); setNewUserMajor(''); setNewUserAssignedMajors([]); }}
+                    onPress={() => {
+                      setNewUserFaculty(fid);
+                      setNewUserMajor('');
+                      setNewUserAssignedMajors([]);
+                      const picked = getFacultyByKey(fid);
+                      const levels = picked ? Array.from(new Set(picked.programs.map((p) => p.level))) : [];
+                      if (levels.length === 1) setNewUserDegree(levels[0]!);
+                    }}
                   >
                     <Text>{fc.label[lang]}</Text>
                   </Pressable>
@@ -348,7 +365,7 @@ export default function NewUserModal({
               {lang === 'he' ? 'תואר' : 'Degree Level'}
             </Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {(['bachelors', 'masters'] as const).map((d) => (
+              {availableDegreeLevels.map((d) => (
                 <Pressable
                   key={d}
                   style={[
@@ -356,7 +373,7 @@ export default function NewUserModal({
                     { flex: 1 },
                     newUserDegree === d && { backgroundColor: '#2E86FF' },
                   ]}
-                  onPress={() => { setNewUserDegree(d); setNewUserMajor(''); }}
+                  onPress={() => { if (availableDegreeLevels.length > 1) { setNewUserDegree(d); setNewUserMajor(''); } }}
                 >
                   <Text style={newUserDegree === d ? { color: '#fff' } : undefined}>
                     {d === 'bachelors'
@@ -366,6 +383,11 @@ export default function NewUserModal({
                 </Pressable>
               ))}
             </View>
+            {availableDegreeLevels.length === 1 && (
+              <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 4 }}>
+                {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
+              </Text>
+            )}
 
             {/* Major — validated picker (not free text), filtered to this
                 faculty + degree level so the stored value is always one of

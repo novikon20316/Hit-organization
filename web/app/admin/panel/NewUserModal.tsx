@@ -77,6 +77,16 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
     return faculty.programs.filter((p) => p.level === degreeType && !seen.has(p.slug) && seen.add(p.slug));
   }, [facultyId, degreeType]);
 
+  // Some faculties only offer one degree level (e.g. data_science is
+  // masters-only, medical_tech is bachelors-only) — lock the degree selector
+  // to that level instead of letting the admin pick the other one and get an
+  // empty major list. No faculty selected yet → both levels stay available.
+  const availableDegreeLevels = useMemo((): Array<'bachelors' | 'masters'> => {
+    const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
+    if (!faculty) return ['bachelors', 'masters'];
+    return Array.from(new Set(faculty.programs.map((p) => p.level)));
+  }, [facultyId]);
+
   // Deduped across degree levels — unlike majorOptions above, which is
   // filtered per degree level for the student major picker.
   const assignedMajorOptions = useMemo(() => majorsForFaculty(facultyId), [facultyId]);
@@ -273,9 +283,13 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
               <select
                 value={facultyId}
                 onChange={(e) => {
-                  setFacultyId(e.target.value);
+                  const newFacultyId = e.target.value;
+                  setFacultyId(newFacultyId);
                   setMajor('');
                   setAssignedMajors([]);
+                  const faculty = HIT_FACULTIES.find((f) => f.key === newFacultyId);
+                  const levels = faculty ? Array.from(new Set(faculty.programs.map((p) => p.level))) : [];
+                  if (levels.length === 1) setDegreeType(levels[0]!);
                 }}
                 className={inputCls}
               >
@@ -333,10 +347,20 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                     setMajor('');
                   }}
                   className={inputCls}
+                  disabled={availableDegreeLevels.length === 1}
                 >
-                  <option value="bachelors">{lang === 'he' ? 'תואר ראשון' : "Bachelor's"}</option>
-                  <option value="masters">{lang === 'he' ? 'תואר שני' : "Master's"}</option>
+                  {availableDegreeLevels.includes('bachelors') && (
+                    <option value="bachelors">{lang === 'he' ? 'תואר ראשון' : "Bachelor's"}</option>
+                  )}
+                  {availableDegreeLevels.includes('masters') && (
+                    <option value="masters">{lang === 'he' ? 'תואר שני' : "Master's"}</option>
+                  )}
                 </select>
+                {availableDegreeLevels.length === 1 && (
+                  <p className="mt-1 text-xs text-muted">
+                    {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
+                  </p>
+                )}
               </Field>
 
               <Field label={lang === 'he' ? 'מגמה' : 'Major'}>
