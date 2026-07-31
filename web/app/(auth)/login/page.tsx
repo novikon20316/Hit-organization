@@ -236,6 +236,10 @@ export default function LoginPage() {
       } else if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
         // User closed the popup — not an error worth surfacing.
       } else {
+        // Logged so the actual Firebase error code (e.g. auth/unauthorized-
+        // -domain, auth/operation-not-allowed, auth/popup-blocked) is visible
+        // in the console instead of only ever showing the generic message.
+        console.error('Google sign-in failed:', e.code, e.message);
         setError(t('loginError'));
       }
     } finally {

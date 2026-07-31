@@ -107,6 +107,11 @@ export default function LoginScreen() {
 
   useEffect(() => {
     const run = async () => {
+      if (googleResponse?.type === 'error') {
+        console.error('Google auth session failed:', googleResponse.error);
+        setError('Login failed. Please try again.');
+        return;
+      }
       if (googleResponse?.type !== 'success') return;
       setGoogleSubmitting(true);
       setError('');
@@ -125,6 +130,7 @@ export default function LoginScreen() {
             setError('Login failed. Please try again.');
           }
         } else {
+          console.error('Google sign-in failed:', err.code, err.message);
           setError('Login failed. Please try again.');
         }
       } finally {
