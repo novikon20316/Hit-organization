@@ -67,7 +67,8 @@
       ],
       "expo-font",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -79,9 +80,9 @@
         "projectId": "a969028f-f207-42fe-881f-2a6f3cb6760e"
       },
       "apiUrl": "https://hit-organization-web-f8rb.onrender.com",
-      "googleWebClientId": "",
+      "googleWebClientId": "432175584982-00bk5skphsjos59ur0c593r4g5c89n8u.apps.googleusercontent.com",
       "googleIosClientId": "",
-      "googleAndroidClientId": ""
+      "googleAndroidClientId": "432175584982-edo6d4jc1agijr24qte4hl3g2cdng4vb.apps.googleusercontent.com"
     },
     "owner": "dorno"
   }

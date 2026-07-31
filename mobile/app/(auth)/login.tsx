@@ -23,17 +23,12 @@ import {
   GoogleAuthProvider,
   type AuthCredential,
 } from "firebase/auth";
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
+import { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } from '@react-native-google-signin/google-signin';
 import Constants from 'expo-constants';
 import { auth, db } from "@/src/firebase/firebase";
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
 import { apiClient } from '@/src/api/apiClient';
-
-// Required once per app so the OAuth browser tab/session closes itself and
-// hands control back to expo-auth-session after Google redirects.
-WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -57,25 +52,21 @@ export default function LoginScreen() {
 
   const checkMaintenance = useMaintenanceCheck(); // ← NEW
 
-  // Placeholders — fill in once Google is enabled as a sign-in provider in
-  // Firebase Console (Authentication > Sign-in method) and the matching
-  // OAuth client IDs are created in Google Cloud Console. See app.json's
-  // `extra` block.
-  const googleExtra = (Constants.expoConfig?.extra ?? {}) as Record<string, string | undefined>;
-  const [googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
-    webClientId: googleExtra.googleWebClientId || undefined,
-    iosClientId: googleExtra.googleIosClientId || undefined,
-    androidClientId: googleExtra.googleAndroidClientId || undefined,
-  });
-
-  // TEMPORARY — logs the exact redirect URI this build generates, so it can
-  // be registered as an Authorized redirect URI on the Google OAuth client
-  // in Google Cloud Console. Remove once Google sign-in is confirmed working.
+  // Native Google Sign-In (not a browser/WebView redirect flow — Google's
+  // OAuth policy blocks that for installed apps, confirmed by an actual
+  // "doesn't comply with OAuth 2.0 policy" error from the older
+  // expo-auth-session-based approach this replaced). webClientId identifies
+  // the token's audience so Firebase's GoogleAuthProvider.credential(idToken)
+  // accepts it; the native module resolves the platform's own OAuth client
+  // (Android/iOS) automatically via the app's package name + SHA-1 already
+  // registered in Google Cloud Console. See app.json's `extra` block.
   useEffect(() => {
-    if (googleRequest?.redirectUri) {
-      console.log('Google OAuth redirect URI (register this in Google Cloud Console):', googleRequest.redirectUri);
-    }
-  }, [googleRequest]);
+    const googleExtra = (Constants.expoConfig?.extra ?? {}) as Record<string, string | undefined>;
+    GoogleSignin.configure({
+      webClientId: googleExtra.googleWebClientId || undefined,
+      iosClientId: googleExtra.googleIosClientId || undefined,
+    });
+  }, []);
 
   // Shared by both the direct Google sign-in path and the post-linking path
   // below, so they can never disagree on where a signed-in user should land.
@@ -114,41 +105,40 @@ export default function LoginScreen() {
     router.replace(getHomeRoute(role as any) as any);
   };
 
-  useEffect(() => {
-    const run = async () => {
-      if (googleResponse?.type === 'error') {
-        console.error('Google auth session failed:', googleResponse.error);
-        setError('Login failed. Please try again.');
-        return;
-      }
-      if (googleResponse?.type !== 'success') return;
-      setGoogleSubmitting(true);
-      setError('');
-      try {
-        const { id_token } = googleResponse.params;
-        const credential = GoogleAuthProvider.credential(id_token);
-        const cred = await signInWithCredential(auth, credential);
-        await proceedAfterGoogleAuth(cred.user.uid);
-      } catch (err: any) {
-        if (err.code === 'auth/account-exists-with-different-credential') {
-          const pendingCredential = GoogleAuthProvider.credentialFromError(err);
-          const linkEmail = err.customData?.email;
-          if (pendingCredential && linkEmail) {
-            setLinkingPrompt({ email: linkEmail, pendingCredential });
-          } else {
-            setError('Login failed. Please try again.');
-          }
+  const handleGoogleSignIn = async () => {
+    if (googleSubmitting) return;
+    setGoogleSubmitting(true);
+    setError('');
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (!isSuccessResponse(response)) return; // user cancelled — not an error worth surfacing
+
+      const idToken = response.data.idToken;
+      if (!idToken) throw new Error('No ID token returned from Google.');
+
+      const credential = GoogleAuthProvider.credential(idToken);
+      const cred = await signInWithCredential(auth, credential);
+      await proceedAfterGoogleAuth(cred.user.uid);
+    } catch (err: any) {
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        const pendingCredential = GoogleAuthProvider.credentialFromError(err);
+        const linkEmail = err.customData?.email;
+        if (pendingCredential && linkEmail) {
+          setLinkingPrompt({ email: linkEmail, pendingCredential });
         } else {
-          console.error('Google sign-in failed:', err.code, err.message);
           setError('Login failed. Please try again.');
         }
-      } finally {
-        setGoogleSubmitting(false);
+      } else if (isErrorWithCode(err) && err.code === statusCodes.SIGN_IN_CANCELLED) {
+        // User cancelled — not an error worth surfacing.
+      } else {
+        console.error('Google sign-in failed:', err.code, err.message);
+        setError('Login failed. Please try again.');
       }
-    };
-    run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- proceedAfterGoogleAuth closes over stable router/checkMaintenance; only re-run when the auth-session response itself changes
-  }, [googleResponse]);
+    } finally {
+      setGoogleSubmitting(false);
+    }
+  };
 
   const handleLinkSubmit = async () => {
     if (!linkingPrompt || linkingSubmitting) return;
@@ -369,8 +359,8 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             style={[styles.button, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e5e5' }]}
-            onPress={() => promptGoogleAsync()}
-            disabled={!googleRequest || googleSubmitting}
+            onPress={handleGoogleSignIn}
+            disabled={googleSubmitting}
           >
             {googleSubmitting
               ? <ActivityIndicator color={PRIMARY} />
