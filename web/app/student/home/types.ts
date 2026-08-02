@@ -112,7 +112,14 @@ export interface PendingApplication {
 // Ported from the local MILESTONE_LABEL const duplicated in mobile's
 // coordinator/home.tsx AND (tabs)/Activedashboard.tsx — same values both
 // places, kept here as the one copy the web side needs.
-export const MILESTONE_LABEL: Record<MilestoneType, { he: string; en: string }> = {
+//
+// Record<string, ...> rather than Record<MilestoneType, ...> — faculty
+// admins can add custom milestones via the Workflow Template Manager, which
+// land here with a type like `custom_xxxxx` (see server/src/services/
+// projectEnrollment.ts), a value MilestoneType's 4-literal union doesn't
+// actually cover despite the `type: MilestoneType` field declaration below.
+// Callers must use ?.[lang] with a fallback (see ActiveDashboard.tsx).
+export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר', en: 'Research Proposal' },
   progress_report: { he: 'דו"ח התקדמות', en: 'Progress Report' },
   final_report: { he: 'דו"ח מסכם', en: 'Final Report' },

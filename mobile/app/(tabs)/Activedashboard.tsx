@@ -24,7 +24,14 @@ interface Props {
 
 
 // ─── Milestone type labels ─────────────────────────────────────────────────────
-const MILESTONE_LABEL: Record<MilestoneType, { he: string; en: string }> = {
+// Record<string, ...> rather than Record<MilestoneType, ...> — faculty admins
+// can add custom milestones via the Workflow Template Manager, which land
+// here with a type like `custom_xxxxx` (see server/src/services/
+// projectEnrollment.ts), a value MilestoneType's 4-literal union doesn't
+// actually cover despite the type declaration. Every lookup below falls back
+// to the raw type string so an unrecognized custom type still displays
+// something instead of crashing (matches coordinator/home.tsx's MILESTONE_LABEL).
+const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
   progress_report:   { he: 'דו"ח התקדמות', en: 'Progress Report' },
   final_report:      { he: 'דו"ח מסכם',    en: 'Final Report' },
@@ -334,8 +341,8 @@ export default function ActiveDashboard({
                     const nextPending = milestones.find(m => m.status === 'pending');
                     const displayType = nextPending?.type ?? overviewDisplayMilestone.type;
                     return lang === 'he'
-                      ? MILESTONE_LABEL[displayType].he
-                      : MILESTONE_LABEL[displayType].en;
+                      ? (MILESTONE_LABEL[displayType]?.he ?? displayType)
+                      : (MILESTONE_LABEL[displayType]?.en ?? displayType);
                   })()}
                 </Text>
                 {actionableNextMilestone?.type === 'defense' && (() => {
@@ -510,7 +517,7 @@ export default function ActiveDashboard({
               const cfg       = STATUS_CONFIG[m.status as MilestoneStatus] ??
               { color: '#8899BB', bg: '#F0F4FF', icon: '🕐' }
               const days      = daysUntil(m.dueDate);
-              const label     = lang === 'he' ? MILESTONE_LABEL[m.type].he : MILESTONE_LABEL[m.type].en;
+              const label     = lang === 'he' ? (MILESTONE_LABEL[m.type]?.he ?? m.type) : (MILESTONE_LABEL[m.type]?.en ?? m.type);
               const isDefense = m.type === 'defense';
 
               // ── Per-milestone display logic ──────────────────────────────
@@ -745,8 +752,8 @@ export default function ActiveDashboard({
         
             {milestones.map((m) => {
               const label = lang === 'he'
-                ? MILESTONE_LABEL[m.type].he
-                : MILESTONE_LABEL[m.type].en;
+                ? (MILESTONE_LABEL[m.type]?.he ?? m.type)
+                : (MILESTONE_LABEL[m.type]?.en ?? m.type);
         
               const normalizedStatus = (m.status ?? '').trim().toLowerCase();
               const grade   = m.finalGrade ?? m.supervisorScore ?? null;
@@ -944,8 +951,8 @@ export default function ActiveDashboard({
               {tx('submitTitle', lang)}{' '}
               {targetMilestone
                 ? (lang === 'he'
-                    ? MILESTONE_LABEL[targetMilestone.type].he
-                    : MILESTONE_LABEL[targetMilestone.type].en)
+                    ? (MILESTONE_LABEL[targetMilestone.type]?.he ?? targetMilestone.type)
+                    : (MILESTONE_LABEL[targetMilestone.type]?.en ?? targetMilestone.type))
                 : ''}
             </Text>
             <Pressable onPress={() => { setSubmitModal(false); setFiles([]); setNote(''); }}>

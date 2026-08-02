@@ -352,10 +352,10 @@ export default function Reports() {
               labelFor={(v) => FACULTY_LABEL[v]?.[lang] ?? v}
             />
           )}
-          <FilterPillRow options={DEGREE_TYPES} value={degreeType} onChange={setDegreeType} labelFor={(v) => DEGREE_TYPE_LABEL[v][lang]} />
-          <FilterPillRow options={PROJECT_TYPES} value={projectType} onChange={setProjectType} labelFor={(v) => PROJECT_TYPE_LABEL[v][lang]} />
-          <FilterPillRow options={MILESTONE_TYPES} value={milestoneType} onChange={setMilestoneType} labelFor={(v) => MILESTONE_TYPE_LABEL[v][lang]} />
-          <FilterPillRow options={PROCESS_STATUSES} value={processStatus} onChange={setProcessStatus} labelFor={(v) => PROCESS_STATUS_LABEL[v][lang]} />
+          <FilterPillRow options={DEGREE_TYPES} value={degreeType} onChange={setDegreeType} labelFor={(v) => DEGREE_TYPE_LABEL[v]?.[lang] ?? v} />
+          <FilterPillRow options={PROJECT_TYPES} value={projectType} onChange={setProjectType} labelFor={(v) => PROJECT_TYPE_LABEL[v]?.[lang] ?? v} />
+          <FilterPillRow options={MILESTONE_TYPES} value={milestoneType} onChange={setMilestoneType} labelFor={(v) => MILESTONE_TYPE_LABEL[v]?.[lang] ?? v} />
+          <FilterPillRow options={PROCESS_STATUSES} value={processStatus} onChange={setProcessStatus} labelFor={(v) => PROCESS_STATUS_LABEL[v]?.[lang] ?? v} />
           {examinerOptions.length > 0 && (
             <FilterPillRow
               options={examinerOptions.map((e) => e.id)}

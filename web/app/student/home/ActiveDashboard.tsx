@@ -128,7 +128,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                 {(() => {
                   const nextPending = milestones.find((m) => m.status === 'pending' || m.status === 'rejected');
                   const displayType = nextPending?.type ?? overviewDisplayMilestone.type;
-                  return MILESTONE_LABEL[displayType][lang];
+                  return MILESTONE_LABEL[displayType]?.[lang] ?? displayType;
                 })()}
               </p>
 
@@ -180,7 +180,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
             const unlocked = isUnlocked(m);
             const cfg = STATUS_CONFIG[m.status] ?? { color: '#6B7280', bg: '#F1F0EC', icon: '🕐' };
             const days = daysUntil(m.dueDate);
-            const label = MILESTONE_LABEL[m.type][lang];
+            const label = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
             const isDefense = m.type === 'defense';
             const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
             const isApprovedOrDone = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
@@ -315,7 +315,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
         <div className="grid gap-3">
           <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}</p>
           {milestones.map((m) => {
-            const label = MILESTONE_LABEL[m.type][lang];
+            const label = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
             const grade = m.finalGrade ?? m.supervisorScore ?? null;
             const hasGrade = typeof grade === 'number' && !isNaN(grade);
             const isSubmittedState = !hasGrade && (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);

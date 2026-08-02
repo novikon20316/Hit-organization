@@ -124,8 +124,8 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
             style={{ '--rail-color': URGENCY_COLOR[item.urgency] } as React.CSSProperties}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${URGENCY_COLOR[item.urgency]}22`, color: URGENCY_COLOR[item.urgency] }}>
-                {TYPE_LABEL[item.type][lang]}
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${URGENCY_COLOR[item.urgency] ?? '#8899BB'}22`, color: URGENCY_COLOR[item.urgency] ?? '#8899BB' }}>
+                {TYPE_LABEL[item.type]?.[lang] ?? item.type}
               </span>
               {item.submittedAt && <span className="text-xs text-muted">{new Date(item.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</span>}
             </div>

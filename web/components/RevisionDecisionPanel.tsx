@@ -92,7 +92,7 @@ export function RevisionDecisionPanel({ milestoneId, canDecide }: { milestoneId:
         <div className="mt-2 grid gap-1">
           {history.map((h, i) => (
             <p key={i} className="text-xs text-muted">
-              {new Date(h.decidedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')} — {DECISION_LABEL[h.decision][lang]}
+              {new Date(h.decidedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')} — {DECISION_LABEL[h.decision]?.[lang] ?? h.decision}
               {h.note ? ` (${h.note})` : ''}
             </p>
           ))}

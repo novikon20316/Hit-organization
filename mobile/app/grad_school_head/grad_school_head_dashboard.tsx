@@ -96,7 +96,7 @@ function approvalTypeLabel(type: PendingApproval['type'], lang: Lang): string {
     final_grade: { he: 'אישור ציון סופי',       en: 'Final Grade' },
     template:    { he: 'אישור תבנית פקולטית',   en: 'Faculty Template' },
   };
-  return map[type][lang];
+  return map[type]?.[lang] ?? type;
 }
 
 const URGENCY_COLOR: Record<PendingApproval['urgency'], string> = {

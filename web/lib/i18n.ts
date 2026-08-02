@@ -854,8 +854,14 @@ export const t = {
 } as const;
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
+// `key: keyof typeof t` only catches a typo'd/missing key at TYPE-CHECK time
+// — nothing stops a future caller passing a runtime-computed key from
+// reaching this unguarded either way. The ?. + fallback makes a missing key
+// a visible untranslated string instead of a crash. See mobile's
+// components/i18n.ts tx() for the identical hardening after a real crash
+// caused by exactly this shape (a key missing from `t`).
 export function tx(key: keyof typeof t, lang: Lang): string {
-  return t[key][lang];
+  return t[key]?.[lang] ?? key;
 }
 
 // ─── Role display map ─────────────────────────────────────────────────────────

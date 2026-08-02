@@ -772,8 +772,14 @@ export const t = {
 } as const;
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
+// `key: keyof typeof t` only catches a typo'd/missing key at TYPE-CHECK time
+// — Metro/Babel strip types without running tsc, so a bad key still reaches
+// production untouched (see the projectType/thesisType crash this guarded
+// against). The ?. + fallback makes a missing key a visible untranslated
+// string instead of a crash, regardless of whether anyone ran a type-check
+// before shipping.
 export function tx(key: keyof typeof t, lang: Lang): string {
-  return t[key][lang];
+  return t[key]?.[lang] ?? key;
 }
 
 // ─── Role display map ─────────────────────────────────────────────────────────

@@ -103,7 +103,7 @@ export default function WorkflowTemplatePreview({ facultyIds, degreeTypes, proje
       {rows.map((r) => (
         <View key={r.key} style={styles.row}>
           <Text style={styles.rowLabel}>
-            {getFacultyByKey(r.facultyId)?.label?.[lang] ?? r.facultyId} · {DEGREE_LABEL[r.degreeType][lang]} · {TYPE_LABEL[r.projectType][lang]}
+            {getFacultyByKey(r.facultyId)?.label?.[lang] ?? r.facultyId} · {DEGREE_LABEL[r.degreeType]?.[lang] ?? r.degreeType} · {TYPE_LABEL[r.projectType]?.[lang] ?? r.projectType}
           </Text>
           {r.state === 'loading' && <Text style={styles.muted}>…</Text>}
           {r.state === 'found' && <Text style={styles.found}>{lang === 'he' ? `גרסה ${r.templateVersion}` : `v${r.templateVersion}`}</Text>}

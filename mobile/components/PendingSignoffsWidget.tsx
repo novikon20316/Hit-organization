@@ -116,10 +116,10 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
       {items.map((item) => (
         <View
           key={item.id}
-          style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: URGENCY_COLOR[item.urgency], shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 }}
+          style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: URGENCY_COLOR[item.urgency] ?? '#8899BB', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 }}
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: URGENCY_COLOR[item.urgency] }}>{TYPE_LABEL[item.type][lang]}</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: URGENCY_COLOR[item.urgency] ?? '#8899BB' }}>{TYPE_LABEL[item.type]?.[lang] ?? item.type}</Text>
             {!!item.submittedAt && (
               <Text style={{ fontSize: 11, color: '#94A3B8' }}>{new Date(item.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</Text>
             )}

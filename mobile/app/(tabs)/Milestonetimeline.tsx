@@ -121,7 +121,13 @@ function MilestoneCard({
   // 'coordinator_approved' is the actual completion status the server sets
   // (coordinatorController.ts) — 'completed' alone is never written anywhere.
   const isCompleted = milestone.status === 'coordinator_approved' || milestone.status === 'completed';
-  const cfg         = STATUS_CONFIG[milestone.status];
+  // MilestoneStatus here (components/Milestoneservice.ts) is a narrower
+  // 9-value union than the canonical one in types/index.ts (14 values,
+  // e.g. 'rejected'/'scheduled'/defense-scheduling statuses) — a real
+  // milestone can carry one of those extra statuses this map doesn't cover.
+  // Falls back to a neutral display rather than crashing (?.).
+  const cfg         = STATUS_CONFIG[milestone.status] ??
+    { icon: '❔', colorKey: '#8899BB', labelHe: milestone.status, labelEn: milestone.status };
   const days        = daysUntil(milestone.dueDate);
   const urgency     = isCompleted ? 'ok' : urgencyLevel(days);
   const urgColors   = URGENCY_COLORS[urgency];
