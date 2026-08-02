@@ -178,6 +178,11 @@ export const t = {
   degreeType:               { he: 'סוג תואר',                         en: 'Degree Type' },
   bachelors:                { he: 'תואר ראשון',                       en: "Bachelor's" },
   masters:                  { he: 'תואר שני',                         en: "Master's" },
+  // Used by BrowseProjects' type filter chips/badges — distinct from
+  // trackThesis/trackFinalProject above, which label a STUDENT's own
+  // degree track, not a given PROJECT's project-vs-thesis type.
+  projectType:              { he: 'פרויקט',                           en: 'Project' },
+  thesisType:               { he: 'תזה',                              en: 'Thesis' },
   trackType:                { he: 'סוג מסלול',                        en: 'Track Type' },
   trackThesis:              { he: 'תזה',                              en: 'Thesis' },
   trackFinalProject:        { he: 'פרויקט גמר',                       en: 'Final Project' },
