@@ -924,6 +924,68 @@ export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Res
 };
 
 /**
+ * POST /api/admin/audit-log/delete
+ * Deletes entries from the `auditLog` collection that back the "Live
+ * Transportation" recent-actions table — system_admin only, since this is
+ * the audit trail itself (see services/auditLog.ts). Body is either
+ * `{ ids: string[] }` for a selected-rows delete, or `{ all: true }` to wipe
+ * the entire collection. The purge itself is logged as a fresh audit entry
+ * afterward (written after any deletion completes, so it isn't wiped by its
+ * own `all: true` pass) — otherwise clearing the audit trail would leave no
+ * trace that it happened at all.
+ */
+export const deleteAuditLogEntries = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  const { ids, all } = req.body ?? {};
+
+  try {
+    let deleted = 0;
+
+    if (all === true) {
+      // Loop-delete in batches — a single query+batch can't cover a
+      // collection that may hold more than Firestore's 500-write batch limit.
+      while (true) {
+        const snap = await db.collection('auditLog').limit(500).get();
+        if (snap.empty) break;
+        const batch = db.batch();
+        snap.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        deleted += snap.size;
+      }
+    } else {
+      if (!Array.isArray(ids) || ids.length === 0 || ids.some((id: unknown) => typeof id !== 'string')) {
+        return res.status(400).json({ message: 'Provide ids (non-empty string array) or all: true.' });
+      }
+      for (let i = 0; i < ids.length; i += 500) {
+        const chunk = ids.slice(i, i + 500);
+        const batch = db.batch();
+        chunk.forEach((id: string) => batch.delete(db.collection('auditLog').doc(id)));
+        await batch.commit();
+        deleted += chunk.length;
+      }
+    }
+
+    await logAuditEvent({
+      userId: req.user!.uid,
+      userRole: req.user!.role ?? '',
+      action: all === true ? 'audit_log_purged' : 'audit_log_entries_deleted',
+      entityType: 'auditLog',
+      entityId: all === true ? 'all' : `${deleted} entries`,
+      explanation: `${deleted} entr${deleted === 1 ? 'y' : 'ies'} deleted`,
+      userDisplayName: req.user?.displayName,
+    });
+
+    return res.status(200).json({ success: true, deleted });
+  } catch (error: any) {
+    console.error('deleteAuditLogEntries error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to delete audit log entries.' });
+  }
+};
+
+/**
  * GET /api/admin/defense-access-grants?status=expired
  * Lists defense-day access grants, optionally filtered by their CURRENT
  * (computed) status — the stored `status` field can be stale since nothing

@@ -22,6 +22,7 @@ import {
   eraseUserBySystemAdmin,
   updateStudentAcademicYear,
   searchStudents,
+  deleteAuditLogEntries,
 } from '../controllers/adminController.js'
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
@@ -88,6 +89,7 @@ router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
+router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);
 // system_admin (any student) or faculty_admin (own faculty only) — gated
 // inside the controller, not here, matching createAdminProject's pattern.
 router.post('/users/:id/status', verifyToken, setStudentStatus);

@@ -438,6 +438,12 @@ export const apiClient = {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${userId}/erase`, { method: 'POST' });
   },
 
+  /** POST /api/admin/audit-log/delete — pass either `{ ids }` for a
+   *  selected-rows delete or `{ all: true }` to wipe the entire audit log. */
+  async deleteAuditLogEntries(payload: { ids?: string[]; all?: boolean }) {
+    return request<{ success: boolean; deleted: number }>('/api/admin/audit-log/delete', { method: 'POST', body: payload });
+  },
+
   /** POST /api/admin/projects — system_admin, faculty_admin, grad_school_head,
    *  administrative_secretary. One or more faculties fan out into one project
    *  doc each (see adminController.ts's createAdminProject) — `ids` has one

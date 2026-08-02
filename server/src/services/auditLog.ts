@@ -47,7 +47,9 @@ export type AuditAction =
   | 'next_examiner_promoted'
   | 'examiner_reminder_sent'
   | 'bulk_permissions_granted'
-  | 'academic_year_updated';
+  | 'academic_year_updated'
+  | 'audit_log_entries_deleted'
+  | 'audit_log_purged';
 
 export interface AuditLogEntry {
   userId: string;

@@ -17,7 +17,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, getDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { apiClient } from '@/lib/apiClient';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { AppRole } from '@/lib/i18n';
@@ -85,6 +87,13 @@ export default function LiveTransportationPage() {
   const [tableSortKey, setTableSortKey] = useState<'user' | 'action' | 'date'>('date');
   const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('desc');
   const [tablePage, setTablePage] = useState(1);
+
+  // Selected-row deletion — selection persists across pages/filters (a
+  // multi-page bulk pick), cleared only on a successful delete.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmAction, setConfirmAction] = useState<'selected' | 'all' | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (!isAllowed) return;
@@ -307,6 +316,39 @@ export default function LiveTransportationPage() {
 
   const sortArrow = (key: 'user' | 'action' | 'date') => (tableSortKey === key ? (tableSortDir === 'asc' ? ' ▲' : ' ▼') : '');
 
+  const toggleRowSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allOnPageSelected = pagedActionRows.length > 0 && pagedActionRows.every((r) => selectedIds.has(r.id));
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) pagedActionRows.forEach((r) => next.delete(r.id));
+      else pagedActionRows.forEach((r) => next.add(r.id));
+      return next;
+    });
+  };
+
+  const runDelete = async (payload: { ids?: string[]; all?: boolean }) => {
+    setDeleteBusy(true);
+    setDeleteError('');
+    try {
+      await apiClient.deleteAuditLogEntries(payload);
+      setSelectedIds(new Set());
+      setConfirmAction(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : lang === 'he' ? 'המחיקה נכשלה' : 'Failed to delete.');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   if (guardLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper">
@@ -367,6 +409,25 @@ export default function LiveTransportationPage() {
         <section className="rounded-[var(--radius)] border border-line bg-surface p-4">
           <h2 className="mb-3 text-sm font-semibold text-ink">{lang === 'he' ? 'פעולות אחרונות (100 אחרונות)' : 'Recent actions (last 100)'}</h2>
           {auditError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{auditError}</p>}
+          {deleteError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{deleteError}</p>}
+
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={selectedIds.size === 0}
+              onClick={() => setConfirmAction('selected')}
+              className="rounded-md border border-danger px-3 py-1.5 text-xs font-medium text-danger disabled:border-line disabled:text-muted disabled:opacity-50"
+            >
+              {lang === 'he' ? `מחק נבחרים (${selectedIds.size})` : `Delete selected (${selectedIds.size})`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmAction('all')}
+              className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+            >
+              {lang === 'he' ? 'מחק את כל היומן' : 'Erase entire log'}
+            </button>
+          </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <input
@@ -413,6 +474,14 @@ export default function LiveTransportationPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
+                  <th className="py-2 pr-3">
+                    <input
+                      type="checkbox"
+                      checked={allOnPageSelected}
+                      onChange={toggleSelectAllOnPage}
+                      aria-label={lang === 'he' ? 'בחר הכל בעמוד' : 'Select all on page'}
+                    />
+                  </th>
                   <th className="cursor-pointer select-none py-2 pr-3" onClick={() => toggleTableSort('user')}>
                     {(lang === 'he' ? 'משתמש' : 'User') + sortArrow('user')}
                   </th>
@@ -430,6 +499,14 @@ export default function LiveTransportationPage() {
                   const d = row.timestampMs ? new Date(row.timestampMs) : null;
                   return (
                     <tr key={row.id} className="border-b border-line/50">
+                      <td className="py-2 pr-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(row.id)}
+                          onChange={() => toggleRowSelected(row.id)}
+                          aria-label={lang === 'he' ? 'בחר שורה' : 'Select row'}
+                        />
+                      </td>
                       <td className="py-2 pr-3 text-ink">{displayNameFor(row)}</td>
                       <td className="py-2 pr-3 text-ink">{row.action}</td>
                       <td className="py-2 pr-3 text-muted">{d ? d.toLocaleDateString() : '—'}</td>
@@ -439,7 +516,7 @@ export default function LiveTransportationPage() {
                 })}
                 {sortedActionRows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-6 text-center text-sm text-muted">
+                    <td colSpan={5} className="py-6 text-center text-sm text-muted">
                       {lang === 'he' ? 'אין פעולות תואמות' : 'No matching actions'}
                     </td>
                   </tr>
@@ -477,6 +554,37 @@ export default function LiveTransportationPage() {
           )}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={confirmAction === 'selected'}
+        title={lang === 'he' ? 'מחיקת פעולות נבחרות' : 'Delete selected actions'}
+        message={
+          lang === 'he'
+            ? `למחוק לצמיתות ${selectedIds.size} פעולות שנבחרו? לא ניתן לשחזר.`
+            : `Permanently delete ${selectedIds.size} selected action(s)? This cannot be undone.`
+        }
+        confirmLabel={lang === 'he' ? 'מחק' : 'Delete'}
+        cancelLabel={lang === 'he' ? 'ביטול' : 'Cancel'}
+        destructive
+        busy={deleteBusy}
+        onConfirm={() => runDelete({ ids: Array.from(selectedIds) })}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === 'all'}
+        title={lang === 'he' ? 'מחיקת כל יומן הפעולות' : 'Erase entire audit log'}
+        message={
+          lang === 'he'
+            ? 'פעולה זו תמחק לצמיתות את כל רשומות יומן הפעולות במערכת, כולל רשומות שאינן מוצגות כרגע. לא ניתן לשחזר.'
+            : 'This permanently deletes every audit log entry in the system, including ones not currently shown. This cannot be undone.'
+        }
+        confirmLabel={lang === 'he' ? 'מחק הכל' : 'Erase all'}
+        cancelLabel={lang === 'he' ? 'ביטול' : 'Cancel'}
+        destructive
+        busy={deleteBusy}
+        onConfirm={() => runDelete({ all: true })}
+        onCancel={() => setConfirmAction(null)}
+      />
     </DashboardShell>
   );
 }
