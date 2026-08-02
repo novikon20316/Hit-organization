@@ -30,8 +30,18 @@ function isAllowedStudentEmailDomain(value: string): boolean {
   return STUDENT_ALLOWED_EMAIL_DOMAINS.includes(domain);
 }
 
+// Israeli ID (Teudat Zehut) check-digit validation, not just a 9-digit
+// length check — each digit is weighted 1/2 alternating from the left, any
+// two-digit product is folded to a single digit by summing its digits
+// (e.g. 9*2=18 -> 1+8=9), and the total must be a multiple of 10.
 function isValidStudentId(id: string): boolean {
-  return /^\d{9}$/.test(id);
+  if (!/^\d{9}$/.test(id)) return false;
+  let sum = 0;
+  for (let i = 0; i < id.length; i++) {
+    const product = Number(id[i]) * (i % 2 === 0 ? 1 : 2);
+    sum += product > 9 ? product - 9 : product;
+  }
+  return sum % 10 === 0;
 }
 
 function getPasswordStrength(password: string, lang: 'he' | 'en'): { valid: boolean; errors: string[] } {
@@ -183,7 +193,7 @@ export default function SignupPage() {
       } else if (code === 'auth/weak-password') {
         setError(lang === 'he' ? 'הסיסמה חלשה מדי.' : 'Password is too weak.');
       } else {
-        setError(err instanceof Error ? err.message : 'Registration failed.');
+        setError(lang === 'he' ? 'ההרשמה נכשלה. נסה שוב.' : 'Registration failed. Please try again.');
       }
     } finally {
       setSaving(false);
@@ -304,6 +314,11 @@ export default function SignupPage() {
 
               <Field label={lang === 'he' ? 'מספר תעודת זהות (9 ספרות)' : 'Student ID (9 digits)'}>
                 <input dir="ltr" value={studentId} onChange={(e) => setStudentId(e.target.value.replace(/\D/g, '').slice(0, 9))} className={inputCls} required />
+                {studentId.length > 0 && !isValidStudentId(studentId) && (
+                  <p className="mt-1 text-xs text-danger">
+                    {lang === 'he' ? 'מספר תעודת הזהות אינו תקין. בדוק את הספרות שהזנת' : 'Invalid ID number. Please check the digits you entered'}
+                  </p>
+                )}
               </Field>
 
               <Field label={lang === 'he' ? 'סיסמה' : 'Password'}>

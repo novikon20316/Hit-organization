@@ -222,7 +222,10 @@ export default function ProfileSetup() {
 
   const handleSave = async () => {
     if (!canSave || !email || !password) {
-      Alert.alert("Error", "Please fill all fields.");
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'יש למלא את כל השדות כראוי.' : 'Please fill all fields correctly.'
+      );
       return;
     }
     setSaving(true);
@@ -265,13 +268,13 @@ export default function ProfileSetup() {
 
     } catch (e: any) {
       console.error("Registration Error:", e);
-      let msg = e.message;
+      let msg = lang === 'he' ? 'ההרשמה נכשלה. נסה שוב.' : 'Registration failed. Please try again.';
       if (e.code === 'auth/email-already-in-use' || e.code === 'auth/email-in-use-mismatched-password') {
         msg = lang === 'he'
           ? 'כתובת האימייל כבר רשומה. אם זה החשבון שלך, התחבר או אפס סיסמה.'
           : "This email is already registered. If it's yours, log in or reset your password.";
       }
-      if (e.code === 'auth/weak-password') msg = "Password is too weak.";
+      if (e.code === 'auth/weak-password') msg = lang === 'he' ? 'הסיסמה חלשה מדי.' : 'Password is too weak.';
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', msg);
     } finally {
       setSaving(false);
@@ -323,8 +326,18 @@ export default function ProfileSetup() {
     }
   };
 
+  // Israeli ID (Teudat Zehut) check-digit validation, not just a 9-digit
+  // length check — each digit is weighted 1/2 alternating from the left,
+  // any two-digit product is folded to a single digit by summing its
+  // digits (e.g. 9*2=18 -> 1+8=9), and the total must be a multiple of 10.
   const isValidStudentId = (id: string): boolean => {
-    return /^\d{9}$/.test(id);
+    if (!/^\d{9}$/.test(id)) return false;
+    let sum = 0;
+    for (let i = 0; i < id.length; i++) {
+      const product = Number(id[i]) * (i % 2 === 0 ? 1 : 2);
+      sum += product > 9 ? product - 9 : product;
+    }
+    return sum % 10 === 0;
   }
 
   const getPasswordStrength = (password: string): { valid: boolean; errors: string[] } => {
@@ -561,9 +574,9 @@ export default function ProfileSetup() {
             <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
           ) : studentId.length > 0 && !isValidStudentId(studentId) && (
             <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
-              {lang === 'he' ? 'תעודת זהות חייבת להכיל 9 ספרות' : 'Student ID must be exactly 9 digits'}
+              {lang === 'he' ? 'מספר תעודת הזהות אינו תקין. בדוק את הספרות שהזנת' : 'Invalid ID number. Please check the digits you entered'}
             </Text>
-          )} 
+          )}
           
         </View>
           <Text style={[s.label, { marginTop: 15 }, !isRtl && s.textRight]}>
