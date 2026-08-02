@@ -36,6 +36,10 @@ function isValidStudentId(id: string): boolean {
   return /^\d{9}$/.test(id);
 }
 
+function isValidPhoneNumber(value: string): boolean {
+  return /^\d{10}$/.test(value);
+}
+
 export default function CompleteProfile() {
   const router = useRouter();
   const checkMaintenance = useMaintenanceCheck();
@@ -82,7 +86,7 @@ export default function CompleteProfile() {
   })();
 
   const canSave = Boolean(
-    phoneNumber.length >= 9 && isValidStudentId(studentId) && faculty && programKey && yearOfStudy
+    isValidPhoneNumber(phoneNumber) && isValidStudentId(studentId) && faculty && programKey && yearOfStudy
   );
 
   const handleSave = async () => {
@@ -207,13 +211,13 @@ export default function CompleteProfile() {
             placeholderTextColor="#9BA8C0"
             keyboardType="phone-pad"
             maxLength={10}
-            style={[s.input, isRtl && s.textRight, attemptedSubmit && phoneNumber.length < 9 && { borderColor: '#EF4444' }]}
+            style={[s.input, isRtl && s.textRight, attemptedSubmit && !isValidPhoneNumber(phoneNumber) && { borderColor: '#EF4444' }]}
           />
-          {attemptedSubmit && phoneNumber.length < 9 && (
+          {attemptedSubmit && !isValidPhoneNumber(phoneNumber) && (
             <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
               {phoneNumber.length === 0
                 ? (lang === 'he' ? 'שדה חובה' : 'Required field')
-                : (lang === 'he' ? 'מספר טלפון חייב לכלול לפחות 9 ספרות' : 'Phone number must have at least 9 digits')}
+                : (lang === 'he' ? 'מספר טלפון חייב להכיל בדיוק 10 ספרות' : 'Phone number must be exactly 10 digits')}
             </Text>
           )}
 

@@ -19,10 +19,11 @@ import {
   signInWithPopup,
   linkWithCredential,
   GoogleAuthProvider,
+  OAuthProvider,
   type AuthError,
   type AuthCredential,
 } from 'firebase/auth';
-import { auth, db, googleProvider } from '@/lib/firebase';
+import { auth, db, googleProvider, appleProvider } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { getHomeRoute, type UserDoc } from '@/lib/roles';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
@@ -58,10 +59,22 @@ export default function LoginPage() {
   // credential onto it (Firebase's own documented recipe), rather than ever
   // ending up with two identities for the same person.
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const [appleSubmitting, setAppleSubmitting] = useState(false);
   const [linkingPrompt, setLinkingPrompt] = useState<{ email: string; pendingCredential: AuthCredential } | null>(null);
   const [linkingPassword, setLinkingPassword] = useState('');
   const [linkingSubmitting, setLinkingSubmitting] = useState(false);
   const [linkingError, setLinkingError] = useState('');
+
+  // Apple only requires "Sign in with Apple" parity on iOS (App Store
+  // Guideline 4.8, triggered by offering Google sign-in) — Play has no such
+  // rule, so keep the button off Android entirely rather than showing a
+  // feature that exists purely to satisfy Apple's review. Defaults to
+  // hidden so there's no flash of a button that then disappears once the
+  // client-side check resolves.
+  const [showAppleButton, setShowAppleButton] = useState(false);
+  useEffect(() => {
+    setShowAppleButton(!/Android/i.test(navigator.userAgent));
+  }, []);
 
   // Shared by both redirect paths below so they can never disagree on
   // where a signed-in user should land — see the useEffect just below this
@@ -247,6 +260,47 @@ export default function LoginPage() {
     }
   };
 
+  const handleAppleSignIn = async () => {
+    if (appleSubmitting) return;
+    setAppleSubmitting(true);
+    setError('');
+    try {
+      const cred = await signInWithPopup(auth, appleProvider);
+      apiClient.post('/api/users/log-login').catch(() => {});
+
+      const userSnap = await getDoc(doc(db, 'users', cred.user.uid));
+      const data = userSnap.exists() ? (userSnap.data() as UserDoc) : null;
+
+      if (!data) {
+        // Brand-new Apple identity, no matching Firestore doc — same
+        // "genuinely new account" path Google sign-in uses.
+        router.push('/complete-profile');
+        return;
+      }
+      await redirectAfterAuth(data);
+    } catch (err) {
+      const e = err as AuthError;
+      if (e.code === 'auth/account-exists-with-different-credential') {
+        // Same account-linking recipe as Google — link onto the existing
+        // password-based account instead of creating a second uid.
+        const pendingCredential = OAuthProvider.credentialFromError(e);
+        const email = (e.customData as { email?: string } | undefined)?.email;
+        if (pendingCredential && email) {
+          setLinkingPrompt({ email, pendingCredential });
+        } else {
+          setError(t('loginError'));
+        }
+      } else if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+        // User closed the popup — not an error worth surfacing.
+      } else {
+        console.error('Apple sign-in failed:', e.code, e.message);
+        setError(t('loginError'));
+      }
+    } finally {
+      setAppleSubmitting(false);
+    }
+  };
+
   const handleLinkSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!linkingPrompt || linkingSubmitting) return;
@@ -385,6 +439,18 @@ export default function LoginPage() {
               {googleSubmitting ? '…' : lang === 'he' ? 'המשך עם Google' : 'Continue with Google'}
             </button>
 
+            {showAppleButton && (
+              <button
+                type="button"
+                onClick={handleAppleSignIn}
+                disabled={appleSubmitting}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-surface py-2.5 text-sm font-medium text-ink transition-colors hover:bg-paper disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <AppleIcon />
+                {appleSubmitting ? '…' : lang === 'he' ? 'המשך עם Apple' : 'Continue with Apple'}
+              </button>
+            )}
+
             <div className="mt-5 flex flex-col items-center gap-2 text-sm">
               <Link href="/signup" className="text-primary hover:underline">
                 {lang === 'he' ? 'אין לך חשבון? הירשם' : "Don't have an account? Sign up"}
@@ -405,8 +471,8 @@ export default function LoginPage() {
             </h2>
             <p className="mt-1.5 text-sm text-muted">
               {lang === 'he'
-                ? `הזן/י את הסיסמה של ${linkingPrompt.email} כדי לחבר את ההתחברות עם Google לחשבון הקיים שלך.`
-                : `Enter the password for ${linkingPrompt.email} to link Google sign-in to your existing account.`}
+                ? `הזן/י את הסיסמה של ${linkingPrompt.email} כדי לחבר את ההתחברות הזו לחשבון הקיים שלך.`
+                : `Enter the password for ${linkingPrompt.email} to link this sign-in to your existing account.`}
             </p>
             <form onSubmit={handleLinkSubmit} className="mt-4">
               <input
@@ -464,6 +530,17 @@ function GoogleIcon() {
       <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z" />
       <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.17.29-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z" />
       <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97l3.05 2.33C4.66 5.17 6.65 3.58 9 3.58z" />
+    </svg>
+  );
+}
+
+function AppleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M13.5 9.6c-.02-1.85 1.5-2.74 1.57-2.78-.86-1.25-2.19-1.42-2.66-1.44-1.13-.11-2.2.66-2.78.66-.58 0-1.47-.65-2.42-.63-1.24.02-2.4.72-3.04 1.83-1.3 2.25-.33 5.58.93 7.4.62.9 1.35 1.9 2.32 1.86.93-.04 1.28-.6 2.4-.6s1.44.6 2.42.58c1-.02 1.63-.9 2.24-1.8.71-1.03 1-2.03 1.01-2.08-.02-.01-1.94-.75-1.96-2.99zM11.7 3.8c.51-.63.86-1.5.76-2.37-.74.03-1.64.49-2.17 1.11-.47.55-.89 1.45-.78 2.3.83.06 1.68-.42 2.19-1.04z"
+      />
     </svg>
   );
 }

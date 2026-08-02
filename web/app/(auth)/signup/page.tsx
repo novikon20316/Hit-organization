@@ -44,6 +44,10 @@ function isValidStudentId(id: string): boolean {
   return sum % 10 === 0;
 }
 
+function isValidPhoneNumber(value: string): boolean {
+  return /^\d{10}$/.test(value);
+}
+
 function getPasswordStrength(password: string, lang: 'he' | 'en'): { valid: boolean; errors: string[] } {
   const rules: Array<[boolean, string]> = [
     [password.length >= 8, lang === 'he' ? 'לפחות 8 תווים' : 'At least 8 characters'],
@@ -112,7 +116,7 @@ export default function SignupPage() {
 
   const canSave = Boolean(
     displayName.trim().length > 1 &&
-      phoneNumber.length >= 9 &&
+      isValidPhoneNumber(phoneNumber) &&
       isAllowedStudentEmailDomain(email) &&
       isValidStudentId(studentId) &&
       passwordCheck.valid &&
@@ -297,8 +301,20 @@ export default function SignupPage() {
                 <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className={inputCls} required />
               </Field>
 
-              <Field label={lang === 'he' ? 'טלפון' : 'Phone'}>
-                <input dir="ltr" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className={inputCls} required />
+              <Field label={lang === 'he' ? 'טלפון (10 ספרות)' : 'Phone (10 digits)'}>
+                <input
+                  dir="ltr"
+                  inputMode="numeric"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  className={inputCls}
+                  required
+                />
+                {phoneNumber.length > 0 && !isValidPhoneNumber(phoneNumber) && (
+                  <p className="mt-1 text-xs text-danger">
+                    {lang === 'he' ? 'מספר טלפון חייב להכיל בדיוק 10 ספרות' : 'Phone number must be exactly 10 digits'}
+                  </p>
+                )}
               </Field>
 
               <Field label={lang === 'he' ? 'דוא"ל' : 'Email'}>

@@ -340,6 +340,10 @@ export default function ProfileSetup() {
     return sum % 10 === 0;
   }
 
+  const isValidPhoneNumber = (value: string): boolean => {
+    return /^\d{10}$/.test(value);
+  }
+
   const getPasswordStrength = (password: string): { valid: boolean; errors: string[] } => {
     const errors: string[] = [];
     if (password.length < 8)           errors.push('At least 8 characters');
@@ -354,7 +358,7 @@ export default function ProfileSetup() {
 
   const canSave =
     displayName.trim().length > 1 &&
-    phoneNumber.length >= 9 &&
+    isValidPhoneNumber(phoneNumber) &&
     isAllowedStudentEmailDomain(email) &&
     isValidStudentId(studentId) &&      // ← added
     passwordCheck.valid &&              // ← added
@@ -492,13 +496,13 @@ export default function ProfileSetup() {
             keyboardType="phone-pad"
             maxLength={10}
             isRtl={isRtl}
-            style={attemptedSubmit && phoneNumber.length < 9 ? missingFieldStyle : undefined}
+            style={attemptedSubmit && !isValidPhoneNumber(phoneNumber) ? missingFieldStyle : undefined}
           />
-          {attemptedSubmit && phoneNumber.length < 9 && (
+          {attemptedSubmit && !isValidPhoneNumber(phoneNumber) && (
             <RequiredNote isRtl={isRtl}>
               {phoneNumber.length === 0
                 ? (lang === 'he' ? 'שדה חובה' : 'Required field')
-                : (lang === 'he' ? 'מספר טלפון חייב לכלול לפחות 9 ספרות' : 'Phone number must have at least 9 digits')}
+                : (lang === 'he' ? 'מספר טלפון חייב להכיל בדיוק 10 ספרות' : 'Phone number must be exactly 10 digits')}
             </RequiredNote>
           )}
 

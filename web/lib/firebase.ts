@@ -13,7 +13,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth, browserLocalPersistence, setPersistence, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, browserLocalPersistence, setPersistence, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyD7v2PB_ics4bDV346BxeIZjFvkbSHvjiM',
@@ -34,6 +34,13 @@ export const auth = getAuth(app);
 // Firebase Console (Authentication > Sign-in method) before this does
 // anything useful; the provider instance itself needs no config.
 export const googleProvider = new GoogleAuthProvider();
+
+// "Sign in with Apple" — requires Apple enabled as a sign-in provider in
+// Firebase Console, plus a Services ID + registered return URL in Apple
+// Developer (Certificates, Identifiers & Profiles > Sign in with Apple).
+export const appleProvider = new OAuthProvider('apple.com');
+appleProvider.addScope('email');
+appleProvider.addScope('name');
 
 // Explicit, rather than relying on the default — makes the "stay signed in
 // across tabs/refreshes" behavior a documented choice, not an SDK default

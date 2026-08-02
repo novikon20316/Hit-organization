@@ -30,6 +30,10 @@ function isValidStudentId(id: string): boolean {
   return /^\d{9}$/.test(id);
 }
 
+function isValidPhoneNumber(value: string): boolean {
+  return /^\d{10}$/.test(value);
+}
+
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { lang } = useLanguage();
@@ -73,7 +77,7 @@ export default function CompleteProfilePage() {
   })();
 
   const canSave = Boolean(
-    phoneNumber.length >= 9 && isValidStudentId(studentId) && facultyId && programKey && yearOfStudy
+    isValidPhoneNumber(phoneNumber) && isValidStudentId(studentId) && facultyId && programKey && yearOfStudy
   );
 
   const handleSave = async (e: FormEvent) => {
@@ -171,8 +175,20 @@ export default function CompleteProfilePage() {
                 <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className={inputCls} required />
               </Field>
 
-              <Field label={lang === 'he' ? 'טלפון' : 'Phone'}>
-                <input dir="ltr" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className={inputCls} required />
+              <Field label={lang === 'he' ? 'טלפון (10 ספרות)' : 'Phone (10 digits)'}>
+                <input
+                  dir="ltr"
+                  inputMode="numeric"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  className={inputCls}
+                  required
+                />
+                {phoneNumber.length > 0 && !isValidPhoneNumber(phoneNumber) && (
+                  <p className="mt-1 text-xs text-danger">
+                    {lang === 'he' ? 'מספר טלפון חייב להכיל בדיוק 10 ספרות' : 'Phone number must be exactly 10 digits'}
+                  </p>
+                )}
               </Field>
 
               <Field label={lang === 'he' ? 'מספר תעודת זהות (9 ספרות)' : 'Student ID (9 digits)'}>

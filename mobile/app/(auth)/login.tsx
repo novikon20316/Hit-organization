@@ -21,9 +21,12 @@ import {
   signInWithCredential,
   linkWithCredential,
   GoogleAuthProvider,
+  OAuthProvider,
   type AuthCredential,
 } from "firebase/auth";
 import { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { auth, db } from "@/src/firebase/firebase";
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
@@ -45,10 +48,23 @@ export default function LoginScreen() {
   // credential onto it (Firebase's own documented recipe), same as the web
   // login page's flow.
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const [appleSubmitting, setAppleSubmitting] = useState(false);
   const [linkingPrompt, setLinkingPrompt] = useState<{ email: string; pendingCredential: AuthCredential } | null>(null);
   const [linkingPassword, setLinkingPassword] = useState('');
   const [linkingSubmitting, setLinkingSubmitting] = useState(false);
   const [linkingError, setLinkingError] = useState('');
+
+  // "Sign in with Apple" only exists on iOS at all — the native module
+  // resolves `isAvailableAsync()` to false on Android by design, but we
+  // gate on Platform.OS too so the button never even mounts there. Apple
+  // requires this specifically to satisfy App Store Guideline 4.8 (parity
+  // with the Google sign-in option above); Play has no equivalent
+  // requirement, so Android intentionally never sees this button.
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
+  }, []);
 
   const checkMaintenance = useMaintenanceCheck(); // ← NEW
 
@@ -70,7 +86,7 @@ export default function LoginScreen() {
 
   // Shared by both the direct Google sign-in path and the post-linking path
   // below, so they can never disagree on where a signed-in user should land.
-  const proceedAfterGoogleAuth = async (uid: string) => {
+  const proceedAfterOAuthSignIn = async (uid: string) => {
     const userDoc = await getDoc(doc(db, 'users', uid));
     const userData = userDoc.data();
 
@@ -119,7 +135,7 @@ export default function LoginScreen() {
 
       const credential = GoogleAuthProvider.credential(idToken);
       const cred = await signInWithCredential(auth, credential);
-      await proceedAfterGoogleAuth(cred.user.uid);
+      await proceedAfterOAuthSignIn(cred.user.uid);
     } catch (err: any) {
       if (err.code === 'auth/account-exists-with-different-credential') {
         const pendingCredential = GoogleAuthProvider.credentialFromError(err);
@@ -140,6 +156,53 @@ export default function LoginScreen() {
     }
   };
 
+  const handleAppleSignIn = async () => {
+    if (appleSubmitting) return;
+    setAppleSubmitting(true);
+    setError('');
+    try {
+      // Raw nonce stays on-device and is only ever handed to Firebase;
+      // Apple only ever sees its SHA-256 hash. This round-trip (rather than
+      // passing the same nonce to both) is Apple's own documented replay-
+      // protection recipe for `signInAsync`.
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+
+      const appleCredential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+      if (!appleCredential.identityToken) throw new Error('No identity token returned from Apple.');
+
+      const credential = new OAuthProvider('apple.com').credential({
+        idToken: appleCredential.identityToken,
+        rawNonce,
+      });
+      const cred = await signInWithCredential(auth, credential);
+      await proceedAfterOAuthSignIn(cred.user.uid);
+    } catch (err: any) {
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        const pendingCredential = OAuthProvider.credentialFromError(err);
+        const linkEmail = err.customData?.email;
+        if (pendingCredential && linkEmail) {
+          setLinkingPrompt({ email: linkEmail, pendingCredential });
+        } else {
+          setError('Login failed. Please try again.');
+        }
+      } else if (err.code === 'ERR_REQUEST_CANCELED') {
+        // User cancelled — not an error worth surfacing.
+      } else {
+        console.error('Apple sign-in failed:', err.code, err.message);
+        setError('Login failed. Please try again.');
+      }
+    } finally {
+      setAppleSubmitting(false);
+    }
+  };
+
   const handleLinkSubmit = async () => {
     if (!linkingPrompt || linkingSubmitting) return;
     setLinkingSubmitting(true);
@@ -149,7 +212,7 @@ export default function LoginScreen() {
       await linkWithCredential(cred.user, linkingPrompt.pendingCredential);
       setLinkingPrompt(null);
       setLinkingPassword('');
-      await proceedAfterGoogleAuth(cred.user.uid);
+      await proceedAfterOAuthSignIn(cred.user.uid);
     } catch (err: any) {
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
         setLinkingError('Incorrect email or password.');
@@ -368,6 +431,23 @@ export default function LoginScreen() {
             }
           </TouchableOpacity>
 
+          {Platform.OS === 'ios' && appleAvailable && (
+            <View style={{ marginTop: 10 }}>
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={8}
+                style={{ width: '100%', height: 48 }}
+                onPress={handleAppleSignIn}
+              />
+              {appleSubmitting && (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              )}
+            </View>
+          )}
+
           <Pressable onPress={() => router.push('/(auth)/signup')}>
             <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
               Don&#39;t have an account? Sign Up.
@@ -389,7 +469,7 @@ export default function LoginScreen() {
               An account with this email already exists
             </Text>
             <Text style={{ fontSize: 13, color: '#666', marginBottom: 14 }}>
-              Enter the password for {linkingPrompt?.email} to link Google sign-in to your existing account.
+              Enter the password for {linkingPrompt?.email} to link this sign-in to your existing account.
             </Text>
             <TextInput
               placeholder="Password"
