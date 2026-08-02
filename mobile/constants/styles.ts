@@ -2609,6 +2609,10 @@ export const ChangePasswordStyles = StyleSheet.create({
   buttonText:     { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   error:          { color: '#e74c3c', marginBottom: 8, textAlign: 'center' },
   backLink:       { marginTop: 24, color: '#2E86FF', fontSize: 14 },
+  textRight:      { textAlign: 'right' },
+  langRow:        { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', marginBottom: 12 },
+  langBtn:        { backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#D0DEFF' },
+  langBtnText:    { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
 });
 
 export const ResetPassStyles = StyleSheet.create({
