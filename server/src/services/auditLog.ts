@@ -49,7 +49,10 @@ export type AuditAction =
   | 'bulk_permissions_granted'
   | 'academic_year_updated'
   | 'audit_log_entries_deleted'
-  | 'audit_log_purged';
+  | 'audit_log_purged'
+  | 'login_failed'
+  | 'permission_denied'
+  | 'password_reset_by_admin';
 
 export interface AuditLogEntry {
   userId: string;

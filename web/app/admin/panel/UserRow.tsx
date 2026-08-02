@@ -35,6 +35,10 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
   const [confirmErase, setConfirmErase] = useState(false);
   const [erasing, setErasing] = useState(false);
   const [rowError, setRowError] = useState('');
+  const [confirmResetPassword, setConfirmResetPassword] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetTempPassword, setResetTempPassword] = useState<string | null>(null);
+  const [copiedResetPassword, setCopiedResetPassword] = useState(false);
 
   const handleToggleActive = async () => {
     setTogglingActive(true);
@@ -73,6 +77,33 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
       setConfirmErase(false);
     } finally {
       setErasing(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResettingPassword(true);
+    setRowError('');
+    try {
+      const result = await apiClient.resetUserPasswordAdmin(user.id);
+      setResetTempPassword(result.tempPassword);
+      setConfirmResetPassword(false);
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : 'Failed to reset password');
+      setConfirmResetPassword(false);
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const handleCopyResetPassword = async () => {
+    if (!resetTempPassword) return;
+    try {
+      await navigator.clipboard.writeText(resetTempPassword);
+      setCopiedResetPassword(true);
+      setTimeout(() => setCopiedResetPassword(false), 2000);
+    } catch {
+      // Clipboard API unavailable/denied — the value is still visible on
+      // screen for the admin to select and copy manually.
     }
   };
 
@@ -137,6 +168,13 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
           )}
           <button
             type="button"
+            onClick={() => setConfirmResetPassword(true)}
+            className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-accent hover:text-accent"
+          >
+            🔑 {lang === 'he' ? 'איפוס סיסמה' : 'Reset password'}
+          </button>
+          <button
+            type="button"
             onClick={() => onEdit(user)}
             className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
           >
@@ -151,6 +189,33 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
           </button>
         </div>
       </div>
+
+      {resetTempPassword && (
+        <div className="mt-3 grid gap-2 rounded-lg border border-line bg-paper p-3">
+          <span className="text-xs font-medium text-muted">
+            {lang === 'he' ? 'סיסמה זמנית חדשה — מסרו אותה למשתמש:' : 'New temporary password — hand this to the user:'}
+          </span>
+          <div className="flex items-center gap-2">
+            <code dir="ltr" className="flex-1 rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink">
+              {resetTempPassword}
+            </code>
+            <button
+              type="button"
+              onClick={handleCopyResetPassword}
+              className="rounded-lg border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-surface"
+            >
+              {copiedResetPassword ? (lang === 'he' ? 'הועתק!' : 'Copied!') : (lang === 'he' ? 'העתק' : 'Copy')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setResetTempPassword(null)}
+              className="rounded-lg border border-line px-3 py-2 text-xs font-medium text-muted hover:text-ink"
+            >
+              {lang === 'he' ? 'סגור' : 'Dismiss'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {(primaryStatusOption || secondaryStatusOption) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -182,6 +247,21 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
         busy={disabling2fa}
         onConfirm={handleDisable2fa}
         onCancel={() => setConfirmDisable2fa(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmResetPassword}
+        title={lang === 'he' ? 'איפוס סיסמה' : 'Reset Password'}
+        message={
+          lang === 'he'
+            ? `תיווצר סיסמה זמנית חדשה עבור ${user.displayName}, והמשתמש יידרש להחליף אותה בכניסה הבאה. להמשיך?`
+            : `A new temporary password will be generated for ${user.displayName}, and they'll be required to change it on next login. Continue?`
+        }
+        confirmLabel={lang === 'he' ? 'כן, אפס' : 'Yes, reset'}
+        cancelLabel={lang === 'he' ? 'ביטול' : 'Cancel'}
+        busy={resettingPassword}
+        onConfirm={handleResetPassword}
+        onCancel={() => setConfirmResetPassword(false)}
       />
 
       <ConfirmDialog

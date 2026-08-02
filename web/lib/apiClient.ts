@@ -438,6 +438,13 @@ export const apiClient = {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${userId}/erase`, { method: 'POST' });
   },
 
+  /** POST /api/admin/users/:id/reset-password — system_admin only. Generates
+   *  a new temp password (returned once) and forces a change on next login —
+   *  see adminController.ts's resetUserPasswordAdmin. */
+  async resetUserPasswordAdmin(userId: string) {
+    return request<{ success: boolean; tempPassword: string; message: string }>(`/api/admin/users/${userId}/reset-password`, { method: 'POST' });
+  },
+
   /** POST /api/admin/audit-log/delete — pass either `{ ids }` for a
    *  selected-rows delete or `{ all: true }` to wipe the entire audit log. */
   async deleteAuditLogEntries(payload: { ids?: string[]; all?: boolean }) {

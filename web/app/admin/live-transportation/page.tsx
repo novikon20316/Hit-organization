@@ -49,6 +49,7 @@ interface AuditRow {
   userId: string;
   userDisplayName?: string;
   action: string;
+  explanation?: string;
   timestampMs: number | null;
 }
 
@@ -145,6 +146,7 @@ export default function LiveTransportationPage() {
               userId: (data.userId as string) ?? '',
               userDisplayName: (data.userDisplayName as string) || undefined,
               action: (data.action as string) ?? '',
+              explanation: (data.explanation as string) || undefined,
               timestampMs: ts?.toMillis ? ts.toMillis() : null,
             } satisfies AuditRow;
           })
@@ -274,6 +276,7 @@ export default function LiveTransportationPage() {
       return (
         displayNameFor(row).toLowerCase().includes(q) ||
         row.action.toLowerCase().includes(q) ||
+        (row.explanation ?? '').toLowerCase().includes(q) ||
         dateStr.includes(q) ||
         timeStr.includes(q)
       );
@@ -488,6 +491,7 @@ export default function LiveTransportationPage() {
                   <th className="cursor-pointer select-none py-2 pr-3" onClick={() => toggleTableSort('action')}>
                     {(lang === 'he' ? 'פעולה' : 'Action') + sortArrow('action')}
                   </th>
+                  <th className="py-2 pr-3">{lang === 'he' ? 'הערה' : 'Comment'}</th>
                   <th className="cursor-pointer select-none py-2 pr-3" onClick={() => toggleTableSort('date')}>
                     {(lang === 'he' ? 'תאריך' : 'Date') + sortArrow('date')}
                   </th>
@@ -509,6 +513,7 @@ export default function LiveTransportationPage() {
                       </td>
                       <td className="py-2 pr-3 text-ink">{displayNameFor(row)}</td>
                       <td className="py-2 pr-3 text-ink">{row.action}</td>
+                      <td className="py-2 pr-3 text-muted">{row.explanation || '—'}</td>
                       <td className="py-2 pr-3 text-muted">{d ? d.toLocaleDateString() : '—'}</td>
                       <td className="py-2 text-muted">{d ? d.toLocaleTimeString() : '—'}</td>
                     </tr>
@@ -516,7 +521,7 @@ export default function LiveTransportationPage() {
                 })}
                 {sortedActionRows.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-6 text-center text-sm text-muted">
+                    <td colSpan={6} className="py-6 text-center text-sm text-muted">
                       {lang === 'he' ? 'אין פעולות תואמות' : 'No matching actions'}
                     </td>
                   </tr>

@@ -22,6 +22,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 import { generateTempPassword, hashPassword } from './userImportExport.js';
+import { logAuditEvent } from './auditLog.js';
 
 const INCIDENT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const FAILURE_THRESHOLD = 3;
@@ -172,6 +173,21 @@ export async function reportFailedLogin(
   if (!userRecord) return { locked: false }; // defensive — verify already implied existence
 
   const uid = userRecord.uid;
+
+  // Feeds the "Live Transportation" admin table with a visible comment for
+  // every confirmed-wrong-password attempt, not just the 3rd-strike lockout
+  // below — uses the Admin-Auth record's own displayName so this doesn't add
+  // an extra Firestore read to this public, unauthenticated endpoint.
+  await logAuditEvent({
+    userId: uid,
+    userRole: 'unknown',
+    action: 'login_failed',
+    entityType: 'session',
+    entityId: uid,
+    explanation: `Failed login attempt from ${ip}`,
+    userDisplayName: userRecord.displayName,
+  });
+
   const securityRef = securityDocRef(uid);
 
   const shouldCreateIncident = await db.runTransaction(async (transaction) => {

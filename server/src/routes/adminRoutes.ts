@@ -20,6 +20,7 @@ import {
   listDefenseAccessGrants,
   extendDefenseAccessGrant,
   eraseUserBySystemAdmin,
+  resetUserPasswordAdmin,
   updateStudentAcademicYear,
   searchStudents,
   deleteAuditLogEntries,
@@ -89,6 +90,7 @@ router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
+router.post('/users/:id/reset-password', verifyToken, resetUserPasswordAdmin);
 router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);
 // system_admin (any student) or faculty_admin (own faculty only) — gated
 // inside the controller, not here, matching createAdminProject's pattern.

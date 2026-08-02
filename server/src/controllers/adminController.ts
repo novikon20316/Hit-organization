@@ -20,9 +20,25 @@ import { hasActionGrant, withinCoordinatorScope } from '../services/scopeAuthori
 import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { notifyUser } from '../services/notify.js';
+import { sendNotificationEmail } from '../services/emailService.js';
 import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
 
 const db = admin.firestore();
+
+// Logs a denied attempt at a system_admin-only endpoint to the same
+// `auditLog` collection the "Live Transportation" table reads — never blocks
+// or throws, matching logAuditEvent's own fire-and-forget contract.
+async function logPermissionDenied(req: AuthenticatedRequest, entityType: string, entityId: string | string[] | undefined) {
+  await logAuditEvent({
+    userId: req.user?.uid ?? 'unknown',
+    userRole: req.user?.role ?? 'unknown',
+    action: 'permission_denied',
+    entityType,
+    entityId: typeof entityId === 'string' ? entityId : 'unknown',
+    explanation: `Denied: ${entityType} requires system_admin.`,
+    userDisplayName: req.user?.displayName,
+  });
+}
 
 /**
  * GET /api/admin/dashboard-summary
@@ -34,6 +50,7 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
   const role = req.user?.role;
 
   if (role !== 'system_admin') {
+    await logPermissionDenied(req, 'admin_dashboard_summary', uid ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
@@ -84,6 +101,7 @@ export const getAdminProjectMilestones = async (req: AuthenticatedRequest, res: 
   const role = req.user?.role;
 
   if (role !== 'system_admin') {
+    await logPermissionDenied(req, 'admin_project_milestones', typeof req.query.projectId === 'string' ? req.query.projectId : 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
@@ -518,6 +536,7 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
  */
 export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'system_admin') {
+    await logPermissionDenied(req, 'project', req.params.id ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
@@ -764,6 +783,7 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
  */
 export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'system_admin') {
+    await logPermissionDenied(req, 'user', req.params.id ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
@@ -800,6 +820,74 @@ export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Resp
   } catch (error: any) {
     console.error('toggleUserStatusAdmin Error:', error);
     return res.status(500).json({ message: 'Failed to toggle user status.' });
+  }
+};
+
+/**
+ * POST /api/admin/users/:id/reset-password
+ * Generates a new temporary password for a user and forces a change on
+ * their next login — the supported alternative to erasing and recreating an
+ * account just to give it a new password. Mirrors the exact Admin-SDK +
+ * mustChangePassword/tempPasswordHash convention already used by
+ * createAdminUser and loginSecurity.ts's resolveIncident (owner decision).
+ */
+export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  const role = req.user?.role;
+  const roles = req.user?.roles ?? [];
+  const isSystemAdmin = role === 'system_admin' || roles.includes('system_admin');
+  if (!isSystemAdmin) {
+    await logPermissionDenied(req, 'user', req.params.id ?? 'unknown');
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  const { id: userId } = req.params;
+  if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+
+  try {
+    const targetSnap = await db.collection('users').doc(userId).get();
+    if (!targetSnap.exists) return res.status(404).json({ message: 'User not found.' });
+    const target = targetSnap.data()!;
+
+    const tempPassword = generateTempPassword();
+    // Also clears the Auth-level `disabled` flag — same recovery rationale as
+    // toggleUserStatusAdmin's reactivation branch — but leaves Firestore
+    // `isActive` untouched, since that's a separate, deliberate suspension
+    // flag with its own toggle.
+    await admin.auth().updateUser(userId, { password: tempPassword, disabled: false });
+    await db.collection('users').doc(userId).update({
+      mustChangePassword: true,
+      tempPasswordHash: hashPassword(tempPassword),
+      updatedAt: new Date().toISOString(),
+    });
+
+    try {
+      await sendNotificationEmail({
+        toEmail: target.email,
+        type: 'temp_password_issued',
+        lang: target.language === 'en' ? 'en' : 'he',
+        data: { name: target.displayName || '', tempPassword },
+      });
+    } catch (err) {
+      console.error(`Failed to send temp_password_issued email for ${userId}:`, err);
+    }
+
+    await logAuditEvent({
+      userId: req.user!.uid,
+      userRole: req.user!.role ?? '',
+      action: 'password_reset_by_admin',
+      entityType: 'user',
+      entityId: userId,
+      explanation: `Password reset for ${target.email ?? userId} by admin`,
+      userDisplayName: req.user?.displayName,
+    });
+
+    // tempPassword is returned directly (not just emailed) so the admin can
+    // hand it over immediately even if delivery is delayed — see the known
+    // Brevo/Gmail freemail-sender deferral issue.
+    return res.status(200).json({ success: true, tempPassword, message: 'Password reset.' });
+  } catch (error: any) {
+    console.error('resetUserPasswordAdmin error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to reset password.' });
   }
 };
 
@@ -854,6 +942,7 @@ export const disableUser2FA = async (req: AuthenticatedRequest, res: Response) =
 
   const isAuthorized = role === 'system_admin' ||  roles.includes('system_admin') ;
   if (!isAuthorized) {
+    await logPermissionDenied(req, 'user', req.params.id ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: admin only.' });
   }
 
@@ -936,6 +1025,7 @@ export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Res
  */
 export const deleteAuditLogEntries = async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'system_admin') {
+    await logPermissionDenied(req, 'auditLog', 'delete');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
@@ -993,6 +1083,7 @@ export const deleteAuditLogEntries = async (req: AuthenticatedRequest, res: Resp
  */
 export const listDefenseAccessGrants = async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'system_admin') {
+    await logPermissionDenied(req, 'defenseAccessGrants', 'list');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
@@ -1029,6 +1120,7 @@ export const listDefenseAccessGrants = async (req: AuthenticatedRequest, res: Re
  */
 export const extendDefenseAccessGrant = async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'system_admin') {
+    await logPermissionDenied(req, 'defenseAccessGrant', req.params.grantCode ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
