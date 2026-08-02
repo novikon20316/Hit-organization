@@ -362,6 +362,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Minute-by-minute online-count samples for the "Live Transportation"
+    // trend chart (server/src/services/presenceHistory.ts) — written
+    // exclusively by the Admin SDK on a schedule, never by clients.
+    match /presenceHistory/{sampleId} {
+      allow read: if isSignedIn() && role(userDoc()) == 'system_admin';
+      allow write: if false;
+    }
+
     match /auditLog/{entryId} {
       allow read: if isSignedIn() &&
         role(userDoc()) in [

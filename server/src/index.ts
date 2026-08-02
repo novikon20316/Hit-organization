@@ -44,6 +44,7 @@ import { getStudentStatusOptions } from './controllers/studentStatusController.j
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
 import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders } from './services/notificationScheduler.js';
+import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { WEBSITE_URL } from './config/links.js';
 
@@ -204,6 +205,18 @@ setInterval(() => {
 setInterval(() => {
   sendExaminerDeadlineReminders().catch((err) => console.error('sendExaminerDeadlineReminders sweep failed:', err));
 }, ONE_HOUR_MS);
+// Presence-count trend samples for the "Live Transportation" chart — see
+// services/presenceHistory.ts. Sampled every minute regardless of whether an
+// admin has the page open, and run once immediately so the chart isn't empty
+// for the first minute after a fresh deploy.
+const PRESENCE_SAMPLE_MS = 60 * 1000;
+samplePresenceHistory().catch((err) => console.error('samplePresenceHistory initial sample failed:', err));
+setInterval(() => {
+  samplePresenceHistory().catch((err) => console.error('samplePresenceHistory sweep failed:', err));
+}, PRESENCE_SAMPLE_MS);
+setInterval(() => {
+  prunePresenceHistory().catch((err) => console.error('prunePresenceHistory sweep failed:', err));
+}, ONE_DAY_MS);
 
 // ─── 0.0.0.0 lets physical devices reach the server on local network ──────────
 app.listen(PORT, '0.0.0.0', () => {
