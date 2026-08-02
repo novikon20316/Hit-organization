@@ -11,7 +11,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { getHomeRoute, type AppRole } from '@/lib/roles';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,10 +28,28 @@ export default function ChangePasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const sessionExpiredError = lang === 'he'
+    ? 'החיבור שלך פג. אנא התחבר מחדש כדי לשנות את הסיסמה.'
+    : 'Your session has expired. Please log in again to change your password.';
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Guards against the exact bug a tester hit on mobile's identical
+    // screen: sitting here with no live Firebase session (e.g. after "Sign
+    // out instead", or a session that expired while this page was open) and
+    // submitting anyway. Without this check apiClient silently sends the
+    // request with no Authorization header at all, and the server's generic
+    // 401 ("Missing or malformed authorization token") surfaces below
+    // looking like a password-validation failure instead of what it is.
+    if (!auth.currentUser) {
+      setError(sessionExpiredError);
+      return;
+    }
+
     // Baseline client-side check (8+ chars, upper/lower/digit/symbol) — the
     // server is authoritative and enforces the stricter 12-character
     // system_admin policy plus the "not the same as your temporary
@@ -70,15 +88,31 @@ export default function ChangePasswordPage() {
 
       router.replace(getHomeRoute(role as AppRole));
     } catch (err) {
-      setError(err instanceof Error ? err.message : lang === 'he' ? 'שינוי הסיסמה נכשל. אנא נסה שוב.' : 'Failed to change password. Please try again.');
+      if (err instanceof ApiError && err.status === 401) {
+        setError(sessionExpiredError);
+      } else {
+        setError(err instanceof Error ? err.message : lang === 'he' ? 'שינוי הסיסמה נכשל. אנא נסה שוב.' : 'Failed to change password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignOutInstead = async () => {
-    await logout();
-    router.replace('/login');
+    // Previously this awaited logout() with no try/catch — if it ever
+    // rejected (logout() itself calls the unguarded signOut(auth); see
+    // AuthContext), the router.replace below never ran and the user was
+    // left stuck on this exact screen looking like the button did nothing.
+    // The navigation now always runs (same fix as mobile's identical bug).
+    setSigningOut(true);
+    try {
+      await logout();
+    } catch (err) {
+      console.warn('Sign out failed, navigating to login anyway:', err);
+    } finally {
+      setSigningOut(false);
+      router.replace('/login');
+    }
   };
 
   return (
@@ -139,8 +173,8 @@ export default function ChangePasswordPage() {
             </button>
           </form>
 
-          <button type="button" onClick={handleSignOutInstead} className="mt-4 w-full text-center text-sm text-muted hover:text-ink">
-            {lang === 'he' ? 'התנתק במקום' : 'Sign out instead'}
+          <button type="button" onClick={handleSignOutInstead} disabled={signingOut} className="mt-4 w-full text-center text-sm text-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-60">
+            {signingOut ? '…' : lang === 'he' ? 'התנתק במקום' : 'Sign out instead'}
           </button>
         </div>
       </main>
