@@ -10,10 +10,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
+import { useAuth } from '@/contexts/AuthContext';
 import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication, MilestoneType } from '@/app/student/home/types';
 import { MILESTONE_ORDER } from '@/app/student/home/types';
 
 export function useStudentData() {
+  const { loading: authLoading, firebaseUser } = useAuth();
   const [studentState, setStudentState] = useState<StudentState>('loading');
   const [proposals, setProposals] = useState<ProjectProposal[]>([]);
   const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
@@ -111,9 +113,18 @@ export function useStudentData() {
 
   // ── EFFECT 1: fetch profile on mount ──────────────────────────────────────
   useEffect(() => {
+    // Wait for AuthContext to resolve Firebase's restored session first — on
+    // a hard reload auth.currentUser is briefly null while that restore is
+    // in flight, so calling fetchDashboardData before authLoading flips
+    // false sends every request with no Authorization header at all
+    // (apiClient.ts's request() reads auth.currentUser synchronously). The
+    // catch block below then sets studentState to 'no_project' on ANY
+    // error, so this used to silently mask a real active project or pending
+    // application as "no project" instead of surfacing an error or retrying.
+    if (authLoading) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboardData's setState calls happen after its awaited network calls resolve, not synchronously in this effect
     fetchDashboardData();
-  }, [fetchDashboardData]);
+  }, [authLoading, fetchDashboardData]);
 
   // ── EFFECT 2: live proposals listener (only when browsing) ────────────────
   useEffect(() => {
@@ -171,7 +182,15 @@ export function useStudentData() {
   // ── EFFECT 3: user-doc listener (watches hasActiveProject flag) ───────────
   useEffect(() => {
     cancel(unsubUserDoc);
-    const uid = auth.currentUser?.uid;
+    // Read the uid from AuthContext's reactive firebaseUser, not a
+    // one-time auth.currentUser lookup — this effect previously only ran
+    // once on mount (its only dependency, fetchDashboardData, never
+    // changes), so if auth.currentUser was still null at that instant
+    // (mid hard-reload, before Firebase finished restoring the session)
+    // this listener would silently never attach for the rest of the
+    // component's life. Depending on firebaseUser makes it re-run once
+    // the session resolves.
+    const uid = firebaseUser?.uid;
     if (!uid) return;
 
     const unsub = onSnapshot(
@@ -191,7 +210,7 @@ export function useStudentData() {
 
     unsubUserDoc.current = unsub;
     return () => cancel(unsubUserDoc);
-  }, [fetchDashboardData]);
+  }, [firebaseUser, fetchDashboardData]);
 
   // ── EFFECT 4: live milestones listener (only when active project loaded) ──
   useEffect(() => {

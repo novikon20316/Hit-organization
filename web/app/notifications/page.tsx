@@ -22,7 +22,7 @@ type Tab = 'notifs' | 'chats' | 'feedback';
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { userData } = useAuth();
+  const { userData, loading: authLoading } = useAuth();
   const { lang, t } = useLanguage();
   const { refresh: refreshBadges } = useNotifications();
 
@@ -75,6 +75,13 @@ export default function NotificationsPage() {
   }, [lang]);
 
   useEffect(() => {
+    // Wait for AuthContext to resolve Firebase's restored session first — on
+    // a hard reload auth.currentUser is briefly null while that restore is
+    // in flight, so firing these before authLoading flips false sends every
+    // request with no Authorization header at all (apiClient.ts's request()
+    // reads auth.currentUser synchronously), which the server correctly
+    // rejects as unauthorized rather than this being a real outage.
+    if (authLoading) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- polling on mount; both fetch functions' setState calls happen after their awaited network calls resolve, not synchronously in this effect
     fetchNotifications();
     fetchChats();
@@ -83,7 +90,7 @@ export default function NotificationsPage() {
       fetchChats();
     }, 30_000);
     return () => clearInterval(interval);
-  }, [fetchNotifications, fetchChats]);
+  }, [authLoading, fetchNotifications, fetchChats]);
 
   const handleTapNotif = async (notif: Notif) => {
     if (!notif.isRead) {
