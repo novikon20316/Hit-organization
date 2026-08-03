@@ -91,10 +91,21 @@ service cloud.firestore {
           'displayName', 'displayNameHe', 'displayNameEn', 'language'
         ]);
 
-      // Staff editing ANOTHER user's account — also field-restricted, and
-      // explicitly excludes self (a staff member editing their own doc must
-      // go through the self-service branch above, not this broader one).
-      allow update: if isSignedIn() && userId != request.auth.uid && isStaffRole(userDoc()) &&
+      // CRITICAL FIX: this used to allow ANY staff role (isStaffRole) to
+      // flip isActive on ANY other user, cross-faculty, including admins —
+      // a plain supervisor or internal_examiner could disable a
+      // system_admin's account directly from the client SDK, bypassing the
+      // server (and its faculty-scoping) entirely. A repo-wide search
+      // confirmed neither client actually needs this broad path: mobile's
+      // faculty_admin/dashboard.tsx and web's UserRow.tsx both already call
+      // the scoped server endpoints (POST /api/admin/users/:id/toggle-active
+      // — facultyAdminController.ts, faculty-scoped — and .../toggle-status
+      // — adminController.ts, system_admin-only) instead of writing this
+      // field directly. Only system_admin's own admin-panel toggle (which
+      // also goes through toggle-status) needs a direct-write fallback here,
+      // so this branch is narrowed to system_admin only rather than removed
+      // entirely.
+      allow update: if isSignedIn() && userId != request.auth.uid && role(userDoc()) == 'system_admin' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'isActive'
         ]);
@@ -294,10 +305,19 @@ service cloud.firestore {
       // functions actually use (status/acceptedAt/declinedAt/declineReason/
       // submittedAt/opinion/accessLog, and only forward status transitions),
       // never touching thesisUrl/studentId/examinerEmail/expiresAt/etc.
-      // The anonymous branch additionally requires otpVerified == true —
-      // the request-otp/verify-otp endpoints (server, admin SDK) are the
-      // only way to flip that field, so an anonymous writer must have
-      // already passed the second factor before touching anything here.
+      // CRITICAL FIX: otpVerified is a one-way flag — set once by
+      // request-otp/verify-otp and never reset on decline/timeout/
+      // supersede/staff-revoke — so on its own it doesn't stop an examiner
+      // who verified once from writing forever, including after being
+      // replaced (services/examinerEscalation.ts's promoteNextExaminer,
+      // status → 'superseded') or explicitly revoked by staff (status →
+      // 'expired'). This branch previously only restricted which TARGET
+      // statuses were legal, never which CURRENT status a write was allowed
+      // FROM — a superseded/declined/submitted/expired token stayed
+      // writable indefinitely. Now also requires the token's current status
+      // to still be 'pending' or 'accepted' (i.e. not yet in a terminal
+      // state), so a replaced or revoked examiner is locked out immediately
+      // regardless of whether their otpVerified flag was ever cleared.
       allow update: if
         (isSignedIn() &&
           role(userDoc()) in [
@@ -307,6 +327,7 @@ service cloud.firestore {
         ) ||
         (
           resource.data.otpVerified == true &&
+          resource.data.status in ['pending', 'accepted'] &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
             ['status', 'acceptedAt', 'declinedAt', 'declineReason', 'submittedAt', 'opinion', 'accessLog']
           ) &&
@@ -480,11 +501,29 @@ service cloud.firestore {
         }
 
         allow read: if isParentParticipant();
+        // The live path is server-mediated (chatController.ts's
+        // sendDirectMessage, Admin SDK — bypasses this rule); kept as
+        // defense-in-depth matching that endpoint's own validation, now
+        // extended for image messages (see server/src/controllers/
+        // chatController.ts's CHAT_IMAGE_URL_RE for why the host is pinned
+        // rather than accepting any https URL).
         allow create: if isParentParticipant()
           && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 4000;
+          && (
+            (
+              request.resource.data.get('type', 'text') == 'text' &&
+              request.resource.data.text is string &&
+              request.resource.data.text.size() > 0 &&
+              request.resource.data.text.size() <= 4000
+            ) ||
+            (
+              request.resource.data.type == 'image' &&
+              request.resource.data.imageUrl is string &&
+              request.resource.data.imageUrl.matches('^https://res\\.cloudinary\\.com/dp7stlfas/image/upload/.*') &&
+              request.resource.data.get('text', '') is string &&
+              request.resource.data.get('text', '').size() <= 1000
+            )
+          );
         allow update, delete: if false;
       }
     }

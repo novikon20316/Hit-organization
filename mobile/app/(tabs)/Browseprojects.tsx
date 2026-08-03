@@ -335,16 +335,18 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                   </View>
                   {/* ── END NEW ── */}
 
-                  {/* Required skills */}
-                  {p.requiredSkills.length > 0 && (
+                  {/* Required skills — falls back to [] for any project doc
+                      missing this field (legacy/pre-migration data), matching
+                      the guard the search filter above already uses. */}
+                  {(p.requiredSkills ?? []).length > 0 && (
                     <View style={[styles.skillsRow, isRtl && styles.rowReverse, { marginTop: 8 }]}>
-                      {p.requiredSkills.slice(0, 4).map((sk) => (
+                      {(p.requiredSkills ?? []).slice(0, 4).map((sk) => (
                         <View key={sk} style={styles.skillChip}>
                           <Text style={styles.skillText}>{sk}</Text>
                         </View>
                       ))}
-                      {p.requiredSkills.length > 4 && (
-                        <Text style={styles.moreSkills}>+{p.requiredSkills.length - 4}</Text>
+                      {(p.requiredSkills ?? []).length > 4 && (
+                        <Text style={styles.moreSkills}>+{(p.requiredSkills ?? []).length - 4}</Text>
                       )}
                     </View>
                   )}

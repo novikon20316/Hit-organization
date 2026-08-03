@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, Text, FlatList,
+  View, Text, FlatList, Image, Modal,
   TextInput, Pressable, KeyboardAvoidingView, Platform,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { auth } from '../../src/firebase/firebase';
 import { roleColor } from './new';
 import { apiClient } from '@/src/api/apiClient';
@@ -15,9 +16,30 @@ import { ChatScreenStyles } from '../../constants/styles';
 
 interface Message {
   id:        string;
+  type:      'text' | 'image';
   text:      string;
+  imageUrl:  string | null;
   senderId:  string;
   createdAt: string | null; // ISO string from backend, never a Firestore Timestamp
+}
+
+// Uploads directly to the same Cloudinary cloud/preset the rest of the app
+// already uses for CV/transcript/project-file uploads — the server
+// independently re-validates the returned URL's host before accepting it as
+// a chat message, so this client-side upload step is never trusted by
+// itself. `/image/upload` (not `/raw/upload`) so Cloudinary applies its own
+// image validation/transform pipeline rather than storing it as an opaque file.
+async function uploadChatImage(uri: string): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', { uri, type: 'image/jpeg', name: 'chat-image.jpg' } as any);
+  formData.append('upload_preset', 'student_uploads');
+  const response = await fetch('https://api.cloudinary.com/v1_1/dp7stlfas/image/upload', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) throw new Error(`Image upload failed — HTTP ${response.status}`);
+  const data = await response.json();
+  return data.secure_url;
 }
 
 // ─── Role → readable label ────────────────────────────────────────────────────
@@ -64,6 +86,8 @@ export default function ChatScreen() {
   const [messages,   setMessages]   = useState<Message[]>([]);
   const [text,       setText]       = useState('');
   const [sending,    setSending]    = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [viewerUrl,      setViewerUrl]       = useState<string | null>(null);
   // Before this flips false, a zero-length messages array is ambiguous
   // (real empty chat vs. still loading vs. a failed fetch) — without it,
   // ListEmptyComponent showed "No messages yet. Say hi!" in all three cases
@@ -164,6 +188,30 @@ export default function ChatScreen() {
     }
   };
 
+  // ── Pick + send an image (WhatsApp-style attachment) ───────────────────────
+  const pickAndSendImage = async () => {
+    if (uploadingImage || !currentUser) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    setUploadingImage(true);
+    try {
+      const imageUrl = await uploadChatImage(result.assets[0].uri);
+      await apiClient.post(`/api/chats/${chatId}/messages`, { imageUrl });
+      await fetchMessages();
+    } catch (err) {
+      console.error('Send image error:', err);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   // ── Derived header values ──────────────────────────────────────────────────
   const initials    = headerName
     ? headerName.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -237,11 +285,29 @@ export default function ChatScreen() {
                   <Text style={s.timeStamp}>{formatTime(item.createdAt)}</Text>
                 )}
                 <View style={[s.msgWrap, mine && s.msgWrapMine]}>
-                  <View style={[s.bubble, mine && s.bubbleMine]}>
-                    <Text style={[s.bubbleText, mine && s.bubbleTextMine]}>
-                      {item.text}
-                    </Text>
-                  </View>
+                  {item.type === 'image' && item.imageUrl ? (
+                    <Pressable
+                      style={[s.bubble, mine && s.bubbleMine, { padding: 4 }]}
+                      onPress={() => setViewerUrl(item.imageUrl)}
+                    >
+                      <Image
+                        source={{ uri: item.imageUrl }}
+                        style={{ width: 200, height: 200, borderRadius: 10 }}
+                        resizeMode="cover"
+                      />
+                      {item.text ? (
+                        <Text style={[s.bubbleText, mine && s.bubbleTextMine, { marginTop: 6, paddingHorizontal: 6 }]}>
+                          {item.text}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  ) : (
+                    <View style={[s.bubble, mine && s.bubbleMine]}>
+                      <Text style={[s.bubbleText, mine && s.bubbleTextMine]}>
+                        {item.text}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </>
             );
@@ -250,6 +316,16 @@ export default function ChatScreen() {
 
         {/* ── Input bar ── */}
         <View style={s.inputBar}>
+          <Pressable
+            style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+            onPress={pickAndSendImage}
+            disabled={uploadingImage}
+          >
+            {uploadingImage
+              ? <ActivityIndicator color={accentColor} size="small" />
+              : <Text style={{ fontSize: 22 }}>📎</Text>
+            }
+          </Pressable>
           <TextInput
             value={text}
             onChangeText={setText}
@@ -273,6 +349,18 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ── Full-screen image viewer ── */}
+      <Modal visible={!!viewerUrl} transparent animationType="fade" onRequestClose={() => setViewerUrl(null)}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' }}
+          onPress={() => setViewerUrl(null)}
+        >
+          {viewerUrl && (
+            <Image source={{ uri: viewerUrl }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />
+          )}
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }

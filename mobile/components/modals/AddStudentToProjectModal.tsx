@@ -158,7 +158,7 @@ export default function AddStudentToProjectModal({
                   ]}
                 >
                   <Text style={styles.avatarText}>
-                    {u.displayName.charAt(0).toUpperCase()}
+                    {(u.displayName || '?').charAt(0).toUpperCase()}
                   </Text>
                 </View>
 

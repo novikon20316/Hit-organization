@@ -74,6 +74,11 @@ export default function PanelScreen() {
   const [feedbackStatusFilter, setFeedbackStatusFilter] = useState<'open' | 'resolved'>('open');
   const [resolvingFeedbackId, setResolvingFeedbackId] = useState<string | null>(null);
 
+  // ── Accounts currently disabled by the 3-strikes failed-login flow ───────
+  const [lockedUsers, setLockedUsers] = useState<Array<{ code: string; uid: string; email: string; displayName: string; ip: string; location: string; createdAt: string }>>([]);
+  const [loadingLocked, setLoadingLocked] = useState(false);
+  const [liftingCode, setLiftingCode] = useState<string | null>(null);
+
   // ── Expired defense-day access grants (external examiners who missed their
   //    day-of window) — system_admin can grant a longer recovery window ────
   const [defenseGrants, setDefenseGrants] = useState<any[]>([]);
@@ -412,6 +417,44 @@ export default function PanelScreen() {
     };
     fetchFeedback();
   }, [activeTab, feedbackStatusFilter]);
+
+  // ── Locked-account list (3-strikes failed-login lockouts) ───────────────
+  const fetchLockedUsers = async () => {
+    try {
+      setLoadingLocked(true);
+      const res = await apiClient.getLockedUsers();
+      setLockedUsers(res.lockouts ?? []);
+    } catch (e) {
+      console.error('Failed to load locked accounts:', e);
+    } finally {
+      setLoadingLocked(false);
+    }
+  };
+  useEffect(() => {
+    if (activeTab !== 'users') return;
+    fetchLockedUsers();
+  }, [activeTab]);
+
+  const handleLiftLockout = async (code: string) => {
+    if (liftingCode) return;
+    setLiftingCode(code);
+    try {
+      await apiClient.liftLoginLockout(code);
+      setLockedUsers((prev) => prev.filter((l) => l.code !== code));
+      Alert.alert(
+        lang === 'he' ? 'הצליח' : 'Success',
+        lang === 'he' ? 'הנעילה הוסרה. סיסמה זמנית חדשה נשלחה למשתמש.' : 'Lockout lifted. A new temp password was emailed to the user.'
+      );
+    } catch (e: any) {
+      console.error('Failed to lift lockout:', e);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'הסרת הנעילה נכשלה' : 'Failed to lift the lockout')
+      );
+    } finally {
+      setLiftingCode(null);
+    }
+  };
 
   const handleResolveFeedback = async (id: string) => {
     try {
@@ -1339,6 +1382,37 @@ export default function PanelScreen() {
 
         {activeTab === 'users' && (
           <>
+            {(loadingLocked || lockedUsers.length > 0) && (
+              <View style={{ backgroundColor: '#FEF2F2', borderRadius: 14, borderWidth: 1, borderColor: '#FECACA', padding: 14, marginBottom: 14 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#991B1B', marginBottom: 4 }}>
+                  🔒 {lang === 'he' ? 'חשבונות נעולים (3 סיסמאות שגויות)' : 'Locked accounts (3 wrong-password attempts)'}
+                </Text>
+                {loadingLocked ? (
+                  <ActivityIndicator color="#991B1B" style={{ marginTop: 6 }} />
+                ) : (
+                  lockedUsers.map((l) => (
+                    <View key={l.code} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FEE2E2', marginTop: 6 }}>
+                      <View style={{ flex: 1, marginRight: 10 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827' }}>{l.displayName || l.email}</Text>
+                        <Text style={{ fontSize: 11, color: '#7F1D1D' }}>
+                          {l.email} · {new Date(l.createdAt).toLocaleString()}{l.location ? ` · ${l.location}` : ''}
+                        </Text>
+                      </View>
+                      <Pressable
+                        style={{ backgroundColor: '#991B1B', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
+                        onPress={() => handleLiftLockout(l.code)}
+                        disabled={liftingCode === l.code}
+                      >
+                        {liftingCode === l.code
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{lang === 'he' ? 'הסר נעילה' : 'Lift lockout'}</Text>
+                        }
+                      </Pressable>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
             {filteredUsers.map((u) => {
               const fc = getFacultyColor(u.facultyId);
               const rc = getRoleAccent(u.role);
@@ -1353,7 +1427,7 @@ export default function PanelScreen() {
                       ]}
                     >
                       <Text style={styles.avatarText}>
-                        {u.displayName.charAt(0).toUpperCase()}
+                        {(u.displayName || '?').charAt(0).toUpperCase()}
                       </Text>
                     </View>
 

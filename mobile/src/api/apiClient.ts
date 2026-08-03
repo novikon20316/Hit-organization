@@ -223,6 +223,21 @@ class ApiClient {
     return response.data;
   }
 
+  // ─── 4b. LOGIN SECURITY — system_admin panel view ────────────────────────
+  /** Accounts currently disabled by the 3-strikes failed-login flow, still
+   *  awaiting either the owner's own email link or an admin lifting it. */
+  async getLockedUsers() {
+    const response = await this.api.get('/api/admin/login-security/locked');
+    return response.data as { lockouts: Array<{ code: string; uid: string; email: string; displayName: string; ip: string; location: string; createdAt: string }> };
+  }
+
+  /** Re-enables the account, issues + emails a fresh temp password, clears
+   *  the incident — same effect as the owner's own "yes, this was me" link. */
+  async liftLoginLockout(code: string) {
+    const response = await this.api.post(`/api/admin/login-security/${encodeURIComponent(code)}/lift`);
+    return response.data as { success: boolean; message: string };
+  }
+
   // ─── 5. GRADE HISTORY — read-only over `grades` + `auditLog` ─────────────
   async getProjectGradeHistory(projectId: string) {
     const response = await this.api.get(`/api/grades/history/${projectId}`);

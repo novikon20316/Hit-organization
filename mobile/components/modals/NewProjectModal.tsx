@@ -93,6 +93,7 @@ type Props = {
   projectName: string | null; setProjectName: (v: string | null) => void;
   projectFile: string | null; setProjectFile: (v: string | null) => void;
   pickFile:    (v: boolean) => void;
+  uploadingFile?: boolean;
 
   // The logged-in user — used to lock faculty scope for supervisors
   currentUser?:  AppUser;
@@ -121,6 +122,7 @@ export default function NewProjectModal({
   projectName, setProjectName,
   projectFile, setProjectFile,
   pickFile,
+  uploadingFile,
   currentUser,
   facultyColors, styles,
 }: Props) {
@@ -232,10 +234,15 @@ export default function NewProjectModal({
             marginBottom:    16,
           }]}
           onPress={() => pickFile(true)}
+          disabled={uploadingFile}
         >
-          <Text style={styles.uploadBtnText}>
-            {projectFile ? `✓ ${projectName}` : `📄 ${tx('tapToUpload', lang)}`}
-          </Text>
+          {uploadingFile ? (
+            <ActivityIndicator color="#2E86FF" />
+          ) : (
+            <Text style={styles.uploadBtnText}>
+              {projectFile ? `✓ ${projectName}` : `📄 ${tx('tapToUpload', lang)}`}
+            </Text>
+          )}
         </Pressable>
 
         {/* ── Faculty: checkboxes for admin/faculty_admin, read-only badge for supervisor ──── */}

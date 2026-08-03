@@ -1,5 +1,5 @@
 // app/supervisor/home.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   View, Text, ScrollView, Pressable,
@@ -98,8 +98,17 @@ export default function SupervisorHome() {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
+  // projectFile holds the hosted Cloudinary URL once pickFile's upload
+  // resolves — never the raw local device URI (see pickFile's own comment
+  // for why that was the bug: a project's info PDF was silently discarded).
   const [projectFile, setProjectFile] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string | null>(null);
+  const [uploadingProjectFile, setUploadingProjectFile] = useState(false);
+  // Separate from projectFile/projectName above so opening the Edit modal
+  // never shows leftover state from a previous New Project session (or
+  // vice versa) — the two modals used to share one pair of state variables.
+  const [editProjectFile, setEditProjectFile] = useState<string | null>(null);
+  const [editProjectFileName, setEditProjectFileName] = useState<string | null>(null);
   const [myProjects,     setMyProjects]     = useState<MyProject[]>([]);
   const [applications,   setApplications]   = useState<Application[]>([]);
   const [pendingGrades,  setPendingGrades]  = useState<PendingMilestone[]>([]);
@@ -287,152 +296,178 @@ export default function SupervisorHome() {
   }, [supervisorId]);
 
 
-  // ── Firestore: real-time applications listener ────────────────────────────
-  // Starts listening once we have the supervisorId from the API response
-  // ── Firestore: real-time applications listener ────────────────────────────
-  useEffect(() => {
-    if (!supervisorId) return;  // ✅ only depend on supervisorId, not facultyId
-
-    // Clean up any previous listener before starting a new one
-    unsubApplicationsRef.current?.();
-
-    const appsQuery = query(
-      collection(db, 'applications'),
-      where('supervisorId', '==', supervisorId),
-      where('status', 'in', ['applied', 'meeting_requested']),
-      
-    );
-
-    const unsub = onSnapshot(
-      appsQuery,
-      (snapshot) => {
-        console.log('📬 Applications snapshot fired, docs:', snapshot.docs.length); // ← add this temporarily
-
-        const apps: Application[] = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id:             d.id,
-            projectId:      data.projectId      ?? '',
-            projectTitleHe: data.projectTitleHe ?? '',
-            projectTitleEn: data.projectTitleEn ?? '',
-            studentId:      data.studentId      ?? '',
-            // ✅ Try all possible name field variations
-            studentName:    data.studentName ?? data.displayName ?? data.displayNameHe ?? data.name ?? '',
-            studentEmail:   data.studentEmail ?? data.email ?? '',
-            transcriptUrl:  data.transcriptUrl  ?? '',
-            cvUrl:          data.cvUrl          ?? '',
-            coverNote:      data.coverNote      ?? '',
-            status:         data.status         ?? '',
-            submittedAt:    data.submittedAt    ?? null,
-            degreeType:     data.degreeType     ?? '',  // ← add this
-          };
-        });
-
-        setApplications(apps);
-      },
-      (error) => {
-        // ✅ Now errors are visible instead of silently swallowed
-        console.error('❌ Applications listener error:', error.code, error.message);
-      },
-    );
-    unsubApplicationsRef.current = unsub;
-
-    return () => unsub(); // ✅ cleanup always returned
-  }, [supervisorId, myProjects]);
-
   // ── Firestore: real-time projects listener ────────────────────────────────
+  // CRITICAL FIX: this used to query `supervisorId == uid` only, so a
+  // secondary_supervisor's entire dashboard (projects, applications, grading
+  // below) was permanently empty — none of those collections ever get
+  // filtered by secondarySupervisorId in Firestore rules or elsewhere, only
+  // the project doc itself carries that field. Two listeners now (primary +
+  // secondary), merged and deduped by id.
   useEffect(() => {
     if (!supervisorId) return;
 
     unsubProjectsRef.current?.();
 
-    const projectsQuery = query(
-      collection(db, 'projects'),
-      where('supervisorId', '==', supervisorId),
-      where('facultyId', '==', facultyId),
+    const toProject = (d: any): MyProject => {
+      const data = d.data();
+      return {
+        id:                 d.id,
+        titleHe:            data.titleHe            ?? '',
+        titleEn:            data.titleEn            ?? '',
+        descriptionHe:      data.descriptionHe      ?? '',
+        descriptionEn:      data.descriptionEn      ?? '',
+        facultyId:          data.facultyId          ?? '',
+        status:             data.status             ?? '',
+        degreeType:         data.degreeType         ?? '',
+        projectType:        data.projectType        ?? '',
+        academicYear:       data.academicYear       ?? '',
+        applicationIds:     data.applicationIds     ?? [],
+        enrolledStudentIds: data.enrolledStudentIds ?? [],
+        NumberOfStudents:   data.maxStudents        ?? data.NumberOfStudents ?? 1,
+        requiredSkills:     data.requiredSkills     ?? [],
+        projectFileUrl:     data.projectFileUrl     ?? null,
+      };
+    };
+
+    let latestPrimary: MyProject[] = [];
+    let latestSecondary: MyProject[] = [];
+    const mergeAndSet = () => {
+      const seen = new Set<string>();
+      const merged = [...latestPrimary, ...latestSecondary].filter((p) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+      setMyProjects(merged);
+    };
+
+    const unsubPrimary = onSnapshot(
+      query(collection(db, 'projects'), where('supervisorId', '==', supervisorId), where('facultyId', '==', facultyId)),
+      (snapshot) => { latestPrimary = snapshot.docs.map(toProject); mergeAndSet(); },
+      (error) => console.warn('❌ Projects listener (primary) error:', error),
+    );
+    const unsubSecondary = onSnapshot(
+      query(collection(db, 'projects'), where('secondarySupervisorId', '==', supervisorId), where('facultyId', '==', facultyId)),
+      (snapshot) => { latestSecondary = snapshot.docs.map(toProject); mergeAndSet(); },
+      (error) => console.warn('❌ Projects listener (secondary) error:', error),
     );
 
-    const unsub = onSnapshot(
-      projectsQuery,
-      (snapshot) => {
-        const projects: MyProject[] = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id:                 d.id,
-            titleHe:            data.titleHe            ?? '',
-            titleEn:            data.titleEn            ?? '',
-            descriptionHe:      data.descriptionHe      ?? '',
-            descriptionEn:      data.descriptionEn      ?? '',
-            facultyId:          data.facultyId          ?? '',
-            status:             data.status             ?? '',
-            degreeType:         data.degreeType         ?? '',
-            projectType:        data.projectType        ?? '',
-            academicYear:       data.academicYear       ?? '',
-            applicationIds:     data.applicationIds     ?? [],
-            enrolledStudentIds: data.enrolledStudentIds ?? [],
-            NumberOfStudents:   data.maxStudents        ?? data.NumberOfStudents ?? 1,
-          };
-        });
-        setMyProjects(projects); // ✅ updates instantly when Firestore changes
-      },
-      (error) => {
-        console.warn('❌ Projects listener error:', error);
-      },
-    );
-
+    const unsub = () => { unsubPrimary(); unsubSecondary(); };
     unsubProjectsRef.current = unsub;
-    return () => unsub();
-  }, [supervisorId]); // ✅ re-runs only when supervisorId changes
+    return unsub;
+  }, [supervisorId, facultyId]); // ✅ re-runs only when supervisorId/facultyId changes
+
+  // ── Firestore: real-time applications listener ────────────────────────────
+  // CRITICAL FIX: applications never carry a secondarySupervisorId field —
+  // only `projectId`. Now keyed off the merged project-id list above
+  // (chunked at Firestore's 30-value `in` cap) instead of supervisorId, so a
+  // co-supervised project's applications show up regardless of which of the
+  // two supervisors is viewing. Status is filtered in JS since Firestore
+  // only allows one `in`/array clause per query and projectId already needs it.
+  const myProjectIds = useMemo(() => myProjects.map((p) => p.id), [myProjects]);
+  const myProjectIdsKey = myProjectIds.join(',');
 
   useEffect(() => {
-    if (!supervisorId) return;
+    unsubApplicationsRef.current?.();
+    if (myProjectIds.length === 0) { setApplications([]); return; }
 
-    unsubGradingRef.current?.();
+    const idChunks: string[][] = [];
+    for (let i = 0; i < myProjectIds.length; i += 30) idChunks.push(myProjectIds.slice(i, i + 30));
 
-    const gradingQuery = query(
-      collection(db, 'milestones'),
-      where('supervisorId', '==', supervisorId),
-      where('status', '==', 'submitted'),
+    const chunkResults: Application[][] = idChunks.map(() => []);
+    const applyAndSet = () => setApplications(chunkResults.flat());
+
+    const unsubs = idChunks.map((ids, i) =>
+      onSnapshot(
+        query(collection(db, 'applications'), where('projectId', 'in', ids)),
+        (snapshot) => {
+          chunkResults[i] = snapshot.docs
+            .map((d) => {
+              const data = d.data();
+              return {
+                id:             d.id,
+                projectId:      data.projectId      ?? '',
+                projectTitleHe: data.projectTitleHe ?? '',
+                projectTitleEn: data.projectTitleEn ?? '',
+                studentId:      data.studentId      ?? '',
+                studentName:    data.studentName ?? data.displayName ?? data.displayNameHe ?? data.name ?? '',
+                studentEmail:   data.studentEmail ?? data.email ?? '',
+                transcriptUrl:  data.transcriptUrl  ?? '',
+                cvUrl:          data.cvUrl          ?? '',
+                coverNote:      data.coverNote      ?? '',
+                status:         data.status         ?? '',
+                submittedAt:    data.submittedAt    ?? null,
+                degreeType:     data.degreeType     ?? '',
+              } as Application;
+            })
+            .filter((app) => app.status === 'applied' || app.status === 'meeting_requested');
+          applyAndSet();
+        },
+        (error) => console.error('❌ Applications listener error:', error.code, error.message),
+      )
     );
 
-    const unsub = onSnapshot(gradingQuery, async (snapshot) => {
-      const grades: PendingMilestone[] = await Promise.all(
-        snapshot.docs.map(async (d) => {
-          const data = d.data();
-          const studentIds: string[] = data.studentIds ?? [];
+    const unsub = () => unsubs.forEach((u) => u());
+    unsubApplicationsRef.current = unsub;
+    return unsub;
+  }, [myProjectIdsKey]);
 
-          // Resolve student names
-          const studentNames = await Promise.all(
-            studentIds.map(async (sid) => {
-              const snap = await getDoc(doc(db, 'users', sid));
-              return snap.data()?.displayName ?? snap.data()?.displayNameHe ?? '';
-            })
-          );
+  // ── Firestore: real-time grading listener ─────────────────────────────────
+  // CRITICAL FIX: same issue as applications — milestones only ever carry
+  // the primary supervisor's uid, never secondarySupervisorId. Keyed off the
+  // same project-id list instead.
+  useEffect(() => {
+    unsubGradingRef.current?.();
+    if (myProjectIds.length === 0) { setPendingGrades([]); return; }
 
-          return {
-            id:             d.id,
-            projectId:      data.projectId      ?? '',
-            projectTitleHe: data.projectTitleHe ?? '',
-            projectTitleEn: data.projectTitleEn ?? '',
-            type:           data.type           ?? '',
-            status:         data.status         ?? '',
-            studentNames,
-            studentIds,
-            fileUrls:       data.fileUrls       ?? [],
-            submissionNote: data.submissionNote ?? '',
-            facultyId:      data.facultyId      ?? '',
-            dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
-            submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
-            gradingComponents: data.gradingComponents ?? [],
-          };
-        })
-      );
-      setPendingGrades(grades);
-    });
+    const idChunks: string[][] = [];
+    for (let i = 0; i < myProjectIds.length; i += 30) idChunks.push(myProjectIds.slice(i, i + 30));
 
+    const chunkResults: PendingMilestone[][] = idChunks.map(() => []);
+    const applyAndSet = () => setPendingGrades(chunkResults.flat());
+
+    const unsubs = idChunks.map((ids, i) =>
+      onSnapshot(query(collection(db, 'milestones'), where('projectId', 'in', ids)), async (snapshot) => {
+        const submitted = snapshot.docs.filter((d) => d.data().status === 'submitted');
+        const grades: PendingMilestone[] = await Promise.all(
+          submitted.map(async (d) => {
+            const data = d.data();
+            const studentIds: string[] = data.studentIds ?? [];
+
+            const studentNames = await Promise.all(
+              studentIds.map(async (sid) => {
+                const snap = await getDoc(doc(db, 'users', sid));
+                return snap.data()?.displayName ?? snap.data()?.displayNameHe ?? '';
+              })
+            );
+
+            return {
+              id:             d.id,
+              projectId:      data.projectId      ?? '',
+              projectTitleHe: data.projectTitleHe ?? '',
+              projectTitleEn: data.projectTitleEn ?? '',
+              type:           data.type           ?? '',
+              status:         data.status         ?? '',
+              studentNames,
+              studentIds,
+              fileUrls:       data.fileUrls       ?? [],
+              submissionNote: data.submissionNote ?? '',
+              facultyId:      data.facultyId      ?? '',
+              dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
+              submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
+              gradingComponents: data.gradingComponents ?? [],
+            };
+          })
+        );
+        chunkResults[i] = grades;
+        applyAndSet();
+      })
+    );
+
+    const unsub = () => unsubs.forEach((u) => u());
     unsubGradingRef.current = unsub;
-    return () => unsub();
-  }, [supervisorId]);
+    return unsub;
+  }, [myProjectIdsKey]);
 
   // ── Create project ────────────────────────────────────────────────────────
   const handleCreateProject = async () => {
@@ -468,7 +503,7 @@ export default function SupervisorHome() {
         descriptionEn: newDescEn,
         degreeTypes: newDegreeTypes,
         projectTypes: newProjectTypes,
-        projectInfo: projectFile,
+        projectFileUrl: projectFile,
         NumberOfStudents: maxStudents,
         requiredSkills: newSkills.split(',').map(s => s.trim()).filter(Boolean),
         prerequisites: newPrerequisites.split(',').map(s => s.trim()).filter(Boolean),
@@ -480,6 +515,8 @@ export default function SupervisorHome() {
       setShowNewProject(false);
       setNewPrerequisites('');
       setSelectedProgram(null);
+      setProjectFile(null);
+      setProjectName(null);
       fetchDashboardData();
       Alert.alert('✅', 'Project published successfully!');
     } catch (e: any) {
@@ -616,6 +653,11 @@ export default function SupervisorHome() {
     setEditFaculty(project.facultyId);
     setEditDescHe(project.descriptionHe);
     setEditDescEn(project.descriptionEn);
+    // Previously never reset — editing project A then B without touching
+    // this field silently carried A's skills/file over onto B's save.
+    setEditSkills((project.requiredSkills ?? []).join(', '));
+    setEditProjectFile(project.projectFileUrl ?? null);
+    setEditProjectFileName(project.projectFileUrl ? (lang === 'he' ? 'קובץ קיים' : 'Existing file') : null);
     setProjectModal(true);
   };
 
@@ -632,6 +674,7 @@ export default function SupervisorHome() {
         degreeType:    editDegree,
         projectType:   editProjectType,
         requiredSkills: editSkills.split(',').map(s => s.trim()).filter(Boolean),
+        ...(editProjectFile ? { projectFileUrl: editProjectFile } : {}),
       });
       Alert.alert('Success', 'Project updated!');
       setProjectModal(false);
@@ -673,16 +716,49 @@ export default function SupervisorHome() {
     }
   };
 
+  // CRITICAL FIX: this used to set projectFile to the raw LOCAL device URI
+  // and stop there — never actually uploaded anywhere, so publishing a
+  // project silently discarded whatever PDF was picked, with no error. Now
+  // uploads to the same Cloudinary cloud/preset already used elsewhere in
+  // this app (Browseprojects.tsx's CV/transcript upload) and stores the
+  // returned hosted URL — the only thing createSupervisorProject/
+  // updateSupervisorProject can actually persist as projectFileUrl. The
+  // isNew=false (edit) branch was a complete no-op before; it now uploads
+  // into its own editProjectFile/editProjectFileName state so it can never
+  // leak into (or be leaked into by) the New Project modal's state.
   const pickFile = async (isNew: boolean) => {
     const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
-    if(isNew){
-      setProjectFile(asset.uri);
-      setProjectName(asset.name);  
-    } else{
 
-    }  
+    setUploadingProjectFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', { uri: asset.uri, type: 'application/pdf', name: asset.name } as any);
+      formData.append('upload_preset', 'student_uploads');
+      const response = await fetch('https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) throw new Error(`Upload failed — HTTP ${response.status}`);
+      const data = await response.json();
+
+      if (isNew) {
+        setProjectFile(data.secure_url);
+        setProjectName(asset.name);
+      } else {
+        setEditProjectFile(data.secure_url);
+        setEditProjectFileName(asset.name);
+      }
+    } catch (e) {
+      console.error('Project file upload error:', e);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'העלאת הקובץ נכשלה. נסה שוב.' : 'File upload failed. Please try again.'
+      );
+    } finally {
+      setUploadingProjectFile(false);
+    }
   };
 
   if (loading) {
@@ -1252,6 +1328,7 @@ export default function SupervisorHome() {
         setProjectName={setProjectName}
         projectFile={projectFile}
         setProjectFile={setProjectFile}
+        uploadingFile={uploadingProjectFile}
         selectedProgram={selectedProgram}
         setSelectedProgram={setSelectedProgram}
         restrictedMajors={supervisorAssignedMajors}
@@ -1386,16 +1463,21 @@ export default function SupervisorHome() {
                         {tx('uploadProjectInfo', lang)} 
             </Text>
             <Pressable
-              style={[styles.uploadBtn, projectFile && styles.uploadBtnDone]}
+              style={[styles.uploadBtn, editProjectFile && styles.uploadBtnDone]}
               onPress={() => pickFile(false)}
+              disabled={uploadingProjectFile}
             >
-              <Text style={styles.uploadBtnText}>
-                {projectFile
-                  ? `✓ ${projectName}`
-                  : `📄 ${tx('tapToUpload', lang)}`}
-              </Text>
+              {uploadingProjectFile ? (
+                <ActivityIndicator color="#2E86FF" />
+              ) : (
+                <Text style={styles.uploadBtnText}>
+                  {editProjectFile
+                    ? `✓ ${editProjectFileName}`
+                    : `📄 ${tx('tapToUpload', lang)}`}
+                </Text>
+              )}
             </Pressable>
-            <Pressable style={styles.submitBtn} onPress={() => handleEditProject(editProject)}>
+            <Pressable style={styles.submitBtn} onPress={() => handleEditProject(editProject)} disabled={saving}>
               {saving
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שמור שינויים' : 'Save Changes'}</Text>

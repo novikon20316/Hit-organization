@@ -721,6 +721,8 @@ export interface MyProject {
   degreeTypes?: string[]; projectTypes?: string[];
   descriptionHe: string; descriptionEn: string;
   NumberOfStudents:number;
+  requiredSkills?: string[];
+  projectFileUrl?: string | null;
 }
 
 export interface Application {

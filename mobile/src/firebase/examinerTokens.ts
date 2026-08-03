@@ -140,5 +140,10 @@ export async function submitExaminerOpinion(
 export async function revokeExaminerToken(token: string): Promise<void> {
   await updateDoc(doc(db, 'examinerTokens', token), {
     status: 'expired' satisfies ExaminerTokenStatus,
+    // Defense-in-depth alongside the firestore.rules fix requiring
+    // status in ['pending','accepted'] for any anonymous write — belt-and-
+    // suspenders in case anything else ever reads this flag without also
+    // checking status.
+    otpVerified: false,
   });
 }
