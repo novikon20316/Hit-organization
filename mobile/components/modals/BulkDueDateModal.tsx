@@ -26,6 +26,10 @@ const MILESTONE_TYPE_OPTIONS: Array<{ value: string; he: string; en: string }> =
 export interface BulkDueDateProjectOption {
   id: string;
   label: string;
+  /** e.g. the enrolled student name(s) — shown under the label and matched
+   *  against the search box, so a specific student can be found among many
+   *  projects instead of scrolling the whole list. */
+  sublabel?: string;
 }
 
 interface Props {
@@ -39,6 +43,7 @@ interface Props {
 export default function BulkDueDateModal({ visible, onClose, lang, projects, onSaved }: Props) {
   const isRtl = lang === 'he';
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
   const [milestoneType, setMilestoneType] = useState('');
   const [dueDateText, setDueDateText] = useState('');
   const [reason, setReason] = useState('');
@@ -46,6 +51,7 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
 
   const reset = () => {
     setSelectedIds([]);
+    setSearch('');
     setMilestoneType('');
     setDueDateText('');
     setReason('');
@@ -56,6 +62,11 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
   const toggleProject = (id: string) => {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
+
+  const q = search.trim().toLowerCase();
+  const filteredProjects = q
+    ? projects.filter((p) => p.label.toLowerCase().includes(q) || p.sublabel?.toLowerCase().includes(q))
+    : projects;
 
   const handleSubmit = async () => {
     if (selectedIds.length === 0) {
@@ -128,12 +139,24 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
 
         <Text style={[s.fieldLabel, isRtl && s.textRight]}>
           {lang === 'he' ? 'בחר פרויקטים' : 'Select projects'}
+          {selectedIds.length > 0 ? `  (${selectedIds.length} ${lang === 'he' ? 'נבחרו' : 'selected'})` : ''}
         </Text>
+        <TextInput
+          style={[s.input, isRtl && s.textRight]}
+          value={search}
+          onChangeText={setSearch}
+          placeholder={lang === 'he' ? 'חיפוש לפי שם סטודנט/פרויקט...' : 'Search by student or project name...'}
+          placeholderTextColor="#9CA3AF"
+        />
         <View style={s.projectList}>
-          {projects.length === 0 ? (
-            <Text style={s.emptyText}>{lang === 'he' ? 'אין פרויקטים להצגה' : 'No projects available'}</Text>
+          {filteredProjects.length === 0 ? (
+            <Text style={s.emptyText}>
+              {projects.length === 0
+                ? (lang === 'he' ? 'אין פרויקטים להצגה' : 'No projects available')
+                : (lang === 'he' ? 'לא נמצאו תוצאות' : 'No matches found')}
+            </Text>
           ) : (
-            projects.map((p) => {
+            filteredProjects.map((p) => {
               const isActive = selectedIds.includes(p.id);
               return (
                 <Pressable
@@ -144,17 +167,26 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
                   <View style={[s.checkbox, isActive && s.checkboxActive]}>
                     {isActive && <Text style={s.checkmark}>✓</Text>}
                   </View>
-                  <Text style={[s.projectRowText, isActive && s.projectRowTextActive]} numberOfLines={1}>
-                    {p.label}
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.projectRowText, isActive && s.projectRowTextActive]} numberOfLines={1}>
+                      {p.label}
+                    </Text>
+                    {!!p.sublabel && (
+                      <Text style={s.projectRowSublabel} numberOfLines={1}>{p.sublabel}</Text>
+                    )}
+                  </View>
                 </Pressable>
               );
             })
           )}
         </View>
-        {selectedIds.length > 0 && (
-          <Pressable onPress={() => setSelectedIds(projects.map((p) => p.id))}>
-            <Text style={s.selectAll}>{lang === 'he' ? 'בחר את כל הפרויקטים' : 'Select all projects'}</Text>
+        {filteredProjects.length > 0 && (
+          <Pressable onPress={() => setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredProjects.map((p) => p.id)])))}>
+            <Text style={s.selectAll}>
+              {search.trim()
+                ? (lang === 'he' ? 'בחר את כל התוצאות' : 'Select all matches')
+                : (lang === 'he' ? 'בחר את כל הפרויקטים' : 'Select all projects')}
+            </Text>
           </Pressable>
         )}
 

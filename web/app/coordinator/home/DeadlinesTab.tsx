@@ -72,7 +72,11 @@ export function DeadlinesTab({ deadlines, projects, onSaved }: DeadlinesTabProps
 
       {showBulk && (
         <BulkDueDateModal
-          projects={projects.map((p) => ({ id: p.id, label: lang === 'he' ? p.titleHe : p.titleEn }))}
+          projects={projects.map((p) => ({
+            id: p.id,
+            label: lang === 'he' ? p.titleHe : p.titleEn,
+            sublabel: Array.from(new Set((p.milestones ?? []).flatMap((m) => m.studentNames))).join(', ') || undefined,
+          }))}
           onClose={() => setShowBulk(false)}
           onSaved={onSaved}
         />

@@ -1891,7 +1891,11 @@ export default function CoordinatorHome() {
         visible={showBulkDueDate}
         onClose={() => setShowBulkDueDate(false)}
         lang={lang}
-        projects={projects.map((p) => ({ id: p.id, label: lang === 'he' ? p.titleHe : p.titleEn }))}
+        projects={projects.map((p) => ({
+          id: p.id,
+          label: lang === 'he' ? p.titleHe : p.titleEn,
+          sublabel: Array.from(new Set((p.milestones ?? []).flatMap((m) => m.studentNames))).join(', ') || undefined,
+        }))}
       />
     </SafeAreaView>
   );

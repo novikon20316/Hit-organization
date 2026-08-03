@@ -6,7 +6,7 @@
 // majeure, etc.) rather than editing one milestone at a time. Calls
 // PUT /api/milestones/bulk-due-date.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 
@@ -21,6 +21,10 @@ const MILESTONE_TYPE_OPTIONS: Array<{ value: string; he: string; en: string }> =
 export interface BulkDueDateProjectOption {
   id: string;
   label: string;
+  /** e.g. the enrolled student name(s) — shown under the label and matched
+   *  against the search box, so a specific student can be found among many
+   *  projects instead of scrolling the whole list. */
+  sublabel?: string;
 }
 
 interface BulkDueDateModalProps {
@@ -32,12 +36,19 @@ interface BulkDueDateModalProps {
 export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModalProps) {
   const { lang } = useLanguage();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
   const [milestoneType, setMilestoneType] = useState('');
   const [dueDateText, setDueDateText] = useState('');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState('');
+
+  const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter((p) => p.label.toLowerCase().includes(q) || p.sublabel?.toLowerCase().includes(q));
+  }, [projects, search]);
 
   const toggleProject = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -101,12 +112,22 @@ export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModa
             : 'For general delays (holidays, war, force majeure, etc.) — can update milestones regardless of their current status.'}
         </p>
 
-        <p className="mb-1.5 mt-4 text-sm font-medium text-ink">{lang === 'he' ? 'בחר פרויקטים' : 'Select projects'}</p>
-        <div className="grid max-h-48 gap-1.5 overflow-y-auto">
-          {projects.length === 0 ? (
-            <p className="text-sm text-muted">{lang === 'he' ? 'אין פרויקטים להצגה' : 'No projects available'}</p>
+        <p className="mb-1.5 mt-4 text-sm font-medium text-ink">
+          {lang === 'he' ? 'בחר פרויקטים' : 'Select projects'}
+          {selectedIds.length > 0 && <span className="ms-1 text-xs font-normal text-muted">({selectedIds.length} {lang === 'he' ? 'נבחרו' : 'selected'})</span>}
+        </p>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={lang === 'he' ? 'חיפוש לפי שם סטודנט/פרויקט...' : 'Search by student or project name...'}
+          className={inputCls}
+        />
+        <div className="mt-1.5 grid max-h-48 gap-1.5 overflow-y-auto">
+          {filteredProjects.length === 0 ? (
+            <p className="text-sm text-muted">{projects.length === 0 ? (lang === 'he' ? 'אין פרויקטים להצגה' : 'No projects available') : (lang === 'he' ? 'לא נמצאו תוצאות' : 'No matches found')}</p>
           ) : (
-            projects.map((p) => {
+            filteredProjects.map((p) => {
               const active = selectedIds.includes(p.id);
               return (
                 <button
@@ -117,18 +138,25 @@ export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModa
                     active ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
                   }`}
                 >
-                  <span className={`flex h-4 w-4 items-center justify-center rounded border text-[10px] ${active ? 'border-white' : 'border-muted'}`}>
+                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${active ? 'border-white' : 'border-muted'}`}>
                     {active && '✓'}
                   </span>
-                  <span className="truncate">{p.label}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {p.label}
+                    {p.sublabel && <span className={`ms-1.5 truncate text-xs ${active ? 'text-primary-ink/80' : 'text-muted'}`}>— {p.sublabel}</span>}
+                  </span>
                 </button>
               );
             })
           )}
         </div>
-        {selectedIds.length > 0 && projects.length > 0 && (
-          <button type="button" onClick={() => setSelectedIds(projects.map((p) => p.id))} className="mt-1.5 text-xs text-primary hover:underline">
-            {lang === 'he' ? 'בחר את כל הפרויקטים' : 'Select all projects'}
+        {filteredProjects.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredProjects.map((p) => p.id)])))}
+            className="mt-1.5 text-xs text-primary hover:underline"
+          >
+            {search.trim() ? (lang === 'he' ? 'בחר את כל התוצאות' : 'Select all matches') : (lang === 'he' ? 'בחר את כל הפרויקטים' : 'Select all projects')}
           </button>
         )}
 

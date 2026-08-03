@@ -20,17 +20,21 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { BulkDueDateModal } from '@/components/BulkDueDateModal';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
-import type { FacultyAdminDeadline, FacultyAdminProjectRecord } from './types';
+import type { FacultyAdminDeadline, FacultyAdminProjectRecord, FacultyAdminUserRecord } from './types';
 
 interface DeadlinesTabProps {
   deadlines: FacultyAdminDeadline[];
   projects: FacultyAdminProjectRecord[];
+  users: FacultyAdminUserRecord[];
   onSaved: () => void;
 }
 
-export function DeadlinesTab({ deadlines, projects, onSaved }: DeadlinesTabProps) {
+export function DeadlinesTab({ deadlines, projects, users, onSaved }: DeadlinesTabProps) {
   const { lang } = useLanguage();
   const [showBulk, setShowBulk] = useState(false);
+
+  const userNamesById: Record<string, string> = {};
+  users.forEach((u) => { userNamesById[u.id] = u.displayName; });
 
   return (
     <div>
@@ -83,7 +87,11 @@ export function DeadlinesTab({ deadlines, projects, onSaved }: DeadlinesTabProps
 
       {showBulk && (
         <BulkDueDateModal
-          projects={projects.map((p) => ({ id: p.id, label: lang === 'he' ? p.titleHe : p.titleEn }))}
+          projects={projects.map((p) => ({
+            id: p.id,
+            label: lang === 'he' ? p.titleHe : p.titleEn,
+            sublabel: p.enrolledStudentIds.map((sid) => userNamesById[sid] ?? sid).join(', ') || undefined,
+          }))}
           onClose={() => setShowBulk(false)}
           onSaved={onSaved}
         />

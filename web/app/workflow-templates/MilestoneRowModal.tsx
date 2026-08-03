@@ -20,7 +20,9 @@ interface MilestoneRowModalProps {
   onSave: (values: {
     nameHe: string;
     nameEn: string;
+    dateMode: 'offset' | 'fixed';
     dueDaysFromStart: number;
+    fixedDate?: string;
     requiresExaminers: boolean;
     examinerCount?: number;
     gradingComponents: GradingComponentSpec[];
@@ -32,7 +34,9 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
   const { lang, t } = useLanguage();
   const [nameHe, setNameHe] = useState(editing?.nameHe ?? '');
   const [nameEn, setNameEn] = useState(editing?.nameEn ?? '');
+  const [dateMode, setDateMode] = useState<'offset' | 'fixed'>(editing?.dateMode === 'fixed' ? 'fixed' : 'offset');
   const [days, setDays] = useState(String(editing?.dueDaysFromStart ?? 90));
+  const [fixedDate, setFixedDate] = useState(editing?.fixedDate ?? '');
   const [requiresExaminers, setRequiresExaminers] = useState(editing?.requiresExaminers ?? false);
   const [examinerCount, setExaminerCount] = useState(String(editing?.examinerCount ?? 2));
   const [components, setComponents] = useState<GradingComponentSpec[]>(editing?.gradingComponents ?? []);
@@ -54,10 +58,20 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
       setError(lang === 'he' ? 'יש להזין שם לאבן הדרך (עברית ואנגלית)' : 'Enter a milestone name (Hebrew and English)');
       return;
     }
-    const parsedDays = parseInt(days, 10);
-    if (!Number.isFinite(parsedDays) || parsedDays < 0) {
-      setError(lang === 'he' ? 'מספר ימים לא תקין' : 'Invalid number of days');
-      return;
+    let parsedDays = 0;
+    let parsedFixedDate: string | undefined;
+    if (dateMode === 'fixed') {
+      if (!fixedDate.trim() || isNaN(new Date(fixedDate).getTime())) {
+        setError(lang === 'he' ? 'יש להזין תאריך יעד תקין' : 'Enter a valid due date');
+        return;
+      }
+      parsedFixedDate = fixedDate;
+    } else {
+      parsedDays = parseInt(days, 10);
+      if (!Number.isFinite(parsedDays) || parsedDays < 0) {
+        setError(lang === 'he' ? 'מספר ימים לא תקין' : 'Invalid number of days');
+        return;
+      }
     }
     const parsedExaminerCount = parseInt(examinerCount, 10);
     if (requiresExaminers && (!Number.isFinite(parsedExaminerCount) || parsedExaminerCount < 1)) {
@@ -81,7 +95,9 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
     onSave({
       nameHe: nameHe.trim(),
       nameEn: nameEn.trim(),
+      dateMode,
       dueDaysFromStart: parsedDays,
+      ...(dateMode === 'fixed' ? { fixedDate: parsedFixedDate } : {}),
       requiresExaminers,
       ...(requiresExaminers ? { examinerCount: parsedExaminerCount } : {}),
       gradingComponents: components,
@@ -107,10 +123,37 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}</span>
             <input dir="ltr" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="Milestone name" className={inputCls} />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מועד יעד (ימים מתחילת התהליך)' : 'Due (days from process start)'}</span>
-            <input type="number" min={0} value={days} onChange={(e) => setDays(e.target.value)} placeholder="90" className={inputCls} />
-          </label>
+          <div className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מועד יעד' : 'Due date'}</span>
+            <div className="mb-2 flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setDateMode('offset')}
+                className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium ${dateMode === 'offset' ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'}`}
+              >
+                {lang === 'he' ? 'ימים מתחילת התהליך' : 'Days from start'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateMode('fixed')}
+                className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium ${dateMode === 'fixed' ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'}`}
+              >
+                {lang === 'he' ? 'תאריך קבוע' : 'Fixed date'}
+              </button>
+            </div>
+            {dateMode === 'offset' ? (
+              <input type="number" min={0} value={days} onChange={(e) => setDays(e.target.value)} placeholder="90" className={inputCls} />
+            ) : (
+              <>
+                <input type="date" value={fixedDate} onChange={(e) => setFixedDate(e.target.value)} className={inputCls} />
+                <p className="mt-1 text-xs text-muted">
+                  {lang === 'he'
+                    ? 'תאריך אחד לכל הסטודנטים בתבנית זו, ללא קשר למועד ההרשמה שלהם.'
+                    : 'One date for every student under this template, regardless of when they enrolled.'}
+                </p>
+              </>
+            )}
+          </div>
           <label className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
             <span className="text-sm font-medium text-ink">{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</span>
             <input

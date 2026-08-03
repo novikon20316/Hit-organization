@@ -141,8 +141,21 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     if (!m || typeof m.type !== 'string' || !m.type.trim()) return null;
     if (typeof m.nameHe !== 'string' || typeof m.nameEn !== 'string') return null;
     const order = Number(m.order);
-    const dueDaysFromStart = Number(m.dueDaysFromStart);
-    if (!Number.isFinite(order) || !Number.isFinite(dueDaysFromStart) || dueDaysFromStart < 0) return null;
+    if (!Number.isFinite(order)) return null;
+
+    // 'fixed' means the milestone uses one absolute calendar date for every
+    // student under this template instead of an offset from enrollment —
+    // see workflowTemplates.ts's WorkflowMilestoneSpec/resolveMilestoneDueDate.
+    const dateMode: 'offset' | 'fixed' = m.dateMode === 'fixed' ? 'fixed' : 'offset';
+    let dueDaysFromStart = 0;
+    let fixedDate = '';
+    if (dateMode === 'fixed') {
+      if (typeof m.fixedDate !== 'string' || isNaN(new Date(m.fixedDate).getTime())) return null;
+      fixedDate = m.fixedDate;
+    } else {
+      dueDaysFromStart = Number(m.dueDaysFromStart);
+      if (!Number.isFinite(dueDaysFromStart) || dueDaysFromStart < 0) return null;
+    }
 
     const gradingComponents = validateGradingComponents(m.gradingComponents);
     if (gradingComponents === null) return null;
@@ -158,6 +171,10 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
       dueDaysFromStart,
       requiresExaminers: !!m.requiresExaminers,
     };
+    if (dateMode === 'fixed') {
+      spec.dateMode = 'fixed';
+      spec.fixedDate = fixedDate;
+    }
     if (gradingComponents.length > 0) spec.gradingComponents = gradingComponents;
     if (routing.value) spec.routing = routing.value;
     cleaned.push(spec);
@@ -266,7 +283,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
 
   const milestones = validateMilestones(req.body.milestones);
   if (!milestones) {
-    return res.status(400).json({ message: 'Invalid milestones — each needs type, nameHe, nameEn, order, dueDaysFromStart.' });
+    return res.status(400).json({ message: 'Invalid milestones — each needs type, nameHe, nameEn, order, and either dueDaysFromStart or (dateMode "fixed" + a valid fixedDate).' });
   }
 
   const defaultRouting = validateOptionalRouting(req.body.defaultRouting);

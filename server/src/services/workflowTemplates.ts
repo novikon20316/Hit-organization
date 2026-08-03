@@ -71,6 +71,22 @@ export interface ChainStage {
 
 export type MilestoneRoutingSpec = ChainStage[];
 
+/** Resolves the absolute due date for one milestone spec, given the
+ *  enrollment/creation base date — shared by projectEnrollment.ts,
+ *  trackChange.ts, and workflowTemplateRetroactiveApply.ts so the
+ *  fixed-vs-offset branch only lives in one place. A 'fixed' spec with no
+ *  usable fixedDate falls back to the offset behavior rather than throwing,
+ *  so a malformed/legacy doc never blocks enrollment. */
+export function resolveMilestoneDueDate(spec: WorkflowMilestoneSpec, baseDate: Date): Date {
+  if (spec.dateMode === 'fixed' && spec.fixedDate) {
+    const fixed = new Date(spec.fixedDate);
+    if (!isNaN(fixed.getTime())) return fixed;
+  }
+  const dueDate = new Date(baseDate);
+  dueDate.setDate(baseDate.getDate() + spec.dueDaysFromStart);
+  return dueDate;
+}
+
 // Matches today's actual hardcoded behavior — the fallback whenever a
 // template has neither its own defaultRouting nor a milestone-level override
 // (i.e. every template that predates this feature), so nothing currently
@@ -95,7 +111,18 @@ export interface WorkflowMilestoneSpec {
   nameHe: string;
   nameEn: string;
   order: number;
+  /** 'fixed' means the absolute calendar date in `fixedDate` is used instead
+   *  of `dueDaysFromStart` — the same date for every student enrolled under
+   *  this template, regardless of when they individually started (e.g. a
+   *  program-wide deadline). Omitted (or 'offset') is the original behavior:
+   *  `dueDaysFromStart` days after the student's own enrollment date. A
+   *  template can mix both across its milestones. */
+  dateMode?: 'offset' | 'fixed';
+  /** Ignored when dateMode === 'fixed'. */
   dueDaysFromStart: number;
+  /** ISO date string (e.g. '2026-11-15'). Only meaningful when
+   *  dateMode === 'fixed'. */
+  fixedDate?: string;
   requiresExaminers: boolean;
   /** How many examiner slots a defense panel needs for this milestone.
    *  Only meaningful when requiresExaminers is true. Omitted means the

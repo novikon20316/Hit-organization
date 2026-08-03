@@ -24,7 +24,7 @@
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
-import { resolveMilestoneRouting, type MilestoneRoutingSpec, type ProcessType, type WorkflowMilestoneSpec } from './workflowTemplates.js';
+import { resolveMilestoneRouting, resolveMilestoneDueDate, type MilestoneRoutingSpec, type ProcessType, type WorkflowMilestoneSpec } from './workflowTemplates.js';
 
 interface MatchingProject {
   id: string;
@@ -177,8 +177,7 @@ export async function applyTemplateRetroactively(
 
     for (const spec of milestoneSpecs) {
       const current = existingByType.get(spec.type);
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + spec.dueDaysFromStart);
+      const dueDate = resolveMilestoneDueDate(spec, new Date());
 
       if (current) {
         // Never touch a milestone that's moved past 'pending' — already

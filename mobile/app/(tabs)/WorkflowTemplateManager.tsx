@@ -70,7 +70,15 @@ export interface MilestoneSpec {
   nameHe: string;
   nameEn: string;
   order: number;
+  /** 'fixed' means `fixedDate` is used instead of `dueDaysFromStart` — the
+   *  same absolute calendar date for every student under this template,
+   *  regardless of when they individually enrolled. Omitted (or 'offset')
+   *  is the original behavior. Mirrors web/app/workflow-templates/types.ts. */
+  dateMode?: 'offset' | 'fixed';
+  /** Ignored when dateMode === 'fixed'. */
   dueDaysFromStart: number;
+  /** ISO date (YYYY-MM-DD). Only meaningful when dateMode === 'fixed'. */
+  fixedDate?: string;
   requiresExaminers: boolean;
   /** How many examiner slots a defense panel needs for this milestone. Only
    *  meaningful when requiresExaminers is true. Omitted means the legacy
@@ -334,7 +342,9 @@ export default function WorkflowTemplateManager() {
   const [editingMs, setEditingMs] = useState<MilestoneSpec | null>(null);
   const [msNameHe, setMsNameHe] = useState('');
   const [msNameEn, setMsNameEn] = useState('');
+  const [msDateMode, setMsDateMode] = useState<'offset' | 'fixed'>('offset');
   const [msDays, setMsDays] = useState('90');
+  const [msFixedDate, setMsFixedDate] = useState('');
   const [msExaminers, setMsExaminers] = useState(false);
   const [msExaminerCount, setMsExaminerCount] = useState('2');
   const [msOverrideChain, setMsOverrideChain] = useState(false);
@@ -437,14 +447,16 @@ export default function WorkflowTemplateManager() {
       setEditingMs(ms);
       setMsNameHe(ms.nameHe);
       setMsNameEn(ms.nameEn);
+      setMsDateMode(ms.dateMode === 'fixed' ? 'fixed' : 'offset');
       setMsDays(String(ms.dueDaysFromStart));
+      setMsFixedDate(ms.fixedDate ?? '');
       setMsExaminers(ms.requiresExaminers);
       setMsExaminerCount(String(ms.examinerCount ?? 2));
       setMsOverrideChain(!!(ms.routing && ms.routing.length > 0));
       setMsRouting(ms.routing && ms.routing.length > 0 ? ms.routing.map((s) => ({ ...s })) : [emptyStage()]);
     } else {
       setEditingMs(null);
-      setMsNameHe(''); setMsNameEn(''); setMsDays('90'); setMsExaminers(false); setMsExaminerCount('2');
+      setMsNameHe(''); setMsNameEn(''); setMsDateMode('offset'); setMsDays('90'); setMsFixedDate(''); setMsExaminers(false); setMsExaminerCount('2');
       setMsOverrideChain(false);
       setMsRouting([emptyStage()]);
     }
@@ -456,10 +468,20 @@ export default function WorkflowTemplateManager() {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין שם לאבן הדרך' : 'Enter a milestone name');
       return;
     }
-    const days = parseInt(msDays, 10);
-    if (!Number.isFinite(days) || days < 0) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'מספר ימים לא תקין' : 'Invalid number of days');
-      return;
+    let days = 0;
+    let fixedDate = '';
+    if (msDateMode === 'fixed') {
+      if (!msFixedDate.trim() || isNaN(new Date(msFixedDate).getTime())) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין תאריך יעד תקין' : 'Enter a valid due date');
+        return;
+      }
+      fixedDate = msFixedDate;
+    } else {
+      days = parseInt(msDays, 10);
+      if (!Number.isFinite(days) || days < 0) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'מספר ימים לא תקין' : 'Invalid number of days');
+        return;
+      }
     }
     const examinerCount = parseInt(msExaminerCount, 10);
     if (msExaminers && (!Number.isFinite(examinerCount) || examinerCount < 1)) {
@@ -472,6 +494,8 @@ export default function WorkflowTemplateManager() {
         const next: MilestoneSpec = {
           ...m, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), dueDaysFromStart: days, requiresExaminers: msExaminers,
         };
+        if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
+        else { delete next.dateMode; delete next.fixedDate; }
         if (msExaminers) next.examinerCount = examinerCount;
         else delete next.examinerCount;
         // Turning the override off must actually clear a pre-existing
@@ -485,6 +509,7 @@ export default function WorkflowTemplateManager() {
         const next: MilestoneSpec = {
           type: `custom_${makeId()}`, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), order: prev.length + 1, dueDaysFromStart: days, requiresExaminers: msExaminers,
         };
+        if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
         if (msExaminers) next.examinerCount = examinerCount;
         if (msOverrideChain) next.routing = msRouting;
         return [...prev, next];
@@ -797,7 +822,9 @@ export default function WorkflowTemplateManager() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: '#1F1235' }}>{lang === 'he' ? m.nameHe : m.nameEn}</Text>
                       <Text style={{ fontSize: 11, color: '#8899BB' }}>
-                        📅 {lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`}
+                        📅 {m.dateMode === 'fixed'
+                          ? (lang === 'he' ? `תאריך קבוע: ${m.fixedDate ?? '—'}` : `Fixed: ${m.fixedDate ?? '—'}`)
+                          : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
                         {m.requiresExaminers ? `  ·  👥 ${lang === 'he' ? 'בוחנים' : 'Examiners'}` : ''}
                       </Text>
                       {m.routing && m.routing.length > 0 && (
@@ -1030,7 +1057,9 @@ export default function WorkflowTemplateManager() {
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: '700', color: '#1F1235' }}>{lang === 'he' ? ms.nameHe : ms.nameEn}</Text>
                   <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>
-                    📅 {lang === 'he' ? `יום ${ms.dueDaysFromStart}` : `Day ${ms.dueDaysFromStart}`}
+                    📅 {ms.dateMode === 'fixed'
+                      ? (lang === 'he' ? `תאריך קבוע: ${ms.fixedDate ?? '—'}` : `Fixed: ${ms.fixedDate ?? '—'}`)
+                      : (lang === 'he' ? `יום ${ms.dueDaysFromStart}` : `Day ${ms.dueDaysFromStart}`)}
                     {ms.requiresExaminers ? '  ·  👥' : ''}
                     {ms.routing && ms.routing.length > 0 ? `  ·  🔀 ${lang === 'he' ? 'שרשרת מותאמת' : 'custom chain'}` : ''}
                   </Text>
@@ -1168,8 +1197,43 @@ export default function WorkflowTemplateManager() {
             <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msNameHe} onChangeText={setMsNameHe} placeholder="שם אבן הדרך" textAlign="right" />
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}</Text>
             <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msNameEn} onChangeText={setMsNameEn} placeholder="Milestone name" />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'מועד יעד (ימים מתחילת התהליך)' : 'Due (days from process start)'}</Text>
-            <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msDays} onChangeText={setMsDays} keyboardType="numeric" placeholder="90" />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'מועד יעד' : 'Due date'}</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              <Pressable
+                onPress={() => setMsDateMode('offset')}
+                style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msDateMode === 'offset' ? '#7C3AED' : '#DDD6FE', backgroundColor: msDateMode === 'offset' ? '#7C3AED' : '#fff' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '600', color: msDateMode === 'offset' ? '#fff' : '#374151' }}>
+                  {lang === 'he' ? 'ימים מתחילת התהליך' : 'Days from start'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setMsDateMode('fixed')}
+                style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msDateMode === 'fixed' ? '#7C3AED' : '#DDD6FE', backgroundColor: msDateMode === 'fixed' ? '#7C3AED' : '#fff' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '600', color: msDateMode === 'fixed' ? '#fff' : '#374151' }}>
+                  {lang === 'he' ? 'תאריך קבוע' : 'Fixed date'}
+                </Text>
+              </Pressable>
+            </View>
+            {msDateMode === 'offset' ? (
+              <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msDays} onChangeText={setMsDays} keyboardType="numeric" placeholder="90" />
+            ) : (
+              <>
+                <TextInput
+                  style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 4 }}
+                  value={msFixedDate}
+                  onChangeText={setMsFixedDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#9CA3AF"
+                />
+                <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 12 }}>
+                  {lang === 'he'
+                    ? 'תאריך אחד לכל הסטודנטים בתבנית זו, ללא קשר למועד ההרשמה שלהם.'
+                    : 'One date for every student under this template, regardless of when they enrolled.'}
+                </Text>
+              </>
+            )}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</Text>
               <Switch value={msExaminers} onValueChange={setMsExaminers} trackColor={{ true: '#7C3AED' }} />

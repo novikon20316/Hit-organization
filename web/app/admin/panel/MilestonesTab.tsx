@@ -73,7 +73,14 @@ export function MilestonesTab({ projects, milestones, users, onChanged }: Milest
     return Object.values(groups).filter((g) => activeProjectIds.has(g.projectId));
   }, [milestones, projectsById, userNamesById, activeProjectIds]);
 
-  const projectOptions = useMemo(() => projects.map((p) => ({ id: p.id, label: (lang === 'he' ? p.titleHe : p.titleEn) || p.id })), [projects, lang]);
+  const projectOptions = useMemo(
+    () => projects.map((p) => ({
+      id: p.id,
+      label: (lang === 'he' ? p.titleHe : p.titleEn) || p.id,
+      sublabel: (p.enrolledStudentIds ?? []).map((sid) => userNamesById[sid] ?? sid).join(', ') || undefined,
+    })),
+    [projects, lang, userNamesById]
+  );
 
   return (
     <div>

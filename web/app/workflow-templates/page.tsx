@@ -332,7 +332,9 @@ export default function WorkflowTemplatesPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-ink">{lang === 'he' ? m.nameHe : m.nameEn}</p>
                       <p className="text-xs text-muted">
-                        📅 {lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`}
+                        📅 {m.dateMode === 'fixed'
+                          ? (lang === 'he' ? `תאריך קבוע: ${m.fixedDate ?? '—'}` : `Fixed: ${m.fixedDate ?? '—'}`)
+                          : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
                         {m.requiresExaminers ? ` · 👥 ${lang === 'he' ? 'בוחנים' : 'Examiners'}` : ''}
                         {m.gradingComponents && m.gradingComponents.length > 0
                           ? ` · 📊 ${m.gradingComponents.length} ${lang === 'he' ? 'מרכיבי ציון' : 'grading components'}`

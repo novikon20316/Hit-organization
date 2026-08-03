@@ -93,7 +93,7 @@ export function ProposeVersionModal({
     setRowModalOpen(true);
   };
 
-  const handleSaveRow = (values: { nameHe: string; nameEn: string; dueDaysFromStart: number; requiresExaminers: boolean; examinerCount?: number; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec }) => {
+  const handleSaveRow = (values: { nameHe: string; nameEn: string; dateMode: 'offset' | 'fixed'; dueDaysFromStart: number; fixedDate?: string; requiresExaminers: boolean; examinerCount?: number; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec }) => {
     // `routing` is only present in `values` when the row's chain override is
     // ON — spread it in when present, but explicitly drop any pre-existing
     // `routing` on the milestone being edited when it's absent (turning the
@@ -181,7 +181,9 @@ export function ProposeVersionModal({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-ink">{lang === 'he' ? ms.nameHe || '—' : ms.nameEn || '—'}</p>
                 <p className="mt-0.5 text-xs text-muted">
-                  📅 {lang === 'he' ? `יום ${ms.dueDaysFromStart}` : `Day ${ms.dueDaysFromStart}`}
+                  📅 {ms.dateMode === 'fixed'
+                    ? (lang === 'he' ? `תאריך קבוע: ${ms.fixedDate ?? '—'}` : `Fixed: ${ms.fixedDate ?? '—'}`)
+                    : (lang === 'he' ? `יום ${ms.dueDaysFromStart}` : `Day ${ms.dueDaysFromStart}`)}
                   {ms.requiresExaminers ? ` · 👥 ${lang === 'he' ? 'בוחנים' : 'Examiners'}` : ''}
                   {ms.gradingComponents && ms.gradingComponents.length > 0
                     ? ` · 📊 ${ms.gradingComponents.length} ${lang === 'he' ? 'מרכיבי ציון' : 'grading components'}`

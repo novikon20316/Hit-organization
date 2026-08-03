@@ -67,7 +67,16 @@ export interface MilestoneSpec {
   nameHe: string;
   nameEn: string;
   order: number;
+  /** 'fixed' means `fixedDate` is used instead of `dueDaysFromStart` — the
+   *  same absolute calendar date for every student under this template,
+   *  regardless of when they individually enrolled. Omitted (or 'offset')
+   *  is the original behavior. A template can mix both across milestones.
+   *  Mirrors server/src/services/workflowTemplates.ts. */
+  dateMode?: 'offset' | 'fixed';
+  /** Ignored when dateMode === 'fixed'. */
   dueDaysFromStart: number;
+  /** ISO date (YYYY-MM-DD). Only meaningful when dateMode === 'fixed'. */
+  fixedDate?: string;
   requiresExaminers: boolean;
   /** How many examiner slots a defense panel needs for this milestone. Only
    *  meaningful when requiresExaminers is true. Omitted means the legacy

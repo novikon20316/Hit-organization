@@ -12,7 +12,7 @@
 
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { getMilestonesForTemplateId, resolveMilestoneRouting, resolveWorkflowTemplateRefs } from './workflowTemplates.js';
+import { getMilestonesForTemplateId, resolveMilestoneRouting, resolveWorkflowTemplateRefs, resolveMilestoneDueDate } from './workflowTemplates.js';
 import { logAuditEvent } from './auditLog.js';
 
 export type ProjectTrack = 'thesis' | 'project';
@@ -107,8 +107,7 @@ export async function changeProjectTrack(
 
   const baseDate = new Date();
   for (const t of milestoneTemplates) {
-    const dueDate = new Date();
-    dueDate.setDate(baseDate.getDate() + t.dueDaysFromStart);
+    const dueDate = resolveMilestoneDueDate(t, baseDate);
     const milestoneRef = db.collection('milestones').doc();
     batch.set(milestoneRef, {
       projectId: newProjectRef.id,

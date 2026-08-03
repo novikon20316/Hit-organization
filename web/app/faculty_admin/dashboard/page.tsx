@@ -169,7 +169,7 @@ export default function FacultyAdminDashboardPage() {
           {projects.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין פרויקטים בפקולטה' : 'No projects in this faculty'}</p>}
         </div>
       ) : tab === 'deadlines' ? (
-        <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchDashboard} />
+        <DeadlinesTab deadlines={deadlines} projects={projects} users={users} onSaved={fetchDashboard} />
       ) : (
         <PendingSignoffsWidget showEmptyState />
       )}

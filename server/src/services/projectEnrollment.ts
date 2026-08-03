@@ -10,7 +10,7 @@
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import {
-  deriveProcessType, getActiveMilestonesFor, getMilestonesForTemplateId, resolveMilestoneRouting,
+  deriveProcessType, getActiveMilestonesFor, getMilestonesForTemplateId, resolveMilestoneRouting, resolveMilestoneDueDate,
   type WorkflowMilestoneSpec, type MilestoneRoutingSpec, type WorkflowTemplateRef,
 } from './workflowTemplates.js';
 
@@ -117,8 +117,7 @@ export async function enrollStudentInProject(
 
     const baseDate = new Date();
     for (const t of milestoneTemplates) {
-      const dueDate = new Date();
-      dueDate.setDate(baseDate.getDate() + t.dueDaysFromStart);
+      const dueDate = resolveMilestoneDueDate(t, baseDate);
       const milestoneRef = db.collection('milestones').doc();
       transaction.set(milestoneRef, {
         projectId, studentIds: [studentId], supervisorId, facultyId,
