@@ -61,6 +61,10 @@ export default function AdminPanelPage() {
   const [showStudentStatuses, setShowStudentStatuses] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
   const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
+  // Accounts currently disabled by the 3-strikes failed-login flow.
+  const [lockedUsers, setLockedUsers] = useState<Array<{ code: string; uid: string; email: string; displayName: string; ip: string; location: string; createdAt: string }>>([]);
+  const [loadingLocked, setLoadingLocked] = useState(false);
+  const [liftingCode, setLiftingCode] = useState<string | null>(null);
   // Bumped after a roster import so StudentRosterTab (which fetches its own
   // data independently of fetchDashboard) remounts and refetches — otherwise
   // an import while already on that tab wouldn't show up until the next
@@ -95,6 +99,36 @@ export default function AdminPanelPage() {
     if (isAllowed) fetchDashboard();
     if (isAllowed) fetchStatusConfig();
   }, [isAllowed, fetchDashboard, fetchStatusConfig]);
+
+  const fetchLockedUsers = useCallback(async () => {
+    try {
+      setLoadingLocked(true);
+      const res = await apiClient.getLockedUsers();
+      setLockedUsers(res.lockouts ?? []);
+    } catch (err) {
+      console.error('Failed to load locked accounts:', err);
+    } finally {
+      setLoadingLocked(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-tab-open; setState calls happen after the awaited network call resolves
+    if (isAllowed && tab === 'users') fetchLockedUsers();
+  }, [isAllowed, tab, fetchLockedUsers]);
+
+  const handleLiftLockout = async (code: string) => {
+    if (liftingCode) return;
+    setLiftingCode(code);
+    try {
+      await apiClient.liftLoginLockout(code);
+      setLockedUsers((prev) => prev.filter((l) => l.code !== code));
+    } catch (err) {
+      console.error('Failed to lift lockout:', err);
+    } finally {
+      setLiftingCode(null);
+    }
+  };
 
   const stats = useMemo(
     () => ({
@@ -225,6 +259,39 @@ export default function AdminPanelPage() {
               ))}
             </select>
           </div>
+
+          {(loadingLocked || lockedUsers.length > 0) && (
+            <div className="mb-4 rounded-lg border border-danger/30 bg-danger-bg p-4">
+              <p className="mb-2 text-sm font-semibold text-danger">
+                🔒 {lang === 'he' ? 'חשבונות נעולים (3 סיסמאות שגויות)' : 'Locked accounts (3 wrong-password attempts)'}
+              </p>
+              {loadingLocked ? (
+                <p className="text-sm text-muted">{t('loading')}</p>
+              ) : (
+                <div className="grid gap-2">
+                  {lockedUsers.map((l) => (
+                    <div key={l.code} className="flex items-center justify-between gap-3 rounded-md bg-surface px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink">{l.displayName || l.email}</p>
+                        <p className="truncate text-xs text-muted">
+                          {l.email} · {new Date(l.createdAt).toLocaleString()}{l.location ? ` · ${l.location}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleLiftLockout(l.code)}
+                        disabled={liftingCode === l.code}
+                        className="shrink-0 rounded-md bg-danger px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                      >
+                        {liftingCode === l.code ? '…' : lang === 'he' ? 'הסר נעילה' : 'Lift lockout'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-2">
             {filteredUsers.map((u) => (
               <UserRow key={u.id} user={u} statusConfig={statusConfig} onChanged={fetchDashboard} onEdit={setEditingUser} />

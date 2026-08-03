@@ -272,7 +272,7 @@ export const apiClient = {
    *  with nothing new returns an empty array instead of re-transferring
    *  the whole thread). Omit for the initial load (most recent page). */
   async getChatMessages(chatId: string, since?: string) {
-    return request<Array<{ id: string; text: string; senderId: string; createdAt: string | null }>>(`/api/chats/${chatId}/messages`, {
+    return request<Array<{ id: string; type: 'text' | 'image'; text: string; imageUrl: string | null; senderId: string; createdAt: string | null }>>(`/api/chats/${chatId}/messages`, {
       method: 'GET',
       params: since ? { since } : undefined,
     });
@@ -280,6 +280,29 @@ export const apiClient = {
 
   async sendChatMessage(chatId: string, text: string, senderId: string) {
     return request<{ success: boolean }>(`/api/chats/${chatId}/messages`, { method: 'POST', body: { text, senderId } });
+  },
+
+  /** Image message — text is an optional caption. imageUrl must already be a
+   *  Cloudinary URL from uploadChatImage below; the server independently
+   *  re-validates the host, it doesn't trust this by itself. */
+  async sendChatImageMessage(chatId: string, imageUrl: string, caption?: string) {
+    return request<{ success: boolean }>(`/api/chats/${chatId}/messages`, { method: 'POST', body: { imageUrl, text: caption ?? '' } });
+  },
+
+  /** Uploads a chat image directly to Cloudinary (same unsigned preset/cloud
+   *  already used elsewhere in this app for CV/transcript/project-file
+   *  uploads) and returns the hosted URL to pass to sendChatImageMessage. */
+  async uploadChatImage(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'student_uploads');
+    const res = await fetch('https://api.cloudinary.com/v1_1/dp7stlfas/image/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error(`Image upload failed — HTTP ${res.status}`);
+    const data = await res.json();
+    return data.secure_url;
   },
 
   async getChatMeta(chatId: string) {
@@ -370,6 +393,21 @@ export const apiClient = {
    *  facultyAdminController.listManagedStaff. */
   async listManagedStaff() {
     return request<{ success: boolean; staff: Array<Record<string, unknown> & { id: string }> }>('/api/admin/staff', { method: 'GET' });
+  },
+
+  /** system_admin only — accounts currently disabled by the 3-strikes
+   *  failed-login flow (server/src/services/loginSecurity.ts), still
+   *  awaiting either the owner's own email link or an admin lifting it. */
+  async getLockedUsers() {
+    return request<{ lockouts: Array<{ code: string; uid: string; email: string; displayName: string; ip: string; location: string; createdAt: string }> }>(
+      '/api/admin/login-security/locked', { method: 'GET' }
+    );
+  },
+
+  /** Re-enables the account, issues + emails a fresh temp password, clears
+   *  the incident — same effect as the owner's own "yes, this was me" link. */
+  async liftLoginLockout(code: string) {
+    return request<{ success: boolean; message: string }>(`/api/admin/login-security/${encodeURIComponent(code)}/lift`, { method: 'POST' });
   },
 
   async createAdminUser(payload: {

@@ -114,7 +114,7 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
           style={{ backgroundColor: facultyColor }}
         >
-          {user.displayName.charAt(0).toUpperCase()}
+          {(user.displayName || '?').charAt(0).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-ink">{user.displayName}</p>

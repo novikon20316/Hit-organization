@@ -12,7 +12,9 @@ import { getRoleAccent } from '@/lib/facultyColors';
 
 interface Message {
   id: string;
+  type: 'text' | 'image';
   text: string;
+  imageUrl: string | null;
   senderId: string;
   createdAt: string | null;
 }
@@ -39,6 +41,9 @@ export default function ChatConversationPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Before this flips false, a zero-length messages array is ambiguous
   // (real empty chat vs. still loading vs. a failed fetch) — without it,
   // any of those three rendered the same "No messages yet, say hi!" empty
@@ -131,6 +136,24 @@ export default function ChatConversationPage() {
     }
   };
 
+  const handlePickImage = () => fileInputRef.current?.click();
+
+  const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow picking the same file again later
+    if (!file || !chatId || uploadingImage) return;
+    setUploadingImage(true);
+    try {
+      const imageUrl = await apiClient.uploadChatImage(file);
+      await apiClient.sendChatImageMessage(chatId, imageUrl);
+      await fetchMessages();
+    } catch (err) {
+      console.error('Send image error:', err);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const initialsOf = headerName
     ? headerName
         .split(' ')
@@ -180,7 +203,19 @@ export default function ChatConversationPage() {
                 <div key={item.id}>
                   {showTime && item.createdAt && <p className="my-2 text-center text-xs text-muted">{formatTime(item.createdAt)}</p>}
                   <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${mine ? 'bg-primary text-primary-ink' : 'bg-surface text-ink'}`}>{item.text}</div>
+                    {item.type === 'image' && item.imageUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => setViewerUrl(item.imageUrl)}
+                        className={`max-w-[75%] overflow-hidden rounded-2xl p-1 text-sm ${mine ? 'bg-primary' : 'bg-surface'}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary URL, not a local asset */}
+                        <img src={item.imageUrl} alt="" className="max-h-72 w-full rounded-xl object-cover" />
+                        {item.text && <p className={`px-2 py-1.5 text-left ${mine ? 'text-primary-ink' : 'text-ink'}`}>{item.text}</p>}
+                      </button>
+                    ) : (
+                      <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${mine ? 'bg-primary text-primary-ink' : 'bg-surface text-ink'}`}>{item.text}</div>
+                    )}
                   </div>
                 </div>
               );
@@ -191,6 +226,16 @@ export default function ChatConversationPage() {
 
       <div className="border-t border-line bg-surface p-3">
         <div className="mx-auto flex max-w-2xl items-end gap-2">
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelected} className="hidden" />
+          <button
+            type="button"
+            onClick={handlePickImage}
+            disabled={uploadingImage}
+            aria-label={lang === 'he' ? 'שלח תמונה' : 'Send an image'}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg text-ink hover:bg-paper disabled:opacity-40"
+          >
+            {uploadingImage ? '…' : '📎'}
+          </button>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -215,6 +260,16 @@ export default function ChatConversationPage() {
           </button>
         </div>
       </div>
+
+      {viewerUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-6"
+          onClick={() => setViewerUrl(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary URL, not a local asset */}
+          <img src={viewerUrl} alt="" className="max-h-full max-w-full object-contain" />
+        </div>
+      )}
     </div>
   );
 }
