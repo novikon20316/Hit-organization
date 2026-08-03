@@ -170,7 +170,7 @@ function MilestoneCard({
         reason: reasonText.trim(),
       });
       if (result.pendingApproval) {
-        // coordinator/administrative_secretary — this now needs program_head/
+        // coordinator/administrative coordinator — this now needs program_head/
         // faculty_admin sign-off before it actually takes effect (P1 #12).
         setShowAdjust(false);
         setNewDateText('');

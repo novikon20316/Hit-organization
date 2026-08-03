@@ -144,7 +144,7 @@ const PROJECT_CREATOR_ROLES = ['faculty_admin', 'system_admin', 'grad_school_hea
  * and ignored the faculty filter entirely (returned every supervisor,
  * institution-wide, regardless of what was requested); that 403'd every
  * other Add Project modal that calls this (faculty_admin/grad_school_head/
- * administrative_secretary), which silently rendered as an empty dropdown
+ * administrative coordinator), which silently rendered as an empty dropdown
  * since the client swallows the error.
  */
 export const getSupervisorsList = async (req: AuthenticatedRequest, res: Response) => {
@@ -171,7 +171,7 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
     // Two separate queries: staff with a real facultyId matching the
     // selection (unchanged, existing behavior), plus every cross-faculty
     // account (facultyId === 'all' — system_admin, grad_school_head,
-    // administrative_secretary, internal_examiner). A cross-faculty account
+    // administrative coordinator, internal_examiner). A cross-faculty account
     // that holds 'supervisor' as an additional role is available for EVERY
     // faculty by default (that's what "cross-faculty" means) — unless it's
     // been explicitly narrowed via supervisorFacultyIds (see
@@ -1271,12 +1271,12 @@ export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: 
     if (student.role !== 'student') {
       return res.status(400).json({ message: 'This action only applies to student accounts.' });
     }
-    // HIGH FIX: administrative_secretary's facultyId is always the literal
+    // HIGH FIX: administrative coordinator's facultyId is always the literal
     // string 'all' (see CROSS_FACULTY_ROLES in userController.ts) — her real
     // scope lives in coordinatorScopes. This endpoint had no scope check at
-    // all, so a secretary assigned only to e.g. "sciences" could change the
+    // all, so an administrative coordinator assigned only to e.g. "sciences" could change the
     // academic year (and thus thesis eligibility) of a student in any other
-    // faculty. Every other administrative_secretary-facing endpoint in this
+    // faculty. Every other administrative coordinator-facing endpoint in this
     // codebase already enforces this the same way.
     if (req.user.role === 'administrative_secretary' &&
         !withinCoordinatorScope(req.user, { facultyId: student.facultyId ?? '', major: student.major || undefined })) {
@@ -1350,7 +1350,7 @@ export const searchStudents = async (req: AuthenticatedRequest, res: Response) =
         (u.email ?? '').toLowerCase().includes(q) ||
         (u.studentId ?? '').toLowerCase().includes(q)
       )
-      // HIGH FIX: same administrative_secretary scoping gap as
+      // HIGH FIX: same administrative coordinator scoping gap as
       // updateStudentAcademicYear above — without this, her search returned
       // every student in the institution, not just her assigned degree(s).
       .filter((u: any) =>

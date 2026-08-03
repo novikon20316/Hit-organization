@@ -11,19 +11,19 @@ interface DegreeScope { facultyId: string; major?: string }
  * GET /api/project-coordinator/:uid/dashboard
  * Same faculty-scoped data and permissions as the `coordinator` role's own
  * dashboard (see getCoordinatorDashboard in coordinatorController.ts) — the
- * `administrative_secretary` role is the department secretary, who manages the
+ * `administrative_secretary` role is the department coordinator, who manages the
  * same bachelor's/master's project groups within their faculty. Reshaped
- * into "groups" to match administrative_secretary_dashboard.tsx.
+ * into "groups" to match administrative_coordinator_dashboard.tsx.
  *
  * administrative_secretary accounts are provisioned with facultyId 'all'
- * (see CROSS_FACULTY_ROLES in userController.ts) — one secretary can be
+ * (see CROSS_FACULTY_ROLES in userController.ts) — one coordinator can be
  * responsible for a specific degree (e.g. data science) rather than a whole
  * faculty. Her real scope lives in req.user.coordinatorScopes (the same
  * {facultyId, major?} tuples the 'coordinator' role uses — see
  * CoordinatorScopesModal), assigned per-degree by a system_admin. This used
  * to query on req.user.facultyId directly, which is always the literal
  * string 'all' for her — so it silently matched zero real projects. Now
- * resolved from her actual assigned degree(s), and a secretary responsible
+ * resolved from her actual assigned degree(s), and a coordinator responsible
  * for more than one degree sees all of them at once.
  */
 export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -133,7 +133,7 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
       if (data.defenseDate) scheduledDefenses++;
 
       // Per-student grade breakdown — mirrors getActiveProjects'
-      // formattedMilestones in projectController.ts, so the secretary can
+      // formattedMilestones in projectController.ts, so the coordinator can
       // see (not just track status of) each student's grades for her degree.
       const members = (data.enrolledStudentIds ?? []).map((sid: string) => {
         const studentMilestones = projectMilestones

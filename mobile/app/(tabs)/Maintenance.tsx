@@ -52,7 +52,7 @@ export default function MaintenanceScreen() {
   const params = useLocalSearchParams<{ title?: string; endsAt?: string }>();
 
   // Defaults to Hebrew, matching the rest of this app's convention (e.g.
-  // administrative_secretary_dashboard.tsx's own local lang state) — a
+  // administrative_coordinator_dashboard.tsx's own local lang state) — a
   // toggle lets a student who doesn't read Hebrew switch to English. This
   // is a per-screen toggle, not the app's persisted language setting, same
   // as other screens here.

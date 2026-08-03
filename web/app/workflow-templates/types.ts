@@ -46,7 +46,7 @@ export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
   { key: 'supervisor', he: 'מנחה', en: 'Supervisor' },
   { key: 'coordinator', he: 'רכז', en: 'Coordinator' },
   { key: 'faculty_admin', he: 'מנהל פקולטה', en: 'Faculty Admin' },
-  { key: 'administrative_secretary', he: 'מזכירה אקדמית', en: 'Administrative Secretary' },
+  { key: 'administrative_secretary', he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' },
   { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
   { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
 ];

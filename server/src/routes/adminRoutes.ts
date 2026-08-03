@@ -68,7 +68,7 @@ router.get('/dashboard-summary', verifyToken, getAdminDashboardSummary);
 router.get('/users/export', verifyToken, exportUsersAdmin);
 router.get('/defense-access-grants', verifyToken, listDefenseAccessGrants);
 router.get('/academic-calendar', verifyToken, getAcademicCalendarConfig);
-// system_admin or administrative_secretary — gated inside the controller.
+// system_admin or administrative coordinator — gated inside the controller.
 router.get('/students/search', verifyToken, searchStudents);
 router.get('/student-roster', verifyToken, listStudentRosterAdmin);
 // faculty_admin/program_head (own faculty) or grad_school_head
@@ -103,7 +103,7 @@ router.post('/users/:id/status', verifyToken, setStudentStatus);
 // PUT routes
 router.put('/academic-calendar', verifyToken, updateAcademicCalendarConfig);
 router.put('/student-statuses', verifyToken, updateStudentStatusOptions);
-// system_admin or administrative_secretary — gated inside the controller.
+// system_admin or administrative coordinator — gated inside the controller.
 router.put('/users/:id/academic-year', verifyToken, updateStudentAcademicYear);
 
 // PATCH routes

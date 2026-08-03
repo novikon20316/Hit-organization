@@ -1,6 +1,6 @@
 // components/modals/BulkDueDateModal.tsx
 //
-// Lets coordinator / administrative_secretary / system_admin shift one due
+// Lets coordinator / administrative coordinator / system_admin shift one due
 // date across many projects' milestones at once — for faculty-wide delays
 // (holidays, illness, war, etc.) instead of adjusting one milestone at a
 // time. Calls PUT /api/milestones/bulk-due-date (see bulkUpdateMilestoneDueDates
@@ -89,7 +89,7 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
         reason: reason.trim(),
       });
       if (res.data.pendingApproval) {
-        // coordinator/administrative_secretary — needs program_head/faculty_admin
+        // coordinator/administrative coordinator — needs program_head/faculty_admin
         // sign-off before it actually takes effect (P1 #12).
         Alert.alert(
           '⏳',

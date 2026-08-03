@@ -19,14 +19,14 @@ interface ProposeVersionModalProps {
   processType: ProcessType;
   /** Required for cross-faculty proposers (system_admin/grad_school_head) —
    *  they have no single "home" faculty, so the server requires one to be
-   *  named explicitly (see workflowTemplateController.ts). For
-   *  administrative_secretary this is her resolved own-scope facultyId
+   *  named explicitly (see workflowTemplateController.ts). For the
+   *  administrative coordinator this is her resolved own-scope facultyId
    *  (never a free choice, but still sent so the server can match it
    *  against her coordinatorScopes if she holds more than one). */
   facultyId?: string;
   /** A major slug, or `null` for "all majors in this faculty" — resolved by
-   *  the parent page (system_admin's picker, or administrative_secretary's
-   *  own scope), never asked again in here. */
+   *  the parent page (system_admin's picker, or the administrative
+   *  coordinator's own scope), never asked again in here. */
   major: string | null;
   initialMilestones: MilestoneSpec[];
   /** Pre-fills from the currently approved version's chain, if any —

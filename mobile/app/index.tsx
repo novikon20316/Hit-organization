@@ -69,7 +69,7 @@ export default function Index() {
             safeSetRedirectPath("/program_head/program_head_dashboard");
             break;
           case "administrative_secretary":
-            safeSetRedirectPath("/administrative_secretary/administrative_secretary_dashboard");
+            safeSetRedirectPath("/administrative_coordinator/administrative_coordinator_dashboard");
             break;
           case "grad_school_head":
             safeSetRedirectPath("/grad_school_head/grad_school_head_dashboard");

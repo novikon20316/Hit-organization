@@ -63,7 +63,7 @@ export default function CoordinatorHomePage() {
         setRecommendations([]);
       }
 
-      // getActiveProjects can 403 for administrative_secretary/system_admin
+      // getActiveProjects can 403 for administrative coordinator/system_admin
       // (server-side role check today only allows coordinator/faculty_admin/
       // admin) — treat that as an empty In Progress tab, not a crash.
       try {

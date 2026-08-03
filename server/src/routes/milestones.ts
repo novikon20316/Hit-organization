@@ -17,10 +17,10 @@ router.get('/', verifyToken, getMilestonesByQuery);
 router.get('/:projectId/milestones', verifyToken, getMilestonesByQuery);
 // POST /api/milestones/:milestoneId/submit — student submits a milestone
 router.post('/:milestoneId/submit', verifyToken, uploadMiddleware, submitMilestone)
-// PUT /api/milestones/bulk-due-date — coordinator/faculty_admin/administrative_secretary/system_admin
+// PUT /api/milestones/bulk-due-date — coordinator/faculty_admin/administrative coordinator/system_admin
 // shifts a due date across every milestone matching a set of projects (+ optional type)
 router.put('/bulk-due-date', verifyToken, bulkUpdateMilestoneDueDates)
-// PUT /api/milestones/:id — coordinator/faculty_admin/administrative_secretary/system_admin adjusts a milestone's due date
+// PUT /api/milestones/:id — coordinator/faculty_admin/administrative coordinator/system_admin adjusts a milestone's due date
 router.put('/:id', verifyToken, updateMilestoneByCoordinator)
 // GET /api/milestones/:milestoneId/examiner-opinions — read-only, feeds the decision UI
 router.get('/:milestoneId/examiner-opinions', verifyToken, getExaminerOpinions)

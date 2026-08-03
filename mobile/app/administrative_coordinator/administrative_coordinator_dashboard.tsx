@@ -1,5 +1,5 @@
-// app/administrative_secretary/administrative_secretary_dashboard.tsx
-// Dashboard for מזכירה אדמיניסטרטיבית (Administrative Secretary).
+// app/administrative_coordinator/administrative_coordinator_dashboard.tsx
+// Dashboard for רכזת אדמיניסטרטיבית (Administrative Coordinator).
 // Manages bachelor's and master's project groups:
 // open groups, assign students, schedule defenses, track submissions.
 
@@ -18,7 +18,7 @@ import { TopBar, getFacultyColor, FACULTY_COLORS } from '../../components/shared
 import { t, tx, type Lang } from '../../components/i18n';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal, NewProjectModal } from '@/components/modals';
-import { AdministrativeSecretaryDashboardStyles, AdministrativeSecretaryModalStyles, adminPanelStyles } from '../../constants/styles';
+import { AdministrativeCoordinatorDashboardStyles, AdministrativeCoordinatorModalStyles, adminPanelStyles } from '../../constants/styles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import type { AppUser } from '@/types';
 
@@ -62,7 +62,7 @@ interface DashboardData {
 // Previously wrote an examinerTokens doc directly to Firestore
 // (src/firebase/createExaminerToken.ts) — that path only checks the caller's
 // ROLE (Firestore rules), never her assigned degree scope, so any
-// administrative_secretary could invite an examiner for a project outside
+// the administrative coordinator role could invite an examiner for a project outside
 // her own faculty/major. It also never emailed the examiner (she had to
 // copy/paste the link herself) and passed group.currentMilestone — a
 // display label like "Final Report", not a real milestone doc id — as
@@ -373,7 +373,7 @@ export default function ProjectCoordinatorDashboard() {
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
 
   // ── Add Project modal state ─────────────────────────────────────────────
-  // Net-new — administrative_secretary previously had no project-creation
+  // Net-new — the administrative coordinator role previously had no project-creation
   // capability at all (POST /api/admin/projects hard-403'd every role
   // except faculty_admin/system_admin; now widened). She's a cross-faculty
   // role (facultyId 'all' by convention, no single "own" faculty), so this
@@ -407,7 +407,7 @@ export default function ProjectCoordinatorDashboard() {
       const res = await apiClient.get(`/api/project-coordinator/${uid}/dashboard`);
       setData(res.data);
     } catch (e: any) {
-      console.error('administrative_secretary dashboard error:', e);
+      console.error('administrative_coordinator dashboard error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
@@ -718,7 +718,7 @@ export default function ProjectCoordinatorDashboard() {
         visible={showBulkDueDate}
         onClose={() => setShowBulkDueDate(false)}
         lang={lang}
-        projects={(data?.groups ?? []).map((g) => ({ id: g.id, label: g.projectTitle }))}
+        projects={(data?.groups ?? []).map((g) => ({ id: g.id, label: g.projectTitle, sublabel: g.members.map((m) => m.name).join(', ') || undefined }))}
         onSaved={fetchData}
       />
 
@@ -761,7 +761,7 @@ export default function ProjectCoordinatorDashboard() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const s = AdministrativeSecretaryDashboardStyles;
+const s = AdministrativeCoordinatorDashboardStyles;
 
 // ─── Send Examiner Modal styles ───────────────────────────────────────────────
-const m = AdministrativeSecretaryModalStyles;
+const m = AdministrativeCoordinatorModalStyles;

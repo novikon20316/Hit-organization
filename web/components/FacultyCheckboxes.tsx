@@ -6,7 +6,7 @@
 // add_projects in (GET /api/permissions/my-grants, see
 // scopeAuthorization.ts's grantedFacultyIdsFor), not every faculty in the
 // institution. Used by every Add Project modal that allows multi-faculty
-// selection (admin/panel, faculty_admin, administrative_secretary,
+// selection (admin/panel, faculty_admin, administrative coordinator,
 // grad_school_head dashboards) — supervisor's own modal stays locked/single
 // and doesn't use this.
 

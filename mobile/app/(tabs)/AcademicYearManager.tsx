@@ -1,6 +1,6 @@
 // app/(tabs)/AcademicYearManager.tsx
 //
-// Lets system_admin / administrative_secretary correct or advance a
+// Lets system_admin / administrative coordinator correct or advance a
 // student's yearOfStudy, and/or explicitly "keep them in the same academic
 // year" (hold-back). Previously there was NO way to change yearOfStudy after
 // account creation at all — a student stuck showing as ineligible had no

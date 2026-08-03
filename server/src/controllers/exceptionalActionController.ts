@@ -2,7 +2,7 @@
 //
 // HTTP surface for the P1 #12 approval gate — program_head/faculty_admin/
 // grad_school_head/system_admin review requests that milestoneController.ts
-// creates on behalf of coordinator/administrative_secretary actors instead
+// creates on behalf of coordinator/administrative coordinator actors instead
 // of letting them apply directly. See services/exceptionalActions.ts.
 
 import { Response } from 'express';

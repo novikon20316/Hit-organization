@@ -1,6 +1,6 @@
 'use client';
 
-// app/administrative_secretary/dashboard/DefenseLogisticsModal.tsx
+// app/administrative_coordinator/dashboard/DefenseLogisticsModal.tsx
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';

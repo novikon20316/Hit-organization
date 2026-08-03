@@ -1,11 +1,11 @@
 'use client';
 
-// app/administrative_secretary/dashboard/SendExaminerModal.tsx
+// app/administrative_coordinator/dashboard/SendExaminerModal.tsx
 //
 // Previously wrote an examinerTokens doc directly to Firestore from the
 // client (lib/createExaminerToken.ts) — that path has no way to check the
 // caller's assigned degree scope (Firestore rules gate by role only, not by
-// coordinatorScopes), so any administrative_secretary could invite an
+// coordinatorScopes), so any administrative coordinator could invite an
 // examiner for a project outside her own degree. It also never actually
 // emailed the examiner (she had to copy/paste the link herself) and passed
 // group.currentMilestone — a display label like "Final Report", not a real

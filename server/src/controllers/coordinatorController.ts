@@ -1095,7 +1095,7 @@ export const DEFENSE_ALLOWED_BUILDINGS = ['1', '2', '3', '4', '5', '6', '7', '8'
 /**
  * POST /api/coordinator/projects/:projectId/assign-defense
  * (also mounted at /api/project-coordinator/... and /api/admin/... for the
- * administrative_secretary and system_admin roles — same handler, same rules)
+ * administrative coordinator and system_admin roles — same handler, same rules)
  * Sets time/room/building for a defense whose DATE has already been locked
  * in by the examiner date-matching flow (services/defenseScheduling.ts) —
  * the coordinator no longer picks the date here, only the logistics.

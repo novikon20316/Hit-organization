@@ -802,7 +802,7 @@ export const ROLE_LABELS: Record<AppRole, { he: string; en: string }> = {
   coordinator:           { he: 'רכז פקולטה',                        en: 'Faculty Coordinator' },
   faculty_admin:         { he: 'ראש מנהל פקולטה',                   en: 'Faculty Admin Head' },
   program_head:          { he: 'ראש תוכנית תואר שני',               en: "Master's Program Head" },
-  administrative_secretary:   { he: 'מזכירה אדמיניסטרטיבית',                     en: 'Administrative Secretary' },
+  administrative_secretary:   { he: 'רכזת אדמיניסטרטיבית',                     en: 'Administrative Coordinator' },
   grad_school_head:      { he: 'ראש בית הספר ללימודי מוסמכים',      en: 'Graduate School Head' },
   internal_examiner:     { he: 'בוחן פנימי',                        en: 'Internal Examiner' },
   system_admin:          { he: 'מנהל מערכת',                        en: 'System Admin' },

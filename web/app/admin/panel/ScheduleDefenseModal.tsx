@@ -4,7 +4,7 @@
 // Ported from mobile's ScheduleDefenseModal + panel.tsx's
 // handleScheduleDefense. Uses the generalized assignDefenseLogistics('admin', ...)
 // apiClient method — same assignDefense controller as coordinator/
-// administrative_secretary, just mounted under /api/admin.
+// administrative coordinator, just mounted under /api/admin.
 
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';

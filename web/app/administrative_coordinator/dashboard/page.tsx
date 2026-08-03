@@ -1,7 +1,7 @@
 'use client';
 
-// app/administrative_secretary/dashboard/page.tsx
-// Ported from mobile/app/administrative_secretary/administrative_secretary_dashboard.tsx.
+// app/administrative_coordinator/dashboard/page.tsx
+// Ported from mobile/app/administrative_coordinator/administrative_coordinator_dashboard.tsx.
 // Dropped: the "View" button that routed to /admin/panel?groupId=... — that
 // page is system_admin-gated (this role would just get redirected away) and
 // never reads a groupId param anyway, so it was a dead link on mobile too.
@@ -24,7 +24,7 @@ import { NewProjectModal } from './NewProjectModal';
 import type { ProjectGroup, MemberMilestoneGrade } from './types';
 import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
 
-const ADMIN_SECRETARY_ROLES: AppRole[] = ['administrative_secretary', 'system_admin'];
+const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'system_admin'];
 
 // Mirrors InProgressTab.tsx's statusColor/statusLabel (coordinator/home) —
 // same milestone status taxonomy, just keyed off finalGrade instead of the
@@ -46,8 +46,8 @@ function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
   return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
 }
 
-export default function AdministrativeSecretaryDashboardPage() {
-  const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_SECRETARY_ROLES);
+export default function AdministrativeCoordinatorDashboardPage() {
+  const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_COORDINATOR_ROLES);
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
 
@@ -111,7 +111,7 @@ export default function AdministrativeSecretaryDashboardPage() {
 
   return (
     <DashboardShell
-      title={lang === 'he' ? 'לוח בקרה — מזכירה אדמיניסטרטיבית' : 'Administrative Secretary Dashboard'}
+      title={lang === 'he' ? 'לוח בקרה — רכזת אדמיניסטרטיבית' : 'Administrative Coordinator Dashboard'}
       subtitle={lang === 'he' ? 'קבוצות פרויקט, הגנות ובוחנים חיצוניים' : 'Project groups, defenses, and external examiners'}
       actions={
         <div className="flex items-center gap-2">
@@ -292,7 +292,7 @@ export default function AdministrativeSecretaryDashboardPage() {
       )}
       {showBulkDueDate && (
         <BulkDueDateModal
-          projects={groups.map((g) => ({ id: g.id, label: g.projectTitle }))}
+          projects={groups.map((g) => ({ id: g.id, label: g.projectTitle, sublabel: g.members.map((m) => m.name).join(', ') || undefined }))}
           onClose={() => setShowBulkDueDate(false)}
           onSaved={fetchDashboard}
         />

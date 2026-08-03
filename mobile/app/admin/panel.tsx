@@ -595,7 +595,7 @@ export default function PanelScreen() {
         email:           newUserEmail.trim().toLowerCase(),
         phoneNumber:     newUserPhone.trim() || null,
         role:            newUserRole,
-        // Cross-faculty roles (system_admin, administrative_secretary, grad_school_head,
+        // Cross-faculty roles (system_admin, administrative coordinator, grad_school_head,
         // internal_examiner) are college-wide by definition — never scope them to
         // whatever faculty happened to be selected in the picker.
         facultyId:       isCrossFaculty ? 'all' : newUserFaculty,
@@ -2295,7 +2295,11 @@ export default function PanelScreen() {
         visible={showBulkDueDate}
         onClose={() => setShowBulkDueDate(false)}
         lang={lang}
-        projects={projects.map((p) => ({ id: p.id, label: lang === 'he' ? p.titleHe : p.titleEn }))}
+        projects={projects.map((p) => ({
+          id: p.id,
+          label: lang === 'he' ? p.titleHe : p.titleEn,
+          sublabel: (p.enrolledStudentIds ?? []).map((sid) => userNamesById[sid] ?? sid).join(', ') || undefined,
+        }))}
         onSaved={fetchAllDashboardData}
       />
 

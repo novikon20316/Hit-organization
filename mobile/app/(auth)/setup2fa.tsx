@@ -39,7 +39,7 @@ export default function Setup2FA() {
             : role === 'faculty_admin'        ? '/faculty_admin/dashboard'
             : role === 'coordinator'          ? '/coordinator/home'
             : role === 'program_head'         ? '/program_head/program_head_dashboard'
-            : role === 'administrative_secretary'  ? '/administrative_secretary/administrative_secretary_dashboard'
+            : role === 'administrative_secretary'  ? '/administrative_coordinator/administrative_coordinator_dashboard'
             : role === 'grad_school_head'     ? '/grad_school_head/grad_school_head_dashboard'
             : (role === 'supervisor' || role === 'secondary_supervisor') ? '/supervisor/dashboard'
             : role === 'student'              ? '/student/home'

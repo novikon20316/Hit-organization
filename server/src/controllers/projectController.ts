@@ -60,10 +60,10 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
     const hasFacultyAccess =
       FACULTY_SCOPED_ROLES.includes(requester.role) &&
       (requester.facultyId === 'all' || requester.facultyId === project.facultyId);
-    const hasSecretaryScopeAccess =
+    const hasCoordinatorScopeAccess =
       requester.role === 'administrative_secretary' &&
       withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });
-    if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasSecretaryScopeAccess) {
+    if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasCoordinatorScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 

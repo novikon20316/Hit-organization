@@ -3198,7 +3198,7 @@ export const FacultyAdminDashboardStyles = StyleSheet.create({
   daysLeft: { fontSize: 18, fontWeight: '700' },
 });
 
-export const AdministrativeSecretaryDashboardStyles = StyleSheet.create({
+export const AdministrativeCoordinatorDashboardStyles = StyleSheet.create({
   root:     { flex: 1, backgroundColor: '#FFFBEB' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scroll:   { padding: 16 },
@@ -3245,7 +3245,7 @@ export const AdministrativeSecretaryDashboardStyles = StyleSheet.create({
   emptyText:  { fontSize: 15, color: '#64748B' },
 });
 
-export const AdministrativeSecretaryModalStyles = StyleSheet.create({
+export const AdministrativeCoordinatorModalStyles = StyleSheet.create({
   modal:        { flex: 1, backgroundColor: '#F8FAFC' },
   modalContent: { padding: 20, paddingBottom: 60 },
   modalTitle:   { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 16 },
@@ -4636,6 +4636,7 @@ export const BulkDueDateModalStyles = StyleSheet.create({
   projectRowActive:    { borderColor: '#2E86FF', backgroundColor: '#EBF3FF' },
   projectRowText:      { flex: 1, fontSize: 13, color: '#334155' },
   projectRowTextActive:{ color: '#1A5FCC', fontWeight: '600' },
+  projectRowSublabel:  { fontSize: 11, color: '#94A3B8', marginTop: 1 },
   checkbox: {
     width: 18, height: 18, borderRadius: 5, borderWidth: 2,
     borderColor: '#9BA8C0', alignItems: 'center', justifyContent: 'center',

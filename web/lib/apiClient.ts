@@ -214,13 +214,13 @@ export const apiClient = {
     return request<{ milestones: Array<Record<string, unknown> & { id: string }> }>('/api/milestones', { method: 'GET', params });
   },
 
-  /** PUT /api/milestones/:id — coordinator/faculty_admin/administrative_secretary/
+  /** PUT /api/milestones/:id — coordinator/faculty_admin/administrative coordinator/
    *  system_admin adjusts a single milestone's due date (matches
    *  UPDATE_MILESTONE_ROLES + updateMilestoneByCoordinator in
    *  milestoneController.ts exactly). Distinct from bulkUpdateMilestoneDueDates
    *  below, which shifts the same date across many projects at once. */
   async updateMilestoneDueDate(id: string, payload: { dueDate: string; reason?: string }) {
-    // coordinator/administrative_secretary now get a 202 + pendingApproval
+    // coordinator/administrative coordinator now get a 202 + pendingApproval
     // instead of an immediate write — see P1 #12 / services/exceptionalActions.ts.
     // faculty_admin/system_admin still get an immediate 200.
     return request<{ success: boolean; message: string; pendingApproval?: boolean; request?: ExceptionalActionRequest }>(
@@ -490,7 +490,7 @@ export const apiClient = {
   },
 
   /** POST /api/admin/projects — system_admin, faculty_admin, grad_school_head,
-   *  administrative_secretary. One or more faculties fan out into one project
+   *  administrative coordinator. One or more faculties fan out into one project
    *  doc each (see adminController.ts's createAdminProject) — `ids` has one
    *  entry per faculty selected; `id` is just `ids[0]`, kept for callers that
    *  only ever create a single-faculty project. */
@@ -681,7 +681,7 @@ export const apiClient = {
     });
   },
 
-  // ─── 6. COORDINATOR (coordinator / administrative_secretary / system_admin) ─
+  // ─── 6. COORDINATOR (coordinator / administrative coordinator / system_admin) ─
   async getCoordinatorDashboard() {
     return request<{
       facultyId: string;
@@ -754,7 +754,7 @@ export const apiClient = {
 
   /** GET /api/projects/ActiveProjects (unusual casing — matches the server
    *  route exactly). Server-side role check today only allows coordinator /
-   *  faculty_admin / admin — administrative_secretary and system_admin can
+   *  faculty_admin / admin — administrative coordinator and system_admin can
    *  get a 403 here even though they're allowed onto this page; callers
    *  should treat that as a soft failure (empty state), not a crash. */
   async getActiveProjects() {
@@ -908,7 +908,7 @@ export const apiClient = {
     return request<{ success: boolean; message: string }>(`/api/admin/faculty-content/${id}`, { method: 'DELETE' });
   },
 
-  /** system_admin or administrative_secretary only (checked server-side). */
+  /** system_admin or administrative coordinator only (checked server-side). */
   async searchStudents(q: string) {
     return request<{
       students: Array<{
@@ -1258,7 +1258,7 @@ export const apiClient = {
     note?: string;
     /** system_admin only — proposes on behalf of another faculty. Ignored
      *  (and derived server-side from her own assigned subject) for
-     *  administrative_secretary. */
+     *  administrative coordinator. */
     facultyId?: string;
     /** A major slug, or `null`/omitted for "all majors in this faculty." */
     major?: string | null;
@@ -1327,15 +1327,15 @@ export const apiClient = {
     }>(`/api/program-head/${uid}/dashboard`, { method: 'GET' });
   },
 
-  // ─── 11. ADMINISTRATIVE SECRETARY (project-coordinator dashboard) ──────────
+  // ─── 11. Administrative Coordinator (project-coordinator dashboard) ──────────
   async getProjectCoordinatorDashboard(uid: string) {
     return request<{
       coordinatorName: string;
       facultyId: string | null;
-      /** The secretary's own assigned degree(s) — {facultyId, major?} tuples
+      /** The administrative coordinator's own assigned degree(s) — {facultyId, major?} tuples
        *  from her coordinatorScopes. Empty for system_admin (unfiltered view). */
       scopes?: Array<{ facultyId: string; major?: string }>;
-      /** True when an administrative_secretary has no coordinatorScopes
+      /** True when an administrative coordinator has no coordinatorScopes
        *  assigned yet — groups will be empty; surface this distinctly from
        *  "no groups in your degree" so it's clear an admin needs to assign
        *  her a scope, not that her degree genuinely has nothing in it. */
@@ -1366,7 +1366,7 @@ export const apiClient = {
     }>(`/api/project-coordinator/${uid}/dashboard`, { method: 'GET' });
   },
 
-  /** Shared by coordinator, administrative_secretary, and system_admin — all
+  /** Shared by coordinator, administrative coordinator, and system_admin — all
    *  three route to the same assignDefense controller (coordinatorController.ts),
    *  just mounted under different base paths ('admin' for the admin panel). */
   async assignDefenseLogistics(basePath: 'admin' | 'coordinator' | 'project-coordinator', projectId: string, payload: { time: string; room: string; building: string; onlineDefenseLink?: string }) {
@@ -1376,9 +1376,9 @@ export const apiClient = {
     });
   },
 
-  /** Shared by coordinator / administrative_secretary / system_admin. Same
+  /** Shared by coordinator / administrative coordinator / system_admin. Same
    *  pending-approval gate as updateMilestoneDueDate above for coordinator/
-   *  administrative_secretary callers. */
+   *  administrative coordinator callers. */
   async bulkUpdateMilestoneDueDates(payload: { projectIds: string[]; milestoneType?: string; dueDate: string; reason: string }) {
     return request<{ success?: boolean; updatedCount?: number; message?: string; pendingApproval?: boolean; request?: ExceptionalActionRequest }>('/api/milestones/bulk-due-date', {
       method: 'PUT',
@@ -1387,7 +1387,7 @@ export const apiClient = {
   },
 
   // ─── 18. EXCEPTIONAL ACTIONS — program_head/faculty_admin/grad_school_head/
-  // system_admin review coordinator/administrative_secretary's deadline
+  // system_admin review coordinator/administrative coordinator's deadline
   // overrides before they take effect (P1 #12). ──────────────────────────────
   async getPendingExceptionalActions() {
     return request<{ requests: ExceptionalActionRequest[] }>('/api/exceptional-actions/pending', { method: 'GET' });
@@ -1568,7 +1568,7 @@ export const apiClient = {
   },
 
   // ─── 18. DEADLINE-CLOCK PAUSE — leave / reserve duty / maternity / illness;
-  // coordinator, faculty_admin, program_head, administrative_secretary,
+  // coordinator, faculty_admin, program_head, administrative coordinator,
   // system_admin (matches CLOCK_PAUSE_ROLES in clockPauseController.ts) ──────
   async getClockPauseState(projectId: string) {
     return request<{
@@ -1589,7 +1589,7 @@ export const apiClient = {
   },
 
   // ─── 19. TRACK CHANGE (thesis ↔ project) — coordinator, faculty_admin,
-  // program_head, administrative_secretary, system_admin (matches
+  // program_head, administrative coordinator, system_admin (matches
   // TRACK_CHANGE_ROLES in trackChangeController.ts) ──────────────────────────
   async changeProjectTrack(projectId: string, newTrack: 'thesis' | 'project', reason?: string) {
     return request<{ success: boolean; oldProjectId: string; newProjectId: string }>(
@@ -1598,7 +1598,7 @@ export const apiClient = {
     );
   },
 
-  // ─── 20. EXAMINER ESCALATION — coordinator/faculty_admin/administrative_secretary/
+  // ─── 20. EXAMINER ESCALATION — coordinator/faculty_admin/administrative coordinator/
   // grad_school_head/system_admin manually chase or reassign a declined/overdue
   // external examiner (P1 #6; the scheduled sweep also does this automatically —
   // see server/src/services/examinerEscalation.ts). ──────────────────────────

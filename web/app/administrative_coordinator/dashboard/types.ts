@@ -1,4 +1,4 @@
-// app/administrative_secretary/dashboard/types.ts
+// app/administrative_coordinator/dashboard/types.ts
 
 export interface MemberMilestoneGrade {
   type: string;

@@ -362,7 +362,7 @@ export default function NotificationsScreen() {
       case 'coordinator':          router.replace('/coordinator/home');        break;
       case 'faculty_admin':        router.replace('/faculty_admin/dashboard'); break;
       case 'program_head':         router.replace('/program_head/program_head_dashboard'); break;
-      case 'administrative_secretary':  router.replace('/administrative_secretary/administrative_secretary_dashboard'); break;
+      case 'administrative_secretary':  router.replace('/administrative_coordinator/administrative_coordinator_dashboard'); break;
       case 'grad_school_head':     router.replace('/grad_school_head/grad_school_head_dashboard'); break;
       case 'system_admin':         router.replace('/admin/panel');             break;
       default:                     router.replace('/(auth)/login');

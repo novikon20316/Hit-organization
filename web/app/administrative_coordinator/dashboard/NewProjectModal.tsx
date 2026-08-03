@@ -1,11 +1,11 @@
 'use client';
 
-// app/administrative_secretary/dashboard/NewProjectModal.tsx
-// Net-new — administrative_secretary previously had no "Add Project"
+// app/administrative_coordinator/dashboard/NewProjectModal.tsx
+// Net-new — the administrative coordinator previously had no "Add Project"
 // capability at all (POST /api/admin/projects hard-403'd every role except
 // faculty_admin/system_admin; that's now widened — see
 // adminController.ts's createAdminProject). Modeled on
-// admin/panel/NewProjectModal.tsx: administrative_secretary is a
+// admin/panel/NewProjectModal.tsx: the administrative coordinator is a
 // cross-faculty role (facultyId === 'all' by convention, no single "own"
 // faculty to lock to), so faculty is a full checkbox multi-select like the
 // system_admin flow, scoped to whatever add_projects grants she actually

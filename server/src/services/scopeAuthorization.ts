@@ -97,7 +97,7 @@ export function hasViewGrant(user: AuthUser | undefined, view: ViewType, resourc
  * resource must match at least one. Otherwise falls back to the implicit
  * contract every coordinator-facing dashboard already assumes: confined to
  * their own facultyId (or 'all' for cross-faculty accounts like
- * administrative_secretary) — a baseline the write endpoints below never
+ * administrative coordinator) — a baseline the write endpoints below never
  * actually enforced until now.
  */
 export function withinCoordinatorScope(user: AuthUser | undefined, resource: ResourceScope): boolean {
@@ -106,7 +106,7 @@ export function withinCoordinatorScope(user: AuthUser | undefined, resource: Res
   if (user.coordinatorScopes.length > 0) {
     return user.coordinatorScopes.some((scope) => scopeMatches(scope, resource));
   }
-  // facultyId 'all' is how cross-faculty roles (administrative_secretary,
+  // facultyId 'all' is how cross-faculty roles (administrative coordinator,
   // grad_school_head, internal_examiner, system_admin — see CROSS_FACULTY_ROLES
   // in userController.ts) are provisioned; it is not a real faculty and must
   // never satisfy this fallback. Without an explicit coordinatorScopes entry,
@@ -137,7 +137,7 @@ export async function resolveProjectScope(projectId: string | undefined | null):
  *  rather than picking one. Replaces the ad hoc "notify coordinators" queries
  *  in defenseScheduling.ts/examinerEscalation.ts/notificationScheduler.ts,
  *  each of which only matched a plain facultyId equality and so silently
- *  missed administrative_secretary-style accounts whose real scope lives in
+ *  missed administrative coordinator-style accounts whose real scope lives in
  *  coordinatorScopes instead of facultyId. */
 export async function resolveStaffForScope(
   role: ChainRole,

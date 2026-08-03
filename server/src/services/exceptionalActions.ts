@@ -2,7 +2,7 @@
 //
 // P1 backlog item #12 — coordinators previously acted unilaterally on
 // deadline overrides (logAuditEvent only ran AFTER the write). This models
-// that as a real pending-approval gate: a coordinator/administrative_secretary
+// that as a real pending-approval gate: a coordinator/administrative coordinator
 // request is stored here instead of executing, and only a program_head/
 // faculty_admin/system_admin decision actually runs the mutation (via
 // services/deadlineOverride.ts) or rejects it.

@@ -79,10 +79,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [scopesModalOpen, setScopesModalOpen] = useState(false);
 
-  // Same generic scope field also used to assign an administrative_secretary
+  // Same generic scope field also used to assign an administrative coordinator
   // to one or more specific subjects (facultyId+major) — "keep a separation
   // between degrees" for the workflow-templates screen. See
-  // resolveSecretaryScope in server/src/controllers/workflowTemplateController.ts.
+  // resolveCoordinatorScope in server/src/controllers/workflowTemplateController.ts.
   const showCoordinatorScopes =
     role === 'coordinator' || additionalRoles.includes('coordinator') ||
     role === 'administrative_secretary' || additionalRoles.includes('administrative_secretary');
@@ -308,7 +308,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
           </button>
 
           {/* ── Coordinator Scope / Subject Responsibility (coordinator or
-                administrative_secretary) — same underlying field either way,
+                administrative coordinator) — same underlying field either way,
                 just a role-appropriate label. ── */}
           {showCoordinatorScopes && (
             <button
@@ -319,7 +319,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
               <span>
                 📋{' '}
                 {role === 'administrative_secretary' || additionalRoles.includes('administrative_secretary')
-                  ? lang === 'he' ? 'תחום אחריות (מזכירה)' : 'Subject Responsibility'
+                  ? lang === 'he' ? 'תחום אחריות (רכזת)' : 'Subject Responsibility'
                   : lang === 'he' ? 'היקף אחריות רכז' : 'Coordinator Scope'}
               </span>
               <span className="text-muted">

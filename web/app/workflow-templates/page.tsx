@@ -36,7 +36,7 @@ const WORKFLOW_TEMPLATE_ROLES: AppRole[] = ['coordinator', 'faculty_admin', 'pro
 // for, or every fetch/propose silently targets a facultyId ('all') that no
 // real project ever has (see workflowTemplateController.ts). system_admin
 // and grad_school_head get a free faculty picker; administrative_secretary
-// is scoped further still (see isSecretary below) — never a free choice,
+// is scoped further still (see isCoordinator below) — never a free choice,
 // only whichever subject(s) her own coordinatorScopes actually assign her.
 const FREE_CHOICE_CROSS_FACULTY_ROLES: AppRole[] = ['system_admin', 'grad_school_head'];
 const SELECTABLE_FACULTY_IDS = (Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all');
@@ -63,23 +63,23 @@ export default function WorkflowTemplatesPage() {
   const [approvePreview, setApprovePreview] = useState<{ tpl: WorkflowTemplateDoc; count: number } | null>(null);
 
   const role = userData?.role as AppRole | undefined;
-  const isSecretary = role === 'administrative_secretary';
+  const isCoordinator = role === 'administrative_secretary';
   const isFreeChoiceCrossFaculty = !!role && FREE_CHOICE_CROSS_FACULTY_ROLES.includes(role);
 
   const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
   const [selectedMajor, setSelectedMajor] = useState<string | null>(null);
-  const [secretaryScopeIndex, setSecretaryScopeIndex] = useState(0);
+  const [coordinatorScopeIndex, setCoordinatorScopeIndex] = useState(0);
 
-  // administrative_secretary's own assigned subject(s) — {facultyId, major?}
+  // The administrative coordinator's own assigned subject(s) — {facultyId, major?}
   // tuples on her own user doc's coordinatorScopes (same generic field the
   // 'coordinator' role uses; see server/src/controllers/
-  // workflowTemplateController.ts's resolveSecretaryScope). Never a free
+  // workflowTemplateController.ts's resolveCoordinatorScope). Never a free
   // choice: if she holds more than one, she picks among only her own.
-  const secretaryScopes = (userData?.coordinatorScopes ?? []) as { facultyId: string; major?: string }[];
-  const secretaryScope = isSecretary ? secretaryScopes[secretaryScopeIndex] : undefined;
+  const coordinatorScopes = (userData?.coordinatorScopes ?? []) as { facultyId: string; major?: string }[];
+  const coordinatorScope = isCoordinator ? coordinatorScopes[coordinatorScopeIndex] : undefined;
 
-  const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isSecretary ? secretaryScope?.facultyId : userData?.facultyId;
-  const major: string | null = role === 'system_admin' ? selectedMajor : isSecretary ? (secretaryScope?.major ?? null) : null;
+  const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isCoordinator ? coordinatorScope?.facultyId : userData?.facultyId;
+  const major: string | null = role === 'system_admin' ? selectedMajor : isCoordinator ? (coordinatorScope?.major ?? null) : null;
 
   useEffect(() => {
     if (isFreeChoiceCrossFaculty && !selectedFacultyId && SELECTABLE_FACULTY_IDS.length > 0) {
@@ -210,24 +210,24 @@ export default function WorkflowTemplatesPage() {
         </label>
       )}
 
-      {isSecretary && secretaryScopes.length === 0 && (
+      {isCoordinator && coordinatorScopes.length === 0 && (
         <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
           {lang === 'he'
             ? 'לא הוקצה לך תחום אחריות עדיין — פנה למנהל המערכת שיקצה לך תחום.'
             : 'No subject has been assigned to your account yet — ask your system_admin to assign one.'}
         </p>
       )}
-      {isSecretary && secretaryScopes.length > 1 && (
+      {isCoordinator && coordinatorScopes.length > 1 && (
         <label className="mb-4 block max-w-xs">
           <span className="mb-1.5 block text-xs font-medium text-muted">
             {lang === 'he' ? 'תחום אחריות' : 'Your subject'}
           </span>
           <select
-            value={secretaryScopeIndex}
-            onChange={(e) => setSecretaryScopeIndex(Number(e.target.value))}
+            value={coordinatorScopeIndex}
+            onChange={(e) => setCoordinatorScopeIndex(Number(e.target.value))}
             className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
           >
-            {secretaryScopes.map((s, i) => (
+            {coordinatorScopes.map((s, i) => (
               <option key={i} value={i}>
                 {facultyLabel(s.facultyId as FacultyId, lang)}
                 {s.major ? ` — ${s.major}` : ` (${lang === 'he' ? 'כל המגמות' : 'all majors'})`}

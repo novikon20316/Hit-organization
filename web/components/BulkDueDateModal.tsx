@@ -67,7 +67,7 @@ export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModa
         reason: reason.trim(),
       });
       if (res.pendingApproval) {
-        // coordinator/administrative_secretary — needs program_head/faculty_admin
+        // coordinator/administrative coordinator — needs program_head/faculty_admin
         // sign-off before it actually takes effect (P1 #12).
         setResult(lang === 'he'
           ? '⏳ הבקשה נשלחה לאישור ראש התוכנית/הפקולטה ותיושם רק לאחר אישור.'

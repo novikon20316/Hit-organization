@@ -8,12 +8,12 @@
 // which does the real, authoritative resolution at submit time — this is
 // purely a preview so staff aren't surprised by a submit-time error). Used
 // by every Add Project modal (admin/panel, faculty_admin, supervisor,
-// administrative_secretary, grad_school_head dashboards) instead of
+// administrative coordinator, grad_school_head dashboards) instead of
 // duplicating this fetch+cross-product logic five times.
 //
 // This is a convenience, not the enforcement boundary — same "server is the
 // real gate" precedent as applyApplication's major check. If the faculty's
-// own view-scope (e.g. administrative_secretary's coordinatorScopes) can't
+// own view-scope (e.g. administrative coordinator's coordinatorScopes) can't
 // resolve a preview, this shows a neutral "will be validated on submit"
 // message rather than a false "blocked" error; createAdminProject/
 // createSupervisorProject re-validate for real regardless.

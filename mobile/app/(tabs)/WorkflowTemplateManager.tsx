@@ -49,7 +49,7 @@ export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
   { key: 'supervisor', he: 'מנחה', en: 'Supervisor' },
   { key: 'coordinator', he: 'רכז', en: 'Coordinator' },
   { key: 'faculty_admin', he: 'מנהל פקולטה', en: 'Faculty Admin' },
-  { key: 'administrative_secretary', he: 'מזכירה אקדמית', en: 'Administrative Secretary' },
+  { key: 'administrative_secretary', he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' },
   { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
   { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
 ];
@@ -128,7 +128,7 @@ const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'administrative_
 // system_admin and grad_school_head get a free faculty picker (no single
 // "home" faculty — see workflowTemplateController.ts). administrative_secretary
 // is scoped further still: never a free choice, only whichever subject(s)
-// her own coordinatorScopes actually assign her (see isSecretary below).
+// her own coordinatorScopes actually assign her (see isCoordinator below).
 const FREE_CHOICE_CROSS_FACULTY_ROLES = ['system_admin', 'grad_school_head'];
 const SELECTABLE_FACULTY_IDS = PERMISSION_FACULTY_IDS.filter((id) => id !== 'all');
 
@@ -292,22 +292,22 @@ export default function WorkflowTemplateManager() {
   const [ownFacultyId, setOwnFacultyId] = useState<string | null>(null);
   const [selectedFacultyId, setSelectedFacultyId] = useState<string | null>(null);
   const [selectedMajor, setSelectedMajor] = useState<string | null>(null);
-  // administrative_secretary's own assigned subject(s) — {facultyId, major?}
+  // The administrative coordinator's own assigned subject(s) — {facultyId, major?}
   // tuples on her own user doc's coordinatorScopes (same generic field the
   // 'coordinator' role uses; see server/src/controllers/
-  // workflowTemplateController.ts's resolveSecretaryScope). Never a free
+  // workflowTemplateController.ts's resolveCoordinatorScope). Never a free
   // choice: if she holds more than one, she picks among only her own.
-  const [secretaryScopes, setSecretaryScopes] = useState<{ facultyId: string; major?: string }[]>([]);
-  const [secretaryScopeIndex, setSecretaryScopeIndex] = useState(0);
+  const [coordinatorScopes, setCoordinatorScopes] = useState<{ facultyId: string; major?: string }[]>([]);
+  const [coordinatorScopeIndex, setCoordinatorScopeIndex] = useState(0);
 
-  const isSecretary = userRole === 'administrative_secretary';
+  const isCoordinator = userRole === 'administrative_secretary';
   const isFreeChoiceCrossFaculty = !!userRole && FREE_CHOICE_CROSS_FACULTY_ROLES.includes(userRole);
-  const secretaryScope = isSecretary ? secretaryScopes[secretaryScopeIndex] : undefined;
+  const coordinatorScope = isCoordinator ? coordinatorScopes[coordinatorScopeIndex] : undefined;
 
   // Cross-faculty roles pick a real faculty explicitly; administrative_secretary
   // is resolved from her own scope; everyone else is locked to their own.
-  const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isSecretary ? (secretaryScope?.facultyId ?? null) : ownFacultyId;
-  const activeMajor: string | null = userRole === 'system_admin' ? selectedMajor : isSecretary ? (secretaryScope?.major ?? null) : null;
+  const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isCoordinator ? (coordinatorScope?.facultyId ?? null) : ownFacultyId;
+  const activeMajor: string | null = userRole === 'system_admin' ? selectedMajor : isCoordinator ? (coordinatorScope?.major ?? null) : null;
 
   const [templates, setTemplates] = useState<WorkflowTemplateDoc[]>([]);
   const [activeProcessType, setActiveProcessType] = useState<ProcessType>('msc_thesis');
@@ -355,7 +355,7 @@ export default function WorkflowTemplateManager() {
         setUserName(res.data.displayName || '');
         setUserRole(res.data.role || null);
         setOwnFacultyId(res.data.facultyId || null);
-        setSecretaryScopes(res.data.coordinatorScopes ?? []);
+        setCoordinatorScopes(res.data.coordinatorScopes ?? []);
         // No facultyId on the profile (shouldn't happen for the roles that
         // can reach this screen) — nothing left to load, stop spinning.
         if (!res.data.facultyId && !FREE_CHOICE_CROSS_FACULTY_ROLES.includes(res.data.role) && res.data.role !== 'administrative_secretary') {
@@ -513,7 +513,7 @@ export default function WorkflowTemplateManager() {
         defaultRouting: editorDefaultRouting,
         examinerSignoffRole: editorExaminerSignoffRole,
         finalGradeSignoffRole: editorFinalGradeSignoffRole,
-        ...(isFreeChoiceCrossFaculty || isSecretary ? { facultyId } : {}),
+        ...(isFreeChoiceCrossFaculty || isCoordinator ? { facultyId } : {}),
       });
       setEditorOpen(false);
       Alert.alert(
@@ -644,7 +644,7 @@ export default function WorkflowTemplateManager() {
       )}
 
       {/* administrative_secretary's own subject — no free choice */}
-      {isSecretary && secretaryScopes.length === 0 && (
+      {isCoordinator && coordinatorScopes.length === 0 && (
         <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12 }}>
           <Text style={{ color: '#B91C1C', fontSize: 13 }}>
             {lang === 'he'
@@ -653,19 +653,19 @@ export default function WorkflowTemplateManager() {
           </Text>
         </View>
       )}
-      {isSecretary && secretaryScopes.length > 1 && (
+      {isCoordinator && coordinatorScopes.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          {secretaryScopes.map((s, i) => (
+          {coordinatorScopes.map((s, i) => (
             <Pressable
               key={i}
               style={{
-                borderWidth: 1.5, borderColor: secretaryScopeIndex === i ? '#7C3AED' : '#DDD6FE',
-                backgroundColor: secretaryScopeIndex === i ? '#7C3AED' : '#fff',
+                borderWidth: 1.5, borderColor: coordinatorScopeIndex === i ? '#7C3AED' : '#DDD6FE',
+                backgroundColor: coordinatorScopeIndex === i ? '#7C3AED' : '#fff',
                 borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
               }}
-              onPress={() => setSecretaryScopeIndex(i)}
+              onPress={() => setCoordinatorScopeIndex(i)}
             >
-              <Text style={{ color: secretaryScopeIndex === i ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
+              <Text style={{ color: coordinatorScopeIndex === i ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
                 {FACULTY_COLORS[s.facultyId]?.label[lang] ?? s.facultyId}{s.major ? ` — ${s.major}` : ''}
               </Text>
             </Pressable>

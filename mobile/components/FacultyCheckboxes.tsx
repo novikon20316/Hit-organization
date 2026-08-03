@@ -4,7 +4,7 @@
 // add_projects in (GET /api/permissions/my-grants, see server's
 // scopeAuthorization.ts's grantedFacultyIdsFor), not every faculty in the
 // institution. Used by NewProjectModal.tsx (admin/faculty_admin modes) and
-// the administrative_secretary/grad_school_head Add Project screens —
+// the administrative coordinator/grad_school_head Add Project screens —
 // supervisor's own modal stays locked/single and doesn't use this.
 // Mirrors web/components/FacultyCheckboxes.tsx; mobile has no shared
 // checkbox component to reuse, so this follows the same inline

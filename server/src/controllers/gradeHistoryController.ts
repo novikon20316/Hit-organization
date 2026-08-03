@@ -16,7 +16,7 @@ import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 // bypass list: internal_examiner is NOT granted view_all_grades, so (unlike
 // project details) it gets no blanket bypass here — only isOwnProject
 // applies to it. administrative_secretary is deliberately NOT blanket-listed
-// here either (view_all_grades predates per-degree secretaries) — she's
+// here either (view_all_grades predates per-degree coordinators) — she's
 // scoped below via withinCoordinatorScope to whichever facultyId/major(s)
 // are actually assigned to her account. She IS the bridge between students
 // and management for grades/defenses within her own degree(s), so unlike
@@ -54,10 +54,10 @@ export const getProjectGradeHistory = async (req: AuthenticatedRequest, res: Res
       project.supervisorId === requester.uid ||
       project.secondarySupervisorId === requester.uid ||
       (project.enrolledStudentIds ?? []).includes(requester.uid);
-    const hasSecretaryScopeAccess =
+    const hasCoordinatorScopeAccess =
       requester.role === 'administrative_secretary' &&
       withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });
-    if (!isOwnProject && !FULL_ACCESS_ROLES.includes(requester.role) && !hasSecretaryScopeAccess) {
+    if (!isOwnProject && !FULL_ACCESS_ROLES.includes(requester.role) && !hasCoordinatorScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 

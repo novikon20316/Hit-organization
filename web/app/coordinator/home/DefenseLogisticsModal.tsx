@@ -4,7 +4,7 @@
 // Ported from mobile's defense logistics modal in coordinator/home.tsx — the
 // date itself was already locked in by the examiner date-matching flow, the
 // coordinator only sets time/room/building here. Mirrors the same modal
-// already built for administrative_secretary/admin, just under the
+// already built for administrative coordinator/admin, just under the
 // 'coordinator' base path (see apiClient.assignDefenseLogistics).
 
 import { useState } from 'react';

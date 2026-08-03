@@ -161,7 +161,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
 };
 
 // PUT /api/milestones/:id
-// Lets a coordinator/faculty_admin/administrative_secretary/system_admin adjust
+// Lets a coordinator/faculty_admin/administrative coordinator/system_admin adjust
 // a milestone's due date — mirrors Milestonetimeline.tsx's own
 // canCoordinatorAdjust gate. Modeled on defenseScheduling.ts's
 // finalizeMatchedDate: validate role, write the update, notify the enrolled
@@ -267,7 +267,7 @@ export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res
   // that the supplied projectIds actually belong to their own scope — unlike
   // its single-item sibling above (updateMilestoneByCoordinator), which
   // correctly calls resolveMilestoneScope + withinCoordinatorScope/
-  // hasActionGrant. For coordinator/administrative_secretary this at least
+  // hasActionGrant. For coordinator/administrative coordinator this at least
   // routed through an exceptional-action approval that ALSO never
   // re-validated scope (see exceptionalActions.ts's decideExceptionalAction,
   // which executes the stored payload's projectIds as-is) — but faculty_admin
@@ -387,7 +387,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     supervisorId?: string; studentId?: string; facultyId?: string;
   };
   const statusFilterRaw = req.query.statusFilter || req.query['statusFilter[]'];
-  // Set only for administrative_secretary below — Firestore 'in' query
+  // Set only for administrative coordinator below — Firestore 'in' query
   // instead of the single '==' facultyId the other faculty-manager roles use.
   let facultyIdIn: string[] | undefined;
 

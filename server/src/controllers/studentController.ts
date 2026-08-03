@@ -11,7 +11,7 @@ import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 //
 // administrative_secretary is deliberately NOT in FULL_ACCESS_ROLES despite
 // being in view_all_projects there — that permission predates per-degree
-// secretaries (one per major, e.g. data science vs. industrial engineering)
+// coordinators (one per major, e.g. data science vs. industrial engineering)
 // and was never meant to mean "every faculty's every project." She's scoped
 // below via withinCoordinatorScope to whichever facultyId/major(s) are
 // actually assigned to her account (see CoordinatorScopesModal), same as the
@@ -58,10 +58,10 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
     const hasFacultyAccess =
       FACULTY_SCOPED_ROLES.includes(requester.role) &&
       (requester.facultyId === 'all' || requester.facultyId === data?.facultyId);
-    const hasSecretaryScopeAccess =
+    const hasCoordinatorScopeAccess =
       requester.role === 'administrative_secretary' &&
       withinCoordinatorScope(requester, { facultyId: data?.facultyId ?? '', major: data?.major || undefined });
-    if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasSecretaryScopeAccess) {
+    if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasCoordinatorScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 

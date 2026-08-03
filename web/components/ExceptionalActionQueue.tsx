@@ -3,7 +3,7 @@
 // components/ExceptionalActionQueue.tsx
 // P1 backlog item #12 — program_head/faculty_admin/grad_school_head/
 // system_admin review deadline-override requests a coordinator/
-// administrative_secretary filed instead of applying directly. Self-contained,
+// administrative coordinator filed instead of applying directly. Self-contained,
 // like ClockPauseControl/TrackChangeControl — fetches its own queue rather
 // than depending on whatever the parent dashboard's own payload carries.
 

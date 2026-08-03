@@ -59,7 +59,7 @@ function canApprove(processType: ProcessType, role: string): boolean {
 // (major omitted = "whole faculty, all majors" — matches e.g. "industrial
 // and management faculty" as a whole-faculty assignment). Returns null if
 // the requested facultyId/major isn't one of her own assigned scopes.
-function resolveSecretaryScope(
+function resolveCoordinatorScope(
   scopes: { facultyId: string; major?: string }[],
   requested: { facultyId?: string | undefined; major?: string | null | undefined } | undefined,
 ): { facultyId: string; major: string | null } | null {
@@ -179,7 +179,7 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
   const requestedMajor = req.query.major === 'all' ? null : (req.query.major as string | undefined) ?? undefined;
 
   if (role === 'administrative_secretary') {
-    const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: requestedFacultyId, major: requestedMajor });
+    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: requestedFacultyId, major: requestedMajor });
     if (!scope) {
       // No scope assigned yet, or the requested one isn't hers — either
       // way, an empty list (never someone else's subject), not an error.
@@ -230,7 +230,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   let major: string | null = req.body.major === 'all' || req.body.major === undefined ? null : req.body.major;
 
   if (role === 'administrative_secretary') {
-    const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: req.body.facultyId, major: req.body.major });
+    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: req.body.facultyId, major: req.body.major });
     if (!scope) {
       return res.status(403).json({
         message: (req.user?.coordinatorScopes ?? []).length === 0
@@ -336,7 +336,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     // subject(s) — "keep a separation between degrees" applies to
     // approve/reject/delete, not just proposing/viewing.
     if (role === 'administrative_secretary') {
-      const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only approve templates for a subject assigned to you.' });
     }
 
@@ -396,7 +396,7 @@ export const getRetroactivePreviewController = async (req: AuthenticatedRequest,
   let major = requestedMajor;
 
   if (role === 'administrative_secretary') {
-    const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: req.query.facultyId as string | undefined, major: requestedMajor });
+    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: req.query.facultyId as string | undefined, major: requestedMajor });
     if (!scope) return res.status(403).json({ message: 'You may only preview a subject assigned to you.' });
     facultyId = scope.facultyId;
     major = scope.major;
@@ -443,7 +443,7 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
       });
     }
     if (role === 'administrative_secretary') {
-      const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only delete templates for a subject assigned to you.' });
     }
 
@@ -493,7 +493,7 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
       });
     }
     if (role === 'administrative_secretary') {
-      const scope = resolveSecretaryScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only reject templates for a subject assigned to you.' });
     }
 
