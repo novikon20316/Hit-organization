@@ -10,6 +10,7 @@ import { apiClient } from '../../src/api/apiClient'; // 🚀 Added backend API c
 import { HapticTab } from '@/components/haptic-tab';
 import { TabLayoutStyles, TabIconStyles, NotFoundScreenStyles } from '../../constants/styles';
 import { getRoleAccent } from '../../components/shared';
+import { useActiveRole } from '../../contexts/ActiveRoleContext';
 
 // ─── Routes where the tab bar must be completely hidden ───────────────────────
 const HIDDEN_TAB_ROUTES = [
@@ -31,7 +32,7 @@ const KNOWN_PREFIXES = [
   '/coordinator/',
   '/faculty_admin/',
   '/program_head/',
-  '/administrative_secretary/',
+  '/administrative_coordinator/',
   '/grad_school_head/',
   '/admin/',
   '/notifications',
@@ -45,7 +46,7 @@ const ROLE_ROUTES: Record<string, string> = {
   internal_examiner:    '/examinor/home',
   faculty_admin:        '/faculty_admin/dashboard',
   program_head:         '/program_head/program_head_dashboard',
-  administrative_secretary:  '/administrative_secretary/administrative_secretary_dashboard',
+  administrative_secretary:  '/administrative_coordinator/administrative_coordinator_dashboard',
   grad_school_head:     '/grad_school_head/grad_school_head_dashboard',
   system_admin:         '/admin/panel',
 };
@@ -92,7 +93,7 @@ const ROLE_TABS: Record<string, Array<{
     { name: 'notifications',                        iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   administrative_secretary: [
-    { name: 'administrative_secretary/administrative_secretary_dashboard', iconActive: '📊', iconInactive: '📊', labelHe: 'לוח בקרה', labelEn: 'Dashboard' },
+    { name: 'administrative_coordinator/administrative_coordinator_dashboard', iconActive: '📊', iconInactive: '📊', labelHe: 'לוח בקרה', labelEn: 'Dashboard' },
     { name: 'notifications',                                      iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   grad_school_head: [
@@ -151,6 +152,15 @@ export default function TabLayout() {
   const [lang,   setLang]   = useState<'he' | 'en'>('he');
   const [unread, setUnread] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const { activeRole } = useActiveRole();
+
+  // Keeps the tab bar in sync when the user switches roles via TopBar's
+  // switcher mid-session — that flow updates ActiveRoleContext directly, not
+  // through a fresh auth-state event, so this effect is what this file needs
+  // to pick up the change without waiting on the fetch below.
+  useEffect(() => {
+    if (activeRole) setRole(activeRole);
+  }, [activeRole]);
 
   // ── 1. Authenticated User Profile Routing Sync ────────────────────────
 

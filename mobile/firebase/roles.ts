@@ -241,6 +241,17 @@ export function isGradSchoolApprover(role: AppRole | undefined): boolean {
   return GRAD_SCHOOL_APPROVERS.includes(role);
 }
 
+/** All distinct roles a user holds — primary `role` plus `roles[]`, deduped.
+ *  Use this (not `userData.role` alone) anywhere a multi-role user's full
+ *  set of roles matters, e.g. the role switcher. */
+export function getUserRoles(userData: { role?: AppRole; roles?: AppRole[] } | null | undefined): AppRole[] {
+  if (!userData) return [];
+  const set = new Set<AppRole>();
+  if (userData.role) set.add(userData.role);
+  (userData.roles ?? []).forEach((r) => set.add(r));
+  return Array.from(set);
+}
+
 /**
  * Determine the home route for a given role.
  * Used in _layout.tsx after login to redirect to the correct dashboard.
@@ -253,7 +264,7 @@ export function getHomeRoute(role: AppRole | undefined): string {
     case 'coordinator':          return '/coordinator/home';
     case 'faculty_admin':        return '/faculty_admin/dashboard';
     case 'program_head':         return '/program_head/dashboard';
-    case 'administrative_secretary':  return '/administrative_secretary/dashboard';
+    case 'administrative_secretary':  return '/administrative_coordinator/dashboard';
     case 'grad_school_head':     return '/grad_school_head/dashboard';
     case 'internal_examiner':    return '/examinor/home';
     case 'system_admin':         return '/admin/panel';
@@ -709,6 +720,6 @@ export async function createExaminer() {
 //   "medical_tech"
 //   "design"
 //   "data_science"
-//   "all"              ← CROSS_FACULTY_ROLES only (system_admin, administrative_secretary, grad_school_head, internal_examiner)
+//   "all"              ← CROSS_FACULTY_ROLES only (system_admin, administrative coordinator, grad_school_head, internal_examiner)
 //
 // ─────────────────────────────────────────────────────────────────────────────

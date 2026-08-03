@@ -13,7 +13,9 @@ import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import { NotificationsProvider } from '../src/context/NotificationsContext';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
-import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth
+import { getHomeRoute, getUserRoles } from '@/firebase/roles'; // ← single source of truth
+import { resolveActiveRole } from '@/firebase/activeRole';
+import { ActiveRoleProvider, useActiveRole } from '@/contexts/ActiveRoleContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // ─── Lock native layout direction to LTR ──────────────────────────────────────
@@ -111,8 +113,17 @@ const authRoutes = new Set<string>([
 
 // ─── Root layout ──────────────────────────────────────────────────────────────
 export default function RootLayout() {
+  return (
+    <ActiveRoleProvider>
+      <RootLayoutInner />
+    </ActiveRoleProvider>
+  );
+}
+
+function RootLayoutInner() {
   const router   = useRouter();
   const pathname = usePathname();
+  const { sync } = useActiveRole();
   useSafeKeepAwake();
 
   const [loading, setLoading] = useState(true);
@@ -213,6 +224,14 @@ export default function RootLayout() {
         const role = userData.role as string;
         lastUserDataRef.current = userData;
 
+        // Multi-role users (e.g. a system_admin who's also a supervisor) may
+        // have picked a different active role via TopBar's switcher — resolve
+        // that now so every routing decision below (and the tab bar/TopBar,
+        // via context) reflects their current choice, not just the primary role.
+        const roles = getUserRoles(userData);
+        const activeRole = (await resolveActiveRole(user.uid, userData)) ?? role;
+        sync(user.uid, roles, activeRole as any);
+
         // ── Forced password change (accounts created via Excel import) ──────
         // Takes priority over everything below, including the 2FA gate.
         const latestPathnameForPwGate = pathnameRef.current;
@@ -287,8 +306,10 @@ export default function RootLayout() {
               params: { title: maintenance.title, endsAt: maintenance.endsAt ?? '' },
             } as any);
           } else {
-            // getHomeRoute() from roles.ts covers ALL roles including new ones
-            redirect(getHomeRoute(role as any) as any);
+            // getHomeRoute() from roles.ts covers ALL roles including new
+            // ones — routed by activeRole so a multi-role user lands back on
+            // whichever role's dashboard they last switched to.
+            redirect(getHomeRoute(activeRole as any) as any);
           }
         }
 

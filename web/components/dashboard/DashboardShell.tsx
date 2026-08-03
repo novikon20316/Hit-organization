@@ -37,11 +37,12 @@ const TOTP_NUDGE_DISMISS_KEY = 'totpNudgeDismissedAt';
 
 export function DashboardShell({ title, subtitle, children, actions, onBeforeSignOut }: DashboardShellProps) {
   const router = useRouter();
-  const { firebaseUser, userData, logout } = useAuth();
+  const { firebaseUser, userData, logout, roles, activeRole, setActiveRole } = useAuth();
   const { lang } = useLanguage();
   usePresenceHeartbeat(!!firebaseUser);
-  const railColor = getRoleAccent(userData?.role);
+  const railColor = getRoleAccent(activeRole);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   // Every per-page nav link (Reports, Workflow Templates, Academic Year, Bulk
   // Permissions, ...) gets injected here via `actions` — it only ever shows
   // up in this hamburger dropdown, at every screen size, so the header
@@ -77,7 +78,7 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
           <div className="flex items-center justify-between gap-4">
             <Link
-              href={getHomeRoute(userData?.role)}
+              href={getHomeRoute(activeRole)}
               title={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
               className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition-opacity hover:opacity-80 sm:flex-initial"
             >
@@ -116,12 +117,50 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
             <LanguageToggle />
             {userData && (
               <div className="flex items-center gap-2">
-                <span
-                  className="rounded-full px-2.5 py-1 text-xs font-medium"
-                  style={{ backgroundColor: `${railColor}1F`, color: railColor }}
-                >
-                  {roleLabel(userData.role as AppRole, lang)}
-                </span>
+                {roles.length > 1 ? (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setRoleMenuOpen((v) => !v)}
+                      aria-expanded={roleMenuOpen}
+                      aria-label={lang === 'he' ? 'החלף תפקיד' : 'Switch role'}
+                      className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                      style={{ backgroundColor: `${railColor}1F`, color: railColor }}
+                    >
+                      {roleLabel(activeRole as AppRole, lang)}
+                      <span className="text-[10px] leading-none">▾</span>
+                    </button>
+                    {roleMenuOpen && (
+                      <>
+                        {/* Click-outside catcher */}
+                        <div className="fixed inset-0 z-10" onClick={() => setRoleMenuOpen(false)} />
+                        <div className="absolute start-0 top-full z-20 mt-1 min-w-[10rem] overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
+                          {roles.map((r) => (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => {
+                                setRoleMenuOpen(false);
+                                setActiveRole(r);
+                              }}
+                              className="block w-full px-3 py-2 text-start text-sm hover:bg-paper"
+                              style={r === activeRole ? { color: railColor, fontWeight: 600 } : undefined}
+                            >
+                              {roleLabel(r, lang)}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <span
+                    className="rounded-full px-2.5 py-1 text-xs font-medium"
+                    style={{ backgroundColor: `${railColor}1F`, color: railColor }}
+                  >
+                    {roleLabel(userData.role as AppRole, lang)}
+                  </span>
+                )}
                 <span className="text-sm text-ink">{lang === 'he' ? userData.displayNameHe : userData.displayNameEn}</span>
               </div>
             )}

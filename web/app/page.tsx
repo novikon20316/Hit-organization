@@ -12,7 +12,7 @@ import { getHomeRoute } from '@/lib/roles';
 
 export default function RootPage() {
   const router = useRouter();
-  const { firebaseUser, userData, loading } = useAuth();
+  const { firebaseUser, userData, activeRole, loading } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -20,8 +20,8 @@ export default function RootPage() {
       router.replace('/login');
       return;
     }
-    router.replace(getHomeRoute(userData?.role));
-  }, [loading, firebaseUser, userData, router]);
+    router.replace(getHomeRoute(activeRole ?? userData?.role));
+  }, [loading, firebaseUser, userData, activeRole, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper">

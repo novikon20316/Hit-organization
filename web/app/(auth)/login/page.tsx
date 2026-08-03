@@ -26,6 +26,7 @@ import {
 import { auth, db, googleProvider, appleProvider } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { getHomeRoute, type UserDoc } from '@/lib/roles';
+import { resolveActiveRole } from '@/lib/activeRole';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -99,7 +100,7 @@ export default function LoginPage() {
       router.replace(`/maintenance?${params.toString()}`);
       return;
     }
-    router.replace(getHomeRoute(data.role));
+    router.replace(getHomeRoute(resolveActiveRole(data)));
   };
 
   // Already signed in (e.g. reopened tab with a live session) — skip

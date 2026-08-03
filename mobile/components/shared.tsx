@@ -15,6 +15,7 @@ import { apiClient } from '../src/api/apiClient';
 import DeleteAccountModal from './modals/DeleteAccountModal';
 import HeaderMenu, { type HeaderMenuItem } from './HeaderMenu';
 import { useNotifications } from '../src/context/NotificationsContext';
+import { useActiveRole } from '../contexts/ActiveRoleContext';
 import {
   TopBarStyles, HeaderMenuStyles, StatCardStyles, SectionHeaderStyles, FacultyBadgeStyles,
   StatusBadgeStyles, SecurityModalStyles,
@@ -94,7 +95,7 @@ export const ROLE_ACCENT = {
   faculty_admin:         { bg: '#ECFEFF', text: '#06B6D4', label: { he: 'מנהל פקולטה',              en: 'Faculty Admin'           } },
   grad_school_head:      { bg: '#F0FDFA', text: '#0D9488', label: { he: 'ראש בית ספר',              en: 'Grad School Head'        } },
   program_head:          { bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש תוכנית',              en: 'Program Head'            } },
-  administrative_secretary: { bg: '#FAF5FF', text: '#9333EA', label: { he: 'מזכירה אדמיניסטרטיבית', en: 'Administrative Secretary'} },
+  administrative_secretary: { bg: '#FAF5FF', text: '#9333EA', label: { he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator'} },
 };
 
 const DEFAULT_ROLE_ACCENT = { bg: '#F1F5F9', text: '#64748B', label: { he: 'תפקיד', en: 'Role' } };
@@ -336,7 +337,10 @@ export function TopBar({
   const accent = ROLE_ACCENT[role];
   const [securityModal, setSecurityModal] = useState(false);
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
+  const [roleSwitcherModal, setRoleSwitcherModal] = useState(false);
   const { unreadCount } = useNotifications();
+  const { roles, activeRole, setActiveRole } = useActiveRole();
+  const hasMultipleRoles = roles.length > 1;
 
   const handleSignOut = async () => {
     await onBeforeSignOut?.();
@@ -386,11 +390,24 @@ export function TopBar({
           </View>
           <View style={{ marginLeft: isRtl ? 0 : 10, marginRight: isRtl ? 10 : 0, flexShrink: 1, minWidth: 0 }}>
             <Text style={[tb.name, isRtl && tb.textRight]} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
-            <View style={[tb.roleBadge, { backgroundColor: accent.bg }]}>
-              <Text style={[tb.roleText, { color: accent.text }]}>
-                {accent.label[lang]}
-              </Text>
-            </View>
+            {hasMultipleRoles ? (
+              <Pressable
+                style={[tb.roleBadge, { backgroundColor: accent.bg, flexDirection: 'row', alignItems: 'center' }]}
+                onPress={() => setRoleSwitcherModal(true)}
+                accessibilityLabel={lang === 'he' ? 'החלף תפקיד' : 'Switch role'}
+              >
+                <Text style={[tb.roleText, { color: accent.text }]}>
+                  {accent.label[lang]}
+                </Text>
+                <Text style={[tb.roleText, { color: accent.text, marginLeft: 4 }]}>▾</Text>
+              </Pressable>
+            ) : (
+              <View style={[tb.roleBadge, { backgroundColor: accent.bg }]}>
+                <Text style={[tb.roleText, { color: accent.text }]}>
+                  {accent.label[lang]}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -431,6 +448,48 @@ export function TopBar({
         lang={lang}
         onRequested={handleAccountDeletionRequested}
       />
+
+      {/* Role switcher — only ever rendered for a multi-role user (see
+          hasMultipleRoles above); lets them pick which role's dashboard
+          they're currently viewing (see contexts/ActiveRoleContext.tsx). */}
+      <Modal
+        visible={roleSwitcherModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRoleSwitcherModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: 24 }}
+          onPress={() => setRoleSwitcherModal(false)}
+        >
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, paddingVertical: 8, overflow: 'hidden' }}>
+            {roles.map((r) => {
+              const roleAccent = ROLE_ACCENT[r] ?? accent;
+              const isActive = r === activeRole;
+              return (
+                <Pressable
+                  key={r}
+                  onPress={() => {
+                    setRoleSwitcherModal(false);
+                    setActiveRole(r);
+                  }}
+                  style={{
+                    flexDirection: isRtl ? 'row-reverse' : 'row',
+                    alignItems: 'center',
+                    paddingVertical: 14,
+                    paddingHorizontal: 18,
+                    backgroundColor: isActive ? roleAccent.bg : 'transparent',
+                  }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: isActive ? '700' : '500', color: isActive ? roleAccent.text : '#1E293B' }}>
+                    {roleAccent.label[lang]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
     </>
   );
 }

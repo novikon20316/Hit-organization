@@ -9,8 +9,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
-import type { UserDoc } from '@/lib/roles';
+import { getHomeRoute, getUserRoles, type AppRole, type UserDoc } from '@/lib/roles';
+import { resolveActiveRole, setStoredActiveRole } from '@/lib/activeRole';
 
 interface AuthContextValue {
   firebaseUser: User | null;
@@ -20,6 +22,16 @@ interface AuthContextValue {
    *  flips false to avoid a flash of the wrong screen. */
   loading: boolean;
   logout: () => Promise<void>;
+  /** All distinct roles the signed-in user holds (primary `role` + `roles[]`,
+   *  deduped) — see lib/roles.ts's getUserRoles. */
+  roles: AppRole[];
+  /** Which of `roles` the user is currently viewing the app as — see
+   *  lib/activeRole.ts. Falls back to `userData.role` until resolved. */
+  activeRole: AppRole | undefined;
+  /** Switches the active role, persists the choice, and navigates to that
+   *  role's home route (see components/dashboard/DashboardShell.tsx's role
+   *  switcher). */
+  setActiveRole: (role: AppRole) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -42,10 +54,12 @@ function clearSessionCookie() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserDoc | null>(null);
   const [authResolved, setAuthResolved] = useState(false);
   const [profileResolved, setProfileResolved] = useState(false);
+  const [activeRole, setActiveRoleState] = useState<AppRole | undefined>(undefined);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -84,12 +98,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [firebaseUser]);
 
+  // Re-resolve the active role whenever the profile changes (fresh login,
+  // live role edit by an admin, or a stored choice that's no longer valid).
+  useEffect(() => {
+    setActiveRoleState(resolveActiveRole(userData));
+  }, [userData]);
+
   const logout = async () => {
     // Cleared eagerly, before the async signOut() below resolves — closes
     // the window where clicking "sign out" and immediately pressing back
     // would still find the cookie present and slip past proxy.ts.
     clearSessionCookie();
     await signOut(auth);
+  };
+
+  const setActiveRole = (role: AppRole) => {
+    if (!userData) return;
+    setStoredActiveRole(userData.uid, role);
+    setActiveRoleState(role);
+    router.push(getHomeRoute(role));
   };
 
   return (
@@ -99,6 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userData,
         loading: !authResolved || !profileResolved,
         logout,
+        roles: getUserRoles(userData),
+        activeRole,
+        setActiveRole,
       }}
     >
       {children}
