@@ -16,7 +16,6 @@ import { REPORTS, displayValue, type ReportType } from './types';
 import { downloadReportExport } from './downloadExport';
 
 const REPORT_ROLES: AppRole[] = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
-const CROSS_FACULTY_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
 
 const DEGREE_TYPES = ['bachelors', 'masters'] as const;
 const PROJECT_TYPES = ['project', 'thesis'] as const;
@@ -65,7 +64,20 @@ export default function ReportsPage() {
   const [examinerId, setExaminerId] = useState('');
   const [examinerOptions, setExaminerOptions] = useState<Array<{ id: string; displayName: string }>>([]);
 
-  const isCrossFaculty = !!userData?.role && CROSS_FACULTY_ROLES.includes(userData.role as AppRole);
+  const isSystemAdmin = userData?.role === 'system_admin';
+  const isGradSchoolHead = userData?.role === 'grad_school_head';
+  const isCrossFaculty = isSystemAdmin || isGradSchoolHead;
+
+  // Mirrors the server's effectiveFacultyIds (scopeAuthorization.ts) —
+  // grad_school_head is no longer automatically cross-faculty, so only offer
+  // faculties the server will actually accept for them: their own faculty
+  // plus any gradSchoolHeadFacultyIds extras, or every faculty if they're
+  // explicitly kept/set to facultyId 'all'. system_admin stays unrestricted.
+  const gradSchoolHeadFacultyOptions: FacultyId[] | 'all' = !isGradSchoolHead
+    ? 'all'
+    : userData?.facultyId === 'all'
+    ? ((userData.gradSchoolHeadFacultyIds?.length ?? 0) > 0 ? (userData.gradSchoolHeadFacultyIds as FacultyId[]) : 'all')
+    : ([userData?.facultyId, ...(userData?.gradSchoolHeadFacultyIds ?? [])].filter(Boolean) as FacultyId[]);
 
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -177,7 +189,10 @@ export default function ReportsPage() {
             className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
           >
             <option value="">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
-            {(Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all').map((id) => (
+            {(gradSchoolHeadFacultyOptions === 'all'
+              ? (Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all')
+              : gradSchoolHeadFacultyOptions
+            ).map((id) => (
               <option key={id} value={id}>{FACULTY_LABELS[id][lang]}</option>
             ))}
           </select>

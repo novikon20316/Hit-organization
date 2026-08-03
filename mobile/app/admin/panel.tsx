@@ -23,6 +23,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Lang, AppRole } from '../../components/i18n';
 import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
 import type { ScopeRule, CoordinatorScope } from '../../constants/permissions';
+import type { RoleFacultyField } from '../../constants/roleFacultyPicker';
 import { getProgramByKey } from '../../constants/faculties';
 import { VALID_ROLES, isStaff } from '../../firebase/roles';
 import {
@@ -125,12 +126,18 @@ export default function PanelScreen() {
   // Majors restriction (supervisor / secondary_supervisor only) — unlike the
   // two above, this one IS persisted server-side (see updateUserRoleAdmin).
   const [editAssignedMajors, setEditAssignedMajors] = useState<string[]>([]);
-  // Extra faculties this user is offered as supervisor/secondary_supervisor
-  // in, beyond their own facultyId — independently per role. Persisted
-  // server-side (see updateUserRoleAdmin's supervisorFacultyIds/
-  // secondarySupervisorFacultyIds).
-  const [editSupervisorFacultyIds, setEditSupervisorFacultyIds] = useState<string[]>([]);
-  const [editSecondarySupervisorFacultyIds, setEditSecondarySupervisorFacultyIds] = useState<string[]>([]);
+  // Extra faculties this user holds a given role in, beyond their own
+  // facultyId — independently per role, keyed by field name (see
+  // constants/roleFacultyPicker.ts). Persisted server-side (see
+  // updateUserRoleAdmin's *FacultyIds fields).
+  const [editFacultyIdsByField, setEditFacultyIdsByField] = useState<Record<RoleFacultyField, string[]>>({
+    supervisorFacultyIds: [],
+    secondarySupervisorFacultyIds: [],
+    facultyAdminFacultyIds: [],
+    programHeadFacultyIds: [],
+    gradSchoolHeadFacultyIds: [],
+    internalExaminerFacultyIds: [],
+  });
   // Student Primary/Secondary status — independent axes, persisted via a
   // separate endpoint (see handleSaveUser). null = "— none —".
   const [editPrimaryStatus, setEditPrimaryStatus] = useState<string | null>(null);
@@ -942,8 +949,14 @@ export default function PanelScreen() {
     // Unlike the two above, assignedMajors IS persisted server-side, so it
     // loads from the actual user doc (see UserRecord.assignedMajors).
     setEditAssignedMajors(user.assignedMajors ?? []);
-    setEditSupervisorFacultyIds(user.supervisorFacultyIds ?? []);
-    setEditSecondarySupervisorFacultyIds(user.secondarySupervisorFacultyIds ?? []);
+    setEditFacultyIdsByField({
+      supervisorFacultyIds: user.supervisorFacultyIds ?? [],
+      secondarySupervisorFacultyIds: user.secondarySupervisorFacultyIds ?? [],
+      facultyAdminFacultyIds: user.facultyAdminFacultyIds ?? [],
+      programHeadFacultyIds: user.programHeadFacultyIds ?? [],
+      gradSchoolHeadFacultyIds: user.gradSchoolHeadFacultyIds ?? [],
+      internalExaminerFacultyIds: user.internalExaminerFacultyIds ?? [],
+    });
     // Student-only, independent of role/faculty — loads from the actual
     // user doc, same as assignedMajors above.
     setEditPrimaryStatus(user.primaryStatus ?? null);
@@ -963,8 +976,12 @@ export default function PanelScreen() {
         // secondary_supervisor (see updateUserRoleAdmin) — sent unconditionally
         // here since the server already gates on role.
         assignedMajors: editAssignedMajors,
-        supervisorFacultyIds: editSupervisorFacultyIds,
-        secondarySupervisorFacultyIds: editSecondarySupervisorFacultyIds,
+        supervisorFacultyIds: editFacultyIdsByField.supervisorFacultyIds,
+        secondarySupervisorFacultyIds: editFacultyIdsByField.secondarySupervisorFacultyIds,
+        facultyAdminFacultyIds: editFacultyIdsByField.facultyAdminFacultyIds,
+        programHeadFacultyIds: editFacultyIdsByField.programHeadFacultyIds,
+        gradSchoolHeadFacultyIds: editFacultyIdsByField.gradSchoolHeadFacultyIds,
+        internalExaminerFacultyIds: editFacultyIdsByField.internalExaminerFacultyIds,
         permissionRules: editPermissionRules,
         coordinatorScopes: (editRole === 'coordinator' || editRoles.includes('coordinator')) ? editCoordinatorScopes : undefined,
       });
@@ -2225,10 +2242,8 @@ export default function PanelScreen() {
         assignedMajors={editAssignedMajors}
         setAssignedMajors={setEditAssignedMajors}
 
-        supervisorFacultyIds={editSupervisorFacultyIds}
-        setSupervisorFacultyIds={setEditSupervisorFacultyIds}
-        secondarySupervisorFacultyIds={editSecondarySupervisorFacultyIds}
-        setSecondarySupervisorFacultyIds={setEditSecondarySupervisorFacultyIds}
+        facultyIdsByField={editFacultyIdsByField}
+        setFacultyIdsByField={setEditFacultyIdsByField}
 
         primaryStatus={editPrimaryStatus}
         setPrimaryStatus={setEditPrimaryStatus}

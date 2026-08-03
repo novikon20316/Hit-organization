@@ -450,6 +450,12 @@ export const apiClient = {
       /** Same idea, independently, for the `secondary_supervisor` role — see
        *  server/src/controllers/adminController.ts's getSupervisorsList. */
       secondarySupervisorFacultyIds?: string[];
+      /** Same additive/restrictive idea, one field per role — see
+       *  lib/roles.ts's UserDoc for the full explanation. */
+      facultyAdminFacultyIds?: string[];
+      programHeadFacultyIds?: string[];
+      gradSchoolHeadFacultyIds?: string[];
+      internalExaminerFacultyIds?: string[];
       /** system_admin, or a delegate (faculty_admin/program_head/
        *  grad_school_head) granting within their own scope — see
        *  server/src/config/permissionScopes.ts's DELEGATE_RESTRICTED_ACTIONS

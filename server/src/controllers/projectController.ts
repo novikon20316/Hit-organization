@@ -7,7 +7,7 @@ import admin from 'firebase-admin';
 import { logAuditEvent } from '../services/auditLog.js';
 import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
-import { resolveMilestoneScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches } from '../services/scopeAuthorization.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
 
@@ -57,9 +57,11 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
       project.secondarySupervisorId === requester.uid ||
       (project.enrolledStudentIds ?? []).includes(requester.uid);
     const hasFullAccess = FULL_ACCESS_ROLES.includes(requester.role);
+    // Own faculty, an explicit 'all', or any extra faculty granted via
+    // internalExaminerFacultyIds (see facultyIdMatches).
     const hasFacultyAccess =
       FACULTY_SCOPED_ROLES.includes(requester.role) &&
-      (requester.facultyId === 'all' || requester.facultyId === project.facultyId);
+      facultyIdMatches(requester, project.facultyId ?? '', 'internalExaminerFacultyIds');
     const hasCoordinatorScopeAccess =
       requester.role === 'administrative_secretary' &&
       withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });

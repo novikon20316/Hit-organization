@@ -12,6 +12,7 @@ import { Response } from 'express';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { computeMilestoneProgress, trackTypeOf, urgencyFromAge, MilestoneDoc } from '../services/studentProgress.js';
+import { effectiveFacultyIds } from '../services/scopeAuthorization.js';
 
 const PROGRAM_HEAD_ROLES = ['program_head', 'system_admin'];
 
@@ -30,16 +31,24 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
     if (!userSnap.exists) return res.status(404).json({ message: 'User record not found.' });
     const userData = userSnap.data()!;
 
+    // Own faculty plus any extras granted via programHeadFacultyIds (see
+    // effectiveFacultyIds) — 'all' for the rare system_admin viewer of this
+    // dashboard (PROGRAM_HEAD_ROLES above), unrestricted by design.
+    const isSystemAdmin = req.user.role === 'system_admin' || (req.user.roles ?? []).includes('system_admin');
+    const facultyIds = isSystemAdmin ? 'all' as const : effectiveFacultyIds(userData, 'programHeadFacultyIds');
+    const facultyFilter = (q: FirebaseFirestore.Query): FirebaseFirestore.Query =>
+      facultyIds === 'all' ? q : q.where('facultyId', 'in', facultyIds);
+
     const [projectsSnap, milestonesSnap, examinerRecsSnap, templatesSnap] = await Promise.all([
       // array-contains, not equality — a project open to both bachelors and
       // masters must still count here (see degreeTypes on the projects
       // collection, added alongside the legacy scalar degreeType). One
       // equality clause + one array-contains clause in the same query is
       // fine — Firestore only forbids two array-contains clauses together.
-      db.collection('projects').where('facultyId', '==', facultyId).where('degreeTypes', 'array-contains', 'masters').get(),
-      db.collection('milestones').where('facultyId', '==', facultyId).get(),
-      db.collection('examinerRecommendations').where('facultyId', '==', facultyId).where('status', '==', 'pending').get(),
-      db.collection('facultyTemplates').where('facultyId', '==', facultyId).where('status', '==', 'pending').get(),
+      facultyFilter(db.collection('projects')).where('degreeTypes', 'array-contains', 'masters').get(),
+      facultyFilter(db.collection('milestones')).get(),
+      facultyFilter(db.collection('examinerRecommendations')).where('status', '==', 'pending').get(),
+      facultyFilter(db.collection('facultyTemplates')).where('status', '==', 'pending').get(),
     ]);
 
     const milestonesByProject: Record<string, MilestoneDoc[]> = {};

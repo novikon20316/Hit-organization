@@ -8,8 +8,17 @@ import { Response } from 'express';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { promoteNextExaminer, sendManualExaminerReminder } from '../services/examinerEscalation.js';
+import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
 
 const COORDINATOR_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'system_admin'];
+
+// Of COORDINATOR_ROLES, only these two have an independent *FacultyIds extras
+// field — coordinator/administrative_secretary/system_admin keep the
+// original plain-facultyId comparison below unchanged.
+const ESCALATION_FACULTY_FIELD: Record<string, RoleFacultyField> = {
+  faculty_admin: 'facultyAdminFacultyIds',
+  grad_school_head: 'gradSchoolHeadFacultyIds',
+};
 
 function hasAccess(req: AuthenticatedRequest): boolean {
   return !!req.user?.role && COORDINATOR_ROLES.includes(req.user.role);
@@ -30,6 +39,14 @@ export const getExaminerEscalations = async (req: AuthenticatedRequest, res: Res
       .where('status', 'in', ['pending', 'accepted', 'declined'])
       .get();
 
+    // faculty_admin/grad_school_head: own faculty plus any extras granted for
+    // that specific role (see effectiveFacultyIds) — grad_school_head used
+    // to be unconditionally cross-faculty via the plain facultyId==='all'
+    // check alone; coordinator/administrative_secretary/system_admin keep
+    // that original comparison unchanged (no extras field of their own here).
+    const escalationField = ESCALATION_FACULTY_FIELD[req.user.role];
+    const escalationScope = escalationField ? effectiveFacultyIds(req.user, escalationField) : req.user.facultyId;
+
     const now = Date.now();
     const rows = await Promise.all(snap.docs.map(async (doc) => {
       const t = doc.data();
@@ -42,7 +59,8 @@ export const getExaminerEscalations = async (req: AuthenticatedRequest, res: Res
         const projectSnap = await db.collection('projects').doc(t.projectId).get();
         facultyId = projectSnap.data()?.facultyId ?? '';
       }
-      if (req.user!.facultyId !== 'all' && facultyId !== req.user!.facultyId) return null;
+      const withinScope = escalationScope === 'all' || (Array.isArray(escalationScope) ? escalationScope.includes(facultyId) : escalationScope === facultyId);
+      if (!withinScope) return null;
 
       return {
         tokenId: doc.id,

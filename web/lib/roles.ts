@@ -61,10 +61,14 @@ export const DELEGATE_MANAGEABLE_ROLES: AppRole[] = [
 // Roles that can approve at grad-school level
 export const GRAD_SCHOOL_APPROVERS: AppRole[] = ['grad_school_head', 'system_admin'];
 
-// Roles with cross-faculty visibility — created with facultyId 'all'.
+// Roles automatically created with facultyId 'all' — system_admin has no
+// concept of a home faculty, and administrative_secretary's real scope lives
+// in coordinatorScopes (facultyId is just a sentinel for it). grad_school_head
+// and internal_examiner used to be forced cross-faculty too; they now get a
+// real home facultyId like any other staff role (plus an optional
+// "additional faculties" grant — see facultyAdminFacultyIds and friends on
+// UserDoc above) unless a system_admin explicitly sets one to 'all'.
 export const CROSS_FACULTY_ROLES: AppRole[] = [
-  'grad_school_head',
-  'internal_examiner',
   'system_admin',
   'administrative_secretary',
 ];
@@ -282,6 +286,19 @@ export interface UserDoc {
    *  never the sole supervisor, in Engineering). See
    *  server/src/controllers/adminController.ts's getSupervisorsList. */
   secondarySupervisorFacultyIds?: string[];
+  /** Same additive/restrictive idea as supervisorFacultyIds, one field per
+   *  role — a faculty_admin/program_head/grad_school_head/internal_examiner
+   *  can independently be granted extra faculties for that specific role.
+   *  For grad_school_head/internal_examiner specifically: unlike before,
+   *  facultyId is no longer forced to 'all' at creation — a real single
+   *  facultyId here means these fields ADD faculties on top of it; only an
+   *  explicit facultyId==='all' makes them RESTRICT (empty = every faculty,
+   *  the legacy behavior, still available for anyone who needs it). See
+   *  server/src/services/scopeAuthorization.ts's effectiveFacultyIds. */
+  facultyAdminFacultyIds?: string[];
+  programHeadFacultyIds?: string[];
+  gradSchoolHeadFacultyIds?: string[];
+  internalExaminerFacultyIds?: string[];
   /** Elastic per-user scope-rule grants (system_admin-managed) — see
    *  lib/permissions.ts. Empty/unset means no granular grants beyond the
    *  account's role. */

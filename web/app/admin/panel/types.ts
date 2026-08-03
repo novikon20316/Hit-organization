@@ -30,6 +30,14 @@ export interface AdminUserRecord {
    *  role — lets a user be a full supervisor in one faculty and only a
    *  co-supervisor in another. */
   secondarySupervisorFacultyIds?: string[];
+  /** Same additive/restrictive idea as supervisorFacultyIds, one field per
+   *  role — faculty_admin/program_head/grad_school_head/internal_examiner
+   *  can each independently be granted extra faculties for that role. See
+   *  lib/roles.ts's UserDoc for the full explanation. */
+  facultyAdminFacultyIds?: string[];
+  programHeadFacultyIds?: string[];
+  gradSchoolHeadFacultyIds?: string[];
+  internalExaminerFacultyIds?: string[];
   /** Admin-manageable Primary/Secondary status keys — only meaningful when
    *  role === 'student'. Resolve to display labels via a fetched
    *  StudentStatusConfig (see server/src/services/studentStatuses.ts). */

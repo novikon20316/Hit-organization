@@ -6,7 +6,7 @@ import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
-import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope } from '../services/scopeAuthorization.js';
+import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { isChainDriven } from '../services/milestoneRouting.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
@@ -371,11 +371,6 @@ export const approveMilestone = async (req:AuthenticatedRequest, res:Response) =
   res.status(200).json({ message: 'Milestone approved' });
 };
 
-// Cross-faculty / faculty-manager taxonomy mirrors firestore.rules' isCrossFaculty()
-// / isFacultyManager() helpers — keep in sync with mobile/firestore.rules.
-const MILESTONE_QUERY_CROSS_FACULTY_ROLES = ['grad_school_head', 'internal_examiner', 'system_admin'];
-const MILESTONE_QUERY_FACULTY_MANAGER_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary'];
-
 // GET /api/milestones  — fetch milestones by query params
 export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
@@ -417,13 +412,31 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
       return res.status(200).json({ milestones: [] });
     }
     facultyIdIn = scopeFacultyIds;
-  } else if (MILESTONE_QUERY_FACULTY_MANAGER_ROLES.includes(requester.role)) {
+  } else if (requester.role === 'coordinator') {
+    // No independent *FacultyIds extras field of its own — unchanged from
+    // before (see facultyAdminController.ts's DELEGATE_ADMIN_ROLES, which
+    // doesn't include coordinator).
     facultyId = requester.facultyId;
-  } else if (!MILESTONE_QUERY_CROSS_FACULTY_ROLES.includes(requester.role)) {
+  } else if (requester.role === 'faculty_admin' || requester.role === 'program_head') {
+    // Own faculty plus any extras granted for that specific role (see
+    // effectiveFacultyIds) — 'all' would only happen if a system_admin
+    // explicitly set one of these roles' facultyId to 'all'.
+    const field = requester.role === 'faculty_admin' ? 'facultyAdminFacultyIds' : 'programHeadFacultyIds';
+    const eff = effectiveFacultyIds(requester, field);
+    if (eff === 'all') { /* unscoped, same as a cross-faculty role below */ }
+    else facultyIdIn = eff;
+  } else if (requester.role === 'grad_school_head' || requester.role === 'internal_examiner') {
+    // Used to be unconditionally cross-faculty by role alone; now scoped by
+    // its own effective faculty set, same as faculty_admin/program_head —
+    // 'all' (explicit, or a grandfathered legacy account) stays unscoped,
+    // matching this role's original firestore.rules-aligned access level.
+    const field = requester.role === 'grad_school_head' ? 'gradSchoolHeadFacultyIds' : 'internalExaminerFacultyIds';
+    const eff = effectiveFacultyIds(requester, field);
+    if (eff !== 'all') facultyIdIn = eff;
+  } else if (requester.role !== 'system_admin') {
     return res.status(403).json({ error: 'Access denied.' });
   }
-  // Cross-faculty roles (grad_school_head, internal_examiner, system_admin) may
-  // query broadly/unscoped by design — matches their firestore.rules access level.
+  // system_admin may query broadly/unscoped by design.
 
   try {
     let q: any = db.collection('milestones');

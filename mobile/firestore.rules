@@ -30,9 +30,21 @@ service cloud.firestore {
       return role(u) in ['supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary', 'program_head', 'internal_examiner',
                          'faculty_admin', 'grad_school_head', 'system_admin'];
     }
-    // Roles with cross-faculty (or "all") access
+    // Roles with cross-faculty (or "all") access. grad_school_head/
+    // internal_examiner used to be unconditionally cross-faculty by role
+    // alone; they now get a real home facultyId like any other staff role
+    // (plus an optional per-role "additional faculties" grant server-side —
+    // see gradSchoolHeadFacultyIds/internalExaminerFacultyIds on the user
+    // doc), so here they only count as cross-faculty if a system_admin has
+    // explicitly kept/set their facultyId to the literal 'all' sentinel.
+    // Deliberately does NOT attempt to encode the extras arrays here — a
+    // real-faculty account with granted extras is still correctly matched
+    // via sameFaculty()'s own-faculty check for its home faculty; the extras
+    // themselves are enforced by the Express API, not at this rules layer.
     function isCrossFaculty(u) {
-      return role(u) in ['grad_school_head', 'internal_examiner', 'system_admin'];
+      return role(u) == 'system_admin'
+        || role(u) == 'administrative_secretary'
+        || ((role(u) == 'grad_school_head' || role(u) == 'internal_examiner') && facultyId(u) == 'all');
     }
 
     // Roles that manage a single faculty

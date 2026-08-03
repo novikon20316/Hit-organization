@@ -92,19 +92,17 @@ export async function requestExceptionalAction(input: {
   return serialize(ref.id, snap.data()!);
 }
 
-/** facultyId undefined/'all' returns every pending request (grad_school_head/system_admin view). */
-export async function listPendingExceptionalActions(facultyId?: string): Promise<ExceptionalActionRequest[]> {
+/** effectiveFacultyIds undefined/'all' returns every pending request (system_admin,
+ *  or a faculty_admin/program_head/grad_school_head explicitly kept/set cross-faculty —
+ *  see scopeAuthorization.ts's effectiveFacultyIds, computed by the caller). */
+export async function listPendingExceptionalActions(effectiveFacultyIds?: string[] | 'all'): Promise<ExceptionalActionRequest[]> {
   let query: FirebaseFirestore.Query = db.collection('exceptionalActionRequests').where('status', '==', 'pending');
-  if (facultyId && facultyId !== 'all') {
-    query = query.where('facultyId', '==', facultyId);
+  if (effectiveFacultyIds && effectiveFacultyIds !== 'all') {
+    query = query.where('facultyId', 'in', effectiveFacultyIds);
   }
   const snap = await query.get();
   return snap.docs.map((d) => serialize(d.id, d.data()));
 }
-
-// Cross-faculty roles legitimately review every faculty's queue (matches
-// listPendingExceptionalActions' own facultyId==='all' bypass above).
-const CROSS_FACULTY_APPROVER_ROLES = new Set(['grad_school_head', 'system_admin']);
 
 export async function decideExceptionalAction(
   requestId: string,
@@ -112,7 +110,7 @@ export async function decideExceptionalAction(
   decidedBy: string,
   decidedByRole: string,
   decisionReason: string | undefined,
-  deciderFacultyId?: string,
+  deciderEffectiveFacultyIds: string[] | 'all',
 ): Promise<ExceptionalActionRequest> {
   const ref = db.collection('exceptionalActionRequests').doc(requestId);
   const snap = await ref.get();
@@ -120,11 +118,14 @@ export async function decideExceptionalAction(
   const data = snap.data()!;
   if (data.status !== 'pending') throw new Error('This request has already been decided.');
 
-  // CRITICAL FIX: the controller only ever checked the decider's ROLE
+  // CRITICAL FIX: the controller used to only ever check the decider's ROLE
   // (program_head/faculty_admin/...), never that this specific request's
   // own facultyId actually matches theirs — a program_head in Faculty A
-  // could approve/reject a request queued for Faculty B.
-  if (!CROSS_FACULTY_APPROVER_ROLES.has(decidedByRole) && deciderFacultyId !== data.facultyId) {
+  // could approve/reject a request queued for Faculty B. Now checks the
+  // decider's actual effective faculty set (own faculty + any extras granted
+  // for their role, or 'all' for system_admin/an explicitly cross-faculty
+  // account) — see scopeAuthorization.ts's effectiveFacultyIds.
+  if (deciderEffectiveFacultyIds !== 'all' && !deciderEffectiveFacultyIds.includes(data.facultyId)) {
     throw new Error('This request is outside your faculty.');
   }
 

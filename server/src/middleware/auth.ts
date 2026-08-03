@@ -65,6 +65,19 @@ export interface AuthenticatedRequest extends Request {
     // without a null-check; empty means no grants beyond the account's role.
     permissionRules: ScopeRule[];
     coordinatorScopes: CoordinatorScope[];
+    // Extra faculties this user is offered/scoped as their role in, beyond
+    // their own facultyId — additive for a normal single-faculty account,
+    // restrictive for a facultyId==='all' account. Independent per role so
+    // e.g. a program_head can be a full program_head in one faculty and only
+    // an additional faculty_admin faculty in another. See
+    // services/scopeAuthorization.ts's effectiveFacultyIds/facultyIdMatches
+    // and adminController.ts's updateUserRoleAdmin for where these are
+    // validated/persisted. Always an array (never undefined), same
+    // convention as permissionRules/coordinatorScopes above.
+    facultyAdminFacultyIds: string[];
+    programHeadFacultyIds: string[];
+    gradSchoolHeadFacultyIds: string[];
+    internalExaminerFacultyIds: string[];
   };
 }
 
@@ -133,6 +146,10 @@ export const verifyToken = async (
       emailVerified: decodedToken.email_verified ?? false,
       permissionRules:   userData.permissionRules   ?? [],
       coordinatorScopes: userData.coordinatorScopes ?? [],
+      facultyAdminFacultyIds:     userData.facultyAdminFacultyIds     ?? [],
+      programHeadFacultyIds:      userData.programHeadFacultyIds      ?? [],
+      gradSchoolHeadFacultyIds:   userData.gradSchoolHeadFacultyIds   ?? [],
+      internalExaminerFacultyIds: userData.internalExaminerFacultyIds ?? [],
     };
 
     return next();
@@ -175,6 +192,10 @@ export const verifyTokenOnly = async (
       emailVerified: decodedToken.email_verified ?? false,
       permissionRules:   [],
       coordinatorScopes: [],
+      facultyAdminFacultyIds:     [],
+      programHeadFacultyIds:      [],
+      gradSchoolHeadFacultyIds:   [],
+      internalExaminerFacultyIds: [],
     };
     return next();
   } catch (error: any) {

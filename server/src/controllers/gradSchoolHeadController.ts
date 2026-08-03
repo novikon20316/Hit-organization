@@ -24,7 +24,7 @@ import {
 import { transferGradeToMichlol, examinerScoreFor } from '../services/gradeEngine.js';
 import { isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import { logAuditEvent } from '../services/auditLog.js';
-import { hasActionGrant, resolveStaffForScope } from '../services/scopeAuthorization.js';
+import { hasActionGrant, resolveStaffForScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { openDefenseSchedulingIfPanelReady } from '../services/defenseScheduling.js';
 import { deriveProcessType, resolveFinalGradeSignoffRole } from '../services/workflowTemplates.js';
@@ -56,14 +56,24 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
     if (!userSnap.exists) return res.status(404).json({ message: 'User record not found.' });
     const userData = userSnap.data()!;
 
+    // Own faculty plus any extras granted via gradSchoolHeadFacultyIds (see
+    // effectiveFacultyIds) — 'all' (system_admin, or a grad_school_head
+    // explicitly kept/set cross-faculty) stays fully unfiltered, matching
+    // this file's original design. milestones has no facultyId filter of its
+    // own below — it's scoped implicitly via mastersProjectIds membership
+    // once projects is filtered, so no separate query change needed there.
+    const facultyIds = effectiveFacultyIds(userData, 'gradSchoolHeadFacultyIds');
+    const facultyFilter = (q: FirebaseFirestore.Query): FirebaseFirestore.Query =>
+      facultyIds === 'all' ? q : q.where('facultyId', 'in', facultyIds);
+
     const [projectsSnap, milestonesSnap, examinerRecsSnap, templatesSnap] = await Promise.all([
       // array-contains, not equality — a project open to both bachelors and
       // masters must still count here (see degreeTypes on the projects
       // collection, added alongside the legacy scalar degreeType).
-      db.collection('projects').where('degreeTypes', 'array-contains', 'masters').get(),
+      facultyFilter(db.collection('projects')).where('degreeTypes', 'array-contains', 'masters').get(),
       db.collection('milestones').get(),
-      db.collection('examinerRecommendations').where('status', '==', 'coordinator_approved').get(),
-      db.collection('facultyTemplates').where('status', '==', 'pending').get(),
+      facultyFilter(db.collection('examinerRecommendations')).where('status', '==', 'coordinator_approved').get(),
+      facultyFilter(db.collection('facultyTemplates')).where('status', '==', 'pending').get(),
     ]);
 
     const mastersProjectIds = new Set(projectsSnap.docs.map((d) => d.id));

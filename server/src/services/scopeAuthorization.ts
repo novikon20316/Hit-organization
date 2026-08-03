@@ -106,14 +106,51 @@ export function withinCoordinatorScope(user: AuthUser | undefined, resource: Res
   if (user.coordinatorScopes.length > 0) {
     return user.coordinatorScopes.some((scope) => scopeMatches(scope, resource));
   }
-  // facultyId 'all' is how cross-faculty roles (administrative coordinator,
-  // grad_school_head, internal_examiner, system_admin — see CROSS_FACULTY_ROLES
-  // in userController.ts) are provisioned; it is not a real faculty and must
-  // never satisfy this fallback. Without an explicit coordinatorScopes entry,
+  // facultyId 'all' is how the always-cross-faculty roles (administrative
+  // coordinator, system_admin — see CROSS_FACULTY_ROLES in userController.ts;
+  // grad_school_head/internal_examiner are no longer automatically among
+  // them, though a system_admin can still explicitly set one to 'all') are
+  // provisioned; it is not a real faculty and must never satisfy this
+  // fallback. Without an explicit coordinatorScopes entry,
   // an 'all'-provisioned account has no assigned degree yet — deny rather than
   // silently granting institution-wide access. Only a real single facultyId
   // (the 'coordinator' role's own baseline) may fall back this way.
   return user.facultyId !== 'all' && user.facultyId === resource.facultyId;
+}
+
+/** Field names holding a role's extra-faculty grants — see effectiveFacultyIds. */
+export type RoleFacultyField =
+  | 'supervisorFacultyIds' | 'secondarySupervisorFacultyIds'
+  | 'facultyAdminFacultyIds' | 'programHeadFacultyIds'
+  | 'gradSchoolHeadFacultyIds' | 'internalExaminerFacultyIds';
+
+/** Generalizes getSupervisorsList's own eligibleForRole logic (the original,
+ *  supervisor-only version of this) to any role that holds one of the
+ *  RoleFacultyField arrays. For a cross-faculty account (facultyId === 'all')
+ *  the field RESTRICTS which faculties the role applies to (empty/unset =
+ *  every faculty, returned as the 'all' sentinel); for a normal
+ *  single-faculty account the field ADDS extra faculties on top of their own.
+ *  Takes a loose structural type so it works equally on a fully-typed
+ *  AuthUser (the caller) or a raw Firestore user doc (a target being
+ *  evaluated), matching the existing convention in this file/adminController. */
+export function effectiveFacultyIds(
+  user: { facultyId?: unknown } & Record<string, unknown>,
+  field: RoleFacultyField
+): string[] | 'all' {
+  const extra = Array.isArray(user[field]) ? (user[field] as string[]) : [];
+  if (user.facultyId === 'all') return extra.length > 0 ? extra : 'all';
+  return [user.facultyId as string, ...extra];
+}
+
+/** True if `target` (a facultyId) is covered by `user`'s effective faculty
+ *  set for `field` — see effectiveFacultyIds. */
+export function facultyIdMatches(
+  user: { facultyId?: unknown } & Record<string, unknown>,
+  target: string,
+  field: RoleFacultyField
+): boolean {
+  const eff = effectiveFacultyIds(user, field);
+  return eff === 'all' || eff.includes(target);
 }
 
 /** Resolves a project doc's scope-relevant fields for scope-matching against

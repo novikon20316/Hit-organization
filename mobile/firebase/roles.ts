@@ -61,12 +61,16 @@ export const GRAD_SCHOOL_APPROVERS: AppRole[] = [
   'system_admin',
 ];
 
-// Roles that have cross-faculty visibility — these are created with
-// facultyId 'all' and are exempt from the "must pick a faculty" requirement
-// when a system_admin creates their account.
+// Roles automatically created with facultyId 'all', exempt from the "must
+// pick a faculty" requirement when a system_admin creates their account.
+// system_admin has no concept of a home faculty; administrative_secretary's
+// real scope lives in coordinatorScopes (facultyId is just a sentinel for
+// it). grad_school_head/internal_examiner used to be forced cross-faculty
+// too; they now get a real home facultyId like any other staff role (plus
+// an optional "additional faculties" grant — see gradSchoolHeadFacultyIds/
+// internalExaminerFacultyIds on the user doc) unless a system_admin
+// explicitly sets one to 'all'.
 export const CROSS_FACULTY_ROLES: AppRole[] = [
-  'grad_school_head',
-  'internal_examiner',
   'system_admin',
   'administrative_secretary',
 ];
@@ -720,6 +724,6 @@ export async function createExaminer() {
 //   "medical_tech"
 //   "design"
 //   "data_science"
-//   "all"              ← CROSS_FACULTY_ROLES only (system_admin, administrative coordinator, grad_school_head, internal_examiner)
+//   "all"              ← default for CROSS_FACULTY_ROLES (system_admin, administrative coordinator); optional/explicit for grad_school_head, internal_examiner
 //
 // ─────────────────────────────────────────────────────────────────────────────

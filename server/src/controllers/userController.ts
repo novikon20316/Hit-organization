@@ -155,7 +155,9 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Mirrors CROSS_FACULTY_ROLES in mobile/firebase/roles.ts — keep in sync.
-    const CROSS_FACULTY_ROLES = ['system_admin', 'administrative_secretary', 'grad_school_head', 'internal_examiner'];
+    // (role is hard-locked to 'student' above, so isCrossFaculty is always
+    // false here in practice — kept for parity with the mobile list.)
+    const CROSS_FACULTY_ROLES = ['system_admin', 'administrative_secretary'];
     const isCrossFaculty = CROSS_FACULTY_ROLES.includes(role);
 
     const validFaculties = [

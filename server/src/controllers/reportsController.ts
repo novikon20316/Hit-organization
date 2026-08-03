@@ -20,9 +20,22 @@ import {
   loadReport,
   repositoryReport,
 } from '../services/reports.js';
+import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
 
-const CROSS_FACULTY_ROLES = ['grad_school_head', 'system_admin'];
 const REPORT_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
+
+// Which *FacultyIds field each report-viewing role's own scope reads from —
+// faculty_admin/program_head/grad_school_head can each view reports for
+// their own faculty or any extra one granted for that role (see
+// resolveFacultyScope below). coordinator/administrative_secretary have no
+// entry here and keep their pre-existing "must match own facultyId exactly"
+// behavior — administrative_secretary's real scope lives in
+// coordinatorScopes, not this mechanism (out of scope for this change).
+const REPORT_ROLE_FACULTY_FIELD: Record<string, RoleFacultyField> = {
+  faculty_admin: 'facultyAdminFacultyIds',
+  program_head: 'programHeadFacultyIds',
+  grad_school_head: 'gradSchoolHeadFacultyIds',
+};
 
 export const REPORT_TYPES = [
   'full-status', 'no-advisor', 'proposal-delay', 'examiner-tracking',
@@ -65,12 +78,32 @@ function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | 
   if (!role || !REPORT_ROLES.includes(role)) {
     return { error: { status: 403, message: 'You do not have permission to view reports.' } };
   }
-  const isCrossFaculty = CROSS_FACULTY_ROLES.includes(role);
   const requested = (req.query.facultyId as string | undefined) ?? undefined;
 
-  if (isCrossFaculty) {
+  // system_admin: always fully unrestricted, unchanged.
+  if (role === 'system_admin') {
     return { facultyId: requested }; // omitted = all faculties
   }
+
+  // faculty_admin/program_head/grad_school_head: may request their own
+  // faculty OR any extra faculty granted for that role (see
+  // effectiveFacultyIds) — grad_school_head used to be blanket cross-faculty
+  // by role alone; it's now scoped the same way as the other two, just
+  // against its own field. 'all' (explicit, or a grandfathered legacy
+  // account) still means fully unrestricted.
+  const field = REPORT_ROLE_FACULTY_FIELD[role];
+  if (field) {
+    const eff = effectiveFacultyIds(req.user!, field);
+    if (eff === 'all') return { facultyId: requested };
+    if (requested && !eff.includes(requested)) {
+      return { error: { status: 403, message: 'You may only view reports for your own assigned faculties.' } };
+    }
+    return { facultyId: requested ?? req.user?.facultyId };
+  }
+
+  // coordinator/administrative_secretary: unchanged — must match own
+  // facultyId exactly (administrative_secretary's real scope lives in
+  // coordinatorScopes, a separate mechanism not touched here).
   if (requested && requested !== req.user?.facultyId) {
     return { error: { status: 403, message: 'You may only view reports for your own faculty.' } };
   }

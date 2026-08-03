@@ -29,20 +29,39 @@ export interface ExaminerCandidate {
   activeLoad: number;
 }
 
-/** Internal examiners in `facultyId`, excluding `excludeUids`, sorted by
- *  current active-review load (ascending) — see ACTIVE_MILESTONE_STATUSES. */
+/** Internal examiners in `facultyId` — either their own faculty, or granted
+ *  it as an extra faculty via internalExaminerFacultyIds (see
+ *  getSupervisorsList's analogous merge-by-id pattern in adminController.ts)
+ *  — excluding `excludeUids`, sorted by current active-review load
+ *  (ascending, see ACTIVE_MILESTONE_STATUSES). Two separate single-
+ *  array-contains queries merged client-side, since Firestore forbids two
+ *  array-contains clauses in one query. */
 export async function findNextExaminerCandidate(
   facultyId: string,
   excludeUids: string[],
 ): Promise<ExaminerCandidate | null> {
-  const usersSnap = await db.collection('users')
-    .where('facultyId', '==', facultyId)
-    .where('roles', 'array-contains', 'internal_examiner')
-    .get();
+  const [byOwnFaculty, byGrantedFaculty] = await Promise.all([
+    db.collection('users')
+      .where('facultyId', '==', facultyId)
+      .where('roles', 'array-contains', 'internal_examiner')
+      .get(),
+    db.collection('users')
+      .where('internalExaminerFacultyIds', 'array-contains', facultyId)
+      .get(),
+  ]);
 
-  const candidates = usersSnap.docs
-    .filter((d) => !excludeUids.includes(d.id))
-    .map((d) => ({ uid: d.id, displayName: d.data().displayName ?? 'Unknown' }));
+  const usersById = new Map<string, FirebaseFirestore.DocumentData & { id: string }>();
+  byOwnFaculty.docs.forEach((d) => usersById.set(d.id, { id: d.id, ...d.data() }));
+  byGrantedFaculty.docs.forEach((d) => {
+    const data = d.data();
+    // No role filter in this query (a second array-contains isn't allowed
+    // alongside the facultyIds one) — filter client-side instead.
+    if ((data.roles ?? []).includes('internal_examiner')) usersById.set(d.id, { id: d.id, ...data });
+  });
+
+  const candidates = [...usersById.values()]
+    .filter((u) => !excludeUids.includes(u.id))
+    .map((u) => ({ uid: u.id, displayName: u.displayName ?? 'Unknown' }));
 
   if (candidates.length === 0) return null;
 

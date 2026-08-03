@@ -3,12 +3,25 @@ import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { VALID_ROLES } from '../services/userImportExport.js';
-import { hasActionGrant, withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, type RoleFacultyField } from '../services/scopeAuthorization.js';
 import { ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES } from '../config/permissionScopes.js';
 
 const FACULTY_ADMIN_ROLES = ['faculty_admin', 'system_admin'];
 
 const db = admin.firestore();
+
+// Which *FacultyIds field a delegate-admin's own faculty scope reads from,
+// based on whichever DELEGATE_ADMIN_ROLES role they hold — used by
+// listManagedStaff/toggleUserActive below so grad_school_head (no longer
+// automatically cross-faculty) is scoped the same way faculty_admin/
+// program_head already are, just against its own field.
+function delegateFacultyField(user: AuthenticatedRequest['user']): RoleFacultyField | undefined {
+  const hasRole = (r: string) => user?.role === r || (user?.roles ?? []).includes(r);
+  if (hasRole('faculty_admin')) return 'facultyAdminFacultyIds';
+  if (hasRole('program_head')) return 'programHeadFacultyIds';
+  if (hasRole('grad_school_head')) return 'gradSchoolHeadFacultyIds';
+  return undefined;
+}
 
 export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
@@ -16,11 +29,16 @@ export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Resp
 
   try {
     const adminSnap = await db.collection('users').doc(uid).get();
-    if (!adminSnap.exists || adminSnap.data()?.role !== 'faculty_admin') {
+    const adminData = adminSnap.data();
+    if (!adminSnap.exists || adminData?.role !== 'faculty_admin') {
       return res.status(403).json({ message: 'Access denied: Administration rights required' });
     }
 
-    const adminFacultyId = adminSnap.data()?.facultyId;
+    const adminFacultyId = adminData?.facultyId;
+    // Own faculty plus any extra faculties granted via facultyAdminFacultyIds
+    // (see effectiveFacultyIds) — 'all' means this faculty_admin has been
+    // explicitly made cross-faculty, unrestricted.
+    const facultyIds = effectiveFacultyIds(adminData ?? {}, 'facultyAdminFacultyIds');
 
     const notifSnap = await db.collection('notifications')
       .where('recipientId', '==', uid)
@@ -28,8 +46,12 @@ export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Resp
       .get();
 
     const [usersSnap, projectsSnap] = await Promise.all([
-      db.collection('users').where('facultyId', '==', adminFacultyId).get(),
-      db.collection('projects').where('facultyId', '==', adminFacultyId).get()
+      facultyIds === 'all'
+        ? db.collection('users').get()
+        : db.collection('users').where('facultyId', 'in', facultyIds).get(),
+      facultyIds === 'all'
+        ? db.collection('projects').get()
+        : db.collection('projects').where('facultyId', 'in', facultyIds).get(),
     ]);
 
     const users: any[] = [];
@@ -106,7 +128,9 @@ export const updateUserPermissions = async (req: AuthenticatedRequest, res: Resp
       }
       const currentScope = { facultyId: target.facultyId, major: target.major };
       const newScope = { facultyId, major: target.major };
-      const withinOwnFaculty = target.facultyId === req.user.facultyId && facultyId === req.user.facultyId;
+      const withinOwnFaculty =
+        facultyIdMatches(req.user, target.facultyId, 'facultyAdminFacultyIds') &&
+        facultyIdMatches(req.user, facultyId, 'facultyAdminFacultyIds');
       const delegateGranted = hasActionGrant(req.user, 'edit_users', currentScope) && hasActionGrant(req.user, 'edit_users', newScope);
       if (!withinOwnFaculty && !delegateGranted) {
         return res.status(403).json({ message: 'Cannot modify a user outside your assigned scope.' });
@@ -215,9 +239,11 @@ export const toggleUserActive = async (req: AuthenticatedRequest, res: Response)
       if (ADMIN_TIER_ROLES.includes(target?.role)) {
         return res.status(403).json({ message: 'Cannot modify an admin-tier account.' });
       }
-      // grad_school_head is cross-faculty; faculty_admin/program_head are
-      // confined to their own faculty.
-      if (!hasRole('grad_school_head') && target?.facultyId !== req.user?.facultyId) {
+      // Each delegate role is confined to its own faculty plus any extras
+      // granted for that specific role (see delegateFacultyField) —
+      // grad_school_head is no longer unconditionally cross-faculty.
+      const field = delegateFacultyField(req.user);
+      if (!field || typeof target?.facultyId !== 'string' || !facultyIdMatches(req.user!, target.facultyId, field)) {
         return res.status(403).json({ message: 'Cannot modify a user outside your faculty.' });
       }
     }
@@ -253,12 +279,19 @@ export const listManagedStaff = async (req: AuthenticatedRequest, res: Response)
   if (!isSystemAdmin && !isDelegateAdmin) {
     return res.status(403).json({ message: 'Access denied.' });
   }
-  const isCrossFaculty = isSystemAdmin || hasRole('grad_school_head');
 
   try {
     let query: FirebaseFirestore.Query = db.collection('users');
-    if (!isCrossFaculty) {
-      query = query.where('facultyId', '==', req.user!.facultyId);
+    if (!isSystemAdmin) {
+      // grad_school_head is no longer unconditionally cross-faculty — scoped
+      // by its own effective faculty set like faculty_admin/program_head,
+      // 'all' (explicitly set, or a legacy grandfathered account) still
+      // means unrestricted.
+      const field = delegateFacultyField(req.user);
+      const eff = field ? effectiveFacultyIds(req.user!, field) : req.user!.facultyId;
+      if (eff !== 'all') {
+        query = query.where('facultyId', 'in', Array.isArray(eff) ? eff : [eff]);
+      }
     }
     const snap = await query.get();
     const staff = snap.docs

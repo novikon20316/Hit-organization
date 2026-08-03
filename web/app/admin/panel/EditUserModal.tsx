@@ -12,6 +12,7 @@ import { roleLabel, facultyLabel, type FacultyId } from '@/lib/i18n';
 import { PermissionsEditorModal } from './PermissionsEditorModal';
 import { CoordinatorScopesModal } from './CoordinatorScopesModal';
 import { majorsForFaculty, type ScopeRule, type CoordinatorScope, type ActionType } from '@/lib/permissions';
+import { ROLE_FACULTY_PICKER_FIELD, type RoleFacultyField } from '@/lib/roleFacultyPicker';
 import type { AdminUserRecord, StudentStatusConfig } from './types';
 
 interface EditUserModalProps {
@@ -45,8 +46,17 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   );
   const [facultyId, setFacultyId] = useState<string>(user.facultyId);
   const [assignedMajors, setAssignedMajors] = useState<string[]>(user.assignedMajors ?? []);
-  const [supervisorFacultyIds, setSupervisorFacultyIds] = useState<string[]>(user.supervisorFacultyIds ?? []);
-  const [secondarySupervisorFacultyIds, setSecondarySupervisorFacultyIds] = useState<string[]>(user.secondarySupervisorFacultyIds ?? []);
+  // One "additional faculties" array per role that supports it (see
+  // ROLE_FACULTY_PICKER_FIELD) — keyed by field name, not role, since that's
+  // what the field actually maps to on the user doc / role-update payload.
+  const [facultyIdsByField, setFacultyIdsByField] = useState<Record<RoleFacultyField, string[]>>({
+    supervisorFacultyIds: user.supervisorFacultyIds ?? [],
+    secondarySupervisorFacultyIds: user.secondarySupervisorFacultyIds ?? [],
+    facultyAdminFacultyIds: user.facultyAdminFacultyIds ?? [],
+    programHeadFacultyIds: user.programHeadFacultyIds ?? [],
+    gradSchoolHeadFacultyIds: user.gradSchoolHeadFacultyIds ?? [],
+    internalExaminerFacultyIds: user.internalExaminerFacultyIds ?? [],
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -92,6 +102,15 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   const isSupervisorLike = isSupervisor || isSecondarySupervisor;
   const isStudent = role === 'student' || additionalRoles.includes('student');
 
+  // Every role currently assigned (primary + additional) that has a
+  // matching entry in ROLE_FACULTY_PICKER_FIELD — one "additional faculties"
+  // block gets rendered per entry, so adding/removing a role adds/removes
+  // its block automatically instead of needing a new hardcoded section.
+  const pickerRoles = useMemo(
+    () => Array.from(new Set([role, ...additionalRoles])).filter((r) => ROLE_FACULTY_PICKER_FIELD[r]),
+    [role, additionalRoles]
+  );
+
   // Deduped across degree levels — same helper the coordinator-scope UI uses.
   const assignedMajorOptions = useMemo(() => majorsForFaculty(facultyId), [facultyId]);
 
@@ -103,12 +122,11 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
     setAssignedMajors((prev) => (prev.includes(slug) ? prev.filter((m) => m !== slug) : [...prev, slug]));
   };
 
-  const toggleSupervisorFaculty = (id: string) => {
-    setSupervisorFacultyIds((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
-  };
-
-  const toggleSecondarySupervisorFaculty = (id: string) => {
-    setSecondarySupervisorFacultyIds((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
+  const toggleRoleFaculty = (field: RoleFacultyField, id: string) => {
+    setFacultyIdsByField((prev) => ({
+      ...prev,
+      [field]: prev[field].includes(id) ? prev[field].filter((f) => f !== id) : [...prev[field], id],
+    }));
   };
 
   const handleFacultyChange = (value: string) => {
@@ -126,8 +144,12 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
         roles: [role, ...additionalRoles.filter((r) => r !== role)],
         facultyId,
         assignedMajors: isSupervisorLike ? assignedMajors : undefined,
-        supervisorFacultyIds: isSupervisor ? supervisorFacultyIds : undefined,
-        secondarySupervisorFacultyIds: isSecondarySupervisor ? secondarySupervisorFacultyIds : undefined,
+        supervisorFacultyIds: isSupervisor ? facultyIdsByField.supervisorFacultyIds : undefined,
+        secondarySupervisorFacultyIds: isSecondarySupervisor ? facultyIdsByField.secondarySupervisorFacultyIds : undefined,
+        facultyAdminFacultyIds: pickerRoles.includes('faculty_admin') ? facultyIdsByField.facultyAdminFacultyIds : undefined,
+        programHeadFacultyIds: pickerRoles.includes('program_head') ? facultyIdsByField.programHeadFacultyIds : undefined,
+        gradSchoolHeadFacultyIds: pickerRoles.includes('grad_school_head') ? facultyIdsByField.gradSchoolHeadFacultyIds : undefined,
+        internalExaminerFacultyIds: pickerRoles.includes('internal_examiner') ? facultyIdsByField.internalExaminerFacultyIds : undefined,
         permissionRules,
         coordinatorScopes: showCoordinatorScopes ? coordinatorScopes : undefined,
       });
@@ -243,78 +265,52 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             </div>
           )}
 
-          {/* For a cross-faculty account (facultyId 'all'), this RESTRICTS
-              which faculties the person is offered as supervisor in (empty =
-              every faculty). For a normal single-faculty account, it ADDS
-              extra faculties on top of their own — e.g. a Data Science
-              supervisor who's ALSO offered as supervisor in Engineering. */}
-          {isSupervisor && (
-            <div>
-              <span className="mb-1.5 block text-sm font-medium text-ink">
-                {lang === 'he' ? 'מנחה גם בפקולטות נוספות (אופציונלי)' : 'Also a supervisor in additional faculties (optional)'}
-              </span>
-              <p className="mb-1.5 text-xs text-muted">
-                {facultyId === 'all'
-                  ? (lang === 'he'
-                    ? 'ללא בחירה — המשתמש יופיע כמנחה זמין בכל הפקולטות (ברירת המחדל לתפקיד חוצה-פקולטות). סמן פקולטות ספציפיות כדי להגביל אליהן בלבד.'
-                    : "Leave unselected — this account will appear as an available supervisor in EVERY faculty (the default for a cross-faculty role). Check specific faculties to restrict it to only those.")
-                  : (lang === 'he'
-                    ? `המשתמש כבר מוצג כמנחה בפקולטה שלו (${facultyLabel(facultyId as FacultyId, lang)}). סמן פקולטות נוספות כדי להוסיף אותו כמנחה שם גם כן.`
-                    : `This user is already offered as supervisor in their own faculty (${facultyLabel(facultyId as FacultyId, lang)}). Check additional faculties to also offer them there.`)}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {VALID_FACULTY_IDS.filter((id) => id !== 'all' && id !== facultyId).map((id) => {
-                  const checked = supervisorFacultyIds.includes(id);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => toggleSupervisorFaculty(id)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
-                      }`}
-                    >
-                      {facultyLabel(id, lang)}
-                    </button>
-                  );
-                })}
+          {/* One block per currently-assigned role that supports it (see
+              ROLE_FACULTY_PICKER_FIELD) — only shown once that role has been
+              added, so this stays hidden for everyone else. For a
+              cross-faculty account (facultyId 'all'), the picker RESTRICTS
+              which faculties the person holds that role in (empty = every
+              faculty). For a normal single-faculty account, it ADDS extra
+              faculties on top of their own — e.g. a Data Science supervisor
+              who's ALSO offered as supervisor in Engineering. */}
+          {pickerRoles.map((r) => {
+            const field = ROLE_FACULTY_PICKER_FIELD[r]!;
+            const label = roleLabel(r, lang);
+            const article = /^[aeiou]/i.test(label) ? 'an' : 'a';
+            return (
+              <div key={field}>
+                <span className="mb-1.5 block text-sm font-medium text-ink">
+                  {lang === 'he' ? `${label} גם בפקולטות נוספות (אופציונלי)` : `Also ${article} ${label} in additional faculties (optional)`}
+                </span>
+                <p className="mb-1.5 text-xs text-muted">
+                  {facultyId === 'all'
+                    ? (lang === 'he'
+                      ? `ללא בחירה — המשתמש יופיע כ${label} זמין בכל הפקולטות (ברירת המחדל לתפקיד חוצה-פקולטות). סמן פקולטות ספציפיות כדי להגביל אליהן בלבד.`
+                      : `Leave unselected — this account will appear as ${article} available ${label} in EVERY faculty (the default for a cross-faculty role). Check specific faculties to restrict it to only those.`)
+                    : (lang === 'he'
+                      ? `המשתמש כבר מוצג כ${label} בפקולטה שלו (${facultyLabel(facultyId as FacultyId, lang)}). סמן פקולטות נוספות כדי להוסיף אותו שם גם כן.`
+                      : `This user is already offered as ${article} ${label} in their own faculty (${facultyLabel(facultyId as FacultyId, lang)}). Check additional faculties to also offer them there.`)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {VALID_FACULTY_IDS.filter((id) => id !== 'all' && id !== facultyId).map((id) => {
+                    const checked = facultyIdsByField[field].includes(id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => toggleRoleFaculty(field, id)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                        }`}
+                      >
+                        {facultyLabel(id, lang)}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
-
-          {isSecondarySupervisor && (
-            <div>
-              <span className="mb-1.5 block text-sm font-medium text-ink">
-                {lang === 'he' ? 'מנחה משני גם בפקולטות נוספות (אופציונלי)' : 'Also a secondary supervisor in additional faculties (optional)'}
-              </span>
-              <p className="mb-1.5 text-xs text-muted">
-                {facultyId === 'all'
-                  ? (lang === 'he'
-                    ? 'ללא בחירה — המשתמש יופיע כמנחה משני זמין בכל הפקולטות. סמן פקולטות ספציפיות כדי להגביל אליהן בלבד.'
-                    : 'Leave unselected — this account will appear as an available secondary supervisor in EVERY faculty. Check specific faculties to restrict it to only those.')
-                  : (lang === 'he'
-                    ? `בנוסף לתפקידיו בפקולטה שלו (${facultyLabel(facultyId as FacultyId, lang)}), ניתן לסמן פקולטות נוספות בהן המשתמש יוצע כמנחה משני בלבד (לא ראשי).`
-                    : `On top of their role(s) in their own faculty (${facultyLabel(facultyId as FacultyId, lang)}), check additional faculties where this user should be offered as a secondary supervisor only (never the sole/primary supervisor).`)}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {VALID_FACULTY_IDS.filter((id) => id !== 'all' && id !== facultyId).map((id) => {
-                  const checked = secondarySupervisorFacultyIds.includes(id);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => toggleSecondarySupervisorFaculty(id)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
-                      }`}
-                    >
-                      {facultyLabel(id, lang)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            );
+          })}
 
           <div>
             <span className="mb-1.5 block text-sm font-medium text-ink">

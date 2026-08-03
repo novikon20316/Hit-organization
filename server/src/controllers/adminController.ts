@@ -17,7 +17,7 @@ import {
   VALID_SCOPE_FACULTY_IDS,
   type ScopeRule, type CoordinatorScope,
 } from '../config/permissionScopes.js';
-import { hasActionGrant, withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, type RoleFacultyField } from '../services/scopeAuthorization.js';
 import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { notifyUser } from '../services/notify.js';
@@ -25,6 +25,30 @@ import { sendNotificationEmail } from '../services/emailService.js';
 import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
 
 const db = admin.firestore();
+
+// Which *FacultyIds field a delegate's own faculty-admin-tier role reads for
+// its self-serve scope check below — grad_school_head used to be exempt
+// entirely (any faculty was "their own"); now it's scoped like the other two,
+// just against its own field. Roles not listed here (e.g. system_admin, which
+// never reaches this check) return no match.
+const DELEGATE_FACULTY_FIELD: Record<string, RoleFacultyField> = {
+  faculty_admin: 'facultyAdminFacultyIds',
+  program_head: 'programHeadFacultyIds',
+  grad_school_head: 'gradSchoolHeadFacultyIds',
+};
+
+/** Is `facultyIdToCheck` within this delegate-admin caller's own scope for
+ *  their role (own facultyId, or an extra faculty granted for that role)? */
+function facultyIdWithinDelegateScope(
+  user: AuthenticatedRequest['user'],
+  callerRole: string,
+  facultyIdToCheck: unknown
+): boolean {
+  if (!user || typeof facultyIdToCheck !== 'string') return false;
+  const field = DELEGATE_FACULTY_FIELD[callerRole];
+  if (!field) return false;
+  return facultyIdMatches(user, facultyIdToCheck, field);
+}
 
 // Logs a denied attempt at a system_admin-only endpoint to the same
 // `auditLog` collection the "Live Transportation" table reads — never blocks
@@ -196,13 +220,8 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
       extraField: 'supervisorFacultyIds' | 'secondarySupervisorFacultyIds'
     ): boolean => {
       if (!getEffectiveRoles(u).includes(roleKey)) return false;
-      const extra: unknown = u[extraField];
-      if (u.facultyId === 'all') {
-        if (!Array.isArray(extra) || extra.length === 0) return true; // unrestricted -> every faculty
-        return extra.some((id: string) => facultyIds.includes(id));
-      }
-      if (facultyIds.includes(u.facultyId as string)) return true;
-      return Array.isArray(extra) && extra.some((id: string) => facultyIds.includes(id));
+      const eff = effectiveFacultyIds(u, extraField);
+      return eff === 'all' || eff.some((id) => facultyIds.includes(id));
     };
 
     const usersById = new Map<string, Record<string, unknown> & { id: string }>();
@@ -466,7 +485,7 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
       }
       const callerRole = req.user?.role ?? '';
       const isDelegateAdmin = DELEGATE_ADMIN_ROLES.includes(callerRole);
-      const inOwnFacultyScope = isDelegateAdmin && (callerRole === 'grad_school_head' || userData.facultyId === req.user?.facultyId);
+      const inOwnFacultyScope = isDelegateAdmin && facultyIdWithinDelegateScope(req.user, callerRole, userData.facultyId);
       const requestedScope = { facultyId: userData.facultyId, major: userData.major };
       if (!inOwnFacultyScope && !hasActionGrant(req.user, 'add_users', requestedScope)) {
         return res.status(403).json({ message: 'Access denied: system_admin only.' });
@@ -604,7 +623,11 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
   const isSystemAdmin = req.user?.role === 'system_admin';
 
   const { id: userId } = req.params;
-  const { role, roles, facultyId, assignedMajors, supervisorFacultyIds, secondarySupervisorFacultyIds, permissionRules, coordinatorScopes } = req.body;
+  const {
+    role, roles, facultyId, assignedMajors, supervisorFacultyIds, secondarySupervisorFacultyIds,
+    facultyAdminFacultyIds, programHeadFacultyIds, gradSchoolHeadFacultyIds, internalExaminerFacultyIds,
+    permissionRules, coordinatorScopes,
+  } = req.body;
 
   if (!role) return res.status(400).json({ message: 'Missing role parameter.' });
   if (!VALID_ROLES.includes(role)) {
@@ -624,11 +647,13 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
 
   const callerRole = req.user?.role ?? '';
   const isDelegateAdmin = DELEGATE_ADMIN_ROLES.includes(callerRole);
-  const isGradSchoolHead = callerRole === 'grad_school_head';
-  // A delegate's own faculty — grad_school_head is cross-faculty, so any
-  // facultyId is "their own" for scope-matching purposes below.
+  // A delegate's own scope for their role — own facultyId, or an extra
+  // faculty granted for that role (see facultyIdWithinDelegateScope).
+  // grad_school_head used to be exempt entirely (any faculty was "their
+  // own"); it's now scoped like faculty_admin/program_head, just against
+  // its own gradSchoolHeadFacultyIds field.
   const scopeAllowedForCaller = (facultyIdToCheck: unknown) =>
-    isGradSchoolHead || facultyIdToCheck === req.user?.facultyId;
+    facultyIdWithinDelegateScope(req.user, callerRole, facultyIdToCheck);
 
   // Previously system_admin-only with no delegation path at all for the
   // granular grant fields. Now: faculty_admin/program_head/grad_school_head
@@ -745,6 +770,48 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
     resolvedSecondarySupervisorFacultyIds = result.value;
   }
 
+  // Same additive/restrictive extra-faculty idea, one independent field per
+  // role — see effectiveFacultyIds in scopeAuthorization.ts. Unlike
+  // supervisor/secondary_supervisor, these four can also be the request's
+  // PRIMARY role (not just an additional one) since a user only ever has one
+  // primary role — `isXRole` below checks both, matching isSupervisorRole.
+  const isFacultyAdminRole =
+    role === 'faculty_admin' || (Array.isArray(roles) && roles.includes('faculty_admin'));
+  const isProgramHeadRole =
+    role === 'program_head' || (Array.isArray(roles) && roles.includes('program_head'));
+  const isGradSchoolHeadRole =
+    role === 'grad_school_head' || (Array.isArray(roles) && roles.includes('grad_school_head'));
+  const isInternalExaminerRole =
+    role === 'internal_examiner' || (Array.isArray(roles) && roles.includes('internal_examiner'));
+
+  let resolvedFacultyAdminFacultyIds: string[] | undefined;
+  if (isFacultyAdminRole) {
+    const result = validateFacultyIdList(facultyAdminFacultyIds);
+    if (!result.ok) return res.status(400).json({ message: `Invalid faculty id(s): ${result.invalid.join(', ')}` });
+    resolvedFacultyAdminFacultyIds = result.value;
+  }
+
+  let resolvedProgramHeadFacultyIds: string[] | undefined;
+  if (isProgramHeadRole) {
+    const result = validateFacultyIdList(programHeadFacultyIds);
+    if (!result.ok) return res.status(400).json({ message: `Invalid faculty id(s): ${result.invalid.join(', ')}` });
+    resolvedProgramHeadFacultyIds = result.value;
+  }
+
+  let resolvedGradSchoolHeadFacultyIds: string[] | undefined;
+  if (isGradSchoolHeadRole) {
+    const result = validateFacultyIdList(gradSchoolHeadFacultyIds);
+    if (!result.ok) return res.status(400).json({ message: `Invalid faculty id(s): ${result.invalid.join(', ')}` });
+    resolvedGradSchoolHeadFacultyIds = result.value;
+  }
+
+  let resolvedInternalExaminerFacultyIds: string[] | undefined;
+  if (isInternalExaminerRole) {
+    const result = validateFacultyIdList(internalExaminerFacultyIds);
+    if (!result.ok) return res.status(400).json({ message: `Invalid faculty id(s): ${result.invalid.join(', ')}` });
+    resolvedInternalExaminerFacultyIds = result.value;
+  }
+
   try {
     const beforeSnap = await db.collection('users').doc(userId).get();
     const before = beforeSnap.data();
@@ -779,6 +846,10 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       assignedMajors: resolvedAssignedMajors ?? admin.firestore.FieldValue.delete(),
       supervisorFacultyIds: resolvedSupervisorFacultyIds ?? admin.firestore.FieldValue.delete(),
       secondarySupervisorFacultyIds: resolvedSecondarySupervisorFacultyIds ?? admin.firestore.FieldValue.delete(),
+      facultyAdminFacultyIds: resolvedFacultyAdminFacultyIds ?? admin.firestore.FieldValue.delete(),
+      programHeadFacultyIds: resolvedProgramHeadFacultyIds ?? admin.firestore.FieldValue.delete(),
+      gradSchoolHeadFacultyIds: resolvedGradSchoolHeadFacultyIds ?? admin.firestore.FieldValue.delete(),
+      internalExaminerFacultyIds: resolvedInternalExaminerFacultyIds ?? admin.firestore.FieldValue.delete(),
       permissionRules: resolvedPermissionRules?.length ? resolvedPermissionRules : admin.firestore.FieldValue.delete(),
       coordinatorScopes: resolvedCoordinatorScopes?.length ? resolvedCoordinatorScopes : admin.firestore.FieldValue.delete(),
       updatedAt: new Date().toISOString()

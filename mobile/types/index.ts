@@ -427,6 +427,17 @@ export interface UserRecord {
   // single-faculty account. See adminController.ts's getSupervisorsList.
   supervisorFacultyIds?: string[];
   secondarySupervisorFacultyIds?: string[];
+  // Same additive/restrictive idea, one field per role — faculty_admin/
+  // program_head/grad_school_head/internal_examiner can each independently
+  // be granted extra faculties for that role. grad_school_head/
+  // internal_examiner are no longer forced to facultyId 'all' at creation —
+  // a real facultyId here means these ADD faculties; only an explicit
+  // facultyId==='all' makes them RESTRICT (see scopeAuthorization.ts's
+  // effectiveFacultyIds on the server).
+  facultyAdminFacultyIds?: string[];
+  programHeadFacultyIds?: string[];
+  gradSchoolHeadFacultyIds?: string[];
+  internalExaminerFacultyIds?: string[];
   // Student-only, independent axes resolved against the admin-managed
   // option lists (see server/src/services/studentStatuses.ts). Both are
   // optional keys into that config — undefined/null means "not set yet".

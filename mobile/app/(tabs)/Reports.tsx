@@ -129,7 +129,6 @@ const DEGREE_TYPES = ['bachelors', 'masters'] as const;
 const PROJECT_TYPES = ['project', 'thesis'] as const;
 const MILESTONE_TYPES = ['research_proposal', 'progress_report', 'final_report', 'defense'] as const;
 const PROCESS_STATUSES = ['active', 'in_progress', 'completed', 'withdrawn', 'admin_closed'] as const;
-const CROSS_FACULTY_ROLES = ['grad_school_head', 'system_admin'];
 
 const DEGREE_TYPE_LABEL: Record<string, { he: string; en: string }> = {
   bachelors: { he: 'תואר ראשון', en: 'Bachelor’s' },
@@ -199,6 +198,8 @@ export default function Reports() {
 
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userFacultyId, setUserFacultyId] = useState<string | null>(null);
+  const [userGradSchoolHeadFacultyIds, setUserGradSchoolHeadFacultyIds] = useState<string[]>([]);
 
   const [activeReport, setActiveReport] = useState<ReportType>('full-status');
   const [startYear, setStartYear] = useState('');
@@ -219,7 +220,20 @@ export default function Reports() {
   const [meta, setMeta] = useState<{ threshold?: number } | null>(null);
 
   const uid = auth.currentUser?.uid;
-  const isCrossFaculty = !!userRole && CROSS_FACULTY_ROLES.includes(userRole);
+  const isSystemAdmin = userRole === 'system_admin';
+  const isGradSchoolHead = userRole === 'grad_school_head';
+  const isCrossFaculty = isSystemAdmin || isGradSchoolHead;
+
+  // Mirrors the server's effectiveFacultyIds (scopeAuthorization.ts) —
+  // grad_school_head is no longer automatically cross-faculty, so only offer
+  // faculties the server will actually accept for them: their own faculty
+  // plus any gradSchoolHeadFacultyIds extras, or every faculty if they're
+  // explicitly kept/set to facultyId 'all'. system_admin stays unrestricted.
+  const gradSchoolHeadFacultyOptions: string[] | 'all' = !isGradSchoolHead
+    ? 'all'
+    : userFacultyId === 'all'
+    ? (userGradSchoolHeadFacultyIds.length > 0 ? userGradSchoolHeadFacultyIds : 'all')
+    : [userFacultyId, ...userGradSchoolHeadFacultyIds].filter(Boolean) as string[];
 
   useEffect(() => {
     if (!uid) return;
@@ -228,6 +242,8 @@ export default function Reports() {
         const res = await apiClient.get('/api/users/profile');
         setUserName(res.data.displayName || '');
         setUserRole(res.data.role || null);
+        setUserFacultyId(res.data.facultyId || null);
+        setUserGradSchoolHeadFacultyIds(res.data.gradSchoolHeadFacultyIds || []);
       } catch (err) {
         console.error('Reports: failed to load profile', err);
       }
@@ -346,7 +362,7 @@ export default function Reports() {
         <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
           {isCrossFaculty && (
             <FilterPillRow
-              options={Object.keys(FACULTY_LABEL)}
+              options={gradSchoolHeadFacultyOptions === 'all' ? Object.keys(FACULTY_LABEL) : gradSchoolHeadFacultyOptions}
               value={facultyId}
               onChange={setFacultyId}
               labelFor={(v) => FACULTY_LABEL[v]?.[lang] ?? v}
