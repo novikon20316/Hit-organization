@@ -168,37 +168,57 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
   }
 
   try {
-    // Two separate queries: staff with a real facultyId matching the
-    // selection (unchanged, existing behavior), plus every cross-faculty
-    // account (facultyId === 'all' — system_admin, grad_school_head,
-    // administrative coordinator, internal_examiner). A cross-faculty account
-    // that holds 'supervisor' as an additional role is available for EVERY
-    // faculty by default (that's what "cross-faculty" means) — unless it's
-    // been explicitly narrowed via supervisorFacultyIds (see
-    // updateUserRoleAdmin below), in which case only the selected faculty/ies
-    // it was scoped to count. Firestore 'in' caps at 30 values — the
-    // canonical faculty list is a handful of entries, nowhere near that.
-    const [byOwnFaculty, crossFacultySnap] = await Promise.all([
+    // Four queries, merged by id: staff with a real facultyId matching the
+    // selection; every cross-faculty account (facultyId === 'all' —
+    // system_admin, grad_school_head, administrative coordinator,
+    // internal_examiner); and, independently per role, any real-faculty
+    // account granted an EXTRA faculty for that specific role via
+    // supervisorFacultyIds/secondarySupervisorFacultyIds (array-contains-any)
+    // — this is what lets e.g. a Data Science supervisor also be offered as
+    // secondary_supervisor in Engineering, without becoming a facultyId==='all'
+    // account. Firestore 'in'/'array-contains-any' both cap at 30 values —
+    // the canonical faculty list is a handful of entries, nowhere near that.
+    const [byOwnFaculty, crossFacultySnap, bySupervisorGrant, bySecondaryGrant] = await Promise.all([
       db.collection('users').where('facultyId', 'in', facultyIds).get(),
       db.collection('users').where('facultyId', '==', 'all').get(),
+      db.collection('users').where('supervisorFacultyIds', 'array-contains-any', facultyIds).get(),
+      db.collection('users').where('secondarySupervisorFacultyIds', 'array-contains-any', facultyIds).get(),
     ]);
 
-    const fromOwnFaculty = byOwnFaculty.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter((u: any) => getEffectiveRoles(u).includes('supervisor'));
+    // Eligibility for role R at the requested faculty/ies: holds R (by
+    // effective role), AND (their own facultyId is one of the requested ones
+    // — or, for a cross-faculty 'all' account, unrestricted for R — OR
+    // they've been granted an extra faculty for R that intersects the
+    // requested ones).
+    const eligibleForRole = (
+      u: Record<string, unknown>,
+      roleKey: 'supervisor' | 'secondary_supervisor',
+      extraField: 'supervisorFacultyIds' | 'secondarySupervisorFacultyIds'
+    ): boolean => {
+      if (!getEffectiveRoles(u).includes(roleKey)) return false;
+      const extra: unknown = u[extraField];
+      if (u.facultyId === 'all') {
+        if (!Array.isArray(extra) || extra.length === 0) return true; // unrestricted -> every faculty
+        return extra.some((id: string) => facultyIds.includes(id));
+      }
+      if (facultyIds.includes(u.facultyId as string)) return true;
+      return Array.isArray(extra) && extra.some((id: string) => facultyIds.includes(id));
+    };
 
-    const fromCrossFaculty = crossFacultySnap.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter((u: any) => {
-        if (!getEffectiveRoles(u).includes('supervisor')) return false;
-        const restriction: unknown = u.supervisorFacultyIds;
-        if (!Array.isArray(restriction) || restriction.length === 0) return true; // unrestricted -> every faculty
-        return restriction.some((id) => facultyIds.includes(id));
-      });
+    const usersById = new Map<string, Record<string, unknown> & { id: string }>();
+    [...byOwnFaculty.docs, ...crossFacultySnap.docs, ...bySupervisorGrant.docs, ...bySecondaryGrant.docs].forEach((doc) => {
+      if (!usersById.has(doc.id)) usersById.set(doc.id, { id: doc.id, ...doc.data() });
+    });
 
-    const byId = new Map<string, Record<string, unknown> & { id: string }>();
-    [...fromOwnFaculty, ...fromCrossFaculty].forEach((u: any) => byId.set(u.id, u));
-    return res.status(200).json([...byId.values()]);
+    const result = [...usersById.values()]
+      .map((u) => ({
+        ...u,
+        eligibleAsSupervisor: eligibleForRole(u, 'supervisor', 'supervisorFacultyIds'),
+        eligibleAsSecondary: eligibleForRole(u, 'secondary_supervisor', 'secondarySupervisorFacultyIds'),
+      }))
+      .filter((u) => u.eligibleAsSupervisor || u.eligibleAsSecondary);
+
+    return res.status(200).json(result);
   } catch (error: any) {
     console.error('getSupervisorsList Error:', error);
     return res.status(500).json({ message: 'Failed to fetch supervisors.' });
@@ -584,7 +604,7 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
   const isSystemAdmin = req.user?.role === 'system_admin';
 
   const { id: userId } = req.params;
-  const { role, roles, facultyId, assignedMajors, supervisorFacultyIds, permissionRules, coordinatorScopes } = req.body;
+  const { role, roles, facultyId, assignedMajors, supervisorFacultyIds, secondarySupervisorFacultyIds, permissionRules, coordinatorScopes } = req.body;
 
   if (!role) return res.status(400).json({ message: 'Missing role parameter.' });
   if (!VALID_ROLES.includes(role)) {
@@ -692,22 +712,37 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
     }
   }
 
-  // Narrows a CROSS-FACULTY account's (facultyId === 'all') supervisor-like
-  // additional role down to specific faculties — by default such an account
-  // is available as a supervisor in EVERY faculty (see getSupervisorsList
-  // above), so this field is only meaningful as a restriction, not a grant.
-  // Unset/empty means "available everywhere" — unchanged behavior. Not
-  // meaningful for a plain single-faculty supervisor (their own facultyId
-  // already scopes them correctly).
+  // Extra faculties this user is offered as `supervisor`/`secondary_supervisor`
+  // in, beyond their own facultyId — tracked independently per role so the
+  // same person can be a full supervisor in one faculty and only a
+  // co-supervisor in another (see getSupervisorsList's eligibleAsSupervisor/
+  // eligibleAsSecondary). For a CROSS-FACULTY account (facultyId === 'all')
+  // this is a restriction (unset/empty = every faculty, unchanged legacy
+  // behavior); for a normal single-faculty account it's an addition on top
+  // of their own facultyId.
+  const isSupervisorRole =
+    role === 'supervisor' || (Array.isArray(roles) && roles.includes('supervisor'));
+  const isSecondarySupervisorRole =
+    role === 'secondary_supervisor' || (Array.isArray(roles) && roles.includes('secondary_supervisor'));
+
+  const validateFacultyIdList = (input: unknown): { ok: true; value: string[] } | { ok: false; invalid: string[] } => {
+    const value = Array.isArray(input) ? input.filter((id: unknown): id is string => typeof id === 'string') : [];
+    const invalid = value.filter((id) => !VALID_FACULTY_IDS_NO_ALL.includes(id));
+    return invalid.length > 0 ? { ok: false, invalid } : { ok: true, value };
+  };
+
   let resolvedSupervisorFacultyIds: string[] | undefined;
-  if (isSupervisorLikeRole) {
-    resolvedSupervisorFacultyIds = Array.isArray(supervisorFacultyIds)
-      ? supervisorFacultyIds.filter((id: unknown): id is string => typeof id === 'string')
-      : [];
-    const invalidFaculties = resolvedSupervisorFacultyIds.filter((id) => !VALID_FACULTY_IDS_NO_ALL.includes(id));
-    if (invalidFaculties.length > 0) {
-      return res.status(400).json({ message: `Invalid faculty id(s): ${invalidFaculties.join(', ')}` });
-    }
+  if (isSupervisorRole) {
+    const result = validateFacultyIdList(supervisorFacultyIds);
+    if (!result.ok) return res.status(400).json({ message: `Invalid faculty id(s): ${result.invalid.join(', ')}` });
+    resolvedSupervisorFacultyIds = result.value;
+  }
+
+  let resolvedSecondarySupervisorFacultyIds: string[] | undefined;
+  if (isSecondarySupervisorRole) {
+    const result = validateFacultyIdList(secondarySupervisorFacultyIds);
+    if (!result.ok) return res.status(400).json({ message: `Invalid faculty id(s): ${result.invalid.join(', ')}` });
+    resolvedSecondarySupervisorFacultyIds = result.value;
   }
 
   try {
@@ -743,6 +778,7 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       ...(typeof facultyId === 'string' && facultyId ? { facultyId } : {}),
       assignedMajors: resolvedAssignedMajors ?? admin.firestore.FieldValue.delete(),
       supervisorFacultyIds: resolvedSupervisorFacultyIds ?? admin.firestore.FieldValue.delete(),
+      secondarySupervisorFacultyIds: resolvedSecondarySupervisorFacultyIds ?? admin.firestore.FieldValue.delete(),
       permissionRules: resolvedPermissionRules?.length ? resolvedPermissionRules : admin.firestore.FieldValue.delete(),
       coordinatorScopes: resolvedCoordinatorScopes?.length ? resolvedCoordinatorScopes : admin.firestore.FieldValue.delete(),
       updatedAt: new Date().toISOString()

@@ -77,6 +77,17 @@ type Props = {
   assignedMajors?:    string[];
   setAssignedMajors?: (majors: string[]) => void;
 
+  // Extra faculties this user is offered as supervisor/secondary_supervisor
+  // in, beyond their own faculty — independently per role (a restriction for
+  // a cross-faculty 'all' account, an addition for a normal single-faculty
+  // one). Optional so callers that don't wire this up simply don't get the
+  // field, same pattern as assignedMajors above. See
+  // server/src/controllers/adminController.ts's getSupervisorsList.
+  supervisorFacultyIds?:    string[];
+  setSupervisorFacultyIds?: (ids: string[]) => void;
+  secondarySupervisorFacultyIds?:    string[];
+  setSecondarySupervisorFacultyIds?: (ids: string[]) => void;
+
   // Student Primary/Secondary status (system_admin any student, faculty_admin
   // own-faculty students only — enforced server-side) — optional so callers
   // that don't wire this up simply don't get the fields, same pattern as
@@ -110,6 +121,8 @@ export default function EditUserModal({
   permissionRules, setPermissionRules,
   coordinatorScopes, setCoordinatorScopes,
   assignedMajors, setAssignedMajors,
+  supervisorFacultyIds, setSupervisorFacultyIds,
+  secondarySupervisorFacultyIds, setSecondarySupervisorFacultyIds,
   primaryStatus, setPrimaryStatus,
   secondaryStatus, setSecondaryStatus,
   lockedFacultyId,
@@ -131,6 +144,11 @@ export default function EditUserModal({
     assignedMajors !== undefined && !!setAssignedMajors &&
     (role === 'supervisor' || role === 'secondary_supervisor' ||
       roles.includes('supervisor') || roles.includes('secondary_supervisor'));
+  const isSupervisorRole = role === 'supervisor' || roles.includes('supervisor');
+  const isSecondarySupervisorRole = role === 'secondary_supervisor' || roles.includes('secondary_supervisor');
+  const showSupervisorFacultyIds = supervisorFacultyIds !== undefined && !!setSupervisorFacultyIds && isSupervisorRole;
+  const showSecondarySupervisorFacultyIds =
+    secondarySupervisorFacultyIds !== undefined && !!setSecondarySupervisorFacultyIds && isSecondarySupervisorRole;
   const isStudent = role === 'student' || roles.includes('student');
   const showPrimaryStatus = primaryStatus !== undefined && !!setPrimaryStatus && isStudent;
   const showSecondaryStatus = secondaryStatus !== undefined && !!setSecondaryStatus && isStudent;
@@ -334,6 +352,90 @@ export default function EditUserModal({
                   {lang === "he" ? "בחר פקולטה תחילה" : "Select a faculty first"}
                 </Text>
               )}
+            </>
+          )}
+
+          {/* ── Also a supervisor in additional faculties (optional) ── */}
+          {showSupervisorFacultyIds && (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                {lang === "he" ? "מנחה גם בפקולטות נוספות (אופציונלי)" : "Also a supervisor in additional faculties (optional)"}
+              </Text>
+              <Text style={editStyles.hint}>
+                {faculty === 'all'
+                  ? (lang === "he"
+                    ? "ללא בחירה — זמין ככל בכל הפקולטות. סמן פקולטות ספציפיות כדי להגביל."
+                    : "Leave empty — available in every faculty. Check specific faculties to restrict.")
+                  : (lang === "he"
+                    ? "בנוסף לפקולטה שלו, ניתן לסמן פקולטות נוספות בהן יוצע גם כמנחה."
+                    : "On top of their own faculty, check additional faculties where they should also be offered as supervisor.")}
+              </Text>
+              {Object.keys(facultyColors ?? FACULTY_COLORS)
+                .filter((fid) => fid !== 'default' && fid !== 'all' && fid !== faculty)
+                .map((fid) => {
+                  const isSelected = supervisorFacultyIds!.includes(fid);
+                  const fc = (facultyColors ?? FACULTY_COLORS)[fid];
+                  return (
+                    <Pressable
+                      key={fid}
+                      style={[editStyles.additionalRoleBtn, isSelected && editStyles.additionalRoleBtnActive]}
+                      onPress={() =>
+                        setSupervisorFacultyIds!(
+                          isSelected ? supervisorFacultyIds!.filter((f) => f !== fid) : [...supervisorFacultyIds!, fid]
+                        )
+                      }
+                    >
+                      <View style={[editStyles.checkbox, isSelected && editStyles.checkboxActive]}>
+                        {isSelected && <Text style={editStyles.checkmark}>✓</Text>}
+                      </View>
+                      <Text style={[editStyles.additionalRoleText, isSelected && editStyles.additionalRoleTextActive]}>
+                        {fc?.label?.[lang] ?? fid}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+            </>
+          )}
+
+          {/* ── Also a secondary supervisor in additional faculties (optional) ── */}
+          {showSecondarySupervisorFacultyIds && (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                {lang === "he" ? "מנחה משני גם בפקולטות נוספות (אופציונלי)" : "Also a secondary supervisor in additional faculties (optional)"}
+              </Text>
+              <Text style={editStyles.hint}>
+                {faculty === 'all'
+                  ? (lang === "he"
+                    ? "ללא בחירה — זמין ככל בכל הפקולטות. סמן פקולטות ספציפיות כדי להגביל."
+                    : "Leave empty — available in every faculty. Check specific faculties to restrict.")
+                  : (lang === "he"
+                    ? "בנוסף לתפקידיו בפקולטה שלו, ניתן לסמן פקולטות נוספות בהן יוצע כמנחה משני בלבד (לא ראשי)."
+                    : "On top of their role(s) in their own faculty, check additional faculties where they should be offered as secondary supervisor only (never primary).")}
+              </Text>
+              {Object.keys(facultyColors ?? FACULTY_COLORS)
+                .filter((fid) => fid !== 'default' && fid !== 'all' && fid !== faculty)
+                .map((fid) => {
+                  const isSelected = secondarySupervisorFacultyIds!.includes(fid);
+                  const fc = (facultyColors ?? FACULTY_COLORS)[fid];
+                  return (
+                    <Pressable
+                      key={fid}
+                      style={[editStyles.additionalRoleBtn, isSelected && editStyles.additionalRoleBtnActive]}
+                      onPress={() =>
+                        setSecondarySupervisorFacultyIds!(
+                          isSelected ? secondarySupervisorFacultyIds!.filter((f) => f !== fid) : [...secondarySupervisorFacultyIds!, fid]
+                        )
+                      }
+                    >
+                      <View style={[editStyles.checkbox, isSelected && editStyles.checkboxActive]}>
+                        {isSelected && <Text style={editStyles.checkmark}>✓</Text>}
+                      </View>
+                      <Text style={[editStyles.additionalRoleText, isSelected && editStyles.additionalRoleTextActive]}>
+                        {fc?.label?.[lang] ?? fid}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
             </>
           )}
 

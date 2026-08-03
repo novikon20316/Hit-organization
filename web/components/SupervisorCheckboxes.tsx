@@ -19,6 +19,13 @@ export interface SupervisorOption {
   /** Present when that supervisor is restricted to specific majors within
    *  their own faculty — see server/src/controllers/adminController.ts. */
   assignedMajors?: string[];
+  /** Whether this person is eligible to be the project's PRIMARY supervisor
+   *  vs. only a secondary/co-supervisor, for the currently-selected
+   *  faculty/ies — see getSupervisorsList. A person with only
+   *  eligibleAsSecondary can still be selected here, but must never be the
+   *  sole/first selection (see NewProjectModal's submit-time reordering). */
+  eligibleAsSupervisor?: boolean;
+  eligibleAsSecondary?: boolean;
 }
 
 interface Props {
@@ -50,6 +57,11 @@ export function SupervisorCheckboxes({ facultyIds, options, loading, selected, o
         <label key={s.id} className="flex items-center gap-2 text-sm text-ink">
           <input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} className="h-4 w-4" />
           {s.displayName}
+          {s.eligibleAsSecondary && !s.eligibleAsSupervisor && (
+            <span className="rounded-full bg-paper px-2 py-0.5 text-[10px] font-medium text-muted">
+              {lang === 'he' ? 'רק כמנחה משני' : 'secondary only'}
+            </span>
+          )}
         </label>
       ))}
     </div>

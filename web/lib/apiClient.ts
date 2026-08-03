@@ -447,6 +447,9 @@ export const apiClient = {
        *  a plain single-faculty supervisor. See adminController.ts's
        *  getSupervisorsList. */
       supervisorFacultyIds?: string[];
+      /** Same idea, independently, for the `secondary_supervisor` role — see
+       *  server/src/controllers/adminController.ts's getSupervisorsList. */
+      secondarySupervisorFacultyIds?: string[];
       /** system_admin, or a delegate (faculty_admin/program_head/
        *  grad_school_head) granting within their own scope — see
        *  server/src/config/permissionScopes.ts's DELEGATE_RESTRICTED_ACTIONS
@@ -1037,6 +1040,21 @@ export const apiClient = {
 
   async deleteSupervisorProject(projectId: string) {
     return request<{ success?: boolean; message?: string }>(`/api/supervisor/projects/${projectId}`, { method: 'DELETE' });
+  },
+
+  async getSupervisorProjectDetail(projectId: string) {
+    return request<{
+      templateMilestones: Array<{
+        type: string; nameHe: string; nameEn: string; order: number;
+        dateMode?: 'offset' | 'fixed'; dueDaysFromStart: number; fixedDate?: string;
+        requiresExaminers: boolean;
+      }>;
+      students: Array<{
+        studentId: string;
+        studentName: string;
+        milestones: Array<{ type: string; status: string; dueDate: string | null; submittedAt: string | null }>;
+      }>;
+    }>(`/api/supervisor/projects/${projectId}/detail`, { method: 'GET' });
   },
 
   async submitMilestoneGrade(

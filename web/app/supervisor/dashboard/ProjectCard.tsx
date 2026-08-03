@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ProjectWorkflowModal } from './ProjectWorkflowModal';
 import type { FacultyId } from '@/lib/i18n';
 import type { MyProject } from './types';
 
@@ -21,6 +22,7 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
   const facultyColor = getFacultyColor(p.facultyId);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showWorkflow, setShowWorkflow] = useState(false);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -56,6 +58,13 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
       <div className="mt-3 flex gap-2">
         <button
           type="button"
+          onClick={() => setShowWorkflow(true)}
+          className="flex-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+        >
+          🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}
+        </button>
+        <button
+          type="button"
           onClick={() => onEdit(p)}
           className="flex-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
         >
@@ -69,6 +78,8 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
           {lang === 'he' ? 'מחיקה' : 'Delete'}
         </button>
       </div>
+
+      {showWorkflow && <ProjectWorkflowModal project={p} onClose={() => setShowWorkflow(false)} />}
 
       <ConfirmDialog
         open={confirmDelete}

@@ -4,7 +4,11 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
-import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
+import {
+  resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER,
+  getMilestonesForTemplateId, getActiveMilestonesFor, deriveProcessType,
+  type WorkflowMilestoneSpec,
+} from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -164,6 +168,85 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
   } catch (error: any) {
     console.error('getSupervisorDashboard error:', error);
     return res.status(500).json({ message: 'Failed to compile supervisor dashboard data.' });
+  }
+};
+
+// ─── GET /api/supervisor/projects/:id/detail ─────────────────────────────────
+// Powers the "view workflow" modal — the project's resolved template
+// milestone list (names, due-date mode, examiner/rubric config) plus each
+// enrolled student's own submission status per milestone type. Milestone
+// docs are already 1:1 per student (see projectEnrollment.ts — nothing ever
+// pushes a second student into an existing milestone doc's studentIds), so
+// grouping by studentIds.includes(studentId) is exact, not an approximation.
+export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  const { id: projectId } = req.params;
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: 'Invalid projectId.' });
+
+  try {
+    const projectSnap = await db.collection('projects').doc(projectId).get();
+    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    const project = projectSnap.data()!;
+    if (project.supervisorId !== supervisorId && project.secondarySupervisorId !== supervisorId) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+
+    // Resolve the template this project is running on — same fallback chain
+    // as projectEnrollment.ts: an explicit workflowTemplateRefs entry for the
+    // project's own track first, else the faculty's currently-active template
+    // (covers legacy projects created before workflowTemplateRefs existed).
+    const workflowTemplateRefs: { degreeType: string; projectType: string; templateId: string }[] = project.workflowTemplateRefs ?? [];
+    const matchingRef = workflowTemplateRefs.find(
+      (r) => r.degreeType === project.degreeType && r.projectType === project.projectType
+    );
+    let templateMilestones: WorkflowMilestoneSpec[] = [];
+    if (matchingRef) {
+      const resolved = await getMilestonesForTemplateId(matchingRef.templateId);
+      if (resolved) templateMilestones = resolved.milestones;
+    }
+    if (templateMilestones.length === 0) {
+      const processType = deriveProcessType(project.degreeType, project.projectType);
+      const resolved = await getActiveMilestonesFor(project.facultyId, processType, project.major ?? null);
+      templateMilestones = resolved.milestones;
+    }
+
+    // Per-student submission status.
+    const enrolledStudentIds: string[] = project.enrolledStudentIds ?? [];
+    const [milestonesSnap, studentSnaps] = await Promise.all([
+      db.collection('milestones').where('projectId', '==', projectId).get(),
+      Promise.all(enrolledStudentIds.map((sid) => db.collection('users').doc(sid).get())),
+    ]);
+    const allMilestones = milestonesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, any>));
+    const studentNameById: Record<string, string> = {};
+    studentSnaps.forEach((s) => { if (s.exists) studentNameById[s.id] = s.data()?.displayName ?? s.id; });
+
+    const students = enrolledStudentIds.map((studentId) => {
+      const studentMilestones = allMilestones.filter((m) => Array.isArray(m.studentIds) && m.studentIds.includes(studentId));
+      const milestonesByType: Record<string, Record<string, any>> = {};
+      studentMilestones.forEach((m) => { milestonesByType[m.type] = m; });
+      return {
+        studentId,
+        studentName: studentNameById[studentId] ?? studentId,
+        // Every template milestone gets a row even if this student's doc
+        // hasn't been created yet ('not_created' — distinct from 'pending',
+        // which means the doc exists but nothing's been submitted).
+        milestones: templateMilestones.map((spec) => {
+          const m = milestonesByType[spec.type];
+          return {
+            type: spec.type,
+            status: (m?.status as string | undefined) ?? 'not_created',
+            dueDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
+            submittedAt: m?.submittedAt?.toDate?.()?.toISOString() ?? null,
+          };
+        }),
+      };
+    });
+
+    return res.status(200).json({ templateMilestones, students });
+  } catch (error: any) {
+    console.error('getSupervisorProjectDetail error:', error);
+    return res.status(500).json({ message: 'Failed to load project workflow detail.' });
   }
 };
 

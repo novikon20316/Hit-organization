@@ -125,6 +125,12 @@ export default function PanelScreen() {
   // Majors restriction (supervisor / secondary_supervisor only) — unlike the
   // two above, this one IS persisted server-side (see updateUserRoleAdmin).
   const [editAssignedMajors, setEditAssignedMajors] = useState<string[]>([]);
+  // Extra faculties this user is offered as supervisor/secondary_supervisor
+  // in, beyond their own facultyId — independently per role. Persisted
+  // server-side (see updateUserRoleAdmin's supervisorFacultyIds/
+  // secondarySupervisorFacultyIds).
+  const [editSupervisorFacultyIds, setEditSupervisorFacultyIds] = useState<string[]>([]);
+  const [editSecondarySupervisorFacultyIds, setEditSecondarySupervisorFacultyIds] = useState<string[]>([]);
   // Student Primary/Secondary status — independent axes, persisted via a
   // separate endpoint (see handleSaveUser). null = "— none —".
   const [editPrimaryStatus, setEditPrimaryStatus] = useState<string | null>(null);
@@ -299,12 +305,18 @@ export default function PanelScreen() {
         return;
       }
       try {
-        const responses = await Promise.all(
-          newProjectFacultyIds.map((facultyId) => apiClient.get('/api/admin/supervisors', { params: { facultyId } }))
-        );
-        const byId = new Map<string, AppUser>();
-        responses.forEach((r) => (r.data || []).forEach((s: AppUser) => byId.set(s.id, s)));
-        setAllSupervisors([...byId.values()]);
+        // Note: the server reads `facultyIds` (plural) — a single `facultyId`
+        // key here would never match, silently returning an empty list
+        // regardless of selection. Passing the whole array once (rather than
+        // one request per faculty) also lets a single-faculty account's
+        // cross-faculty grant (supervisorFacultyIds/secondarySupervisorFacultyIds)
+        // match correctly.
+        const res = await apiClient.get('/api/admin/supervisors', { params: { facultyIds: newProjectFacultyIds } });
+        // Single-select picker (one primary supervisor per project) — only
+        // offer candidates actually eligible as a PRIMARY supervisor for the
+        // selected faculty/ies (see getSupervisorsList's eligibleAsSupervisor).
+        const eligible: AppUser[] = (res.data || []).filter((s: any) => s.eligibleAsSupervisor);
+        setAllSupervisors(eligible);
       } catch (err) {
         console.error("Error loading panel supervisors:", err);
       }
@@ -930,6 +942,8 @@ export default function PanelScreen() {
     // Unlike the two above, assignedMajors IS persisted server-side, so it
     // loads from the actual user doc (see UserRecord.assignedMajors).
     setEditAssignedMajors(user.assignedMajors ?? []);
+    setEditSupervisorFacultyIds(user.supervisorFacultyIds ?? []);
+    setEditSecondarySupervisorFacultyIds(user.secondarySupervisorFacultyIds ?? []);
     // Student-only, independent of role/faculty — loads from the actual
     // user doc, same as assignedMajors above.
     setEditPrimaryStatus(user.primaryStatus ?? null);
@@ -949,6 +963,8 @@ export default function PanelScreen() {
         // secondary_supervisor (see updateUserRoleAdmin) — sent unconditionally
         // here since the server already gates on role.
         assignedMajors: editAssignedMajors,
+        supervisorFacultyIds: editSupervisorFacultyIds,
+        secondarySupervisorFacultyIds: editSecondarySupervisorFacultyIds,
         permissionRules: editPermissionRules,
         coordinatorScopes: (editRole === 'coordinator' || editRoles.includes('coordinator')) ? editCoordinatorScopes : undefined,
       });
@@ -2208,6 +2224,11 @@ export default function PanelScreen() {
 
         assignedMajors={editAssignedMajors}
         setAssignedMajors={setEditAssignedMajors}
+
+        supervisorFacultyIds={editSupervisorFacultyIds}
+        setSupervisorFacultyIds={setEditSupervisorFacultyIds}
+        secondarySupervisorFacultyIds={editSecondarySupervisorFacultyIds}
+        setSecondarySupervisorFacultyIds={setEditSecondarySupervisorFacultyIds}
 
         primaryStatus={editPrimaryStatus}
         setPrimaryStatus={setEditPrimaryStatus}

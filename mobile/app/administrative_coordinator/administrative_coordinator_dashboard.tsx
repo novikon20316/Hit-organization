@@ -428,12 +428,19 @@ export default function ProjectCoordinatorDashboard() {
       return;
     }
     let cancelled = false;
-    Promise.all(newProjectFacultyIds.map((facultyId) => apiClient.get('/api/admin/supervisors', { params: { facultyId } })))
-      .then((responses) => {
+    // Note: the server reads `facultyIds` (plural) — a single `facultyId` key
+    // here would never match, silently returning an empty list regardless of
+    // selection. Passing the whole array once (rather than one request per
+    // faculty) also lets a single-faculty account's cross-faculty grant
+    // (supervisorFacultyIds/secondarySupervisorFacultyIds) match correctly.
+    apiClient.get('/api/admin/supervisors', { params: { facultyIds: newProjectFacultyIds } })
+      .then((r) => {
         if (cancelled) return;
-        const byId = new Map<string, AppUser>();
-        responses.forEach((r) => (r.data || []).forEach((sup: AppUser) => byId.set(sup.id, sup)));
-        setAllSupervisors([...byId.values()]);
+        // Single-select picker (one primary supervisor per project) — only
+        // offer candidates actually eligible as a PRIMARY supervisor for the
+        // selected faculty/ies (see getSupervisorsList's eligibleAsSupervisor).
+        const eligible: AppUser[] = (r.data || []).filter((sup: any) => sup.eligibleAsSupervisor);
+        setAllSupervisors(eligible);
       })
       .catch((err) => console.error('Error loading supervisors for selected faculties:', err));
     return () => {

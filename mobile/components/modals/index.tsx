@@ -10,6 +10,7 @@ import BulkDueDateModal from './BulkDueDateModal';
 import PermissionsEditorModal from './PermissionsEditorModal';
 import CoordinatorScopesModal from './CoordinatorScopesModal';
 import StudentStatusesModal from './StudentStatusesModal';
+import ProjectWorkflowModal from './ProjectWorkflowModal';
 
 export {
     NewUserModal,
@@ -24,4 +25,5 @@ export {
     PermissionsEditorModal,
     CoordinatorScopesModal,
     StudentStatusesModal,
+    ProjectWorkflowModal,
 }

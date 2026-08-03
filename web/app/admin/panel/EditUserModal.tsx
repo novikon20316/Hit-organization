@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
-import { roleLabel, facultyLabel } from '@/lib/i18n';
+import { roleLabel, facultyLabel, type FacultyId } from '@/lib/i18n';
 import { PermissionsEditorModal } from './PermissionsEditorModal';
 import { CoordinatorScopesModal } from './CoordinatorScopesModal';
 import { majorsForFaculty, type ScopeRule, type CoordinatorScope, type ActionType } from '@/lib/permissions';
@@ -46,6 +46,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   const [facultyId, setFacultyId] = useState<string>(user.facultyId);
   const [assignedMajors, setAssignedMajors] = useState<string[]>(user.assignedMajors ?? []);
   const [supervisorFacultyIds, setSupervisorFacultyIds] = useState<string[]>(user.supervisorFacultyIds ?? []);
+  const [secondarySupervisorFacultyIds, setSecondarySupervisorFacultyIds] = useState<string[]>(user.secondarySupervisorFacultyIds ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -86,8 +87,9 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   const showCoordinatorScopes =
     role === 'coordinator' || additionalRoles.includes('coordinator') ||
     role === 'administrative_secretary' || additionalRoles.includes('administrative_secretary');
-  const isSupervisorLike =
-    role === 'supervisor' || additionalRoles.includes('supervisor') || role === 'secondary_supervisor' || additionalRoles.includes('secondary_supervisor');
+  const isSupervisor = role === 'supervisor' || additionalRoles.includes('supervisor');
+  const isSecondarySupervisor = role === 'secondary_supervisor' || additionalRoles.includes('secondary_supervisor');
+  const isSupervisorLike = isSupervisor || isSecondarySupervisor;
   const isStudent = role === 'student' || additionalRoles.includes('student');
 
   // Deduped across degree levels — same helper the coordinator-scope UI uses.
@@ -105,6 +107,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
     setSupervisorFacultyIds((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
   };
 
+  const toggleSecondarySupervisorFaculty = (id: string) => {
+    setSecondarySupervisorFacultyIds((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
+  };
+
   const handleFacultyChange = (value: string) => {
     setFacultyId(value);
     const validSlugs = new Set(majorsForFaculty(value).map((m) => m.slug));
@@ -120,7 +126,8 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
         roles: [role, ...additionalRoles.filter((r) => r !== role)],
         facultyId,
         assignedMajors: isSupervisorLike ? assignedMajors : undefined,
-        supervisorFacultyIds: isSupervisorLike ? supervisorFacultyIds : undefined,
+        supervisorFacultyIds: isSupervisor ? supervisorFacultyIds : undefined,
+        secondarySupervisorFacultyIds: isSecondarySupervisor ? secondarySupervisorFacultyIds : undefined,
         permissionRules,
         coordinatorScopes: showCoordinatorScopes ? coordinatorScopes : undefined,
       });
@@ -236,28 +243,67 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             </div>
           )}
 
-          {/* Only relevant for a cross-faculty account (facultyId 'all' —
-              e.g. system_admin): a plain single-faculty supervisor is already
-              scoped correctly by their own facultyId above, and this field
-              is ignored server-side for them either way. */}
-          {isSupervisorLike && facultyId === 'all' && (
+          {/* For a cross-faculty account (facultyId 'all'), this RESTRICTS
+              which faculties the person is offered as supervisor in (empty =
+              every faculty). For a normal single-faculty account, it ADDS
+              extra faculties on top of their own — e.g. a Data Science
+              supervisor who's ALSO offered as supervisor in Engineering. */}
+          {isSupervisor && (
             <div>
               <span className="mb-1.5 block text-sm font-medium text-ink">
-                {lang === 'he' ? 'הגבלת זמינות כמנחה לפקולטות מסוימות (אופציונלי)' : 'Restrict Supervisor Availability to Specific Faculties (optional)'}
+                {lang === 'he' ? 'מנחה גם בפקולטות נוספות (אופציונלי)' : 'Also a supervisor in additional faculties (optional)'}
               </span>
               <p className="mb-1.5 text-xs text-muted">
-                {lang === 'he'
-                  ? 'ללא בחירה — המשתמש יופיע כמנחה זמין בכל הפקולטות (ברירת המחדל לתפקיד חוצה-פקולטות). סמן פקולטות ספציפיות כדי להגביל אליהן בלבד.'
-                  : "Leave unselected — this account will appear as an available supervisor in EVERY faculty (the default for a cross-faculty role). Check specific faculties to restrict it to only those."}
+                {facultyId === 'all'
+                  ? (lang === 'he'
+                    ? 'ללא בחירה — המשתמש יופיע כמנחה זמין בכל הפקולטות (ברירת המחדל לתפקיד חוצה-פקולטות). סמן פקולטות ספציפיות כדי להגביל אליהן בלבד.'
+                    : "Leave unselected — this account will appear as an available supervisor in EVERY faculty (the default for a cross-faculty role). Check specific faculties to restrict it to only those.")
+                  : (lang === 'he'
+                    ? `המשתמש כבר מוצג כמנחה בפקולטה שלו (${facultyLabel(facultyId as FacultyId, lang)}). סמן פקולטות נוספות כדי להוסיף אותו כמנחה שם גם כן.`
+                    : `This user is already offered as supervisor in their own faculty (${facultyLabel(facultyId as FacultyId, lang)}). Check additional faculties to also offer them there.`)}
               </p>
               <div className="flex flex-wrap gap-2">
-                {VALID_FACULTY_IDS.filter((id) => id !== 'all').map((id) => {
+                {VALID_FACULTY_IDS.filter((id) => id !== 'all' && id !== facultyId).map((id) => {
                   const checked = supervisorFacultyIds.includes(id);
                   return (
                     <button
                       key={id}
                       type="button"
                       onClick={() => toggleSupervisorFaculty(id)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                      }`}
+                    >
+                      {facultyLabel(id, lang)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {isSecondarySupervisor && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'מנחה משני גם בפקולטות נוספות (אופציונלי)' : 'Also a secondary supervisor in additional faculties (optional)'}
+              </span>
+              <p className="mb-1.5 text-xs text-muted">
+                {facultyId === 'all'
+                  ? (lang === 'he'
+                    ? 'ללא בחירה — המשתמש יופיע כמנחה משני זמין בכל הפקולטות. סמן פקולטות ספציפיות כדי להגביל אליהן בלבד.'
+                    : 'Leave unselected — this account will appear as an available secondary supervisor in EVERY faculty. Check specific faculties to restrict it to only those.')
+                  : (lang === 'he'
+                    ? `בנוסף לתפקידיו בפקולטה שלו (${facultyLabel(facultyId as FacultyId, lang)}), ניתן לסמן פקולטות נוספות בהן המשתמש יוצע כמנחה משני בלבד (לא ראשי).`
+                    : `On top of their role(s) in their own faculty (${facultyLabel(facultyId as FacultyId, lang)}), check additional faculties where this user should be offered as a secondary supervisor only (never the sole/primary supervisor).`)}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {VALID_FACULTY_IDS.filter((id) => id !== 'all' && id !== facultyId).map((id) => {
+                  const checked = secondarySupervisorFacultyIds.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleSecondarySupervisorFaculty(id)}
                       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                         checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
                       }`}

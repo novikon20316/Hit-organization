@@ -3,6 +3,7 @@ import {
     updateSupervisorProject,
     deleteSupervisorProject,
     getSupervisorDashboard,
+    getSupervisorProjectDetail,
     handleApplicationDecision,
     createSupervisorProject,
     getSupervisorExaminerRecommendations,
@@ -13,6 +14,7 @@ import { verifyToken } from '../middleware/auth.js';
 const router = Router();
 
 router.get('/dashboard', verifyToken, getSupervisorDashboard)
+router.get('/projects/:id/detail', verifyToken, getSupervisorProjectDetail)
 router.put('/projects/:id', verifyToken, updateSupervisorProject)
 router.delete('/projects/:id', verifyToken, deleteSupervisorProject)
 // Grading goes through POST /api/projects/milestones/:milestoneId/grade

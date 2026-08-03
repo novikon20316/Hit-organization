@@ -420,6 +420,13 @@ export interface UserRecord {
   // omitted/empty means unrestricted (every major in their faculty). See
   // constants/permissions.ts's majorsForFaculty for the slug source of truth.
   assignedMajors?: string[];
+  // Extra faculties this user is offered as `supervisor`/`secondary_supervisor`
+  // in, beyond their own facultyId — independently per role, so a user can be
+  // a full supervisor in one faculty and only a co-supervisor in another. A
+  // restriction for a cross-faculty ('all') account, an addition for a normal
+  // single-faculty account. See adminController.ts's getSupervisorsList.
+  supervisorFacultyIds?: string[];
+  secondarySupervisorFacultyIds?: string[];
   // Student-only, independent axes resolved against the admin-managed
   // option lists (see server/src/services/studentStatuses.ts). Both are
   // optional keys into that config — undefined/null means "not set yet".

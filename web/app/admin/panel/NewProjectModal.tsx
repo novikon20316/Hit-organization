@@ -134,11 +134,23 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
       setError(lang === 'he' ? 'יש לבחור לפחות סוג תואר אחד וסוג פרויקט אחד' : 'Select at least one degree type and one project type');
       return;
     }
+    // At least one selected supervisor must be primary-eligible for the
+    // selected faculty/ies — a project can't have only secondary/co-supervisors.
+    // Reorder so a primary-eligible one always lands first (supervisorIds[0]
+    // becomes the project's primary supervisor server-side, see
+    // adminController.ts's createAdminProject), regardless of click order.
+    const supervisorById = new Map(supervisors.map((s) => [s.id, s]));
+    const primaryEligible = supervisorIds.filter((id) => supervisorById.get(id)?.eligibleAsSupervisor);
+    const secondaryOnly = supervisorIds.filter((id) => !supervisorById.get(id)?.eligibleAsSupervisor);
+    if (primaryEligible.length === 0) {
+      setError(lang === 'he' ? 'יש לבחור לפחות מנחה ראשי אחד עבור הפקולטה/ות שנבחרו' : 'Select at least one primary-eligible supervisor for the chosen faculty/ies');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
       await apiClient.createAdminProject({
-        supervisorIds,
+        supervisorIds: [...primaryEligible, ...secondaryOnly],
         facultyIds,
         titleHe: titleHe.trim(),
         titleEn: titleEn.trim(),

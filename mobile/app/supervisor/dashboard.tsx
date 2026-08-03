@@ -12,7 +12,7 @@ import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sharedStyles } from '@/constants';
 import { SupervisorExtraStyles } from '../../constants/styles';
-import { NewProjectModal, RecommendedExaminerModal } from '@/components/modals';
+import { NewProjectModal, RecommendedExaminerModal, ProjectWorkflowModal } from '@/components/modals';
 import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
@@ -165,6 +165,8 @@ export default function SupervisorHome() {
   const [editDescHe,      setEditDescHe]      = useState('');
   const [editDescEn,      setEditDescEn]      = useState('');
   const [editSkills,      setEditSkills]      = useState('');
+  // ── Workflow-template detail modal ────────────────────────────────────────
+  const [workflowProject, setWorkflowProject] = useState<MyProject | null>(null);
   // ── Recommend examiners modal ─────────────────────────────────────────────
   const [recommendModal, setRecommendModal]   = useState(false);
   const [selectedProjectForRec, setSelectedProjectForRec] = useState<MyProject | null>(null);
@@ -881,6 +883,9 @@ export default function SupervisorHome() {
                       </View>
                     )}
                     <View style={[styles.actionRow, isRtl && styles.rowReverse]}>
+                      <Pressable style={[styles.actionBtn, styles.editBtn]} onPress={() => setWorkflowProject(p)}>
+                        <Text style={styles.actionBtnText}>🧬 {lang === 'he' ? 'תהליך' : 'Workflow'}</Text>
+                      </Pressable>
                       <Pressable style={[styles.actionBtn, styles.editBtn]} onPress={() => handleOpenEditModal(p)}>
                         <Text style={styles.actionBtnText}>{lang === 'he' ? 'עריכה' : 'Edit'}</Text>
                       </Pressable>
@@ -1504,6 +1509,17 @@ export default function SupervisorHome() {
         handleSubmitRecommendation={handleSubmitRecommendation}
         styles={styles}
       />
+
+      {workflowProject && (
+        <ProjectWorkflowModal
+          visible={!!workflowProject}
+          onClose={() => setWorkflowProject(null)}
+          lang={lang}
+          projectId={workflowProject.id}
+          projectTitleHe={workflowProject.titleHe}
+          projectTitleEn={workflowProject.titleEn}
+        />
+      )}
     </SafeAreaView>
   );
 }

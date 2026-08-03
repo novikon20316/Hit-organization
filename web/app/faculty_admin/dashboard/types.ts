@@ -57,6 +57,11 @@ export interface FacultyAdminProjectRecord {
 export interface SupervisorOption {
   id: string;
   displayName: string;
+  /** Whether this person is eligible as PRIMARY vs. only secondary/co-
+   *  supervisor for the currently-selected faculty/ies — see
+   *  adminController.ts's getSupervisorsList. */
+  eligibleAsSupervisor?: boolean;
+  eligibleAsSecondary?: boolean;
 }
 
 // Shape is a raw milestone doc spread onto `{ id, deadline }` server-side

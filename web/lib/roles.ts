@@ -266,14 +266,22 @@ export interface UserDoc {
    *  unrestricted (all majors in their faculty). See
    *  server/src/controllers/adminController.ts. */
   assignedMajors?: string[];
-  /** Narrows a CROSS-FACULTY account's (facultyId 'all' — e.g. system_admin)
-   *  supervisor-like role down to specific faculties. By default such an
-   *  account is a supervisor option in EVERY faculty — this only ever
-   *  restricts that, never grants beyond it. Empty/unset means "available
-   *  everywhere" — the common case. Not meaningful for a plain
-   *  single-faculty supervisor (their own facultyId already scopes them
-   *  correctly). See server/src/controllers/adminController.ts. */
+  /** Extra faculties this user is offered as `supervisor` in, beyond their
+   *  own facultyId. For a CROSS-FACULTY account (facultyId 'all') this is a
+   *  *restriction* — unset/empty means "every faculty," non-empty narrows to
+   *  just these. For a normal single-faculty account this is an *addition* —
+   *  their own facultyId is always included, and any entries here add
+   *  further faculties on top (e.g. a Data Science supervisor who's ALSO
+   *  offered as supervisor in Engineering). See
+   *  server/src/controllers/adminController.ts's getSupervisorsList. */
   supervisorFacultyIds?: string[];
+  /** Same idea as supervisorFacultyIds, but for the `secondary_supervisor`
+   *  role independently — a user can hold `supervisor` in one set of
+   *  faculties and `secondary_supervisor` in a completely different set
+   *  (e.g. full supervisor in Data Science, but only a co-supervisor,
+   *  never the sole supervisor, in Engineering). See
+   *  server/src/controllers/adminController.ts's getSupervisorsList. */
+  secondarySupervisorFacultyIds?: string[];
   /** Elastic per-user scope-rule grants (system_admin-managed) — see
    *  lib/permissions.ts. Empty/unset means no granular grants beyond the
    *  account's role. */
