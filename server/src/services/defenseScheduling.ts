@@ -562,6 +562,27 @@ export async function resolveKeepExaminers(milestoneId: string, coordinatorId: s
   return { date: pickedDate };
 }
 
+// CRITICAL FIX: this used to do a single plain read, compute the new
+// panel/rounds from that possibly-stale snapshot, then two plain
+// `.update()` calls with no re-check — unlike resolveKeepExaminers above,
+// which wraps its equivalent read-check-write in db.runTransaction. A slow
+// double-submit, or a second coordinator resolving the same conflict a
+// different way (resolveKeepExaminers) in between, could commit after a
+// resolution had already finalized the milestone, silently reverting
+// `status` back to 'awaiting_defense_date' and starting a stray new round —
+// undoing an already-notified defense date with no error to anyone.
+//
+// The fix can't simply be "wrap the whole function in a transaction" —
+// assignExaminersAndNotify sends a real onboarding email (internal
+// notification / external invite), and Firestore transactions can retry
+// automatically on contention, which would risk sending that more than
+// once. So the side-effecting call stays outside any transaction, and only
+// the actual state check + write is transactional: it re-reads the
+// milestone fresh and re-validates status AND that dateMatching.currentRound
+// hasn't moved on since the initial read, aborting if either changed. In
+// the rare case that abort fires, the new examiner may have already been
+// onboarded for nothing — an acceptable trade-off next to the alternative
+// of silently corrupting an already-finalized, already-notified date.
 export async function resolveReplaceExaminer(
   milestoneId: string,
   coordinatorId: string,
@@ -594,6 +615,8 @@ export async function resolveReplaceExaminer(
   const studentName = studentSnaps.map((s) => s.data()?.displayName).filter(Boolean).join(', ');
 
   // Reuse the existing onboarding logic — unchanged for internal vs. external.
+  // Deliberately outside the transaction below — see this function's own
+  // header comment for why.
   const onboardResult = await assignExaminersAndNotify([newExaminer], {
     projectId: milestone.projectId,
     milestoneId,
@@ -610,52 +633,71 @@ export async function resolveReplaceExaminer(
     newMember.displayName = userSnap.data()?.displayName ?? 'Unknown';
   }
 
-  const retainedMembers = (milestone.defensePanel as DefensePanelMember[]).filter(
-    (m) => retainedKeys.includes(examinerKeyOf(m)),
-  );
-  const newPanel = [...retainedMembers, newMember];
   const newRoundIndex = currentRound + 1;
   const newKey = examinerKeyOf(newMember);
 
-  rounds[currentRound] = {
-    ...round,
-    resolvedBy: {
-      coordinatorId, decidedAt: admin.firestore.Timestamp.now(), action: 'replace_examiner',
-      replacedExaminerKey, newExaminerKey: newKey,
-    },
-  };
-  // Same window carried forward on purpose — see plan: recomputing it would
-  // make the retained examiners' already-submitted dates incomparable.
-  rounds.push({
-    roundIndex: newRoundIndex,
-    panel: [...retainedKeys, newKey],
-    startedAt: admin.firestore.Timestamp.now(),
-    outcome: 'pending',
-    matchedDate: null,
-    resolvedBy: null,
-  });
+  await db.runTransaction(async (transaction) => {
+    const freshMilestoneSnap = await transaction.get(milestoneRef);
+    if (!freshMilestoneSnap.exists) throw new Error('Milestone not found.');
+    const freshMilestone = freshMilestoneSnap.data()!;
 
-  const submissions = { ...(dateMatching.submissions ?? {}) };
-  for (const retainedKey of retainedKeys) {
-    const retainedSubmission = (dateMatching.submissions ?? {})[retainedKey];
-    if (retainedSubmission) {
-      submissions[retainedKey] = { ...retainedSubmission, roundIndex: newRoundIndex };
+    // Re-validate against the fresh read, not the initial snapshot above —
+    // this is exactly what catches a concurrent resolution that landed
+    // between the initial read and now.
+    if (freshMilestone.status !== 'date_conflict') {
+      throw new Error('This defense-date conflict was already resolved by someone else.');
     }
-  }
+    if (freshMilestone.dateMatching?.currentRound !== currentRound) {
+      throw new Error('This round was already superseded by another resolution.');
+    }
 
-  await milestoneRef.update({
-    defensePanel: newPanel,
-    examinerIds: newPanel.filter((m) => m.type === 'internal').map((m) => m.ref),
-    'dateMatching.currentRound': newRoundIndex,
-    'dateMatching.rounds': rounds,
-    'dateMatching.submissions': submissions,
-    status: 'awaiting_defense_date',
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  await db.collection('projects').doc(milestone.projectId).update({
-    defensePanel: newPanel,
-    defenseSchedulingState: 'awaiting_defense_date',
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    const freshRounds: any[] = [...freshMilestone.dateMatching.rounds];
+    const freshRound = freshRounds[currentRound];
+    const retainedMembers = (freshMilestone.defensePanel as DefensePanelMember[]).filter(
+      (m) => retainedKeys.includes(examinerKeyOf(m)),
+    );
+    const newPanel = [...retainedMembers, newMember];
+
+    freshRounds[currentRound] = {
+      ...freshRound,
+      resolvedBy: {
+        coordinatorId, decidedAt: admin.firestore.Timestamp.now(), action: 'replace_examiner',
+        replacedExaminerKey, newExaminerKey: newKey,
+      },
+    };
+    // Same window carried forward on purpose — see plan: recomputing it would
+    // make the retained examiners' already-submitted dates incomparable.
+    freshRounds.push({
+      roundIndex: newRoundIndex,
+      panel: [...retainedKeys, newKey],
+      startedAt: admin.firestore.Timestamp.now(),
+      outcome: 'pending',
+      matchedDate: null,
+      resolvedBy: null,
+    });
+
+    const freshSubmissions = { ...(freshMilestone.dateMatching.submissions ?? {}) };
+    for (const retainedKey of retainedKeys) {
+      const retainedSubmission = (freshMilestone.dateMatching.submissions ?? {})[retainedKey];
+      if (retainedSubmission) {
+        freshSubmissions[retainedKey] = { ...retainedSubmission, roundIndex: newRoundIndex };
+      }
+    }
+
+    transaction.update(milestoneRef, {
+      defensePanel: newPanel,
+      examinerIds: newPanel.filter((m) => m.type === 'internal').map((m) => m.ref),
+      'dateMatching.currentRound': newRoundIndex,
+      'dateMatching.rounds': freshRounds,
+      'dateMatching.submissions': freshSubmissions,
+      status: 'awaiting_defense_date',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    transaction.update(db.collection('projects').doc(milestone.projectId), {
+      defensePanel: newPanel,
+      defenseSchedulingState: 'awaiting_defense_date',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   });
 
   await notifyPanelToSubmitDates([newMember], milestone.projectId);

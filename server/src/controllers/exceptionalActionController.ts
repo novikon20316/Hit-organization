@@ -39,7 +39,7 @@ export const decideExceptionalActionRequest = async (req: AuthenticatedRequest, 
   }
 
   try {
-    const request = await decideExceptionalAction(id, decision, req.user.uid, req.user.role, reason);
+    const request = await decideExceptionalAction(id, decision, req.user.uid, req.user.role, reason, req.user.facultyId);
     return res.status(200).json({ success: true, request });
   } catch (error: any) {
     return res.status(400).json({ message: error.message || 'Failed to decide on this request.' });

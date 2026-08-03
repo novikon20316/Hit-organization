@@ -6,7 +6,7 @@ import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
-import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
+import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope } from '../services/scopeAuthorization.js';
 import { isChainDriven } from '../services/milestoneRouting.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
@@ -261,6 +261,29 @@ export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res
   const parsedDate = new Date(dueDate);
   if (isNaN(parsedDate.getTime())) {
     return res.status(400).json({ message: 'Invalid dueDate.' });
+  }
+
+  // CRITICAL FIX: this endpoint used to check only the caller's ROLE, never
+  // that the supplied projectIds actually belong to their own scope — unlike
+  // its single-item sibling above (updateMilestoneByCoordinator), which
+  // correctly calls resolveMilestoneScope + withinCoordinatorScope/
+  // hasActionGrant. For coordinator/administrative_secretary this at least
+  // routed through an exceptional-action approval that ALSO never
+  // re-validated scope (see exceptionalActions.ts's decideExceptionalAction,
+  // which executes the stored payload's projectIds as-is) — but faculty_admin
+  // and system_admin bypass that approval gate entirely (see below), so for
+  // them this previously executed immediately with zero scope check on the
+  // project list at all. Every projectId is now resolved and checked before
+  // ANY write happens — the whole batch is rejected (not silently trimmed)
+  // if even one project is outside the caller's scope, so a caller always
+  // knows to fix their input rather than getting a partial, unannounced result.
+  const scopes = await Promise.all(projectIds.map((id) => resolveProjectScope(typeof id === 'string' ? id : null)));
+  for (let i = 0; i < scopes.length; i++) {
+    const scope = scopes[i];
+    if (!scope) return res.status(404).json({ message: `Project not found: ${projectIds[i]}` });
+    if (!withinCoordinatorScope(req.user, scope) && !hasActionGrant(req.user, 'approve_milestones', scope)) {
+      return res.status(403).json({ message: `Project outside your assigned scope: ${projectIds[i]}` });
+    }
   }
 
   try {

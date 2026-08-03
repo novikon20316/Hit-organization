@@ -24,6 +24,8 @@ import {
   updateStudentAcademicYear,
   searchStudents,
   deleteAuditLogEntries,
+  getLockedUsers,
+  liftLoginLockout,
 } from '../controllers/adminController.js'
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
@@ -73,6 +75,7 @@ router.get('/student-roster', verifyToken, listStudentRosterAdmin);
 // (cross-faculty) — gated inside the controller, same pattern as the rest
 // of this file.
 router.get('/staff', verifyToken, listManagedStaff);
+router.get('/login-security/locked', verifyToken, getLockedUsers);
 
 // POST routes
 router.post('/projects', verifyToken, createAdminProject);
@@ -90,6 +93,7 @@ router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
+router.post('/login-security/:code/lift', verifyToken, liftLoginLockout);
 router.post('/users/:id/reset-password', verifyToken, resetUserPasswordAdmin);
 router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);
 // system_admin (any student) or faculty_admin (own faculty only) — gated

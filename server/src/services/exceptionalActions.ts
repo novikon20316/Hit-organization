@@ -102,18 +102,31 @@ export async function listPendingExceptionalActions(facultyId?: string): Promise
   return snap.docs.map((d) => serialize(d.id, d.data()));
 }
 
+// Cross-faculty roles legitimately review every faculty's queue (matches
+// listPendingExceptionalActions' own facultyId==='all' bypass above).
+const CROSS_FACULTY_APPROVER_ROLES = new Set(['grad_school_head', 'system_admin']);
+
 export async function decideExceptionalAction(
   requestId: string,
   decision: 'approved' | 'rejected',
   decidedBy: string,
   decidedByRole: string,
   decisionReason: string | undefined,
+  deciderFacultyId?: string,
 ): Promise<ExceptionalActionRequest> {
   const ref = db.collection('exceptionalActionRequests').doc(requestId);
   const snap = await ref.get();
   if (!snap.exists) throw new Error('Exceptional action request not found.');
   const data = snap.data()!;
   if (data.status !== 'pending') throw new Error('This request has already been decided.');
+
+  // CRITICAL FIX: the controller only ever checked the decider's ROLE
+  // (program_head/faculty_admin/...), never that this specific request's
+  // own facultyId actually matches theirs — a program_head in Faculty A
+  // could approve/reject a request queued for Faculty B.
+  if (!CROSS_FACULTY_APPROVER_ROLES.has(decidedByRole) && deciderFacultyId !== data.facultyId) {
+    throw new Error('This request is outside your faculty.');
+  }
 
   if (decision === 'rejected') {
     if (!decisionReason || !decisionReason.trim()) {

@@ -13,6 +13,7 @@
 
 import * as XLSX from 'xlsx';
 import crypto from 'crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 import { APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
@@ -48,16 +49,45 @@ export function generateTempPassword(): string {
 }
 
 /**
- * One-way hash of a temporary password, stored on the user doc as
- * `tempPasswordHash` purely so userController.ts's changePassword can reject
- * "your new password is the same as the temp one you were just issued"
- * without ever storing the temp password itself in plaintext. Not a
- * substitute for Firebase Auth's own password storage — this exists only
- * for that one comparison, so a fast SHA-256 (same convention as
- * loginSecurity.ts's OTP hashing) is a reasonable, sufficient choice here.
+ * One-way hash of a temporary password, stored purely so userController.ts's
+ * changePassword can reject "your new password is the same as the temp one
+ * you were just issued" without ever storing the temp password itself in
+ * plaintext. Not a substitute for Firebase Auth's own password storage —
+ * this exists only for that one comparison, so a fast SHA-256 (same
+ * convention as loginSecurity.ts's OTP hashing) is a reasonable, sufficient
+ * choice here.
  */
 export function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+// CRITICAL FIX: tempPasswordHash used to live directly on users/{uid} —
+// readable by ANY signed-in user per firestore.rules' `allow read: if
+// isSignedIn()` on that doc. It's an unsalted SHA-256 of a ~60-bit random
+// string, offline-brute-forceable with no rate limit once read. Moved into
+// the users/{uid}/private/security subcollection, which firestore.rules
+// denies read/write to every client unconditionally (`if false`) — the same
+// treatment already given to TOTP secrets — so it's now genuinely private:
+// not the system_admin's own browser session, not any other signed-in
+// account, only this server's Admin SDK (which bypasses rules by design)
+// can ever read it. loginSecurity.ts already uses this exact subdoc path
+// for lockout tracking; tempPasswordHash is merged into the same document
+// rather than adding a second private doc per user.
+function privateSecurityRef(uid: string) {
+  return db.collection('users').doc(uid).collection('private').doc('security');
+}
+
+export async function setTempPasswordHash(uid: string, tempPassword: string): Promise<void> {
+  await privateSecurityRef(uid).set({ tempPasswordHash: hashPassword(tempPassword) }, { merge: true });
+}
+
+export async function getTempPasswordHash(uid: string): Promise<string | undefined> {
+  const snap = await privateSecurityRef(uid).get();
+  return snap.data()?.tempPasswordHash;
+}
+
+export async function clearTempPasswordHash(uid: string): Promise<void> {
+  await privateSecurityRef(uid).set({ tempPasswordHash: FieldValue.delete() }, { merge: true });
 }
 
 /** Creates the Firebase Auth account + Firestore user doc, and emails the temp password. Shared by every import flow. */
@@ -116,10 +146,10 @@ async function createImportedUserAccount(params: {
     isEligibleForProcess: params.isEligibleForProcess,
     createdViaImport: true,
     mustChangePassword: true, // enforced in-app on first login — see /api/users/change-password
-    tempPasswordHash: hashPassword(tempPassword),
     createdAt: new Date().toISOString(),
     ...(params.extra ?? {}),
   });
+  await setTempPasswordHash(authUser.uid, tempPassword);
 
   try {
     await sendNotificationEmail({

@@ -21,11 +21,31 @@ import crypto from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
-import { generateTempPassword, hashPassword } from './userImportExport.js';
+import { generateTempPassword, setTempPasswordHash, hashPassword } from './userImportExport.js';
 import { logAuditEvent } from './auditLog.js';
 
 const INCIDENT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const FAILURE_THRESHOLD = 3;
+
+// CRITICAL FIX: this endpoint is unauthenticated by necessity (a failed
+// login has no token to key on) — but that also meant anyone who just knows
+// a victim's email could submit 3 different garbage passwords and get that
+// real account Firebase-disabled, with no credential of their own. Two
+// changes close this:
+//   1. Resubmitting the exact same wrong password (a person re-trying their
+//      own typo, or a flaky client retrying the same failed request) now
+//      counts once, not once per submission — tracked via a hash of the
+//      last reported password.
+//   2. Distinct wrong passwords arriving faster than a real person could
+//      plausibly re-type one are collapsed into a single count too. This
+//      doesn't make the endpoint immune to a patient, deliberately-throttled
+//      attacker — no unauthenticated check fully can — but it closes the
+//      trivial "fire 3 requests in under a second" version of the attack,
+//      and is backed up by the loginSecurityLimiter IP rate limit already
+//      on this route plus the new system_admin "locked accounts" view below,
+//      which gives fast visibility + a one-click lift if it ever fires on a
+//      real account.
+const MIN_MS_BETWEEN_COUNTED_ATTEMPTS = 5000;
 
 // Deliberately NOT reusing examinerAccess.ts's generateUniqueCode — its
 // charset includes `%`, `@`, `$` etc., which are safe in a query string
@@ -189,6 +209,7 @@ export async function reportFailedLogin(
   });
 
   const securityRef = securityDocRef(uid);
+  const passwordHash = hashPassword(password);
 
   const shouldCreateIncident = await db.runTransaction(async (transaction) => {
     const snap = await transaction.get(securityRef);
@@ -198,10 +219,23 @@ export async function reportFailedLogin(
     // more counting or send another alert email while one's outstanding.
     if (data.pendingIncidentCode) return false;
 
+    const lastAt = (data.lastFailedLoginAt?.toMillis?.() as number | undefined) ?? 0;
+    const isRepeatOfLastPassword = data.lastFailedPasswordHash === passwordHash;
+    const isTooFastToBeARealRetry = !isRepeatOfLastPassword && lastAt > 0 && (Date.now() - lastAt) < MIN_MS_BETWEEN_COUNTED_ATTEMPTS;
+
+    if (isRepeatOfLastPassword || isTooFastToBeARealRetry) {
+      transaction.set(securityRef, {
+        lastFailedPasswordHash: passwordHash,
+        lastFailedLoginAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return false;
+    }
+
     const newCount = (data.failedLoginCount ?? 0) + 1;
     if (newCount >= FAILURE_THRESHOLD) {
       transaction.set(securityRef, {
         failedLoginCount: 0,
+        lastFailedPasswordHash: passwordHash,
         lastFailedLoginAt: FieldValue.serverTimestamp(),
       }, { merge: true });
       return true;
@@ -209,6 +243,7 @@ export async function reportFailedLogin(
 
     transaction.set(securityRef, {
       failedLoginCount: newCount,
+      lastFailedPasswordHash: passwordHash,
       lastFailedLoginAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     return false;
@@ -338,9 +373,9 @@ export async function resolveIncident(
     await auth.updateUser(uid, { password: tempPassword, disabled: false });
     await db.collection('users').doc(uid).update({
       mustChangePassword: true,
-      tempPasswordHash: hashPassword(tempPassword),
       updatedAt: new Date().toISOString(),
     });
+    await setTempPasswordHash(uid, tempPassword);
     await securityRef.set({ pendingIncidentCode: FieldValue.delete(), failedLoginCount: 0 }, { merge: true });
     await ref.update({ status: 'confirmed_owner', resolvedAt });
 
@@ -367,6 +402,45 @@ export async function resolveIncident(
   });
 
   return { ok: true };
+}
+
+export interface PendingLockout {
+  code:      string;
+  uid:       string;
+  email:     string;
+  displayName: string;
+  ip:        string;
+  location:  string;
+  createdAt: string;
+}
+
+/** system_admin "locked accounts" view — every account currently disabled by
+ *  the 3-strikes flow, still awaiting either the owner's email link or an
+ *  admin lifting it directly (see liftLockout below). */
+export async function listPendingLockouts(): Promise<PendingLockout[]> {
+  const snap = await db.collection('loginSecurityIncidents').where('status', '==', 'pending').orderBy('createdAt', 'desc').get();
+  if (snap.empty) return [];
+
+  const incidents = snap.docs.map((d) => ({ code: d.id, ...d.data() } as any));
+  const userSnaps = await Promise.all(incidents.map((inc) => db.collection('users').doc(inc.uid).get()));
+
+  return incidents.map((inc, i) => ({
+    code:        inc.code,
+    uid:         inc.uid,
+    email:       inc.email,
+    displayName: userSnaps[i]?.data()?.displayName ?? '',
+    ip:          inc.ip ?? '',
+    location:    formatLocation(inc.location ?? null),
+    createdAt:   inc.createdAt,
+  }));
+}
+
+/** system_admin lifting a lockout directly from the admin panel — reuses the
+ *  exact same "was this you? → yes" recovery path the account owner's own
+ *  email link triggers (re-enable, issue+email a fresh temp password, clear
+ *  the pending incident) rather than a separate, divergent code path. */
+export async function liftLockout(code: string): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'already_resolved' | 'expired' }> {
+  return resolveIncident(code, 'owner');
 }
 
 async function notifySystemAdmins(incident: {

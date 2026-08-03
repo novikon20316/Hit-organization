@@ -52,7 +52,23 @@ async function getUserPushToken(uid: string): Promise<string | null> {
   return snap.data()?.expoPushToken ?? null;
 }
 
+// Firestore's `in` operator caps at 30 values per query — chunk to stay
+// under that for a supervisor with a large caseload.
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 // ─── GET /api/supervisor/dashboard ───────────────────────────────────────────
+// CRITICAL FIX: every query here used to filter on `supervisorId` only, so a
+// secondary_supervisor's dashboard was permanently empty — projects,
+// applications, and pending grades all exist under the primary supervisor's
+// uid, never a secondarySupervisorId field on applications/milestones (only
+// the project doc itself carries that field). Projects are now fetched by
+// EITHER field and merged; applications/milestones are then queried by the
+// resulting project id list, since those two collections never had a
+// secondarySupervisorId field to filter on directly.
 export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized access.' });
@@ -61,11 +77,19 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
     const userSnap = await db.collection('users').doc(supervisorId).get();
     const userData = userSnap.data() ?? {};
 
-    const projectsSnap = await db.collection('projects')
-      .where('supervisorId', '==', supervisorId)
-      .get();
+    const [asPrimarySnap, asSecondarySnap] = await Promise.all([
+      db.collection('projects').where('supervisorId', '==', supervisorId).get(),
+      db.collection('projects').where('secondarySupervisorId', '==', supervisorId).get(),
+    ]);
+    const seenProjectIds = new Set<string>();
+    const projectDocs = [...asPrimarySnap.docs, ...asSecondarySnap.docs].filter((doc) => {
+      if (seenProjectIds.has(doc.id)) return false;
+      seenProjectIds.add(doc.id);
+      return true;
+    });
+    const myProjectIds = [...seenProjectIds];
 
-    const myProjects = projectsSnap.docs.map(doc => {
+    const myProjects = projectDocs.map(doc => {
       const data = doc.data();
       return {
         id:                 doc.id,
@@ -81,21 +105,25 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         applicationIds:     data.applicationIds     ?? [],
         enrolledStudentIds: data.enrolledStudentIds ?? [],
         NumberOfStudents:   data.maxStudents        ?? data.NumberOfStudents ?? 1,
+        requiredSkills:     data.requiredSkills     ?? [],
+        projectFileUrl:     data.projectFileUrl     ?? null,
       };
     });
 
-    const applicationsSnap = await db.collection('applications')
-      .where('supervisorId', '==', supervisorId)
-      .where('status', '==', 'applied')
-      .get();
-    const applications = applicationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const applicationChunks = myProjectIds.length
+      ? await Promise.all(chunk(myProjectIds, 30).map((ids) => db.collection('applications').where('projectId', 'in', ids).get()))
+      : [];
+    const applications = applicationChunks
+      .flatMap((snap) => snap.docs)
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .filter((app: any) => app.status === 'applied');
 
-    const milestonesSnap = await db.collection('milestones')
-      .where('supervisorId', '==', supervisorId)
-      .where('status', '==', 'submitted')
-      .get();
+    const milestoneChunks = myProjectIds.length
+      ? await Promise.all(chunk(myProjectIds, 30).map((ids) => db.collection('milestones').where('projectId', 'in', ids).get()))
+      : [];
+    const milestoneDocs = milestoneChunks.flatMap((snap) => snap.docs).filter((doc) => doc.data().status === 'submitted');
 
-    const pendingGrades = milestonesSnap.docs.map(doc => {
+    const pendingGrades = milestoneDocs.map(doc => {
       const data = doc.data();
       return {
         id:             doc.id,
@@ -152,7 +180,13 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       titleHe, titleEn, descriptionHe, descriptionEn,
       degreeType, degreeTypes: degreeTypesInputRaw,
       projectType, projectTypes: projectTypesInputRaw,
-      projectInfo,
+      // CRITICAL FIX: this field used to be called `projectInfo` here, but
+      // every student-facing read (mobile Browseprojects.tsx, web
+      // BrowseProjects.tsx, both platforms' ProjectProposal type) has always
+      // read `projectFileUrl` — a project's info PDF was silently invisible
+      // to students even on the rare project doc that had a real value here,
+      // since nothing ever read the field it was actually stored under.
+      projectFileUrl,
       NumberOfStudents, requiredSkills, facultyId,
       prerequisites, // ← courses a student must have completed to be eligible
       major, // ← optional; omitted means open to every major in the faculty
@@ -220,7 +254,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       projectType:        projectTypes[0]!,
       projectTypes,
       workflowTemplateRefs,
-      projectInfo:        projectInfo        ?? null,
+      projectFileUrl:     projectFileUrl     ?? null,
       NumberOfStudents:   NumberOfStudents   ?? 1,
       requiredSkills:     requiredSkills     ?? [],
       prerequisites:      Array.isArray(prerequisites) ? prerequisites : [],
@@ -350,7 +384,7 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
 // their own project doc, including facultyId/supervisorId/status/enrolledStudentIds.
 const EDITABLE_PROJECT_FIELDS = [
   'titleHe', 'titleEn', 'descriptionHe', 'descriptionEn',
-  'degreeType', 'projectType', 'requiredSkills',
+  'degreeType', 'projectType', 'requiredSkills', 'projectFileUrl',
 ] as const;
 
 export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
@@ -370,7 +404,9 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
     const projectSnap = await projectRef.get();
 
     if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
-    if (projectSnap.data()?.supervisorId !== supervisorId)
+    // Co-supervisors were previously locked out of editing their own
+    // jointly-owned project — this check only ever recognized supervisorId.
+    if (projectSnap.data()?.supervisorId !== supervisorId && projectSnap.data()?.secondarySupervisorId !== supervisorId)
       return res.status(403).json({ message: 'Forbidden.' });
 
     await projectRef.update({ ...updateData, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -450,7 +486,7 @@ export const createExaminerRecommendation = async (req: AuthenticatedRequest, re
       db.collection('users').doc(supervisorId).get(),
     ]);
     if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
-    if (projectSnap.data()?.supervisorId !== supervisorId) {
+    if (projectSnap.data()?.supervisorId !== supervisorId && projectSnap.data()?.secondarySupervisorId !== supervisorId) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 
@@ -491,7 +527,7 @@ export const deleteSupervisorProject = async (req: AuthenticatedRequest, res: Re
     const projectSnap = await projectRef.get();
 
     if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
-    if (projectSnap.data()?.supervisorId !== supervisorId)
+    if (projectSnap.data()?.supervisorId !== supervisorId && projectSnap.data()?.secondarySupervisorId !== supervisorId)
       return res.status(403).json({ message: 'Forbidden.' });
 
     const enrolledStudentIds: string[] = projectSnap.data()?.enrolledStudentIds ?? [];

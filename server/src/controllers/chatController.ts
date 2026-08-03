@@ -59,16 +59,54 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
   return new Set();
 }
 
+// Recognized Cloudinary hosts for chat images — matches the same cloud name
+// every other upload flow in this app already uses (Browseprojects.tsx's
+// CV/transcript upload, project-info PDFs). Kept narrow rather than "any
+// https URL" so a chat message can't be used to make the recipient's client
+// fetch/render an arbitrary attacker-controlled URL.
+const CHAT_IMAGE_URL_RE = /^https:\/\/res\.cloudinary\.com\/dp7stlfas\/image\/upload\//;
+const MAX_TEXT_LENGTH = 4000;
+const MAX_CAPTION_LENGTH = 1000;
+
 export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid; // 🔒 Securely verified Sender ID from your middleware token
   const { chatId } = req.params;
-  const { text } = req.body;
+  const { text, imageUrl } = req.body;
+  const type: 'text' | 'image' = imageUrl != null ? 'image' : 'text';
+
   if(!chatId || typeof chatId !== 'string'){
     return res.status(401).json({
         message: "Error... Wrong ChatId"
     })
   }
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+
+  // CRITICAL FIX: neither field was validated at all before this — a
+  // non-string `text` (or any other malformed body) was written to
+  // Firestore verbatim, and every subsequent render of that message —
+  // for both participants, in the recipient's notifications feed, in the
+  // chat-dashboard preview — threw "Objects are not valid as a React
+  // child," permanently breaking the thread until someone manually deleted
+  // the bad document. Every shape is now checked before anything is
+  // persisted, and this doubles as the new image-message validation.
+  let previewText: string;
+  if (type === 'image') {
+    if (typeof imageUrl !== 'string' || !CHAT_IMAGE_URL_RE.test(imageUrl)) {
+      return res.status(400).json({ message: 'A valid image URL is required.' });
+    }
+    if (text !== undefined && text !== null && (typeof text !== 'string' || text.length > MAX_CAPTION_LENGTH)) {
+      return res.status(400).json({ message: `Caption must be a string under ${MAX_CAPTION_LENGTH} characters.` });
+    }
+    previewText = '📷 Photo';
+  } else {
+    if (typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ message: 'Message text is required.' });
+    }
+    if (text.length > MAX_TEXT_LENGTH) {
+      return res.status(400).json({ message: `Message is too long (max ${MAX_TEXT_LENGTH} characters).` });
+    }
+    previewText = text;
+  }
 
   try {
     // Look up the conversation FIRST and confirm the sender is actually a
@@ -88,14 +126,16 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
     // 1. Create and stage the new message document
     const msgRef = db.collection('chats').doc(chatId).collection('messages').doc();
     batch.set(msgRef, {
-      text,
+      type,
+      text: type === 'image' ? (text ?? '') : text,
+      ...(type === 'image' ? { imageUrl } : {}),
       senderId: uid,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
     // 2. Update parent chat window thread overview timestamps
     batch.update(chatRef, {
-      lastMessage: text,
+      lastMessage: previewText,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -106,7 +146,7 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
       // Safely fetch sender name on the server to prevent client-side spoofing
       const senderSnap = await db.collection('users').doc(uid).get();
       const senderName = senderSnap.data()?.displayName || 'Someone';
-      const cropped = text.length > 60 ? text.slice(0, 60) + '…' : text;
+      const cropped = previewText.length > 60 ? previewText.slice(0, 60) + '…' : previewText;
 
       // 4. Create notification with ALL your original explicit document parameters!
       const notifRef = db.collection('notifications').doc();
@@ -602,7 +642,9 @@ export const getChatMessages = async (req: AuthenticatedRequest, res: Response) 
 
       return {
         id:        doc.id,
+        type:      data.type      ?? 'text',
         text:      data.text      ?? '',
+        imageUrl:  data.imageUrl  ?? null,
         senderId:  data.senderId  ?? '',
         createdAt,
       };

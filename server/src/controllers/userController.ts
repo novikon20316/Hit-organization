@@ -9,7 +9,7 @@ import { VALID_MAJORS } from '../config/majors.js';
 import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../services/accountDeletion.js';
 import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
 import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
-import { hashPassword } from '../services/userImportExport.js';
+import { hashPassword, getTempPasswordHash, clearTempPasswordHash } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 
 // Exported — also used by adminController.ts's updateStudentAcademicYear to
@@ -461,9 +461,10 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     // re-enable) — see the tempPasswordHash written alongside
     // mustChangePassword in adminController.ts/userImportExport.ts/
     // loginSecurity.ts. Only ever set while mustChangePassword is pending; a
-    // voluntary later change finds nothing here and this is a no-op.
-    const userSnap = await db.collection('users').doc(uid).get();
-    const tempPasswordHash = userSnap.data()?.tempPasswordHash as string | undefined;
+    // voluntary later change finds nothing here and this is a no-op. Lives
+    // in users/{uid}/private/security, not the top-level doc — see
+    // setTempPasswordHash's own comment for why.
+    const tempPasswordHash = await getTempPasswordHash(uid);
     if (tempPasswordHash && hashPassword(newPassword) === tempPasswordHash) {
       return res.status(400).json({ error: 'Your new password cannot be the same as the temporary password you were issued.' });
     }
@@ -471,9 +472,9 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     await auth.updateUser(uid, { password: newPassword });
     await db.collection('users').doc(uid).update({
       mustChangePassword: false,
-      tempPasswordHash: FieldValue.delete(),
       updatedAt: new Date().toISOString(),
     });
+    await clearTempPasswordHash(uid);
 
     return res.status(200).json({ success: true });
   } catch (error: any) {

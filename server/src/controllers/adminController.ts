@@ -6,7 +6,8 @@ import crypto from 'crypto';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount, getEffectiveRoles } from '../services/accountDeletion.js';
-import { VALID_ROLES, generateTempPassword, hashPassword } from '../services/userImportExport.js';
+import { VALID_ROLES, generateTempPassword, setTempPasswordHash } from '../services/userImportExport.js';
+import { listPendingLockouts, liftLockout } from '../services/loginSecurity.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
 import { WEBSITE_URL, APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
@@ -496,9 +497,9 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
       totp_last_verified: null,
       isActive: true,
       mustChangePassword: true, // enforced in-app on first login — see /api/users/change-password
-      tempPasswordHash: hashPassword(tempPassword),
       createdAt: new Date().toISOString()
     });
+    await setTempPasswordHash(authUser.uid, tempPassword);
 
     try {
       // Also attempts SMS (iff a phoneNumber was given) and push (naturally
@@ -856,9 +857,9 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
     await admin.auth().updateUser(userId, { password: tempPassword, disabled: false });
     await db.collection('users').doc(userId).update({
       mustChangePassword: true,
-      tempPasswordHash: hashPassword(tempPassword),
       updatedAt: new Date().toISOString(),
     });
+    await setTempPasswordHash(userId, tempPassword);
 
     try {
       await sendNotificationEmail({
@@ -888,6 +889,68 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
   } catch (error: any) {
     console.error('resetUserPasswordAdmin error:', error);
     return res.status(500).json({ message: error.message || 'Failed to reset password.' });
+  }
+};
+
+/**
+ * GET /api/admin/login-security/locked — system_admin only.
+ * Every account currently disabled by the 3-strikes flow (see
+ * services/loginSecurity.ts) and still awaiting resolution — the owner's
+ * own email link, or an admin lifting it directly via the endpoint below.
+ */
+export const getLockedUsers = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    await logPermissionDenied(req, 'user', 'login-security-locked-list');
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  try {
+    const lockouts = await listPendingLockouts();
+    return res.status(200).json({ lockouts });
+  } catch (error: any) {
+    console.error('getLockedUsers error:', error);
+    return res.status(500).json({ message: 'Failed to load locked accounts.' });
+  }
+};
+
+/**
+ * POST /api/admin/login-security/:code/lift — system_admin only.
+ * Reuses the same recovery path the account owner's own "was this you? →
+ * yes" email link triggers: re-enables the account, issues + emails a fresh
+ * temp password, clears the pending incident. Deliberately does NOT skip
+ * straight to "attacker" — an admin lifting a lockout is vouching this is
+ * safe to re-enable, same intent as the owner confirming it themselves.
+ */
+export const liftLoginLockout = async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'system_admin') {
+    await logPermissionDenied(req, 'user', req.params.code ?? 'unknown');
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  const { code } = req.params;
+  if (!code || typeof code !== 'string') return res.status(400).json({ message: 'Missing code.' });
+
+  try {
+    const result = await liftLockout(code);
+    if (!result.ok) {
+      const status = result.reason === 'not_found' ? 404 : 409;
+      return res.status(status).json({ message: `Lockout ${result.reason.replace('_', ' ')}.` });
+    }
+
+    await logAuditEvent({
+      userId: req.user!.uid,
+      userRole: req.user!.role ?? '',
+      action: 'login_lockout_lifted_by_admin',
+      entityType: 'user',
+      entityId: code,
+      explanation: `Login lockout (incident ${code}) lifted by admin`,
+      userDisplayName: req.user?.displayName,
+    });
+
+    return res.status(200).json({ success: true, message: 'Lockout lifted.' });
+  } catch (error: any) {
+    console.error('liftLoginLockout error:', error);
+    return res.status(500).json({ message: 'Failed to lift lockout.' });
   }
 };
 

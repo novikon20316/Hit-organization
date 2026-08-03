@@ -52,7 +52,8 @@ export type AuditAction =
   | 'audit_log_purged'
   | 'login_failed'
   | 'permission_denied'
-  | 'password_reset_by_admin';
+  | 'password_reset_by_admin'
+  | 'login_lockout_lifted_by_admin';
 
 export interface AuditLogEntry {
   userId: string;

@@ -104,6 +104,17 @@ export async function enrollStudentInProject(
       supervisorId,
     });
 
+    // CRITICAL FIX: milestone docs never carried secondarySupervisorId even
+    // though firestore.rules' own milestones read rule already checks it
+    // (resource.data.get('secondarySupervisorId','') == request.auth.uid) —
+    // a co-supervisor's role isn't in that rule's broader role-list branch
+    // by design (ownership-scoped, not a blanket grant), so without this
+    // field a secondary_supervisor could never read their own co-supervised
+    // project's milestones at all, direct-Firestore or otherwise. Sourced
+    // from the project doc already fetched above, snapshotted the same way
+    // supervisorId already is.
+    const secondarySupervisorId: string | undefined = projectDataForTemplate.secondarySupervisorId;
+
     const baseDate = new Date();
     for (const t of milestoneTemplates) {
       const dueDate = new Date();
@@ -111,6 +122,7 @@ export async function enrollStudentInProject(
       const milestoneRef = db.collection('milestones').doc();
       transaction.set(milestoneRef, {
         projectId, studentIds: [studentId], supervisorId, facultyId,
+        ...(secondarySupervisorId ? { secondarySupervisorId } : {}),
         type: t.type, nameHe: t.nameHe, nameEn: t.nameEn,
         status:          'pending',
         dueDate:         admin.firestore.Timestamp.fromDate(dueDate),

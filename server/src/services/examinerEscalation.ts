@@ -127,6 +127,11 @@ export async function promoteNextExaminer(
     transaction.update(tokenRef, {
       status: 'superseded',
       supersededAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Defense-in-depth alongside the firestore.rules fix (status must be
+      // 'pending'/'accepted' for an anonymous write to succeed at all) —
+      // belt-and-suspenders in case anything else ever reads this flag
+      // without also checking status.
+      otpVerified: false,
     });
     // The doc's pre-claim status ('declined'/'expired') drives the
     // notification wording below — capture it now, since the doc itself
