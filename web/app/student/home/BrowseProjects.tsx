@@ -227,8 +227,8 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
                   )}
 
                   {alreadyApplied ? (
-                    <span className="rounded-lg bg-paper px-3 py-2 text-center text-xs font-medium text-muted">
-                      {lang === 'he' ? '✓ כבר הגשת מועמדות' : '✓ Already Applied'}
+                    <span className="rounded-lg bg-[#F59E0B] px-3 py-2 text-center text-xs font-semibold text-white">
+                      {lang === 'he' ? '✓ בקשה נשלחה' : '✓ Sent Application'}
                     </span>
                   ) : (
                     <>

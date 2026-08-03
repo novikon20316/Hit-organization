@@ -417,9 +417,9 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                       ) : null}
                       {/* Apply / qualification-request button */}
                       {appliedProjectIds.includes(p.id) ? (
-                        <View style={[styles.applyBtn, { backgroundColor: '#E2E8F0' }]}>
-                          <Text style={[styles.applyBtnText, { color: '#94A3B8' }]}>
-                            {lang === 'he' ? '✓ כבר הגשת מועמדות' : '✓ Already Applied'}
+                        <View style={[styles.applyBtn, { backgroundColor: '#F59E0B' }]}>
+                          <Text style={[styles.applyBtnText, { color: '#fff' }]}>
+                            {lang === 'he' ? '✓ בקשה נשלחה' : '✓ Sent Application'}
                           </Text>
                         </View>
                       ) : (() => {
