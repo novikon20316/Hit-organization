@@ -1384,6 +1384,36 @@ export const apiClient = {
     }>(`/api/project-coordinator/${uid}/dashboard`, { method: 'GET' });
   },
 
+  /** Full roster of every student in the administrative coordinator's
+   *  assigned degree(s) — unlike getProjectCoordinatorDashboard above, this
+   *  includes students who haven't enrolled in a project yet (null project/
+   *  supervisor/milestone, a "searching for a project" day count instead).
+   *  See server/src/controllers/projectCoordinatorController.ts's
+   *  getStudentsReport. */
+  async getStudentsReport() {
+    return request<{
+      noScopeAssigned?: boolean;
+      students: Array<{
+        id: string;
+        name: string;
+        facultyId: string | null;
+        major: string | null;
+        status: 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
+        /** Only populated when status === 'applied'. */
+        appliedProjects: Array<{ titleHe: string; titleEn: string }>;
+        projectTitleHe: string | null;
+        projectTitleEn: string | null;
+        supervisorName: string | null;
+        milestoneNameHe: string | null;
+        milestoneNameEn: string | null;
+        /** Days until the current milestone's due date (in_project/awaiting_defense),
+         *  days since signup while still searching (not_in_project/applied), or
+         *  null (finished — nothing left to submit). */
+        days: number | null;
+      }>;
+    }>('/api/project-coordinator/students-report', { method: 'GET' });
+  },
+
   /** Shared by coordinator, administrative coordinator, and system_admin — all
    *  three route to the same assignDefense controller (coordinatorController.ts),
    *  just mounted under different base paths ('admin' for the admin panel). */

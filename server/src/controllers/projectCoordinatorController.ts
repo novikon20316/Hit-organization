@@ -195,3 +195,207 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
     return res.status(500).json({ message: 'Failed to load project coordinator dashboard.' });
   }
 };
+
+const DONE_MILESTONE_STATUSES = new Set(['coordinator_approved', 'completed']);
+const PENDING_APPLICATION_STATUSES = ['applied', 'meeting_requested'];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Firestore 'in' caps at 30 values.
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// programStartDate (a real Timestamp, set at signup specifically for
+// students — see projectEnrollment.ts's header comment and userController.ts's
+// syncData) is the reliable anchor for "days since signup." createdAt is a
+// fallback for accounts that predate that field or were admin/bulk-created —
+// it may be a Timestamp OR a plain ISO string depending on which code path
+// created the doc, so both shapes are handled defensively (see reports.ts's
+// identical fallback for the same reason).
+function resolveSignupDate(data: FirebaseFirestore.DocumentData): Date | null {
+  const started = data.programStartDate?.toDate?.();
+  if (started) return started;
+  const created = data.createdAt;
+  if (created?.toDate) return created.toDate();
+  if (typeof created === 'string') {
+    const parsed = new Date(created);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+}
+
+export type StudentReportStatus = 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
+
+/**
+ * GET /api/project-coordinator/students-report
+ * A full roster of every student in the coordinator's assigned degree(s)
+ * (or, for system_admin, every student) — unlike getProjectCoordinatorDashboard
+ * above, this is rooted at the `users` collection so a student who hasn't
+ * enrolled in a project yet still appears (with a null project/supervisor/
+ * milestone and a "searching for a project" day count instead). Same
+ * coordinatorScopes-based scope resolution as getProjectCoordinatorDashboard.
+ */
+export const getStudentsReport = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !PROJECT_COORDINATOR_DASHBOARD_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to view this report.' });
+  }
+
+  try {
+    const isSystemAdmin = req.user.role === 'system_admin';
+    const scopes: DegreeScope[] = isSystemAdmin
+      ? []
+      : (req.user.coordinatorScopes ?? []).map((s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId }));
+
+    if (!isSystemAdmin && scopes.length === 0) {
+      return res.status(200).json({ students: [], noScopeAssigned: true });
+    }
+
+    // 1. Every student in scope.
+    const studentDocsById = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    if (isSystemAdmin) {
+      const snap = await db.collection('users').where('role', '==', 'student').get();
+      snap.docs.forEach((d) => studentDocsById.set(d.id, d));
+    } else {
+      await Promise.all(scopes.map(async (scope) => {
+        let q: FirebaseFirestore.Query = db.collection('users').where('role', '==', 'student').where('facultyId', '==', scope.facultyId);
+        if (scope.major) q = q.where('major', '==', scope.major);
+        const snap = await q.get();
+        snap.docs.forEach((d) => studentDocsById.set(d.id, d));
+      }));
+    }
+    const students = [...studentDocsById.values()].map((d) => ({ id: d.id, ...d.data() }));
+
+    // 2. Projects for every enrolled student (batched, deduped).
+    const projectIds = [...new Set(students.map((s: any) => s.activeProjectId).filter(Boolean))];
+    const projectSnaps = await Promise.all(projectIds.map((id) => db.collection('projects').doc(id as string).get()));
+    const projectsById: Record<string, any> = {};
+    projectSnaps.forEach((snap) => { if (snap.exists) projectsById[snap.id] = { id: snap.id, ...snap.data() }; });
+
+    // 3. Milestones for those same projects, chunked (Firestore 'in' cap).
+    const milestonesByProject: Record<string, any[]> = {};
+    if (projectIds.length > 0) {
+      const milestoneSnaps = await Promise.all(
+        chunk(projectIds as string[], 30).map((ids) => db.collection('milestones').where('projectId', 'in', ids).get())
+      );
+      milestoneSnaps.forEach((snap) => snap.docs.forEach((doc) => {
+        const data = doc.data();
+        (milestonesByProject[data.projectId] ??= []).push({ id: doc.id, ...data });
+      }));
+    }
+
+    // 4. Supervisor display names for those projects.
+    const supervisorIds = [...new Set(Object.values(projectsById).map((p: any) => p.supervisorId).filter(Boolean))];
+    const supervisorSnaps = await Promise.all(supervisorIds.map((id) => db.collection('users').doc(id as string).get()));
+    const supervisorNameById: Record<string, string> = {};
+    supervisorSnaps.forEach((snap) => { if (snap.exists) supervisorNameById[snap.id] = snap.data()?.displayName ?? ''; });
+
+    // 5. Pending applications (not yet decided) for students still searching
+    // — applications denormalize facultyId, so scope the same way as students
+    // above. Doesn't carry `major`, so (like milestoneController.ts's own
+    // administrative_secretary branch) this scopes to faculty only.
+    const applicationDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+    if (isSystemAdmin) {
+      const snap = await db.collection('applications').where('status', 'in', PENDING_APPLICATION_STATUSES).get();
+      applicationDocs.push(...snap.docs);
+    } else {
+      const facultyIds = [...new Set(scopes.map((s) => s.facultyId))];
+      const snaps = await Promise.all(
+        facultyIds.map((fid) => db.collection('applications').where('facultyId', '==', fid).where('status', 'in', PENDING_APPLICATION_STATUSES).get())
+      );
+      snaps.forEach((snap) => applicationDocs.push(...snap.docs));
+    }
+    const applicationsByStudent: Record<string, any[]> = {};
+    applicationDocs.forEach((doc) => {
+      const data = doc.data();
+      (applicationsByStudent[data.studentId] ??= []).push(data);
+    });
+
+    const now = Date.now();
+
+    const rows = students.map((s: any) => {
+      const enrolled = !!s.hasActiveProject && !!s.activeProjectId && !!projectsById[s.activeProjectId];
+      const project = enrolled ? projectsById[s.activeProjectId] : null;
+
+      let status: StudentReportStatus;
+      let projectTitleHe: string | null = null;
+      let projectTitleEn: string | null = null;
+      let supervisorName: string | null = null;
+      let milestoneNameHe: string | null = null;
+      let milestoneNameEn: string | null = null;
+      let days: number | null = null;
+      let appliedProjects: Array<{ titleHe: string; titleEn: string }> = [];
+
+      if (enrolled && project) {
+        projectTitleHe = project.titleHe || project.titleEn || '';
+        projectTitleEn = project.titleEn || project.titleHe || '';
+        supervisorName = project.supervisorId ? (supervisorNameById[project.supervisorId] ?? null) : null;
+
+        const studentMilestones = (milestonesByProject[project.id] ?? [])
+          .filter((m) => Array.isArray(m.studentIds) && m.studentIds.includes(s.id))
+          .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+        const current = studentMilestones.find((m) => !DONE_MILESTONE_STATUSES.has(m.status)) ?? studentMilestones[studentMilestones.length - 1];
+
+        if (current) {
+          milestoneNameHe = current.nameHe ?? current.type;
+          milestoneNameEn = current.nameEn ?? current.type;
+          const dueDate = current.dueDate?.toDate?.() ?? null;
+          const daysUntilDue = dueDate ? Math.ceil((dueDate.getTime() - now) / DAY_MS) : null;
+          const isDefense = current.type === 'defense';
+          const isDone = DONE_MILESTONE_STATUSES.has(current.status);
+
+          if (isDefense && isDone) {
+            status = 'finished';
+            days = null; // nothing left to submit
+          } else if (isDefense) {
+            status = 'awaiting_defense';
+            days = daysUntilDue;
+          } else {
+            status = 'in_project';
+            days = daysUntilDue;
+          }
+        } else {
+          // Enrolled but no milestone docs yet (shouldn't normally happen —
+          // enrollment always creates them — but don't crash on stale data).
+          status = 'in_project';
+        }
+      } else {
+        const pending = applicationsByStudent[s.id] ?? [];
+        if (pending.length > 0) {
+          status = 'applied';
+          appliedProjects = pending.map((a) => ({
+            titleHe: a.projectTitleHe || a.projectTitleEn || '',
+            titleEn: a.projectTitleEn || a.projectTitleHe || '',
+          }));
+        } else {
+          status = 'not_in_project';
+        }
+        const signupDate = resolveSignupDate(s);
+        days = signupDate ? Math.floor((now - signupDate.getTime()) / DAY_MS) : null;
+      }
+
+      return {
+        id: s.id,
+        name: s.displayName ?? '',
+        facultyId: s.facultyId ?? null,
+        major: s.major ?? null,
+        status,
+        appliedProjects,
+        projectTitleHe,
+        projectTitleEn,
+        supervisorName,
+        milestoneNameHe,
+        milestoneNameEn,
+        days,
+      };
+    });
+
+    return res.status(200).json({ students: rows });
+  } catch (error: any) {
+    console.error('getStudentsReport error:', error);
+    return res.status(500).json({ message: 'Failed to load students report.' });
+  }
+};

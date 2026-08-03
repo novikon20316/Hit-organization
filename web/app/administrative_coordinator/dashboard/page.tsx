@@ -21,6 +21,7 @@ import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWid
 import { SendExaminerModal } from './SendExaminerModal';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import { NewProjectModal } from './NewProjectModal';
+import { StudentsReportTab } from './StudentsReportTab';
 import type { ProjectGroup, MemberMilestoneGrade } from './types';
 import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
 
@@ -51,6 +52,7 @@ export default function AdministrativeCoordinatorDashboardPage() {
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
 
+  const [activeTab, setActiveTab] = useState<'groups' | 'students'>('groups');
   const [facultyId, setFacultyId] = useState('');
   const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [stats, setStats] = useState({ totalGroups: 0, activeGroups: 0, scheduledDefenses: 0, overdueGroups: 0 });
@@ -129,6 +131,25 @@ export default function AdministrativeCoordinatorDashboardPage() {
 
       <PendingSignoffsWidget />
 
+      <div className="mb-4 flex border-b border-line">
+        {(['groups', 'students'] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key)}
+            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+            }`}
+          >
+            {key === 'groups' ? (lang === 'he' ? 'קבוצות פרויקט' : 'Project Groups') : (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'students' ? (
+        <StudentsReportTab />
+      ) : (
+        <>
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 
       {!loadingData && noScopeAssigned && (
@@ -277,6 +298,8 @@ export default function AdministrativeCoordinatorDashboardPage() {
             ))}
             {filteredGroups.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין קבוצות להצגה' : 'No groups to show'}</p>}
           </div>
+        </>
+      )}
         </>
       )}
 

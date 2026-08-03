@@ -58,6 +58,51 @@ interface DashboardData {
   };
 }
 
+// ─── Students Report tab ────────────────────────────────────────────────────
+// Full roster of every student in the coordinator's assigned degree(s) —
+// unlike the group cards above (enrolled students only), this includes
+// students who haven't enrolled in a project yet. See
+// server/src/controllers/projectCoordinatorController.ts's getStudentsReport.
+type StudentStatus = 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
+
+interface StudentReportRow {
+  id: string;
+  name: string;
+  status: StudentStatus;
+  appliedProjects: Array<{ titleHe: string; titleEn: string }>;
+  projectTitleHe: string | null;
+  projectTitleEn: string | null;
+  supervisorName: string | null;
+  milestoneNameHe: string | null;
+  milestoneNameEn: string | null;
+  days: number | null;
+}
+
+const STUDENT_STATUS_LABEL: Record<StudentStatus, { he: string; en: string }> = {
+  not_in_project:   { he: 'לא נמצא בפרויקט/תזה',  en: 'Not in a project/thesis' },
+  applied:          { he: 'הגיש בקשה ל־',          en: 'Submitted application to' },
+  in_project:       { he: 'בפרויקט/תזה',           en: 'In project/thesis' },
+  awaiting_defense: { he: 'ממתין לבחינת הגנה',      en: 'Awaiting defense exam' },
+  finished:         { he: 'סיים',                  en: 'Finished' },
+};
+
+const STUDENT_STATUS_COLOR: Record<StudentStatus, string> = {
+  not_in_project:   '#8899BB',
+  applied:          '#F59E0B',
+  in_project:       '#3E6C8C',
+  awaiting_defense: '#7C3AED',
+  finished:         '#10B981',
+};
+
+function studentStatusText(row: StudentReportRow, lang: Lang): string {
+  const base = STUDENT_STATUS_LABEL[row.status][lang];
+  if (row.status === 'applied' && row.appliedProjects.length > 0) {
+    const names = row.appliedProjects.map((p) => (lang === 'he' ? p.titleHe : p.titleEn) || '—').join(', ');
+    return `${base} ${names}`;
+  }
+  return base;
+}
+
 // ─── Send Examiner Modal ───────────────────────────────────────────────────────
 // Previously wrote an examinerTokens doc directly to Firestore
 // (src/firebase/createExaminerToken.ts) — that path only checks the caller's
@@ -372,6 +417,15 @@ export default function ProjectCoordinatorDashboard() {
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
 
+  // ── Students Report tab ───────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'groups' | 'students'>('groups');
+  const [studentsReport, setStudentsReport] = useState<StudentReportRow[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentsLoaded, setStudentsLoaded] = useState(false);
+  const [studentsNoScope, setStudentsNoScope] = useState(false);
+  const [reportSearchText, setReportSearchText] = useState('');
+  const [reportFilterStatus, setReportFilterStatus] = useState<'all' | StudentStatus>('all');
+
   // ── Add Project modal state ─────────────────────────────────────────────
   // Net-new — the administrative coordinator role previously had no project-creation
   // capability at all (POST /api/admin/projects hard-403'd every role
@@ -420,6 +474,36 @@ export default function ProjectCoordinatorDashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   const onRefresh = () => { setRefreshing(true); fetchData(); };
+
+  const fetchStudentsReport = useCallback(async () => {
+    setStudentsLoading(true);
+    try {
+      const res = await apiClient.get('/api/project-coordinator/students-report');
+      setStudentsReport(res.data.students ?? []);
+      setStudentsNoScope(!!res.data.noScopeAssigned);
+    } catch (e: any) {
+      console.error('students report error:', e);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
+      );
+    } finally {
+      setStudentsLoading(false);
+      setStudentsLoaded(true);
+    }
+  }, [lang]);
+
+  // Fetched lazily, the first time the tab is opened.
+  useEffect(() => {
+    if (activeTab === 'students' && !studentsLoaded) fetchStudentsReport();
+  }, [activeTab, studentsLoaded, fetchStudentsReport]);
+
+  const filteredStudentsReport = studentsReport.filter((row) => {
+    const q = reportSearchText.trim().toLowerCase();
+    const matchesSearch = !q || row.name.toLowerCase().includes(q);
+    const matchesStatus = reportFilterStatus === 'all' || row.status === reportFilterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   // Fetches per selected faculty and merges (dedup by id).
   useEffect(() => {
@@ -568,15 +652,98 @@ export default function ProjectCoordinatorDashboard() {
         ))}
       </View>
 
+      {/* Tab switcher: Project Groups / Students Report */}
+      <View style={s.filterRow}>
+        {(['groups', 'students'] as const).map((key) => (
+          <Pressable
+            key={key}
+            style={[s.filterChip, activeTab === key && { backgroundColor: fc.primary }]}
+            onPress={() => setActiveTab(key)}
+          >
+            <Text style={[s.filterChipText, activeTab === key && { color: '#fff' }]}>
+              {key === 'groups' ? (lang === 'he' ? 'קבוצות פרויקט' : 'Project Groups') : (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={activeTab === 'groups' ? refreshing : studentsLoading} onRefresh={activeTab === 'groups' ? onRefresh : fetchStudentsReport} />}
       >
         {/* Bulk Update Due Dates / Academic Year moved into the TopBar's ☰
             menu (extraMenuItems above) — same actions, no functionality
             dropped, just decluttered off this row. */}
         <PendingSignoffsWidget lang={lang} />
 
+        {activeTab === 'students' ? (
+          <View>
+            <TextInput
+              style={s.searchInput}
+              value={reportSearchText}
+              onChangeText={setReportSearchText}
+              placeholder={lang === 'he' ? 'חיפוש לפי שם...' : 'Search by name...'}
+              placeholderTextColor="#9CA3AF"
+              textAlign={lang === 'he' ? 'right' : 'left'}
+            />
+            <View style={s.filterRow}>
+              {(['all', 'not_in_project', 'applied', 'in_project', 'awaiting_defense', 'finished'] as const).map((st) => (
+                <Pressable
+                  key={st}
+                  style={[s.filterChip, reportFilterStatus === st && { backgroundColor: fc.primary }]}
+                  onPress={() => setReportFilterStatus(st)}
+                >
+                  <Text style={[s.filterChipText, reportFilterStatus === st && { color: '#fff' }]}>
+                    {st === 'all' ? (lang === 'he' ? 'הכל' : 'All') : STUDENT_STATUS_LABEL[st][lang]}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {studentsNoScope ? (
+              <View style={s.empty}>
+                <Text style={s.emptyText}>
+                  {lang === 'he'
+                    ? 'לא הוקצה לך עדיין תחום אחריות (פקולטה/תואר).'
+                    : 'No degree has been assigned to your account yet.'}
+                </Text>
+              </View>
+            ) : studentsLoading && !studentsLoaded ? (
+              <ActivityIndicator style={{ marginTop: 24 }} />
+            ) : filteredStudentsReport.length === 0 ? (
+              <View style={s.empty}>
+                <Text style={s.emptyEmoji}>📭</Text>
+                <Text style={s.emptyText}>{lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}</Text>
+              </View>
+            ) : (
+              filteredStudentsReport.map((row) => {
+                const projectTitle = row.projectTitleHe || row.projectTitleEn ? (lang === 'he' ? row.projectTitleHe : row.projectTitleEn) : null;
+                const milestoneName = row.milestoneNameHe || row.milestoneNameEn ? (lang === 'he' ? row.milestoneNameHe : row.milestoneNameEn) : null;
+                const daysLabel =
+                  row.days === null
+                    ? '—'
+                    : row.status === 'not_in_project' || row.status === 'applied'
+                      ? (lang === 'he' ? `${row.days} ימים בחיפוש` : `${row.days}d searching`)
+                      : `${row.days}`;
+                return (
+                  <View key={row.id} style={[s.card, { borderLeftColor: fc.primary }]}>
+                    <Text style={s.cardTitle}>{row.name}</Text>
+                    <Text style={[s.cardSub, { color: STUDENT_STATUS_COLOR[row.status], fontWeight: '700' }]}>
+                      {studentStatusText(row, lang)}
+                    </Text>
+                    <Text style={s.cardSub}>📁 {projectTitle ?? (lang === 'he' ? 'אין' : 'None')}</Text>
+                    <Text style={s.cardSub}>👨‍🏫 {row.supervisorName ?? (lang === 'he' ? 'אין' : 'None')}</Text>
+                    <Text style={s.cardSub}>📍 {milestoneName ?? (lang === 'he' ? 'אין' : 'None')}</Text>
+                    <Text style={[s.cardSub, { fontWeight: '700', color: row.days !== null && row.days < 0 ? '#EF4444' : undefined }]}>
+                      ⏳ {daysLabel}
+                    </Text>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        ) : (
+        <>
         <TextInput
           style={s.searchInput}
           value={searchText}
@@ -699,6 +866,8 @@ export default function ProjectCoordinatorDashboard() {
               </View>
             </View>
           ))
+        )}
+        </>
         )}
 
         <View style={{ height: 60 }} />
