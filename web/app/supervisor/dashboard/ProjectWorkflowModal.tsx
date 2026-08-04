@@ -80,7 +80,7 @@ export function ProjectWorkflowModal({ project, onClose }: ProjectWorkflowModalP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto overflow-x-hidden rounded-[var(--radius)] bg-surface p-6 shadow-lg">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-ink">🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}</h2>
@@ -101,10 +101,10 @@ export function ProjectWorkflowModal({ project, onClose }: ProjectWorkflowModalP
               <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'אבני הדרך של תבנית זו' : 'This template\'s milestones'}</p>
               <div className="grid gap-1.5">
                 {templateMilestones.map((m, idx) => (
-                  <div key={m.type} className="flex items-center gap-2.5 text-xs">
+                  <div key={m.type} className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EDE9FE] font-bold text-primary">{idx + 1}</span>
                     <span className="min-w-0 flex-1 truncate font-medium text-ink">{lang === 'he' ? m.nameHe : m.nameEn}</span>
-                    <span className="shrink-0 text-muted">
+                    <span className="shrink-0 whitespace-nowrap text-muted">
                       📅 {m.dateMode === 'fixed'
                         ? (lang === 'he' ? `תאריך קבוע: ${m.fixedDate ?? '—'}` : `Fixed: ${m.fixedDate ?? '—'}`)
                         : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
