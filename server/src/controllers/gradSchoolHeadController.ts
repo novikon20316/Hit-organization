@@ -326,6 +326,119 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
  * integration exists yet — see services/gradeEngine.ts) and notifies the
  * student(s) whose grade was approved.
  */
+/**
+ * POST /api/grad-school-head/milestones/:id/grade-override-decision
+ * Body: { decision: 'approve_override' | 'keep_auto' }
+ *
+ * Decides a pending grade override (see supervisorController.ts's
+ * decideFinalGrade) — the supervisor proposed changing the computed
+ * autoCalculatedFinalGrade with a mandatory reason; this either applies the
+ * proposed grade or reverts to the automatic one, either way finalizing
+ * (gradeApproved: true) so the milestone leaves the "awaiting decision" state
+ * for good. Gated the same way as approveFinalGrade above — the route lives
+ * in this controller for consistency with that shared sign-off mechanism,
+ * even though the resolved role is commonly the coordinator
+ * (administrative_secretary), not necessarily grad_school_head.
+ */
+export const decideGradeOverride = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+
+  const { id: milestoneId } = req.params;
+  const { decision } = req.body;
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: 'Invalid milestoneId.' });
+  }
+  if (decision !== 'approve_override' && decision !== 'keep_auto') {
+    return res.status(400).json({ message: 'decision must be "approve_override" or "keep_auto".' });
+  }
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    const milestone = milestoneSnap.data()!;
+
+    if (milestone.type !== 'defense' || !milestone.finalGradeComponents) {
+      return res.status(400).json({ message: 'This milestone does not use the three-rubric final-grade workflow.' });
+    }
+    if (milestone.gradeOverride?.status !== 'pending') {
+      return res.status(400).json({ message: 'No grade override is pending for this milestone.' });
+    }
+    if (milestone.gradeApproved) {
+      return res.status(400).json({ message: 'This grade has already been finalized.' });
+    }
+
+    // Same configurable sign-off gating as approveFinalGrade above.
+    const projectSnap = await db.collection('projects').doc(milestone.projectId ?? '').get();
+    const project = projectSnap.exists ? projectSnap.data()! : {};
+    const scope = { facultyId: project.facultyId ?? milestone.facultyId ?? '', major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
+    if (!hasActionGrant(req.user, 'approve_grades', scope)) {
+      const processType = deriveProcessType(project.degreeType, project.projectType);
+      const signoffRole = await resolveFinalGradeSignoffRole(scope.facultyId, processType, project.major ?? null);
+      const projectSupervisorIds = [project.supervisorId].filter(Boolean);
+      const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
+      if (!uids.includes(uid)) {
+        return res.status(403).json({ message: 'You do not have permission to decide on this grade override.' });
+      }
+    }
+
+    const finalGrade = decision === 'approve_override' ? milestone.gradeOverride.proposedGrade : milestone.autoCalculatedFinalGrade;
+
+    await milestoneRef.update({
+      finalGrade,
+      gradeApproved: true,
+      gradeApprovedBy: uid,
+      gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+      gradedAt: admin.firestore.FieldValue.serverTimestamp(),
+      'gradeOverride.status': decision === 'approve_override' ? 'approved' : 'rejected',
+      'gradeOverride.decidedBy': uid,
+      'gradeOverride.decidedAt': admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? 'administrative_secretary',
+      action: decision === 'approve_override' ? 'grade_override_approved' : 'grade_override_rejected',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { autoCalculatedFinalGrade: milestone.autoCalculatedFinalGrade, proposedGrade: milestone.gradeOverride.proposedGrade },
+      newValue: { finalGrade },
+    });
+
+    const studentIds: string[] = milestone.studentIds ?? [];
+    const transfer = await transferGradeToMichlol({
+      milestoneId, projectId: milestone.projectId ?? '', studentIds, finalGrade,
+    });
+    await milestoneRef.update({
+      michlolTransferStatus: transfer.transferred ? 'transferred' : 'failed',
+      michlolTransferredAt: transfer.transferredAt,
+    });
+
+    try {
+      await Promise.all(studentIds.map((studentId) => db.collection('notifications').add({
+        recipientId: studentId,
+        type: 'final_grade_approved',
+        titleHe: '🎓 הציון הסופי אושר',
+        titleEn: '🎓 Final Grade Approved',
+        bodyHe: `הציון הסופי שלך (${finalGrade}) אושר והועבר למכלול.`,
+        bodyEn: `Your final grade (${finalGrade}) has been approved and transferred to Michlol.`,
+        isRead: false,
+        relatedProjectId: milestone.projectId ?? null,
+        relatedMilestoneId: milestoneId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })));
+    } catch (notifyErr) {
+      console.error('decideGradeOverride: failed to notify students:', notifyErr);
+    }
+
+    return res.status(200).json({ success: true, finalGrade });
+  } catch (error: any) {
+    console.error('decideGradeOverride error:', error);
+    return res.status(500).json({ message: 'Failed to decide on the grade override.' });
+  }
+};
+
 export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });

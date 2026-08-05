@@ -52,9 +52,10 @@ export async function authorizeStageActor(
   stage: ChainStage,
   resource: ResourceScope,
   projectSupervisorIds: string[],
+  milestoneExaminerIds: string[] = [],
 ): Promise<boolean> {
   if (!user) return false;
-  const uids = await resolveStaffForScope(stage.role, resource, projectSupervisorIds);
+  const uids = await resolveStaffForScope(stage.role, resource, projectSupervisorIds, milestoneExaminerIds);
   return uids.includes(user.uid);
 }
 

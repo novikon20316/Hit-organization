@@ -11,8 +11,8 @@ import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { MilestoneRowModal } from './MilestoneRowModal';
 import { ChainEditor } from './ChainEditor';
 import {
-  CHAIN_ROLES, DEFAULT_ROUTING, chainRoleLabel, emptyMilestone, processTypeLabel,
-  type ChainRole, type GradingComponentSpec, type MilestoneRoutingSpec, type MilestoneSpec, type ProcessType,
+  SIGNOFF_ROLES, DEFAULT_ROUTING, chainRoleLabel, emptyMilestone, processTypeLabel,
+  type ChainRole, type FormFieldSpec, type GradingComponentSpec, type MilestoneRoutingSpec, type MilestoneSpec, type ProcessType,
 } from './types';
 
 interface ProposeVersionModalProps {
@@ -93,24 +93,33 @@ export function ProposeVersionModal({
     setRowModalOpen(true);
   };
 
-  const handleSaveRow = (values: { nameHe: string; nameEn: string; dateMode: 'offset' | 'fixed'; dueDaysFromStart: number; fixedDate?: string; requiresExaminers: boolean; examinerCount?: number; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec }) => {
-    // `routing` is only present in `values` when the row's chain override is
-    // ON — spread it in when present, but explicitly drop any pre-existing
-    // `routing` on the milestone being edited when it's absent (turning the
-    // override off must actually clear it, not leave the stale chain behind).
-    const { routing, ...rest } = values;
+  const handleSaveRow = (values: {
+    nameHe: string; nameEn: string; dateMode: 'offset' | 'fixed'; dueDaysFromStart: number; fixedDate?: string;
+    requiresExaminers: boolean; examinerCount?: number; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec;
+    staffRecordMode?: 'none' | 'upload_or_form'; staffFormFields?: FormFieldSpec[];
+    finalGradeComponents?: MilestoneSpec['finalGradeComponents'];
+  }) => {
+    // `routing`/`finalGradeComponents` are only present in `values` when the
+    // row's chain override / three-rubric toggle is ON — spread the rest in
+    // when present, but explicitly drop any pre-existing value on the
+    // milestone being edited when absent (turning either override off must
+    // actually clear it, not leave the stale config behind).
+    const { routing, finalGradeComponents, ...rest } = values;
     if (editingRow) {
       setMilestones((prev) => prev.map((m) => {
         if (m !== editingRow) return m;
         const next: MilestoneSpec = { ...m, ...rest };
         if (routing) next.routing = routing;
         else delete next.routing;
+        if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
+        else delete next.finalGradeComponents;
         return next;
       }));
     } else {
       setMilestones((prev) => {
         const next: MilestoneSpec = { type: `custom_${Math.random().toString(36).slice(2, 10)}`, order: prev.length + 1, ...rest };
         if (routing) next.routing = routing;
+        if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
         return [...prev, next];
       });
     }
@@ -232,7 +241,7 @@ export function ProposeVersionModal({
             className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
           >
             <option value="none">{lang === 'he' ? 'ללא אישור נוסף' : 'No second sign-off'}</option>
-            {CHAIN_ROLES.map((r) => (
+            {SIGNOFF_ROLES.map((r) => (
               <option key={r.key} value={r.key}>{chainRoleLabel(r.key, lang)}</option>
             ))}
           </select>
@@ -252,7 +261,7 @@ export function ProposeVersionModal({
             onChange={(e) => setFinalGradeSignoffRole(e.target.value as ChainRole)}
             className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
           >
-            {CHAIN_ROLES.map((r) => (
+            {SIGNOFF_ROLES.map((r) => (
               <option key={r.key} value={r.key}>{chainRoleLabel(r.key, lang)}</option>
             ))}
           </select>

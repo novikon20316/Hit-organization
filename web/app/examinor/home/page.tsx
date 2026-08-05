@@ -13,6 +13,7 @@ import { getFacultyColor } from '@/lib/facultyColors';
 import type { AppRole } from '@/lib/roles';
 import { AssignmentCard } from './AssignmentCard';
 import { GradeExaminerModal } from './GradeExaminerModal';
+import { ExaminerEvaluationModal } from './ExaminerEvaluationModal';
 import type { AssignedMilestone } from './types';
 
 const EXAMINER_ROLES: AppRole[] = ['internal_examiner', 'system_admin'];
@@ -31,6 +32,7 @@ export default function ExaminerHomePage() {
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [gradingTarget, setGradingTarget] = useState<AssignedMilestone | null>(null);
+  const [evaluationTarget, setEvaluationTarget] = useState<{ milestone: AssignedMilestone; kind: 'project' | 'defense' } | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -92,7 +94,14 @@ export default function ExaminerHomePage() {
       ) : tab === 'defenses' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {assignments.map((m) => (
-            <AssignmentCard key={m.id} milestone={m} uid={firebaseUser?.uid ?? ''} onChanged={fetchDashboard} onGrade={setGradingTarget} />
+            <AssignmentCard
+              key={m.id}
+              milestone={m}
+              uid={firebaseUser?.uid ?? ''}
+              onChanged={fetchDashboard}
+              onGrade={setGradingTarget}
+              onGradeKind={(milestone, kind) => setEvaluationTarget({ milestone, kind })}
+            />
           ))}
           {assignments.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'לא הוקצו לך הגנות לבחינה' : 'No defenses assigned to you'}</p>}
         </div>
@@ -164,6 +173,15 @@ export default function ExaminerHomePage() {
       )}
 
       {gradingTarget && <GradeExaminerModal key={gradingTarget.id} milestone={gradingTarget} onClose={() => setGradingTarget(null)} onGraded={fetchDashboard} />}
+      {evaluationTarget && (
+        <ExaminerEvaluationModal
+          key={`${evaluationTarget.milestone.id}-${evaluationTarget.kind}`}
+          milestone={evaluationTarget.milestone}
+          kind={evaluationTarget.kind}
+          onClose={() => setEvaluationTarget(null)}
+          onSubmitted={fetchDashboard}
+        />
+      )}
     </DashboardShell>
   );
 }

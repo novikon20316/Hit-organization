@@ -13,6 +13,7 @@ import {
   ProcessType,
   WorkflowMilestoneSpec,
   GradingComponentSpec,
+  FormFieldSpec,
   ChainRole,
   ChainStage,
   MilestoneRoutingSpec,
@@ -25,6 +26,7 @@ import {
 import { previewRetroactiveImpact, applyTemplateRetroactively } from '../services/workflowTemplateRetroactiveApply.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { hasActionGrant, ResourceScope } from '../services/scopeAuthorization.js';
 
 const PROCESS_TYPES: ProcessType[] = ['msc_thesis', 'msc_project', 'bsc_project'];
 // grad_school_head added — previously could only approve master's templates,
@@ -52,6 +54,23 @@ function canApprove(processType: ProcessType, role: string): boolean {
     : FACULTY_APPROVER_ROLES.includes(role);
 }
 
+/** Maps a template doc's own facultyId/major/processType to the ResourceScope
+ *  shape scopeAuthorization.ts's hasActionGrant() matches ScopeRule grants
+ *  against — lets a system_admin hand an individual staff member (via the
+ *  detailed-permissions 'approve_templates' action) approval rights over
+ *  templates outside their normal role, scoped to a faculty/major/degree/
+ *  process type, without changing their role. */
+function templateResourceScope(data: { facultyId: string; major?: string | null; processType: ProcessType }): ResourceScope {
+  return {
+    facultyId: data.facultyId,
+    ...(data.major ? { major: data.major } : {}),
+    degreeLevel: isMastersProcess(data.processType) ? 'masters' : 'bachelors',
+    ...(data.processType === 'msc_thesis' ? { processType: 'thesis' as const }
+      : data.processType === 'msc_project' ? { processType: 'project' as const }
+      : {}),
+  };
+}
+
 // administrative_secretary is scoped to one or more specific subjects via
 // the same `coordinatorScopes` field the 'coordinator' role already uses —
 // confirmed generic (no role check anywhere) in scopeAuthorization.ts/
@@ -73,7 +92,16 @@ function resolveCoordinatorScope(
   return match ? { facultyId: match.facultyId, major: match.major ?? null } : null;
 }
 
-const CHAIN_ROLES: ChainRole[] = ['supervisor', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'program_head'];
+// Valid roles for a chain STAGE (routing/defaultRouting) — includes
+// 'examiner', which resolves to a milestone's own assigned panel (see
+// scopeAuthorization.ts's resolveStaffForScope), letting a milestone type be
+// graded examiner-only (e.g. a Poster session) with no supervisor stage.
+const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'program_head'];
+// examinerSignoffRole/finalGradeSignoffRole are a single overall approver
+// resolved without any per-milestone examinerIds in scope — 'examiner' would
+// always resolve to nobody there (or, worse, read as "an examiner approves
+// their own submission"), so it's deliberately excluded from this narrower list.
+const SIGNOFF_ROLES: ChainRole[] = CHAIN_ROLES.filter((r) => r !== 'examiner');
 
 /** Validates a routing chain (either a template's defaultRouting or a
  *  milestone's per-milestone override). Returns null on malformed input —
@@ -134,6 +162,67 @@ function validateGradingComponents(input: any): GradingComponentSpec[] | null {
   return cleaned;
 }
 
+const FORM_FIELD_TYPES = ['text', 'textarea', 'date', 'number', 'table'];
+
+function validateFormFields(input: any): FormFieldSpec[] | null {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) return null;
+  const cleaned: FormFieldSpec[] = [];
+  for (const f of input) {
+    if (!f || typeof f.key !== 'string' || !f.key.trim()) return null;
+    if (typeof f.labelHe !== 'string' || typeof f.labelEn !== 'string') return null;
+    if (!FORM_FIELD_TYPES.includes(f.type)) return null;
+    const spec: FormFieldSpec = {
+      key: f.key.trim(),
+      labelHe: f.labelHe.trim(),
+      labelEn: f.labelEn.trim(),
+      type: f.type,
+      required: !!f.required,
+    };
+    if (f.type === 'table') {
+      if (!Array.isArray(f.tableColumns) || f.tableColumns.length === 0) return null;
+      const columns: NonNullable<FormFieldSpec['tableColumns']> = [];
+      for (const c of f.tableColumns) {
+        if (!c || typeof c.key !== 'string' || !c.key.trim()) return null;
+        if (typeof c.labelHe !== 'string' || typeof c.labelEn !== 'string') return null;
+        if (!['text', 'number', 'date'].includes(c.type)) return null;
+        columns.push({ key: c.key.trim(), labelHe: c.labelHe.trim(), labelEn: c.labelEn.trim(), type: c.type });
+      }
+      spec.tableColumns = columns;
+    }
+    cleaned.push(spec);
+  }
+  return cleaned;
+}
+
+/** Validates one of the three final-grade rubrics — same component shape as
+ *  a regular gradingComponents list, plus its own top-level weight. Returns
+ *  null on any malformed input (including a missing/non-numeric weight). */
+function validateFinalGradeRubric(input: any): { components: GradingComponentSpec[]; weight: number } | null {
+  if (!input || typeof input !== 'object') return null;
+  const components = validateGradingComponents(input.components);
+  if (components === null || components.length === 0) return null;
+  const weight = Number(input.weight);
+  if (!Number.isFinite(weight) || weight < 0) return null;
+  return { components, weight };
+}
+
+/** Validates the full three-rubric finalGradeComponents structure — 'field
+ *  not sent at all' means 'this milestone uses the single shared
+ *  gradingComponents rubric instead' (always valid); once present, all three
+ *  rubrics are required and their weights must sum to 100. */
+function validateFinalGradeComponents(input: any): { ok: true; value?: WorkflowMilestoneSpec['finalGradeComponents'] } | { ok: false } {
+  if (input === undefined || input === null) return { ok: true };
+  if (typeof input !== 'object') return { ok: false };
+  const supervisorEvaluation = validateFinalGradeRubric(input.supervisorEvaluation);
+  const examinerProjectEvaluation = validateFinalGradeRubric(input.examinerProjectEvaluation);
+  const examinerDefenseEvaluation = validateFinalGradeRubric(input.examinerDefenseEvaluation);
+  if (!supervisorEvaluation || !examinerProjectEvaluation || !examinerDefenseEvaluation) return { ok: false };
+  const weightSum = supervisorEvaluation.weight + examinerProjectEvaluation.weight + examinerDefenseEvaluation.weight;
+  if (weightSum !== 100) return { ok: false };
+  return { ok: true, value: { supervisorEvaluation, examinerProjectEvaluation, examinerDefenseEvaluation } };
+}
+
 function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
   if (!Array.isArray(input) || input.length === 0) return null;
   const cleaned: WorkflowMilestoneSpec[] = [];
@@ -163,6 +252,17 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     const routing = validateOptionalRouting(m.routing);
     if (!routing.ok) return null;
 
+    // Only meaningful for research_proposal/progress_report — 'none' (or
+    // omitted) keeps today's student-submission-only behavior.
+    const staffRecordMode: 'none' | 'upload_or_form' = m.staffRecordMode === 'upload_or_form' ? 'upload_or_form' : 'none';
+    const staffFormFields = validateFormFields(m.staffFormFields);
+    if (staffFormFields === null) return null;
+
+    // Only meaningful for the 'defense' milestone type — omitted keeps
+    // today's single shared gradingComponents/hardcoded-criteria rubric.
+    const finalGradeComponents = validateFinalGradeComponents(m.finalGradeComponents);
+    if (!finalGradeComponents.ok) return null;
+
     const spec: WorkflowMilestoneSpec = {
       type: m.type.trim(),
       nameHe: m.nameHe.trim(),
@@ -177,6 +277,11 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     }
     if (gradingComponents.length > 0) spec.gradingComponents = gradingComponents;
     if (routing.value) spec.routing = routing.value;
+    if (staffRecordMode === 'upload_or_form') {
+      spec.staffRecordMode = staffRecordMode;
+      if (staffFormFields.length > 0) spec.staffFormFields = staffFormFields;
+    }
+    if (finalGradeComponents.value) spec.finalGradeComponents = finalGradeComponents.value;
     cleaned.push(spec);
   }
   return cleaned;
@@ -297,7 +402,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   // this is omitted).
   let examinerSignoffRole: ChainRole | 'none' | undefined;
   if (req.body.examinerSignoffRole !== undefined) {
-    if (req.body.examinerSignoffRole !== 'none' && !CHAIN_ROLES.includes(req.body.examinerSignoffRole)) {
+    if (req.body.examinerSignoffRole !== 'none' && !SIGNOFF_ROLES.includes(req.body.examinerSignoffRole)) {
       return res.status(400).json({ message: `Invalid examinerSignoffRole: ${req.body.examinerSignoffRole}` });
     }
     examinerSignoffRole = req.body.examinerSignoffRole;
@@ -307,7 +412,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   // terminal gate before Michlol transfer, always required).
   let finalGradeSignoffRole: ChainRole | undefined;
   if (req.body.finalGradeSignoffRole !== undefined) {
-    if (!CHAIN_ROLES.includes(req.body.finalGradeSignoffRole)) {
+    if (!SIGNOFF_ROLES.includes(req.body.finalGradeSignoffRole)) {
       return res.status(400).json({ message: `Invalid finalGradeSignoffRole: ${req.body.finalGradeSignoffRole}` });
     }
     finalGradeSignoffRole = req.body.finalGradeSignoffRole;
@@ -342,7 +447,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
-    if (!canApprove(processType, role)) {
+    if (!canApprove(processType, role) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
           ? 'Only the grad school head can approve this process type.'
@@ -452,7 +557,7 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
-    if (!canApprove(processType, role)) {
+    if (!canApprove(processType, role) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
           ? 'Only the grad school head can delete this process type\'s templates.'
@@ -502,7 +607,7 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
-    if (!canApprove(processType, role)) {
+    if (!canApprove(processType, role) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
           ? 'Only the grad school head can reject this process type.'

@@ -67,8 +67,21 @@ export interface AssignedMilestone {
   // Per-milestone configured grading rubric (see
   // server/src/services/workflowTemplates.ts) — empty means
   // GradeExaminerModal falls back to the hardcoded EXAMINER_GRADING_CRITERIA
-  // below.
+  // below. Ignored when finalGradeComponents is set (see below).
   gradingComponents?: GradingComponentSpec[];
+  // Three-rubric final-grade workflow (defense only) — replaces the single
+  // shared gradingComponents rubric above with two independent ones this
+  // examiner submits separately: their evaluation of the written project,
+  // and their evaluation of the oral defense. See ExaminerEvaluationModal.tsx.
+  finalGradeComponents?: {
+    supervisorEvaluation: { components: GradingComponentSpec[]; weight: number };
+    examinerProjectEvaluation: { components: GradingComponentSpec[]; weight: number };
+    examinerDefenseEvaluation: { components: GradingComponentSpec[]; weight: number };
+  } | null;
+  examinerEvaluations?: Record<string, {
+    project?: { total: number };
+    defense?: { total: number };
+  }>;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.

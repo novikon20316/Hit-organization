@@ -96,6 +96,16 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           examiner1GradeId: milestoneData.examiner1GradeId || null,
           examiner2GradeId: milestoneData.examiner2GradeId || null,
           gradeWeights: milestoneData.gradeWeights || null,
+          // Three-rubric final-grade workflow (see workflowTemplates.ts's
+          // finalGradeComponents) — empty/absent means this milestone still
+          // uses the single shared gradingComponents rubric above.
+          finalGradeComponents: milestoneData.finalGradeComponents ?? null,
+          // Only this examiner's own entry — a co-examiner's rubric
+          // scores/comments are examiner-only content too, not just
+          // off-limits to the student/supervisor.
+          examinerEvaluations: milestoneData.examinerEvaluations?.[examinerId]
+            ? { [examinerId]: milestoneData.examinerEvaluations[examinerId] }
+            : {},
           milestoneHistory,
           revisionHistory: milestoneData.revisionHistory ?? [],
           defenseDate: milestoneData.dueDate?.toDate?.().toISOString?.() ?? null,

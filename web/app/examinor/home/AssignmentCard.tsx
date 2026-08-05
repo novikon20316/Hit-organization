@@ -12,6 +12,9 @@ interface AssignmentCardProps {
   uid: string;
   onChanged: () => void;
   onGrade: (m: AssignedMilestone) => void;
+  /** Three-rubric workflow only (see workflowTemplates.ts's finalGradeComponents) —
+   *  opens ExaminerEvaluationModal for this examiner's own project/defense rubric. */
+  onGradeKind: (m: AssignedMilestone, kind: 'project' | 'defense') => void;
 }
 
 function toDateSafe(val: unknown): Date | null {
@@ -21,7 +24,7 @@ function toDateSafe(val: unknown): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: AssignmentCardProps) {
+export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeKind }: AssignmentCardProps) {
   const { lang } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const [dateDraft, setDateDraft] = useState('');
@@ -29,15 +32,24 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: Assign
   const [dateMessage, setDateMessage] = useState('');
 
   const facultyColor = getFacultyColor(m.facultyId);
+  // Three-rubric final-grade workflow (see workflowTemplates.ts's
+  // finalGradeComponents) — this examiner submits two independent rubrics
+  // (project + defense) instead of the single shared score below.
+  const isThreeRubric = !!m.finalGradeComponents;
+  const myEvaluations = m.examinerEvaluations?.[uid];
+  const projectDone = !!myEvaluations?.project;
+  const defenseDone = !!myEvaluations?.defense;
   // Identity-keyed defense milestones (post-generalization) carry
   // examinerScores instead of the legacy examiner1Score/examiner2Score pair —
   // legacy milestones (no examinerScores at all) keep the old "#1/#2"
   // positional display, forever (no migration).
   const isIdentityKeyed = m.examinerScores != null;
   const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
-  const graded = isIdentityKeyed
-    ? m.examinerScores?.[uid] != null
-    : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
+  const graded = isThreeRubric
+    ? projectDone && defenseDone
+    : isIdentityKeyed
+      ? m.examinerScores?.[uid] != null
+      : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
   // Panel size is configurable per faculty/degree (see workflowTemplates.ts's
   // examinerCount) — every OTHER examiner on the panel, not just a single
   // assumed peer.
@@ -200,6 +212,27 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade }: Assign
             🕐 {lang === 'he' ? 'ניתן לציין רק לאחר ההגנה' : 'Grading opens after the defense'} ·{' '}
             {new Date(m.defenseDate!).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'long' })}
           </span>
+        ) : isThreeRubric ? (
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => onGradeKind(m, 'project')}
+              disabled={projectDone}
+              className="rounded-lg px-2.5 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundColor: facultyColor }}
+            >
+              {projectDone ? `✅ ${lang === 'he' ? 'עבודת הגמר' : 'The Project'}` : `📄 ${lang === 'he' ? 'הערך עבודת גמר' : 'Grade the Project'}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => onGradeKind(m, 'defense')}
+              disabled={defenseDone}
+              className="rounded-lg px-2.5 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundColor: facultyColor }}
+            >
+              {defenseDone ? `✅ ${lang === 'he' ? 'ההגנה' : 'The Defense'}` : `🛡 ${lang === 'he' ? 'הערך הגנה' : 'Grade the Defense'}`}
+            </button>
+          </div>
         ) : (
           <button
             type="button"

@@ -17,7 +17,7 @@ import { FACULTY_LABELS, facultyLabel, type FacultyId } from '@/lib/i18n';
 import { ProposeVersionModal } from './ProposeVersionModal';
 import { RejectModal } from './RejectModal';
 import {
-  PROCESS_TYPES, canApproveRole, isMastersProcess, processTypeLabel, majorOptionsFor, chainRoleLabel, DEFAULT_ROUTING,
+  PROCESS_TYPES, canApproveTemplate, isMastersProcess, processTypeLabel, majorOptionsFor, chainRoleLabel, DEFAULT_ROUTING,
   type ProcessType, type WorkflowTemplateDoc, type MilestoneRoutingSpec,
 } from './types';
 
@@ -379,7 +379,7 @@ export default function WorkflowTemplatesPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {pending.map((tpl) => {
-            const canApprove = canApproveRole(tpl.processType, role);
+            const canApprove = canApproveTemplate(tpl, userData);
             return (
               <div key={tpl.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
                 <p className="text-sm font-semibold text-ink">
@@ -459,7 +459,7 @@ export default function WorkflowTemplatesPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {historyForActive.map((tpl) => {
-            const canDelete = canApproveRole(tpl.processType, role);
+            const canDelete = canApproveTemplate(tpl, userData);
             return (
               <div key={tpl.id} className="rounded-[var(--radius)] border border-line bg-surface p-4 opacity-90">
                 <p className="text-sm font-semibold text-ink">

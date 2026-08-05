@@ -399,3 +399,86 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
     return res.status(500).json({ message: 'Failed to load students report.' });
   }
 };
+
+/**
+ * GET /api/project-coordinator/grade-overrides
+ * Every defense milestone with a pending grade override (see
+ * supervisorController.ts's decideFinalGrade) in the coordinator's assigned
+ * degree(s) — the auto-calculated grade, the supervisor's proposed grade and
+ * reason, so she can approve the change or keep the automatic one (see
+ * gradSchoolHeadController.ts's decideGradeOverride, which this queue's
+ * actions call into). Same coordinatorScopes-based scope resolution as
+ * getProjectCoordinatorDashboard/getStudentsReport above.
+ */
+export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !PROJECT_COORDINATOR_DASHBOARD_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to view this queue.' });
+  }
+
+  try {
+    const isSystemAdmin = req.user.role === 'system_admin';
+    const scopes: DegreeScope[] = isSystemAdmin
+      ? []
+      : (req.user.coordinatorScopes ?? []).map((s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId }));
+
+    if (!isSystemAdmin && scopes.length === 0) {
+      return res.status(200).json({ overrides: [] });
+    }
+
+    // Milestones don't carry `major` — same faculty-only scoping limitation
+    // as milestoneController.ts's administrative_secretary branch.
+    const milestoneDocsById = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    if (isSystemAdmin) {
+      const snap = await db.collection('milestones').where('gradeOverride.status', '==', 'pending').get();
+      snap.docs.forEach((d) => milestoneDocsById.set(d.id, d));
+    } else {
+      const facultyIds = [...new Set(scopes.map((s) => s.facultyId))];
+      await Promise.all(facultyIds.map(async (facultyId) => {
+        const snap = await db.collection('milestones')
+          .where('facultyId', '==', facultyId)
+          .where('gradeOverride.status', '==', 'pending')
+          .get();
+        snap.docs.forEach((d) => milestoneDocsById.set(d.id, d));
+      }));
+    }
+    const milestones = [...milestoneDocsById.values()].map((d) => ({ id: d.id, ...d.data() } as Record<string, any>));
+
+    const projectIds = [...new Set(milestones.map((m) => m.projectId).filter(Boolean))];
+    const projectSnaps = await Promise.all(projectIds.map((id) => db.collection('projects').doc(id).get()));
+    const projectsById: Record<string, any> = {};
+    projectSnaps.forEach((snap) => { if (snap.exists) projectsById[snap.id] = snap.data(); });
+
+    const studentIds = [...new Set(milestones.flatMap((m) => m.studentIds ?? []))];
+    const studentSnaps = await Promise.all(studentIds.map((id) => db.collection('users').doc(id).get()));
+    const studentNameById: Record<string, string> = {};
+    studentSnaps.forEach((snap) => { if (snap.exists) studentNameById[snap.id] = snap.data()?.displayName ?? snap.id; });
+
+    const overrides = milestones.map((m) => {
+      const project = projectsById[m.projectId] ?? {};
+      return {
+        milestoneId: m.id,
+        projectId: m.projectId ?? null,
+        projectTitleHe: project.titleHe ?? '',
+        projectTitleEn: project.titleEn ?? '',
+        studentNames: (m.studentIds ?? []).map((sid: string) => studentNameById[sid] ?? sid),
+        // 'auto_confirmed' means the supervisor accepted the computed grade
+        // as-is (no dispute) — still routed here so the coordinator signs
+        // off on every final grade, not just contested ones. Legacy docs
+        // written before this field existed default to 'override' so older
+        // pending rows keep rendering with the two-way compare UI.
+        kind: m.gradeOverride?.kind ?? 'override',
+        autoCalculatedFinalGrade: m.autoCalculatedFinalGrade ?? null,
+        proposedGrade: m.gradeOverride?.proposedGrade ?? null,
+        reason: m.gradeOverride?.reason ?? '',
+        proposedAt: m.gradeOverride?.proposedAt?.toDate?.()?.toISOString?.() ?? null,
+      };
+    });
+
+    return res.status(200).json({ overrides });
+  } catch (error: any) {
+    console.error('getPendingGradeOverrides error:', error);
+    return res.status(500).json({ message: 'Failed to load pending grade overrides.' });
+  }
+};

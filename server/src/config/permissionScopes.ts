@@ -33,13 +33,14 @@ export type ActionType =
   | 'approve_grades'
   | 'approve_milestones'
   | 'assign_supervisor_examiner'
+  | 'approve_templates'
   | 'all_actions';
 
 export const ACTION_TYPES: ActionType[] = [
   'add_users', 'edit_users', 'delete_users',
   'add_projects', 'edit_projects', 'delete_projects',
   'edit_grades', 'approve_grades', 'approve_milestones',
-  'assign_supervisor_examiner', 'all_actions',
+  'assign_supervisor_examiner', 'approve_templates', 'all_actions',
 ];
 
 // Same faculty keys as MAJORS_BY_FACULTY plus 'all' (cross-faculty scope) —

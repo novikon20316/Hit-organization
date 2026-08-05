@@ -103,6 +103,31 @@ function studentStatusText(row: StudentReportRow, lang: Lang): string {
   return base;
 }
 
+// ─── Grade Overrides tab ────────────────────────────────────────────────────
+// The coordinator's half of the three-rubric final-grade override workflow
+// (see workflowTemplates.ts's finalGradeComponents) — a supervisor proposed
+// changing a defense milestone's auto-calculated grade with a mandatory
+// reason (supervisorController.ts's decideFinalGrade); she either approves
+// the change or keeps the automatic grade (gradSchoolHeadController.ts's
+// decideGradeOverride). Mirrors
+// web/app/administrative_coordinator/dashboard/GradeOverridesTab.tsx.
+interface GradeOverrideRow {
+  milestoneId: string;
+  projectId: string | null;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  studentNames: string[];
+  // 'auto_confirmed' = supervisor accepted the computed grade as-is (no
+  // dispute) — still routed here so the coordinator signs off on every
+  // final grade, not just contested ones (see supervisorController.ts's
+  // decideFinalGrade). Legacy pending rows default to 'override' server-side.
+  kind: 'auto_confirmed' | 'override';
+  autoCalculatedFinalGrade: number | null;
+  proposedGrade: number | null;
+  reason: string;
+  proposedAt: string | null;
+}
+
 // ─── Send Examiner Modal ───────────────────────────────────────────────────────
 // Previously wrote an examinerTokens doc directly to Firestore
 // (src/firebase/createExaminerToken.ts) — that path only checks the caller's
@@ -418,13 +443,19 @@ export default function ProjectCoordinatorDashboard() {
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
 
   // ── Students Report tab ───────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'groups' | 'students'>('groups');
+  const [activeTab, setActiveTab] = useState<'groups' | 'students' | 'overrides'>('groups');
   const [studentsReport, setStudentsReport] = useState<StudentReportRow[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
   const [studentsNoScope, setStudentsNoScope] = useState(false);
   const [reportSearchText, setReportSearchText] = useState('');
   const [reportFilterStatus, setReportFilterStatus] = useState<'all' | StudentStatus>('all');
+
+  // ── Grade Overrides tab ───────────────────────────────────────────────────
+  const [overrides, setOverrides] = useState<GradeOverrideRow[]>([]);
+  const [overridesLoading, setOverridesLoading] = useState(false);
+  const [overridesLoaded, setOverridesLoaded] = useState(false);
+  const [overrideBusyId, setOverrideBusyId] = useState<string | null>(null);
 
   // ── Add Project modal state ─────────────────────────────────────────────
   // Net-new — the administrative coordinator role previously had no project-creation
@@ -504,6 +535,43 @@ export default function ProjectCoordinatorDashboard() {
     const matchesStatus = reportFilterStatus === 'all' || row.status === reportFilterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  const fetchOverrides = useCallback(async () => {
+    setOverridesLoading(true);
+    try {
+      const res = await apiClient.get('/api/project-coordinator/grade-overrides');
+      setOverrides(res.data.overrides ?? []);
+    } catch (e: any) {
+      console.error('grade overrides fetch error:', e);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
+      );
+    } finally {
+      setOverridesLoading(false);
+      setOverridesLoaded(true);
+    }
+  }, [lang]);
+
+  // Fetched lazily, the first time the tab is opened.
+  useEffect(() => {
+    if (activeTab === 'overrides' && !overridesLoaded) fetchOverrides();
+  }, [activeTab, overridesLoaded, fetchOverrides]);
+
+  const decideOverride = async (milestoneId: string, decision: 'approve_override' | 'keep_auto') => {
+    setOverrideBusyId(milestoneId);
+    try {
+      await apiClient.post(`/api/grad-school-head/milestones/${milestoneId}/grade-override-decision`, { decision });
+      await fetchOverrides();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'הפעולה נכשלה' : 'The action failed'),
+      );
+    } finally {
+      setOverrideBusyId(null);
+    }
+  };
 
   // Fetches per selected faculty and merges (dedup by id).
   useEffect(() => {
@@ -652,16 +720,20 @@ export default function ProjectCoordinatorDashboard() {
         ))}
       </View>
 
-      {/* Tab switcher: Project Groups / Students Report */}
+      {/* Tab switcher: Project Groups / Students Report / Grade Overrides */}
       <View style={s.filterRow}>
-        {(['groups', 'students'] as const).map((key) => (
+        {(['groups', 'students', 'overrides'] as const).map((key) => (
           <Pressable
             key={key}
             style={[s.filterChip, activeTab === key && { backgroundColor: fc.primary }]}
             onPress={() => setActiveTab(key)}
           >
             <Text style={[s.filterChipText, activeTab === key && { color: '#fff' }]}>
-              {key === 'groups' ? (lang === 'he' ? 'קבוצות פרויקט' : 'Project Groups') : (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')}
+              {key === 'groups'
+                ? (lang === 'he' ? 'קבוצות פרויקט' : 'Project Groups')
+                : key === 'students'
+                  ? (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')
+                  : (lang === 'he' ? 'אישור ציונים סופיים' : 'Final Grade Approvals')}
             </Text>
           </Pressable>
         ))}
@@ -669,14 +741,90 @@ export default function ProjectCoordinatorDashboard() {
 
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={activeTab === 'groups' ? refreshing : studentsLoading} onRefresh={activeTab === 'groups' ? onRefresh : fetchStudentsReport} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={activeTab === 'groups' ? refreshing : activeTab === 'students' ? studentsLoading : overridesLoading}
+            onRefresh={activeTab === 'groups' ? onRefresh : activeTab === 'students' ? fetchStudentsReport : fetchOverrides}
+          />
+        }
       >
         {/* Bulk Update Due Dates / Academic Year moved into the TopBar's ☰
             menu (extraMenuItems above) — same actions, no functionality
             dropped, just decluttered off this row. */}
         <PendingSignoffsWidget lang={lang} />
 
-        {activeTab === 'students' ? (
+        {activeTab === 'overrides' ? (
+          <View>
+            {overridesLoading && !overridesLoaded ? (
+              <ActivityIndicator style={{ marginTop: 24 }} />
+            ) : overrides.length === 0 ? (
+              <View style={s.empty}>
+                <Text style={s.emptyEmoji}>✅</Text>
+                <Text style={s.emptyText}>
+                  {lang === 'he' ? 'אין ציונים סופיים ממתינים לאישור' : 'No final grades pending approval'}
+                </Text>
+              </View>
+            ) : (
+              overrides.map((r) => (
+                <View key={r.milestoneId} style={[s.card, { borderLeftColor: '#F59E0B' }]}>
+                  <Text style={s.cardTitle}>{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</Text>
+                  <Text style={s.cardSub}>👤 {r.studentNames.join(', ')}</Text>
+
+                  {r.kind === 'override' ? (
+                    <>
+                      <View style={s.overrideSplit}>
+                        <View style={s.overrideBox}>
+                          <Text style={s.overrideLabel}>{lang === 'he' ? 'ציון מחושב' : 'Computed'}</Text>
+                          <Text style={s.overrideValue}>{r.autoCalculatedFinalGrade ?? '—'}</Text>
+                        </View>
+                        <View style={[s.overrideBox, s.overrideBoxProposed]}>
+                          <Text style={[s.overrideLabel, { color: '#B45309' }]}>{lang === 'he' ? 'ציון מוצע' : 'Proposed'}</Text>
+                          <Text style={[s.overrideValue, { color: '#B45309' }]}>{r.proposedGrade ?? '—'}</Text>
+                        </View>
+                      </View>
+
+                      <Text style={s.overrideReason}>💬 {r.reason}</Text>
+
+                      <View style={s.overrideActionRow}>
+                        <Pressable
+                          style={[s.btnApproveOverride, overrideBusyId === r.milestoneId && { opacity: 0.6 }]}
+                          onPress={() => decideOverride(r.milestoneId, 'approve_override')}
+                          disabled={overrideBusyId === r.milestoneId}
+                        >
+                          <Text style={s.btnApproveOverrideText}>{lang === 'he' ? '✓ אשר את השינוי' : '✓ Approve change'}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[s.btnKeepAuto, overrideBusyId === r.milestoneId && { opacity: 0.6 }]}
+                          onPress={() => decideOverride(r.milestoneId, 'keep_auto')}
+                          disabled={overrideBusyId === r.milestoneId}
+                        >
+                          <Text style={s.btnKeepAutoText}>{lang === 'he' ? 'השאר מחושב' : 'Keep computed'}</Text>
+                        </Pressable>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View style={s.overrideBox}>
+                        <Text style={s.overrideLabel}>{lang === 'he' ? 'המנחה אישר את הציון המחושב' : 'Supervisor confirmed the computed grade'}</Text>
+                        <Text style={s.overrideValue}>{r.proposedGrade ?? '—'}</Text>
+                      </View>
+
+                      <View style={s.overrideActionRow}>
+                        <Pressable
+                          style={[s.btnApproveOverride, { flex: 1 }, overrideBusyId === r.milestoneId && { opacity: 0.6 }]}
+                          onPress={() => decideOverride(r.milestoneId, 'approve_override')}
+                          disabled={overrideBusyId === r.milestoneId}
+                        >
+                          <Text style={s.btnApproveOverrideText}>{lang === 'he' ? '✓ אשר ציון סופי' : '✓ Approve final grade'}</Text>
+                        </Pressable>
+                      </View>
+                    </>
+                  )}
+                </View>
+              ))
+            )}
+          </View>
+        ) : activeTab === 'students' ? (
           <View>
             <TextInput
               style={s.searchInput}

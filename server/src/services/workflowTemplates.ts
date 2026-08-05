@@ -51,12 +51,42 @@ export interface GradingComponentSpec {
   visibleToStudent: boolean;
 }
 
+/** A single field in a staff-fillable online form (see WorkflowMilestoneSpec's
+ *  staffFormFields) — deliberately small (no nesting/conditional-fields), just
+ *  enough to render a department's existing paper form as an equivalent set of
+ *  inputs. 'table' is a repeatable-row field (e.g. a Gantt chart) where each
+ *  row has the same columns, described by `tableColumns`. */
+export interface FormFieldSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+  required: boolean;
+  /** Only meaningful when type === 'table' — the columns of each row. */
+  tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+}
+
+/** One of the three independently-scored rubrics that combine into a
+ *  defense milestone's final grade (see WorkflowMilestoneSpec.finalGradeComponents) —
+ *  same shape as a single grader's gradingComponents list, just one of three. */
+export interface FinalGradeRubric {
+  components: GradingComponentSpec[];
+  /** This rubric's share of the final grade (0-100) — the three rubrics'
+   *  weights on a template must sum to 100, validated at proposal time. */
+  weight: number;
+}
+
 // P1 backlog item — configurable approval/rejection routing per milestone.
 // Schema + template-editor UI + versioning/approval only for now: the actual
 // submit/grade/approve/reject endpoints still run today's hardcoded
 // supervisor-then-coordinator chain (see DEFAULT_ROUTING below) until a
 // separate follow-up rewires them to read a milestone's resolved routing.
-export type ChainRole = 'supervisor' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+// 'examiner' resolves to a milestone's own assigned examiner panel
+// (examinerIds), not a broadly-held staff role — see scopeAuthorization.ts's
+// resolveStaffForScope, which special-cases it the same way it already does
+// 'supervisor'. Lets a milestone type be graded examiner-only (no supervisor
+// stage at all), e.g. a Poster-session milestone.
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
 // 'student', or another stage's `id` within the same chain (self-reference allowed).
 export type RejectionTarget = 'student' | string;
 
@@ -131,13 +161,34 @@ export interface WorkflowMilestoneSpec {
    *  defenseScheduling.ts's openDefenseSchedulingIfPanelReady. */
   examinerCount?: number;
   /** Optional — omitted/empty means this milestone still uses the hardcoded
-   *  default rubric until the grading endpoints are wired to read this. */
+   *  default rubric until the grading endpoints are wired to read this.
+   *  Ignored on a 'defense' milestone that has finalGradeComponents set —
+   *  that milestone type uses the three independent rubrics there instead. */
   gradingComponents?: GradingComponentSpec[];
   /** Per-milestone override of the template's defaultRouting. Omitted means
    *  this milestone inherits defaultRouting (or DEFAULT_ROUTING if the
    *  template has none) — staff only sets this when one milestone genuinely
    *  needs a different chain than the rest of the template. */
   routing?: MilestoneRoutingSpec;
+  /** Only meaningful for research_proposal/progress_report-type milestones —
+   *  lets staff (the supervisor) attach an official record alongside the
+   *  student's own submission, either by uploading a completed file or
+   *  filling in staffFormFields online. Omitted/'none' keeps today's
+   *  behavior (student submission only, no staff-side record). */
+  staffRecordMode?: 'none' | 'upload_or_form';
+  /** The online-form field list shown when staffRecordMode === 'upload_or_form'. */
+  staffFormFields?: FormFieldSpec[];
+  /** Only meaningful for the 'defense' milestone type. Replaces the single
+   *  shared gradingComponents rubric with three independent ones — one each
+   *  for the supervisor, the examiner's evaluation of the written project,
+   *  and the examiner's evaluation of the oral defense — combined via their
+   *  own weights (which must sum to 100) into the milestone's final grade.
+   *  Omitted keeps today's single-rubric (or hardcoded-criteria) behavior. */
+  finalGradeComponents?: {
+    supervisorEvaluation: FinalGradeRubric;
+    examinerProjectEvaluation: FinalGradeRubric;
+    examinerDefenseEvaluation: FinalGradeRubric;
+  };
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';

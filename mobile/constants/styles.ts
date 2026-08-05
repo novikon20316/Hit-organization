@@ -3243,6 +3243,19 @@ export const AdministrativeCoordinatorDashboardStyles = StyleSheet.create({
   empty:      { alignItems: 'center', paddingVertical: 48 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
   emptyText:  { fontSize: 15, color: '#64748B' },
+
+  // ── Grade Overrides tab (three-rubric final-grade workflow) ─────────────
+  overrideSplit:      { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 8 },
+  overrideBox:        { flex: 1, borderRadius: 8, backgroundColor: '#F1F5F9', padding: 8, alignItems: 'center' },
+  overrideBoxProposed:{ backgroundColor: '#FEF3C7' },
+  overrideLabel:      { fontSize: 10, color: '#64748B' },
+  overrideValue:      { fontSize: 18, fontWeight: '800', color: '#1E293B', marginTop: 2 },
+  overrideReason:     { fontSize: 12, color: '#1E293B', backgroundColor: '#F8FAFC', borderRadius: 8, padding: 8, marginBottom: 8 },
+  overrideActionRow:  { flexDirection: 'row', gap: 8 },
+  btnApproveOverride:     { flex: 1, backgroundColor: '#7C3AED', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  btnApproveOverrideText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  btnKeepAuto:            { flex: 1, borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  btnKeepAutoText:        { color: '#1E293B', fontSize: 12, fontWeight: '600' },
 });
 
 export const AdministrativeCoordinatorModalStyles = StyleSheet.create({

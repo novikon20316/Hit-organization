@@ -179,9 +179,15 @@ export async function resolveProjectScope(projectId: string | undefined | null):
 export async function resolveStaffForScope(
   role: ChainRole,
   resource: ResourceScope,
-  projectSupervisorIds: string[]
+  projectSupervisorIds: string[],
+  // A milestone-level panel assignment (like supervisor, not a broadly-held
+  // staff role) — see workflowTemplates.ts's ChainRole doc comment. Optional
+  // and defaulted so every existing call site (none of which ever configures
+  // an 'examiner' stage) is unaffected.
+  milestoneExaminerIds: string[] = []
 ): Promise<string[]> {
   if (role === 'supervisor') return [...new Set(projectSupervisorIds.filter(Boolean))];
+  if (role === 'examiner') return [...new Set(milestoneExaminerIds.filter(Boolean))];
 
   const uids = new Set<string>();
 

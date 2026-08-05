@@ -53,7 +53,17 @@ export type AuditAction =
   | 'login_failed'
   | 'permission_denied'
   | 'password_reset_by_admin'
-  | 'login_lockout_lifted_by_admin';
+  | 'login_lockout_lifted_by_admin'
+  // Three-rubric final-grade workflow (data_science, or any faculty whose
+  // template configures finalGradeComponents) — see supervisorController.ts's
+  // decideFinalGrade, gradSchoolHeadController.ts's decideGradeOverride, and
+  // projectController.ts's submitSupervisorEvaluation/submitExaminerEvaluation.
+  | 'supervisor_evaluation_submitted'
+  | 'examiner_evaluation_submitted'
+  | 'final_grade_approved_by_supervisor'
+  | 'final_grade_override_proposed'
+  | 'grade_override_approved'
+  | 'grade_override_rejected';
 
 export interface AuditLogEntry {
   userId: string;

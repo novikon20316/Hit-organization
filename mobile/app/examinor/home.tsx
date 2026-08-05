@@ -10,7 +10,7 @@ import { TopBar, getFacultyColor } from '../../components/shared';
 import {type GradeWeights, type IdentityGradeWeights } from '../../components/Milestoneservice';
 import { examinerHomeStyles } from '../../constants/styles';
 import { apiClient } from '@/src/api/apiClient';
-import {AssignedMilestone} from '@/types'
+import {AssignedMilestone, GradingComponentSpec} from '@/types'
  
 // ─── Constants ────────────────────────────────────────────────────────────────
  
@@ -82,7 +82,18 @@ export default function ExaminerHome() {
   const [scores,      setScores]      = useState<Record<string, string>>({});
   const [comments,    setComments]    = useState('');
   const [submitting,  setSubmitting]  = useState(false);
- 
+
+  // ── Three-rubric final-grade workflow (defense only, see
+  //    workflowTemplates.ts's finalGradeComponents) — this examiner submits
+  //    two independent rubrics ('project' + 'defense') instead of the single
+  //    shared score above. Kept inline, mirroring the grade modal above's
+  //    own convention (this screen doesn't extract its modals). ──────────
+  const [evalModal,      setEvalModal]      = useState(false);
+  const [evalTarget,     setEvalTarget]     = useState<{ milestone: AssignedMilestone; kind: 'project' | 'defense' } | null>(null);
+  const [evalScores,     setEvalScores]     = useState<Record<string, string>>({});
+  const [evalComment,    setEvalComment]    = useState('');
+  const [evalSubmitting, setEvalSubmitting] = useState(false);
+
   const uid = auth.currentUser?.uid;
  
   // ── Candidate defense dates being composed for a given milestone ─────────
@@ -118,6 +129,12 @@ export default function ExaminerHome() {
  
   // ── Helpers (unchanged) ─────────────────────────────────────────────────
   const alreadyGraded = (m: AssignedMilestone): boolean => {
+    // Three-rubric final-grade workflow (defense only) — "graded" means both
+    // of this examiner's independent rubrics (project + defense) are in.
+    if (m.finalGradeComponents) {
+      const ev = m.examinerEvaluations?.[uid ?? ''];
+      return !!ev?.project && !!ev?.defense;
+    }
     // Identity-keyed defense milestones (post-generalization) carry
     // examinerScores instead of the legacy examiner1Score/examiner2Score
     // pair — legacy milestones (no examinerScores at all) keep the old
@@ -126,6 +143,9 @@ export default function ExaminerHome() {
     const isExaminer1 = m.examinerIds[0] === uid;
     return isExaminer1 ? m.examiner1Score !== null : m.examiner2Score !== null;
   };
+
+  const examinerEvaluationDone = (m: AssignedMilestone, kind: 'project' | 'defense'): boolean =>
+    !!m.examinerEvaluations?.[uid ?? '']?.[kind];
 
   function isBeforeDefense(defenseDate: string | null): boolean {
     if (!defenseDate) return false;
@@ -144,6 +164,52 @@ export default function ExaminerHome() {
 
   const totalScore = () =>
     Math.round(activeGradingFields(selected).reduce((sum, c) => sum + ((parseFloat(scores[c.key] || '0')) / c.maxScore) * c.weight, 0));
+
+  // ── Examiner evaluation (three-rubric workflow) ───────────────────────────
+  const evalRubric: GradingComponentSpec[] = evalTarget
+    ? (evalTarget.kind === 'project'
+        ? evalTarget.milestone.finalGradeComponents?.examinerProjectEvaluation.components ?? []
+        : evalTarget.milestone.finalGradeComponents?.examinerDefenseEvaluation.components ?? [])
+    : [];
+
+  const evalTotal = Math.round(
+    evalRubric.reduce((sum, c) => sum + ((parseFloat(evalScores[c.key] || '0')) / c.maxScore) * c.weight, 0)
+  );
+
+  const openEvalModal = (m: AssignedMilestone, kind: 'project' | 'defense') => {
+    const rubric = kind === 'project'
+      ? m.finalGradeComponents?.examinerProjectEvaluation.components ?? []
+      : m.finalGradeComponents?.examinerDefenseEvaluation.components ?? [];
+    const initial: Record<string, string> = {};
+    rubric.forEach((c) => { initial[c.key] = ''; });
+    setEvalTarget({ milestone: m, kind });
+    setEvalScores(initial);
+    setEvalComment('');
+    setEvalModal(true);
+  };
+
+  const handleSubmitEvaluation = async () => {
+    if (!evalTarget) return;
+    try {
+      setEvalSubmitting(true);
+      await apiClient.post(`/api/projects/milestones/${evalTarget.milestone.id}/examiner-evaluation`, {
+        kind: evalTarget.kind,
+        scores: Object.fromEntries(evalRubric.map((c) => [c.key, parseFloat(evalScores[c.key]) || 0])),
+        comment: evalComment,
+      });
+      Alert.alert(
+        lang === 'he' ? '✅ הצלחה' : '✅ Success',
+        lang === 'he' ? 'ההערכה נשלחה בהצלחה' : 'Evaluation submitted successfully'
+      );
+      setEvalModal(false);
+      await fetchDashboardData();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', String(e));
+    } finally {
+      setEvalSubmitting(false);
+    }
+  };
 
   // ── Submit candidate defense dates ────────────────────────────────────────
   // Window/Sun-Thu validation is enforced server-side too — this is just a
@@ -509,6 +575,31 @@ export default function ExaminerHome() {
                             : `Grading opens after the defense · ${new Date(m.defenseDate!).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`}
                         </Text>
                       </View>
+                    ) : m.finalGradeComponents ? (
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable
+                          style={[styles.gradeBtn, { flex: 1, backgroundColor: fc.primary }, examinerEvaluationDone(m, 'project') && { opacity: 0.5 }]}
+                          onPress={() => openEvalModal(m, 'project')}
+                          disabled={examinerEvaluationDone(m, 'project')}
+                        >
+                          <Text style={styles.gradeBtnText}>
+                            {examinerEvaluationDone(m, 'project')
+                              ? `✅ ${lang === 'he' ? 'עבודת הגמר' : 'The Project'}`
+                              : `📄 ${lang === 'he' ? 'הערך עבודת גמר' : 'Grade the Project'}`}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.gradeBtn, { flex: 1, backgroundColor: fc.primary }, examinerEvaluationDone(m, 'defense') && { opacity: 0.5 }]}
+                          onPress={() => openEvalModal(m, 'defense')}
+                          disabled={examinerEvaluationDone(m, 'defense')}
+                        >
+                          <Text style={styles.gradeBtnText}>
+                            {examinerEvaluationDone(m, 'defense')
+                              ? `✅ ${lang === 'he' ? 'ההגנה' : 'The Defense'}`
+                              : `🛡 ${lang === 'he' ? 'הערך הגנה' : 'Grade the Defense'}`}
+                          </Text>
+                        </Pressable>
+                      </View>
                     ) : (
                       <Pressable
                         style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
@@ -706,6 +797,91 @@ export default function ExaminerHome() {
           </Pressable>
  
           <Pressable style={styles.cancelBtn} onPress={() => setGradeModal(false)}>
+            <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+          </Pressable>
+        </ScrollView>
+      </Modal>
+
+      {/* ════════ EXAMINER EVALUATION MODAL — three-rubric workflow only ════════
+          One examiner's half of the three-rubric final-grade workflow (see
+          workflowTemplates.ts's finalGradeComponents) — 'project' scores the
+          written project/thesis, 'defense' scores the oral defense
+          performance; each examiner submits both, independently. Kept inline
+          alongside the grade modal above, matching this screen's existing
+          convention of not extracting its modals into components. */}
+      <Modal visible={evalModal} animationType="slide" presentationStyle="pageSheet">
+        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          <Text style={styles.modalTitle}>
+            {evalTarget?.kind === 'project'
+              ? (lang === 'he' ? '📄 הערכת בוחן — עבודת הגמר' : '📄 Examiner Evaluation — The Project')
+              : (lang === 'he' ? '🛡 הערכת בוחן — בחינת ההגנה' : '🛡 Examiner Evaluation — The Defense Exam')}
+          </Text>
+
+          {evalTarget && (
+            <View style={styles.context}>
+              <Text style={styles.contextTitle}>
+                {lang === 'he' ? evalTarget.milestone.projectTitleHe : evalTarget.milestone.projectTitleEn}
+              </Text>
+              <Text style={styles.contextSub}>👤 {evalTarget.milestone.studentNames.join(', ')}</Text>
+            </View>
+          )}
+
+          {evalRubric.map((c) => (
+            <View key={c.key} style={styles.criterionRow}>
+              <View style={styles.criterionHeader}>
+                <Text style={styles.criterionLabel}>
+                  {lang === 'he' ? c.labelHe : c.labelEn}
+                </Text>
+                <Text style={styles.criterionMax}>/ {c.maxScore}</Text>
+              </View>
+              <TextInput
+                style={styles.scoreInput}
+                value={evalScores[c.key] || ''}
+                onChangeText={(v) => setEvalScores((prev) => ({ ...prev, [c.key]: v }))}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+          ))}
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>
+              {lang === 'he' ? 'סה"כ' : 'Total'}
+            </Text>
+            <Text style={[styles.totalScore,
+              { color: evalTotal >= 60 ? '#10B981' : '#EF4444' }]}>
+              {evalTotal} / 100
+            </Text>
+          </View>
+
+          <Text style={styles.fieldLabel}>
+            {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}
+          </Text>
+          <TextInput
+            style={styles.textarea}
+            value={evalComment}
+            onChangeText={setEvalComment}
+            multiline
+            numberOfLines={5}
+            placeholder={lang === 'he' ? 'הערות לסטודנט...' : 'Comments to student...'}
+            textAlign={isRtl ? 'right' : 'left'}
+          />
+
+          <Pressable
+            style={[styles.submitBtn, evalSubmitting && { opacity: 0.6 }]}
+            onPress={handleSubmitEvaluation}
+            disabled={evalSubmitting}
+          >
+            {evalSubmitting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.submitBtnText}>
+                  {lang === 'he' ? 'שלח' : 'Submit'}
+                </Text>
+            }
+          </Pressable>
+
+          <Pressable style={styles.cancelBtn} onPress={() => setEvalModal(false)}>
             <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
         </ScrollView>

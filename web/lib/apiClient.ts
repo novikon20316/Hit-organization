@@ -1054,11 +1054,32 @@ export const apiClient = {
         type: string; nameHe: string; nameEn: string; order: number;
         dateMode?: 'offset' | 'fixed'; dueDaysFromStart: number; fixedDate?: string;
         requiresExaminers: boolean;
+        staffRecordMode?: 'none' | 'upload_or_form';
+        staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean }>;
+        finalGradeComponents?: {
+          supervisorEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }>; weight: number };
+          examinerProjectEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }>; weight: number };
+          examinerDefenseEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }>; weight: number };
+        };
       }>;
       students: Array<{
         studentId: string;
         studentName: string;
-        milestones: Array<{ type: string; status: string; dueDate: string | null; submittedAt: string | null }>;
+        milestones: Array<{
+          id: string | null;
+          type: string;
+          status: string;
+          dueDate: string | null;
+          submittedAt: string | null;
+          staffRecordMode: 'none' | 'upload_or_form' | null;
+          staffRecordSubmitted: boolean;
+          hasFinalGradeComponents: boolean;
+          supervisorEvaluationSubmitted: boolean;
+          autoCalculatedFinalGrade: number | null;
+          finalGrade: number | null;
+          gradeApproved: boolean;
+          gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
+        }>;
       }>;
     }>(`/api/supervisor/projects/${projectId}/detail`, { method: 'GET' });
   },
@@ -1087,6 +1108,40 @@ export const apiClient = {
    *  submitIndividualGrade/computeFinalGradeByStudent server-side). */
   async submitIndividualGrade(milestoneId: string, payload: { studentId: string; score: number; comments?: string }) {
     return request<{ success: boolean }>(`/api/projects/milestones/${milestoneId}/individual-grade`, { method: 'POST', body: payload });
+  },
+
+  // ─── Three-rubric final-grade workflow (defense milestones with a
+  // template-configured finalGradeComponents — see workflowTemplates.ts) ────
+  async submitSupervisorEvaluation(milestoneId: string, payload: { scores: Record<string, number>; comment?: string }) {
+    return request<{ success: boolean; total: number }>(`/api/projects/milestones/${milestoneId}/supervisor-evaluation`, { method: 'POST', body: payload });
+  },
+
+  async submitExaminerEvaluation(milestoneId: string, payload: { kind: 'project' | 'defense'; scores: Record<string, number>; comment?: string }) {
+    return request<{ success: boolean; total: number }>(`/api/projects/milestones/${milestoneId}/examiner-evaluation`, { method: 'POST', body: payload });
+  },
+
+  /** decision: 'approve' finalizes autoCalculatedFinalGrade directly; 'override'
+   *  requires grade+reason and routes to the coordinator's grade-override
+   *  queue instead (see decideGradeOverride below). */
+  async decideFinalGrade(milestoneId: string, payload: { decision: 'approve' } | { decision: 'override'; grade: number; reason: string }) {
+    return request<{ success: boolean; finalGrade?: number; status?: string }>(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, { method: 'POST', body: payload });
+  },
+
+  /** decision: 'approve_override' applies the supervisor's proposed grade;
+   *  'keep_auto' reverts to the automatically-computed one. Either way the
+   *  grade is finalized (gradeApproved: true). */
+  async decideGradeOverride(milestoneId: string, decision: 'approve_override' | 'keep_auto') {
+    return request<{ success: boolean; finalGrade: number }>(`/api/grad-school-head/milestones/${milestoneId}/grade-override-decision`, { method: 'POST', body: { decision } });
+  },
+
+  /** Either a file (FormData, field name 'files') or a JSON formData object —
+   *  never both. Only meaningful on a research_proposal/progress_report
+   *  milestone whose template set staffRecordMode: 'upload_or_form'. */
+  async submitStaffRecordFile(milestoneId: string, formData: FormData) {
+    return request<{ success: boolean }>(`/api/supervisor/milestones/${milestoneId}/staff-record`, { method: 'POST', body: formData, raw: true });
+  },
+  async submitStaffRecordForm(milestoneId: string, formData: Record<string, unknown>) {
+    return request<{ success: boolean }>(`/api/supervisor/milestones/${milestoneId}/staff-record`, { method: 'POST', body: { formData } });
   },
 
   async getSupervisorExaminerRecommendations() {
@@ -1276,8 +1331,18 @@ export const apiClient = {
     processType: 'msc_thesis' | 'msc_project' | 'bsc_project';
     milestones: Array<{
       type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean;
+      dateMode?: 'offset' | 'fixed'; fixedDate?: string;
       gradingComponents?: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>;
       routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+      /** research_proposal/progress_report only — see workflowTemplates.ts's staffRecordMode. */
+      staffRecordMode?: 'none' | 'upload_or_form';
+      staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }> }>;
+      /** 'defense' only — see workflowTemplates.ts's finalGradeComponents. */
+      finalGradeComponents?: {
+        supervisorEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };
+        examinerProjectEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };
+        examinerDefenseEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };
+      };
     }>;
     note?: string;
     /** system_admin only — proposes on behalf of another faculty. Ignored
@@ -1418,6 +1483,27 @@ export const apiClient = {
         days: number | null;
       }>;
     }>('/api/project-coordinator/students-report', { method: 'GET' });
+  },
+
+  /** Every defense milestone with a pending grade override (see
+   *  supervisorController.ts's decideFinalGrade) in the coordinator's
+   *  assigned degree(s) — see projectCoordinatorController.ts's
+   *  getPendingGradeOverrides. */
+  async getPendingGradeOverrides() {
+    return request<{
+      overrides: Array<{
+        milestoneId: string;
+        projectId: string | null;
+        projectTitleHe: string;
+        projectTitleEn: string;
+        studentNames: string[];
+        kind: 'auto_confirmed' | 'override';
+        autoCalculatedFinalGrade: number | null;
+        proposedGrade: number | null;
+        reason: string;
+        proposedAt: string | null;
+      }>;
+    }>('/api/project-coordinator/grade-overrides', { method: 'GET' });
   },
 
   /** Shared by coordinator, administrative coordinator, and system_admin — all

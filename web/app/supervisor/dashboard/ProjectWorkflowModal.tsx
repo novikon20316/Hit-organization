@@ -3,13 +3,20 @@
 // app/supervisor/dashboard/ProjectWorkflowModal.tsx
 // Shows a supervisor which workflow template their project is running on
 // (the ordered milestone list — name, due-date mode, requires-examiners) and,
-// per enrolled student, a submitted/not-submitted breakdown per milestone.
+// per enrolled student, a submitted/not-submitted breakdown per milestone —
+// plus, where configured (see workflowTemplates.ts), the staff-record action
+// (research_proposal/progress_report) and the three-rubric final-grade
+// workflow (defense): submit the supervisor's own evaluation, then once
+// every evaluation is in, approve or override the computed grade.
 // Data comes from GET /api/supervisor/projects/:id/detail — see
 // server/src/controllers/supervisorController.ts's getSupervisorProjectDetail.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { StaffRecordModal } from './StaffRecordModal';
+import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
+import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
 import type { MyProject } from './types';
 
 interface ProjectWorkflowModalProps {
@@ -26,12 +33,32 @@ interface TemplateMilestone {
   dueDaysFromStart: number;
   fixedDate?: string;
   requiresExaminers: boolean;
+  staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean }>;
+  finalGradeComponents?: {
+    supervisorEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }>; weight: number };
+  };
+}
+
+interface StudentMilestoneRow {
+  id: string | null;
+  type: string;
+  status: string;
+  dueDate: string | null;
+  submittedAt: string | null;
+  staffRecordMode: 'none' | 'upload_or_form' | null;
+  staffRecordSubmitted: boolean;
+  hasFinalGradeComponents: boolean;
+  supervisorEvaluationSubmitted: boolean;
+  autoCalculatedFinalGrade: number | null;
+  finalGrade: number | null;
+  gradeApproved: boolean;
+  gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
 }
 
 interface StudentRow {
   studentId: string;
   studentName: string;
-  milestones: Array<{ type: string; status: string; dueDate: string | null; submittedAt: string | null }>;
+  milestones: StudentMilestoneRow[];
 }
 
 // Same status colors/labels as coordinator/home/InProgressTab.tsx, plus a
@@ -57,26 +84,28 @@ export function ProjectWorkflowModal({ project, onClose }: ProjectWorkflowModalP
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
+  const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: TemplateMilestone['staffFormFields'] } | null>(null);
+  const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: NonNullable<TemplateMilestone['finalGradeComponents']>['supervisorEvaluation']['components'] } | null>(null);
+  const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
+
+  const fetchDetail = useCallback(() => {
     setLoading(true);
-    apiClient
+    return apiClient
       .getSupervisorProjectDetail(project.id)
       .then((res) => {
-        if (cancelled) return;
         setTemplateMilestones([...res.templateMilestones].sort((a, b) => a.order - b.order));
         setStudents(res.students);
+        setError('');
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : (lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load'));
+        setError(err instanceof Error ? err.message : (lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load'));
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => setLoading(false));
   }, [project.id, lang]);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -131,11 +160,57 @@ export function ProjectWorkflowModal({ project, onClose }: ProjectWorkflowModalP
                       {s.milestones.map((m) => {
                         const spec = templateMilestones.find((t) => t.type === m.type);
                         return (
-                          <div key={m.type} className="flex items-center justify-between border-t border-line py-1.5 text-xs first:border-t-0">
-                            <span className="font-medium text-ink">{spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}</span>
-                            <span className="font-semibold" style={{ color: statusColor(m.status) }}>
-                              {statusLabel(m.status, lang)}
-                            </span>
+                          <div key={m.type} className="border-t border-line py-1.5 first:border-t-0">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-medium text-ink">{spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}</span>
+                              <span className="font-semibold" style={{ color: statusColor(m.status) }}>
+                                {statusLabel(m.status, lang)}
+                              </span>
+                            </div>
+
+                            {/* Staff record action (research_proposal/progress_report only). */}
+                            {m.staffRecordMode === 'upload_or_form' && m.id && (
+                              <button
+                                type="button"
+                                onClick={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })}
+                                className="mt-1 text-xs font-medium text-primary hover:underline"
+                              >
+                                {m.staffRecordSubmitted
+                                  ? `✓ ${lang === 'he' ? 'רשומת מנחה הוגשה — עדכן' : 'Staff record submitted — update'}`
+                                  : `📎 ${lang === 'he' ? 'הגש רשומת מנחה' : 'Submit staff record'}`}
+                              </button>
+                            )}
+
+                            {/* Three-rubric final-grade workflow (defense only). */}
+                            {m.hasFinalGradeComponents && m.id && (
+                              <div className="mt-1 text-xs">
+                                {m.gradeApproved ? (
+                                  <span className="font-semibold text-success">
+                                    🎓 {lang === 'he' ? `ציון סופי: ${m.finalGrade}` : `Final grade: ${m.finalGrade}`}
+                                  </span>
+                                ) : m.gradeOverrideStatus === 'pending' ? (
+                                  <span className="text-accent">⏳ {lang === 'he' ? 'שינוי ציון ממתין לאישור הרכז/ת' : "Grade change pending the coordinator's review"}</span>
+                                ) : m.autoCalculatedFinalGrade != null ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFinalGradeDecisionFor({ milestoneId: m.id!, autoGrade: m.autoCalculatedFinalGrade! })}
+                                    className="font-medium text-primary hover:underline"
+                                  >
+                                    🎓 {lang === 'he' ? `ציון סופי מחושב: ${m.autoCalculatedFinalGrade} — לחץ להחלטה` : `Computed final grade: ${m.autoCalculatedFinalGrade} — click to decide`}
+                                  </button>
+                                ) : !m.supervisorEvaluationSubmitted ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSupervisorEvalFor({ milestoneId: m.id!, components: spec?.finalGradeComponents?.supervisorEvaluation.components ?? [] })}
+                                    className="font-medium text-primary hover:underline"
+                                  >
+                                    📝 {lang === 'he' ? 'הגש הערכת מנחה' : 'Submit supervisor evaluation'}
+                                  </button>
+                                ) : (
+                                  <span className="text-muted">{lang === 'he' ? 'ממתין להערכות בוחנים' : "Waiting on examiners' evaluations"}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -147,6 +222,31 @@ export function ProjectWorkflowModal({ project, onClose }: ProjectWorkflowModalP
           </>
         )}
       </div>
+
+      {staffRecordFor && (
+        <StaffRecordModal
+          milestoneId={staffRecordFor.milestoneId}
+          fields={staffRecordFor.fields ?? []}
+          onClose={() => setStaffRecordFor(null)}
+          onSubmitted={fetchDetail}
+        />
+      )}
+      {supervisorEvalFor && (
+        <SupervisorEvaluationModal
+          milestoneId={supervisorEvalFor.milestoneId}
+          components={supervisorEvalFor.components}
+          onClose={() => setSupervisorEvalFor(null)}
+          onSubmitted={fetchDetail}
+        />
+      )}
+      {finalGradeDecisionFor && (
+        <FinalGradeDecisionModal
+          milestoneId={finalGradeDecisionFor.milestoneId}
+          autoCalculatedFinalGrade={finalGradeDecisionFor.autoGrade}
+          onClose={() => setFinalGradeDecisionFor(null)}
+          onDecided={fetchDetail}
+        />
+      )}
     </div>
   );
 }

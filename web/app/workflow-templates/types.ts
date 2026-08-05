@@ -13,6 +13,7 @@
 // workflowTemplateController.ts's canApprove()/isMastersProcess().
 
 import { HIT_FACULTIES } from '@/lib/faculties';
+import { hasActionGrant, type ScopeRule } from '@/lib/permissions';
 
 export type ProcessType = 'msc_thesis' | 'msc_project' | 'bsc_project';
 export type TemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';
@@ -30,7 +31,7 @@ export interface GradingComponentSpec {
 
 // Mirrors ChainRole/RejectionTarget/ChainStage/MilestoneRoutingSpec in
 // server/src/services/workflowTemplates.ts.
-export type ChainRole = 'supervisor' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
 export type RejectionTarget = 'student' | string;
 
 export interface ChainStage {
@@ -42,14 +43,47 @@ export interface ChainStage {
 
 export type MilestoneRoutingSpec = ChainStage[];
 
+// Mirrors FormFieldSpec/FinalGradeRubric in server/src/services/workflowTemplates.ts.
+export interface FormFieldSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+  required: boolean;
+  tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+}
+
+export interface FinalGradeRubric {
+  components: GradingComponentSpec[];
+  weight: number;
+}
+
+export interface FinalGradeComponents {
+  supervisorEvaluation: FinalGradeRubric;
+  examinerProjectEvaluation: FinalGradeRubric;
+  examinerDefenseEvaluation: FinalGradeRubric;
+}
+
+// Valid roles for a chain STAGE — includes 'examiner', which resolves to a
+// milestone's own assigned examiner panel (not a broadly-held staff role,
+// see server/src/services/scopeAuthorization.ts's resolveStaffForScope).
+// Lets a milestone type (e.g. a Poster session) be graded examiner-only,
+// with no supervisor stage at all.
 export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
   { key: 'supervisor', he: 'מנחה', en: 'Supervisor' },
+  { key: 'examiner', he: 'בוחן', en: 'Examiner' },
   { key: 'coordinator', he: 'רכז', en: 'Coordinator' },
   { key: 'faculty_admin', he: 'מנהל פקולטה', en: 'Faculty Admin' },
   { key: 'administrative_secretary', he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' },
   { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
   { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
 ];
+
+// examinerSignoffRole/finalGradeSignoffRole are a single overall approver
+// resolved without any per-milestone examinerIds in scope — 'examiner' would
+// always resolve to nobody there, so it's excluded from this narrower list
+// (matches the server-side SIGNOFF_ROLES split in workflowTemplateController.ts).
+export const SIGNOFF_ROLES = CHAIN_ROLES.filter((r) => r.key !== 'examiner');
 
 export function chainRoleLabel(role: ChainRole, lang: 'he' | 'en'): string {
   return CHAIN_ROLES.find((r) => r.key === role)?.[lang] ?? role;
@@ -89,6 +123,17 @@ export interface MilestoneSpec {
   /** Per-milestone override of the template's defaultRouting. Omitted means
    *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */
   routing?: MilestoneRoutingSpec;
+  /** Only meaningful for research_proposal/progress_report-type milestones —
+   *  lets staff (the supervisor) attach an official record alongside the
+   *  student's own submission, either by uploading a file or filling
+   *  staffFormFields online. Omitted/'none' keeps today's behavior. */
+  staffRecordMode?: 'none' | 'upload_or_form';
+  staffFormFields?: FormFieldSpec[];
+  /** Only meaningful for the 'defense' milestone type — replaces the single
+   *  shared gradingComponents rubric with three independent ones (supervisor /
+   *  examiner-on-the-project / examiner-on-the-defense), combined via their
+   *  own weights (summing to 100) into the milestone's final grade. */
+  finalGradeComponents?: FinalGradeComponents;
 }
 
 export type ApplyMode = 'now' | 'from_now_on';
@@ -154,6 +199,25 @@ export function isMastersProcess(pt: ProcessType): boolean {
 export function canApproveRole(pt: ProcessType, role: string | null | undefined): boolean {
   if (!role) return false;
   return isMastersProcess(pt) ? GRAD_SCHOOL_APPROVER_ROLES.includes(role) : FACULTY_APPROVER_ROLES.includes(role);
+}
+
+/** Same decision as canApproveRole, but also honors a scoped 'approve_templates'
+ *  detailed-permission grant (system_admin's Bulk/Edit-User Permissions
+ *  editor) — lets a staff member outside the normal approver roles act on
+ *  templates within their granted facultyId/major/degreeLevel/processType.
+ *  Mirrors server/src/controllers/workflowTemplateController.ts's
+ *  canApprove() + hasActionGrant() OR-gate. */
+export function canApproveTemplate(
+  tpl: Pick<WorkflowTemplateDoc, 'processType' | 'facultyId' | 'major'>,
+  userData: { role?: string; roles?: string[]; permissionRules?: ScopeRule[] } | null | undefined
+): boolean {
+  if (canApproveRole(tpl.processType, userData?.role)) return true;
+  return hasActionGrant(userData, 'approve_templates', {
+    facultyId: tpl.facultyId,
+    major: tpl.major ?? undefined,
+    degreeLevel: isMastersProcess(tpl.processType) ? 'masters' : 'bachelors',
+    processType: tpl.processType === 'msc_thesis' ? 'thesis' : tpl.processType === 'msc_project' ? 'project' : undefined,
+  });
 }
 
 export function processTypeLabel(pt: ProcessType, lang: 'he' | 'en'): string {

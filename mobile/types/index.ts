@@ -518,11 +518,34 @@ export interface AssignedMilestone {
   examinerGrading?: Record<string, { gradedAt: string }>;
   // Per-milestone configured grading rubric (see
   // server/src/services/workflowTemplates.ts) — empty means the grading
-  // modal falls back to the hardcoded default rubric.
-  gradingComponents?: {
-    key: string; labelHe: string; labelEn: string;
-    maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean;
-  }[];
+  // modal falls back to the hardcoded default rubric. Ignored when
+  // finalGradeComponents is set (see below).
+  gradingComponents?: GradingComponentSpec[];
+  // Three-rubric final-grade workflow (defense only) — replaces the single
+  // shared gradingComponents rubric above with two independent ones this
+  // examiner submits separately: their evaluation of the written project,
+  // and their evaluation of the oral defense. See
+  // mobile/app/examinor/home.tsx's evaluation modal.
+  finalGradeComponents?: {
+    supervisorEvaluation: { components: GradingComponentSpec[]; weight: number };
+    examinerProjectEvaluation: { components: GradingComponentSpec[]; weight: number };
+    examinerDefenseEvaluation: { components: GradingComponentSpec[]; weight: number };
+  } | null;
+  examinerEvaluations?: Record<string, {
+    project?: { total: number };
+    defense?: { total: number };
+  }>;
+}
+
+// Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
+export interface GradingComponentSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  maxScore: number;
+  weight: number;
+  hasComment: boolean;
+  visibleToStudent: boolean;
 }
 
 
@@ -689,6 +712,27 @@ export interface ActiveProject {
   projectType?:  string;  // 'project' | 'thesis'
 }
 
+/** The data_science three-rubric defense workflow's supervisor-side rubric
+ *  (see server/src/services/workflowTemplates.ts's finalGradeComponents,
+ *  server/src/controllers/projectController.ts's submitSupervisorEvaluation)
+ *  — one of the "supervisor forms" the manager's requirement says the
+ *  student should be able to see. Absent for any milestone/faculty that
+ *  hasn't configured finalGradeComponents. */
+export interface StudentVisibleSupervisorEvaluation {
+  scores: Record<string, { score: number; maxScore: number; weight: number }>;
+  total: number;
+  comment?: string;
+}
+
+/** The proposal/midterm staff record the supervisor files alongside the
+ *  student's own submission (staffRecordMode: 'upload_or_form' — see
+ *  server/src/controllers/supervisorController.ts's submitStaffRecord). */
+export interface StudentVisibleStaffRecord {
+  mode: 'upload' | 'form';
+  fileUrls?: string[];
+  formData?: Record<string, unknown>;
+}
+
 export interface Milestone {
   id:          string;
   type:        MilestoneType;
@@ -708,6 +752,22 @@ export interface Milestone {
   supervisorScore?: number | null;
   rejectionReason?: string | null;
   revisionHistory?: MilestoneRevision[];
+  /** Three-rubric defense workflow — the supervisor's own evaluation
+   *  (distinct from examinerEvaluations, which the student never receives —
+   *  see server/src/services/milestoneVisibility.ts). */
+  supervisorEvaluation?: StudentVisibleSupervisorEvaluation | null;
+  /** The template's own rubric definition, needed to label each score in
+   *  supervisorEvaluation.scores (component labels/maxScores/weights). */
+  finalGradeComponents?: {
+    supervisorEvaluation: { components: { key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }[] };
+  } | null;
+  autoCalculatedFinalGrade?: number | null;
+  /** The server sends the full object, but the student UI only ever reads
+   *  `.status` — the supervisor's override reason isn't meant for display
+   *  here, just whether a decision is still pending. */
+  gradeOverride?: { status: 'pending' | 'approved' | 'rejected' } | null;
+  staffRecord?: StudentVisibleStaffRecord | null;
+  staffFormFields?: { key: string; labelHe: string; labelEn: string }[];
 }
 
 export interface PendingApplication {

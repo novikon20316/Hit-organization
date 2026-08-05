@@ -32,6 +32,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
   const [tab, setTab] = useState<'overview' | 'milestones' | 'grades'>('overview');
   const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [expandedGradeIds, setExpandedGradeIds] = useState<Record<string, boolean>>({});
 
   const isMastersThesis = project.degreeType === 'masters' && project.projectType === 'thesis';
 
@@ -321,11 +322,23 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
             const isSubmittedState = !hasGrade && (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
             const isGradeVisible = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
             const gradeVisible = isGradeVisible && hasGrade;
+            // Anything worth expanding into — the three-rubric workflow's
+            // supervisor evaluation, a staff record, or a still-pending
+            // coordinator sign-off (see workflowTemplates.ts's
+            // finalGradeComponents/staffRecordMode — absent for any
+            // milestone/faculty that hasn't configured them).
+            const hasExpandableDetail = !!(m.supervisorEvaluation || m.staffRecord || m.autoCalculatedFinalGrade != null || m.gradeOverride);
+            const isExpanded = expandedGradeIds[m.id] ?? false;
 
             return (
               <div key={m.id} className="rounded-[var(--radius)] border border-line bg-surface p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-ink">{label}</span>
+                <div
+                  className={`flex items-center justify-between ${hasExpandableDetail ? 'cursor-pointer' : ''}`}
+                  onClick={hasExpandableDetail ? () => setExpandedGradeIds((prev) => ({ ...prev, [m.id]: !prev[m.id] })) : undefined}
+                >
+                  <span className="text-sm font-semibold text-ink">
+                    {hasExpandableDetail && (isExpanded ? '▾ ' : '▸ ')}{label}
+                  </span>
                   {gradeVisible ? (
                     <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: gradeColor(grade as number), backgroundColor: '#F1F0EC' }}>
                       {grade}
@@ -344,6 +357,72 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                 ) : isSubmittedState ? (
                   <p className="mt-2 text-xs text-accent">⏳ {lang === 'he' ? 'ממתין לאישור ציון ע"י הרכז' : 'Awaiting grade approval by coordinator'}</p>
                 ) : null}
+
+                {isExpanded && hasExpandableDetail && (
+                  <div className="mt-3 grid gap-2 border-t border-line pt-3">
+                    {m.supervisorEvaluation && (
+                      <div className="rounded-md bg-paper p-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-ink">{lang === 'he' ? 'הערכת המנחה' : "Supervisor's evaluation"}</span>
+                          <span className="text-xs font-bold text-ink">{m.supervisorEvaluation.total}</span>
+                        </div>
+                        {m.finalGradeComponents?.supervisorEvaluation.components.map((c) => {
+                          const s = m.supervisorEvaluation!.scores[c.key];
+                          if (!s) return null;
+                          return (
+                            <div key={c.key} className="mt-1 flex items-center justify-between text-[11px] text-muted">
+                              <span>{lang === 'he' ? c.labelHe : c.labelEn}</span>
+                              <span>{s.score}/{s.maxScore}</span>
+                            </div>
+                          );
+                        })}
+                        {m.supervisorEvaluation.comment && (
+                          <p className="mt-1.5 text-[11px] text-ink">💬 {m.supervisorEvaluation.comment}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {m.autoCalculatedFinalGrade != null && (
+                      <div className="rounded-md bg-paper p-2.5 text-xs text-ink">
+                        <div className="flex items-center justify-between">
+                          <span>{lang === 'he' ? 'ציון מחושב' : 'Computed grade'}</span>
+                          <span className="font-bold">{m.autoCalculatedFinalGrade}</span>
+                        </div>
+                        {m.gradeOverride?.status === 'pending' && (
+                          <p className="mt-1 text-[11px] text-accent">⏳ {lang === 'he' ? 'ממתין לאישור סופי' : 'Awaiting final sign-off'}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {m.staffRecord && (
+                      <div className="rounded-md bg-paper p-2.5 text-xs text-ink">
+                        <p className="font-semibold">{lang === 'he' ? 'רשומת מנחה' : "Supervisor's record"}</p>
+                        {m.staffRecord.mode === 'upload' ? (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {(m.staffRecord.fileUrls ?? []).map((url, i) => (
+                              <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[11px] text-accent underline">
+                                📎 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-1 grid gap-1">
+                            {(m.staffFormFields ?? []).map((f) => {
+                              const v = m.staffRecord!.formData?.[f.key];
+                              if (v === undefined || v === null || v === '') return null;
+                              return (
+                                <div key={f.key} className="flex items-start justify-between gap-2 text-[11px]">
+                                  <span className="text-muted">{lang === 'he' ? f.labelHe : f.labelEn}</span>
+                                  <span className="text-ink text-right">{String(v)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

@@ -188,6 +188,28 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    // Propagate the same panel onto every OTHER examiner-graded milestone
+    // for this project (e.g. a Poster-session milestone using the new
+    // 'examiner' ChainRole — see workflowTemplates.ts) — the defense
+    // milestone keeps its own independent population via assignDefense's
+    // defensePanel-driven flow, untouched, so it's explicitly excluded here.
+    try {
+      const otherExaminerMilestonesSnap = await db.collection('milestones')
+        .where('projectId', '==', projectId)
+        .where('requiresExaminers', '==', true)
+        .get();
+      await Promise.all(
+        otherExaminerMilestonesSnap.docs
+          .filter((d) => d.data().type !== 'defense')
+          .map((d) => d.ref.update({
+            examinerIds: result.internalUids,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }))
+      );
+    } catch (err) {
+      console.error(`assignExaminers: failed to propagate examinerIds onto non-defense milestones for project ${projectId}:`, err);
+    }
+
     await openDefenseSchedulingIfPanelReady(projectId, result);
 
     res.status(200).json({
@@ -627,7 +649,7 @@ async function approveChainMilestone(
 
   const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: milestone.facultyId ?? '' };
   const projectSupervisorIds = [milestone.supervisorId].filter(Boolean);
-  const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds);
+  const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
   if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
 
   const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -837,7 +859,7 @@ async function rejectChainMilestone(
 
   const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: milestone.facultyId ?? '' };
   const projectSupervisorIds = [milestone.supervisorId].filter(Boolean);
-  const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds);
+  const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
   if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
 
   const rejectsToStudent = stage.rejectTo === 'student';
@@ -937,7 +959,7 @@ async function rejectChainMilestone(
     // inside db.runTransaction" rule the legacy path already follows.
     if (!rejectsToStudent && rejectedMilestone) {
       const targetStage = routing[targetIndex]!;
-      const targetUids = await resolveStaffForScope(targetStage.role, resource, projectSupervisorIds);
+      const targetUids = await resolveStaffForScope(targetStage.role, resource, projectSupervisorIds, milestone.examinerIds ?? []);
       const milestoneTitle = { he: rejectedMilestone.nameHe ?? rejectedMilestone.type ?? '', en: rejectedMilestone.nameEn ?? rejectedMilestone.type ?? '' };
       await Promise.all(targetUids.map(async (uid) => {
         try {

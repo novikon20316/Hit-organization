@@ -73,8 +73,6 @@ export default function ActiveDashboard({
   const [submitMessage,   setSubmitMessage]   = useState<string | null>(null);
   const [activeTab,       setActiveTab]       = useState<'overview' | 'milestones' | 'grades'>('overview');
   const [expandedGrades,   setExpandedGrades]   = useState<Record<string, boolean>>({});
-  const [loadingDetail, setLoadingDetail] = useState<Record<string, boolean>>({});
-  const [gradeDetails, setGradeDetails] = useState<Record<string, any>>({});
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [announcements, setAnnouncements] = useState<Array<{ id: string; titleHe: string; titleEn: string; bodyHe: string; bodyEn: string }>>([]);
 
@@ -777,21 +775,43 @@ export default function ActiveDashboard({
         
               // Expandable state for this card
               const isExpanded     = expandedGrades[m.id] ?? false;
-              const isLoadingDetail = loadingDetail[m.id] ?? false;
-              const detail         = gradeDetails[m.id];
-        
+              // Derived directly from the already-fetched milestone (no
+              // separate fetch — the three-rubric workflow's fields are
+              // undefined/absent for any milestone/faculty that hasn't
+              // configured finalGradeComponents, so this is a no-op
+              // everywhere except data_science).
+              const supervisorComponents = m.finalGradeComponents?.supervisorEvaluation.components ?? [];
+              const detail = m.supervisorEvaluation
+                ? {
+                    hasGrade: true,
+                    breakdown: supervisorComponents
+                      .filter((c) => m.supervisorEvaluation!.scores[c.key])
+                      .map((c) => ({
+                        key: c.key,
+                        label: lang === 'he' ? c.labelHe : c.labelEn,
+                        score: m.supervisorEvaluation!.scores[c.key].score,
+                        maxScore: m.supervisorEvaluation!.scores[c.key].maxScore,
+                      })),
+                    total: m.supervisorEvaluation.total,
+                    comments: m.supervisorEvaluation.comment,
+                  }
+                : undefined;
+              const hasExpandableDetail = !!(detail || m.staffRecord || m.autoCalculatedFinalGrade != null || m.gradeOverride);
+              const canExpand = gradeVisible && hasExpandableDetail;
+
               return (
                 <Pressable
                   key={m.id}
                   style={styles.gradeCard}
-                  // Only tappable when the grade is visible to the student
-                  onPress={gradeVisible ? () => handleExpandGrade(m.id) : undefined}
-                  disabled={!gradeVisible}
+                  // Only tappable when the grade is visible AND there's
+                  // actually something new to show underneath it.
+                  onPress={canExpand ? () => handleExpandGrade(m.id) : undefined}
+                  disabled={!canExpand}
                 >
                   {/* ── Card header ── */}
                   <View style={[styles.gradeCardHeader, !isRtl && styles.rowReverse]}>
                     <Text style={styles.gradeCardTitle}>{label}</Text>
-        
+
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       {gradeVisible ? (
                         <>
@@ -800,10 +820,12 @@ export default function ActiveDashboard({
                               {grade}
                             </Text>
                           </View>
-                          {/* Expand / collapse chevron */}
-                          <Text style={{ fontSize: 14, color: '#8899BB' }}>
-                            {isExpanded ? '▲' : '▼'}
-                          </Text>
+                          {/* Expand / collapse chevron — only when there's detail to show */}
+                          {canExpand && (
+                            <Text style={{ fontSize: 14, color: '#8899BB' }}>
+                              {isExpanded ? '▲' : '▼'}
+                            </Text>
+                          )}
                         </>
                       ) : isSubmittedState ? (
                         <Text style={{ fontSize: 12, color: '#F59E0B', fontWeight: '600' }}>
@@ -851,11 +873,9 @@ export default function ActiveDashboard({
                   )}
         
                   {/* ── Expanded criteria breakdown ── */}
-                  {gradeVisible && isExpanded && (
+                  {canExpand && isExpanded && (
                     <View style={breakdownStyles.container}>
-                      {isLoadingDetail ? (
-                        <ActivityIndicator size="small" color="#2E86FF" style={{ marginVertical: 12 }} />
-                      ) : detail?.hasGrade ? (
+                      {detail?.hasGrade && (
                         <>
                           {/* Criteria rows */}
                           {detail.breakdown?.map((b: any) => (
@@ -910,10 +930,55 @@ export default function ActiveDashboard({
                             </View>
                           ) : null}
                         </>
-                      ) : (
-                        <Text style={{ fontSize: 13, color: '#8899BB', textAlign: 'center', paddingVertical: 8 }}>
-                          {lang === 'he' ? 'לא נמצאו פרטי ציון' : 'Grade details not available'}
+                      )}
+
+                      {/* Computed grade + pending sign-off, and the staff
+                          record (proposal/midterm) — same data_science-only
+                          fields, absent everywhere else. */}
+                      {m.autoCalculatedFinalGrade != null && (
+                        <View style={[breakdownStyles.row, { marginTop: detail?.hasGrade ? 8 : 0 }]}>
+                          <Text style={[breakdownStyles.criterionLabel, isRtl && styles.textRight]}>
+                            {lang === 'he' ? 'ציון מחושב' : 'Computed grade'}
+                          </Text>
+                          <Text style={breakdownStyles.scoreText}>{m.autoCalculatedFinalGrade}</Text>
+                        </View>
+                      )}
+                      {m.gradeOverride?.status === 'pending' && (
+                        <Text style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>
+                          ⏳ {lang === 'he' ? 'ממתין לאישור סופי' : 'Awaiting final sign-off'}
                         </Text>
+                      )}
+
+                      {m.staffRecord && (
+                        <View style={{ marginTop: 8 }}>
+                          <Text style={[breakdownStyles.commentsLabel, isRtl && styles.textRight]}>
+                            {lang === 'he' ? 'רשומת מנחה' : "Supervisor's record"}
+                          </Text>
+                          {m.staffRecord.mode === 'upload' ? (
+                            (m.staffRecord.fileUrls ?? []).map((url, i) => (
+                              <Text
+                                key={url}
+                                style={{ fontSize: 12, color: '#2E86FF', marginTop: 4 }}
+                                onPress={() => Linking.openURL(url)}
+                              >
+                                📎 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
+                              </Text>
+                            ))
+                          ) : (
+                            (m.staffFormFields ?? []).map((f) => {
+                              const v = m.staffRecord!.formData?.[f.key];
+                              if (v === undefined || v === null || v === '') return null;
+                              return (
+                                <View key={f.key} style={[breakdownStyles.row, { marginTop: 4 }]}>
+                                  <Text style={[breakdownStyles.criterionLabel, isRtl && styles.textRight]} numberOfLines={1}>
+                                    {lang === 'he' ? f.labelHe : f.labelEn}
+                                  </Text>
+                                  <Text style={breakdownStyles.scoreText}>{String(v)}</Text>
+                                </View>
+                              );
+                            })
+                          )}
+                        </View>
                       )}
                     </View>
                   )}

@@ -188,6 +188,8 @@ export async function applyTemplateRetroactively(
           nameEn: spec.nameEn,
           dueDate: admin.firestore.Timestamp.fromDate(dueDate),
           ...(spec.gradingComponents ? { gradingComponents: spec.gradingComponents } : {}),
+          ...(spec.staffRecordMode === 'upload_or_form' ? { staffRecordMode: spec.staffRecordMode, staffFormFields: spec.staffFormFields ?? [] } : {}),
+          ...(spec.finalGradeComponents ? { finalGradeComponents: spec.finalGradeComponents } : {}),
           // Refreshes the still-pending milestone's chain to match the newly
           // approved template — never touches currentStageIndex/stageScores/
           // stageEnteredAt, since a still-pending milestone hasn't started
@@ -223,6 +225,8 @@ export async function applyTemplateRetroactively(
                 stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
               }),
           ...(spec.gradingComponents ? { gradingComponents: spec.gradingComponents } : {}),
+          ...(spec.staffRecordMode === 'upload_or_form' ? { staffRecordMode: spec.staffRecordMode, staffFormFields: spec.staffFormFields ?? [] } : {}),
+          ...(spec.finalGradeComponents ? { finalGradeComponents: spec.finalGradeComponents } : {}),
         }));
         touched = true;
       }

@@ -1,13 +1,17 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
+import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
+import { resolveStaffForScope } from '../services/scopeAuthorization.js';
+import { logAuditEvent } from '../services/auditLog.js';
 import {
   resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER,
   getMilestonesForTemplateId, getActiveMilestonesFor, deriveProcessType,
-  type WorkflowMilestoneSpec,
+  resolveFinalGradeSignoffRole,
+  type WorkflowMilestoneSpec, type FormFieldSpec,
 } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
@@ -234,10 +238,26 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
         milestones: templateMilestones.map((spec) => {
           const m = milestonesByType[spec.type];
           return {
+            id: m?.id ?? null,
             type: spec.type,
             status: (m?.status as string | undefined) ?? 'not_created',
             dueDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
             submittedAt: m?.submittedAt?.toDate?.()?.toISOString() ?? null,
+            // Staff-record config (research_proposal/progress_report only —
+            // see workflowTemplates.ts's staffRecordMode) and its current
+            // submission, if any.
+            staffRecordMode: m?.staffRecordMode ?? null,
+            staffRecordSubmitted: !!m?.staffRecord,
+            // Three-rubric final-grade workflow state (defense only — see
+            // workflowTemplates.ts's finalGradeComponents). Lets the UI
+            // decide what to show (evaluation form vs. approve/override vs.
+            // "awaiting coordinator") without a separate round trip.
+            hasFinalGradeComponents: !!m?.finalGradeComponents,
+            supervisorEvaluationSubmitted: !!m?.supervisorEvaluation,
+            autoCalculatedFinalGrade: m?.autoCalculatedFinalGrade ?? null,
+            finalGrade: m?.finalGrade ?? null,
+            gradeApproved: !!m?.gradeApproved,
+            gradeOverrideStatus: m?.gradeOverride?.status ?? null,
           };
         }),
       };
@@ -656,5 +676,203 @@ export const deleteSupervisorProject = async (req: AuthenticatedRequest, res: Re
   } catch (error: any) {
     console.error('deleteSupervisorProject Error:', error);
     return res.status(500).json({ message: 'Failed to delete project.' });
+  }
+};
+
+// ─── POST /api/supervisor/milestones/:id/staff-record ────────────────────────
+// Only meaningful on a research_proposal/progress_report-type milestone whose
+// template configured staffRecordMode === 'upload_or_form' (data_science only,
+// as of this writing) — an official record the supervisor attaches alongside
+// the student's own submission (fileUrls/submissionNote), stored under a
+// separate `staffRecord` field so neither submission ever clobbers the other.
+// Either a file is uploaded (see uploadMiddleware, reused from
+// milestoneController.ts's own submit-milestone multer config) or a JSON
+// `formData` body is sent — never both, file takes priority if present.
+export const submitStaffRecord = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  const { id: milestoneId } = req.params;
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    const data = milestoneSnap.data()!;
+
+    if (data.staffRecordMode !== 'upload_or_form') {
+      return res.status(400).json({ message: 'This milestone does not have a staff record configured.' });
+    }
+    if (data.supervisorId !== supervisorId && data.secondarySupervisorId !== supervisorId) {
+      return res.status(403).json({ message: "Only this project's supervisor may submit a staff record." });
+    }
+
+    const files = ((req as any).files as Express.Multer.File[]) ?? [];
+
+    if (files.length > 0) {
+      const fileUrls: string[] = [];
+      for (const file of files) {
+        const base64 = file.buffer.toString('base64');
+        const dataUri = `data:${file.mimetype};base64,${base64}`;
+        const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'staffRecords' });
+        fileUrls.push(result.secure_url);
+      }
+      await milestoneRef.update({
+        staffRecord: { mode: 'upload', fileUrls, submittedBy: supervisorId, submittedAt: admin.firestore.FieldValue.serverTimestamp() },
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } else {
+      let formData: Record<string, unknown>;
+      try {
+        formData = typeof req.body?.formData === 'string' ? JSON.parse(req.body.formData) : req.body?.formData;
+      } catch {
+        return res.status(400).json({ message: 'Invalid formData.' });
+      }
+      if (!formData || typeof formData !== 'object') {
+        return res.status(400).json({ message: 'Either a file or formData is required.' });
+      }
+      const fields: FormFieldSpec[] = data.staffFormFields ?? [];
+      const missing = fields.filter((f) => f.required && (formData[f.key] === undefined || formData[f.key] === null || formData[f.key] === ''));
+      if (missing.length > 0) {
+        return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
+      }
+      await milestoneRef.update({
+        staffRecord: { mode: 'form', formData, submittedBy: supervisorId, submittedAt: admin.firestore.FieldValue.serverTimestamp() },
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('submitStaffRecord error:', error);
+    return res.status(500).json({ message: 'Failed to submit staff record.' });
+  }
+};
+
+// ─── POST /api/supervisor/milestones/:id/final-grade-decision ────────────────
+// Body: { decision: 'approve' } | { decision: 'override', grade, reason }
+// Only meaningful on a defense milestone whose template configured
+// finalGradeComponents (the three-rubric workflow) — 'approve' finalizes the
+// already-computed autoCalculatedFinalGrade directly (no further sign-off
+// needed, since nothing changed); 'override' requires a mandatory reason and
+// routes the proposed grade to whichever role resolveFinalGradeSignoffRole
+// resolves to (the coordinator, for data_science) via decideGradeOverride in
+// gradSchoolHeadController.ts — it does NOT finalize anything itself.
+export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  const { id: milestoneId } = req.params;
+  const { decision, grade, reason } = req.body;
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
+  if (decision !== 'approve' && decision !== 'override') {
+    return res.status(400).json({ message: 'decision must be "approve" or "override".' });
+  }
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    const data = milestoneSnap.data()!;
+
+    if (data.type !== 'defense' || !data.finalGradeComponents) {
+      return res.status(400).json({ message: 'This milestone does not use the three-rubric final-grade workflow.' });
+    }
+    if (data.supervisorId !== supervisorId) {
+      return res.status(403).json({ message: "Only this project's supervisor may decide on this milestone's final grade." });
+    }
+    if (data.autoCalculatedFinalGrade == null) {
+      return res.status(400).json({ message: 'The automatic grade has not been computed yet — every evaluation must be submitted first.' });
+    }
+    if (data.gradeApproved) {
+      return res.status(409).json({ message: 'This grade has already been finalized.' });
+    }
+    if (data.gradeOverride?.status === 'pending') {
+      return res.status(409).json({ message: 'A grade override is already pending coordinator review.' });
+    }
+
+    // Both branches below now land on the coordinator's queue rather than
+    // one self-finalizing — the manager's requirement is "I approve after
+    // the supervisor's approval" for every grade, not just contested ones.
+    // 'auto_confirmed' is structurally identical to a real override except
+    // proposedGrade already equals autoCalculatedFinalGrade and reason is
+    // omitted, so decideGradeOverride (gradSchoolHeadController.ts) needs no
+    // changes at all — approve_override/keep_auto both yield the same number.
+    let proposedGrade: number;
+    let reasonTrimmed: string | undefined;
+    let kind: 'auto_confirmed' | 'override';
+
+    if (decision === 'approve') {
+      proposedGrade = data.autoCalculatedFinalGrade;
+      kind = 'auto_confirmed';
+    } else {
+      const parsedGrade = Number(grade);
+      if (!Number.isFinite(parsedGrade) || parsedGrade < 0 || parsedGrade > 100) {
+        return res.status(400).json({ message: 'grade must be a number between 0 and 100.' });
+      }
+      if (typeof reason !== 'string' || !reason.trim()) {
+        return res.status(400).json({ message: 'A reason is required when changing the automatically calculated grade.' });
+      }
+      proposedGrade = parsedGrade;
+      reasonTrimmed = reason.trim();
+      kind = 'override';
+    }
+
+    await milestoneRef.update({
+      gradeOverride: {
+        kind,
+        proposedGrade,
+        ...(reasonTrimmed ? { reason: reasonTrimmed } : {}),
+        proposedBy: supervisorId,
+        proposedAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: 'pending',
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logAuditEvent({
+      userId: supervisorId,
+      userRole: req.user?.role ?? 'supervisor',
+      action: kind === 'override' ? 'final_grade_override_proposed' : 'final_grade_approved_by_supervisor',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      oldValue: { autoCalculatedFinalGrade: data.autoCalculatedFinalGrade },
+      newValue: { proposedGrade, ...(reasonTrimmed ? { reason: reasonTrimmed } : {}) },
+    });
+
+    // Notify whoever resolveFinalGradeSignoffRole resolves to (the
+    // coordinator, for data_science) that a grade is awaiting sign-off —
+    // for every decision now, not just overrides.
+    try {
+      const projectSnap = await db.collection('projects').doc(data.projectId ?? '').get();
+      const project = projectSnap.exists ? projectSnap.data()! : {};
+      const scope = { facultyId: project.facultyId ?? data.facultyId ?? '' };
+      const processType = deriveProcessType(project.degreeType, project.projectType);
+      const signoffRole = await resolveFinalGradeSignoffRole(scope.facultyId, processType, project.major ?? null);
+      const projectSupervisorIds = [project.supervisorId].filter(Boolean);
+      const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
+      await Promise.all(uids.map((recipientId) => db.collection('notifications').add({
+        recipientId,
+        type: 'grade_override_pending',
+        titleHe: kind === 'override' ? '⚖️ שינוי ציון ממתין לאישור' : '✅ ציון סופי ממתין לאישור',
+        titleEn: kind === 'override' ? '⚖️ Grade Override Pending Approval' : '✅ Final Grade Pending Approval',
+        bodyHe: kind === 'override'
+          ? `המנחה הציע לשנות את הציון המחושב (${data.autoCalculatedFinalGrade}) ל-${proposedGrade}.`
+          : `המנחה אישר את הציון המחושב (${proposedGrade}) — ממתין לאישורך הסופי.`,
+        bodyEn: kind === 'override'
+          ? `The supervisor proposed changing the computed grade (${data.autoCalculatedFinalGrade}) to ${proposedGrade}.`
+          : `The supervisor confirmed the computed grade (${proposedGrade}) — awaiting your final sign-off.`,
+        isRead: false,
+        relatedProjectId: data.projectId ?? null,
+        relatedMilestoneId: milestoneId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })));
+    } catch (notifyErr) {
+      console.error('decideFinalGrade: failed to notify signoff role:', notifyErr);
+    }
+
+    return res.status(200).json({ success: true, status: 'pending_coordinator_review' });
+  } catch (error: any) {
+    console.error('decideFinalGrade error:', error);
+    return res.status(500).json({ message: 'Failed to record final-grade decision.' });
   }
 };

@@ -68,6 +68,7 @@ export type ActionType =
   | 'approve_grades'
   | 'approve_milestones'
   | 'assign_supervisor_examiner'
+  | 'approve_templates'
   | 'all_actions';
 
 export const ACTION_TYPES: { key: ActionType; label: Record<Lang, string> }[] = [
@@ -81,6 +82,7 @@ export const ACTION_TYPES: { key: ActionType; label: Record<Lang, string> }[] = 
   { key: 'approve_grades', label: { he: 'אישור ציונים', en: 'Approve grades' } },
   { key: 'approve_milestones', label: { he: 'אישור אבני דרך', en: 'Approve milestones' } },
   { key: 'assign_supervisor_examiner', label: { he: 'שיוך מנחה / בוחן', en: 'Assign supervisor / examiner' } },
+  { key: 'approve_templates', label: { he: 'אישור תבניות תהליך', en: 'Approve workflow templates' } },
   { key: 'all_actions', label: { he: 'כל הפעולות (הוספה, עריכה, מחיקה)', en: 'All actions (add, edit, delete)' } },
 ];
 
@@ -143,6 +145,44 @@ export function majorsForFaculty(facultyId: string): { slug: string; label: Reco
     out.push({ slug: program.slug, label: program.label });
   }
   return out;
+}
+
+/** The scope-relevant fields of a resource (e.g. a workflow template) being
+ *  checked against a user's ScopeRule grants. Client-side mirror of
+ *  server/src/services/scopeAuthorization.ts's ResourceScope/scopeMatches/
+ *  hasActionGrant — needed here (not just server-side) so the UI can decide
+ *  whether to even show an action button for a grant-holding user, not just
+ *  whether the server would accept the request. Kept hand-synced with the
+ *  server copy, same convention as the rest of this file. */
+export interface ResourceScope {
+  facultyId: string;
+  major?: string;
+  degreeLevel?: DegreeLevel;
+  processType?: ProcessType;
+}
+
+/** Does `descriptor` (a granted scope) cover `resource` (the thing being acted on)? */
+export function scopeMatches(descriptor: ScopeDescriptor, resource: ResourceScope): boolean {
+  if (descriptor.facultyId !== 'all' && descriptor.facultyId !== resource.facultyId) return false;
+  if (descriptor.major && resource.major && descriptor.major !== resource.major) return false;
+  if (descriptor.degreeLevel && resource.degreeLevel && descriptor.degreeLevel !== resource.degreeLevel) return false;
+  if (descriptor.degreeLevel === 'masters' && descriptor.processType && resource.processType && descriptor.processType !== resource.processType) {
+    return false;
+  }
+  return true;
+}
+
+/** True if `userData` holds a permissionRule granting `action` (or 'all_actions') over `resource`. system_admin always true. */
+export function hasActionGrant(
+  userData: { role?: string; roles?: string[]; permissionRules?: ScopeRule[] } | null | undefined,
+  action: ActionType,
+  resource: ResourceScope
+): boolean {
+  if (!userData) return false;
+  if (userData.role === 'system_admin' || userData.roles?.includes('system_admin')) return true;
+  return (userData.permissionRules ?? []).some(
+    (rule) => scopeMatches(rule, resource) && (rule.actions.includes(action) || rule.actions.includes('all_actions'))
+  );
 }
 
 /** Human-readable one-line summary of a scope, e.g. "Sciences · Computer Science · Master's · Thesis track". */

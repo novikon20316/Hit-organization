@@ -11,6 +11,9 @@ import PermissionsEditorModal from './PermissionsEditorModal';
 import CoordinatorScopesModal from './CoordinatorScopesModal';
 import StudentStatusesModal from './StudentStatusesModal';
 import ProjectWorkflowModal from './ProjectWorkflowModal';
+import StaffRecordModal from './StaffRecordModal';
+import SupervisorEvaluationModal from './SupervisorEvaluationModal';
+import FinalGradeDecisionModal from './FinalGradeDecisionModal';
 
 export {
     NewUserModal,
@@ -26,4 +29,7 @@ export {
     CoordinatorScopesModal,
     StudentStatusesModal,
     ProjectWorkflowModal,
+    StaffRecordModal,
+    SupervisorEvaluationModal,
+    FinalGradeDecisionModal,
 }

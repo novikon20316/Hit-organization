@@ -8,6 +8,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { isChainDriven } from '../services/milestoneRouting.js';
+import { sanitizeMilestoneForViewer } from '../services/milestoneVisibility.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
@@ -463,6 +464,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     console.log('🎯 Milestone query params:', { projectId, studentId, supervisorId, facultyId });
     const snap = await q.get();
     console.log('🎯 Milestones found:', snap.docs.length);
+    const viewerRoles = requester.roles?.length ? requester.roles : [requester.role];
     const milestones = snap.docs.map((d: any) => {
       const data = d.data();
       console.log('  📌 Milestone:', d.id, {
@@ -471,7 +473,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
         status: data.status,
         type: data.type,
       });
-      return {
+      return sanitizeMilestoneForViewer({
         id: d.id,
         ...data,
         // ✅ Convert ALL Timestamps to ISO strings so React Native can use them
@@ -480,7 +482,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
         createdAt:    data.createdAt?.toDate?.()?.toISOString() ?? null,
         defenseDate:  data.defenseDate?.toDate?.()?.toISOString() ?? null,
         coordinatorApprovedAt: data.coordinatorApprovedAt?.toDate?.()?.toISOString() ?? null,
-      };
+      }, requester.uid, viewerRoles);
     });
     
     return res.status(200).json({ milestones });

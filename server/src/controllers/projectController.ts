@@ -144,7 +144,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       // dispatch below never considered a secondary supervisor either) —
       // widening to include one is a separate, later enhancement.
       const projectSupervisorIds = [data.supervisorId].filter(Boolean);
-      const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds);
+      const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, examinerIds);
       if (!authorized) return res.status(403).json({ message: 'Not authorized to grade this milestone at its current stage.' });
 
       // A milestone with its own configured rubric (see workflowTemplates.ts's
@@ -464,6 +464,208 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   } catch (error) {
     console.error('submitMilestoneGrade error:', error);
     return res.status(500).json({ message: 'Failed to submit grade' });
+  }
+};
+
+// ─── Three-rubric final-grade workflow (defense milestones with a template-
+// configured finalGradeComponents — data_science, as of this writing) ────────
+// Separate from submitMilestoneGrade's identity-keyed defense branch above,
+// which stays exactly as-is for every faculty that hasn't configured this:
+// instead of ONE shared rubric every grader scores against, three independent
+// rubrics (supervisor / examiner-on-the-written-project / examiner-on-the-
+// oral-defense) combine via their own template-configured weights into the
+// milestone's autoCalculatedFinalGrade — see workflowTemplates.ts's
+// WorkflowMilestoneSpec.finalGradeComponents doc comment for the full model,
+// and supervisorController.ts's decideFinalGrade for what happens once it's
+// computed (the supervisor approves it or proposes an override).
+
+/** Re-checks completion (supervisor eval + every examiner's both evals) and,
+ *  the first time all of them are in, computes and writes
+ *  autoCalculatedFinalGrade, notifying the supervisor it's ready for their
+ *  decision. Wrapped in a transaction so two near-simultaneous submissions
+ *  (e.g. both examiners finishing at once) can't double-notify or race. */
+async function maybeFinalizeAutoCalculatedGrade(milestoneRef: FirebaseFirestore.DocumentReference): Promise<void> {
+  let shouldNotify = false;
+  let autoGrade = 0;
+  let supervisorId = '';
+
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(milestoneRef);
+    if (!snap.exists) return;
+    const data = snap.data()!;
+    if (data.autoCalculatedFinalGrade != null) return; // already computed
+    const rubrics = data.finalGradeComponents;
+    if (!rubrics) return;
+
+    const supervisorEval = data.supervisorEvaluation;
+    if (!supervisorEval) return;
+
+    const examinerIds: string[] = data.examinerIds ?? [];
+    const examinerEvals: Record<string, { project?: { total: number }; defense?: { total: number } }> = data.examinerEvaluations ?? {};
+    const allExaminersDone = examinerIds.length > 0 && examinerIds.every((id) => examinerEvals[id]?.project && examinerEvals[id]?.defense);
+    if (!allExaminersDone) return;
+
+    const examinerProjectAvg = examinerIds.reduce((sum, id) => sum + examinerEvals[id]!.project!.total, 0) / examinerIds.length;
+    const examinerDefenseAvg = examinerIds.reduce((sum, id) => sum + examinerEvals[id]!.defense!.total, 0) / examinerIds.length;
+
+    autoGrade = Math.round(
+      (supervisorEval.total * rubrics.supervisorEvaluation.weight +
+        examinerProjectAvg * rubrics.examinerProjectEvaluation.weight +
+        examinerDefenseAvg * rubrics.examinerDefenseEvaluation.weight) / 100
+    );
+
+    transaction.update(milestoneRef, {
+      autoCalculatedFinalGrade: autoGrade,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    shouldNotify = true;
+    supervisorId = data.supervisorId ?? '';
+  });
+
+  if (shouldNotify && supervisorId) {
+    try {
+      await db.collection('notifications').add({
+        recipientId: supervisorId,
+        type: 'final_grade_ready_for_review',
+        titleHe: '🎓 הציון הסופי המחושב מוכן לבדיקה',
+        titleEn: '🎓 Computed Final Grade Ready for Review',
+        bodyHe: `כל ההערכות הוגשו והציון הסופי המחושב (${autoGrade}) מוכן לאישורך או לשינוי.`,
+        bodyEn: `All evaluations are in — the computed final grade (${autoGrade}) is ready for your approval or override.`,
+        isRead: false,
+        relatedMilestoneId: milestoneRef.id,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (notifyErr) {
+      console.error('maybeFinalizeAutoCalculatedGrade: failed to notify supervisor:', notifyErr);
+    }
+  }
+}
+
+// ─── POST /api/projects/milestones/:milestoneId/supervisor-evaluation ────────
+export const submitSupervisorEvaluation = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { milestoneId } = req.params;
+  const { scores, comment } = req.body;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    const data = milestoneSnap.data()!;
+
+    if (data.type !== 'defense' || !data.finalGradeComponents) {
+      return res.status(400).json({ message: 'This milestone does not use the three-rubric final-grade workflow.' });
+    }
+    if (data.supervisorId !== uid) {
+      return res.status(403).json({ message: "Only this project's supervisor may submit this evaluation." });
+    }
+    if (data.gradeApproved) {
+      return res.status(409).json({ message: 'This grade has already been finalized.' });
+    }
+
+    const rubric: GradingComponentSpec[] = data.finalGradeComponents.supervisorEvaluation.components;
+    let computed;
+    try {
+      computed = computeGradingComponentsScore(rubric, scores ?? {});
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || 'Invalid evaluation scores.' });
+    }
+
+    await milestoneRef.update({
+      supervisorEvaluation: {
+        scores: computed.breakdown,
+        total: computed.total,
+        comment: comment?.trim() ?? '',
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await maybeFinalizeAutoCalculatedGrade(milestoneRef);
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? 'supervisor',
+      action: 'supervisor_evaluation_submitted',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      newValue: { total: computed.total },
+    });
+
+    return res.status(200).json({ success: true, total: computed.total });
+  } catch (error: any) {
+    console.error('submitSupervisorEvaluation error:', error);
+    return res.status(500).json({ message: 'Failed to submit evaluation.' });
+  }
+};
+
+// ─── POST /api/projects/milestones/:milestoneId/examiner-evaluation ──────────
+// Body: { kind: 'project' | 'defense', scores, comment? } — 'project' scores
+// the written project/thesis (Project_examiner), 'defense' scores the oral
+// defense performance (Project_defence_slides); an examiner submits both,
+// independently, each averaged across every assigned examiner once all are in.
+export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { milestoneId } = req.params;
+  const { kind, scores, comment } = req.body;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
+  if (kind !== 'project' && kind !== 'defense') return res.status(400).json({ message: 'kind must be "project" or "defense".' });
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    const data = milestoneSnap.data()!;
+
+    if (data.type !== 'defense' || !data.finalGradeComponents) {
+      return res.status(400).json({ message: 'This milestone does not use the three-rubric final-grade workflow.' });
+    }
+    const examinerIds: string[] = data.examinerIds ?? [];
+    if (!examinerIds.includes(uid)) {
+      return res.status(403).json({ message: 'Only an examiner assigned to this defense may submit this evaluation.' });
+    }
+    if (data.gradeApproved) {
+      return res.status(409).json({ message: 'This grade has already been finalized.' });
+    }
+
+    const rubric: GradingComponentSpec[] = kind === 'project'
+      ? data.finalGradeComponents.examinerProjectEvaluation.components
+      : data.finalGradeComponents.examinerDefenseEvaluation.components;
+    let computed;
+    try {
+      computed = computeGradingComponentsScore(rubric, scores ?? {});
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || 'Invalid evaluation scores.' });
+    }
+
+    await milestoneRef.update({
+      [`examinerEvaluations.${uid}.${kind}`]: {
+        scores: computed.breakdown,
+        total: computed.total,
+        comment: comment?.trim() ?? '',
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await maybeFinalizeAutoCalculatedGrade(milestoneRef);
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? 'internal_examiner',
+      action: 'examiner_evaluation_submitted',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      newValue: { kind, total: computed.total },
+    });
+
+    return res.status(200).json({ success: true, total: computed.total });
+  } catch (error: any) {
+    console.error('submitExaminerEvaluation error:', error);
+    return res.status(500).json({ message: 'Failed to submit evaluation.' });
   }
 };
 

@@ -21,7 +21,7 @@ import { auth } from '../../src/firebase/firebase';
 import type { Lang } from '../../components/i18n';
 import { TopBar, FACULTY_COLORS } from '../../components/shared';
 import { ResponsiveScreen } from '../../components/ResponsiveScreen';
-import { PERMISSION_FACULTY_IDS } from '../../constants/permissions';
+import { PERMISSION_FACULTY_IDS, hasActionGrant, type ScopeRule } from '../../constants/permissions';
 import { getFilteredPrograms } from '../../constants/faculties';
 import { apiClient } from '../../src/api/apiClient';
 
@@ -31,9 +31,12 @@ export type ProcessType = 'msc_thesis' | 'msc_project' | 'bsc_project';
 export type TemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';
 
 // Configurable approval/rejection routing — mirrors web/app/workflow-templates/types.ts.
-// gradingComponents (the other web-only addition alongside this) stays
-// web-editor-only on purpose, not ported here.
-export type ChainRole = 'supervisor' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+// The standalone per-milestone gradingComponents rubric (the other web-only
+// addition alongside this) stays web-editor-only on purpose, not ported here
+// — but the two department-specific extensions below (staff record +
+// defense's three-rubric final grade) are ported, since Data Science needs
+// them configurable from mobile too.
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
 export type RejectionTarget = 'student' | string;
 
 export interface ChainStage {
@@ -45,14 +48,65 @@ export interface ChainStage {
 
 export type MilestoneRoutingSpec = ChainStage[];
 
+// Mirrors GradingComponentSpec/FormFieldSpec/FinalGradeRubric in
+// server/src/services/workflowTemplates.ts and web/app/workflow-templates/types.ts.
+export interface GradingComponentSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  maxScore: number;
+  weight: number;
+  hasComment: boolean;
+  visibleToStudent: boolean;
+}
+
+/** A single field in a staff-fillable online form (see MilestoneSpec's
+ *  staffFormFields). Note: 'table' exists in the data model/server validation
+ *  for future use, but — matching the web editor's own scope-limiting choice
+ *  — this screen's type picker only offers text/textarea/date/number. */
+export interface FormFieldSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+  required: boolean;
+  /** Only meaningful when type === 'table' — not editable from this screen. */
+  tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+}
+
+/** One of the three independently-scored rubrics that combine into a defense
+ *  milestone's final grade — same shape as a single grader's gradingComponents
+ *  list, just one of three. */
+export interface FinalGradeRubric {
+  components: GradingComponentSpec[];
+  /** This rubric's share of the final grade (0-100) — the three rubrics'
+   *  weights on a template must sum to 100, validated at proposal time. */
+  weight: number;
+}
+
+export interface FinalGradeComponents {
+  supervisorEvaluation: FinalGradeRubric;
+  examinerProjectEvaluation: FinalGradeRubric;
+  examinerDefenseEvaluation: FinalGradeRubric;
+}
+
+// Valid roles for a chain STAGE — includes 'examiner', which resolves to a
+// milestone's own assigned examiner panel (see server-side
+// scopeAuthorization.ts's resolveStaffForScope), letting a milestone type
+// (e.g. a Poster session) be graded examiner-only, no supervisor stage.
 export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
   { key: 'supervisor', he: 'מנחה', en: 'Supervisor' },
+  { key: 'examiner', he: 'בוחן', en: 'Examiner' },
   { key: 'coordinator', he: 'רכז', en: 'Coordinator' },
   { key: 'faculty_admin', he: 'מנהל פקולטה', en: 'Faculty Admin' },
   { key: 'administrative_secretary', he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' },
   { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
   { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
 ];
+
+// examinerSignoffRole/finalGradeSignoffRole are a single overall approver —
+// 'examiner' is deliberately excluded (matches server-side SIGNOFF_ROLES).
+export const SIGNOFF_ROLES = CHAIN_ROLES.filter((r) => r.key !== 'examiner');
 
 function chainRoleLabel(role: ChainRole, lang: Lang): string {
   return CHAIN_ROLES.find((r) => r.key === role)?.[lang] ?? role;
@@ -87,6 +141,17 @@ export interface MilestoneSpec {
   /** Per-milestone override of the template's defaultRouting. Omitted means
    *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */
   routing?: MilestoneRoutingSpec;
+  /** Only meaningful for research_proposal/progress_report-type milestones —
+   *  lets staff (the supervisor) attach an official record alongside the
+   *  student's own submission, either by uploading a file or filling
+   *  staffFormFields online. Omitted/'none' keeps today's behavior. */
+  staffRecordMode?: 'none' | 'upload_or_form';
+  staffFormFields?: FormFieldSpec[];
+  /** Only meaningful for the 'defense' milestone type — replaces the single
+   *  shared gradingComponents rubric with three independent ones (supervisor /
+   *  examiner-on-the-project / examiner-on-the-defense), combined via their
+   *  own weights (summing to 100) into the milestone's final grade. */
+  finalGradeComponents?: FinalGradeComponents;
 }
 
 export type ApplyMode = 'now' | 'from_now_on';
@@ -147,6 +212,26 @@ function isMastersProcess(pt: ProcessType): boolean {
 function canApproveRole(pt: ProcessType, role: string | null): boolean {
   if (!role) return false;
   return isMastersProcess(pt) ? GRAD_SCHOOL_APPROVER_ROLES.includes(role) : FACULTY_APPROVER_ROLES.includes(role);
+}
+
+/** Same decision as canApproveRole, but also honors a scoped 'approve_templates'
+ *  detailed-permission grant (system_admin's Bulk/Edit-User Permissions
+ *  editor) — lets a staff member outside the normal approver roles act on
+ *  templates within their granted facultyId/major/degreeLevel/processType.
+ *  Mirrors server/src/controllers/workflowTemplateController.ts's
+ *  canApprove() + hasActionGrant() OR-gate. */
+function canApproveTemplate(
+  tpl: Pick<WorkflowTemplateDoc, 'processType' | 'facultyId' | 'major'>,
+  role: string | null,
+  permissionRules: ScopeRule[]
+): boolean {
+  if (canApproveRole(tpl.processType, role)) return true;
+  return hasActionGrant({ role: role ?? undefined, permissionRules }, 'approve_templates', {
+    facultyId: tpl.facultyId,
+    major: tpl.major ?? undefined,
+    degreeLevel: isMastersProcess(tpl.processType) ? 'masters' : 'bachelors',
+    processType: tpl.processType === 'msc_thesis' ? 'thesis' : tpl.processType === 'msc_project' ? 'project' : undefined,
+  });
 }
 
 /** Major options for a faculty, filtered to the degree level implied by the
@@ -288,6 +373,123 @@ function ChainEditor({ stages, onChange, lang }: { stages: ChainStage[]; onChang
   );
 }
 
+// ─── Staff record + three-rubric final grade helpers ───────────────────────
+// Ports web/app/workflow-templates/MilestoneRowModal.tsx's emptyComponent/
+// emptyFormField/FORM_FIELD_TYPES/RubricEditor verbatim (RN idiom).
+function emptyGradingComponent(): GradingComponentSpec {
+  return { key: `c_${Math.random().toString(36).slice(2, 8)}`, labelHe: '', labelEn: '', maxScore: 20, weight: 20, hasComment: true, visibleToStudent: true };
+}
+
+function emptyFormField(): FormFieldSpec {
+  return { key: `f_${Math.random().toString(36).slice(2, 8)}`, labelHe: '', labelEn: '', type: 'text', required: false };
+}
+
+// Matches web's FORM_FIELD_TYPES — 'table' is deliberately not offered here
+// either (see FormFieldSpec's doc comment above).
+const FORM_FIELD_TYPES: Array<{ value: FormFieldSpec['type']; he: string; en: string }> = [
+  { value: 'text', he: 'טקסט קצר', en: 'Short text' },
+  { value: 'textarea', he: 'טקסט ארוך', en: 'Long text' },
+  { value: 'date', he: 'תאריך', en: 'Date' },
+  { value: 'number', he: 'מספר', en: 'Number' },
+];
+
+// One rubric's component list + its own overall weight — used three times for
+// a defense milestone's finalGradeComponents (supervisor / examiner-project /
+// examiner-defense).
+function GradingRubricEditor({
+  title, components, setComponents, weight, setWeight, lang,
+}: {
+  title: string;
+  components: GradingComponentSpec[];
+  setComponents: (updater: (prev: GradingComponentSpec[]) => GradingComponentSpec[]) => void;
+  weight: string;
+  setWeight: (v: string) => void;
+  lang: Lang;
+}) {
+  const weightSum = components.reduce((sum, c) => sum + (Number(c.weight) || 0), 0);
+  const updateComponent = (idx: number, patch: Partial<GradingComponentSpec>) => {
+    setComponents((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  };
+  const removeComponent = (idx: number) => setComponents((prev) => prev.filter((_, i) => i !== idx));
+
+  return (
+    <View style={{ borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, padding: 10, backgroundColor: '#F5F3FF' }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#1F1235', flex: 1 }}>
+          {title}{components.length > 0 ? `  (${weightSum}/100)` : ''}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'משקל כללי %' : 'Overall weight %'}</Text>
+          <TextInput
+            style={{ width: 44, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, fontSize: 12, textAlign: 'center', backgroundColor: '#fff' }}
+            value={weight}
+            onChangeText={setWeight}
+            keyboardType="numeric"
+          />
+        </View>
+      </View>
+
+      {components.map((c, idx) => (
+        <View key={c.key} style={{ backgroundColor: '#fff', borderRadius: 8, padding: 8, marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <TextInput
+              style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12 }}
+              value={c.labelHe}
+              onChangeText={(v) => updateComponent(idx, { labelHe: v })}
+              placeholder={lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}
+              textAlign="right"
+            />
+            <TextInput
+              style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12 }}
+              value={c.labelEn}
+              onChangeText={(v) => updateComponent(idx, { labelEn: v })}
+              placeholder={lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}
+            />
+            <Pressable onPress={() => removeComponent(idx)} style={{ padding: 4 }}>
+              <Text>🗑️</Text>
+            </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'ניקוד מקסימלי' : 'Max score'}</Text>
+              <TextInput
+                style={{ width: 44, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, fontSize: 12, textAlign: 'center' }}
+                value={String(c.maxScore)}
+                onChangeText={(v) => updateComponent(idx, { maxScore: Number(v) || 0 })}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'משקל %' : 'Weight %'}</Text>
+              <TextInput
+                style={{ width: 44, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, fontSize: 12, textAlign: 'center' }}
+                value={String(c.weight)}
+                onChangeText={(v) => updateComponent(idx, { weight: Number(v) || 0 })}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Switch value={c.hasComment} onValueChange={(v) => updateComponent(idx, { hasComment: v })} trackColor={{ true: '#7C3AED' }} />
+              <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'שדה הערה' : 'Comment field'}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Switch value={c.visibleToStudent} onValueChange={(v) => updateComponent(idx, { visibleToStudent: v })} trackColor={{ true: '#7C3AED' }} />
+              <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'גלוי לסטודנט' : 'Visible to student'}</Text>
+            </View>
+          </View>
+        </View>
+      ))}
+
+      <Pressable
+        onPress={() => setComponents((prev) => [...prev, emptyGradingComponent()])}
+        style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingVertical: 6, alignItems: 'center', marginTop: 8 }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>＋ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WorkflowTemplateManager() {
@@ -307,6 +509,9 @@ export default function WorkflowTemplateManager() {
   // choice: if she holds more than one, she picks among only her own.
   const [coordinatorScopes, setCoordinatorScopes] = useState<{ facultyId: string; major?: string }[]>([]);
   const [coordinatorScopeIndex, setCoordinatorScopeIndex] = useState(0);
+  // A system_admin can grant an individual staff member 'approve_templates'
+  // via the detailed-permissions editor — see canApproveTemplate above.
+  const [permissionRules, setPermissionRules] = useState<ScopeRule[]>([]);
 
   const isCoordinator = userRole === 'administrative_secretary';
   const isFreeChoiceCrossFaculty = !!userRole && FREE_CHOICE_CROSS_FACULTY_ROLES.includes(userRole);
@@ -349,6 +554,21 @@ export default function WorkflowTemplateManager() {
   const [msExaminerCount, setMsExaminerCount] = useState('2');
   const [msOverrideChain, setMsOverrideChain] = useState(false);
   const [msRouting, setMsRouting] = useState<MilestoneRoutingSpec>([emptyStage()]);
+  // research_proposal/progress_report only — an official staff (supervisor)
+  // record alongside the student's own submission.
+  const [msStaffRecordMode, setMsStaffRecordMode] = useState<'none' | 'upload_or_form'>('none');
+  const [msStaffFormFields, setMsStaffFormFields] = useState<FormFieldSpec[]>([]);
+  // defense only — the three-independent-rubric final-grade workflow,
+  // replacing the single shared gradingComponents rubric when enabled.
+  const [msUseFinalGradeComponents, setMsUseFinalGradeComponents] = useState(false);
+  const [msSupervisorEvalComponents, setMsSupervisorEvalComponents] = useState<GradingComponentSpec[]>([]);
+  const [msSupervisorEvalWeight, setMsSupervisorEvalWeight] = useState('40');
+  const [msExaminerProjectComponents, setMsExaminerProjectComponents] = useState<GradingComponentSpec[]>([]);
+  const [msExaminerProjectWeight, setMsExaminerProjectWeight] = useState('30');
+  const [msExaminerDefenseComponents, setMsExaminerDefenseComponents] = useState<GradingComponentSpec[]>([]);
+  const [msExaminerDefenseWeight, setMsExaminerDefenseWeight] = useState('30');
+  const msIsProposalOrMidterm = editingMs?.type === 'research_proposal' || editingMs?.type === 'progress_report';
+  const msIsDefense = editingMs?.type === 'defense';
 
   // Reject-reason modal
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -366,6 +586,7 @@ export default function WorkflowTemplateManager() {
         setUserRole(res.data.role || null);
         setOwnFacultyId(res.data.facultyId || null);
         setCoordinatorScopes(res.data.coordinatorScopes ?? []);
+        setPermissionRules(res.data.permissionRules ?? []);
         // No facultyId on the profile (shouldn't happen for the roles that
         // can reach this screen) — nothing left to load, stop spinning.
         if (!res.data.facultyId && !FREE_CHOICE_CROSS_FACULTY_ROLES.includes(res.data.role) && res.data.role !== 'administrative_secretary') {
@@ -454,11 +675,26 @@ export default function WorkflowTemplateManager() {
       setMsExaminerCount(String(ms.examinerCount ?? 2));
       setMsOverrideChain(!!(ms.routing && ms.routing.length > 0));
       setMsRouting(ms.routing && ms.routing.length > 0 ? ms.routing.map((s) => ({ ...s })) : [emptyStage()]);
+      setMsStaffRecordMode(ms.staffRecordMode ?? 'none');
+      setMsStaffFormFields(ms.staffFormFields ? ms.staffFormFields.map((f) => ({ ...f })) : []);
+      setMsUseFinalGradeComponents(!!ms.finalGradeComponents);
+      setMsSupervisorEvalComponents(ms.finalGradeComponents?.supervisorEvaluation.components.map((c) => ({ ...c })) ?? []);
+      setMsSupervisorEvalWeight(String(ms.finalGradeComponents?.supervisorEvaluation.weight ?? 40));
+      setMsExaminerProjectComponents(ms.finalGradeComponents?.examinerProjectEvaluation.components.map((c) => ({ ...c })) ?? []);
+      setMsExaminerProjectWeight(String(ms.finalGradeComponents?.examinerProjectEvaluation.weight ?? 30));
+      setMsExaminerDefenseComponents(ms.finalGradeComponents?.examinerDefenseEvaluation.components.map((c) => ({ ...c })) ?? []);
+      setMsExaminerDefenseWeight(String(ms.finalGradeComponents?.examinerDefenseEvaluation.weight ?? 30));
     } else {
       setEditingMs(null);
       setMsNameHe(''); setMsNameEn(''); setMsDateMode('offset'); setMsDays('90'); setMsFixedDate(''); setMsExaminers(false); setMsExaminerCount('2');
       setMsOverrideChain(false);
       setMsRouting([emptyStage()]);
+      setMsStaffRecordMode('none');
+      setMsStaffFormFields([]);
+      setMsUseFinalGradeComponents(false);
+      setMsSupervisorEvalComponents([]); setMsSupervisorEvalWeight('40');
+      setMsExaminerProjectComponents([]); setMsExaminerProjectWeight('30');
+      setMsExaminerDefenseComponents([]); setMsExaminerDefenseWeight('30');
     }
     setMsModalOpen(true);
   };
@@ -488,6 +724,45 @@ export default function WorkflowTemplateManager() {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'מספר בוחנים לא תקין' : 'Invalid examiner count');
       return;
     }
+    if (msIsProposalOrMidterm && msStaffRecordMode === 'upload_or_form') {
+      if (msStaffFormFields.some((f) => !f.labelHe.trim() || !f.labelEn.trim())) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין שם לכל שדה בטופס (עברית ואנגלית)' : 'Enter a name for every form field (Hebrew and English)');
+        return;
+      }
+    }
+
+    let finalGradeComponents: FinalGradeComponents | undefined;
+    if (msIsDefense && msUseFinalGradeComponents) {
+      const rubrics = [
+        { label: lang === 'he' ? 'הערכת מנחה' : 'Supervisor evaluation', components: msSupervisorEvalComponents, weight: msSupervisorEvalWeight },
+        { label: lang === 'he' ? 'הערכת בוחן — עבודת הגמר' : 'Examiner evaluation — the project', components: msExaminerProjectComponents, weight: msExaminerProjectWeight },
+        { label: lang === 'he' ? 'הערכת בוחן — בחינת ההגנה' : 'Examiner evaluation — the defense exam', components: msExaminerDefenseComponents, weight: msExaminerDefenseWeight },
+      ];
+      for (const r of rubrics) {
+        if (r.components.length === 0 || r.components.some((c) => !c.labelHe.trim() || !c.labelEn.trim())) {
+          Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש להגדיר לפחות מרכיב ציון אחד עם שם עבור: ${r.label}` : `Define at least one named grading component for: ${r.label}`);
+          return;
+        }
+        const sum = r.components.reduce((s, c) => s + (Number(c.weight) || 0), 0);
+        if (sum !== 100) {
+          Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `סכום המשקלים ב"${r.label}" חייב להיות 100 (כרגע ${sum})` : `Component weights in "${r.label}" must sum to 100 (currently ${sum})`);
+          return;
+        }
+      }
+      const w1 = Number(msSupervisorEvalWeight) || 0;
+      const w2 = Number(msExaminerProjectWeight) || 0;
+      const w3 = Number(msExaminerDefenseWeight) || 0;
+      if (w1 + w2 + w3 !== 100) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `סכום המשקלים הכלליים של שלושת המרכיבים חייב להיות 100 (כרגע ${w1 + w2 + w3})` : `The three rubrics' overall weights must sum to 100 (currently ${w1 + w2 + w3})`);
+        return;
+      }
+      finalGradeComponents = {
+        supervisorEvaluation: { components: msSupervisorEvalComponents, weight: w1 },
+        examinerProjectEvaluation: { components: msExaminerProjectComponents, weight: w2 },
+        examinerDefenseEvaluation: { components: msExaminerDefenseComponents, weight: w3 },
+      };
+    }
+
     if (editingMs) {
       setEditorMilestones((prev) => prev.map((m) => {
         if (m !== editingMs) return m;
@@ -499,9 +774,16 @@ export default function WorkflowTemplateManager() {
         if (msExaminers) next.examinerCount = examinerCount;
         else delete next.examinerCount;
         // Turning the override off must actually clear a pre-existing
-        // routing, not leave the stale chain behind.
+        // routing, not leave the stale chain behind. Same rule for
+        // finalGradeComponents (three-rubric toggle) below.
         if (msOverrideChain) next.routing = msRouting;
         else delete next.routing;
+        if (msIsProposalOrMidterm) {
+          next.staffRecordMode = msStaffRecordMode;
+          next.staffFormFields = msStaffRecordMode === 'upload_or_form' ? msStaffFormFields : [];
+        }
+        if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
+        else delete next.finalGradeComponents;
         return next;
       }));
     } else {
@@ -512,6 +794,11 @@ export default function WorkflowTemplateManager() {
         if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
         if (msExaminers) next.examinerCount = examinerCount;
         if (msOverrideChain) next.routing = msRouting;
+        if (msIsProposalOrMidterm) {
+          next.staffRecordMode = msStaffRecordMode;
+          next.staffFormFields = msStaffRecordMode === 'upload_or_form' ? msStaffFormFields : [];
+        }
+        if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
         return [...prev, next];
       });
     }
@@ -826,6 +1113,8 @@ export default function WorkflowTemplateManager() {
                           ? (lang === 'he' ? `תאריך קבוע: ${m.fixedDate ?? '—'}` : `Fixed: ${m.fixedDate ?? '—'}`)
                           : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
                         {m.requiresExaminers ? `  ·  👥 ${lang === 'he' ? 'בוחנים' : 'Examiners'}` : ''}
+                        {m.staffRecordMode === 'upload_or_form' ? `  ·  📝 ${lang === 'he' ? 'רשומת מנחה' : 'Staff record'}` : ''}
+                        {m.finalGradeComponents ? `  ·  ⚖️ ${lang === 'he' ? 'ציון משולש' : '3-rubric grading'}` : ''}
                       </Text>
                       {m.routing && m.routing.length > 0 && (
                         <Text style={{ fontSize: 10, color: '#F59E0B', marginTop: 2 }}>
@@ -875,7 +1164,7 @@ export default function WorkflowTemplateManager() {
               </View>
             ) : (
               pending.map((tpl) => {
-                const canApprove = canApproveRole(tpl.processType, userRole);
+                const canApprove = canApproveTemplate(tpl, userRole, permissionRules);
                 const ptLabel = PROCESS_TYPES.find((p) => p.key === tpl.processType);
                 return (
                   <View key={tpl.id} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: '#F59E0B' }}>
@@ -961,7 +1250,7 @@ export default function WorkflowTemplateManager() {
               </View>
             ) : (
               historyForActive.map((tpl) => {
-                const canDelete = canApproveRole(tpl.processType, userRole);
+                const canDelete = canApproveTemplate(tpl, userRole, permissionRules);
                 const ptLabel = PROCESS_TYPES.find((p) => p.key === tpl.processType);
                 return (
                   <View key={tpl.id} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, opacity: 0.92 }}>
@@ -1061,6 +1350,8 @@ export default function WorkflowTemplateManager() {
                       ? (lang === 'he' ? `תאריך קבוע: ${ms.fixedDate ?? '—'}` : `Fixed: ${ms.fixedDate ?? '—'}`)
                       : (lang === 'he' ? `יום ${ms.dueDaysFromStart}` : `Day ${ms.dueDaysFromStart}`)}
                     {ms.requiresExaminers ? '  ·  👥' : ''}
+                    {ms.staffRecordMode === 'upload_or_form' ? `  ·  📝 ${lang === 'he' ? 'רשומת מנחה' : 'Staff record'}` : ''}
+                    {ms.finalGradeComponents ? `  ·  ⚖️ ${lang === 'he' ? 'ציון משולש' : '3-rubric grading'}` : ''}
                     {ms.routing && ms.routing.length > 0 ? `  ·  🔀 ${lang === 'he' ? 'שרשרת מותאמת' : 'custom chain'}` : ''}
                   </Text>
                 </View>
@@ -1093,7 +1384,7 @@ export default function WorkflowTemplateManager() {
                   {lang === 'he' ? 'ללא אישור נוסף' : 'No second sign-off'}
                 </Text>
               </Pressable>
-              {CHAIN_ROLES.map((r) => (
+              {SIGNOFF_ROLES.map((r) => (
                 <Pressable
                   key={r.key}
                   onPress={() => setEditorExaminerSignoffRole(r.key)}
@@ -1110,7 +1401,7 @@ export default function WorkflowTemplateManager() {
               {lang === 'he' ? 'אישור הציון הסופי (הגנה)' : 'Final grade sign-off (defense)'}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
-              {CHAIN_ROLES.map((r) => (
+              {SIGNOFF_ROLES.map((r) => (
                 <Pressable
                   key={r.key}
                   onPress={() => setEditorFinalGradeSignoffRole(r.key)}
@@ -1252,6 +1543,146 @@ export default function WorkflowTemplateManager() {
                   placeholder="2"
                 />
               </>
+            )}
+
+            {msIsProposalOrMidterm && (
+              <View style={{ marginTop: 16, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, padding: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+                  {lang === 'he' ? 'רשומת מנחה (אופציונלי)' : 'Staff record (optional)'}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 8 }}>
+                  {lang === 'he'
+                    ? 'בנוסף להגשת הסטודנט/ית, ניתן לאפשר למנחה לצרף רשומה רשמית — קובץ מלא או טופס מקוון.'
+                    : "On top of the student's own submission, let the supervisor attach an official record — either a completed file or an online form."}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    onPress={() => setMsStaffRecordMode('none')}
+                    style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msStaffRecordMode === 'none' ? '#7C3AED' : '#DDD6FE', backgroundColor: msStaffRecordMode === 'none' ? '#7C3AED' : '#fff' }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: msStaffRecordMode === 'none' ? '#fff' : '#374151' }}>
+                      {lang === 'he' ? 'ללא' : 'None'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setMsStaffRecordMode('upload_or_form')}
+                    style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msStaffRecordMode === 'upload_or_form' ? '#7C3AED' : '#DDD6FE', backgroundColor: msStaffRecordMode === 'upload_or_form' ? '#7C3AED' : '#fff' }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: msStaffRecordMode === 'upload_or_form' ? '#fff' : '#374151' }}>
+                      {lang === 'he' ? 'קובץ או טופס' : 'File or form'}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {msStaffRecordMode === 'upload_or_form' && (
+                  <View style={{ marginTop: 12 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151' }}>
+                        {lang === 'he' ? 'שדות הטופס המקוון' : 'Online form fields'}
+                      </Text>
+                      <Pressable
+                        style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                        onPress={() => setMsStaffFormFields((prev) => [...prev, emptyFormField()])}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>＋ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
+                      </Pressable>
+                    </View>
+                    {msStaffFormFields.length === 0 && (
+                      <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 4 }}>
+                        {lang === 'he' ? 'ניתן להשאיר ריק — יאפשר רק העלאת קובץ.' : 'Can be left empty — that just leaves file upload as the only option.'}
+                      </Text>
+                    )}
+                    {msStaffFormFields.map((f, idx) => (
+                      <View key={f.key} style={{ backgroundColor: '#F5F3FF', borderRadius: 8, padding: 8, marginTop: 8 }}>
+                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                          <TextInput
+                            style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, backgroundColor: '#fff' }}
+                            value={f.labelHe}
+                            onChangeText={(v) => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, labelHe: v } : x)))}
+                            placeholder={lang === 'he' ? 'תווית (עברית)' : 'Label (Hebrew)'}
+                            textAlign="right"
+                          />
+                          <TextInput
+                            style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, backgroundColor: '#fff' }}
+                            value={f.labelEn}
+                            onChangeText={(v) => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, labelEn: v } : x)))}
+                            placeholder={lang === 'he' ? 'תווית (אנגלית)' : 'Label (English)'}
+                          />
+                          <Pressable onPress={() => setMsStaffFormFields((prev) => prev.filter((_, i) => i !== idx))} style={{ padding: 4 }}>
+                            <Text>🗑️</Text>
+                          </Pressable>
+                        </View>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                          {FORM_FIELD_TYPES.map((opt) => (
+                            <Pressable
+                              key={opt.value}
+                              onPress={() => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, type: opt.value } : x)))}
+                              style={{ borderWidth: 1.5, borderColor: f.type === opt.value ? '#7C3AED' : '#DDD6FE', backgroundColor: f.type === opt.value ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 }}
+                            >
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: f.type === opt.value ? '#fff' : '#7C3AED' }}>
+                                {lang === 'he' ? opt.he : opt.en}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                          <Switch
+                            value={f.required}
+                            onValueChange={(v) => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, required: v } : x)))}
+                            trackColor={{ true: '#7C3AED' }}
+                          />
+                          <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'שדה חובה' : 'Required'}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {msIsDefense && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', flex: 1, marginEnd: 8 }}>
+                  {lang === 'he' ? 'שימוש בתהליך ציון סופי משולש (מנחה + 2 בוחנים)' : 'Use three-rubric final grade (supervisor + 2 examiner rubrics)'}
+                </Text>
+                <Switch value={msUseFinalGradeComponents} onValueChange={setMsUseFinalGradeComponents} trackColor={{ true: '#7C3AED' }} />
+              </View>
+            )}
+
+            {msIsDefense && msUseFinalGradeComponents && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 10 }}>
+                  {lang === 'he'
+                    ? 'הציון הסופי יחושב אוטומטית משלושת המרכיבים לפי המשקל הכללי של כל אחד (חייבים לסכם ל-100). המנחה יוכל לאשר את הציון המחושב או לשנותו בנימוק, בכפוף לאישור הרכז.'
+                    : "The final grade is computed automatically from the three rubrics, weighted by each one's overall share (must sum to 100). The supervisor can approve the computed grade or change it with a reason, subject to the coordinator's approval."}
+                </Text>
+                <GradingRubricEditor
+                  title={lang === 'he' ? 'הערכת מנחה' : 'Supervisor evaluation'}
+                  components={msSupervisorEvalComponents}
+                  setComponents={setMsSupervisorEvalComponents}
+                  weight={msSupervisorEvalWeight}
+                  setWeight={setMsSupervisorEvalWeight}
+                  lang={lang}
+                />
+                <View style={{ height: 10 }} />
+                <GradingRubricEditor
+                  title={lang === 'he' ? 'הערכת בוחן — עבודת הגמר' : 'Examiner evaluation — the project'}
+                  components={msExaminerProjectComponents}
+                  setComponents={setMsExaminerProjectComponents}
+                  weight={msExaminerProjectWeight}
+                  setWeight={setMsExaminerProjectWeight}
+                  lang={lang}
+                />
+                <View style={{ height: 10 }} />
+                <GradingRubricEditor
+                  title={lang === 'he' ? 'הערכת בוחן — בחינת ההגנה' : 'Examiner evaluation — the defense exam'}
+                  components={msExaminerDefenseComponents}
+                  setComponents={setMsExaminerDefenseComponents}
+                  weight={msExaminerDefenseWeight}
+                  setWeight={setMsExaminerDefenseWeight}
+                  lang={lang}
+                />
+              </View>
             )}
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>

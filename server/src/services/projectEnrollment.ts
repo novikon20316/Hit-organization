@@ -134,6 +134,27 @@ export async function enrollStudentInProject(
         // Omitted means the grading endpoints fall back to the hardcoded
         // default rubric (see workflowTemplates.ts's GradingComponentSpec).
         ...(t.gradingComponents?.length ? { gradingComponents: t.gradingComponents } : {}),
+        // Staff-record config (research_proposal/progress_report only) — same
+        // snapshot-at-enrollment reasoning as gradingComponents above, so the
+        // staff-record submission endpoint doesn't need a separate template
+        // lookup. Omitted means no staff-side record for this milestone.
+        ...(t.staffRecordMode === 'upload_or_form' ? { staffRecordMode: t.staffRecordMode, staffFormFields: t.staffFormFields ?? [] } : {}),
+        // Three-rubric final-grade config (defense milestones only) —
+        // independent of the examiner/routing branch below, same reasoning
+        // as gradingComponents. Omitted keeps today's single-rubric behavior.
+        // The score-holder fields alongside it (explicitly null/{}, matching
+        // finalGrade/supervisorScore's own null-initialization above) only
+        // ever get populated by the new evaluation endpoints — see
+        // projectController.ts's submitSupervisorEvaluation/submitExaminerEvaluation.
+        ...(t.finalGradeComponents
+          ? {
+              finalGradeComponents: t.finalGradeComponents,
+              supervisorEvaluation: null,
+              examinerEvaluations: {},
+              autoCalculatedFinalGrade: null,
+              gradeOverride: null,
+            }
+          : {}),
         // Examiner/defense-panel fields only make sense on a milestone the
         // template marked as requiring examiners — writing them onto e.g.
         // research_proposal/progress_report otherwise just leaves permanent

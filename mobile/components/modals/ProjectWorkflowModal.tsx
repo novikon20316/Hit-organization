@@ -2,14 +2,32 @@
 //
 // Shows a supervisor which workflow template their project is running on
 // (the ordered milestone list — name, due-date mode, requires-examiners) and,
-// per enrolled student, a submitted/not-submitted breakdown per milestone.
+// per enrolled student, a submitted/not-submitted breakdown per milestone —
+// plus, where configured (see workflowTemplates.ts), the staff-record action
+// (research_proposal/progress_report) and the three-rubric final-grade
+// workflow (defense): submit the supervisor's own evaluation, then once
+// every evaluation is in, approve or override the computed grade.
 // Data comes from GET /api/supervisor/projects/:id/detail — see
 // server/src/controllers/supervisorController.ts's getSupervisorProjectDetail.
+// Ports web/app/supervisor/dashboard/ProjectWorkflowModal.tsx.
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { apiClient } from '../../src/api/apiClient';
 import type { Lang } from '../i18n';
+import StaffRecordModal from './StaffRecordModal';
+import SupervisorEvaluationModal from './SupervisorEvaluationModal';
+import FinalGradeDecisionModal from './FinalGradeDecisionModal';
+
+interface StaffFormField {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+  required: boolean;
+}
+
+interface RubricComponent { key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }
 
 interface TemplateMilestone {
   type: string;
@@ -20,12 +38,32 @@ interface TemplateMilestone {
   dueDaysFromStart: number;
   fixedDate?: string;
   requiresExaminers: boolean;
+  staffFormFields?: StaffFormField[];
+  finalGradeComponents?: {
+    supervisorEvaluation: { components: RubricComponent[]; weight: number };
+  };
+}
+
+interface StudentMilestoneRow {
+  id: string | null;
+  type: string;
+  status: string;
+  dueDate: string | null;
+  submittedAt: string | null;
+  staffRecordMode: 'none' | 'upload_or_form' | null;
+  staffRecordSubmitted: boolean;
+  hasFinalGradeComponents: boolean;
+  supervisorEvaluationSubmitted: boolean;
+  autoCalculatedFinalGrade: number | null;
+  finalGrade: number | null;
+  gradeApproved: boolean;
+  gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
 }
 
 interface StudentRow {
   studentId: string;
   studentName: string;
-  milestones: Array<{ type: string; status: string; dueDate: string | null; submittedAt: string | null }>;
+  milestones: StudentMilestoneRow[];
 }
 
 interface Props {
@@ -57,25 +95,29 @@ export default function ProjectWorkflowModal({ visible, onClose, lang, projectId
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
 
-  useEffect(() => {
-    if (!visible) return;
-    let cancelled = false;
+  const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: StaffFormField[] } | null>(null);
+  const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
+  const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
+
+  const fetchDetail = useCallback(() => {
     setLoading(true);
-    setError('');
-    apiClient.get(`/api/supervisor/projects/${projectId}/detail`)
+    return apiClient.get(`/api/supervisor/projects/${projectId}/detail`)
       .then((res) => {
-        if (cancelled) return;
         setTemplateMilestones([...(res.data.templateMilestones ?? [])].sort((a: TemplateMilestone, b: TemplateMilestone) => a.order - b.order));
         setStudents(res.data.students ?? []);
+        setError('');
       })
       .catch((e: any) => {
-        if (!cancelled) setError(e.response?.data?.message || (lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load'));
+        setError(e.response?.data?.message || (lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load'));
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [visible, projectId, lang]);
+      .finally(() => setLoading(false));
+  }, [projectId, lang]);
+
+  useEffect(() => {
+    if (!visible) return;
+    fetchDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, projectId]);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -134,17 +176,58 @@ export default function ProjectWorkflowModal({ visible, onClose, lang, projectId
                   return (
                     <View
                       key={m.type}
-                      style={{
-                        flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6,
-                        borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#F1F5F9',
-                      }}
+                      style={{ paddingVertical: 6, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#F1F5F9' }}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#1E293B' }}>
-                        {spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}
-                      </Text>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: statusColor(m.status) }}>
-                        {statusLabel(m.status, lang)}
-                      </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#1E293B' }}>
+                          {spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}
+                        </Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: statusColor(m.status) }}>
+                          {statusLabel(m.status, lang)}
+                        </Text>
+                      </View>
+
+                      {/* Staff record action (research_proposal/progress_report only). */}
+                      {m.staffRecordMode === 'upload_or_form' && m.id && (
+                        <Pressable onPress={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })} style={{ marginTop: 4 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: '#7C3AED' }}>
+                            {m.staffRecordSubmitted
+                              ? `✓ ${lang === 'he' ? 'רשומת מנחה הוגשה — עדכן' : 'Staff record submitted — update'}`
+                              : `📎 ${lang === 'he' ? 'הגש רשומת מנחה' : 'Submit staff record'}`}
+                          </Text>
+                        </Pressable>
+                      )}
+
+                      {/* Three-rubric final-grade workflow (defense only). */}
+                      {m.hasFinalGradeComponents && m.id && (
+                        <View style={{ marginTop: 4 }}>
+                          {m.gradeApproved ? (
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981' }}>
+                              🎓 {lang === 'he' ? `ציון סופי: ${m.finalGrade}` : `Final grade: ${m.finalGrade}`}
+                            </Text>
+                          ) : m.gradeOverrideStatus === 'pending' ? (
+                            <Text style={{ fontSize: 12, color: '#F59E0B' }}>
+                              ⏳ {lang === 'he' ? 'שינוי ציון ממתין לאישור הרכז/ת' : "Grade change pending the coordinator's review"}
+                            </Text>
+                          ) : m.autoCalculatedFinalGrade != null ? (
+                            <Pressable onPress={() => setFinalGradeDecisionFor({ milestoneId: m.id!, autoGrade: m.autoCalculatedFinalGrade! })}>
+                              <Text style={{ fontSize: 12, fontWeight: '600', color: '#7C3AED' }}>
+                                🎓 {lang === 'he' ? `ציון סופי מחושב: ${m.autoCalculatedFinalGrade} — לחץ להחלטה` : `Computed final grade: ${m.autoCalculatedFinalGrade} — tap to decide`}
+                              </Text>
+                            </Pressable>
+                          ) : !m.supervisorEvaluationSubmitted ? (
+                            <Pressable onPress={() => setSupervisorEvalFor({ milestoneId: m.id!, components: spec?.finalGradeComponents?.supervisorEvaluation.components ?? [] })}>
+                              <Text style={{ fontSize: 12, fontWeight: '600', color: '#7C3AED' }}>
+                                📝 {lang === 'he' ? 'הגש הערכת מנחה' : 'Submit supervisor evaluation'}
+                              </Text>
+                            </Pressable>
+                          ) : (
+                            <Text style={{ fontSize: 12, color: '#94A3B8' }}>
+                              {lang === 'he' ? 'ממתין להערכות בוחנים' : "Waiting on examiners' evaluations"}
+                            </Text>
+                          )}
+                        </View>
+                      )}
                     </View>
                   );
                 })}
@@ -153,6 +236,37 @@ export default function ProjectWorkflowModal({ visible, onClose, lang, projectId
           </>
         )}
       </ScrollView>
+
+      {staffRecordFor && (
+        <StaffRecordModal
+          visible
+          lang={lang}
+          milestoneId={staffRecordFor.milestoneId}
+          fields={staffRecordFor.fields}
+          onClose={() => setStaffRecordFor(null)}
+          onSubmitted={fetchDetail}
+        />
+      )}
+      {supervisorEvalFor && (
+        <SupervisorEvaluationModal
+          visible
+          lang={lang}
+          milestoneId={supervisorEvalFor.milestoneId}
+          components={supervisorEvalFor.components}
+          onClose={() => setSupervisorEvalFor(null)}
+          onSubmitted={fetchDetail}
+        />
+      )}
+      {finalGradeDecisionFor && (
+        <FinalGradeDecisionModal
+          visible
+          lang={lang}
+          milestoneId={finalGradeDecisionFor.milestoneId}
+          autoCalculatedFinalGrade={finalGradeDecisionFor.autoGrade}
+          onClose={() => setFinalGradeDecisionFor(null)}
+          onDecided={fetchDetail}
+        />
+      )}
     </Modal>
   );
 }

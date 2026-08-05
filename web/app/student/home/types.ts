@@ -81,6 +81,29 @@ export interface MilestoneRevision {
   decidedAt: string | null;
 }
 
+/** The data_science three-rubric defense workflow's supervisor-side rubric
+ *  (see server/src/services/workflowTemplates.ts's finalGradeComponents,
+ *  server/src/controllers/projectController.ts's submitSupervisorEvaluation)
+ *  — one of the "supervisor forms" the manager's requirement says the
+ *  student should be able to see. Absent for any milestone/faculty that
+ *  hasn't configured finalGradeComponents. */
+export interface StudentVisibleSupervisorEvaluation {
+  scores: Record<string, { score: number; maxScore: number; weight: number }>;
+  total: number;
+  comment?: string;
+}
+
+/** The proposal/midterm staff record the supervisor files alongside the
+ *  student's own submission (staffRecordMode: 'upload_or_form' — see
+ *  server/src/controllers/supervisorController.ts's submitStaffRecord).
+ *  `formData` keys match the template's staffFormFields (see
+ *  workflow-templates/types.ts's FormFieldSpec) so labels can be resolved. */
+export interface StudentVisibleStaffRecord {
+  mode: 'upload' | 'form';
+  fileUrls?: string[];
+  formData?: Record<string, unknown>;
+}
+
 export interface Milestone {
   id: string;
   type: MilestoneType;
@@ -98,6 +121,22 @@ export interface Milestone {
   examinerIds: string[];
   rejectionReason?: string | null;
   revisionHistory?: MilestoneRevision[];
+  /** Three-rubric defense workflow — the supervisor's own evaluation
+   *  (distinct from examinerEvaluations, which the student never receives —
+   *  see server/src/services/milestoneVisibility.ts). */
+  supervisorEvaluation?: StudentVisibleSupervisorEvaluation | null;
+  /** The template's own rubric definition, needed to label each score in
+   *  supervisorEvaluation.scores (component labels/maxScores/weights). */
+  finalGradeComponents?: {
+    supervisorEvaluation: { components: { key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }[] };
+  } | null;
+  autoCalculatedFinalGrade?: number | null;
+  /** The server sends the full object, but the student UI only ever reads
+   *  `.status` — the supervisor's override reason isn't meant for display
+   *  here, just whether a decision is still pending. */
+  gradeOverride?: { status: 'pending' | 'approved' | 'rejected' } | null;
+  staffRecord?: StudentVisibleStaffRecord | null;
+  staffFormFields?: { key: string; labelHe: string; labelEn: string }[];
 }
 
 export interface PendingApplication {

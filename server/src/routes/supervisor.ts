@@ -8,7 +8,10 @@ import {
     createSupervisorProject,
     getSupervisorExaminerRecommendations,
     createExaminerRecommendation,
+    submitStaffRecord,
+    decideFinalGrade,
 } from '../controllers/supervisorController.js'
+import { uploadMiddleware } from '../controllers/milestoneController.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -24,6 +27,11 @@ router.post('/applications/decision', verifyToken, handleApplicationDecision)
 router.post('/projects', verifyToken, createSupervisorProject)
 router.get('/examiner-recommendations', verifyToken, getSupervisorExaminerRecommendations)
 router.post('/examiner-recommendations', verifyToken, createExaminerRecommendation)
+// Staff record (research_proposal/progress_report, upload-or-form) and the
+// three-rubric final-grade decision (defense) — see workflowTemplates.ts's
+// staffRecordMode/finalGradeComponents for which faculties these apply to.
+router.post('/milestones/:id/staff-record', verifyToken, uploadMiddleware, submitStaffRecord)
+router.post('/milestones/:id/final-grade-decision', verifyToken, decideFinalGrade)
 
 
 export default router;
