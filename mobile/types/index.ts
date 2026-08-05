@@ -710,6 +710,11 @@ export interface ActiveProject {
   status:        string;
   degreeType?:   string;  // 'bachelors' | 'masters' | 'both'
   projectType?:  string;  // 'project' | 'thesis'
+  /** Weighted across every milestone by the project's workflow template's
+   *  own percentOfFinalGrade per milestone type — see
+   *  server/src/services/gradeEngine.ts's computeProjectFinalGrade. null
+   *  until every nonzero-weighted milestone is graded. */
+  overallFinalGrade?: number | null;
 }
 
 /** The data_science three-rubric defense workflow's supervisor-side rubric

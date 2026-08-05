@@ -152,6 +152,14 @@ export interface MilestoneSpec {
    *  examiner-on-the-project / examiner-on-the-defense), combined via their
    *  own weights (summing to 100) into the milestone's final grade. */
   finalGradeComponents?: FinalGradeComponents;
+  /** How much this milestone counts toward the project's OVERALL final
+   *  grade (0-100), validated to sum to 100 across every milestone in the
+   *  template before it can be proposed (see handleSaveProposal). Distinct
+   *  from gradingComponents[].weight, which is a rubric WITHIN one
+   *  milestone. Omitted (pre-existing templates) means "defense = 100,
+   *  everything else = 0" — today's implicit behavior. Mirrors
+   *  web/app/workflow-templates/types.ts. */
+  percentOfFinalGrade?: number;
 }
 
 export type ApplyMode = 'now' | 'from_now_on';
@@ -550,6 +558,7 @@ export default function WorkflowTemplateManager() {
   const [msDateMode, setMsDateMode] = useState<'offset' | 'fixed'>('offset');
   const [msDays, setMsDays] = useState('90');
   const [msFixedDate, setMsFixedDate] = useState('');
+  const [msPercentOfFinalGrade, setMsPercentOfFinalGrade] = useState('0');
   const [msExaminers, setMsExaminers] = useState(false);
   const [msExaminerCount, setMsExaminerCount] = useState('2');
   const [msOverrideChain, setMsOverrideChain] = useState(false);
@@ -671,6 +680,7 @@ export default function WorkflowTemplateManager() {
       setMsDateMode(ms.dateMode === 'fixed' ? 'fixed' : 'offset');
       setMsDays(String(ms.dueDaysFromStart));
       setMsFixedDate(ms.fixedDate ?? '');
+      setMsPercentOfFinalGrade(String(ms.percentOfFinalGrade ?? 0));
       setMsExaminers(ms.requiresExaminers);
       setMsExaminerCount(String(ms.examinerCount ?? 2));
       setMsOverrideChain(!!(ms.routing && ms.routing.length > 0));
@@ -686,7 +696,7 @@ export default function WorkflowTemplateManager() {
       setMsExaminerDefenseWeight(String(ms.finalGradeComponents?.examinerDefenseEvaluation.weight ?? 30));
     } else {
       setEditingMs(null);
-      setMsNameHe(''); setMsNameEn(''); setMsDateMode('offset'); setMsDays('90'); setMsFixedDate(''); setMsExaminers(false); setMsExaminerCount('2');
+      setMsNameHe(''); setMsNameEn(''); setMsDateMode('offset'); setMsDays('90'); setMsFixedDate(''); setMsPercentOfFinalGrade('0'); setMsExaminers(false); setMsExaminerCount('2');
       setMsOverrideChain(false);
       setMsRouting([emptyStage()]);
       setMsStaffRecordMode('none');
@@ -722,6 +732,11 @@ export default function WorkflowTemplateManager() {
     const examinerCount = parseInt(msExaminerCount, 10);
     if (msExaminers && (!Number.isFinite(examinerCount) || examinerCount < 1)) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'מספר בוחנים לא תקין' : 'Invalid examiner count');
+      return;
+    }
+    const percentOfFinalGrade = Number(msPercentOfFinalGrade);
+    if (!Number.isFinite(percentOfFinalGrade) || percentOfFinalGrade < 0 || percentOfFinalGrade > 100) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'אחוז מהציון הסופי חייב להיות בין 0 ל-100' : 'Percentage of final grade must be between 0 and 100');
       return;
     }
     if (msIsProposalOrMidterm && msStaffRecordMode === 'upload_or_form') {
@@ -767,7 +782,7 @@ export default function WorkflowTemplateManager() {
       setEditorMilestones((prev) => prev.map((m) => {
         if (m !== editingMs) return m;
         const next: MilestoneSpec = {
-          ...m, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), dueDaysFromStart: days, requiresExaminers: msExaminers,
+          ...m, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), dueDaysFromStart: days, percentOfFinalGrade, requiresExaminers: msExaminers,
         };
         if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
         else { delete next.dateMode; delete next.fixedDate; }
@@ -789,7 +804,7 @@ export default function WorkflowTemplateManager() {
     } else {
       setEditorMilestones((prev) => {
         const next: MilestoneSpec = {
-          type: `custom_${makeId()}`, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), order: prev.length + 1, dueDaysFromStart: days, requiresExaminers: msExaminers,
+          type: `custom_${makeId()}`, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), order: prev.length + 1, dueDaysFromStart: days, percentOfFinalGrade, requiresExaminers: msExaminers,
         };
         if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
         if (msExaminers) next.examinerCount = examinerCount;
@@ -812,6 +827,16 @@ export default function WorkflowTemplateManager() {
   const handleSaveProposal = async () => {
     if (editorMilestones.length === 0) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להוסיף לפחות אבן דרך אחת' : 'Add at least one milestone');
+      return;
+    }
+    const totalPercent = editorMilestones.reduce((sum, m) => sum + (m.percentOfFinalGrade ?? 0), 0);
+    if (Math.abs(totalPercent - 100) > 0.01) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he'
+          ? `סכום האחוזים מהציון הסופי של כל אבני הדרך חייב להיות 100 (כרגע ${totalPercent})`
+          : `The final-grade percentages across all milestones must sum to 100 (currently ${totalPercent})`
+      );
       return;
     }
     setSaving(true);
@@ -1525,6 +1550,21 @@ export default function WorkflowTemplateManager() {
                 </Text>
               </>
             )}
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12, marginBottom: 6 }}>
+              {lang === 'he' ? 'אחוז מהציון הסופי' : '% of final grade'}
+            </Text>
+            <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 6 }}>
+              {lang === 'he'
+                ? 'כמה אבן דרך זו תורמת לציון הסופי הכולל של הפרויקט. סכום האחוזים של כל אבני הדרך בתבנית חייב להיות 100.'
+                : "How much this milestone counts toward the project's overall final grade. Every milestone's percentage in the template must sum to 100."}
+            </Text>
+            <TextInput
+              style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }}
+              value={msPercentOfFinalGrade}
+              onChangeText={setMsPercentOfFinalGrade}
+              keyboardType="numeric"
+              placeholder="0"
+            />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</Text>
               <Switch value={msExaminers} onValueChange={setMsExaminers} trackColor={{ true: '#7C3AED' }} />

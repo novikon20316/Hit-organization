@@ -63,6 +63,11 @@ interface StudentMilestoneRow {
 interface StudentRow {
   studentId: string;
   studentName: string;
+  /** Weighted across every milestone by the template's own
+   *  percentOfFinalGrade per type — see gradeEngine.ts's
+   *  computeProjectFinalGrade. null until every nonzero-weighted milestone
+   *  is graded. */
+  overallFinalGrade: number | null;
   milestones: StudentMilestoneRow[];
 }
 
@@ -170,7 +175,16 @@ export default function ProjectWorkflowModal({ visible, onClose, lang, projectId
             )}
             {students.map((s) => (
               <View key={s.studentId} style={{ borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', padding: 12, marginBottom: 10 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E293B', marginBottom: 6 }}>👤 {s.studentName}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E293B' }}>👤 {s.studentName}</Text>
+                  {s.overallFinalGrade != null && (
+                    <View style={{ backgroundColor: '#EDE9FE', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#7C3AED' }}>
+                        🎓 {lang === 'he' ? `ציון סופי כולל: ${s.overallFinalGrade}` : `Overall final grade: ${s.overallFinalGrade}`}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 {s.milestones.map((m, i) => {
                   const spec = templateMilestones.find((t) => t.type === m.type);
                   return (

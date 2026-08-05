@@ -138,6 +138,37 @@ export function computeFinalGradeByStudent(
 }
 
 /**
+ * A project's OVERALL final grade, weighted across ALL of its milestones by
+ * each milestone TYPE's percentOfFinalGrade on the project's workflow
+ * template (see workflowTemplates.ts's WorkflowMilestoneSpec) — not just the
+ * defense milestone's own grade, which is all that existed before this.
+ *
+ * Missing percentOfFinalGrade (a template proposed before this feature
+ * shipped) defaults to 100 for `defense`, 0 for every other type —
+ * reproducing today's implicit defense-only behavior with no data
+ * migration needed for already-approved templates.
+ *
+ * Returns null — "not final yet," never a partial/misleading number — until
+ * every NONZERO-weighted milestone has a `finalGrade`. A milestone weighted
+ * at 0% never blocks this, even if it's still ungraded (e.g. a pure
+ * checkpoint with no share of the grade).
+ */
+export function computeProjectFinalGrade(
+  templateMilestones: { type: string; percentOfFinalGrade?: number }[],
+  actualMilestones: { type: string; finalGrade?: number | null }[],
+): number | null {
+  let weightedSum = 0;
+  for (const tm of templateMilestones) {
+    const pct = tm.percentOfFinalGrade ?? (tm.type === 'defense' ? 100 : 0);
+    if (pct === 0) continue;
+    const actual = actualMilestones.find((m) => m.type === tm.type);
+    if (actual?.finalGrade == null) return null;
+    weightedSum += actual.finalGrade * (pct / 100);
+  }
+  return Math.round(weightedSum);
+}
+
+/**
  * Stub — no live Michlol integration exists in this codebase (confirmed: zero
  * references to "Michlol"/"מכלול" anywhere outside orphaned i18n strings and
  * an unused permission key). Logs the attempt and returns a result the caller

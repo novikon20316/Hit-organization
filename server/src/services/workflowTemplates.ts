@@ -189,6 +189,14 @@ export interface WorkflowMilestoneSpec {
     examinerProjectEvaluation: FinalGradeRubric;
     examinerDefenseEvaluation: FinalGradeRubric;
   };
+  /** How much this milestone counts toward the project's OVERALL final
+   *  grade (0-100), validated to sum to 100 across every milestone in the
+   *  template — see workflowTemplateController.ts's validateMilestones.
+   *  Distinct from gradingComponents[].weight, which is a rubric WITHIN one
+   *  milestone. Omitted (pre-existing templates) means "defense = 100,
+   *  everything else = 0" — today's implicit behavior — see
+   *  gradeEngine.ts's computeProjectFinalGrade. */
+  percentOfFinalGrade?: number;
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';

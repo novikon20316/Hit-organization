@@ -987,18 +987,14 @@ export default function ActiveDashboard({
             })}
         
             {/* Final grade card */}
-            {milestones.every((m) => m.finalGrade !== null) && milestones.length > 0 && (
+            {project.overallFinalGrade != null && (
               <View style={styles.finalGradeCard}>
                 <Text style={styles.finalGradeLabel}>{tx('finalGrade', lang)}</Text>
-                <Text style={styles.finalGradeValue}>
-                  {Math.round(
-                    milestones.reduce((sum, m) => sum + (m.finalGrade ?? 0), 0) / milestones.length
-                  )}
-                </Text>
+                <Text style={styles.finalGradeValue}>{project.overallFinalGrade}</Text>
                 <Text style={styles.finalGradeNote}>
                   {lang === 'he'
-                    ? '* הציון מחושב לפי המשקלים שנקבעו על ידי רכז הפרויקטים'
-                    : '* Grade calculated using weights set by the project coordinator'}
+                    ? '* הציון מחושב לפי האחוזים שנקבעו לכל אבן דרך בתבנית התהליך המאושרת'
+                    : "* Grade calculated using each milestone's percentage in the approved workflow template"}
                 </Text>
               </View>
             )}

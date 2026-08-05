@@ -134,6 +134,14 @@ export interface MilestoneSpec {
    *  examiner-on-the-project / examiner-on-the-defense), combined via their
    *  own weights (summing to 100) into the milestone's final grade. */
   finalGradeComponents?: FinalGradeComponents;
+  /** How much this milestone counts toward the project's OVERALL final
+   *  grade (0-100), validated to sum to 100 across every milestone in the
+   *  template before it can be proposed (see ProposeVersionModal.tsx's
+   *  handleSubmit). Distinct from gradingComponents[].weight, which is a
+   *  rubric WITHIN one milestone. Omitted (pre-existing templates) means
+   *  "defense = 100, everything else = 0" — today's implicit behavior —
+   *  see server/src/services/gradeEngine.ts's computeProjectFinalGrade. */
+  percentOfFinalGrade?: number;
 }
 
 export type ApplyMode = 'now' | 'from_now_on';

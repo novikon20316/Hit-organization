@@ -13,6 +13,7 @@ import {
   resolveFinalGradeSignoffRole,
   type WorkflowMilestoneSpec, type FormFieldSpec,
 } from '../services/workflowTemplates.js';
+import { computeProjectFinalGrade } from '../services/gradeEngine.js';
 
 const db = admin.firestore();
 
@@ -229,9 +230,17 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
       const studentMilestones = allMilestones.filter((m) => Array.isArray(m.studentIds) && m.studentIds.includes(studentId));
       const milestonesByType: Record<string, Record<string, any>> = {};
       studentMilestones.forEach((m) => { milestonesByType[m.type] = m; });
+      // Weighted across every milestone by the template's own
+      // percentOfFinalGrade — see gradeEngine.ts's computeProjectFinalGrade.
+      // null until every nonzero-weighted milestone is graded.
+      const overallFinalGrade = computeProjectFinalGrade(
+        templateMilestones,
+        studentMilestones as { type: string; finalGrade?: number | null }[]
+      );
       return {
         studentId,
         studentName: studentNameById[studentId] ?? studentId,
+        overallFinalGrade,
         // Every template milestone gets a row even if this student's doc
         // hasn't been created yet ('not_created' — distinct from 'pending',
         // which means the doc exists but nothing's been submitted).

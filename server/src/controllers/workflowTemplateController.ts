@@ -263,6 +263,16 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     const finalGradeComponents = validateFinalGradeComponents(m.finalGradeComponents);
     if (!finalGradeComponents.ok) return null;
 
+    // How much this milestone counts toward the project's OVERALL final
+    // grade — validated per-milestone here (range only); the sum-to-100
+    // check across every milestone happens once, after this loop, since
+    // that's the one property that spans the whole array.
+    let percentOfFinalGrade: number | undefined;
+    if (m.percentOfFinalGrade !== undefined) {
+      percentOfFinalGrade = Number(m.percentOfFinalGrade);
+      if (!Number.isFinite(percentOfFinalGrade) || percentOfFinalGrade < 0 || percentOfFinalGrade > 100) return null;
+    }
+
     const spec: WorkflowMilestoneSpec = {
       type: m.type.trim(),
       nameHe: m.nameHe.trim(),
@@ -282,8 +292,16 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
       if (staffFormFields.length > 0) spec.staffFormFields = staffFormFields;
     }
     if (finalGradeComponents.value) spec.finalGradeComponents = finalGradeComponents.value;
+    if (percentOfFinalGrade !== undefined) spec.percentOfFinalGrade = percentOfFinalGrade;
     cleaned.push(spec);
   }
+
+  // Cross-milestone check — the client already blocks this (see
+  // ProposeVersionModal.tsx's handleSubmit), but the API must not trust the
+  // client alone. Epsilon tolerance since percentages may be non-integer.
+  const totalPercent = cleaned.reduce((sum, m) => sum + (m.percentOfFinalGrade ?? 0), 0);
+  if (Math.abs(totalPercent - 100) > 0.01) return null;
+
   return cleaned;
 }
 

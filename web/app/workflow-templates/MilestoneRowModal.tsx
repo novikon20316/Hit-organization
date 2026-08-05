@@ -140,6 +140,7 @@ interface MilestoneRowModalProps {
     dateMode: 'offset' | 'fixed';
     dueDaysFromStart: number;
     fixedDate?: string;
+    percentOfFinalGrade: number;
     requiresExaminers: boolean;
     examinerCount?: number;
     gradingComponents: GradingComponentSpec[];
@@ -157,6 +158,7 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
   const [dateMode, setDateMode] = useState<'offset' | 'fixed'>(editing?.dateMode === 'fixed' ? 'fixed' : 'offset');
   const [days, setDays] = useState(String(editing?.dueDaysFromStart ?? 90));
   const [fixedDate, setFixedDate] = useState(editing?.fixedDate ?? '');
+  const [percentOfFinalGrade, setPercentOfFinalGrade] = useState(String(editing?.percentOfFinalGrade ?? 0));
   const [requiresExaminers, setRequiresExaminers] = useState(editing?.requiresExaminers ?? false);
   const [examinerCount, setExaminerCount] = useState(String(editing?.examinerCount ?? 2));
   const [components, setComponents] = useState<GradingComponentSpec[]>(editing?.gradingComponents ?? []);
@@ -220,6 +222,11 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
       setError(lang === 'he' ? 'מספר בוחנים לא תקין' : 'Invalid examiner count');
       return;
     }
+    const parsedPercent = Number(percentOfFinalGrade);
+    if (!Number.isFinite(parsedPercent) || parsedPercent < 0 || parsedPercent > 100) {
+      setError(lang === 'he' ? 'אחוז מהציון הסופי חייב להיות בין 0 ל-100' : 'Percentage of final grade must be between 0 and 100');
+      return;
+    }
     if (!isDefense || !useFinalGradeComponents) {
       if (components.length > 0) {
         if (components.some((c) => !c.labelHe.trim() || !c.labelEn.trim())) {
@@ -281,6 +288,7 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
       dateMode,
       dueDaysFromStart: parsedDays,
       ...(dateMode === 'fixed' ? { fixedDate: parsedFixedDate } : {}),
+      percentOfFinalGrade: parsedPercent,
       requiresExaminers,
       ...(requiresExaminers ? { examinerCount: parsedExaminerCount } : {}),
       gradingComponents: components,
@@ -339,6 +347,15 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
               </>
             )}
           </div>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'אחוז מהציון הסופי' : '% of final grade'}</span>
+            <p className="mb-1.5 text-xs text-muted">
+              {lang === 'he'
+                ? 'כמה אבן דרך זו תורמת לציון הסופי הכולל של הפרויקט. סכום האחוזים של כל אבני הדרך בתבנית חייב להיות 100.'
+                : "How much this milestone counts toward the project's overall final grade. Every milestone's percentage in the template must sum to 100."}
+            </p>
+            <input type="number" min={0} max={100} value={percentOfFinalGrade} onChange={(e) => setPercentOfFinalGrade(e.target.value)} placeholder="0" className={inputCls} />
+          </label>
           <label className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
             <span className="text-sm font-medium text-ink">{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</span>
             <input

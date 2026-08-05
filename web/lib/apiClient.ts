@@ -1065,6 +1065,11 @@ export const apiClient = {
       students: Array<{
         studentId: string;
         studentName: string;
+        /** Weighted across every milestone by the template's own
+         *  percentOfFinalGrade per type — see gradeEngine.ts's
+         *  computeProjectFinalGrade. null until every nonzero-weighted
+         *  milestone is graded. */
+        overallFinalGrade: number | null;
         milestones: Array<{
           id: string | null;
           type: string;

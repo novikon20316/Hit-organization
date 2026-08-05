@@ -3,6 +3,11 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
 import { withinCoordinatorScope, facultyIdMatches } from '../services/scopeAuthorization.js';
+import {
+  getMilestonesForTemplateId, getActiveMilestonesFor, deriveProcessType,
+  type WorkflowMilestoneSpec,
+} from '../services/workflowTemplates.js';
+import { computeProjectFinalGrade } from '../services/gradeEngine.js';
 
 // Mirrors web/lib/roles.ts's PERMISSION_MAP: view_all_projects (cross-faculty,
 // no ownership needed) vs. view_faculty_projects (same-faculty only) vs.
@@ -67,11 +72,37 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
       return res.status(403).json({ message: 'Forbidden.' });
     }
 
+    // Weighted final grade across every milestone, by the project's own
+    // workflow template — same resolution chain as
+    // supervisorController.ts's getSupervisorProjectDetail (an explicit
+    // workflowTemplateRefs entry for this project's track first, else the
+    // faculty's currently-active template for legacy projects). null until
+    // every nonzero-weighted milestone is graded — see gradeEngine.ts's
+    // computeProjectFinalGrade.
+    const workflowTemplateRefs: { degreeType: string; projectType: string; templateId: string }[] = data?.workflowTemplateRefs ?? [];
+    const matchingRef = workflowTemplateRefs.find(
+      (r) => r.degreeType === data?.degreeType && r.projectType === data?.projectType
+    );
+    let templateMilestones: WorkflowMilestoneSpec[] = [];
+    if (matchingRef) {
+      const resolved = await getMilestonesForTemplateId(matchingRef.templateId);
+      if (resolved) templateMilestones = resolved.milestones;
+    }
+    if (templateMilestones.length === 0) {
+      const processType = deriveProcessType(data?.degreeType, data?.projectType);
+      const resolved = await getActiveMilestonesFor(data?.facultyId, processType, data?.major ?? null);
+      templateMilestones = resolved.milestones;
+    }
+    const milestonesSnap = await db.collection('milestones').where('projectId', '==', id).get();
+    const actualMilestones = milestonesSnap.docs.map((d) => d.data() as { type: string; finalGrade?: number | null });
+    const overallFinalGrade = computeProjectFinalGrade(templateMilestones, actualMilestones);
+
     return res.status(200).json({
       id: projectDoc.id,
       ...data,
       // Parse Firestore Timestamp to ISO string if needed by JSON client
       semesterStart: data?.semesterStart ? data.semesterStart.toDate().toISOString() : null,
+      overallFinalGrade,
     });
   } catch (error: any) {
     console.error('Error fetching student project:', error);

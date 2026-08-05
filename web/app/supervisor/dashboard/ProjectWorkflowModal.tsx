@@ -58,6 +58,11 @@ interface StudentMilestoneRow {
 interface StudentRow {
   studentId: string;
   studentName: string;
+  /** Weighted across every milestone by the template's own
+   *  percentOfFinalGrade per type — see gradeEngine.ts's
+   *  computeProjectFinalGrade. null until every nonzero-weighted milestone
+   *  is graded. */
+  overallFinalGrade: number | null;
   milestones: StudentMilestoneRow[];
 }
 
@@ -155,7 +160,14 @@ export function ProjectWorkflowModal({ project, onClose }: ProjectWorkflowModalP
               <div className="grid gap-3">
                 {students.map((s) => (
                   <div key={s.studentId} className="rounded-lg border border-line bg-surface p-3">
-                    <p className="mb-2 text-sm font-semibold text-ink">👤 {s.studentName}</p>
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-ink">👤 {s.studentName}</p>
+                      {s.overallFinalGrade != null && (
+                        <span className="rounded-full bg-[#EDE9FE] px-2.5 py-1 text-xs font-semibold text-primary">
+                          🎓 {lang === 'he' ? `ציון סופי כולל: ${s.overallFinalGrade}` : `Overall final grade: ${s.overallFinalGrade}`}
+                        </span>
+                      )}
+                    </div>
                     <div className="grid gap-1">
                       {s.milestones.map((m) => {
                         const spec = templateMilestones.find((t) => t.type === m.type);

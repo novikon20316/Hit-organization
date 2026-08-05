@@ -135,6 +135,13 @@ export function ProposeVersionModal({
       setError(lang === 'he' ? 'יש להוסיף לפחות אבן דרך אחת' : 'Add at least one milestone');
       return;
     }
+    const totalPercent = milestones.reduce((sum, m) => sum + (m.percentOfFinalGrade ?? 0), 0);
+    if (Math.abs(totalPercent - 100) > 0.01) {
+      setError(lang === 'he'
+        ? `סכום האחוזים מהציון הסופי של כל אבני הדרך חייב להיות 100 (כרגע ${totalPercent})`
+        : `The final-grade percentages across all milestones must sum to 100 (currently ${totalPercent})`);
+      return;
+    }
     setSaving(true);
     setError('');
     try {

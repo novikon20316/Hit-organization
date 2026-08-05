@@ -427,12 +427,12 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
             );
           })}
 
-          {milestones.length > 0 && milestones.every((m) => m.finalGrade !== null) && (
+          {project.overallFinalGrade != null && (
             <div className="rounded-[var(--radius)] border border-line bg-surface p-5 text-center">
               <p className="text-sm text-muted">{t('finalGrade')}</p>
-              <p className="text-3xl font-bold text-ink">{Math.round(milestones.reduce((sum, m) => sum + (m.finalGrade ?? 0), 0) / milestones.length)}</p>
+              <p className="text-3xl font-bold text-ink">{project.overallFinalGrade}</p>
               <p className="mt-1 text-xs text-muted">
-                {lang === 'he' ? '* הציון מחושב לפי המשקלים שנקבעו על ידי רכז הפרויקטים' : '* Grade calculated using weights set by the project coordinator'}
+                {lang === 'he' ? '* הציון מחושב לפי האחוזים שנקבעו לכל אבן דרך בתבנית התהליך המאושרת' : "* Grade calculated using each milestone's percentage in the approved workflow template"}
               </p>
             </div>
           )}
