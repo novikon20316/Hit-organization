@@ -38,6 +38,7 @@ import {
 import { adminPanelStyles } from '../../constants/styles';
 import {ROLE_LABELS} from '../../constants';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal} from '@/components/modals';
+import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 
@@ -197,7 +198,7 @@ export default function PanelScreen() {
   const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills,   setNewSkills]   = useState('');
-  const [newPrerequisites, setNewPrerequisites] = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
   const [creating,    setCreating]    = useState(false);
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
@@ -805,7 +806,7 @@ export default function PanelScreen() {
         projectTypes: newProjectTypes,
         maxStudents: maxStudents,
         requiredSkills: newSkills.split(',').map((s) => s.trim()).filter(Boolean),
-        prerequisites: newPrerequisites.split(',').map((s) => s.trim()).filter(Boolean),
+        prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
         // Optional single-major restriction — selectedProgram holds a
         // level-specific program *key* (e.g. "bsc_cs"), but the backend's
         // `major` field expects the canonical subject *slug* (e.g.
@@ -817,7 +818,7 @@ export default function PanelScreen() {
       setShowNewProject(false);
       setNewTitleHe(''); setNewTitleEn('');
       setNewDescHe(''); setNewDescEn('');
-      setNewPrerequisites('');
+      setNewPrerequisites([]);
       setNewSkills('');
       setSelectedProgram(null);
 

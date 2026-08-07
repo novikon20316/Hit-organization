@@ -18,6 +18,7 @@ import { TopBar, getFacultyColor, FACULTY_COLORS } from '../../components/shared
 import { t, tx, type Lang } from '../../components/i18n';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal, NewProjectModal } from '@/components/modals';
+import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import { AdministrativeCoordinatorDashboardStyles, AdministrativeCoordinatorModalStyles, adminPanelStyles } from '../../constants/styles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import type { AppUser } from '@/types';
@@ -495,7 +496,7 @@ export default function ProjectCoordinatorDashboard() {
   const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills, setNewSkills] = useState('');
-  const [newPrerequisites, setNewPrerequisites] = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
   const [newMaxStudents, setNewMaxStudents] = useState(1);
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
@@ -653,13 +654,13 @@ export default function ProjectCoordinatorDashboard() {
         projectTypes: newProjectTypes,
         maxStudents: newMaxStudents,
         requiredSkills: newSkills.split(',').map((sk) => sk.trim()).filter(Boolean),
-        prerequisites: newPrerequisites.split(',').map((p) => p.trim()).filter(Boolean),
+        prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
         major: selectedProgram || undefined,
       });
       setShowNewProject(false);
       setNewTitleHe(''); setNewTitleEn('');
       setNewDescHe(''); setNewDescEn('');
-      setNewSkills(''); setNewPrerequisites('');
+      setNewSkills(''); setNewPrerequisites([]);
       setSelectedProgram(null);
       setSelectedSupervisor(null);
       Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');

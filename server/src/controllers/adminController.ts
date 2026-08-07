@@ -18,6 +18,7 @@ import {
   type ScopeRule, type CoordinatorScope,
 } from '../config/permissionScopes.js';
 import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, type RoleFacultyField } from '../services/scopeAuthorization.js';
+import { normalizePrerequisites } from '../services/prerequisites.js';
 import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { notifyUser } from '../services/notify.js';
@@ -386,8 +387,14 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
       degreeType: _omitDegreeType, degreeTypes: _omitDegreeTypes,
       projectType: _omitProjectType, projectTypes: _omitProjectTypes,
       supervisorId: _omitSupervisorId, supervisorIds: _omitSupervisorIds,
+      prerequisites: _omitPrerequisites,
       ...sharedFields
     } = projectData;
+    // Pulled out of the spread and normalized explicitly (courses a student
+    // must have completed, optionally with a minimum grade — see
+    // services/prerequisites.ts) rather than trusted as raw client input,
+    // matching createSupervisorProject.
+    const prerequisites = normalizePrerequisites(projectData.prerequisites);
 
     const batch = db.batch();
     const createdIds: string[] = [];
@@ -409,6 +416,7 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
         supervisorId: supervisorIds[0]!,
         secondarySupervisorId: supervisorIds[1] ?? null,
         supervisorIds,
+        prerequisites,
         workflowTemplateRefs: refsByFaculty.get(facultyId),
         postingGroupId,
         projectId: newProjectRef.id,

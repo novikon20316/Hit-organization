@@ -2,6 +2,7 @@ import admin from 'firebase-admin'
 import { AuthenticatedRequest } from '../middleware/auth.js'
 import { Response } from 'express'
 import { screenApplication } from '../services/cvScreeningService.js'
+import { normalizePrerequisites } from '../services/prerequisites.js'
 import { notifyUser } from '../services/notify.js'
 
 const db = admin.firestore();
@@ -192,7 +193,9 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         // makes the student's request hang while it happens.
         screenApplication({
             cvUrl: cvUrl ?? '',
-            prerequisites: projectData.prerequisites ?? [],
+            // normalizePrerequisites also accepts the legacy plain string[]
+            // shape, for any project created before minGrade shipped.
+            prerequisites: normalizePrerequisites(projectData.prerequisites),
             requiredSkills: projectData.requiredSkills ?? [],
         })
             .then((aiScreening) => newApplicationRef.update({ aiScreening }))

@@ -26,6 +26,7 @@ import { apiClient } from '@/lib/apiClient';
 import { majorsForFaculty } from '@/lib/permissions';
 import type { FacultyId } from '@/lib/i18n';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
+import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
 
 interface NewProjectModalProps {
   facultyId: FacultyId;
@@ -43,7 +44,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
   const [degreeTypes, setDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
   const [projectTypes, setProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [skills, setSkills] = useState('');
-  const [prerequisites, setPrerequisites] = useState('');
+  const [prerequisites, setPrerequisites] = useState<PrerequisiteSpec[]>([]);
   const [numberOfStudents, setNumberOfStudents] = useState(1);
   const [major, setMajor] = useState('');
   const [saving, setSaving] = useState(false);
@@ -89,7 +90,9 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         degreeTypes,
         projectTypes,
         requiredSkills: skills.split(',').map((s) => s.trim()).filter(Boolean),
-        prerequisites: prerequisites.split(',').map((s) => s.trim()).filter(Boolean),
+        prerequisites: prerequisites
+          .filter((p) => p.subject.trim())
+          .map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
         NumberOfStudents: numberOfStudents,
         facultyId,
         ...(major ? { major } : {}),
@@ -217,15 +220,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder="React, Python, ..." />
           </label>
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'קורסי דרישת קדם (מופרדים בפסיק)' : 'Prerequisites (comma-separated)'}</span>
-            <input
-              value={prerequisites}
-              onChange={(e) => setPrerequisites(e.target.value)}
-              className={inputCls}
-              placeholder={lang === 'he' ? 'לדוגמה: מבני נתונים, אלגוריתמים' : 'e.g. Data Structures, Algorithms'}
-            />
-          </label>
+          <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}

@@ -19,6 +19,7 @@ import {
 import { NewProjectModalStyles } from '../../constants/styles';
 import FacultyCheckboxes from '../FacultyCheckboxes';
 import WorkflowTemplatePreview from '../WorkflowTemplatePreview';
+import type { PrerequisiteSpec } from '../Prerequisites';
 
 // Returns true if the user holds a given role (checks both roles[] and the
 // legacy single role field so old data keeps working)
@@ -49,7 +50,7 @@ type Props = {
   descHe:  string; setDescHe:  (v: string) => void;
   descEn:  string; setDescEn:  (v: string) => void;
   skills:  string; setSkills:  (v: string) => void;
-  prerequisites: string; setPrerequisites: (v: string) => void;
+  prerequisites: PrerequisiteSpec[]; setPrerequisites: (v: PrerequisiteSpec[]) => void;
 
   // Supervisor mode only — locked/single, unaffected by the multi-faculty
   // feature (supervisor isn't one of the allowed roles).
@@ -465,17 +466,37 @@ export default function NewProjectModal({
         </Text>
         <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
           {lang === "he"
-            ? "רשום את שמות הקורסים שהסטודנט חייב להשלים כדי להיות זכאי, מופרדים בפסיקים"
-            : "List the course names a student must have completed to be eligible, separated by commas"}
+            ? "לכל קורס ניתן להוסיף ציון מינימלי נדרש (אופציונלי) — למשל \"מדעי המחשב\" עם ציון מינימלי 80."
+            : 'Each course can optionally have a minimum grade — e.g. "Computer Science" with a minimum grade of 80.'}
         </Text>
-        <TextInput
-          style={[styles.input, styles.textarea, { textAlign: isRtl ? "right" : "left", marginBottom: 20 }]}
-          value={prerequisites}
-          onChangeText={setPrerequisites}
-          multiline
-          placeholder={lang === "he" ? "לדוגמה: מבני נתונים, אלגוריתמים" : "e.g. Data Structures, Algorithms"}
-          placeholderTextColor="#9BA8C0"
-        />
+        {prerequisites.map((row, idx) => (
+          <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <TextInput
+              style={[styles.input, { flex: 1, textAlign: isRtl ? "right" : "left" }]}
+              value={row.subject}
+              onChangeText={(v) => setPrerequisites(prerequisites.map((r, i) => (i === idx ? { ...r, subject: v } : r)))}
+              placeholder={lang === "he" ? "שם הקורס" : "Course name"}
+              placeholderTextColor="#9BA8C0"
+            />
+            <TextInput
+              style={[styles.input, { width: 90, textAlign: isRtl ? "right" : "left" }]}
+              value={row.minGrade != null ? String(row.minGrade) : ''}
+              onChangeText={(v) => setPrerequisites(prerequisites.map((r, i) => (i === idx ? { ...r, minGrade: v === '' ? undefined : Number(v) } : r)))}
+              keyboardType="numeric"
+              placeholder={lang === "he" ? "ציון מינ׳" : "Min grade"}
+              placeholderTextColor="#9BA8C0"
+            />
+            <Pressable onPress={() => setPrerequisites(prerequisites.filter((_, i) => i !== idx))}>
+              <Text style={{ fontSize: 16 }}>🗑️</Text>
+            </Pressable>
+          </View>
+        ))}
+        <Pressable
+          onPress={() => setPrerequisites([...prerequisites, { subject: '' }])}
+          style={{ alignSelf: isRtl ? 'flex-end' : 'flex-start', backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 20 }}
+        >
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>＋ {lang === "he" ? "הוסף קורס" : "Add course"}</Text>
+        </Pressable>
 
         {/* ── Supervisors (admin/faculty_admin only) ────────────────────────────── */}
         {(isAdmin || isFacultyAdmin) && supervisors?.length ? (

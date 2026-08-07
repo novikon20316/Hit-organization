@@ -517,7 +517,9 @@ export const apiClient = {
     projectTypes: ('project' | 'thesis')[];
     maxStudents: number;
     requiredSkills: string[];
-    prerequisites: string[];
+    /** minGrade is optional per subject — omitted means "must have taken the
+     *  course," no grade threshold. See PrerequisitesEditor. */
+    prerequisites: Array<{ subject: string; minGrade?: number }>;
     /** Optional single major shared across every selected faculty — see
      *  adminController.ts's createAdminProject. Omitted = open to every
      *  major in each faculty. */
@@ -1202,7 +1204,9 @@ export const apiClient = {
     degreeTypes: ('bachelors' | 'masters')[];
     projectTypes: ('project' | 'thesis')[];
     requiredSkills: string[];
-    prerequisites: string[];
+    /** minGrade is optional per subject — omitted means "must have taken the
+     *  course," no grade threshold. See PrerequisitesEditor. */
+    prerequisites: Array<{ subject: string; minGrade?: number }>;
     NumberOfStudents: number;
     facultyId: string;
     /** Optional single major within facultyId, validated server-side against

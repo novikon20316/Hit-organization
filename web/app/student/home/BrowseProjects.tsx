@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { normalizePrerequisites, formatPrerequisite } from '@/lib/prerequisites';
 import type { ProjectProposal, DegreeType } from './types';
 
 interface BrowseProjectsProps {
@@ -67,7 +68,12 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
     });
   }, [proposals, search, degreeFilter, typeFilter, lang]);
 
-  const getMissingCourses = (p: ProjectProposal): string[] => (p.prerequisites ?? []).filter((c) => !completedCourses.includes(c));
+  // Name-match only, same as before minGrade shipped — there's no transcript
+  // data anywhere in this system to actually verify a grade against, only
+  // completedCourses (a plain list of course names on the student's own
+  // user doc). A subject's minGrade is shown to the student (see the
+  // prerequisites list below) but can't be enforced here.
+  const getMissingCourses = (p: ProjectProposal) => normalizePrerequisites(p.prerequisites).filter((pr) => !completedCourses.includes(pr.subject));
 
   const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
 
@@ -215,6 +221,12 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
                   <p className="text-xs text-muted">
                     👥 {lang === 'he' ? 'מקסימום סטודנטים:' : 'Max students:'} {p.NumberOfStudents ?? 1}
                   </p>
+                  {normalizePrerequisites(p.prerequisites).length > 0 && (
+                    <p className="text-xs text-muted">
+                      📚 {lang === 'he' ? 'דרישות קדם:' : 'Prerequisites:'}{' '}
+                      {normalizePrerequisites(p.prerequisites).map((pr) => formatPrerequisite(pr, lang)).join(', ')}
+                    </p>
+                  )}
                   {p.projectFileUrl && (
                     <a
                       href={p.projectFileUrl}
@@ -243,8 +255,8 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
                       {!isQualified && (
                         <p className="text-xs text-danger">
                           {lang === 'he'
-                            ? `אינך זכאי/ת לביצוע פרויקט/תזה זה. עליך ללמוד את: ${missingCourses.join(', ')}`
-                            : `Not qualified for this project/thesis. You need to have studied: ${missingCourses.join(', ')}`}
+                            ? `אינך זכאי/ת לביצוע פרויקט/תזה זה. עליך ללמוד את: ${missingCourses.map((c) => formatPrerequisite(c, lang)).join(', ')}`
+                            : `Not qualified for this project/thesis. You need to have studied: ${missingCourses.map((c) => formatPrerequisite(c, lang)).join(', ')}`}
                         </p>
                       )}
                     </>

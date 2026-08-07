@@ -14,6 +14,7 @@ import {
   type WorkflowMilestoneSpec, type FormFieldSpec,
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
+import { normalizePrerequisites } from '../services/prerequisites.js';
 
 const db = admin.firestore();
 
@@ -369,7 +370,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       projectFileUrl:     projectFileUrl     ?? null,
       NumberOfStudents:   NumberOfStudents   ?? 1,
       requiredSkills:     requiredSkills     ?? [],
-      prerequisites:      Array.isArray(prerequisites) ? prerequisites : [],
+      prerequisites:      normalizePrerequisites(prerequisites),
       facultyId:          resolvedFacultyId,
       ...(major ? { major } : {}),
       supervisorId,

@@ -210,7 +210,10 @@ export interface ProjectDocument {
   maxStudents: number;
   skills?: string;
   requiredSkills?: string[];
-  prerequisites?: string[];
+  /** Legacy plain string[] (pre-minGrade) or the newer {subject, minGrade?}[]
+   *  — always read through components/Prerequisites.ts's
+   *  normalizePrerequisites rather than directly. */
+  prerequisites?: Array<string | { subject: string; minGrade?: number }>;
   program?: string | null;
   projectInfoFileUrl?: string | null;
   projectInfoFileName?: string | null;
@@ -695,7 +698,10 @@ export interface ProjectProposal {
   projectTypes?: ProjectType[];
   NumberOfStudents:   number;
   requiredSkills:string[];
-  prerequisites?: string[];
+  /** Legacy plain string[] (pre-minGrade) or the newer {subject, minGrade?}[]
+   *  — always read through components/Prerequisites.ts's
+   *  normalizePrerequisites rather than directly. */
+  prerequisites?: Array<string | { subject: string; minGrade?: number }>;
   status:        string;
   academicYear:  string;
   projectFileUrl: string | null;

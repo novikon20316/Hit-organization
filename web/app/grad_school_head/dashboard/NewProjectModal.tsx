@@ -19,6 +19,7 @@ import { majorsForFaculty } from '@/lib/permissions';
 import { FacultyCheckboxes } from '@/components/FacultyCheckboxes';
 import { SupervisorCheckboxes, type SupervisorOption } from '@/components/SupervisorCheckboxes';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
+import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
 
 interface NewProjectModalProps {
   open: boolean;
@@ -41,7 +42,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   const [projectTypes, setProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [maxStudents, setMaxStudents] = useState(1);
   const [skills, setSkills] = useState('');
-  const [prerequisites, setPrerequisites] = useState('');
+  const [prerequisites, setPrerequisites] = useState<PrerequisiteSpec[]>([]);
   const [major, setMajor] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -87,7 +88,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
     setProjectTypes(['project']);
     setMaxStudents(1);
     setSkills('');
-    setPrerequisites('');
+    setPrerequisites([]);
     setMajor('');
     setError('');
   };
@@ -135,7 +136,9 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
         projectTypes,
         maxStudents,
         requiredSkills: skills.split(',').map((s) => s.trim()).filter(Boolean),
-        prerequisites: prerequisites.split(',').map((s) => s.trim()).filter(Boolean),
+        prerequisites: prerequisites
+          .filter((p) => p.subject.trim())
+          .map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
         ...(major ? { major } : {}),
       });
       reset();
@@ -251,14 +254,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder={lang === 'he' ? 'לדוגמה: Python, React' : 'e.g. Python, React'} />
           </Field>
 
-          <Field label={lang === 'he' ? 'דרישות קדם (מופרד בפסיקים)' : 'Prerequisites (comma-separated)'}>
-            <input
-              value={prerequisites}
-              onChange={(e) => setPrerequisites(e.target.value)}
-              className={inputCls}
-              placeholder={lang === 'he' ? 'לדוגמה: מבני נתונים, אלגוריתמים' : 'e.g. Data Structures, Algorithms'}
-            />
-          </Field>
+          <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}

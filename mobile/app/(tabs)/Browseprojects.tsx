@@ -10,6 +10,7 @@ import { tx, type Lang } from '../../components/i18n';
 import { browseProjectsStyles } from '../../constants/styles';
 import type { ProjectProposal } from '@/types';
 import { apiClient } from '../../src/api/apiClient';
+import { normalizePrerequisites, formatPrerequisite } from '@/components/Prerequisites';
 
 interface Props {
   proposals: ProjectProposal[];
@@ -84,8 +85,11 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   }, [proposals, search, degreeFilter, typeFilter, lang]);
 
   // ── Prerequisite/qualification check ──────────────────────────────────────
-  const getMissingCourses = (p: ProjectProposal): string[] =>
-    (p.prerequisites ?? []).filter((course) => !completedCourses.includes(course));
+  // Name-match only — completedCourses is a plain list of course names on
+  // the student's own user doc, no grades, so a subject's minGrade is shown
+  // for the student's awareness but can't be enforced here.
+  const getMissingCourses = (p: ProjectProposal) =>
+    normalizePrerequisites(p.prerequisites).filter((pr) => !completedCourses.includes(pr.subject));
 
   const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
 
@@ -415,6 +419,12 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                           </Text>
                         </Pressable>
                       ) : null}
+                      {normalizePrerequisites(p.prerequisites).length > 0 && (
+                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
+                          📚 {lang === 'he' ? 'דרישות קדם: ' : 'Prerequisites: '}
+                          {normalizePrerequisites(p.prerequisites).map((pr) => formatPrerequisite(pr, lang)).join(', ')}
+                        </Text>
+                      )}
                       {/* Apply / qualification-request button */}
                       {appliedProjectIds.includes(p.id) ? (
                         <View style={[styles.applyBtn, { backgroundColor: '#F59E0B' }]}>
@@ -448,8 +458,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                                 textAlign: isRtl ? 'right' : 'left',
                               }}>
                                 {lang === 'he'
-                                  ? `אינך זכאי/ת לביצוע פרויקט/תזה זה. עליך ללמוד את: ${missingCourses.join(', ')}`
-                                  : `You are not qualified to do this project/thesis. You had to study ${missingCourses.join(', ')}`}
+                                  ? `אינך זכאי/ת לביצוע פרויקט/תזה זה. עליך ללמוד את: ${missingCourses.map((c) => formatPrerequisite(c, lang)).join(', ')}`
+                                  : `You are not qualified to do this project/thesis. You had to study ${missingCourses.map((c) => formatPrerequisite(c, lang)).join(', ')}`}
                               </Text>
                             )}
                           </>

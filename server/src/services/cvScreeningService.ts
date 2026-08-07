@@ -9,6 +9,7 @@
 
 import pdfParse from 'pdf-parse';
 import { askClaude } from './anthropicClient.js';
+import { formatPrerequisite, type PrerequisiteSpec } from './prerequisites.js';
 
 export type CvScreeningVerdict = 'strong_fit' | 'partial_fit' | 'weak_fit' | 'unable_to_assess';
 
@@ -22,8 +23,9 @@ const DOWNLOAD_TIMEOUT_MS = 20000;
 const MAX_CV_TEXT_CHARS = 8000;
 
 const SYSTEM_PROMPT = `You help a project supervisor screen a student's CV against a project's prerequisites and required skills.
+A prerequisite may list a minimum grade in parentheses (e.g. "Computer Science (min grade: 80)") — only count it as met if the CV shows that course with a grade at or above the threshold; if the CV lists the course but no grade, or a lower grade, treat it as not (fully) met.
 Respond with ONLY a JSON object, no other text: {"verdict": "strong_fit" | "partial_fit" | "weak_fit", "reasoning": "<2-3 sentences for the supervisor>"}
-"strong_fit" = clearly meets the prerequisites/skills. "partial_fit" = meets some but not all. "weak_fit" = does not appear to meet the prerequisites/skills.`;
+"strong_fit" = clearly meets the prerequisites/skills (including any minimum grades). "partial_fit" = meets some but not all. "weak_fit" = does not appear to meet the prerequisites/skills.`;
 
 function parseVerdict(raw: string): { verdict: CvScreeningVerdict; reasoning: string } | null {
   try {
@@ -42,7 +44,7 @@ function parseVerdict(raw: string): { verdict: CvScreeningVerdict; reasoning: st
 
 export async function screenApplication(params: {
   cvUrl: string;
-  prerequisites: string[];
+  prerequisites: PrerequisiteSpec[];
   requiredSkills: string[];
 }): Promise<CvScreeningResult> {
   const generatedAt = new Date().toISOString();
@@ -73,7 +75,7 @@ export async function screenApplication(params: {
     if (!cvText) return fallback('Could not extract any text from the CV PDF.');
 
     const prompt = [
-      `Project prerequisites: ${params.prerequisites.join(', ') || 'none listed'}`,
+      `Project prerequisites: ${params.prerequisites.map((p) => formatPrerequisite(p)).join(', ') || 'none listed'}`,
       `Project required skills: ${params.requiredSkills.join(', ') || 'none listed'}`,
       '',
       'Candidate CV text:',

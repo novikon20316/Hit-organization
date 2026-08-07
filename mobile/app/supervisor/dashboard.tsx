@@ -13,6 +13,7 @@ import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_C
 import { sharedStyles } from '@/constants';
 import { SupervisorExtraStyles } from '../../constants/styles';
 import { NewProjectModal, RecommendedExaminerModal, ProjectWorkflowModal } from '@/components/modals';
+import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
@@ -138,7 +139,7 @@ export default function SupervisorHome() {
   const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills,   setNewSkills]   = useState('');
-  const [newPrerequisites, setNewPrerequisites] = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
   const [creating,    setCreating]    = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
   // ── Grade modal ───────────────────────────────────────────────────────────
@@ -509,14 +510,14 @@ export default function SupervisorHome() {
         projectFileUrl: projectFile,
         NumberOfStudents: maxStudents,
         requiredSkills: newSkills.split(',').map(s => s.trim()).filter(Boolean),
-        prerequisites: newPrerequisites.split(',').map(s => s.trim()).filter(Boolean),
+        prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
         facultyId,
         // Optional single-major restriction — omitted means open to every
         // major in the faculty (today's default, unchanged).
         ...(major ? { major } : {}),
       });
       setShowNewProject(false);
-      setNewPrerequisites('');
+      setNewPrerequisites([]);
       setSelectedProgram(null);
       setProjectFile(null);
       setProjectName(null);

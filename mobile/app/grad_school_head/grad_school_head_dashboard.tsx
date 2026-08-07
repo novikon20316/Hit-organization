@@ -19,6 +19,7 @@ import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { NewProjectModal } from '@/components/modals';
+import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import type { AppUser } from '@/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -145,7 +146,7 @@ export default function GradSchoolHeadDashboard() {
   const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills, setNewSkills] = useState('');
-  const [newPrerequisites, setNewPrerequisites] = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
   const [newMaxStudents, setNewMaxStudents] = useState(1);
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
@@ -247,13 +248,13 @@ export default function GradSchoolHeadDashboard() {
         projectTypes: newProjectTypes,
         maxStudents: newMaxStudents,
         requiredSkills: newSkills.split(',').map((sk) => sk.trim()).filter(Boolean),
-        prerequisites: newPrerequisites.split(',').map((p) => p.trim()).filter(Boolean),
+        prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
         major: selectedProgram || undefined,
       });
       setShowNewProject(false);
       setNewTitleHe(''); setNewTitleEn('');
       setNewDescHe(''); setNewDescEn('');
-      setNewSkills(''); setNewPrerequisites('');
+      setNewSkills(''); setNewPrerequisites([]);
       setSelectedProgram(null);
       setSelectedSupervisor(null);
       Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');

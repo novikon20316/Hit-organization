@@ -33,6 +33,7 @@ import {
   EditUserModal,
   NewProjectModal,
 } from '@/components/modals';
+import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import ManagedStaffSection from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
@@ -90,7 +91,7 @@ export default function PanelScreen() {
   const [newDegreeTypes, setNewDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills, setNewSkills] = useState('');
-  const [newPrerequisites, setNewPrerequisites] = useState('');
+  const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
   const [creating, setCreating] = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
 
@@ -273,7 +274,7 @@ export default function PanelScreen() {
         degreeTypes: newDegreeTypes,
         projectTypes: newProjectTypes,
         requiredSkills: newSkills.split(',').map((s) => s.trim()),
-        prerequisites: newPrerequisites.split(',').map((s) => s.trim()).filter(Boolean),
+        prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
         status: 'published',
         enrolledStudentIds: [],
         isArchived: false,
