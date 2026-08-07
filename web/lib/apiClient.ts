@@ -1120,18 +1120,49 @@ export const apiClient = {
 
   // ─── Three-rubric final-grade workflow (defense milestones with a
   // template-configured finalGradeComponents — see workflowTemplates.ts) ────
-  async submitSupervisorEvaluation(milestoneId: string, payload: { scores: Record<string, number>; comment?: string }) {
+  /** `files` is optional — the rubric alone drives the computed grade, an
+   *  attached file (e.g. the completed paper form) is just for the record.
+   *  Switches to multipart only when at least one file is given; otherwise
+   *  behaves exactly as before (plain JSON body). */
+  async submitSupervisorEvaluation(milestoneId: string, payload: { scores: Record<string, number>; comment?: string }, files?: File[]) {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      formData.append('scores', JSON.stringify(payload.scores));
+      if (payload.comment) formData.append('comment', payload.comment);
+      files.forEach((f) => formData.append('files', f));
+      return request<{ success: boolean; total: number }>(`/api/projects/milestones/${milestoneId}/supervisor-evaluation`, { method: 'POST', body: formData, raw: true });
+    }
     return request<{ success: boolean; total: number }>(`/api/projects/milestones/${milestoneId}/supervisor-evaluation`, { method: 'POST', body: payload });
   },
 
-  async submitExaminerEvaluation(milestoneId: string, payload: { kind: 'project' | 'defense'; scores: Record<string, number>; comment?: string }) {
+  async submitExaminerEvaluation(milestoneId: string, payload: { kind: 'project' | 'defense'; scores: Record<string, number>; comment?: string }, files?: File[]) {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      formData.append('kind', payload.kind);
+      formData.append('scores', JSON.stringify(payload.scores));
+      if (payload.comment) formData.append('comment', payload.comment);
+      files.forEach((f) => formData.append('files', f));
+      return request<{ success: boolean; total: number }>(`/api/projects/milestones/${milestoneId}/examiner-evaluation`, { method: 'POST', body: formData, raw: true });
+    }
     return request<{ success: boolean; total: number }>(`/api/projects/milestones/${milestoneId}/examiner-evaluation`, { method: 'POST', body: payload });
   },
 
   /** decision: 'approve' finalizes autoCalculatedFinalGrade directly; 'override'
    *  requires grade+reason and routes to the coordinator's grade-override
-   *  queue instead (see decideGradeOverride below). */
-  async decideFinalGrade(milestoneId: string, payload: { decision: 'approve' } | { decision: 'override'; grade: number; reason: string }) {
+   *  queue instead (see decideGradeOverride below). `files` is optional —
+   *  same "attach for the record, never required" treatment as the evaluations
+   *  above. */
+  async decideFinalGrade(milestoneId: string, payload: { decision: 'approve' } | { decision: 'override'; grade: number; reason: string }, files?: File[]) {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      formData.append('decision', payload.decision);
+      if (payload.decision === 'override') {
+        formData.append('grade', String(payload.grade));
+        formData.append('reason', payload.reason);
+      }
+      files.forEach((f) => formData.append('files', f));
+      return request<{ success: boolean; finalGrade?: number; status?: string }>(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, { method: 'POST', body: formData, raw: true });
+    }
     return request<{ success: boolean; finalGrade?: number; status?: string }>(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, { method: 'POST', body: payload });
   },
 
@@ -1513,6 +1544,10 @@ export const apiClient = {
         supervisorEvaluationTotal: number | null;
         examinerProjectAvg: number | null;
         examinerDefenseAvg: number | null;
+        supervisorEvaluationFileUrls: string[];
+        examinerProjectFileUrls: string[];
+        examinerDefenseFileUrls: string[];
+        gradeOverrideFileUrls: string[];
       }>;
     }>('/api/project-coordinator/grade-overrides', { method: 'GET' });
   },

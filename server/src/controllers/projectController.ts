@@ -4,6 +4,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import admin from 'firebase-admin';
+import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
 import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
@@ -545,7 +546,11 @@ async function maybeFinalizeAutoCalculatedGrade(milestoneRef: FirebaseFirestore.
 export const submitSupervisorEvaluation = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { milestoneId } = req.params;
-  const { scores, comment } = req.body;
+  // Multipart (uploadMiddleware) when an optional file is attached alongside
+  // the rubric — FormData fields arrive as strings, so `scores` needs
+  // JSON.parse there; a plain JSON body (no file) keeps working as-is.
+  const scores = typeof req.body.scores === 'string' ? JSON.parse(req.body.scores) : req.body.scores;
+  const comment = req.body.comment;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
   if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
 
@@ -573,11 +578,24 @@ export const submitSupervisorEvaluation = async (req: AuthenticatedRequest, res:
       return res.status(400).json({ message: err.message || 'Invalid evaluation scores.' });
     }
 
+    // Optional file attached alongside the online rubric (e.g. the completed
+    // paper form, for the record) — never required, the rubric alone drives
+    // the computed grade. See uploadMiddleware (shared with submitStaffRecord).
+    const files = ((req as any).files as Express.Multer.File[]) ?? [];
+    const fileUrls: string[] = [];
+    for (const file of files) {
+      const base64 = file.buffer.toString('base64');
+      const dataUri = `data:${file.mimetype};base64,${base64}`;
+      const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'evaluationRecords' });
+      fileUrls.push(result.secure_url);
+    }
+
     await milestoneRef.update({
       supervisorEvaluation: {
         scores: computed.breakdown,
         total: computed.total,
         comment: comment?.trim() ?? '',
+        ...(fileUrls.length > 0 ? { fileUrls } : {}),
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -602,14 +620,19 @@ export const submitSupervisorEvaluation = async (req: AuthenticatedRequest, res:
 };
 
 // ─── POST /api/projects/milestones/:milestoneId/examiner-evaluation ──────────
-// Body: { kind: 'project' | 'defense', scores, comment? } — 'project' scores
-// the written project/thesis (Project_examiner), 'defense' scores the oral
-// defense performance (Project_defence_slides); an examiner submits both,
+// Body: { kind: 'project' | 'defense', scores, comment? } plus an optional
+// attached file (multipart, field 'files') — 'project' scores the written
+// project/thesis (Project_examiner), 'defense' scores the oral defense
+// performance (Project_defence_slides); an examiner submits both,
 // independently, each averaged across every assigned examiner once all are in.
 export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { milestoneId } = req.params;
-  const { kind, scores, comment } = req.body;
+  const { kind, comment } = req.body;
+  // Multipart (uploadMiddleware) when an optional file is attached alongside
+  // the rubric — FormData fields arrive as strings, so `scores` needs
+  // JSON.parse there; a plain JSON body (no file) keeps working as-is.
+  const scores = typeof req.body.scores === 'string' ? JSON.parse(req.body.scores) : req.body.scores;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
   if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
   if (kind !== 'project' && kind !== 'defense') return res.status(400).json({ message: 'kind must be "project" or "defense".' });
@@ -641,11 +664,24 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
       return res.status(400).json({ message: err.message || 'Invalid evaluation scores.' });
     }
 
+    // Optional file attached alongside the online rubric (e.g. the completed
+    // paper form, for the record) — never required, the rubric alone drives
+    // the computed grade. See uploadMiddleware (shared with submitStaffRecord).
+    const files = ((req as any).files as Express.Multer.File[]) ?? [];
+    const fileUrls: string[] = [];
+    for (const file of files) {
+      const base64 = file.buffer.toString('base64');
+      const dataUri = `data:${file.mimetype};base64,${base64}`;
+      const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'evaluationRecords' });
+      fileUrls.push(result.secure_url);
+    }
+
     await milestoneRef.update({
       [`examinerEvaluations.${uid}.${kind}`]: {
         scores: computed.breakdown,
         total: computed.total,
         comment: comment?.trim() ?? '',
+        ...(fileUrls.length > 0 ? { fileUrls } : {}),
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),

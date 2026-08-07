@@ -9,8 +9,22 @@
 
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { apiClient } from '../../src/api/apiClient';
 import type { Lang } from '../i18n';
+
+type PickedFile = { uri: string; name: string; mimeType?: string };
+
+/** Builds the multipart body for an optional file attached alongside a
+ *  decision/rubric submission — mirrors StaffRecordModal.tsx's own file
+ *  handling. Only ever appends 'files' when one was actually picked; every
+ *  other field is appended as a plain string. */
+function appendOptionalFile(formData: FormData, file: PickedFile | null) {
+  if (!file) return;
+  const fileExtension = file.name?.split('.').pop()?.toLowerCase();
+  const fallbackType = fileExtension === 'pdf' ? 'application/pdf' : 'application/octet-stream';
+  formData.append('files', { uri: file.uri, name: file.name, type: file.mimeType || fallbackType } as any);
+}
 
 interface Props {
   visible: boolean;
@@ -26,6 +40,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
   const [mode, setMode] = useState<'choose' | 'override'>('choose');
   const [overrideGrade, setOverrideGrade] = useState(String(autoCalculatedFinalGrade));
   const [reason, setReason] = useState('');
+  const [file, setFile] = useState<PickedFile | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,16 +49,34 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
       setMode('choose');
       setOverrideGrade(String(autoCalculatedFinalGrade));
       setReason('');
+      setFile(null);
       setError('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, milestoneId, autoCalculatedFinalGrade]);
 
+  const pickFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync();
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    setFile({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? undefined });
+  };
+
   const handleApprove = async () => {
     setSubmitting(true);
     setError('');
     try {
-      await apiClient.post(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, { decision: 'approve' });
+      if (file) {
+        const formData = new FormData();
+        formData.append('decision', 'approve');
+        appendOptionalFile(formData, file);
+        await apiClient.post(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          transformRequest: (data: any) => data,
+        });
+      } else {
+        await apiClient.post(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, { decision: 'approve' });
+      }
       onDecided();
       onClose();
     } catch (err: any) {
@@ -66,11 +99,23 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
     setSubmitting(true);
     setError('');
     try {
-      await apiClient.post(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, {
-        decision: 'override',
-        grade,
-        reason: reason.trim(),
-      });
+      if (file) {
+        const formData = new FormData();
+        formData.append('decision', 'override');
+        formData.append('grade', String(grade));
+        formData.append('reason', reason.trim());
+        appendOptionalFile(formData, file);
+        await apiClient.post(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          transformRequest: (data: any) => data,
+        });
+      } else {
+        await apiClient.post(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, {
+          decision: 'override',
+          grade,
+          reason: reason.trim(),
+        });
+      }
       onDecided();
       onClose();
     } catch (err: any) {
@@ -95,6 +140,20 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
             {lang === 'he' ? 'הציון המחושב אוטומטית' : 'Automatically calculated grade'}
           </Text>
           <Text style={{ fontSize: 32, fontWeight: '800', color: '#1E293B', marginTop: 4 }}>{autoCalculatedFinalGrade}</Text>
+        </View>
+
+        <View style={{ marginTop: 16 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+            {lang === 'he' ? 'קובץ מצורף (אופציונלי — למשל טופס הציון הסופי החתום)' : 'Attached file (optional — e.g. the signed final-grade form)'}
+          </Text>
+          <Pressable
+            onPress={pickFile}
+            style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+          >
+            <Text style={{ fontSize: 13, color: file ? '#1E293B' : '#94A3B8' }}>
+              {file ? `📄 ${file.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
+            </Text>
+          </Pressable>
         </View>
 
         {mode === 'choose' ? (

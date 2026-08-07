@@ -26,6 +26,7 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
   const { lang, t } = useLanguage();
   const [scores, setScores] = useState<Record<string, string>>(() => Object.fromEntries(components.map((c) => [c.key, ''])));
   const [comment, setComment] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -38,7 +39,7 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
       await apiClient.submitSupervisorEvaluation(milestoneId, {
         scores: Object.fromEntries(components.map((c) => [c.key, Number(scores[c.key]) || 0])),
         comment,
-      });
+      }, file ? [file] : undefined);
       onSubmitted();
       onClose();
     } catch (err) {
@@ -85,6 +86,13 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
         </label>
 
         <p className="mt-3 text-sm font-bold text-ink">{lang === 'he' ? 'סה"כ' : 'Total'}: {total}/100</p>
+
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
+          </span>
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink" />
+        </label>
 
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
 

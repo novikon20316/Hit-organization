@@ -463,13 +463,22 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
       // way to tell whether a disputed grade came from the supervisor's
       // evaluation or an examiner's before deciding on an override.
       const examinerIds: string[] = m.examinerIds ?? [];
-      const examinerEvals: Record<string, { project?: { total: number }; defense?: { total: number } }> = m.examinerEvaluations ?? {};
+      const examinerEvals: Record<string, { project?: { total: number; fileUrls?: string[] }; defense?: { total: number; fileUrls?: string[] } }> = m.examinerEvaluations ?? {};
       const examinerProjectAvg = examinerIds.length > 0
         ? Math.round(examinerIds.reduce((sum, id) => sum + (examinerEvals[id]?.project?.total ?? 0), 0) / examinerIds.length)
         : null;
       const examinerDefenseAvg = examinerIds.length > 0
         ? Math.round(examinerIds.reduce((sum, id) => sum + (examinerEvals[id]?.defense?.total ?? 0), 0) / examinerIds.length)
         : null;
+      // Any file attached alongside a rubric/decision (optional — see
+      // projectController.ts's submitSupervisorEvaluation/submitExaminerEvaluation
+      // and supervisorController.ts's decideFinalGrade) so the coordinator
+      // can open the actual paper-form record behind a disputed grade, not
+      // just the numbers.
+      const supervisorEvaluationFileUrls: string[] = m.supervisorEvaluation?.fileUrls ?? [];
+      const examinerProjectFileUrls: string[] = Object.values(examinerEvals).flatMap((e) => e.project?.fileUrls ?? []);
+      const examinerDefenseFileUrls: string[] = Object.values(examinerEvals).flatMap((e) => e.defense?.fileUrls ?? []);
+      const gradeOverrideFileUrls: string[] = m.gradeOverride?.fileUrls ?? [];
 
       return {
         milestoneId: m.id,
@@ -490,6 +499,10 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
         supervisorEvaluationTotal: m.supervisorEvaluation?.total ?? null,
         examinerProjectAvg,
         examinerDefenseAvg,
+        supervisorEvaluationFileUrls,
+        examinerProjectFileUrls,
+        examinerDefenseFileUrls,
+        gradeOverrideFileUrls,
       };
     });
 

@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Alert, RefreshControl,
-  TextInput, Modal,
+  TextInput, Modal, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -129,6 +129,24 @@ interface GradeOverrideRow {
   supervisorEvaluationTotal: number | null;
   examinerProjectAvg: number | null;
   examinerDefenseAvg: number | null;
+  supervisorEvaluationFileUrls: string[];
+  examinerProjectFileUrls: string[];
+  examinerDefenseFileUrls: string[];
+  gradeOverrideFileUrls: string[];
+}
+
+function FileLinksRow({ label, urls }: { label: string; urls: string[] }) {
+  if (urls.length === 0) return null;
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 }}>
+      <Text style={{ fontSize: 10, color: '#64748B' }}>{label}</Text>
+      {urls.map((url, i) => (
+        <Pressable key={i} onPress={() => Linking.openURL(url)} style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+          <Text style={{ fontSize: 11, color: '#1E293B' }}>📄 {i + 1}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
 }
 
 // ─── Send Examiner Modal ───────────────────────────────────────────────────────
@@ -789,6 +807,11 @@ export default function ProjectCoordinatorDashboard() {
                       </View>
                     </View>
                   )}
+
+                  <FileLinksRow label={lang === 'he' ? '📎 מנחה:' : '📎 Supervisor:'} urls={r.supervisorEvaluationFileUrls} />
+                  <FileLinksRow label={lang === 'he' ? '📎 בוחן — עבודה:' : '📎 Examiner — project:'} urls={r.examinerProjectFileUrls} />
+                  <FileLinksRow label={lang === 'he' ? '📎 בוחן — הגנה:' : '📎 Examiner — defense:'} urls={r.examinerDefenseFileUrls} />
+                  <FileLinksRow label={lang === 'he' ? '📎 טופס הציון הסופי:' : '📎 Final-grade form:'} urls={r.gradeOverrideFileUrls} />
 
                   {r.kind === 'override' ? (
                     <>

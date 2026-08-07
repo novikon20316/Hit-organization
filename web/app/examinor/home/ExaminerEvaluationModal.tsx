@@ -29,6 +29,7 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
 
   const [scores, setScores] = useState<Record<string, string>>(() => Object.fromEntries(rubric.map((c) => [c.key, ''])));
   const [comment, setComment] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -42,7 +43,7 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
         kind,
         scores: Object.fromEntries(rubric.map((c) => [c.key, Number(scores[c.key]) || 0])),
         comment,
-      });
+      }, file ? [file] : undefined);
       onSubmitted();
       onClose();
     } catch (err) {
@@ -100,6 +101,13 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
             {total} / 100
           </span>
         </div>
+
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
+          </span>
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink" />
+        </label>
 
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
 

@@ -26,6 +26,24 @@ interface GradeOverrideRow {
   supervisorEvaluationTotal: number | null;
   examinerProjectAvg: number | null;
   examinerDefenseAvg: number | null;
+  supervisorEvaluationFileUrls: string[];
+  examinerProjectFileUrls: string[];
+  examinerDefenseFileUrls: string[];
+  gradeOverrideFileUrls: string[];
+}
+
+function FileLinks({ label, urls }: { label: string; urls: string[] }) {
+  if (urls.length === 0) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] text-muted">{label}</span>
+      {urls.map((url, i) => (
+        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-ink hover:border-primary">
+          📄 {i + 1}
+        </a>
+      ))}
+    </div>
+  );
 }
 
 export function GradeOverridesTab() {
@@ -93,6 +111,11 @@ export function GradeOverridesTab() {
               </div>
             </div>
           )}
+
+          <FileLinks label={lang === 'he' ? '📎 מנחה:' : '📎 Supervisor:'} urls={r.supervisorEvaluationFileUrls} />
+          <FileLinks label={lang === 'he' ? '📎 בוחן — עבודה:' : '📎 Examiner — project:'} urls={r.examinerProjectFileUrls} />
+          <FileLinks label={lang === 'he' ? '📎 בוחן — הגנה:' : '📎 Examiner — defense:'} urls={r.examinerDefenseFileUrls} />
+          <FileLinks label={lang === 'he' ? '📎 טופס הציון הסופי:' : '📎 Final-grade form:'} urls={r.gradeOverrideFileUrls} />
 
           {r.kind === 'override' ? (
             <>

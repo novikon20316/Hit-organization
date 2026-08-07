@@ -9,8 +9,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { apiClient } from '../../src/api/apiClient';
 import type { Lang } from '../i18n';
+
+type PickedFile = { uri: string; name: string; mimeType?: string };
 
 interface RubricComponent { key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }
 
@@ -27,6 +30,7 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
   const isRtl = lang === 'he';
   const [scores, setScores] = useState<Record<string, string>>({});
   const [comment, setComment] = useState('');
+  const [file, setFile] = useState<PickedFile | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,6 +38,7 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
     if (visible) {
       setScores(Object.fromEntries(components.map((c) => [c.key, ''])));
       setComment('');
+      setFile(null);
       setError('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -43,14 +48,32 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
     components.reduce((sum, c) => sum + ((Number(scores[c.key]) || 0) / c.maxScore) * c.weight, 0)
   );
 
+  const pickFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync();
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    setFile({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? undefined });
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError('');
     try {
-      await apiClient.post(`/api/projects/milestones/${milestoneId}/supervisor-evaluation`, {
-        scores: Object.fromEntries(components.map((c) => [c.key, Number(scores[c.key]) || 0])),
-        comment,
-      });
+      const scoresObj = Object.fromEntries(components.map((c) => [c.key, Number(scores[c.key]) || 0]));
+      if (file) {
+        const fileExtension = file.name?.split('.').pop()?.toLowerCase();
+        const fallbackType = fileExtension === 'pdf' ? 'application/pdf' : 'application/octet-stream';
+        const formData = new FormData();
+        formData.append('scores', JSON.stringify(scoresObj));
+        if (comment) formData.append('comment', comment);
+        formData.append('files', { uri: file.uri, name: file.name, type: file.mimeType || fallbackType } as any);
+        await apiClient.post(`/api/projects/milestones/${milestoneId}/supervisor-evaluation`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          transformRequest: (data: any) => data,
+        });
+      } else {
+        await apiClient.post(`/api/projects/milestones/${milestoneId}/supervisor-evaluation`, { scores: scoresObj, comment });
+      }
       onSubmitted();
       onClose();
     } catch (err: any) {
@@ -106,6 +129,18 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
         <Text style={{ marginTop: 14, fontSize: 14, fontWeight: '700', color: '#1E293B' }}>
           {lang === 'he' ? 'סה"כ' : 'Total'}: {total}/100
         </Text>
+
+        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 16, marginBottom: 8 }}>
+          {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
+        </Text>
+        <Pressable
+          onPress={pickFile}
+          style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+        >
+          <Text style={{ fontSize: 13, color: file ? '#1E293B' : '#94A3B8' }}>
+            {file ? `📄 ${file.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
+          </Text>
+        </Pressable>
 
         {error ? <Text style={{ marginTop: 12, color: '#EF4444', fontSize: 13 }}>{error}</Text> : null}
 

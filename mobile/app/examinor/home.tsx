@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
@@ -93,7 +94,15 @@ export default function ExaminerHome() {
   const [evalTarget,     setEvalTarget]     = useState<{ milestone: AssignedMilestone; kind: 'project' | 'defense' } | null>(null);
   const [evalScores,     setEvalScores]     = useState<Record<string, string>>({});
   const [evalComment,    setEvalComment]    = useState('');
+  const [evalFile,       setEvalFile]       = useState<{ uri: string; name: string; mimeType?: string } | null>(null);
   const [evalSubmitting, setEvalSubmitting] = useState(false);
+
+  const pickEvalFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync();
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    setEvalFile({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? undefined });
+  };
 
   const uid = auth.currentUser?.uid;
  
@@ -195,6 +204,7 @@ export default function ExaminerHome() {
     setEvalTarget({ milestone: m, kind });
     setEvalScores(initial);
     setEvalComment('');
+    setEvalFile(null);
     setEvalModal(true);
   };
 
@@ -202,11 +212,26 @@ export default function ExaminerHome() {
     if (!evalTarget) return;
     try {
       setEvalSubmitting(true);
-      await apiClient.post(`/api/projects/milestones/${evalTarget.milestone.id}/examiner-evaluation`, {
-        kind: evalTarget.kind,
-        scores: Object.fromEntries(evalRubric.map((c) => [c.key, parseFloat(evalScores[c.key]) || 0])),
-        comment: evalComment,
-      });
+      const scoresObj = Object.fromEntries(evalRubric.map((c) => [c.key, parseFloat(evalScores[c.key]) || 0]));
+      if (evalFile) {
+        const fileExtension = evalFile.name?.split('.').pop()?.toLowerCase();
+        const fallbackType = fileExtension === 'pdf' ? 'application/pdf' : 'application/octet-stream';
+        const formData = new FormData();
+        formData.append('kind', evalTarget.kind);
+        formData.append('scores', JSON.stringify(scoresObj));
+        if (evalComment) formData.append('comment', evalComment);
+        formData.append('files', { uri: evalFile.uri, name: evalFile.name, type: evalFile.mimeType || fallbackType } as any);
+        await apiClient.post(`/api/projects/milestones/${evalTarget.milestone.id}/examiner-evaluation`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          transformRequest: (data: any) => data,
+        });
+      } else {
+        await apiClient.post(`/api/projects/milestones/${evalTarget.milestone.id}/examiner-evaluation`, {
+          kind: evalTarget.kind,
+          scores: scoresObj,
+          comment: evalComment,
+        });
+      }
       Alert.alert(
         lang === 'he' ? '✅ הצלחה' : '✅ Success',
         lang === 'he' ? 'ההערכה נשלחה בהצלחה' : 'Evaluation submitted successfully'
@@ -877,6 +902,18 @@ export default function ExaminerHome() {
             placeholder={lang === 'he' ? 'הערות לסטודנט...' : 'Comments to student...'}
             textAlign={isRtl ? 'right' : 'left'}
           />
+
+          <Text style={styles.fieldLabel}>
+            {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
+          </Text>
+          <Pressable
+            onPress={pickEvalFile}
+            style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+          >
+            <Text style={{ fontSize: 13, color: evalFile ? '#1E293B' : '#94A3B8' }}>
+              {evalFile ? `📄 ${evalFile.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
+            </Text>
+          </Pressable>
 
           <Pressable
             style={[styles.submitBtn, evalSubmitting && { opacity: 0.6 }]}

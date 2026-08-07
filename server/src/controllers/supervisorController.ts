@@ -826,11 +826,25 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       kind = 'override';
     }
 
+    // Optional file attached alongside the decision (e.g. the signed final-
+    // grade paper form, for the record) — never required, the decision
+    // itself is what finalizes the grade. See uploadMiddleware (shared with
+    // submitStaffRecord).
+    const files = ((req as any).files as Express.Multer.File[]) ?? [];
+    const fileUrls: string[] = [];
+    for (const file of files) {
+      const base64 = file.buffer.toString('base64');
+      const dataUri = `data:${file.mimetype};base64,${base64}`;
+      const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'evaluationRecords' });
+      fileUrls.push(result.secure_url);
+    }
+
     await milestoneRef.update({
       gradeOverride: {
         kind,
         proposedGrade,
         ...(reasonTrimmed ? { reason: reasonTrimmed } : {}),
+        ...(fileUrls.length > 0 ? { fileUrls } : {}),
         proposedBy: supervisorId,
         proposedAt: admin.firestore.FieldValue.serverTimestamp(),
         status: 'pending',

@@ -31,7 +31,7 @@ router.post('/examiner-recommendations', verifyToken, createExaminerRecommendati
 // three-rubric final-grade decision (defense) — see workflowTemplates.ts's
 // staffRecordMode/finalGradeComponents for which faculties these apply to.
 router.post('/milestones/:id/staff-record', verifyToken, uploadMiddleware, submitStaffRecord)
-router.post('/milestones/:id/final-grade-decision', verifyToken, decideFinalGrade)
+router.post('/milestones/:id/final-grade-decision', verifyToken, uploadMiddleware, decideFinalGrade)
 
 
 export default router;
