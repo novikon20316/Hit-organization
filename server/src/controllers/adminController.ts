@@ -96,10 +96,23 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
       ...d.data(),
     }));
 
-    const projects = projectsSnap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    }));
+    // Resolves each project's supervisorId to a display name — without this,
+    // ProjectsTab.tsx's `p.supervisorName || 'No Supervisor'` fallback always
+    // wins (the field was never set at all, regardless of whether
+    // supervisorId is actually populated in Firestore), showing every
+    // project as unsupervised. usersSnap is already fetched above, so this
+    // is a free in-memory lookup, not an extra query.
+    const usersById: Record<string, string> = {};
+    usersSnap.docs.forEach((d) => { usersById[d.id] = d.data()?.displayName ?? 'Unknown'; });
+
+    const projects = projectsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        supervisorName: data.supervisorId ? (usersById[data.supervisorId] ?? 'Unknown') : 'Unassigned',
+      };
+    });
 
     const milestones = milestonesSnap.docs.map((d) => ({
       id: d.id,
