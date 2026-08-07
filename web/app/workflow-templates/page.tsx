@@ -55,6 +55,11 @@ export default function WorkflowTemplatesPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const [proposeOpen, setProposeOpen] = useState(false);
+  // 'other' pre-fills the new-version draft from the sibling process type's
+  // approved template (msc_thesis <-> msc_project only — bsc_project has no
+  // sibling) instead of this one's own, so staff whose thesis/project tracks
+  // are identical don't have to re-enter every milestone by hand.
+  const [proposeFrom, setProposeFrom] = useState<'own' | 'other'>('own');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   // Approve, for a template proposed with applyMode 'now', shows a preview
@@ -112,6 +117,14 @@ export default function WorkflowTemplatesPage() {
   }, [isAllowed, fetchTemplates]);
 
   const approvedForActive = templates.find((tpl) => tpl.processType === activeProcessType && tpl.status === 'approved');
+  const otherProcessType: ProcessType | null =
+    activeProcessType === 'msc_thesis' ? 'msc_project'
+    : activeProcessType === 'msc_project' ? 'msc_thesis'
+    : null;
+  const approvedForOther = otherProcessType
+    ? templates.find((tpl) => tpl.processType === otherProcessType && tpl.status === 'approved')
+    : undefined;
+  const proposeSourceTpl = proposeFrom === 'other' ? approvedForOther : approvedForActive;
   const pending = templates.filter((tpl) => tpl.status === 'pending_approval');
   const pendingForActive = pending.filter((tpl) => tpl.processType === activeProcessType);
   const history = templates.filter((tpl) => tpl.status === 'rejected' || tpl.status === 'superseded');
@@ -366,13 +379,27 @@ export default function WorkflowTemplatesPage() {
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={() => setProposeOpen(true)}
-            className="w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
-          >
-            ＋ {lang === 'he' ? 'הצע גרסה חדשה' : 'Propose New Version'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setProposeFrom('own'); setProposeOpen(true); }}
+              className="flex-1 rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            >
+              ＋ {lang === 'he' ? 'הצע גרסה חדשה' : 'Propose New Version'}
+            </button>
+            {otherProcessType && approvedForOther && (
+              <button
+                type="button"
+                onClick={() => { setProposeFrom('other'); setProposeOpen(true); }}
+                title={lang === 'he'
+                  ? `העתק את כל אבני הדרך מתבנית ${processTypeLabel(otherProcessType, lang)}`
+                  : `Copy every milestone from the ${processTypeLabel(otherProcessType, lang)} template`}
+                className="flex-1 rounded-lg border border-primary py-3 text-sm font-semibold text-primary hover:bg-[#EDE9FE]"
+              >
+                📋 {lang === 'he' ? `העתק מ${processTypeLabel(otherProcessType, lang)}` : `Copy from ${processTypeLabel(otherProcessType, lang)}`}
+              </button>
+            )}
+          </div>
         </div>
       ) : tab === 'pending' ? pending.length === 0 ? (
         <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין הצעות ממתינות' : 'No pending proposals'}</p>
@@ -517,10 +544,11 @@ export default function WorkflowTemplatesPage() {
           processType={activeProcessType}
           facultyId={facultyId}
           major={major}
-          initialMilestones={approvedForActive?.milestones ?? []}
-          initialDefaultRouting={approvedForActive?.defaultRouting}
-          initialExaminerSignoffRole={approvedForActive?.examinerSignoffRole}
-          initialFinalGradeSignoffRole={approvedForActive?.finalGradeSignoffRole}
+          initialMilestones={proposeSourceTpl?.milestones ?? []}
+          initialDefaultRouting={proposeSourceTpl?.defaultRouting}
+          initialExaminerSignoffRole={proposeSourceTpl?.examinerSignoffRole}
+          initialFinalGradeSignoffRole={proposeSourceTpl?.finalGradeSignoffRole}
+          copiedFromLabel={proposeFrom === 'other' && otherProcessType ? processTypeLabel(otherProcessType, lang) : undefined}
           onClose={() => setProposeOpen(false)}
           onProposed={() => {
             fetchTemplates();

@@ -42,12 +42,17 @@ interface ProposeVersionModalProps {
    *  if any. Omitted falls back to the server's own legacy default:
    *  grad_school_head, for every process type. */
   initialFinalGradeSignoffRole?: ChainRole;
+  /** Set when the parent opened this modal via its "Copy from <other
+   *  process type>" button rather than "Propose New Version" — shows a
+   *  small banner so it's clear the draft came from elsewhere before
+   *  submitting, since every field below is otherwise fully editable. */
+  copiedFromLabel?: string;
   onClose: () => void;
   onProposed: () => void;
 }
 
 export function ProposeVersionModal({
-  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, initialFinalGradeSignoffRole, onClose, onProposed,
+  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, initialFinalGradeSignoffRole, copiedFromLabel, onClose, onProposed,
 }: ProposeVersionModalProps) {
   const { lang, t } = useLanguage();
   const [milestones, setMilestones] = useState<MilestoneSpec[]>(initialMilestones.length > 0 ? initialMilestones.map((m) => ({ ...m })) : [emptyMilestone(1)]);
@@ -180,6 +185,12 @@ export function ProposeVersionModal({
         <p className="mt-2 inline-block rounded-full bg-[#EFEBF6] px-2.5 py-1 text-xs font-semibold" style={{ color: '#5B21B6' }}>
           🎓 {processTypeLabel(processType, lang)}
         </p>
+
+        {copiedFromLabel && (
+          <p className="mt-2 rounded-md bg-[#E9F0F5] px-2.5 py-1.5 text-xs text-[#3E6C8C]">
+            📋 {lang === 'he' ? `הועתק מתבנית ${copiedFromLabel} — ניתן לערוך הכל לפני השליחה.` : `Copied from the ${copiedFromLabel} template — everything below is still editable before you submit.`}
+          </p>
+        )}
 
         <div className="mt-4 flex items-center justify-between">
           <span className="text-sm font-semibold text-ink">

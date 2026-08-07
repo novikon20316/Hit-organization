@@ -549,6 +549,9 @@ export default function WorkflowTemplateManager() {
   const [editorDefaultRouting, setEditorDefaultRouting] = useState<MilestoneRoutingSpec>(DEFAULT_ROUTING.map((s) => ({ ...s })));
   const [editorExaminerSignoffRole, setEditorExaminerSignoffRole] = useState<ChainRole | 'none'>('none');
   const [editorFinalGradeSignoffRole, setEditorFinalGradeSignoffRole] = useState<ChainRole>('grad_school_head');
+  // Set when the editor was opened via "Copy from <other process type>" —
+  // shows a small banner so it's clear the draft came from elsewhere.
+  const [editorCopiedFromLabel, setEditorCopiedFromLabel] = useState<string | null>(null);
 
   // Milestone row editor (inside the propose modal)
   const [msModalOpen, setMsModalOpen] = useState(false);
@@ -630,29 +633,45 @@ export default function WorkflowTemplateManager() {
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
   const approvedForActive = templates.find((t) => t.processType === activeProcessType && t.status === 'approved');
+  // msc_thesis <-> msc_project only — bsc_project has no sibling to copy
+  // from/to (it's the only bachelor's process type).
+  const otherProcessType: ProcessType | null =
+    activeProcessType === 'msc_thesis' ? 'msc_project'
+    : activeProcessType === 'msc_project' ? 'msc_thesis'
+    : null;
+  const approvedForOther = otherProcessType
+    ? templates.find((t) => t.processType === otherProcessType && t.status === 'approved')
+    : undefined;
   const pending = templates.filter((t) => t.status === 'pending_approval');
   const pendingForActive = pending.filter((t) => t.processType === activeProcessType);
   const history = templates.filter((t) => t.status === 'rejected' || t.status === 'superseded');
   const historyForActive = history.filter((t) => t.processType === activeProcessType);
 
   // ── Propose editor ──────────────────────────────────────────────────────
-  const openEditor = () => {
+  // `source` lets the "Copy from <other process type>" button pre-fill the
+  // draft from the sibling process type's approved template instead of this
+  // one's own — everything stays fully editable before submitting, this
+  // just saves re-entering an identical milestone list by hand.
+  const openEditor = (source?: WorkflowTemplateDoc) => {
+    const from = source ?? approvedForActive;
     setEditorMilestones(
-      approvedForActive
-        ? approvedForActive.milestones.map((m) => ({ ...m }))
+      from
+        ? from.milestones.map((m) => ({ ...m }))
         : [emptyMilestone(1)]
     );
     setEditorNote('');
     setEditorApplyMode('from_now_on');
     setEditorPreview(null);
     setEditorDefaultRouting(
-      approvedForActive?.defaultRouting && approvedForActive.defaultRouting.length > 0
-        ? approvedForActive.defaultRouting.map((s) => ({ ...s }))
+      from?.defaultRouting && from.defaultRouting.length > 0
+        ? from.defaultRouting.map((s) => ({ ...s }))
         : DEFAULT_ROUTING.map((s) => ({ ...s }))
     );
     // Legacy default matches the server's own resolveExaminerSignoffRole fallback.
-    setEditorExaminerSignoffRole(approvedForActive?.examinerSignoffRole ?? (activeProcessType === 'msc_thesis' ? 'grad_school_head' : 'none'));
-    setEditorFinalGradeSignoffRole(approvedForActive?.finalGradeSignoffRole ?? 'grad_school_head');
+    setEditorExaminerSignoffRole(from?.examinerSignoffRole ?? (activeProcessType === 'msc_thesis' ? 'grad_school_head' : 'none'));
+    setEditorFinalGradeSignoffRole(from?.finalGradeSignoffRole ?? 'grad_school_head');
+    const otherLabel = otherProcessType ? PROCESS_TYPES.find((p) => p.key === otherProcessType) : undefined;
+    setEditorCopiedFromLabel(source && otherLabel ? (lang === 'he' ? otherLabel.he : otherLabel.en) : null);
     setEditorOpen(true);
   };
 
@@ -1167,14 +1186,28 @@ export default function WorkflowTemplateManager() {
               </Text>
             )}
 
-            <Pressable
-              style={{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
-              onPress={openEditor}
-            >
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
-                ＋ {lang === 'he' ? 'הצע גרסה חדשה' : 'Propose New Version'}
-              </Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable
+                style={{ flex: 1, backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
+                onPress={() => openEditor()}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
+                  ＋ {lang === 'he' ? 'הצע גרסה חדשה' : 'Propose New Version'}
+                </Text>
+              </Pressable>
+              {approvedForOther && (
+                <Pressable
+                  style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
+                  onPress={() => openEditor(approvedForOther)}
+                >
+                  <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
+                    📋 {lang === 'he'
+                      ? `העתק מ${otherProcessType ? PROCESS_TYPES.find((p) => p.key === otherProcessType)?.he : ''}`
+                      : `Copy from ${otherProcessType ? PROCESS_TYPES.find((p) => p.key === otherProcessType)?.en : ''}`}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </>
         )}
 
@@ -1353,6 +1386,16 @@ export default function WorkflowTemplateManager() {
                 🎓 {lang === 'he' ? PROCESS_TYPES.find((p) => p.key === activeProcessType)?.he : PROCESS_TYPES.find((p) => p.key === activeProcessType)?.en}
               </Text>
             </View>
+
+            {editorCopiedFromLabel && (
+              <View style={{ backgroundColor: '#E9F0F5', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                <Text style={{ fontSize: 12, color: '#3E6C8C' }}>
+                  📋 {lang === 'he'
+                    ? `הועתק מתבנית ${editorCopiedFromLabel} — ניתן לערוך הכל לפני השליחה.`
+                    : `Copied from the ${editorCopiedFromLabel} template — everything below is still editable before you submit.`}
+                </Text>
+              </View>
+            )}
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
