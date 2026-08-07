@@ -5,7 +5,7 @@ import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
 import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js';
 import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
-import { VALID_MAJORS } from '../config/majors.js';
+import { VALID_MAJORS, MAJORS_BY_FACULTY } from '../config/majors.js';
 import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../services/accountDeletion.js';
 import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
 import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
@@ -160,10 +160,15 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     const CROSS_FACULTY_ROLES = ['system_admin', 'administrative_secretary'];
     const isCrossFaculty = CROSS_FACULTY_ROLES.includes(role);
 
-    const validFaculties = [
-      'sciences', 'electrical', 'industrial',
-      'learning_tech', 'medical_tech', 'design', 'all',
-    ];
+    // Derived from the canonical faculty list (config/majors.ts) instead of
+    // a second hardcoded copy — this list previously omitted 'data_science'
+    // (added after this file was last touched), which hard-rejected every
+    // Data Science student's signup with a 400 before their Firestore user
+    // doc could even be created, silently keeping them invisible to their
+    // administrative_coordinator's students-report table (which is
+    // correctly rooted at the `users` collection with no such bug of its
+    // own — see projectCoordinatorController.ts's getStudentsReport).
+    const validFaculties = [...Object.keys(MAJORS_BY_FACULTY), 'all'];
     if (facultyId && !validFaculties.includes(facultyId)) {
       return res.status(400).json({ error: `Invalid facultyId: ${facultyId}` });
     }
