@@ -472,14 +472,14 @@ export default function NewProjectModal({
         {prerequisites.map((row, idx) => (
           <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <TextInput
-              style={[styles.input, { flex: 1, textAlign: isRtl ? "right" : "left" }]}
+              style={[styles.input, { flex: 7, textAlign: isRtl ? "right" : "left" }]}
               value={row.subject}
               onChangeText={(v) => setPrerequisites(prerequisites.map((r, i) => (i === idx ? { ...r, subject: v } : r)))}
               placeholder={lang === "he" ? "שם הקורס" : "Course name"}
               placeholderTextColor="#9BA8C0"
             />
             <TextInput
-              style={[styles.input, { width: 90, textAlign: isRtl ? "right" : "left" }]}
+              style={[styles.input, { flex: 3, textAlign: isRtl ? "right" : "left" }]}
               value={row.minGrade != null ? String(row.minGrade) : ''}
               onChangeText={(v) => setPrerequisites(prerequisites.map((r, i) => (i === idx ? { ...r, minGrade: v === '' ? undefined : Number(v) } : r)))}
               keyboardType="numeric"

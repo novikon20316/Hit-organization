@@ -47,7 +47,7 @@ export function PrerequisitesEditor({ lang, value, onChange }: PrerequisitesEdit
               value={row.subject}
               onChange={(e) => updateRow(idx, { subject: e.target.value })}
               placeholder={lang === 'he' ? 'שם הקורס' : 'Course name'}
-              className={`flex-1 ${inputCls}`}
+              className={`basis-[70%] ${inputCls}`}
             />
             <input
               type="number"
@@ -56,7 +56,7 @@ export function PrerequisitesEditor({ lang, value, onChange }: PrerequisitesEdit
               value={row.minGrade ?? ''}
               onChange={(e) => updateRow(idx, { minGrade: e.target.value === '' ? undefined : Number(e.target.value) })}
               placeholder={lang === 'he' ? 'ציון מינ׳' : 'Min grade'}
-              className={`w-24 shrink-0 ${inputCls}`}
+              className={`basis-[30%] ${inputCls}`}
             />
             <button type="button" onClick={() => removeRow(idx)} className="shrink-0 px-1 text-sm" aria-label="remove">
               🗑️
