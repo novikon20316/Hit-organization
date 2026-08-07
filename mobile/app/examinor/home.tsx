@@ -42,6 +42,7 @@ const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   progress_report:   { he: 'דו"ח התקדמות', en: 'Progress Report'   },
   final_report:      { he: 'דו"ח מסכם',    en: 'Final Report'      },
   defense:           { he: 'הגנה',          en: 'Defense'           },
+  poster:            { he: 'פוסטר',        en: 'Poster Session'    },
 };
  
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -134,6 +135,15 @@ export default function ExaminerHome() {
     if (m.finalGradeComponents) {
       const ev = m.examinerEvaluations?.[uid ?? ''];
       return !!ev?.project && !!ev?.defense;
+    }
+    // Generic chain-routing milestones (see server/src/services/
+    // milestoneRouting.ts's isChainDriven — e.g. the examiner-only 'poster'
+    // type) carry neither examinerScores nor finalGradeComponents. Without
+    // this check the legacy positional fallback below would read
+    // examiner1Score/examiner2Score as `undefined !== null` (true) and show
+    // "already graded" before this examiner ever submitted anything.
+    if (m.stageScores != null) {
+      return Object.values(m.stageScores).some((entry) => entry?.gradedBy === uid);
     }
     // Identity-keyed defense milestones (post-generalization) carry
     // examinerScores instead of the legacy examiner1Score/examiner2Score

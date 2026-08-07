@@ -3,7 +3,7 @@
 export type StudentState = 'loading' | 'ineligible' | 'no_project' | 'pending' | 'active';
 export type DegreeType = 'bachelors' | 'masters';
 export type ProjectType = 'project' | 'thesis';
-export type MilestoneType = 'research_proposal' | 'progress_report' | 'final_report' | 'defense';
+export type MilestoneType = 'research_proposal' | 'progress_report' | 'final_report' | 'defense' | 'poster';
 
 export type MilestoneStatus =
   | 'pending'
@@ -125,6 +125,7 @@ export interface Milestone {
   examinerNames: string[];
   examinerIds: string[];
   rejectionReason?: string | null;
+  coordinatorComment?: string | null;
   revisionHistory?: MilestoneRevision[];
   /** Three-rubric defense workflow — the supervisor's own evaluation
    *  (distinct from examinerEvaluations, which the student never receives —
@@ -168,9 +169,10 @@ export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   progress_report: { he: 'דו"ח התקדמות', en: 'Progress Report' },
   final_report: { he: 'דו"ח מסכם', en: 'Final Report' },
   defense: { he: 'הגנה', en: 'Defense' },
+  poster: { he: 'פוסטר', en: 'Poster Session' },
 };
 
-export const MILESTONE_ORDER: MilestoneType[] = ['research_proposal', 'progress_report', 'final_report', 'defense'];
+export const MILESTONE_ORDER: MilestoneType[] = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
 
 // Ported from Activedashboard.tsx's STATUS_CONFIG, hex values swapped for
 // this site's own muted palette rather than mobile's saturated colors —

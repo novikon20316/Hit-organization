@@ -457,6 +457,20 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
 
     const overrides = milestones.map((m) => {
       const project = projectsById[m.projectId] ?? {};
+      // What actually drove autoCalculatedFinalGrade (see
+      // projectController.ts's maybeFinalizeAutoCalculatedGrade) — the
+      // coordinator sees only the two aggregate numbers otherwise, with no
+      // way to tell whether a disputed grade came from the supervisor's
+      // evaluation or an examiner's before deciding on an override.
+      const examinerIds: string[] = m.examinerIds ?? [];
+      const examinerEvals: Record<string, { project?: { total: number }; defense?: { total: number } }> = m.examinerEvaluations ?? {};
+      const examinerProjectAvg = examinerIds.length > 0
+        ? Math.round(examinerIds.reduce((sum, id) => sum + (examinerEvals[id]?.project?.total ?? 0), 0) / examinerIds.length)
+        : null;
+      const examinerDefenseAvg = examinerIds.length > 0
+        ? Math.round(examinerIds.reduce((sum, id) => sum + (examinerEvals[id]?.defense?.total ?? 0), 0) / examinerIds.length)
+        : null;
+
       return {
         milestoneId: m.id,
         projectId: m.projectId ?? null,
@@ -473,6 +487,9 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
         proposedGrade: m.gradeOverride?.proposedGrade ?? null,
         reason: m.gradeOverride?.reason ?? '',
         proposedAt: m.gradeOverride?.proposedAt?.toDate?.()?.toISOString?.() ?? null,
+        supervisorEvaluationTotal: m.supervisorEvaluation?.total ?? null,
+        examinerProjectAvg,
+        examinerDefenseAvg,
       };
     });
 

@@ -45,11 +45,21 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   // positional display, forever (no migration).
   const isIdentityKeyed = m.examinerScores != null;
   const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
+  // Generic chain-routing milestones (e.g. the examiner-only 'poster' type —
+  // see server/src/services/milestoneRouting.ts's isChainDriven) carry
+  // neither examinerScores nor finalGradeComponents, so without this check
+  // the legacy positional fallback below would read examiner1Score/
+  // examiner2Score as `undefined !== null` (true) and show "already graded"
+  // before this examiner ever submitted anything.
+  const isChainDriven = m.stageScores != null;
+  const gradedViaChain = Object.values(m.stageScores ?? {}).some((entry) => entry?.gradedBy === uid);
   const graded = isThreeRubric
     ? projectDone && defenseDone
-    : isIdentityKeyed
-      ? m.examinerScores?.[uid] != null
-      : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
+    : isChainDriven
+      ? gradedViaChain
+      : isIdentityKeyed
+        ? m.examinerScores?.[uid] != null
+        : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
   // Panel size is configurable per faculty/degree (see workflowTemplates.ts's
   // examinerCount) — every OTHER examiner on the panel, not just a single
   // assumed peer.

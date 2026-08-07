@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { apiClient } from '@/lib/apiClient';
+import { ApproveMilestoneModal } from './ApproveMilestoneModal';
 import { RejectMilestoneModal } from './RejectMilestoneModal';
 import { MILESTONE_LABEL, type CoordinatorPendingMilestone } from './types';
 
@@ -20,20 +21,26 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
   const [expanded, setExpanded] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [showApprove, setShowApprove] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const [rowError, setRowError] = useState('');
   const facultyColor = getFacultyColor(m.facultyId);
   const isFinalReport = m.type === 'final_report';
 
-  const handleApprove = async () => {
+  const handleApproveClick = () => {
     if (isFinalReport) {
       onApproveFinalReport(m);
       return;
     }
+    setShowApprove(true);
+  };
+
+  const handleApprove = async (comment: string) => {
     setApproving(true);
     setRowError('');
     try {
-      await apiClient.coordinatorApproveMilestone(m.id);
+      await apiClient.coordinatorApproveMilestone(m.id, comment || undefined);
+      setShowApprove(false);
       onChanged();
     } catch (err) {
       setRowError(err instanceof Error ? err.message : 'Failed to approve milestone');
@@ -179,7 +186,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          onClick={handleApprove}
+          onClick={handleApproveClick}
           disabled={approving}
           className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
         >
@@ -200,6 +207,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
         </button>
       </div>
 
+      <ApproveMilestoneModal open={showApprove} busy={approving} onCancel={() => setShowApprove(false)} onConfirm={handleApprove} />
       <RejectMilestoneModal open={showReject} busy={rejecting} onCancel={() => setShowReject(false)} onConfirm={handleReject} />
     </div>
   );

@@ -594,6 +594,7 @@ async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.Docu
   const studentIds: string[] = milestone.studentIds ?? [];
   const finalGradeByStudent: Record<string, number> | undefined = milestone.finalGradeByStudent;
   const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
+  const comment: string | undefined = milestone.coordinatorComment;
 
   await Promise.all(studentIds.map(async (studentId) => {
     try {
@@ -603,8 +604,8 @@ async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.Docu
         type: 'milestone_graded',
         titleHe: 'אבן דרך אושרה על ידי הרכז',
         titleEn: 'Milestone approved by coordinator',
-        bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה${grade != null ? ` עם ציון ${grade}` : ''}. בדוק/י בטאב הציונים של הפרויקט שלך.`,
-        bodyEn: `Your milestone "${milestoneTitle.en}" has been approved${grade != null ? ` with grade ${grade}` : ''}. Check your project's Grades section.`,
+        bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה${grade != null ? ` עם ציון ${grade}` : ''}. בדוק/י בטאב הציונים של הפרויקט שלך.${comment ? ` הערת הרכז: ${comment}` : ''}`,
+        bodyEn: `Your milestone "${milestoneTitle.en}" has been approved${grade != null ? ` with grade ${grade}` : ''}. Check your project's Grades section.${comment ? ` Coordinator's comment: ${comment}` : ''}`,
         relatedProjectId: projectId ?? null,
         relatedMilestoneId: milestoneId,
         emailData: { milestoneTitle, grade: grade != null ? String(grade) : '' },
@@ -638,7 +639,7 @@ async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.Docu
  *  the legacy path does, reusing the same 'coordinator_approved' status and
  *  notification regardless of which role actually approved it. */
 async function approveChainMilestone(
-  req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string,
+  req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string, comment?: string,
 ): Promise<Response> {
   const routing: ChainStage[] = milestone.routing;
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
@@ -679,6 +680,7 @@ async function approveChainMilestone(
         update.status = 'coordinator_approved';
         update.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
         update.coordinatorId = actorId;
+        if (comment) update.coordinatorComment = comment;
         finalized = true;
         finalizedMilestone = { ...fresh, ...update };
       }
@@ -718,6 +720,10 @@ async function approveChainMilestone(
 export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res: Response) => {
   const { milestoneId } = req.params;
   const coordinatorId = req.user?.uid;
+  // Optional — approval stays binary (no tri-state "conditionally approved"
+  // status), but staff can attach a reason, e.g. "approved provided the
+  // bibliography is expanded before the defense." See ApproveMilestoneModal.tsx.
+  const comment: string | undefined = typeof req.body?.comment === 'string' ? req.body.comment.trim() || undefined : undefined;
 
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid or missing milestoneId.' });
@@ -734,7 +740,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId);
+    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment);
   }
 
   if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
@@ -771,6 +777,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
         status: 'coordinator_approved',
         coordinatorApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
         coordinatorId,
+        ...(comment ? { coordinatorComment: comment } : {}),
       });
     });
 
@@ -781,7 +788,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
       entityType: 'milestone',
       entityId: milestoneId,
       oldValue: { status: previousStatus ?? null },
-      newValue: { status: 'coordinator_approved' },
+      newValue: { status: 'coordinator_approved', ...(comment ? { comment } : {}) },
     });
 
     // Notify students (grade is already final by the time a coordinator
@@ -804,8 +811,8 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
             type: 'milestone_graded',
             titleHe: 'אבן דרך אושרה על ידי הרכז',
             titleEn: 'Milestone approved by coordinator',
-            bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה${grade != null ? ` עם ציון ${grade}` : ''}. בדוק/י בטאב הציונים של הפרויקט שלך.`,
-            bodyEn: `Your milestone "${milestoneTitle.en}" has been approved${grade != null ? ` with grade ${grade}` : ''}. Check your project's Grades section.`,
+            bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה${grade != null ? ` עם ציון ${grade}` : ''}. בדוק/י בטאב הציונים של הפרויקט שלך.${comment ? ` הערת הרכז: ${comment}` : ''}`,
+            bodyEn: `Your milestone "${milestoneTitle.en}" has been approved${grade != null ? ` with grade ${grade}` : ''}. Check your project's Grades section.${comment ? ` Coordinator's comment: ${comment}` : ''}`,
             relatedProjectId: projectId ?? null,
             relatedMilestoneId: milestoneId,
             emailData: { milestoneTitle, grade: grade != null ? String(grade) : '' },

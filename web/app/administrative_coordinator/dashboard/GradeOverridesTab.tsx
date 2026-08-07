@@ -23,6 +23,9 @@ interface GradeOverrideRow {
   autoCalculatedFinalGrade: number | null;
   proposedGrade: number | null;
   reason: string;
+  supervisorEvaluationTotal: number | null;
+  examinerProjectAvg: number | null;
+  examinerDefenseAvg: number | null;
 }
 
 export function GradeOverridesTab() {
@@ -73,6 +76,23 @@ export function GradeOverridesTab() {
         <div key={r.milestoneId} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
           <p className="text-sm font-semibold text-ink">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
           <p className="mt-0.5 text-xs text-muted">👤 {r.studentNames.join(', ')}</p>
+
+          {(r.supervisorEvaluationTotal != null || r.examinerProjectAvg != null || r.examinerDefenseAvg != null) && (
+            <div className="mt-2 flex gap-1.5">
+              <div className="flex-1 rounded-md bg-paper p-1.5 text-center">
+                <p className="text-[10px] text-muted">{lang === 'he' ? 'מנחה' : 'Supervisor'}</p>
+                <p className="text-xs font-semibold text-ink">{r.supervisorEvaluationTotal ?? '—'}</p>
+              </div>
+              <div className="flex-1 rounded-md bg-paper p-1.5 text-center">
+                <p className="text-[10px] text-muted">{lang === 'he' ? 'בוחן — עבודה' : 'Examiner — project'}</p>
+                <p className="text-xs font-semibold text-ink">{r.examinerProjectAvg ?? '—'}</p>
+              </div>
+              <div className="flex-1 rounded-md bg-paper p-1.5 text-center">
+                <p className="text-[10px] text-muted">{lang === 'he' ? 'בוחן — הגנה' : 'Examiner — defense'}</p>
+                <p className="text-xs font-semibold text-ink">{r.examinerDefenseAvg ?? '—'}</p>
+              </div>
+            </div>
+          )}
 
           {r.kind === 'override' ? (
             <>

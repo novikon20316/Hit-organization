@@ -3250,6 +3250,7 @@ export const AdministrativeCoordinatorDashboardStyles = StyleSheet.create({
   overrideBoxProposed:{ backgroundColor: '#FEF3C7' },
   overrideLabel:      { fontSize: 10, color: '#64748B' },
   overrideValue:      { fontSize: 18, fontWeight: '800', color: '#1E293B', marginTop: 2 },
+  overrideBreakdownValue: { fontSize: 13, fontWeight: '700', color: '#1E293B', marginTop: 2 },
   overrideReason:     { fontSize: 12, color: '#1E293B', backgroundColor: '#F8FAFC', borderRadius: 8, padding: 8, marginBottom: 8 },
   overrideActionRow:  { flexDirection: 'row', gap: 8 },
   btnApproveOverride:     { flex: 1, backgroundColor: '#7C3AED', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },

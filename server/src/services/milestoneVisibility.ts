@@ -12,6 +12,16 @@
 // examiner2Score (all already visible to the student via finalGrade), but
 // examinerEvaluations (full per-examiner rubric breakdowns) must not leak the
 // same way.
+//
+// Extended for the generic chain-routing model (milestoneRouting.ts) —
+// chain-driven milestones (e.g. the examiner-only 'poster' milestone) store
+// per-stage grades under `stageScores`, keyed by stage id, not under
+// `examinerEvaluations`. A stage whose configured role is 'examiner' gets the
+// exact same treatment: visible only to whichever examiner actually graded
+// that stage (`stageScores[id].gradedBy`), never to the student or
+// supervisor. Stages for every other role (supervisor, coordinator, ...) stay
+// fully visible to everyone, matching "forms tied to the supervisor are
+// visible to the student and the supervisor too."
 
 const STAFF_ROLES_WITH_FULL_VISIBILITY = [
   'administrative_secretary',
@@ -22,12 +32,14 @@ const STAFF_ROLES_WITH_FULL_VISIBILITY = [
 ];
 
 /** Strips examiner-only content from a milestone doc unless the viewer is
- *  one of its assigned examiners (in which case only THEIR OWN entry is
- *  kept — co-examiners' scores/comments are none of their business either)
- *  or a coordinator/admin-tier role (full visibility, per "all forms
- *  accessible to the coordinator"). Everyone else (the student, the
- *  supervisor) never sees `examinerEvaluations` at all — matches "examiner
- *  forms are accessible only to the examiner who submits them." */
+ *  the examiner who actually submitted it, or a coordinator/admin-tier role
+ *  (full visibility, per "all forms accessible to the coordinator"). Covers
+ *  both the three-rubric defense's `examinerEvaluations` (co-examiners'
+ *  entries redacted, keeping only the viewer's own) and any chain-driven
+ *  milestone's `stageScores` for an examiner-role stage (redacted entirely
+ *  from non-graders). Everyone else (the student, the supervisor) never sees
+ *  either field's examiner-only content — matches "examiner forms are
+ *  accessible only to the examiner who submits them." */
 export function sanitizeMilestoneForViewer(
   data: Record<string, any>,
   viewerUid: string,
@@ -37,16 +49,30 @@ export function sanitizeMilestoneForViewer(
     return data;
   }
 
-  if (!data.examinerEvaluations) return data;
+  let result = data;
 
-  const examinerIds: string[] = data.examinerIds ?? [];
-  if (examinerIds.includes(viewerUid)) {
-    return {
-      ...data,
-      examinerEvaluations: { [viewerUid]: data.examinerEvaluations[viewerUid] },
-    };
+  if (result.examinerEvaluations) {
+    const examinerIds: string[] = result.examinerIds ?? [];
+    if (examinerIds.includes(viewerUid)) {
+      result = { ...result, examinerEvaluations: { [viewerUid]: result.examinerEvaluations[viewerUid] } };
+    } else {
+      const { examinerEvaluations, ...rest } = result;
+      result = rest;
+    }
   }
 
-  const { examinerEvaluations, ...rest } = data;
-  return rest;
+  if (result.stageScores && Array.isArray(result.routing)) {
+    const roleByStageId = new Map<string, string>(
+      (result.routing as Array<{ id: string; role: string }>).map((stage) => [stage.id, stage.role])
+    );
+    const filteredStageScores: Record<string, any> = {};
+    for (const [stageId, entry] of Object.entries(result.stageScores as Record<string, any>)) {
+      const isExaminerStage = roleByStageId.get(stageId) === 'examiner';
+      if (isExaminerStage && entry?.gradedBy !== viewerUid) continue;
+      filteredStageScores[stageId] = entry;
+    }
+    result = { ...result, stageScores: filteredStageScores };
+  }
+
+  return result;
 }

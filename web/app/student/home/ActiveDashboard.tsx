@@ -261,6 +261,13 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                     </div>
                   )}
 
+                  {isApprovedOrDone && m.coordinatorComment && (
+                    <div className="mt-2 rounded-lg bg-paper p-2.5">
+                      <p className="text-xs font-semibold text-ink">{lang === 'he' ? 'הערת הרכז:' : "Coordinator's comment:"}</p>
+                      <p className="mt-0.5 text-xs text-muted">{m.coordinatorComment}</p>
+                    </div>
+                  )}
+
                   {(m.status === 'pending' || isRejected) && !isDefense && unlocked && !m.defenseDate && (
                     <button
                       type="button"

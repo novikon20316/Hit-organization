@@ -8,6 +8,7 @@ export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   progress_report: { he: 'דו״ח התקדמות', en: 'Progress Report' },
   final_report: { he: 'דו״ח סופי', en: 'Final Report' },
   defense: { he: 'הגנה', en: 'Defense' },
+  poster: { he: 'פוסטר', en: 'Poster Session' },
 };
 
 export const STATUS_LABEL: Record<string, { he: string; en: string }> = {

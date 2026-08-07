@@ -82,6 +82,13 @@ export interface AssignedMilestone {
     project?: { total: number };
     defense?: { total: number };
   }>;
+  // Generic chain-routing milestones (see server/src/services/
+  // milestoneRouting.ts's isChainDriven — e.g. the examiner-only 'poster'
+  // type) carry neither examinerScores nor finalGradeComponents, so
+  // AssignmentCard.tsx's `graded` check needs these to tell "already
+  // graded" apart from "not yet" for this examiner.
+  stageScores?: Record<string, { score: number; gradedBy: string }> | null;
+  routing?: Array<{ id: string; role: string; action: string }> | null;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -100,6 +107,7 @@ export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   progress_report: { he: 'דו"ח התקדמות', en: 'Progress Report' },
   final_report: { he: 'דו"ח מסכם', en: 'Final Report' },
   defense: { he: 'הגנה', en: 'Defense' },
+  poster: { he: 'פוסטר', en: 'Poster Session' },
 };
 
 // Ported from the local GRADING_CRITERIA const in mobile/app/examinor/home.tsx —

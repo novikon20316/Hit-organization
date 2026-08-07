@@ -100,6 +100,13 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           // finalGradeComponents) — empty/absent means this milestone still
           // uses the single shared gradingComponents rubric above.
           finalGradeComponents: milestoneData.finalGradeComponents ?? null,
+          // Generic chain-routing milestones (see milestoneRouting.ts's
+          // isChainDriven — e.g. the examiner-only 'poster' milestone type)
+          // carry neither examinerScores nor finalGradeComponents, so the
+          // client needs these to tell "already graded" apart from "not yet"
+          // — see AssignmentCard.tsx's `graded` computation.
+          stageScores: milestoneData.stageScores ?? null,
+          routing: milestoneData.routing ?? null,
           // Only this examiner's own entry — a co-examiner's rubric
           // scores/comments are examiner-only content too, not just
           // off-limits to the student/supervisor.

@@ -535,6 +535,13 @@ export interface AssignedMilestone {
     project?: { total: number };
     defense?: { total: number };
   }>;
+  // Generic chain-routing milestones (see server/src/services/
+  // milestoneRouting.ts's isChainDriven — e.g. the examiner-only 'poster'
+  // type) carry neither examinerScores nor finalGradeComponents, so
+  // alreadyGraded() in mobile/app/examinor/home.tsx needs these to tell
+  // "already graded" apart from "not yet" for this examiner.
+  stageScores?: Record<string, { score: number; gradedBy: string }> | null;
+  routing?: Array<{ id: string; role: string; action: string }> | null;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -670,7 +677,8 @@ export type MilestoneType =
   | 'research_proposal'
   | 'progress_report'
   | 'final_report'
-  | 'defense';
+  | 'defense'
+  | 'poster';
 
 export interface ProjectProposal {
   id:            string;
@@ -756,6 +764,7 @@ export interface Milestone {
   examinerIds: string[];
   supervisorScore?: number | null;
   rejectionReason?: string | null;
+  coordinatorComment?: string | null;
   revisionHistory?: MilestoneRevision[];
   /** Three-rubric defense workflow — the supervisor's own evaluation
    *  (distinct from examinerEvaluations, which the student never receives —

@@ -16,6 +16,12 @@ interface StaffFormField {
   labelEn: string;
   type: 'text' | 'textarea' | 'date' | 'number' | 'table';
   required: boolean;
+  /** Only meaningful when type === 'table' — the columns of each repeatable row. */
+  tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+}
+
+function emptyTableRow(columns: NonNullable<StaffFormField['tableColumns']>): Record<string, string> {
+  return Object.fromEntries(columns.map((c) => [c.key, '']));
 }
 
 interface StaffRecordModalProps {
@@ -30,8 +36,23 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
   const [mode, setMode] = useState<'upload' | 'form'>(fields.length > 0 ? 'form' : 'upload');
   const [file, setFile] = useState<File | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [tableValues, setTableValues] = useState<Record<string, Array<Record<string, string>>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const addTableRow = (field: StaffFormField) => {
+    const columns = field.tableColumns ?? [];
+    setTableValues((prev) => ({ ...prev, [field.key]: [...(prev[field.key] ?? []), emptyTableRow(columns)] }));
+  };
+  const removeTableRow = (fieldKey: string, rowIdx: number) => {
+    setTableValues((prev) => ({ ...prev, [fieldKey]: (prev[fieldKey] ?? []).filter((_, i) => i !== rowIdx) }));
+  };
+  const updateTableCell = (fieldKey: string, rowIdx: number, columnKey: string, cellValue: string) => {
+    setTableValues((prev) => ({
+      ...prev,
+      [fieldKey]: (prev[fieldKey] ?? []).map((row, i) => (i === rowIdx ? { ...row, [columnKey]: cellValue } : row)),
+    }));
+  };
 
   const handleSubmit = async () => {
     setError('');
@@ -55,14 +76,20 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
       return;
     }
 
-    const missing = fields.filter((f) => f.required && !values[f.key]?.trim());
+    const missing = fields.filter((f) =>
+      f.required && (f.type === 'table' ? (tableValues[f.key] ?? []).length === 0 : !values[f.key]?.trim())
+    );
     if (missing.length > 0) {
       setError(lang === 'he' ? 'יש למלא את כל שדות החובה' : 'Fill in every required field');
       return;
     }
     setSubmitting(true);
     try {
-      await apiClient.submitStaffRecordForm(milestoneId, values);
+      const formData: Record<string, unknown> = { ...values };
+      for (const f of fields) {
+        if (f.type === 'table') formData[f.key] = tableValues[f.key] ?? [];
+      }
+      await apiClient.submitStaffRecordForm(milestoneId, formData);
       onSubmitted();
       onClose();
     } catch (err) {
@@ -108,11 +135,43 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
         ) : (
           <div className="mt-4 grid gap-3">
             {fields.map((f) => (
-              <label key={f.key} className="block">
+              <div key={f.key} className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">
                   {lang === 'he' ? f.labelHe : f.labelEn}{f.required ? ' *' : ''}
                 </span>
-                {f.type === 'textarea' ? (
+                {f.type === 'table' ? (
+                  <div className="rounded-lg border border-line bg-paper p-2.5">
+                    <div className="grid gap-2">
+                      {(tableValues[f.key] ?? []).map((row, rowIdx) => (
+                        <div key={rowIdx} className="flex items-end gap-1.5 rounded-md border border-line bg-surface p-2">
+                          <div className="grid flex-1 gap-1.5" style={{ gridTemplateColumns: `repeat(${(f.tableColumns ?? []).length}, minmax(0, 1fr))` }}>
+                            {(f.tableColumns ?? []).map((col) => (
+                              <label key={col.key} className="block">
+                                <span className="mb-1 block text-[10px] text-muted">{lang === 'he' ? col.labelHe : col.labelEn}</span>
+                                <input
+                                  type={col.type === 'date' ? 'date' : col.type === 'number' ? 'number' : 'text'}
+                                  value={row[col.key] ?? ''}
+                                  onChange={(e) => updateTableCell(f.key, rowIdx, col.key, e.target.value)}
+                                  className="w-full rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                          <button type="button" onClick={() => removeTableRow(f.key, rowIdx)} className="shrink-0 px-1 text-sm" aria-label="remove row">
+                            🗑️
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addTableRow(f)}
+                      className="mt-2 rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+                    >
+                      ＋ {t('add')}
+                    </button>
+                  </div>
+                ) : f.type === 'textarea' ? (
                   <textarea rows={3} value={values[f.key] ?? ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} className={inputCls} />
                 ) : (
                   <input
@@ -122,7 +181,7 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
                     className={inputCls}
                   />
                 )}
-              </label>
+              </div>
             ))}
             {fields.length === 0 && (
               <p className="text-xs text-muted">{lang === 'he' ? 'לא הוגדרו שדות לטופס זה.' : 'No fields configured for this form.'}</p>

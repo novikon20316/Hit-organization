@@ -36,6 +36,7 @@ const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   progress_report:   { he: 'דו"ח התקדמות', en: 'Progress Report' },
   final_report:      { he: 'דו"ח מסכם',    en: 'Final Report' },
   defense:           { he: 'הגנה',          en: 'Defense' },
+  poster:            { he: 'פוסטר',        en: 'Poster Session' },
 };
 
 const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string; icon: string }> = {
@@ -60,6 +61,7 @@ const MILESTONE_ORDER: MilestoneType[] = [
   'progress_report',
   'final_report',
   'defense',
+  'poster',
 ];
 
 export default function ActiveDashboard({
@@ -681,6 +683,17 @@ export default function ActiveDashboard({
                           {lang === 'he' ? 'סיבת ההחזרה:' : 'Reason for return:'}
                         </Text>
                         <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 2 }}>{m.rejectionReason}</Text>
+                      </View>
+                    )}
+
+                    {/* Coordinator's optional approval comment — approval stays
+                        binary, this is how a "conditional approval" gets expressed. */}
+                    {isApprovedOrDone && m.coordinatorComment && (
+                      <View style={{ backgroundColor: '#F5F6F8', borderRadius: 8, padding: 10, marginTop: 8 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#1F2937' }}>
+                          {lang === 'he' ? 'הערת הרכז:' : "Coordinator's comment:"}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{m.coordinatorComment}</Text>
                       </View>
                     )}
 

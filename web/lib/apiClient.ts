@@ -712,8 +712,11 @@ export const apiClient = {
     );
   },
 
-  async coordinatorApproveMilestone(milestoneId: string) {
-    return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/approve`, { method: 'POST' });
+  async coordinatorApproveMilestone(milestoneId: string, comment?: string) {
+    return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/approve`, {
+      method: 'POST',
+      body: comment ? { comment } : undefined,
+    });
   },
 
   async coordinatorRejectMilestone(milestoneId: string, reason: string) {
@@ -1507,6 +1510,9 @@ export const apiClient = {
         proposedGrade: number | null;
         reason: string;
         proposedAt: string | null;
+        supervisorEvaluationTotal: number | null;
+        examinerProjectAvg: number | null;
+        examinerDefenseAvg: number | null;
       }>;
     }>('/api/project-coordinator/grade-overrides', { method: 'GET' });
   },

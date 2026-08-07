@@ -126,6 +126,9 @@ interface GradeOverrideRow {
   proposedGrade: number | null;
   reason: string;
   proposedAt: string | null;
+  supervisorEvaluationTotal: number | null;
+  examinerProjectAvg: number | null;
+  examinerDefenseAvg: number | null;
 }
 
 // ─── Send Examiner Modal ───────────────────────────────────────────────────────
@@ -769,6 +772,23 @@ export default function ProjectCoordinatorDashboard() {
                 <View key={r.milestoneId} style={[s.card, { borderLeftColor: '#F59E0B' }]}>
                   <Text style={s.cardTitle}>{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</Text>
                   <Text style={s.cardSub}>👤 {r.studentNames.join(', ')}</Text>
+
+                  {(r.supervisorEvaluationTotal != null || r.examinerProjectAvg != null || r.examinerDefenseAvg != null) && (
+                    <View style={s.overrideSplit}>
+                      <View style={s.overrideBox}>
+                        <Text style={s.overrideLabel}>{lang === 'he' ? 'מנחה' : 'Supervisor'}</Text>
+                        <Text style={s.overrideBreakdownValue}>{r.supervisorEvaluationTotal ?? '—'}</Text>
+                      </View>
+                      <View style={s.overrideBox}>
+                        <Text style={s.overrideLabel}>{lang === 'he' ? 'בוחן — עבודה' : 'Examiner — project'}</Text>
+                        <Text style={s.overrideBreakdownValue}>{r.examinerProjectAvg ?? '—'}</Text>
+                      </View>
+                      <View style={s.overrideBox}>
+                        <Text style={s.overrideLabel}>{lang === 'he' ? 'בוחן — הגנה' : 'Examiner — defense'}</Text>
+                        <Text style={s.overrideBreakdownValue}>{r.examinerDefenseAvg ?? '—'}</Text>
+                      </View>
+                    </View>
+                  )}
 
                   {r.kind === 'override' ? (
                     <>
