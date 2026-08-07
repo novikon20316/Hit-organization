@@ -1084,6 +1084,31 @@ export default function SupervisorHome() {
                           </View>
                         )}
 
+                        {/* AI review — independent pass/fail checks rolled into one recommendation */}
+                        {app.aiReview && (
+                          <View style={[
+                            styles.coverNote,
+                            {
+                              backgroundColor: app.aiReview.recommendation === 'approve' ? '#ECFDF5'
+                                : app.aiReview.recommendation === 'meeting' ? '#FFFBEB'
+                                : '#FEF2F2',
+                            },
+                          ]}>
+                            <Text style={[styles.cardMeta, isRtl && styles.textRight, { fontWeight: '700', marginBottom: 4 }]}>
+                              🤖 {lang === 'he' ? 'בדיקת AI:' : 'AI review:'}{' '}
+                              {app.aiReview.recommendation === 'approve' ? (lang === 'he' ? '✓ מומלץ לאשר' : '✓ Recommend approving')
+                                : app.aiReview.recommendation === 'meeting' ? (lang === 'he' ? '📅 מומלץ לתאם פגישה' : '📅 Recommend a meeting')
+                                : (lang === 'he' ? '✕ מומלץ לדחות' : '✕ Recommend rejecting')}
+                            </Text>
+                            {app.aiReview.checks.map((c) => (
+                              <Text key={c.id} style={[styles.coverNoteText, isRtl && styles.textRight]}>
+                                {c.passed === true ? '✅' : c.passed === false ? '❌' : '❓'} {lang === 'he' ? c.labelHe : c.labelEn}
+                                {c.reasoning ? ` — ${c.reasoning}` : ''}
+                              </Text>
+                            ))}
+                          </View>
+                        )}
+
                         {/* Decision buttons */}
                         <View style={[styles.decisionRow, isRtl && styles.rowReverse]}>
                           <Pressable

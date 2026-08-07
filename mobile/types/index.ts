@@ -833,4 +833,18 @@ export interface Application {
     reasoning: string;
     generatedAt: string;
   };
+  /** A separate AI pass — independent pass/fail checks (today: grades vs.
+   *  prerequisites off the transcript) rolled into one recommendation. See
+   *  server/src/services/applicationReviewService.ts. */
+  aiReview?: {
+    checks: Array<{
+      id: string;
+      labelHe: string;
+      labelEn: string;
+      passed: boolean | null;
+      reasoning: string;
+    }>;
+    recommendation: 'approve' | 'meeting' | 'reject';
+    generatedAt: string;
+  };
 }

@@ -2,6 +2,7 @@ import admin from 'firebase-admin'
 import { AuthenticatedRequest } from '../middleware/auth.js'
 import { Response } from 'express'
 import { screenApplication } from '../services/cvScreeningService.js'
+import { reviewApplication } from '../services/applicationReviewService.js'
 import { normalizePrerequisites } from '../services/prerequisites.js'
 import { notifyUser } from '../services/notify.js'
 
@@ -201,6 +202,20 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
             .then((aiScreening) => newApplicationRef.update({ aiScreening }))
             .catch((screeningError) => {
                 console.error(`CV screening failed for application ${newApplicationRef.id}:`, screeningError);
+            });
+
+        // A separate, independent AI pass — a set of pass/fail checks (today:
+        // grades vs. prerequisites, read off the transcript; more coming
+        // later) rolled up into an approve/meeting/reject recommendation.
+        // Best-effort, same as the CV screening above — never blocks or
+        // affects the already-submitted application.
+        reviewApplication({
+            transcriptUrl: transcriptUrl ?? '',
+            prerequisites: normalizePrerequisites(projectData.prerequisites),
+        })
+            .then((aiReview) => newApplicationRef.update({ aiReview }))
+            .catch((reviewError) => {
+                console.error(`AI application review failed for application ${newApplicationRef.id}:`, reviewError);
             });
 
         return res.status(201).json({ success: true, message: 'Application submitted successfully.' });

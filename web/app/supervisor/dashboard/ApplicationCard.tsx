@@ -20,6 +20,18 @@ const SCREENING_LABEL: Record<string, { he: string; en: string }> = {
   unable_to_assess: { he: 'לא ניתן להעריך', en: 'Unable to assess' },
 };
 
+const RECOMMENDATION_STYLE: Record<string, { bg: string; text: string }> = {
+  approve: { bg: 'var(--success-bg)', text: 'var(--success)' },
+  meeting: { bg: '#FBF3E3', text: 'var(--accent)' },
+  reject: { bg: 'var(--danger-bg)', text: 'var(--danger)' },
+};
+
+const RECOMMENDATION_LABEL: Record<string, { he: string; en: string }> = {
+  approve: { he: '✓ מומלץ לאשר', en: '✓ Recommend approving' },
+  meeting: { he: '📅 מומלץ לתאם פגישה', en: '📅 Recommend a meeting' },
+  reject: { he: '✕ מומלץ לדחות', en: '✕ Recommend rejecting' },
+};
+
 interface ApplicationCardProps {
   application: Application;
   onDecided: () => void;
@@ -113,6 +125,22 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
                 🤖 {lang === 'he' ? 'התאמת קורות חיים לדרישות:' : 'CV-vs-prerequisites fit:'} {SCREENING_LABEL[app.aiScreening.verdict][lang]}
               </p>
               <p className="mt-1 text-xs text-ink">{app.aiScreening.reasoning}</p>
+            </div>
+          )}
+
+          {app.aiReview && (
+            <div className="rounded-lg p-2.5" style={{ backgroundColor: RECOMMENDATION_STYLE[app.aiReview.recommendation].bg }}>
+              <p className="text-xs font-semibold" style={{ color: RECOMMENDATION_STYLE[app.aiReview.recommendation].text }}>
+                🤖 {lang === 'he' ? 'בדיקת AI:' : 'AI review:'} {RECOMMENDATION_LABEL[app.aiReview.recommendation][lang]}
+              </p>
+              <div className="mt-1.5 grid gap-1">
+                {app.aiReview.checks.map((c) => (
+                  <p key={c.id} className="text-xs text-ink">
+                    {c.passed === true ? '✅' : c.passed === false ? '❌' : '❓'} {lang === 'he' ? c.labelHe : c.labelEn}
+                    {c.reasoning ? ` — ${c.reasoning}` : ''}
+                  </p>
+                ))}
+              </div>
             </div>
           )}
 
