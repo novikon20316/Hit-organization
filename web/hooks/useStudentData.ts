@@ -76,22 +76,7 @@ export function useStudentData() {
       setStudentYearOfStudy(userData.yearOfStudy ?? null);
       setStudentCompletedCourses(normalizeCompletedCourses(userData.completedCourses));
 
-      // TEMP-MULTI-APPLY: when true, bypasses TWO of the app's real rules so
-      // a student can keep browsing/applying to more projects than intended,
-      // for faster manual testing. Say "stop bypass rules A and B" to revert
-      // — flip this to false (or delete it and the two `&& !TEMP_ALLOW_MULTI_APPLY`
-      // / `|| TEMP_ALLOW_MULTI_APPLY` conditions below, restoring the ORIGINAL
-      // blocks exactly as commented).
-      //   RULE A — normally a student with any pending application is routed
-      //   to 'pending' (PendingScreen), hiding BrowseProjects — "apply to 1
-      //   project/thesis at a time".
-      //   RULE B — normally `hasActiveProject` routes straight to 'active'
-      //   (ActiveDashboard) before eligibility/pending are even checked —
-      //   "once enrolled/accepted, you can't browse or apply anymore".
-      const TEMP_ALLOW_MULTI_APPLY = true;
-
-      if (userData.hasActiveProject && userData.activeProjectId && !TEMP_ALLOW_MULTI_APPLY) {
-        // ORIGINAL (RULE B):
+      if (userData.hasActiveProject && userData.activeProjectId) {
         try {
           const project = (await apiClient.getStudentProject(userData.activeProjectId)) as unknown as ActiveProject;
           setActiveProject(project);
@@ -115,9 +100,6 @@ export function useStudentData() {
         const pendingApps = appsRes?.applications || [];
         if (pendingApps.length > 0) {
           setPendingApplication(pendingApps[0] as unknown as PendingApplication);
-        }
-        if (pendingApps.length > 0 && !TEMP_ALLOW_MULTI_APPLY) {
-          // ORIGINAL (RULE A):
           setStudentState('pending');
         } else {
           setStudentState('no_project');

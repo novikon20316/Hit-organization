@@ -484,6 +484,9 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     return res.status(200).json({ success: true, message: `Application ${decision} successfully.` });
   } catch (error: any) {
     console.error('handleApplicationDecision Error:', error);
+    if (error?.message === 'Student already has an active project.') {
+      return res.status(409).json({ message: error.message });
+    }
     return res.status(500).json({ message: 'Failed to process application decision.' });
   }
 };
