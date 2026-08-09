@@ -74,6 +74,30 @@ body {
   outline-offset: 2px;
 }
 
+/* Hover affordances ------------------------------------------------------
+   <button>/<select> default to an arrow cursor in every browser (unlike
+   <a>), and inputs/textareas only react on :focus today — hovering gives
+   no signal that they're writable. Add both globally here instead of
+   touching the ~120 hand-rolled buttons/inputs across app/. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+select:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+select:disabled {
+  cursor: not-allowed;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not(:disabled):hover,
+textarea:not(:disabled):hover,
+select:not(:disabled):hover {
+  border-color: var(--primary);
+  transition: border-color 150ms ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
