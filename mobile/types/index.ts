@@ -672,7 +672,7 @@ export interface ExaminerUser {
   facultyId: string;
 }
 
-export type StudentState = 'ineligible' | 'loading' | 'no_project' | 'pending' | 'active';
+export type StudentState = 'ineligible' | 'loading' | 'no_project' | 'active';
 
 export type DegreeType  = 'bachelors' | 'masters' ;
 
@@ -828,6 +828,10 @@ export interface Application {
   studentId: string; studentName: string; studentEmail: string;
   transcriptUrl: string; cvUrl: string; coverNote: string;
   status: string; submittedAt: any; degreeType: string;
+  /** Set instead of a real rejection when this application was auto-closed
+   *  because the student got accepted into a different project — see
+   *  server/src/services/projectEnrollment.ts's closeOtherPendingApplications. */
+  autoClosedReason?: 'accepted_elsewhere';
   aiScreening?: {
     verdict: 'strong_fit' | 'partial_fit' | 'weak_fit' | 'unable_to_assess';
     reasoning: string;

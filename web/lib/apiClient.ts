@@ -869,6 +869,14 @@ export const apiClient = {
     });
   },
 
+  /** The transcript/CV URLs from the student's most recent application
+   *  (any status) — lets the apply modal offer "reuse last file" instead of
+   *  forcing a fresh upload every time. Empty strings if there's no prior
+   *  application. */
+  async getLastUploadedFiles() {
+    return request<{ transcriptUrl: string; cvUrl: string }>('/api/applications/last-uploaded-files', { method: 'GET' });
+  },
+
   async applyToProject(payload: { projectId: string; transcriptUrl: string; cvUrl: string; notes: string; selectedProjectType?: 'project' | 'thesis' }) {
     return request<{ success?: boolean; message?: string }>('/api/applications/apply', { method: 'POST', body: payload });
   },

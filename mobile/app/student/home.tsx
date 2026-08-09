@@ -16,7 +16,6 @@ import { TopBar } from '../../components/shared';
 // ─── Sub-screens ──────────────────────────────────────────────────────────────
 import BrowseProjects  from '../(tabs)/Browseprojects';
 import ActiveDashboard from '../(tabs)/Activedashboard';
-import PendingScreen   from '../(tabs)/Pendingscreen';
 import InfoScreen      from './info';
 import ChatbotFab       from '@/components/ChatbotFab';
 
@@ -27,7 +26,7 @@ export default function StudentHome() {
   const {
     studentState, studentName, studentYearOfStudy,
     proposals, activeProject, milestones, nextMilestone, progress,
-    pendingApplication, studentDegree, studentCompletedCourses, cancelAllListeners
+    pendingApplications, studentDegree, studentCompletedCourses, cancelAllListeners, refresh
   } = useStudentData();
 
   // Passed as TopBar's onBeforeSignOut — runs (and is awaited) before it
@@ -90,13 +89,10 @@ export default function StudentHome() {
         lang={lang}
         isRtl={isRtl}
         studentDegree={studentDegree}
-        appliedProjectIds={pendingApplication ? [pendingApplication.projectId] : []}
+        pendingApplications={pendingApplications}
         completedCourses={studentCompletedCourses}
+        onApplicationsChanged={refresh}
         />
-      )}
-
-      {studentState === 'pending' && pendingApplication && (
-        <PendingScreen application={pendingApplication} lang={lang} isRtl={isRtl} />
       )}
 
       {studentState === 'active' && activeProject && (

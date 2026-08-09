@@ -8,27 +8,30 @@ import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import { browseProjectsStyles } from '../../constants/styles';
-import type { ProjectProposal } from '@/types';
+import type { ProjectProposal, PendingApplication } from '@/types';
 import { apiClient } from '../../src/api/apiClient';
 import { normalizePrerequisites, formatPrerequisite, meetsPrerequisite, type CompletedCourse } from '@/components/Prerequisites';
 import CompletedCoursesList from '@/components/CompletedCoursesList';
+import ApplicationStatusCard from '@/components/ApplicationStatusCard';
 
 interface Props {
   proposals: ProjectProposal[];
   lang:      Lang;
   isRtl:    boolean;
   studentDegree: 'bachelors' | 'masters';
-  appliedProjectIds: string[];
+  pendingApplications: PendingApplication[];
   completedCourses?: CompletedCourse[];
+  onApplicationsChanged: () => void;
 }
 
 type DegreeFilter = 'all' | 'bachelors' | 'masters';
 type TypeFilter   = 'all' | 'project' | 'thesis';
 type EligibilityFilter = 'all' | 'eligible';
 
-export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds, completedCourses = [] }: Props) {
+export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, pendingApplications, completedCourses = [], onApplicationsChanged }: Props) {
+  const appliedProjectIds = useMemo(() => pendingApplications.map((a) => a.projectId), [pendingApplications]);
   // Inside BrowseProjects component, add at the top:
-  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);  
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [search,       setSearch]       = useState('');
   const [degreeFilter, setDegreeFilter] = useState<DegreeFilter>('all');
   const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all');
@@ -46,6 +49,11 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   const [transcriptName,  setTranscriptName]  = useState<string | null>(null);
   const [cvUri,           setCvUri]           = useState<string | null>(null);
   const [cvName,          setCvName]          = useState<string | null>(null);
+  // URLs from the student's most recent application, offered as "reuse this
+  // file" so a repeat applicant doesn't have to re-upload the same PDFs —
+  // cleared (per-field) the moment they pick a replacement or hit Remove.
+  const [lastTranscriptUrl, setLastTranscriptUrl] = useState('');
+  const [lastCvUrl,         setLastCvUrl]         = useState('');
   const [submitting,      setSubmitting]      = useState(false);
   const [applyMessage,    setApplyMessage]    = useState<string | null>(null);
 
@@ -99,6 +107,29 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   }, [proposals, search, degreeFilter, typeFilter, eligibilityFilter, completedCourses, appliedProjectIds, lang]);
 
   const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
+
+  const openApply = (p: ProjectProposal) => {
+    setSelected(p);
+    const types = projectTypesOf(p);
+    setSelectedProjectType(types.length === 1 ? types[0] : '');
+    setShowApply(true);
+    setTranscriptUri(null);
+    setTranscriptName(null);
+    setCvUri(null);
+    setCvName(null);
+    setLastTranscriptUrl('');
+    setLastCvUrl('');
+    apiClient
+      .get<{ transcriptUrl: string; cvUrl: string }>('/api/applications/last-uploaded-files')
+      .then((res) => {
+        setLastTranscriptUrl(res.data?.transcriptUrl ?? '');
+        setLastCvUrl(res.data?.cvUrl ?? '');
+      })
+      .catch(() => {
+        // No previous application on file (or the lookup failed) — the
+        // student just uploads fresh, same as before this feature existed.
+      });
+  };
 
   // ── File picker ────────────────────────────────────────────────────────────
   // `type: 'application/pdf'` above only filters what the OS picker *shows* —
@@ -171,7 +202,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
 
   // ── Submit application ─────────────────────────────────────────────────────
   const handleApply = async () => {
-  if (!selected || !transcriptUri || !cvUri) {
+  if (!selected || (!transcriptUri && !lastTranscriptUrl) || (!cvUri && !lastCvUrl)) {
     setApplyMessage(lang === 'he'
       ? 'אנא העלה גיליון ציונים וקורות חיים'
       : 'Please upload transcript and CV');
@@ -192,8 +223,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
 
   try {
     const [transcriptUrl, cvUrl] = await Promise.all([
-      uploadFile(transcriptUri),
-      uploadFile(cvUri),
+      transcriptUri ? uploadFile(transcriptUri) : Promise.resolve(lastTranscriptUrl),
+      cvUri ? uploadFile(cvUri) : Promise.resolve(lastCvUrl),
     ]);
 
     await apiClient.post('/api/applications/apply', {
@@ -205,6 +236,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
     });
 
     setApplyMessage('✅ ' + tx('applySuccess', lang));
+    onApplicationsChanged();
     setTimeout(() => {
       setShowApply(false);
       setSelected(null);
@@ -212,6 +244,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       setCoverNote('');
       setTranscriptUri(null);
       setCvUri(null);
+      setLastTranscriptUrl('');
+      setLastCvUrl('');
       setSelectedProjectType('');
     }, 1500);
 
@@ -239,6 +273,17 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
         isRtl={isRtl}
         completedCourses={completedCourses}
       />
+
+      {pendingApplications.length > 0 && (
+        <View style={{ paddingHorizontal: 14, marginBottom: 8 }}>
+          <Text style={[{ fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 8 }, isRtl && styles.textRight]}>
+            {lang === 'he' ? 'הבקשות שלי' : 'My Applications'} ({pendingApplications.length})
+          </Text>
+          {pendingApplications.map((app) => (
+            <ApplicationStatusCard key={app.id} application={app} lang={lang} isRtl={isRtl} onWithdrawn={onApplicationsChanged} />
+          ))}
+        </View>
+      )}
 
       {/* Search + Filters */}
       <View style={styles.searchBar}>
@@ -485,10 +530,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                               disabled={!isQualified}
                               onPress={(e) => {
                                 e.stopPropagation?.();
-                                setSelected(p);
-                                const types = projectTypesOf(p);
-                                setSelectedProjectType(types.length === 1 ? types[0] : '');
-                                setShowApply(true);
+                                openApply(p);
                               }}
                             >
                               <Text style={[styles.applyBtnText, !isQualified && { color: '#94A3B8' }]}>
@@ -590,30 +632,54 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
             {tx('uploadTranscript', lang)} *
           </Text>
           <Pressable
-            style={[styles.uploadBtn, transcriptUri && styles.uploadBtnDone]}
+            style={[styles.uploadBtn, (transcriptUri || lastTranscriptUrl) && styles.uploadBtnDone]}
             onPress={() => pickFile('transcript')}
           >
             <Text style={styles.uploadBtnText}>
               {transcriptUri
                 ? `✓ ${transcriptName}`
-                : `📄 ${tx('tapToUpload', lang)}`}
+                : lastTranscriptUrl
+                  ? `✓ ${lang === 'he' ? 'נעשה שימוש בקובץ שהגשת לאחרונה' : 'Using the file from your last application'}`
+                  : `📄 ${tx('tapToUpload', lang)}`}
             </Text>
           </Pressable>
+          {!transcriptUri && lastTranscriptUrl ? (
+            <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 16, marginTop: -6, marginBottom: 10 }}>
+              <Pressable onPress={() => Linking.openURL(lastTranscriptUrl)}>
+                <Text style={{ fontSize: 12, color: '#2E86FF', fontWeight: '600' }}>{lang === 'he' ? 'צפייה בקובץ' : 'View file'}</Text>
+              </Pressable>
+              <Pressable onPress={() => setLastTranscriptUrl('')}>
+                <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '600' }}>{lang === 'he' ? 'הסר' : 'Remove'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {/* CV upload */}
           <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
             {tx('uploadCV', lang)} *
           </Text>
           <Pressable
-            style={[styles.uploadBtn, cvUri && styles.uploadBtnDone]}
+            style={[styles.uploadBtn, (cvUri || lastCvUrl) && styles.uploadBtnDone]}
             onPress={() => pickFile('cv')}
           >
             <Text style={styles.uploadBtnText}>
               {cvUri
                 ? `✓ ${cvName}`
-                : `📄 ${tx('tapToUpload', lang)}`}
+                : lastCvUrl
+                  ? `✓ ${lang === 'he' ? 'נעשה שימוש בקובץ שהגשת לאחרונה' : 'Using the file from your last application'}`
+                  : `📄 ${tx('tapToUpload', lang)}`}
             </Text>
           </Pressable>
+          {!cvUri && lastCvUrl ? (
+            <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 16, marginTop: -6, marginBottom: 10 }}>
+              <Pressable onPress={() => Linking.openURL(lastCvUrl)}>
+                <Text style={{ fontSize: 12, color: '#2E86FF', fontWeight: '600' }}>{lang === 'he' ? 'צפייה בקובץ' : 'View file'}</Text>
+              </Pressable>
+              <Pressable onPress={() => setLastCvUrl('')}>
+                <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '600' }}>{lang === 'he' ? 'הסר' : 'Remove'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {/* Message */}
           {applyMessage && (

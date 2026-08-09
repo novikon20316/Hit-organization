@@ -13,6 +13,66 @@ import {
   deriveProcessType, getActiveMilestonesFor, getMilestonesForTemplateId, resolveMilestoneRouting, resolveMilestoneDueDate,
   type WorkflowMilestoneSpec, type MilestoneRoutingSpec, type WorkflowTemplateRef,
 } from './workflowTemplates.js';
+import { notifyUser } from './notify.js';
+
+// Students may now have several open applications at once — this closes out
+// every OTHER one the instant any of the three enrollment surfaces below
+// actually seats them in a project, so a second supervisor can't approve the
+// same student into a different project later. Runs after the transaction,
+// not inside it: the set of other applications is unbounded and unknown
+// ahead of time, so it can't be part of the fixed read/write set a Firestore
+// transaction needs — same "invariant transactional, side-effects
+// best-effort" split as the notifications already fired around this call.
+async function closeOtherPendingApplications(
+  studentId: string,
+  enrolledProjectTitle: { he: string; en: string },
+  studentName: string,
+): Promise<void> {
+  try {
+    const otherPendingSnap = await db.collection('applications')
+      .where('studentId', '==', studentId)
+      .where('status', 'in', ['applied', 'meeting_requested'])
+      .get();
+
+    if (otherPendingSnap.empty) return;
+
+    const batch = db.batch();
+    for (const doc of otherPendingSnap.docs) {
+      batch.update(doc.ref, {
+        status:           'rejected',
+        reviewedAt:       new Date().toISOString(),
+        // Distinct from supervisorNote (a supervisor's own words) — lets the
+        // UI and handleApplicationDecision's race guard tell "the supervisor
+        // rejected you" apart from "the system closed this automatically".
+        autoClosedReason: 'accepted_elsewhere',
+      });
+    }
+    await batch.commit();
+
+    await Promise.all(otherPendingSnap.docs.map((doc) => {
+      const data = doc.data();
+      if (!data.supervisorId) return Promise.resolve();
+      const closedProjectTitleHe = data.projectTitleHe ?? '';
+      const closedProjectTitleEn = data.projectTitleEn ?? '';
+      return notifyUser({
+        recipientId: data.supervisorId,
+        type:        'general',
+        titleHe:     '🔒 מועמדות נסגרה אוטומטית',
+        titleEn:     '🔒 Application auto-closed',
+        bodyHe:      `${studentName} התקבל/ה לפרויקט אחר ("${enrolledProjectTitle.he}"), ומועמדותו/ה לפרויקט "${closedProjectTitleHe}" נסגרה אוטומטית.`,
+        bodyEn:      `${studentName} was accepted into another project ("${enrolledProjectTitle.en}"), and their application to "${closedProjectTitleEn}" has been automatically closed.`,
+        relatedProjectId: data.projectId ?? null,
+        emailData: {
+          message: `${studentName} was accepted into another project ("${enrolledProjectTitle.en}"), and their application to "${closedProjectTitleEn}" has been automatically closed.`,
+        },
+      }).catch((notifyError) => {
+        console.error(`auto-close notification failed for supervisor ${data.supervisorId}:`, notifyError);
+      });
+    }));
+  } catch (error) {
+    console.error(`closeOtherPendingApplications failed for student ${studentId}:`, error);
+  }
+}
 
 export interface EnrollmentTrack {
   degreeType: 'bachelors' | 'masters';
@@ -173,4 +233,10 @@ export async function enrollStudentInProject(
       });
     }
   });
+
+  await closeOtherPendingApplications(
+    studentId,
+    { he: projectDataForTemplate.titleHe ?? '', en: projectDataForTemplate.titleEn ?? '' },
+    studentSnapForMajor.data()?.displayName ?? studentSnapForMajor.data()?.displayNameHe ?? '',
+  );
 }

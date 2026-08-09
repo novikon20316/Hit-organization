@@ -576,8 +576,11 @@ export default function SupervisorHome() {
       // No need to call fetchDashboardData() for applications —
       // the Firestore onSnapshot listener updates the list automatically
       Alert.alert('✅', 'Decision saved successfully.');
-    } catch (e) {
-      Alert.alert('Error', 'Failed to process decision.');
+    } catch (e: any) {
+      // Surface the server's actual reason (e.g. the student having already
+      // been accepted into another project) instead of a generic failure —
+      // see handleApplicationDecision's 409 branches in supervisorController.ts.
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to process decision.');
     }
   };
 
@@ -1046,6 +1049,16 @@ export default function SupervisorHome() {
                       </View>
                       <StatusBadge status={app.status} lang={lang} />
                     </View>
+
+                    {app.autoClosedReason === 'accepted_elsewhere' && (
+                      <View style={{ marginTop: 8, backgroundColor: '#FFF8E1', borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10 }}>
+                        <Text style={[{ fontSize: 12, color: '#6D4C00' }, isRtl && styles.textRight]}>
+                          🔒 {lang === 'he'
+                            ? 'נסגר אוטומטית — הסטודנט/ית התקבל/ה לפרויקט אחר'
+                            : 'Auto-closed — the student was accepted into another project'}
+                        </Text>
+                      </View>
+                    )}
 
                     {/* ── Expanded content ── */}
                     {isExpanded && (

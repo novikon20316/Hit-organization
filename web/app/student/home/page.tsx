@@ -16,7 +16,6 @@ import { useStudentData } from '@/hooks/useStudentData';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { BrowseProjects } from './BrowseProjects';
-import { PendingScreen } from './PendingScreen';
 import { ActiveDashboard } from './ActiveDashboard';
 import { InfoScreen } from './InfoScreen';
 
@@ -31,7 +30,7 @@ export default function StudentHomePage() {
     activeProject,
     milestones,
     progress,
-    pendingApplication,
+    pendingApplications,
     studentDegree,
     studentCompletedCourses,
     refresh,
@@ -74,12 +73,11 @@ export default function StudentHomePage() {
           <BrowseProjects
             proposals={proposals}
             studentDegree={studentDegree}
-            appliedProjectIds={pendingApplication ? [pendingApplication.projectId] : []}
+            pendingApplications={pendingApplications}
             completedCourses={studentCompletedCourses}
+            onApplicationsChanged={refresh}
           />
         )}
-
-        {studentState === 'pending' && pendingApplication && <PendingScreen application={pendingApplication} onWithdrawn={refresh} />}
 
         {studentState === 'active' && activeProject && (
           <ActiveDashboard project={activeProject} milestones={milestones} progress={progress} onChanged={refresh} />

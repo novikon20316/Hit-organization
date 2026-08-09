@@ -16,7 +16,7 @@ export function useStudentData() {
   const [proposals,          setProposals]          = useState<ProjectProposal[]>([]);
   const [activeProject,      setActiveProject]      = useState<ActiveProject | null>(null);
   const [milestones,         setMilestones]         = useState<Milestone[]>([]);
-  const [pendingApplication, setPendingApplication] = useState<PendingApplication | null>(null);
+  const [pendingApplications, setPendingApplications] = useState<PendingApplication[]>([]);
   const [notifications,      setNotifications]      = useState<AppNotification[]>([]);
   const [studentName,        setStudentName]        = useState('');
   const [studentDegree,      setStudentDegree]      = useState<DegreeType>('bachelors');
@@ -94,17 +94,14 @@ export function useStudentData() {
         // "not eligible yet" info screen rather than an empty browse list.
         setStudentState('ineligible');
       } else {
-        // --- CASE B: Check for Pending Applications ---
+        // --- CASE B: Browsing Proposals (triggers the snapshot effect below) ---
+        // A student can now hold several open applications at once — Browse
+        // stays visible regardless of how many are pending; BrowseProjects
+        // itself renders the "My Applications" panel from the full list.
         const appsRes = await apiClient.get('/api/applications/pending');
         const pendingApps = appsRes.data?.applications || [];
-
-        if (pendingApps.length > 0) {
-          setPendingApplication(pendingApps[0]);
-          setStudentState('pending');
-        } else {
-          // --- CASE C: Browsing Proposals (triggers the snapshot effect below) ---
-          setStudentState('no_project');
-        }
+        setPendingApplications(pendingApps);
+        setStudentState('no_project');
       }
 
       // Always fetch notifications
@@ -307,7 +304,7 @@ export function useStudentData() {
     milestones,
     nextMilestone,
     progress,
-    pendingApplication,
+    pendingApplications,
     notifications,
     studentDegree,
     error,

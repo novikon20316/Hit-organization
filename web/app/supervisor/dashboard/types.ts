@@ -35,6 +35,12 @@ export interface Application {
   status: string;
   submittedAt: string | { seconds: number } | null;
   degreeType: string;
+  /** Set instead of a real rejection when this application was auto-closed
+   *  because the student got accepted into a different project — see
+   *  server/src/services/projectEnrollment.ts's closeOtherPendingApplications.
+   *  supervisorNote stays untouched (null) for these, since no supervisor
+   *  actually reviewed/rejected it. */
+  autoClosedReason?: 'accepted_elsewhere';
   aiScreening?: {
     verdict: 'strong_fit' | 'partial_fit' | 'weak_fit' | 'unable_to_assess';
     reasoning: string;

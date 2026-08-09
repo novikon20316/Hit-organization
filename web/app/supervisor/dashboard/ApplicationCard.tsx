@@ -91,6 +91,14 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
         </div>
       </button>
 
+      {app.autoClosedReason === 'accepted_elsewhere' && (
+        <p className="mt-2 rounded-lg bg-[#FBF3E3] px-2.5 py-1.5 text-xs text-accent">
+          🔒 {lang === 'he'
+            ? 'נסגר אוטומטית — הסטודנט/ית התקבל/ה לפרויקט אחר'
+            : 'Auto-closed — the student was accepted into another project'}
+        </p>
+      )}
+
       {expanded && (
         <div className="mt-3 grid gap-2.5 border-t border-line pt-3">
           {submittedDate && (

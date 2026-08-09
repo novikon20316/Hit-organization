@@ -4,7 +4,7 @@
 // bachelor's student not yet in their final year, or a master's student past
 // their 1st year (see computeIsEligible on the server). Not a standalone route:
 // rendered as a sub-screen inside home.tsx's SafeAreaView + top bar, the same
-// way BrowseProjects / PendingScreen / ActiveDashboard are.
+// way BrowseProjects / ActiveDashboard are.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {

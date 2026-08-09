@@ -405,6 +405,20 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     if (appSnap.data()?.supervisorId !== supervisorId)
       return res.status(403).json({ message: 'Forbidden.' });
 
+    // A student can now have several open applications at once — the moment
+    // any one of them is approved (here, or via an admin/faculty-admin
+    // manual assignment), enrollStudentInProject auto-closes the rest (see
+    // projectEnrollment.ts's closeOtherPendingApplications). This guard
+    // catches a second supervisor still trying to act on one of those after
+    // the fact, whether they're looking at stale UI or two requests raced.
+    if (!['applied', 'meeting_requested'].includes(appSnap.data()?.status)) {
+      return res.status(409).json({
+        message: appSnap.data()?.autoClosedReason === 'accepted_elsewhere'
+          ? 'This student has already been accepted into another project.'
+          : 'This application has already been decided.',
+      });
+    }
+
     const projectId = appSnap.data()?.projectId;
     const studentId = appSnap.data()?.studentId;
     const facultyId = appSnap.data()?.facultyId ?? '';
@@ -485,7 +499,12 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
   } catch (error: any) {
     console.error('handleApplicationDecision Error:', error);
     if (error?.message === 'Student already has an active project.') {
-      return res.status(409).json({ message: error.message });
+      // Same wording as the pre-check guard above, for the narrower race this
+      // catches: two supervisors both passed that guard (both applications
+      // were still 'applied'/'meeting_requested') and both approvals reached
+      // enrollStudentInProject's transaction before either's auto-close ran
+      // — only the first commit wins, the second lands here instead.
+      return res.status(409).json({ message: 'This student has already been accepted into another project.' });
     }
     return res.status(500).json({ message: 'Failed to process application decision.' });
   }

@@ -21,7 +21,7 @@ export function useStudentData() {
   const [proposals, setProposals] = useState<ProjectProposal[]>([]);
   const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [pendingApplication, setPendingApplication] = useState<PendingApplication | null>(null);
+  const [pendingApplications, setPendingApplications] = useState<PendingApplication[]>([]);
   const [studentName, setStudentName] = useState('');
   const [studentDegree, setStudentDegree] = useState<DegreeType>('bachelors');
   const [studentFaculty, setStudentFaculty] = useState('');
@@ -96,14 +96,13 @@ export function useStudentData() {
       } else if (!userData.isEligibleForProcess) {
         setStudentState('ineligible');
       } else {
+        // A student can now hold several open applications at once — Browse
+        // stays visible regardless of how many are pending; BrowseProjects
+        // itself renders the "My Applications" panel from the full list.
         const appsRes = await apiClient.getPendingApplications();
         const pendingApps = appsRes?.applications || [];
-        if (pendingApps.length > 0) {
-          setPendingApplication(pendingApps[0] as unknown as PendingApplication);
-          setStudentState('pending');
-        } else {
-          setStudentState('no_project');
-        }
+        setPendingApplications(pendingApps as unknown as PendingApplication[]);
+        setStudentState('no_project');
       }
     } catch (err) {
       console.error('Student Dashboard Fetch Error:', err);
@@ -274,7 +273,7 @@ export function useStudentData() {
     milestones,
     nextMilestone,
     progress,
-    pendingApplication,
+    pendingApplications,
     error,
     refresh: fetchDashboardData,
     cancelAllListeners,

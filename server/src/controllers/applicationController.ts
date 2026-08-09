@@ -42,6 +42,31 @@ async function mergeExtractedGradesIntoCompletedCourses(
   });
 }
 
+// ─── GET /api/applications/last-uploaded-files ───────────────────────────────
+// The transcript/CV URLs from the student's most recent application (any
+// status, not just pending) — lets the apply modal default to "reuse last
+// file" so a repeat applicant can just click submit instead of re-uploading
+// the same PDFs every time. A plain equality-only query (no orderBy) so it
+// doesn't need a composite Firestore index; a student's application count is
+// small enough to sort in memory.
+export const getLastUploadedFiles = async (req: AuthenticatedRequest, res: Response) => {
+  const studentId = req.user?.uid;
+  if (!studentId) return res.status(401).json({ message: 'Unauthorized' });
+  try {
+    const snap = await db.collection('applications').where('studentId', '==', studentId).get();
+    if (snap.empty) return res.status(200).json({ transcriptUrl: '', cvUrl: '' });
+
+    const latest = snap.docs
+      .map((d) => d.data())
+      .sort((a, b) => new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime())[0];
+
+    return res.status(200).json({ transcriptUrl: latest?.transcriptUrl ?? '', cvUrl: latest?.cvUrl ?? '' });
+  } catch (error) {
+    console.error('getLastUploadedFiles error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =>{
     const studentId = req.user?.uid;
     if(!studentId){

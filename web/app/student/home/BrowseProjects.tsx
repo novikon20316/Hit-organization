@@ -8,13 +8,15 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { normalizePrerequisites, formatPrerequisite, meetsPrerequisite, type CompletedCourse } from '@/lib/prerequisites';
 import { CompletedCoursesList } from './CompletedCoursesList';
-import type { ProjectProposal, DegreeType } from './types';
+import { ApplicationStatusCard } from './ApplicationStatusCard';
+import type { ProjectProposal, DegreeType, PendingApplication } from './types';
 
 interface BrowseProjectsProps {
   proposals: ProjectProposal[];
   studentDegree: DegreeType;
-  appliedProjectIds: string[];
+  pendingApplications: PendingApplication[];
   completedCourses?: CompletedCourse[];
+  onApplicationsChanged: () => void;
 }
 
 type DegreeFilter = 'all' | DegreeType;
@@ -34,8 +36,9 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url as string;
 }
 
-export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, completedCourses = [] }: BrowseProjectsProps) {
+export function BrowseProjects({ proposals, studentDegree, pendingApplications, completedCourses = [], onApplicationsChanged }: BrowseProjectsProps) {
   const { lang, t } = useLanguage();
+  const appliedProjectIds = useMemo(() => pendingApplications.map((a) => a.projectId), [pendingApplications]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [degreeFilter, setDegreeFilter] = useState<DegreeFilter>('all');
@@ -47,6 +50,11 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
   const [coverNote, setCoverNote] = useState('');
   const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
+  // URLs from the student's most recent application, offered as "reuse this
+  // file" so a repeat applicant doesn't have to re-upload the same PDFs —
+  // cleared (per-field) the moment they pick a replacement or hit Remove.
+  const [lastTranscriptUrl, setLastTranscriptUrl] = useState('');
+  const [lastCvUrl, setLastCvUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [applyMessage, setApplyMessage] = useState<{ text: string; ok: boolean } | null>(null);
   // The student's track choice for projects open to more than one project
@@ -90,6 +98,20 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
     setSelectedProjectType(types.length === 1 ? types[0]! : '');
     setShowApply(true);
     setApplyMessage(null);
+    setTranscriptFile(null);
+    setCvFile(null);
+    setLastTranscriptUrl('');
+    setLastCvUrl('');
+    apiClient
+      .getLastUploadedFiles()
+      .then(({ transcriptUrl, cvUrl }) => {
+        setLastTranscriptUrl(transcriptUrl);
+        setLastCvUrl(cvUrl);
+      })
+      .catch(() => {
+        // No previous application on file (or the lookup failed) — the
+        // student just uploads fresh, same as before this feature existed.
+      });
   };
 
   const closeApply = () => {
@@ -98,12 +120,14 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
     setCoverNote('');
     setTranscriptFile(null);
     setCvFile(null);
+    setLastTranscriptUrl('');
+    setLastCvUrl('');
     setApplyMessage(null);
     setSelectedProjectType('');
   };
 
   const handleApply = async () => {
-    if (!selected || !transcriptFile || !cvFile) {
+    if (!selected || (!transcriptFile && !lastTranscriptUrl) || (!cvFile && !lastCvUrl)) {
       setApplyMessage({ text: lang === 'he' ? 'אנא העלה גיליון ציונים וקורות חיים' : 'Please upload transcript and CV', ok: false });
       return;
     }
@@ -114,7 +138,10 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
     setSubmitting(true);
     setApplyMessage(null);
     try {
-      const [transcriptUrl, cvUrl] = await Promise.all([uploadToCloudinary(transcriptFile), uploadToCloudinary(cvFile)]);
+      const [transcriptUrl, cvUrl] = await Promise.all([
+        transcriptFile ? uploadToCloudinary(transcriptFile) : Promise.resolve(lastTranscriptUrl),
+        cvFile ? uploadToCloudinary(cvFile) : Promise.resolve(lastCvUrl),
+      ]);
       await apiClient.applyToProject({
         projectId: selected.id,
         transcriptUrl,
@@ -123,6 +150,7 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
         ...(selectedProjectType ? { selectedProjectType } : {}),
       });
       setApplyMessage({ text: `✅ ${lang === 'he' ? 'המועמדות הוגשה בהצלחה' : 'Application submitted successfully'}`, ok: true });
+      onApplicationsChanged();
       setTimeout(closeApply, 1500);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
@@ -138,6 +166,19 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
   return (
     <div>
       <CompletedCoursesList completedCourses={completedCourses} />
+
+      {pendingApplications.length > 0 && (
+        <div className="mb-4">
+          <p className="mb-2 text-sm font-semibold text-ink">
+            {lang === 'he' ? 'הבקשות שלי' : 'My Applications'} ({pendingApplications.length})
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {pendingApplications.map((app) => (
+              <ApplicationStatusCard key={app.id} application={app} onWithdrawn={onApplicationsChanged} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <input
@@ -341,8 +382,22 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
               />
             </label>
 
-            <FileField label={`${lang === 'he' ? 'גיליון ציונים' : 'Transcript'} *`} file={transcriptFile} onChange={setTranscriptFile} lang={lang} />
-            <FileField label={`${lang === 'he' ? 'קורות חיים' : 'CV'} *`} file={cvFile} onChange={setCvFile} lang={lang} />
+            <FileField
+              label={`${lang === 'he' ? 'גיליון ציונים' : 'Transcript'} *`}
+              file={transcriptFile}
+              onChange={setTranscriptFile}
+              lang={lang}
+              reuseUrl={lastTranscriptUrl}
+              onClearReuse={() => setLastTranscriptUrl('')}
+            />
+            <FileField
+              label={`${lang === 'he' ? 'קורות חיים' : 'CV'} *`}
+              file={cvFile}
+              onChange={setCvFile}
+              lang={lang}
+              reuseUrl={lastCvUrl}
+              onClearReuse={() => setLastCvUrl('')}
+            />
 
             {applyMessage && (
               <p className={`mt-4 rounded-md px-3 py-2 text-sm ${applyMessage.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}>
@@ -369,8 +424,23 @@ function isPdfFile(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 }
 
-function FileField({ label, file, onChange, lang }: { label: string; file: File | null; onChange: (f: File | null) => void; lang: 'he' | 'en' }) {
+function FileField({
+  label,
+  file,
+  onChange,
+  lang,
+  reuseUrl,
+  onClearReuse,
+}: {
+  label: string;
+  file: File | null;
+  onChange: (f: File | null) => void;
+  lang: 'he' | 'en';
+  reuseUrl?: string;
+  onClearReuse?: () => void;
+}) {
   const [error, setError] = useState(false);
+  const reusing = !file && !!reuseUrl;
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const picked = e.target.files?.[0] ?? null;
@@ -388,7 +458,13 @@ function FileField({ label, file, onChange, lang }: { label: string; file: File 
     <label className="relative mt-4 block">
       <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
       <div className="relative flex items-center justify-between overflow-hidden rounded-lg border border-dashed border-line bg-paper px-3 py-2.5 text-sm">
-        <span className={file ? 'text-success' : 'text-muted'}>{file ? `✓ ${file.name}` : `📄 ${lang === 'he' ? 'לחץ להעלאה' : 'Tap to upload'}`}</span>
+        <span className={file || reusing ? 'text-success' : 'text-muted'}>
+          {file
+            ? `✓ ${file.name}`
+            : reusing
+              ? `✓ ${lang === 'he' ? 'נעשה שימוש בקובץ שהגשת לאחרונה' : 'Using the file from your last application'}`
+              : `📄 ${lang === 'he' ? 'לחץ להעלאה' : 'Tap to upload'}`}
+        </span>
         <input
           type="file"
           accept="application/pdf"
@@ -396,6 +472,17 @@ function FileField({ label, file, onChange, lang }: { label: string; file: File 
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         />
       </div>
+      {reusing && (
+        <div className="mt-1 flex items-center gap-3 text-xs">
+          <a href={reuseUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+            {lang === 'he' ? 'צפייה בקובץ' : 'View file'}
+          </a>
+          <span className="text-muted">{lang === 'he' ? 'לחץ למעלה כדי להחליף' : 'Click above to replace it'}</span>
+          <button type="button" onClick={onClearReuse} className="text-danger hover:opacity-70">
+            {lang === 'he' ? 'הסר' : 'Remove'}
+          </button>
+        </div>
+      )}
       {error && (
         <p className="mt-1 text-xs text-danger">{lang === 'he' ? 'ניתן להעלות קובצי PDF בלבד' : 'Only PDF files can be uploaded'}</p>
       )}
