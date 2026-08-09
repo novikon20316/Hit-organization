@@ -26,6 +26,7 @@ interface Props {
 
 type DegreeFilter = 'all' | 'bachelors' | 'masters';
 type TypeFilter   = 'all' | 'project' | 'thesis';
+type EligibilityFilter = 'all' | 'eligible';
 
 export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds, completedCourses = [] }: Props) {
   // Inside BrowseProjects component, add at the top:
@@ -33,6 +34,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   const [search,       setSearch]       = useState('');
   const [degreeFilter, setDegreeFilter] = useState<DegreeFilter>('all');
   const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all');
+  const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('all');
   const [selected,     setSelected]     = useState<ProjectProposal | null>(null);
   const [showApply,    setShowApply]    = useState(false);
   // The student's track choice for projects open to more than one project
@@ -48,6 +50,13 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   const [cvName,          setCvName]          = useState<string | null>(null);
   const [submitting,      setSubmitting]      = useState(false);
   const [applyMessage,    setApplyMessage]    = useState<string | null>(null);
+
+  // ── Prerequisite/qualification check ──────────────────────────────────────
+  // Name-match only — completedCourses is a plain list of course names on
+  // the student's own user doc, no grades, so a subject's minGrade is shown
+  // for the student's awareness but can't be enforced here.
+  const getMissingCourses = (p: ProjectProposal) =>
+    normalizePrerequisites(p.prerequisites).filter((pr) => !completedCourses.includes(pr.subject));
 
   // ── Filtered proposals ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -79,17 +88,15 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
         (p.degreeTypes ?? [p.degreeType]).includes(degreeFilter);
       const typeOk =
         typeFilter === 'all' || (p.projectTypes ?? [p.projectType]).includes(typeFilter);
+      // Independent of the type/degree filters above — "can apply" means the
+      // student has already met every prerequisite and hasn't already applied.
+      const eligibilityOk =
+        eligibilityFilter === 'all' ||
+        (getMissingCourses(p).length === 0 && !appliedProjectIds.includes(p.id));
 
-      return textOk && degreeOk && typeOk;
+      return textOk && degreeOk && typeOk && eligibilityOk;
     });
-  }, [proposals, search, degreeFilter, typeFilter, lang]);
-
-  // ── Prerequisite/qualification check ──────────────────────────────────────
-  // Name-match only — completedCourses is a plain list of course names on
-  // the student's own user doc, no grades, so a subject's minGrade is shown
-  // for the student's awareness but can't be enforced here.
-  const getMissingCourses = (p: ProjectProposal) =>
-    normalizePrerequisites(p.prerequisites).filter((pr) => !completedCourses.includes(pr.subject));
+  }, [proposals, search, degreeFilter, typeFilter, eligibilityFilter, completedCourses, appliedProjectIds, lang]);
 
   const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
 
@@ -251,6 +258,26 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
           </View>
         </ScrollView>
       )}
+
+      {/* Eligibility filter — independent of the type/degree filters above */}
+      <View style={styles.filters}>
+        <View style={styles.filterRow}>
+          {(['all', 'eligible'] as EligibilityFilter[]).map((ef) => (
+            <Pressable
+              key={ef}
+              style={[styles.chip, eligibilityFilter === ef && styles.chipActive]}
+              onPress={() => setEligibilityFilter(ef)}
+            >
+              <Text style={[styles.chipText, eligibilityFilter === ef && styles.chipTextActive]}>
+                {ef === 'all'
+                  ? (lang === 'he' ? 'כל הפרויקטים' : 'All projects')
+                  : (lang === 'he' ? 'פרויקטים שניתן להגיש להם' : 'Projects you can apply to')}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
       {/* Results count */}
       <Text style={[styles.resultsCount, isRtl && styles.textRight]}>
         {filtered.length} {lang === 'he' ? 'פרויקטים' : 'projects'}

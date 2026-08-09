@@ -18,6 +18,7 @@ interface BrowseProjectsProps {
 
 type DegreeFilter = 'all' | DegreeType;
 type TypeFilter = 'all' | 'project' | 'thesis';
+type EligibilityFilter = 'all' | 'eligible';
 
 const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload';
 const CLOUDINARY_UPLOAD_PRESET = 'student_uploads';
@@ -38,6 +39,7 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
   const [search, setSearch] = useState('');
   const [degreeFilter, setDegreeFilter] = useState<DegreeFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('all');
   const [selected, setSelected] = useState<ProjectProposal | null>(null);
   const [showApply, setShowApply] = useState(false);
 
@@ -50,6 +52,13 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
   // type (project vs. thesis) — auto-filled with no UI step when the
   // project only offers one, same as today's single-select projects.
   const [selectedProjectType, setSelectedProjectType] = useState<'project' | 'thesis' | ''>('');
+
+  // Name-match only, same as before minGrade shipped — there's no transcript
+  // data anywhere in this system to actually verify a grade against, only
+  // completedCourses (a plain list of course names on the student's own
+  // user doc). A subject's minGrade is shown to the student (see the
+  // prerequisites list below) but can't be enforced here.
+  const getMissingCourses = (p: ProjectProposal) => normalizePrerequisites(p.prerequisites).filter((pr) => !completedCourses.includes(pr.subject));
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -64,16 +73,13 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
       // only ever had the single scalar degreeType/projectType field.
       const degreeOk = degreeFilter === 'all' || (p.degreeTypes ?? [p.degreeType]).includes(degreeFilter);
       const typeOk = typeFilter === 'all' || (p.projectTypes ?? [p.projectType]).includes(typeFilter);
-      return textOk && degreeOk && typeOk;
+      // Independent of the type/degree filters above — "can apply" means the
+      // student has already met every prerequisite and hasn't already applied.
+      const eligibilityOk =
+        eligibilityFilter === 'all' || (getMissingCourses(p).length === 0 && !appliedProjectIds.includes(p.id));
+      return textOk && degreeOk && typeOk && eligibilityOk;
     });
-  }, [proposals, search, degreeFilter, typeFilter, lang]);
-
-  // Name-match only, same as before minGrade shipped — there's no transcript
-  // data anywhere in this system to actually verify a grade against, only
-  // completedCourses (a plain list of course names on the student's own
-  // user doc). A subject's minGrade is shown to the student (see the
-  // prerequisites list below) but can't be enforced here.
-  const getMissingCourses = (p: ProjectProposal) => normalizePrerequisites(p.prerequisites).filter((pr) => !completedCourses.includes(pr.subject));
+  }, [proposals, search, degreeFilter, typeFilter, eligibilityFilter, completedCourses, appliedProjectIds, lang]);
 
   const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
 
@@ -167,6 +173,29 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
             </>
           )}
         </div>
+      </div>
+
+      <div className="mt-2 flex gap-1.5">
+        {(['all', 'eligible'] as EligibilityFilter[]).map((ef) => (
+          <button
+            key={ef}
+            type="button"
+            onClick={() => setEligibilityFilter(ef)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              eligibilityFilter === ef
+                ? 'border-primary bg-primary text-primary-ink'
+                : 'border-line bg-surface text-ink hover:border-primary hover:text-primary'
+            }`}
+          >
+            {ef === 'all'
+              ? lang === 'he'
+                ? 'כל הפרויקטים'
+                : 'All projects'
+              : lang === 'he'
+                ? 'פרויקטים שניתן להגיש להם'
+                : 'Projects you can apply to'}
+          </button>
+        ))}
       </div>
 
       <p className="mt-3 text-xs text-muted">
