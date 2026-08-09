@@ -43,6 +43,14 @@ const MAINTENANCE_ALLOWED_PATHS = new Set([
 ]);
 const MAINTENANCE_BYPASS_ROLES = new Set(['system_admin']);
 
+// Firestore's gRPC client throws this (code 8) when a project's read/write
+// quota is exhausted — a project-wide outage, not anything wrong with the
+// caller's token. Both verifyToken's Firestore lookup and any other
+// Firestore-touching route can hit it; callers should tell it apart from a
+// genuine bad-token 403 instead of surfacing a confusing "invalid token".
+const isQuotaExceededError = (error: any): boolean =>
+  error?.code === 8 || /RESOURCE_EXHAUSTED/i.test(error?.message ?? error?.details ?? '');
+
 export interface AuthenticatedRequest extends Request {
   user?: {
     uid:       string;
@@ -101,10 +109,17 @@ export const verifyToken = async (
     return res.status(401).json({ error: 'Empty Bearer token.' });
   }
 
+  let decodedToken;
   try {
-    const decodedToken = await auth.verifyIdToken(rawToken);
-    const uid = decodedToken.uid;
+    decodedToken = await auth.verifyIdToken(rawToken);
+  } catch (error: any) {
+    console.error('Token verification error:', error);
+    return res.status(403).json({ error: 'Invalid or expired authentication token.' });
+  }
 
+  const uid = decodedToken.uid;
+
+  try {
     const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) {
       console.error(`❌ User ${uid} not found in Firestore.`);
@@ -154,8 +169,12 @@ export const verifyToken = async (
 
     return next();
   } catch (error: any) {
-    console.error('Token verification error:', error);
-    return res.status(403).json({ error: 'Invalid or expired authentication token.' });
+    if (isQuotaExceededError(error)) {
+      console.error('Firestore quota exceeded while resolving user for verifyToken:', error);
+      return res.status(503).json({ error: 'SERVICE_QUOTA_EXCEEDED', message: 'The database is temporarily unavailable due to a quota limit. Please try again later.' });
+    }
+    console.error('User lookup error in verifyToken:', error);
+    return res.status(500).json({ error: 'Failed to resolve authenticated user.' });
   }
 };
 
