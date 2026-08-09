@@ -3,32 +3,43 @@ import { AuthenticatedRequest } from '../middleware/auth.js'
 import { Response } from 'express'
 import { screenApplication } from '../services/cvScreeningService.js'
 import { reviewApplication } from '../services/applicationReviewService.js'
+import { extractCompletedCourses } from '../services/transcriptExtractionService.js'
 import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js'
 import { notifyUser } from '../services/notify.js'
 
 const db = admin.firestore();
 
-// Auto-populates a student's completedCourses from whatever grades the AI
-// review actually read off their uploaded transcript/gradesheet (see
-// applicationReviewService.ts's extractedGrades) — the first real signal
-// this system ever has for a student's grades, instead of relying only on
-// manual self-report or a system_admin's manual entry (adminController.ts).
+// Auto-populates a student's completedCourses from whatever courses/grades
+// transcriptExtractionService actually read off their uploaded transcript —
+// the first real signal this system ever has for a student's grades,
+// instead of relying solely on a system_admin's manual entry
+// (adminController.ts; students can no longer self-report this themselves).
 // Upserts by subject: a freshly-read grade overwrites whatever was there
-// before (self-reported or from an earlier, possibly less complete, review).
+// before (from an earlier, possibly less complete, transcript).
 async function mergeExtractedGradesIntoCompletedCourses(
   studentId: string,
   extractedGrades: { subject: string; grade: number }[]
 ) {
   if (extractedGrades.length === 0) return;
   const studentRef = db.collection('users').doc(studentId);
-  const studentSnap = await studentRef.get();
-  if (!studentSnap.exists) return;
 
-  const existing = normalizeCompletedCourses(studentSnap.data()?.completedCourses);
-  const merged = new Map(existing.map((c) => [c.subject, c]));
-  for (const g of extractedGrades) merged.set(g.subject, { subject: g.subject, grade: g.grade });
+  // A plain get()-then-update() here raced against a system_admin's manual
+  // edit landing in between: whichever write committed last silently
+  // replaced the whole array, discarding the other's grade for any subject
+  // it didn't itself touch. A transaction closes that window — Firestore
+  // detects if the document changed since this read and automatically
+  // retries with a fresh one, so this merge always builds on the latest
+  // data no matter what else wrote to the doc in the meantime.
+  await db.runTransaction(async (tx) => {
+    const studentSnap = await tx.get(studentRef);
+    if (!studentSnap.exists) return;
 
-  await studentRef.update({ completedCourses: [...merged.values()] });
+    const existing = normalizeCompletedCourses(studentSnap.data()?.completedCourses);
+    const merged = new Map(existing.map((c) => [c.subject, c]));
+    for (const g of extractedGrades) merged.set(g.subject, { subject: g.subject, grade: g.grade });
+
+    tx.update(studentRef, { completedCourses: [...merged.values()] });
+  });
 }
 
 export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =>{
@@ -236,16 +247,21 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
             transcriptUrl: transcriptUrl ?? '',
             prerequisites: normalizePrerequisites(projectData.prerequisites),
         })
-            .then(async (aiReview) => {
-                await newApplicationRef.update({ aiReview });
-                try {
-                    await mergeExtractedGradesIntoCompletedCourses(studentId, aiReview.extractedGrades);
-                } catch (mergeError) {
-                    console.error(`Failed to merge extracted grades into completedCourses for ${studentId}:`, mergeError);
-                }
-            })
+            .then((aiReview) => newApplicationRef.update({ aiReview }))
             .catch((reviewError) => {
                 console.error(`AI application review failed for application ${newApplicationRef.id}:`, reviewError);
+            });
+
+        // Separate, best-effort pass over the SAME transcript — reads every
+        // course + grade on it (not just this project's prerequisites, unlike
+        // reviewApplication above) to populate the student's own
+        // completedCourses. Runs on every submission, not just a literal
+        // "first ever" upload — upserting is safe and keeps the record
+        // current if a later transcript is more complete or corrected.
+        extractCompletedCourses({ transcriptUrl: transcriptUrl ?? '' })
+            .then((courses) => mergeExtractedGradesIntoCompletedCourses(studentId, courses))
+            .catch((extractError) => {
+                console.error(`Transcript course extraction failed for application ${newApplicationRef.id}:`, extractError);
             });
 
         return res.status(201).json({ success: true, message: 'Application submitted successfully.' });

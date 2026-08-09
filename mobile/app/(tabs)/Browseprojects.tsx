@@ -11,7 +11,7 @@ import { browseProjectsStyles } from '../../constants/styles';
 import type { ProjectProposal } from '@/types';
 import { apiClient } from '../../src/api/apiClient';
 import { normalizePrerequisites, formatPrerequisite, meetsPrerequisite, type CompletedCourse } from '@/components/Prerequisites';
-import CompletedCoursesEditor from '@/components/CompletedCoursesEditor';
+import CompletedCoursesList from '@/components/CompletedCoursesList';
 
 interface Props {
   proposals: ProjectProposal[];
@@ -20,14 +20,13 @@ interface Props {
   studentDegree: 'bachelors' | 'masters';
   appliedProjectIds: string[];
   completedCourses?: CompletedCourse[];
-  onCompletedCoursesChanged: () => void;
 }
 
 type DegreeFilter = 'all' | 'bachelors' | 'masters';
 type TypeFilter   = 'all' | 'project' | 'thesis';
 type EligibilityFilter = 'all' | 'eligible';
 
-export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds, completedCourses = [], onCompletedCoursesChanged }: Props) {
+export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds, completedCourses = [] }: Props) {
   // Inside BrowseProjects component, add at the top:
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);  
   const [search,       setSearch]       = useState('');
@@ -52,8 +51,10 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
 
   // ── Prerequisite/qualification check ──────────────────────────────────────
   // completedCourses now carries a self-reported grade per course (see
-  // CompletedCoursesEditor) — a prerequisite with a minGrade is only met if
-  // the recorded grade meets it, not just by having taken the course.
+  // CompletedCoursesList) — entered by a system_admin or AI-extracted from
+  // a transcript during application review, never self-reported by the
+  // student. A prerequisite with a minGrade is only met if the recorded
+  // grade meets it, not just by having taken the course.
   const getMissingCourses = (p: ProjectProposal) =>
     normalizePrerequisites(p.prerequisites).filter((pr) => !meetsPrerequisite(pr, completedCourses));
 
@@ -233,11 +234,10 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   return (
     <View style={styles.container}>
 
-      <CompletedCoursesEditor
+      <CompletedCoursesList
         lang={lang}
         isRtl={isRtl}
         completedCourses={completedCourses}
-        onSaved={onCompletedCoursesChanged}
       />
 
       {/* Search + Filters */}

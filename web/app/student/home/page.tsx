@@ -76,7 +76,6 @@ export default function StudentHomePage() {
             studentDegree={studentDegree}
             appliedProjectIds={pendingApplication ? [pendingApplication.projectId] : []}
             completedCourses={studentCompletedCourses}
-            onCompletedCoursesChanged={refresh}
           />
         )}
 

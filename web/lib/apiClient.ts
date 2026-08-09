@@ -833,16 +833,6 @@ export const apiClient = {
     return request<Record<string, unknown>>('/api/users/profile', { method: 'GET' });
   },
 
-  /** POST /api/users/completed-courses — overwrites the student's full
-   *  self-reported course history (subject + grade), used to enforce a
-   *  project prerequisite's minGrade (see lib/prerequisites.ts). */
-  async updateCompletedCourses(completedCourses: { subject: string; grade: number }[]) {
-    return request<{ success: boolean; completedCourses: { subject: string; grade: number }[] }>('/api/users/completed-courses', {
-      method: 'POST',
-      body: { completedCourses },
-    });
-  },
-
   async logout() {
     return request<{ success?: boolean }>('/api/users/logout', { method: 'POST' });
   },
@@ -950,7 +940,8 @@ export const apiClient = {
 
   /** PUT /api/admin/users/:id/completed-courses — system_admin only. Manual
    *  stopgap for editing a student's completed courses + grades directly;
-   *  the normal path is automatic (see updateCompletedCourses's comment). */
+   *  the normal path is automatic extraction from transcripts during
+   *  application review (see server/src/controllers/applicationController.ts). */
   async updateStudentCompletedCoursesAsAdmin(studentId: string, completedCourses: { subject: string; grade: number }[]) {
     return request<{ success: boolean; completedCourses: { subject: string; grade: number }[] }>(
       `/api/admin/users/${studentId}/completed-courses`,

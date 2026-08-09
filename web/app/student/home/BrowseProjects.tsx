@@ -7,7 +7,7 @@ import { useMemo, useState, type ChangeEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { normalizePrerequisites, formatPrerequisite, meetsPrerequisite, type CompletedCourse } from '@/lib/prerequisites';
-import { CompletedCoursesEditor } from './CompletedCoursesEditor';
+import { CompletedCoursesList } from './CompletedCoursesList';
 import type { ProjectProposal, DegreeType } from './types';
 
 interface BrowseProjectsProps {
@@ -15,7 +15,6 @@ interface BrowseProjectsProps {
   studentDegree: DegreeType;
   appliedProjectIds: string[];
   completedCourses?: CompletedCourse[];
-  onCompletedCoursesChanged: () => void;
 }
 
 type DegreeFilter = 'all' | DegreeType;
@@ -35,7 +34,7 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url as string;
 }
 
-export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, completedCourses = [], onCompletedCoursesChanged }: BrowseProjectsProps) {
+export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, completedCourses = [] }: BrowseProjectsProps) {
   const { lang, t } = useLanguage();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -55,9 +54,11 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
   // project only offers one, same as today's single-select projects.
   const [selectedProjectType, setSelectedProjectType] = useState<'project' | 'thesis' | ''>('');
 
-  // completedCourses now carries a self-reported grade per course (see
-  // CompletedCoursesEditor below) — a prerequisite with a minGrade is only
-  // met if the recorded grade meets it, not just by having taken the course.
+  // completedCourses carries a grade per course, entered by a system_admin
+  // or AI-extracted from a transcript during application review — never
+  // self-reported by the student (see CompletedCoursesList below). A
+  // prerequisite with a minGrade is only met if the recorded grade meets
+  // it, not just by having taken the course.
   const getMissingCourses = (p: ProjectProposal) => normalizePrerequisites(p.prerequisites).filter((pr) => !meetsPrerequisite(pr, completedCourses));
 
   const filtered = useMemo(() => {
@@ -136,7 +137,7 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
 
   return (
     <div>
-      <CompletedCoursesEditor completedCourses={completedCourses} onSaved={onCompletedCoursesChanged} />
+      <CompletedCoursesList completedCourses={completedCourses} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <input
