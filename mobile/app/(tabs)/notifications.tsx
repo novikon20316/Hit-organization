@@ -45,7 +45,7 @@ interface ChatRow {
 
 // ─── Notification type → icon + color ────────────────────────────────────────
 
-const TYPE_STYLE: Record<string, { icon: string; color: string; bg: string }> = {
+export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: string }> = {
   project_published:      { icon: '📢', color: '#2E86FF', bg: '#EFF6FF' },
   application_received:   { icon: '📥', color: '#2E86FF', bg: '#EFF6FF' },
   application_approved:   { icon: '✅', color: '#10B981', bg: '#ECFDF5' },
@@ -59,6 +59,22 @@ const TYPE_STYLE: Record<string, { icon: string; color: string; bg: string }> = 
   broadcast:              { icon: '📢', color: '#EF4444', bg: '#FEF2F2' },
   new_message:            { icon: '💬', color: '#2E86FF', bg: '#EFF6FF' },
 };
+
+function roleHomeRoute(role: string | null): string {
+  switch (role) {
+    case 'student':                  return '/student/home';
+    case 'supervisor':
+    case 'secondary_supervisor':     return '/supervisor/dashboard';
+    case 'internal_examiner':        return '/examinor/home';
+    case 'coordinator':              return '/coordinator/home';
+    case 'faculty_admin':            return '/faculty_admin/dashboard';
+    case 'program_head':             return '/program_head/program_head_dashboard';
+    case 'administrative_secretary': return '/administrative_coordinator/administrative_coordinator_dashboard';
+    case 'grad_school_head':         return '/grad_school_head/grad_school_head_dashboard';
+    case 'system_admin':             return '/admin/panel';
+    default:                         return '/(auth)/login';
+  }
+}
 
 const ROLE_COLOR: Record<string, string> = {
   student:       '#2E86FF',
@@ -92,6 +108,20 @@ function relativeTime(ts: string | null | undefined, lang: Lang): string {
   if (hrs  < 24) return `${hrs}h`;
   if (days < 7)  return `${days}d`;
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+// Shows a bare time (e.g. "14:30") for notifications from today, since the
+// date is already redundant with that day's "Today" section header — and a
+// full date (e.g. "3 Aug") for anything older, since those rows aren't
+// grouped under a dated header the same way.
+function rowTimestamp(ts: string, lang: Lang): string {
+  const date = new Date(ts);
+  if (isNaN(date.getTime())) return '';
+  const isToday = date.toDateString() === new Date().toDateString();
+  if (isToday) {
+    return date.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short' });
 }
 
 function initials(name: string): string {
@@ -157,7 +187,7 @@ function NotifRow({ notif, lang, isRtl, onPress }: {
             <Text style={[nr.title, isRtl && nr.textRight, !notif.isRead && nr.titleBold]} numberOfLines={1}>
               {lang === 'he' ? notif.titleHe : notif.titleEn}
             </Text>
-            <Text style={nr.time}>{new Date(notif.createdAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</Text>
+            <Text style={nr.time}>{rowTimestamp(notif.createdAt, lang)}</Text>
           </View>
           <Text style={[nr.body, isRtl && nr.textRight]} numberOfLines={2}>
             {lang === 'he' ? notif.bodyHe : notif.bodyEn}
@@ -354,19 +384,7 @@ export default function NotificationsScreen() {
   const goHomeByRole = useCallback(() => {
     unsubNotifsRef.current?.();
     unsubChatsRef.current?.();
-    switch (userRole) {
-      case 'student':              router.replace('/student/home');           break;
-      case 'supervisor':
-      case 'secondary_supervisor': router.replace('/supervisor/dashboard');    break;
-      case 'internal_examiner':    router.replace('/examinor/home');           break;
-      case 'coordinator':          router.replace('/coordinator/home');        break;
-      case 'faculty_admin':        router.replace('/faculty_admin/dashboard'); break;
-      case 'program_head':         router.replace('/program_head/program_head_dashboard'); break;
-      case 'administrative_secretary':  router.replace('/administrative_coordinator/administrative_coordinator_dashboard'); break;
-      case 'grad_school_head':     router.replace('/grad_school_head/grad_school_head_dashboard'); break;
-      case 'system_admin':         router.replace('/admin/panel');             break;
-      default:                     router.replace('/(auth)/login');
-    }
+    router.replace(roleHomeRoute(userRole) as any);
   }, [userRole]);
 
   const handleTapNotif = async (notif: Notif) => {
@@ -380,15 +398,23 @@ export default function NotificationsScreen() {
       }
     }
     refresh();
+
+    if (notif.type === 'new_message') {
+      if (notif.chatId) {
+        router.push({
+          pathname: '/message/[chatId]',
+          params: { chatId: notif.chatId, otherName: notif.senderName ?? '', otherRole: '' },
+        });
+      }
+      return;
+    }
+
+    // Every other type opens its own full-screen detail view (full title +
+    // body) instead of silently jumping straight to a dashboard — that
+    // dashboard never showed the notification's actual content anywhere, so
+    // the redirect looked like it had no reason behind it.
+    let targetRoute = '';
     switch (notif.type) {
-      case 'new_message':
-        if (notif.chatId) {
-          router.push({
-            pathname: '/message/[chatId]',
-            params: { chatId: notif.chatId, otherName: notif.senderName ?? '', otherRole: '' },
-          });
-        }
-        break;
       case 'project_published':
       case 'application_approved':
       case 'application_rejected':
@@ -398,19 +424,31 @@ export default function NotificationsScreen() {
       case 'milestone_deadline_1d':
       case 'milestone_overdue':
         // Always student-directed types.
-        router.push('/student/home');
+        targetRoute = '/student/home';
         break;
       case 'application_received':
-        // Supervisor-directed — send to their own home, not the student's.
-        goHomeByRole();
-        break;
       case 'account_created':
         // Recipient can be any role — route to whichever home matches theirs.
-        goHomeByRole();
+        targetRoute = roleHomeRoute(userRole);
         break;
       default:
-        router.back();
+        targetRoute = '';
     }
+
+    router.push({
+      pathname: '/notification/[id]',
+      params: {
+        id:        notif.id,
+        type:      notif.type,
+        titleHe:   notif.titleHe,
+        titleEn:   notif.titleEn,
+        bodyHe:    notif.bodyHe,
+        bodyEn:    notif.bodyEn,
+        createdAt: notif.createdAt,
+        targetRoute,
+        lang,
+      },
+    });
   };
 
   const handleTapChat = (chat: ChatRow) => {

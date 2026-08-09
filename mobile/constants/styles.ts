@@ -2771,6 +2771,31 @@ export const ChatRowStyles = StyleSheet.create({
   deleteHint:   { fontSize: 18, color: '#D0DEFF', paddingLeft: 8 },
 });
 
+export const NotificationDetailStyles = StyleSheet.create({
+  root:       { flex: 1, backgroundColor: '#F0F4FF' },
+  rowReverse: { flexDirection: 'row-reverse' },
+  textRight:  { textAlign: 'right' },
+  content:    { padding: 20 },
+
+  topRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  backBtn:  { padding: 6, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#D0DEFF' },
+  backText: { fontSize: 18, color: '#2E86FF', fontWeight: '700', paddingHorizontal: 4 },
+  langBtn:  { backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#D0DEFF' },
+  langText: { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
+
+  iconBubble: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 16, alignSelf: 'flex-start' },
+  iconText:   { fontSize: 28 },
+
+  title:     { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 6 },
+  timestamp: { fontSize: 13, color: '#8899BB', marginBottom: 20 },
+
+  bodyCard: { backgroundColor: '#fff', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#E0E8FF', marginBottom: 24 },
+  bodyText: { fontSize: 15, color: '#333', lineHeight: 23 },
+
+  actionBtn:     { backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  actionBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+});
+
 export const MilestoneTimelineStyles = StyleSheet.create({
   progressCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 20,
