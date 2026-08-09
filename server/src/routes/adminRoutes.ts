@@ -22,6 +22,7 @@ import {
   eraseUserBySystemAdmin,
   resetUserPasswordAdmin,
   updateStudentAcademicYear,
+  updateStudentCompletedCoursesAsAdmin,
   searchStudents,
   deleteAuditLogEntries,
   getLockedUsers,
@@ -105,6 +106,8 @@ router.put('/academic-calendar', verifyToken, updateAcademicCalendarConfig);
 router.put('/student-statuses', verifyToken, updateStudentStatusOptions);
 // system_admin or administrative coordinator — gated inside the controller.
 router.put('/users/:id/academic-year', verifyToken, updateStudentAcademicYear);
+// system_admin only — gated inside the controller.
+router.put('/users/:id/completed-courses', verifyToken, updateStudentCompletedCoursesAsAdmin);
 
 // PATCH routes
 router.patch('/student-roster/:docId', verifyToken, updateStudentRosterAdmin);

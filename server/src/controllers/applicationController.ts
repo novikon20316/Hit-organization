@@ -3,10 +3,33 @@ import { AuthenticatedRequest } from '../middleware/auth.js'
 import { Response } from 'express'
 import { screenApplication } from '../services/cvScreeningService.js'
 import { reviewApplication } from '../services/applicationReviewService.js'
-import { normalizePrerequisites } from '../services/prerequisites.js'
+import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js'
 import { notifyUser } from '../services/notify.js'
 
 const db = admin.firestore();
+
+// Auto-populates a student's completedCourses from whatever grades the AI
+// review actually read off their uploaded transcript/gradesheet (see
+// applicationReviewService.ts's extractedGrades) — the first real signal
+// this system ever has for a student's grades, instead of relying only on
+// manual self-report or a system_admin's manual entry (adminController.ts).
+// Upserts by subject: a freshly-read grade overwrites whatever was there
+// before (self-reported or from an earlier, possibly less complete, review).
+async function mergeExtractedGradesIntoCompletedCourses(
+  studentId: string,
+  extractedGrades: { subject: string; grade: number }[]
+) {
+  if (extractedGrades.length === 0) return;
+  const studentRef = db.collection('users').doc(studentId);
+  const studentSnap = await studentRef.get();
+  if (!studentSnap.exists) return;
+
+  const existing = normalizeCompletedCourses(studentSnap.data()?.completedCourses);
+  const merged = new Map(existing.map((c) => [c.subject, c]));
+  for (const g of extractedGrades) merged.set(g.subject, { subject: g.subject, grade: g.grade });
+
+  await studentRef.update({ completedCourses: [...merged.values()] });
+}
 
 export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =>{
     const studentId = req.user?.uid;
@@ -213,7 +236,14 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
             transcriptUrl: transcriptUrl ?? '',
             prerequisites: normalizePrerequisites(projectData.prerequisites),
         })
-            .then((aiReview) => newApplicationRef.update({ aiReview }))
+            .then(async (aiReview) => {
+                await newApplicationRef.update({ aiReview });
+                try {
+                    await mergeExtractedGradesIntoCompletedCourses(studentId, aiReview.extractedGrades);
+                } catch (mergeError) {
+                    console.error(`Failed to merge extracted grades into completedCourses for ${studentId}:`, mergeError);
+                }
+            })
             .catch((reviewError) => {
                 console.error(`AI application review failed for application ${newApplicationRef.id}:`, reviewError);
             });

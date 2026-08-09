@@ -65,6 +65,13 @@ export default function AdministrativeCoordinatorDashboardPage() {
   const [filterTrack, setFilterTrack] = useState<'all' | 'bachelor_project' | 'masters_project'>('all');
   const [filterOverdue, setFilterOverdue] = useState(false);
   const [expandedGrades, setExpandedGrades] = useState<Record<string, boolean>>({});
+  // Project Groups tab: supervisor list → drill into that supervisor's own
+  // groups, instead of one flat list of every project at once. Grouped by
+  // supervisorId when present (two supervisors can share a display name);
+  // falls back to a name-keyed bucket for legacy/unassigned projects with
+  // no supervisorId at all.
+  const [viewingSupervisorKey, setViewingSupervisorKey] = useState<string | null>(null);
+  const [supervisorSearch, setSupervisorSearch] = useState('');
 
   const [examinerModalGroup, setExaminerModalGroup] = useState<ProjectGroup | null>(null);
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
@@ -92,15 +99,41 @@ export default function AdministrativeCoordinatorDashboardPage() {
     if (isAllowed) fetchDashboard();
   }, [isAllowed, fetchDashboard]);
 
+  const supervisorKey = (g: ProjectGroup) => g.supervisorId ?? `name:${g.supervisorName}`;
+
+  const supervisorSummaries = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; projectCount: number; overdueCount: number }>();
+    groups.forEach((g) => {
+      const key = supervisorKey(g);
+      const existing = map.get(key);
+      if (existing) {
+        existing.projectCount++;
+        if (g.isOverdue) existing.overdueCount++;
+      } else {
+        map.set(key, { key, name: g.supervisorName, projectCount: 1, overdueCount: g.isOverdue ? 1 : 0 });
+      }
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [groups]);
+
+  const filteredSupervisors = useMemo(() => {
+    const q = supervisorSearch.trim().toLowerCase();
+    return !q ? supervisorSummaries : supervisorSummaries.filter((s) => s.name.toLowerCase().includes(q));
+  }, [supervisorSummaries, supervisorSearch]);
+
+  const viewingSupervisor = supervisorSummaries.find((s) => s.key === viewingSupervisorKey) ?? null;
+
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return groups.filter((g) => {
-      const matchesSearch = !q || g.projectTitle.toLowerCase().includes(q) || g.supervisorName.toLowerCase().includes(q) || g.members.some((m) => m.name.toLowerCase().includes(q));
-      const matchesTrack = filterTrack === 'all' || g.trackType === filterTrack;
-      const matchesOverdue = !filterOverdue || g.isOverdue;
-      return matchesSearch && matchesTrack && matchesOverdue;
-    });
-  }, [groups, search, filterTrack, filterOverdue]);
+    return groups
+      .filter((g) => !viewingSupervisorKey || supervisorKey(g) === viewingSupervisorKey)
+      .filter((g) => {
+        const matchesSearch = !q || g.projectTitle.toLowerCase().includes(q) || g.supervisorName.toLowerCase().includes(q) || g.members.some((m) => m.name.toLowerCase().includes(q));
+        const matchesTrack = filterTrack === 'all' || g.trackType === filterTrack;
+        const matchesOverdue = !filterOverdue || g.isOverdue;
+        return matchesSearch && matchesTrack && matchesOverdue;
+      });
+  }, [groups, search, filterTrack, filterOverdue, viewingSupervisorKey]);
 
   const facultyColor = getFacultyColor(facultyId);
 
@@ -187,6 +220,50 @@ export default function AdministrativeCoordinatorDashboardPage() {
               📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
             </button>
           </div>
+
+          {!viewingSupervisorKey ? (
+            <>
+              <input
+                value={supervisorSearch}
+                onChange={(e) => setSupervisorSearch(e.target.value)}
+                placeholder={lang === 'he' ? 'חיפוש מנחה...' : 'Search supervisor...'}
+                className="mb-3 w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+              />
+
+              {/* Supervisor list — click a supervisor to drill into their
+                  own project groups below, instead of one flat list of
+                  everyone's. */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {filteredSupervisors.map((sv) => (
+                  <button
+                    key={sv.key}
+                    type="button"
+                    onClick={() => setViewingSupervisorKey(sv.key)}
+                    className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4 text-start hover:border-primary"
+                    style={{ '--rail-color': sv.overdueCount > 0 ? 'var(--danger)' : facultyColor } as React.CSSProperties}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-ink">👨‍🏫 {sv.name}</p>
+                      {sv.overdueCount > 0 && <span className="shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-medium text-danger">⚠️ {sv.overdueCount}</span>}
+                    </div>
+                    <p className="mt-1 text-xs text-muted">
+                      📁 {sv.projectCount} {lang === 'he' ? 'פרויקטים/תזות' : sv.projectCount === 1 ? 'project/thesis' : 'projects/theses'}
+                    </p>
+                  </button>
+                ))}
+                {filteredSupervisors.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין מנחים להצגה' : 'No supervisors to show'}</p>}
+              </div>
+            </>
+          ) : (
+          <>
+          <button
+            type="button"
+            onClick={() => setViewingSupervisorKey(null)}
+            className="mb-3 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+          >
+            {lang === 'he' ? '← חזרה למנחים' : '← Back to supervisors'}
+          </button>
+          <p className="mb-3 text-sm font-semibold text-ink">👨‍🏫 {viewingSupervisor?.name}</p>
 
           <input
             value={search}
@@ -305,6 +382,8 @@ export default function AdministrativeCoordinatorDashboardPage() {
             ))}
             {filteredGroups.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין קבוצות להצגה' : 'No groups to show'}</p>}
           </div>
+          </>
+          )}
         </>
       )}
         </>

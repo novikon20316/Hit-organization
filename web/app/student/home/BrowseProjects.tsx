@@ -3,17 +3,19 @@
 // app/student/home/BrowseProjects.tsx
 // Ported from mobile/app/(tabs)/Browseprojects.tsx.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ChangeEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
-import { normalizePrerequisites, formatPrerequisite } from '@/lib/prerequisites';
+import { normalizePrerequisites, formatPrerequisite, meetsPrerequisite, type CompletedCourse } from '@/lib/prerequisites';
+import { CompletedCoursesEditor } from './CompletedCoursesEditor';
 import type { ProjectProposal, DegreeType } from './types';
 
 interface BrowseProjectsProps {
   proposals: ProjectProposal[];
   studentDegree: DegreeType;
   appliedProjectIds: string[];
-  completedCourses?: string[];
+  completedCourses?: CompletedCourse[];
+  onCompletedCoursesChanged: () => void;
 }
 
 type DegreeFilter = 'all' | DegreeType;
@@ -33,7 +35,7 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url as string;
 }
 
-export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, completedCourses = [] }: BrowseProjectsProps) {
+export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, completedCourses = [], onCompletedCoursesChanged }: BrowseProjectsProps) {
   const { lang, t } = useLanguage();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -53,12 +55,10 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
   // project only offers one, same as today's single-select projects.
   const [selectedProjectType, setSelectedProjectType] = useState<'project' | 'thesis' | ''>('');
 
-  // Name-match only, same as before minGrade shipped — there's no transcript
-  // data anywhere in this system to actually verify a grade against, only
-  // completedCourses (a plain list of course names on the student's own
-  // user doc). A subject's minGrade is shown to the student (see the
-  // prerequisites list below) but can't be enforced here.
-  const getMissingCourses = (p: ProjectProposal) => normalizePrerequisites(p.prerequisites).filter((pr) => !completedCourses.includes(pr.subject));
+  // completedCourses now carries a self-reported grade per course (see
+  // CompletedCoursesEditor below) — a prerequisite with a minGrade is only
+  // met if the recorded grade meets it, not just by having taken the course.
+  const getMissingCourses = (p: ProjectProposal) => normalizePrerequisites(p.prerequisites).filter((pr) => !meetsPrerequisite(pr, completedCourses));
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -136,6 +136,8 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
 
   return (
     <div>
+      <CompletedCoursesEditor completedCourses={completedCourses} onSaved={onCompletedCoursesChanged} />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <input
           value={search}
@@ -362,7 +364,25 @@ export function BrowseProjects({ proposals, studentDegree, appliedProjectIds, co
   );
 }
 
+function isPdfFile(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+}
+
 function FileField({ label, file, onChange, lang }: { label: string; file: File | null; onChange: (f: File | null) => void; lang: 'he' | 'en' }) {
+  const [error, setError] = useState(false);
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0] ?? null;
+    if (picked && !isPdfFile(picked)) {
+      setError(true);
+      onChange(null);
+      e.target.value = '';
+      return;
+    }
+    setError(false);
+    onChange(picked);
+  };
+
   return (
     <label className="relative mt-4 block">
       <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
@@ -371,10 +391,13 @@ function FileField({ label, file, onChange, lang }: { label: string; file: File 
         <input
           type="file"
           accept="application/pdf"
-          onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+          onChange={handleChange}
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         />
       </div>
+      {error && (
+        <p className="mt-1 text-xs text-danger">{lang === 'he' ? 'ניתן להעלות קובצי PDF בלבד' : 'Only PDF files can be uploaded'}</p>
+      )}
     </label>
   );
 }

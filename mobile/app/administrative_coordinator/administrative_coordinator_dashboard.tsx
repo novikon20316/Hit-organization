@@ -28,6 +28,7 @@ import type { AppUser } from '@/types';
 interface ProjectGroup {
   id:              string;
   projectTitle:    string;
+  supervisorId:    string | null;
   supervisorName:  string;
   facultyId:       string;
   trackType:       'bachelor_project' | 'masters_project';
@@ -460,6 +461,13 @@ export default function ProjectCoordinatorDashboard() {
   const [filterTrack, setFilterTrack] = useState<'all' | 'bachelor_project' | 'masters_project'>('all');
   const [filterOverdue, setFilterOverdue] = useState(false);
   const [searchText, setSearchText] = useState('');
+  // ── Project Groups tab: supervisor list → drill into that supervisor's
+  // own groups, instead of one flat list of every project at once. Grouped
+  // by supervisorId when present (two supervisors can share a display
+  // name); falls back to a name-keyed bucket for legacy/unassigned projects
+  // with no supervisorId at all.
+  const [viewingSupervisorKey, setViewingSupervisorKey] = useState<string | null>(null);
+  const [supervisorSearchText, setSupervisorSearchText] = useState('');
   const [examinerModalGroup, setExaminerModalGroup] = useState<ProjectGroup | null>(null);
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
@@ -673,17 +681,42 @@ export default function ProjectCoordinatorDashboard() {
   };
 
   // ── Filter ─────────────────────────────────────────────────────────────────
-  const filteredGroups = (data?.groups ?? []).filter(g => {
-    const q = searchText.toLowerCase();
-    const matchesSearch =
-      !q ||
-      g.projectTitle.toLowerCase().includes(q) ||
-      g.supervisorName.toLowerCase().includes(q) ||
-      g.members.some(m => m.name.toLowerCase().includes(q));
-    const matchesTrack   = filterTrack === 'all' || g.trackType === filterTrack;
-    const matchesOverdue = !filterOverdue || g.isOverdue;
-    return matchesSearch && matchesTrack && matchesOverdue;
-  });
+  const supervisorKey = (g: ProjectGroup) => g.supervisorId ?? `name:${g.supervisorName}`;
+
+  const supervisorSummaries = React.useMemo(() => {
+    const map = new Map<string, { key: string; name: string; projectCount: number; overdueCount: number }>();
+    (data?.groups ?? []).forEach((g) => {
+      const key = supervisorKey(g);
+      const existing = map.get(key);
+      if (existing) {
+        existing.projectCount++;
+        if (g.isOverdue) existing.overdueCount++;
+      } else {
+        map.set(key, { key, name: g.supervisorName, projectCount: 1, overdueCount: g.isOverdue ? 1 : 0 });
+      }
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [data?.groups]);
+
+  const filteredSupervisors = supervisorSummaries.filter((s) =>
+    !supervisorSearchText.trim() || s.name.toLowerCase().includes(supervisorSearchText.trim().toLowerCase())
+  );
+
+  const viewingSupervisor = supervisorSummaries.find((s) => s.key === viewingSupervisorKey) ?? null;
+
+  const filteredGroups = (data?.groups ?? [])
+    .filter((g) => !viewingSupervisorKey || supervisorKey(g) === viewingSupervisorKey)
+    .filter(g => {
+      const q = searchText.toLowerCase();
+      const matchesSearch =
+        !q ||
+        g.projectTitle.toLowerCase().includes(q) ||
+        g.supervisorName.toLowerCase().includes(q) ||
+        g.members.some(m => m.name.toLowerCase().includes(q));
+      const matchesTrack   = filterTrack === 'all' || g.trackType === filterTrack;
+      const matchesOverdue = !filterOverdue || g.isOverdue;
+      return matchesSearch && matchesTrack && matchesOverdue;
+    });
 
   if (loading) {
     return (
@@ -934,8 +967,53 @@ export default function ProjectCoordinatorDashboard() {
               })
             )}
           </View>
+        ) : !viewingSupervisorKey ? (
+        <>
+        <TextInput
+          style={s.searchInput}
+          value={supervisorSearchText}
+          onChangeText={setSupervisorSearchText}
+          placeholder={lang === 'he' ? 'חיפוש מנחה...' : 'Search supervisor...'}
+          placeholderTextColor="#9CA3AF"
+          textAlign={lang === 'he' ? 'right' : 'left'}
+        />
+
+        {/* Supervisor list — click a supervisor to drill into their own
+            project groups below, instead of one flat list of everyone's. */}
+        {filteredSupervisors.length === 0 ? (
+          <View style={s.empty}>
+            <Text style={s.emptyEmoji}>📭</Text>
+            <Text style={s.emptyText}>{lang === 'he' ? 'אין מנחים להצגה' : 'No supervisors to show'}</Text>
+          </View>
+        ) : (
+          filteredSupervisors.map((sv) => (
+            <Pressable
+              key={sv.key}
+              style={[s.card, { borderLeftColor: sv.overdueCount > 0 ? '#EF4444' : fc.primary }]}
+              onPress={() => setViewingSupervisorKey(sv.key)}
+            >
+              <View style={s.cardHeaderRow}>
+                <Text style={s.cardTitle}>👨‍🏫 {sv.name}</Text>
+                {sv.overdueCount > 0 && (
+                  <View style={s.overduePill}>
+                    <Text style={s.overduePillText}>⚠️ {sv.overdueCount}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={s.cardSub}>
+                📁 {sv.projectCount} {lang === 'he' ? 'פרויקטים/תזות' : sv.projectCount === 1 ? 'project/thesis' : 'projects/theses'}
+              </Text>
+            </Pressable>
+          ))
+        )}
+        </>
         ) : (
         <>
+        <Pressable style={s.filterChip} onPress={() => setViewingSupervisorKey(null)}>
+          <Text style={s.filterChipText}>{lang === 'he' ? '← חזרה למנחים' : '← Back to supervisors'}</Text>
+        </Pressable>
+        <Text style={[s.cardTitle, { marginTop: 10, marginBottom: 4 }]}>👨‍🏫 {viewingSupervisor?.name}</Text>
+
         <TextInput
           style={s.searchInput}
           value={searchText}

@@ -154,6 +154,10 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
       return {
         id: doc.id,
         projectTitle: data.titleHe || data.titleEn || '',
+        // Exposed alongside the resolved name so the dashboard can group
+        // projects by supervisor reliably (two supervisors can share a
+        // display name) instead of grouping on the name string itself.
+        supervisorId: data.supervisorId ?? null,
         supervisorName: data.supervisorId ? (usersById[data.supervisorId] ?? 'Unknown') : 'Unassigned',
         facultyId: data.facultyId,
         major: data.major ?? null,

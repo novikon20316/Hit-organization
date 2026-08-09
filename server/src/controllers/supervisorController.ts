@@ -123,10 +123,12 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
     const applicationChunks = myProjectIds.length
       ? await Promise.all(chunk(myProjectIds, 30).map((ids) => db.collection('applications').where('projectId', 'in', ids).get()))
       : [];
+    // Not filtered to a single status — the Applications tab's status
+    // filter (Approved / Set-Meeting / Rejected / All) needs every
+    // application for this supervisor's projects, not just open ones.
     const applications = applicationChunks
       .flatMap((snap) => snap.docs)
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter((app: any) => app.status === 'applied');
+      .map((doc) => ({ id: doc.id, ...doc.data() }));
 
     const milestoneChunks = myProjectIds.length
       ? await Promise.all(chunk(myProjectIds, 30).map((ids) => db.collection('milestones').where('projectId', 'in', ids).get()))

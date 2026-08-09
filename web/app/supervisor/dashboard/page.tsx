@@ -26,12 +26,21 @@ import type { MyProject, Application, SupervisorPendingMilestone, SupervisorDead
 const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
 type Tab = 'applications' | 'grading' | 'projects' | 'deadlines' | 'recommend' | 'signoffs';
+type ApplicationFilter = 'all' | 'approved' | 'meeting_requested' | 'rejected';
+
+const APPLICATION_FILTERS: { key: ApplicationFilter; he: string; en: string }[] = [
+  { key: 'all', he: 'הכל', en: 'All' },
+  { key: 'approved', he: 'אושרו', en: 'Approved' },
+  { key: 'meeting_requested', he: 'תואמה פגישה', en: 'Set-Meeting' },
+  { key: 'rejected', he: 'נדחו', en: 'Rejected' },
+];
 
 export default function SupervisorDashboardPage() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
 
   const [tab, setTab] = useState<Tab>('applications');
+  const [applicationFilter, setApplicationFilter] = useState<ApplicationFilter>('all');
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [pendingGrades, setPendingGrades] = useState<SupervisorPendingMilestone[]>([]);
@@ -99,8 +108,12 @@ export default function SupervisorDashboardPage() {
     );
   }
 
+  const pendingApplicationsCount = applications.filter((app) => app.status === 'applied').length;
+  const filteredApplications =
+    applicationFilter === 'all' ? applications : applications.filter((app) => app.status === applicationFilter);
+
   const tabs: { key: Tab; label: string; count?: number }[] = [
-    { key: 'applications', label: lang === 'he' ? 'מועמדויות' : 'Applications', count: applications.length },
+    { key: 'applications', label: lang === 'he' ? 'מועמדויות' : 'Applications', count: pendingApplicationsCount },
     { key: 'grading', label: lang === 'he' ? 'ציונים' : 'Grading', count: pendingGrades.length },
     { key: 'projects', label: lang === 'he' ? 'הפרויקטים שלי' : 'My Projects' },
     { key: 'deadlines', label: lang === 'he' ? 'מועדי הגשה' : 'Deadlines' },
@@ -147,12 +160,41 @@ export default function SupervisorDashboardPage() {
       ) : (
         <>
           {tab === 'applications' && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {applications.map((app) => (
-                <ApplicationCard key={app.id} application={app} onDecided={fetchDashboard} />
-              ))}
-              {applications.length === 0 && <p className="text-sm text-muted">📬 {lang === 'he' ? 'אין מועמדויות חדשות' : 'No pending applications'}</p>}
-            </div>
+            <>
+              <div className="mb-4 flex gap-1 overflow-x-auto">
+                {APPLICATION_FILTERS.map(({ key, he, en }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setApplicationFilter(key)}
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      applicationFilter === key
+                        ? 'bg-primary text-primary-ink'
+                        : 'bg-paper text-muted hover:text-ink'
+                    }`}
+                  >
+                    {lang === 'he' ? he : en}
+                  </button>
+                ))}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {filteredApplications.map((app) => (
+                  <ApplicationCard key={app.id} application={app} onDecided={fetchDashboard} />
+                ))}
+                {filteredApplications.length === 0 && (
+                  <p className="text-sm text-muted">
+                    📬{' '}
+                    {applicationFilter === 'all'
+                      ? lang === 'he'
+                        ? 'אין מועמדויות חדשות'
+                        : 'No pending applications'
+                      : lang === 'he'
+                        ? 'אין מועמדויות התואמות את הסינון'
+                        : 'No applications match this filter'}
+                  </p>
+                )}
+              </div>
+            </>
           )}
 
           {tab === 'grading' && (

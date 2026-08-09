@@ -273,6 +273,41 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
   }
 };
 
+// ─── POST /api/users/completed-courses ───────────────────────────────────────
+// Lets a student self-report which courses they've completed AND the grade
+// they got — a project's prerequisites can carry a minGrade (see
+// services/prerequisites.ts), which can only be enforced against a real
+// grade, not just a course name. Overwrites the whole list rather than
+// patching one entry, since the client always sends its full current set.
+export const updateCompletedCourses = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { completedCourses } = req.body;
+    if (!Array.isArray(completedCourses)) {
+      return res.status(400).json({ error: 'completedCourses must be an array.' });
+    }
+
+    const normalized: { subject: string; grade: number }[] = [];
+    for (const entry of completedCourses) {
+      const subject = typeof entry?.subject === 'string' ? entry.subject.trim() : '';
+      const grade = Number(entry?.grade);
+      if (!subject) return res.status(400).json({ error: 'Each course needs a subject name.' });
+      if (!Number.isFinite(grade) || grade < 0 || grade > 100) {
+        return res.status(400).json({ error: `Invalid grade for "${subject}" — must be 0-100.` });
+      }
+      normalized.push({ subject, grade });
+    }
+
+    await db.collection('users').doc(uid).update({ completedCourses: normalized });
+    return res.status(200).json({ success: true, completedCourses: normalized });
+  } catch (error: any) {
+    console.error('updateCompletedCourses error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 // ─── POST /api/users/log-login ────────────────────────────────────────────────
 // Called once by both clients right after a successful Firebase sign-in
 // (there's no other server touchpoint for login — it happens entirely via

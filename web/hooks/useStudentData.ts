@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
+import { normalizeCompletedCourses, type CompletedCourse } from '@/lib/prerequisites';
 import { useAuth } from '@/contexts/AuthContext';
 import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication, MilestoneType } from '@/app/student/home/types';
 import { MILESTONE_ORDER } from '@/app/student/home/types';
@@ -26,7 +27,7 @@ export function useStudentData() {
   const [studentFaculty, setStudentFaculty] = useState('');
   const [studentMajor, setStudentMajor] = useState('');
   const [studentYearOfStudy, setStudentYearOfStudy] = useState<number | null>(null);
-  const [studentCompletedCourses, setStudentCompletedCourses] = useState<string[]>([]);
+  const [studentCompletedCourses, setStudentCompletedCourses] = useState<CompletedCourse[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const unsubProposals = useRef<(() => void) | null>(null);
@@ -59,7 +60,7 @@ export function useStudentData() {
         facultyId?: string;
         major?: string | null;
         yearOfStudy?: number | null;
-        completedCourses?: string[];
+        completedCourses?: unknown;
         hasActiveProject?: boolean;
         activeProjectId?: string;
         isEligibleForProcess?: boolean;
@@ -73,7 +74,7 @@ export function useStudentData() {
       setStudentFaculty(userData.facultyId || '');
       setStudentMajor(userData.major || '');
       setStudentYearOfStudy(userData.yearOfStudy ?? null);
-      setStudentCompletedCourses(userData.completedCourses ?? []);
+      setStudentCompletedCourses(normalizeCompletedCourses(userData.completedCourses));
 
       // TEMP-MULTI-APPLY: when true, bypasses TWO of the app's real rules so
       // a student can keep browsing/applying to more projects than intended,

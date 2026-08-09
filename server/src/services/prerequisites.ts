@@ -51,3 +51,39 @@ export function formatPrerequisite(p: PrerequisiteSpec, lang: 'he' | 'en' = 'en'
   if (p.minGrade == null) return p.subject;
   return lang === 'he' ? `${p.subject} (ציון מינימלי: ${p.minGrade})` : `${p.subject} (min grade: ${p.minGrade})`;
 }
+
+// A student's own self-reported/verified course history — stored as
+// `completedCourses` on their users/{uid} doc, checked against a project's
+// PrerequisiteSpec.minGrade above. Populated two ways: automatically from a
+// transcript the AI reads during application review (see
+// applicationReviewService.ts's extractedGrades + applicationController.ts),
+// or manually by a system_admin (adminController.ts) as a stopgap for
+// courses the AI pass never saw. Some accounts still have a legacy plain
+// string[] (from before grades were tracked) — normalizeCompletedCourses
+// accepts both shapes, same pattern as normalizePrerequisites above.
+export interface CompletedCourse {
+  subject: string;
+  grade?: number;
+}
+
+export function normalizeCompletedCourses(raw: unknown): CompletedCourse[] {
+  if (!Array.isArray(raw)) return [];
+  const result: CompletedCourse[] = [];
+  for (const entry of raw) {
+    if (typeof entry === 'string') {
+      const subject = entry.trim();
+      if (subject) result.push({ subject });
+      continue;
+    }
+    if (entry && typeof entry === 'object' && typeof (entry as { subject?: unknown }).subject === 'string') {
+      const subject = ((entry as { subject: string }).subject).trim();
+      if (!subject) continue;
+      const rawGrade = (entry as { grade?: unknown }).grade;
+      const grade = typeof rawGrade === 'number' && Number.isFinite(rawGrade) && rawGrade >= 0 && rawGrade <= 100
+        ? rawGrade
+        : undefined;
+      result.push(grade != null ? { subject, grade } : { subject });
+    }
+  }
+  return result;
+}

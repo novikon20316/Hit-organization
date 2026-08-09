@@ -10,7 +10,8 @@ import { tx, type Lang } from '../../components/i18n';
 import { browseProjectsStyles } from '../../constants/styles';
 import type { ProjectProposal } from '@/types';
 import { apiClient } from '../../src/api/apiClient';
-import { normalizePrerequisites, formatPrerequisite } from '@/components/Prerequisites';
+import { normalizePrerequisites, formatPrerequisite, meetsPrerequisite, type CompletedCourse } from '@/components/Prerequisites';
+import CompletedCoursesEditor from '@/components/CompletedCoursesEditor';
 
 interface Props {
   proposals: ProjectProposal[];
@@ -18,17 +19,15 @@ interface Props {
   isRtl:    boolean;
   studentDegree: 'bachelors' | 'masters';
   appliedProjectIds: string[];
-  // Placeholder until per-student course history is tracked in the app —
-  // defaults to []. Until then, any project with prerequisites listed shows
-  // as not-yet-qualified, since we can't confirm the student has completed them.
-  completedCourses?: string[];
+  completedCourses?: CompletedCourse[];
+  onCompletedCoursesChanged: () => void;
 }
 
 type DegreeFilter = 'all' | 'bachelors' | 'masters';
 type TypeFilter   = 'all' | 'project' | 'thesis';
 type EligibilityFilter = 'all' | 'eligible';
 
-export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds, completedCourses = [] }: Props) {
+export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, appliedProjectIds, completedCourses = [], onCompletedCoursesChanged }: Props) {
   // Inside BrowseProjects component, add at the top:
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);  
   const [search,       setSearch]       = useState('');
@@ -52,11 +51,11 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   const [applyMessage,    setApplyMessage]    = useState<string | null>(null);
 
   // ── Prerequisite/qualification check ──────────────────────────────────────
-  // Name-match only — completedCourses is a plain list of course names on
-  // the student's own user doc, no grades, so a subject's minGrade is shown
-  // for the student's awareness but can't be enforced here.
+  // completedCourses now carries a self-reported grade per course (see
+  // CompletedCoursesEditor) — a prerequisite with a minGrade is only met if
+  // the recorded grade meets it, not just by having taken the course.
   const getMissingCourses = (p: ProjectProposal) =>
-    normalizePrerequisites(p.prerequisites).filter((pr) => !completedCourses.includes(pr.subject));
+    normalizePrerequisites(p.prerequisites).filter((pr) => !meetsPrerequisite(pr, completedCourses));
 
   // ── Filtered proposals ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -101,10 +100,20 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
 
   // ── File picker ────────────────────────────────────────────────────────────
+  // `type: 'application/pdf'` above only filters what the OS picker *shows* —
+  // some Android content providers still hand back files with a missing or
+  // wrong mimeType, so re-check the returned asset before accepting it.
+  const isPdfAsset = (asset: { mimeType?: string | null; name: string }) =>
+    asset.mimeType === 'application/pdf' || asset.name.toLowerCase().endsWith('.pdf');
+
   const pickFile = async (type: 'transcript' | 'cv') => {
     const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
+    if (!isPdfAsset(asset)) {
+      setApplyMessage(lang === 'he' ? 'ניתן להעלות קובצי PDF בלבד' : 'Only PDF files can be uploaded');
+      return;
+    }
     if (type === 'transcript') {
       setTranscriptUri(asset.uri);
       setTranscriptName(asset.name);
@@ -223,6 +232,13 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
+
+      <CompletedCoursesEditor
+        lang={lang}
+        isRtl={isRtl}
+        completedCourses={completedCourses}
+        onSaved={onCompletedCoursesChanged}
+      />
 
       {/* Search + Filters */}
       <View style={styles.searchBar}>

@@ -120,6 +120,7 @@ export default function SupervisorHome() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines' | 'recommend' | 'signoffs'>('projects');
+  const [applicationFilter, setApplicationFilter] = useState<'all' | 'approved' | 'meeting_requested' | 'rejected'>('all');
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
   const [deadlines, setDeadlines] = useState<any[]>([]);
@@ -403,8 +404,10 @@ export default function SupervisorHome() {
                 submittedAt:    data.submittedAt    ?? null,
                 degreeType:     data.degreeType     ?? '',
               } as Application;
-            })
-            .filter((app) => app.status === 'applied' || app.status === 'meeting_requested');
+            });
+          // Not filtered to a single status here — the Applications tab's
+          // status filter (Approved / Set-Meeting / Rejected / All) needs
+          // every application for this project, not just open ones.
           applyAndSet();
         },
         (error) => console.error('❌ Applications listener error:', error.code, error.message),
@@ -773,6 +776,17 @@ export default function SupervisorHome() {
     );
   }
 
+  const pendingApplicationsCount = applications.filter((app) => app.status === 'applied').length;
+  const filteredApplications =
+    applicationFilter === 'all' ? applications : applications.filter((app) => app.status === applicationFilter);
+
+  const APPLICATION_FILTERS: { key: 'all' | 'approved' | 'meeting_requested' | 'rejected'; he: string; en: string }[] = [
+    { key: 'all', he: 'הכל', en: 'All' },
+    { key: 'approved', he: 'אושרו', en: 'Approved' },
+    { key: 'meeting_requested', he: 'תואמה פגישה', en: 'Set-Meeting' },
+    { key: 'rejected', he: 'נדחו', en: 'Rejected' },
+  ];
+
   return (
     <SafeAreaView style={styles.root}>
       <TopBar
@@ -788,7 +802,7 @@ export default function SupervisorHome() {
         <StatCard emoji="📁" value={myProjects.length}
           label={lang === 'he' ? 'הפרויקטים שלי' : 'My Projects'} color="#2E86FF" isRtl={isRtl} />
         <View style={styles.statGap} />
-        <StatCard emoji="📨" value={applications.length}
+        <StatCard emoji="📨" value={pendingApplicationsCount}
           label={lang === 'he' ? 'מועמדויות ממתינות' : 'Pending Applications'} color="#F59E0B" isRtl={isRtl} />
         <View style={styles.statGap} />
         <StatCard emoji="✏️" value={pendingGrades.length}
@@ -799,7 +813,7 @@ export default function SupervisorHome() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
           { key: 'projects',     heLabel: 'פרויקטים',  enLabel: 'Projects',     badge: myProjects.length    },
-          { key: 'applications', heLabel: 'מועמדויות',  enLabel: 'Applications', badge: applications.length  },
+          { key: 'applications', heLabel: 'מועמדויות',  enLabel: 'Applications', badge: pendingApplicationsCount  },
           { key: 'grading',      heLabel: 'מתן ציונים', enLabel: 'Grading',      badge: pendingGrades.length },
           { key: 'recommend', heLabel: 'המלצת בוחנים', enLabel: 'Recommend Examiners', badge: 0 },
         ] as const).map((tab) => (
@@ -962,10 +976,37 @@ export default function SupervisorHome() {
         {/* ════ APPLICATIONS TAB ════ */}
         {activeTab === 'applications' && (
           <>
-            {applications.length === 0 ? (
-              <EmptyState emoji="📬" text={lang === 'he' ? 'אין מועמדויות חדשות' : 'No pending applications'} />
+            <View style={[{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }, isRtl && styles.rowReverse]}>
+              {APPLICATION_FILTERS.map((f) => (
+                <Pressable
+                  key={f.key}
+                  onPress={() => setApplicationFilter(f.key)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    backgroundColor: applicationFilter === f.key ? '#2E86FF' : '#F0F4FF',
+                    borderWidth: 1,
+                    borderColor: applicationFilter === f.key ? '#2E86FF' : '#D0DEFF',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: applicationFilter === f.key ? '#fff' : '#475569' }}>
+                    {lang === 'he' ? f.he : f.en}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {filteredApplications.length === 0 ? (
+              <EmptyState
+                emoji="📬"
+                text={
+                  applicationFilter === 'all'
+                    ? lang === 'he' ? 'אין מועמדויות חדשות' : 'No pending applications'
+                    : lang === 'he' ? 'אין מועמדויות התואמות את הסינון' : 'No applications match this filter'
+                }
+              />
             ) : (
-              applications.map((app) => {
+              filteredApplications.map((app) => {
                 const isExpanded = expandedCards[app.id] ?? false;
                 return (
                   <Pressable
@@ -1103,27 +1144,29 @@ export default function SupervisorHome() {
                           </View>
                         )}
 
-                        {/* Decision buttons */}
-                        <View style={[styles.decisionRow, isRtl && styles.rowReverse]}>
-                          <Pressable
-                            style={styles.approveBtn}
-                            onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'approved', app.studentId); }}
-                          >
-                            <Text style={styles.approveBtnText}>✓ {lang === 'he' ? 'אשר' : 'Approve'}</Text>
-                          </Pressable>
-                          <Pressable
-                            style={styles.meetingBtn}
-                            onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'meeting_requested', app.studentId); }}
-                          >
-                            <Text style={styles.meetingBtnText}>📅 {lang === 'he' ? 'בקש פגישה' : 'Request Meeting'}</Text>
-                          </Pressable>
-                          <Pressable
-                            style={styles.rejectBtn}
-                            onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'rejected', app.studentId); }}
-                          >
-                            <Text style={styles.rejectBtnText}>✕ {lang === 'he' ? 'דחה' : 'Reject'}</Text>
-                          </Pressable>
-                        </View>
+                        {/* Decision buttons — hidden once a final decision (approved/rejected) is made */}
+                        {(app.status === 'applied' || app.status === 'meeting_requested') && (
+                          <View style={[styles.decisionRow, isRtl && styles.rowReverse]}>
+                            <Pressable
+                              style={styles.approveBtn}
+                              onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'approved', app.studentId); }}
+                            >
+                              <Text style={styles.approveBtnText}>✓ {lang === 'he' ? 'אשר' : 'Approve'}</Text>
+                            </Pressable>
+                            <Pressable
+                              style={styles.meetingBtn}
+                              onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'meeting_requested', app.studentId); }}
+                            >
+                              <Text style={styles.meetingBtnText}>📅 {lang === 'he' ? 'בקש פגישה' : 'Request Meeting'}</Text>
+                            </Pressable>
+                            <Pressable
+                              style={styles.rejectBtn}
+                              onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'rejected', app.studentId); }}
+                            >
+                              <Text style={styles.rejectBtnText}>✕ {lang === 'he' ? 'דחה' : 'Reject'}</Text>
+                            </Pressable>
+                          </View>
+                        )}
                       </>
                     )}
                   </Pressable>

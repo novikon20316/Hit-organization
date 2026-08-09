@@ -10,6 +10,7 @@ export interface MemberMilestoneGrade {
 export interface ProjectGroup {
   id: string;
   projectTitle: string;
+  supervisorId: string | null;
   supervisorName: string;
   facultyId: string;
   major: string | null;

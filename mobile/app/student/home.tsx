@@ -27,7 +27,7 @@ export default function StudentHome() {
   const {
     studentState, studentName, studentYearOfStudy,
     proposals, activeProject, milestones, nextMilestone, progress,
-    pendingApplication, studentDegree, studentCompletedCourses, cancelAllListeners
+    pendingApplication, studentDegree, studentCompletedCourses, cancelAllListeners, refresh
   } = useStudentData();
 
   // Passed as TopBar's onBeforeSignOut — runs (and is awaited) before it
@@ -92,6 +92,7 @@ export default function StudentHome() {
         studentDegree={studentDegree}
         appliedProjectIds={pendingApplication ? [pendingApplication.projectId] : []}
         completedCourses={studentCompletedCourses}
+        onCompletedCoursesChanged={refresh}
         />
       )}
 

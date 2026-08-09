@@ -34,6 +34,11 @@ export interface ApplicationCheckResult {
    *  the broken-rule tally). */
   passed: boolean | null;
   reasoning: string;
+  /** {subject, grade} pairs this check read directly off a real document
+   *  (e.g. the transcript) — rolled up by reviewApplication and used by
+   *  applicationController.ts to auto-populate the student's
+   *  completedCourses. Absent/empty when the check found nothing usable. */
+  extractedGrades?: { subject: string; grade: number }[];
 }
 
 export type ApplicationRecommendation = 'approve' | 'meeting' | 'reject';
@@ -42,6 +47,7 @@ export interface ApplicationReviewResult {
   checks: ApplicationCheckResult[];
   recommendation: ApplicationRecommendation;
   generatedAt: string;
+  extractedGrades: { subject: string; grade: number }[];
 }
 
 const DOWNLOAD_TIMEOUT_MS = 20000;
@@ -110,7 +116,10 @@ async function checkPrerequisiteGrades(params: {
     // Computed from the per-prerequisite breakdown, not trusted as a
     // separate top-level field from the model — one source of truth.
     const allMet = data.perPrerequisite.every((p) => p.met === true);
-    return { ...base, passed: allMet, reasoning: typeof data.reasoning === 'string' ? data.reasoning : '' };
+    const extractedGrades = data.perPrerequisite
+      .filter((p) => p.found && typeof p.grade === 'number' && Number.isFinite(p.grade))
+      .map((p) => ({ subject: p.subject, grade: p.grade as number }));
+    return { ...base, passed: allMet, reasoning: typeof data.reasoning === 'string' ? data.reasoning : '', extractedGrades };
   } catch (error) {
     console.error('checkPrerequisiteGrades error:', error);
     return { ...base, passed: null, reasoning: 'An error occurred while reviewing the transcript.' };
@@ -142,5 +151,6 @@ export async function reviewApplication(params: {
     checks,
     recommendation: computeRecommendation(checks),
     generatedAt: new Date().toISOString(),
+    extractedGrades: checks.flatMap((c) => c.extractedGrades ?? []),
   };
 }

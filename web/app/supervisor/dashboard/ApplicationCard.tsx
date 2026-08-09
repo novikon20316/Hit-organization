@@ -6,6 +6,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { Application } from './types';
 
+const STATUS_LABEL: Record<string, { he: string; en: string }> = {
+  applied: { he: 'ממתין', en: 'Pending' },
+  approved: { he: 'אושר', en: 'Approved' },
+  meeting_requested: { he: 'תואמה פגישה', en: 'Set-Meeting' },
+  rejected: { he: 'נדחה', en: 'Rejected' },
+};
+
 const SCREENING_STYLE: Record<string, { bg: string; text: string }> = {
   strong_fit: { bg: 'var(--success-bg)', text: 'var(--success)' },
   partial_fit: { bg: '#FBF3E3', text: 'var(--accent)' },
@@ -78,7 +85,9 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
               {app.studentEmail}
             </p>
           </div>
-          <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">{app.status}</span>
+          <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
+            {STATUS_LABEL[app.status]?.[lang] ?? app.status}
+          </span>
         </div>
       </button>
 
@@ -146,32 +155,34 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
 
           {error && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{error}</p>}
 
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => decide('approved')}
-              className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-            >
-              ✓ {lang === 'he' ? 'אשר' : 'Approve'}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => decide('meeting_requested')}
-              className="flex-1 rounded-lg border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-[#FBF3E3] disabled:opacity-60"
-            >
-              📅 {lang === 'he' ? 'בקש פגישה' : 'Request Meeting'}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => decide('rejected')}
-              className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger hover:bg-danger-bg disabled:opacity-60"
-            >
-              ✕ {lang === 'he' ? 'דחה' : 'Reject'}
-            </button>
-          </div>
+          {(app.status === 'applied' || app.status === 'meeting_requested') && (
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => decide('approved')}
+                className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                ✓ {lang === 'he' ? 'אשר' : 'Approve'}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => decide('meeting_requested')}
+                className="flex-1 rounded-lg border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-[#FBF3E3] disabled:opacity-60"
+              >
+                📅 {lang === 'he' ? 'בקש פגישה' : 'Request Meeting'}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => decide('rejected')}
+                className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger hover:bg-danger-bg disabled:opacity-60"
+              >
+                ✕ {lang === 'he' ? 'דחה' : 'Reject'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -18,7 +18,7 @@ import {
   type ScopeRule, type CoordinatorScope,
 } from '../config/permissionScopes.js';
 import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, type RoleFacultyField } from '../services/scopeAuthorization.js';
-import { normalizePrerequisites } from '../services/prerequisites.js';
+import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js';
 import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { notifyUser } from '../services/notify.js';
@@ -1498,11 +1498,77 @@ export const searchStudents = async (req: AuthenticatedRequest, res: Response) =
         isEligibleForProcess: !!u.isEligibleForProcess,
         academicYearHeld: !!u.academicYearHeld,
         academicYearHeldReason: u.academicYearHeldReason ?? null,
+        completedCourses: normalizeCompletedCourses(u.completedCourses),
       }));
 
     return res.status(200).json({ students });
   } catch (error: any) {
     console.error('searchStudents error:', error);
     return res.status(500).json({ message: 'Failed to search students.' });
+  }
+};
+
+// ─── PUT /api/admin/users/:id/completed-courses ──────────────────────────────
+// Manual stopgap for a system_admin to set/correct a student's completed
+// courses + grades directly — for now, system_admin only (unlike academic
+// year above, NOT extended to administrative_secretary). The real source of
+// truth is meant to be automatic: applicationController.ts populates this
+// from whatever the AI review reads off an actual uploaded transcript. This
+// exists for courses that AI pass never saw (no application submitted yet,
+// unreadable PDF, a course outside any project's prerequisites) until a
+// fuller transcript-import feature exists.
+export const updateStudentCompletedCoursesAsAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  const callerUid = req.user?.uid;
+  if (!callerUid) return res.status(401).json({ message: 'Unauthorized.' });
+  const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
+  if (!isSystemAdmin) {
+    return res.status(403).json({ message: 'Only system_admin may manually edit a student\'s completed courses.' });
+  }
+
+  const { id: studentId } = req.params;
+  const { completedCourses } = req.body;
+  if (!studentId || typeof studentId !== 'string') {
+    return res.status(400).json({ message: 'Invalid studentId.' });
+  }
+  if (!Array.isArray(completedCourses)) {
+    return res.status(400).json({ message: 'completedCourses must be an array.' });
+  }
+
+  const normalized: { subject: string; grade: number }[] = [];
+  for (const entry of completedCourses) {
+    const subject = typeof entry?.subject === 'string' ? entry.subject.trim() : '';
+    const grade = Number(entry?.grade);
+    if (!subject) return res.status(400).json({ message: 'Each course needs a subject name.' });
+    if (!Number.isFinite(grade) || grade < 0 || grade > 100) {
+      return res.status(400).json({ message: `Invalid grade for "${subject}" — must be 0-100.` });
+    }
+    normalized.push({ subject, grade });
+  }
+
+  try {
+    const studentRef = db.collection('users').doc(studentId);
+    const studentSnap = await studentRef.get();
+    if (!studentSnap.exists) return res.status(404).json({ message: 'Student not found.' });
+    const student = studentSnap.data()!;
+    if (student.role !== 'student') {
+      return res.status(400).json({ message: 'This action only applies to student accounts.' });
+    }
+
+    await studentRef.update({ completedCourses: normalized });
+
+    await logAuditEvent({
+      userId: callerUid,
+      userRole: req.user!.role!,
+      action: 'completed_courses_updated_by_admin',
+      entityType: 'user',
+      entityId: studentId,
+      oldValue: { completedCourses: normalizeCompletedCourses(student.completedCourses) },
+      newValue: { completedCourses: normalized },
+    });
+
+    return res.status(200).json({ success: true, completedCourses: normalized });
+  } catch (error: any) {
+    console.error('updateStudentCompletedCoursesAsAdmin error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to update completed courses.' });
   }
 };

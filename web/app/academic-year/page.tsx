@@ -29,11 +29,15 @@ interface StudentResult {
   isEligibleForProcess: boolean;
   academicYearHeld: boolean;
   academicYearHeldReason: string | null;
+  completedCourses: { subject: string; grade?: number }[];
 }
 
 export default function AcademicYearPage() {
-  const { loading: guardLoading, isAllowed } = useRequireRole(ACADEMIC_YEAR_ROLES);
+  const { loading: guardLoading, isAllowed, userData } = useRequireRole(ACADEMIC_YEAR_ROLES);
   const { lang, t } = useLanguage();
+  // Manual completed-courses editing is system_admin only, for now — unlike
+  // the academic-year editor above, NOT extended to administrative_secretary.
+  const isSystemAdmin = userData?.role === 'system_admin' || (userData?.roles ?? []).includes('system_admin');
 
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -114,6 +118,17 @@ export default function AcademicYearPage() {
       {selected && (
         <EditAcademicYearForm
           key={selected.id}
+          student={selected}
+          onSaved={(updated) => {
+            setResults((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setSelected(updated);
+          }}
+        />
+      )}
+
+      {selected && isSystemAdmin && (
+        <EditCompletedCoursesForm
+          key={`${selected.id}-courses`}
           student={selected}
           onSaved={(updated) => {
             setResults((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -216,6 +231,123 @@ function EditAcademicYearForm({
         className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
       >
         {saving ? '…' : t('save')}
+      </button>
+    </div>
+  );
+}
+
+// Manual stopgap, system_admin only — the real path is automatic (see
+// applicationController.ts's mergeExtractedGradesIntoCompletedCourses, which
+// reads grades straight off a transcript the student already uploaded).
+// This exists for courses that pass never saw.
+function EditCompletedCoursesForm({
+  student, onSaved,
+}: {
+  student: StudentResult;
+  onSaved: (updated: StudentResult) => void;
+}) {
+  const { lang } = useLanguage();
+  const [rows, setRows] = useState<{ subject: string; grade?: number }[]>(student.completedCourses);
+  const [subject, setSubject] = useState('');
+  const [grade, setGrade] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const addRow = () => {
+    const trimmed = subject.trim();
+    if (!trimmed) return;
+    const g = Number(grade);
+    if (!Number.isFinite(g) || g < 0 || g > 100) {
+      setError(lang === 'he' ? 'ציון חייב להיות בין 0 ל-100' : 'Grade must be between 0 and 100');
+      return;
+    }
+    setRows((prev) => [...prev.filter((r) => r.subject !== trimmed), { subject: trimmed, grade: g }]);
+    setSubject('');
+    setGrade('');
+    setError('');
+  };
+
+  const removeRow = (subj: string) => setRows((prev) => prev.filter((r) => r.subject !== subj));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const payload = rows.map((r) => ({ subject: r.subject, grade: r.grade ?? 0 }));
+      await apiClient.updateStudentCompletedCoursesAsAdmin(student.id, payload);
+      onSaved({ ...student, completedCourses: payload });
+    } catch {
+      // Server error text is English-only — show a bilingual generic
+      // message instead of surfacing it raw (client-side validation above
+      // already covers the only case that would realistically fail here).
+      setError(lang === 'he' ? 'העדכון נכשל' : 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 max-w-md rounded-[var(--radius)] border border-line bg-surface p-5">
+      <p className="text-sm font-semibold text-ink">
+        📚 {lang === 'he' ? 'עריכת קורסים שהושלמו' : 'Edit Completed Courses'} — {student.displayName}
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        {lang === 'he'
+          ? 'עריכה ידנית זו זמינה למנהל מערכת בלבד, כפתרון זמני עד שכל הציונים ייקלטו אוטומטית מגיליון ציונים.'
+          : "Manual editing, system_admin only, as a stopgap until every grade is picked up automatically from a gradesheet."}
+      </p>
+
+      <div className="mt-3 grid gap-2">
+        {rows.length === 0 && <p className="text-xs text-muted">{lang === 'he' ? 'לא נוספו קורסים עדיין' : 'No courses added yet'}</p>}
+        {rows.map((r) => (
+          <div key={r.subject} className="flex items-center justify-between rounded-lg bg-paper px-3 py-2 text-sm">
+            <span className="text-ink">{r.subject}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted">
+                {lang === 'he' ? 'ציון:' : 'Grade:'} {r.grade ?? '—'}
+              </span>
+              <button type="button" onClick={() => removeRow(r.subject)} className="text-danger hover:opacity-70">
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <div className="mt-1 flex gap-2">
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder={lang === 'he' ? 'שם הקורס' : 'Course name'}
+            className="flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+          />
+          <input
+            value={grade}
+            onChange={(e) => setGrade(e.target.value)}
+            type="number"
+            min={0}
+            max={100}
+            placeholder={lang === 'he' ? 'ציון' : 'Grade'}
+            className="w-24 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={addRow}
+            className="rounded-lg border border-primary px-3 py-2 text-xs font-semibold text-primary hover:bg-[#FBF3E3]"
+          >
+            + {lang === 'he' ? 'הוסף' : 'Add'}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+      >
+        {saving ? '…' : lang === 'he' ? 'שמור' : 'Save'}
       </button>
     </div>
   );

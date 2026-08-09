@@ -14,6 +14,7 @@ import {
   requestAccountDeletion,
   cancelAccountDeletion,
   verifyStudentEligibility,
+  updateCompletedCourses,
 } from '../controllers/userController.js'
 console.log("🔥 Loading user routes...");
 const router = Router();
@@ -32,6 +33,7 @@ router.post('/log-login', verifyToken, logLogin)
 router.post('/change-password', verifyToken, changePassword)
 router.post('/delete-account/request', verifyToken, requestAccountDeletion)
 router.post('/delete-account/cancel', verifyToken, cancelAccountDeletion)
+router.post('/completed-courses', verifyToken, updateCompletedCourses)
 
 
 export default router;

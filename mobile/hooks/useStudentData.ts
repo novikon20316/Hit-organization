@@ -8,6 +8,7 @@ import {
   MilestoneType, ProjectProposal, ActiveProject, Milestone,
   PendingApplication, AppNotification
 } from '@/types';
+import { normalizeCompletedCourses, type CompletedCourse } from '@/components/Prerequisites';
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useStudentData() {
@@ -23,9 +24,7 @@ export function useStudentData() {
   const [studentMajor,       setStudentMajor]       = useState('');
   const [error,              setError]              = useState<string | null>(null);
   const [studentYearOfStudy, setStudentYearOfStudy] = useState<number | null>(null);
-  // Placeholder until per-student course history is tracked in the app —
-  // defaults to empty, so any project with prerequisites shows as not-yet-qualified.
-  const [studentCompletedCourses, setStudentCompletedCourses] = useState<string[]>([]);
+  const [studentCompletedCourses, setStudentCompletedCourses] = useState<CompletedCourse[]>([]);
 
   // ── Track all active unsubscribe functions in a ref so they survive re-renders
   const unsubProposals  = useRef<(() => void) | null>(null);
@@ -63,7 +62,7 @@ export function useStudentData() {
       setStudentFaculty(userData.facultyId || '');
       setStudentMajor(userData.major || '');
       setStudentYearOfStudy(userData.yearOfStudy ?? null);
-      setStudentCompletedCourses(userData.completedCourses ?? []);
+      setStudentCompletedCourses(normalizeCompletedCourses(userData.completedCourses));
       // The eligibility gate (based on current year-of-study) decides whether
       // a student may BROWSE/APPLY to new projects — it must never block a
       // student who already has an active project. isEligibleForProcess is
