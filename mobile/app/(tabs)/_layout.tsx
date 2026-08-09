@@ -21,6 +21,7 @@ const HIDDEN_TAB_ROUTES = [
   '/student/profile-setup',
   '/account-deletion-pending',
   '/WorkflowTemplateManager',
+  '/WorkflowTemplateEditor',
   '/Reports',
 ];
 

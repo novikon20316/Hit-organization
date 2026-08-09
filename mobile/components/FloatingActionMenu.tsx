@@ -24,6 +24,8 @@ interface Props {
   corner?: 'bottom-right' | 'bottom-left';
   color?: string;
   tooltipLabel?: { he: string; en: string };
+  /** Distance from the bottom of the screen (default 24) — raise this when a fixed footer bar is also on screen so the FAB doesn't sit under it. */
+  bottomOffset?: number;
 }
 
 // Fallback spacing used only until a pill's real height is measured (its
@@ -40,6 +42,7 @@ export default function FloatingActionMenu({
   corner = 'bottom-right',
   color = '#2E86FF',
   tooltipLabel = { he: 'פעולות', en: 'Actions' },
+  bottomOffset = 24,
 }: Props) {
   const [expanded, setExpanded]   = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -99,7 +102,7 @@ export default function FloatingActionMenu({
 
   return (
     <View
-      style={[styles.container, screenOffset, { alignItems: corner === 'bottom-left' ? 'flex-start' : 'flex-end' }]}
+      style={[styles.container, screenOffset, { bottom: bottomOffset, alignItems: corner === 'bottom-left' ? 'flex-start' : 'flex-end' }]}
       pointerEvents="box-none"
     >
       {/* Expanded action pills */}

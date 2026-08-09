@@ -6,7 +6,8 @@
 // grad_school_head, ...), not nested under any one role, mirroring
 // /reports and /info-files.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,7 +15,6 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { FACULTY_LABELS, facultyLabel, type FacultyId } from '@/lib/i18n';
-import { ProposeVersionModal } from './ProposeVersionModal';
 import { RejectModal } from './RejectModal';
 import {
   PROCESS_TYPES, canApproveTemplate, isMastersProcess, processTypeLabel, majorOptionsFor, chainRoleLabel, DEFAULT_ROUTING,
@@ -41,25 +41,25 @@ const WORKFLOW_TEMPLATE_ROLES: AppRole[] = ['coordinator', 'faculty_admin', 'pro
 const FREE_CHOICE_CROSS_FACULTY_ROLES: AppRole[] = ['system_admin', 'grad_school_head'];
 const SELECTABLE_FACULTY_IDS = (Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all');
 
-export default function WorkflowTemplatesPage() {
+function WorkflowTemplatesContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(WORKFLOW_TEMPLATE_ROLES);
   const { userData } = useAuth();
   const { lang, t } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [activeProcessType, setActiveProcessType] = useState<ProcessType>('msc_thesis');
-  const [tab, setTab] = useState<'current' | 'pending' | 'history'>('current');
+  // Read once on mount — matches how /workflow-templates/new navigates back
+  // here with `?tab=pending` after a successful proposal (the routed
+  // replacement for the old ProposeVersionModal's onProposed callback, which
+  // used to call setTab('pending') directly).
+  const [tab, setTab] = useState<'current' | 'pending' | 'history'>(() => (searchParams.get('tab') === 'pending' ? 'pending' : 'current'));
   const [templates, setTemplates] = useState<WorkflowTemplateDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [actionError, setActionError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const [proposeOpen, setProposeOpen] = useState(false);
-  // 'other' pre-fills the new-version draft from the sibling process type's
-  // approved template (msc_thesis <-> msc_project only — bsc_project has no
-  // sibling) instead of this one's own, so staff whose thesis/project tracks
-  // are identical don't have to re-enter every milestone by hand.
-  const [proposeFrom, setProposeFrom] = useState<'own' | 'other'>('own');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   // Approve, for a template proposed with applyMode 'now', shows a preview
@@ -124,7 +124,6 @@ export default function WorkflowTemplatesPage() {
   const approvedForOther = otherProcessType
     ? templates.find((tpl) => tpl.processType === otherProcessType && tpl.status === 'approved')
     : undefined;
-  const proposeSourceTpl = proposeFrom === 'other' ? approvedForOther : approvedForActive;
   const pending = templates.filter((tpl) => tpl.status === 'pending_approval');
   const pendingForActive = pending.filter((tpl) => tpl.processType === activeProcessType);
   const history = templates.filter((tpl) => tpl.status === 'rejected' || tpl.status === 'superseded');
@@ -382,7 +381,7 @@ export default function WorkflowTemplatesPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => { setProposeFrom('own'); setProposeOpen(true); }}
+              onClick={() => router.push(buildProposeHref(activeProcessType, facultyId, major, 'own'))}
               className="flex-1 rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
             >
               ＋ {lang === 'he' ? 'הצע גרסה חדשה' : 'Propose New Version'}
@@ -390,7 +389,7 @@ export default function WorkflowTemplatesPage() {
             {otherProcessType && approvedForOther && (
               <button
                 type="button"
-                onClick={() => { setProposeFrom('other'); setProposeOpen(true); }}
+                onClick={() => router.push(buildProposeHref(activeProcessType, facultyId, major, 'other'))}
                 title={lang === 'he'
                   ? `העתק את כל אבני הדרך מתבנית ${processTypeLabel(otherProcessType, lang)}`
                   : `Copy every milestone from the ${processTypeLabel(otherProcessType, lang)} template`}
@@ -539,24 +538,6 @@ export default function WorkflowTemplatesPage() {
         </div>
       )}
 
-      {proposeOpen && (
-        <ProposeVersionModal
-          processType={activeProcessType}
-          facultyId={facultyId}
-          major={major}
-          initialMilestones={proposeSourceTpl?.milestones ?? []}
-          initialDefaultRouting={proposeSourceTpl?.defaultRouting}
-          initialExaminerSignoffRole={proposeSourceTpl?.examinerSignoffRole}
-          initialFinalGradeSignoffRole={proposeSourceTpl?.finalGradeSignoffRole}
-          copiedFromLabel={proposeFrom === 'other' && otherProcessType ? processTypeLabel(otherProcessType, lang) : undefined}
-          onClose={() => setProposeOpen(false)}
-          onProposed={() => {
-            fetchTemplates();
-            setTab('pending');
-          }}
-        />
-      )}
-
       <RejectModal open={!!rejectingId} busy={busyId === rejectingId} onCancel={() => setRejectingId(null)} onConfirm={handleReject} />
 
       {approvePreview && (
@@ -590,5 +571,35 @@ export default function WorkflowTemplatesPage() {
         </div>
       )}
     </DashboardShell>
+  );
+}
+
+// Builds the query string for /workflow-templates/new — facultyId/major are
+// only appended when resolved (a coordinator with no assigned subject yet
+// has neither), matching how ProposeVersionModal's `facultyId`/`major` props
+// used to be optional/nullable.
+function buildProposeHref(processType: ProcessType, facultyId: string | undefined, major: string | null, from: 'own' | 'other'): string {
+  const params = new URLSearchParams();
+  params.set('processType', processType);
+  if (facultyId) params.set('facultyId', facultyId);
+  if (major) params.set('major', major);
+  if (from === 'other') params.set('from', 'other');
+  return `/workflow-templates/new?${params.toString()}`;
+}
+
+// useSearchParams() forces this static route into client-side rendering at
+// the Suspense boundary during prerendering (Next.js requirement) — same
+// pattern as app/maintenance/page.tsx and app/defense-access/page.tsx.
+export default function WorkflowTemplatesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-paper">
+          <p className="text-sm text-muted">…</p>
+        </div>
+      }
+    >
+      <WorkflowTemplatesContent />
+    </Suspense>
   );
 }

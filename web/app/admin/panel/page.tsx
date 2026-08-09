@@ -193,24 +193,13 @@ export default function AdminPanelPage() {
             🏷️ {lang === 'he' ? 'סטטוסי סטודנטים' : 'Student Statuses'}
           </button>
           {(tab === 'users' || tab === 'studentRoster') && (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowBulkImport(true)}
-                className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
-              >
-                📥 {lang === 'he' ? 'ייבוא/ייצוא' : 'Import/Export'}
-              </button>
-              {tab === 'users' && (
-                <button
-                  type="button"
-                  onClick={() => setShowNewUser(true)}
-                  className="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
-                >
-                  + {lang === 'he' ? 'משתמש חדש' : 'New User'}
-                </button>
-              )}
-            </>
+            <button
+              type="button"
+              onClick={() => setShowBulkImport(true)}
+              className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
+            >
+              📥 {lang === 'he' ? 'ייבוא/ייצוא' : 'Import/Export'}
+            </button>
           )}
         </div>
       }
@@ -237,7 +226,7 @@ export default function AdminPanelPage() {
       ) : tab === 'overview' ? (
         <OverviewTab stats={stats} projects={projects} lang={lang} />
       ) : tab === 'users' ? (
-        <div>
+        <div className="pb-20">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <input
               value={search}
@@ -336,6 +325,20 @@ export default function AdminPanelPage() {
             fetchStatusConfig();
           }}
         />
+      )}
+
+      {tab === 'users' && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-4 py-3">
+          <div className="mx-auto max-w-6xl">
+            <button
+              type="button"
+              onClick={() => setShowNewUser(true)}
+              className="w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            >
+              + {lang === 'he' ? 'משתמש חדש' : 'New User'}
+            </button>
+          </div>
+        </div>
       )}
     </DashboardShell>
   );

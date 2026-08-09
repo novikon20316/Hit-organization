@@ -66,37 +66,28 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
-            <option value="all">{lang === 'he' ? 'כל הסטטוסים' : 'All statuses'}</option>
-            {statusOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value)} className={selectCls}>
-            <option value="all">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
-            {DISPLAYED_FACULTIES.map((id) => (
-              <option key={id} value={id}>
-                {facultyLabel(id, lang)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowNewProject(true)}
-          className="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
-        >
-          + {lang === 'he' ? 'הוסף פרויקט' : 'Add Project'}
-        </button>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
+          <option value="all">{lang === 'he' ? 'כל הסטטוסים' : 'All statuses'}</option>
+          {statusOptions.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value)} className={selectCls}>
+          <option value="all">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
+          {DISPLAYED_FACULTIES.map((id) => (
+            <option key={id} value={id}>
+              {facultyLabel(id, lang)}
+            </option>
+          ))}
+        </select>
       </div>
 
       {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 pb-20 sm:grid-cols-2">
         {filteredProjects.map((p) => {
           const color = getFacultyColor(p.facultyId);
           const title = lang === 'he' ? p.titleHe : p.titleEn;
@@ -172,6 +163,18 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
         onConfirm={handleDelete}
         onCancel={() => setDeletingProject(null)}
       />
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-4 py-3">
+        <div className="mx-auto max-w-6xl">
+          <button
+            type="button"
+            onClick={() => setShowNewProject(true)}
+            className="w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+          >
+            + {lang === 'he' ? 'הוסף פרויקט' : 'Add Project'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

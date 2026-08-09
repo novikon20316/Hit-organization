@@ -1571,15 +1571,6 @@ export default function PanelScreen() {
 
         {activeTab === 'projects' && (
           <>
-            <Pressable
-              style={[styles.submitBtn, { marginBottom: 14 }]}
-              onPress={() => setShowNewProject(true)}
-            >
-              <Text style={styles.submitBtnText}>
-                ➕ {lang === 'he' ? 'הוסף פרויקט' : 'Add Project'}
-              </Text>
-            </Pressable>
-
             {filteredProjects.map((p) => (
               <View key={p.id} style={styles.projectCard}>
                 <View style={styles.projectHeader}>
@@ -2058,15 +2049,43 @@ export default function PanelScreen() {
 
         {activeTab === 'signoffs' && <PendingSignoffsWidget lang={lang} showEmptyState />}
 
-        <View style={{ height: 80 }} />
+        <View style={{ height: (activeTab === 'users' || activeTab === 'projects') ? 90 : 80 }} />
       </ScrollView>
+
+      {activeTab === 'users' && (
+        <View style={{
+          position: 'absolute', left: 0, right: 0, bottom: 0,
+          backgroundColor: '#fff', padding: 16,
+          borderTopWidth: 1, borderTopColor: '#E5E7EB',
+        }}>
+          <Pressable style={styles.submitBtn} onPress={() => setShowNewUser(true)}>
+            <Text style={styles.submitBtnText}>
+              ➕ {lang === 'he' ? 'הוסף משתמש' : 'Add User'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
+      {activeTab === 'projects' && (
+        <View style={{
+          position: 'absolute', left: 0, right: 0, bottom: 0,
+          backgroundColor: '#fff', padding: 16,
+          borderTopWidth: 1, borderTopColor: '#E5E7EB',
+        }}>
+          <Pressable style={styles.submitBtn} onPress={() => setShowNewProject(true)}>
+            <Text style={styles.submitBtnText}>
+              ➕ {lang === 'he' ? 'הוסף פרויקט' : 'Add Project'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
       <FloatingActionMenu
         lang={lang}
         isRtl={isRtl}
         corner="bottom-right"
+        bottomOffset={(activeTab === 'users' || activeTab === 'projects') ? 100 : 24}
         actions={[
-          { key: 'add', icon: '➕', label: lang === 'he' ? 'הוסף משתמש' : 'Add User', onPress: () => { setActiveTab('users'); setShowNewUser(true); } },
           { key: 'import', icon: '📥', label: lang === 'he' ? 'ייבוא סגל' : 'Import Staff', onPress: handleImportStaff, loading: importingStaff },
           { key: 'importRoster', icon: '🎓', label: lang === 'he' ? 'ייבוא רשימת סטודנטים' : 'Import Student Roster', onPress: handleImportStudentRoster, loading: importingRoster },
           { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Excel', onPress: handleExportUsers, loading: exportingUsers },

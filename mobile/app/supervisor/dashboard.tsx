@@ -841,12 +841,6 @@ export default function SupervisorHome() {
         {/* ════ PROJECTS TAB ════ */}
         {activeTab === 'projects' && (
           <>
-            <Pressable style={styles.addBtn} onPress={() => setShowNewProject(true)}>
-              <Text style={styles.addBtnText}>
-                + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
-              </Text>
-            </Pressable>
-
             {!myProjects || myProjects.length === 0 ? (
               <EmptyState emoji="📭" text={lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'} />
             ) : (
@@ -1332,8 +1326,22 @@ export default function SupervisorHome() {
 
         {activeTab === 'signoffs' && <PendingSignoffsWidget lang={lang} showEmptyState />}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: activeTab === 'projects' ? 90 : 40 }} />
       </ScrollView>
+
+      {activeTab === 'projects' && (
+        <View style={{
+          position: 'absolute', left: 0, right: 0, bottom: 0,
+          backgroundColor: '#fff', padding: 16,
+          borderTopWidth: 1, borderTopColor: '#E5E7EB',
+        }}>
+          <Pressable style={styles.addBtn} onPress={() => setShowNewProject(true)}>
+            <Text style={styles.addBtnText}>
+              + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* ── New Project Modal ── */}
       <NewProjectModal

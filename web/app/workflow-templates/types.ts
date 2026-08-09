@@ -136,7 +136,7 @@ export interface MilestoneSpec {
   finalGradeComponents?: FinalGradeComponents;
   /** How much this milestone counts toward the project's OVERALL final
    *  grade (0-100), validated to sum to 100 across every milestone in the
-   *  template before it can be proposed (see ProposeVersionModal.tsx's
+   *  template before it can be proposed (see new/page.tsx's ProposeVersionForm
    *  handleSubmit). Distinct from gradingComponents[].weight, which is a
    *  rubric WITHIN one milestone. Omitted (pre-existing templates) means
    *  "defense = 100, everything else = 0" — today's implicit behavior —

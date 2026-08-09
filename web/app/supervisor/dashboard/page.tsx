@@ -121,14 +121,6 @@ export default function SupervisorDashboardPage() {
           >
             + {lang === 'he' ? 'המלצה חדשה' : 'New Recommendation'}
           </button>
-        ) : tab === 'projects' ? (
-          <button
-            type="button"
-            onClick={() => setShowNewProject(true)}
-            className="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
-          >
-            + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
-          </button>
         ) : undefined
       }
     >
@@ -175,7 +167,7 @@ export default function SupervisorDashboardPage() {
           )}
 
           {tab === 'projects' && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 pb-20 sm:grid-cols-2">
               {myProjects.map((p) => (
                 <ProjectCard key={p.id} project={p} onEdit={setEditingProject} onChanged={fetchDashboard} />
               ))}
@@ -220,6 +212,20 @@ export default function SupervisorDashboardPage() {
 
       {showNewProject && (
         <NewProjectModal facultyId={facultyId} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
+      )}
+
+      {tab === 'projects' && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-4 py-3">
+          <div className="mx-auto max-w-6xl">
+            <button
+              type="button"
+              onClick={() => setShowNewProject(true)}
+              className="w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            >
+              + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
+            </button>
+          </div>
+        </div>
       )}
 
       {showRecommendModal && (

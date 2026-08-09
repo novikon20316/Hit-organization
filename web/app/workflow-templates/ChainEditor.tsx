@@ -2,7 +2,7 @@
 
 // app/workflow-templates/ChainEditor.tsx
 // Ordered approval/rejection-routing chain editor — shared by
-// ProposeVersionModal.tsx (template-level defaultRouting) and
+// new/page.tsx's propose-version form (template-level defaultRouting) and
 // MilestoneRowModal.tsx (per-milestone override of that default). Each stage
 // names who reviews at that point (role), whether they grade or just
 // approve, and where a rejection at that stage routes (back to the student,
