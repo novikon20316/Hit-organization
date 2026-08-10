@@ -682,17 +682,35 @@ export const deleteSupervisorProject = async (req: AuthenticatedRequest, res: Re
     const titleHe = projectSnap.data()?.titleHe ?? '';
     const titleEn = projectSnap.data()?.titleEn ?? '';
 
-    // Soft delete
+    if (enrolledStudentIds.length === 0) {
+      // No student was ever enrolled — there's no grade/defense history to
+      // preserve, so this is a real hard delete: every Firestore doc tied to
+      // the project goes, not just an isArchived flag. (Uploaded files on
+      // Cloudinary are left alone — a separate service, not part of
+      // Firebase's own storage quota.)
+      const [milestonesSnap, applicationsSnap, notificationsSnap] = await Promise.all([
+        db.collection('milestones').where('projectId', '==', projectId).get(),
+        db.collection('applications').where('projectId', '==', projectId).get(),
+        db.collection('notifications').where('relatedProjectId', '==', projectId).get(),
+      ]);
+
+      const batch = db.batch();
+      milestonesSnap.forEach((d) => batch.delete(d.ref));
+      applicationsSnap.forEach((d) => batch.delete(d.ref));
+      notificationsSnap.forEach((d) => batch.delete(d.ref));
+      batch.delete(projectRef);
+      await batch.commit();
+
+      return res.status(200).json({ success: true, message: 'Project deleted successfully.' });
+    }
+
+    // A project with real enrollment history keeps today's soft delete —
+    // hidden from active lists but still readable in coordinator reports —
+    // rather than erasing students' recorded grades/defense outcomes.
     await projectRef.update({
       isArchived: true,
       deletedAt:  admin.firestore.FieldValue.serverTimestamp(),
     });
-
-    // Delete milestones
-    const milestonesSnap = await db.collection('milestones').where('projectId', '==', projectId).get();
-    const batch = db.batch();
-    milestonesSnap.forEach(d => batch.delete(d.ref));
-    await batch.commit();
 
     // ✅ Notify enrolled students the project was removed
     await Promise.all(enrolledStudentIds.map(async (studentId) => {
