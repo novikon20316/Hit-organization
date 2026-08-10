@@ -1,5 +1,7 @@
 // app/notifications/types.ts
 
+import { getHomeRoute, type AppRole } from '@/lib/roles';
+
 export interface Notif {
   id: string;
   type: string;
@@ -74,6 +76,31 @@ export function relativeTime(ts: string | null | undefined, lang: 'he' | 'en'): 
   if (hrs < 24) return `${hrs}h`;
   if (days < 7) return `${days}d`;
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+// Shared by app/notifications/page.tsx's tap handler and the [id] detail
+// page's own next/previous navigation, so a sibling notification opened via
+// those buttons gets the exact same "Go to dashboard" target as one opened
+// fresh from this list.
+export function computeNotifTargetRoute(type: string, role: AppRole | undefined): string {
+  switch (type) {
+    case 'project_published':
+    case 'application_approved':
+    case 'application_rejected':
+    case 'meeting_requested':
+    case 'milestone_graded':
+    case 'milestone_deadline_7d':
+    case 'milestone_deadline_1d':
+    case 'milestone_overdue':
+      // Always student-directed types.
+      return '/student/home';
+    case 'application_received':
+    case 'account_created':
+      // Recipient can be any role — route to whichever home matches theirs.
+      return getHomeRoute(role);
+    default:
+      return '';
+  }
 }
 
 export function initials(name: string): string {

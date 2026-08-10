@@ -2794,6 +2794,11 @@ export const NotificationDetailStyles = StyleSheet.create({
 
   actionBtn:     { backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   actionBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  navRow:          { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  navBtn:          { flex: 1, backgroundColor: '#fff', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#D0DEFF' },
+  navBtnDisabled:  { opacity: 0.4 },
+  navBtnText:      { color: '#2E86FF', fontWeight: '700', fontSize: 13 },
 });
 
 export const MilestoneTimelineStyles = StyleSheet.create({

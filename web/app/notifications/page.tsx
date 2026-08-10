@@ -16,7 +16,7 @@ import { getRoleAccent } from '@/lib/facultyColors';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { FeedbackTab } from './FeedbackTab';
-import { TYPE_STYLE, relativeTime, initials, rowTimestamp, type Notif, type ChatRow } from './types';
+import { TYPE_STYLE, relativeTime, initials, rowTimestamp, computeNotifTargetRoute, type Notif, type ChatRow } from './types';
 
 type Tab = 'notifs' | 'chats' | 'feedback';
 
@@ -115,27 +115,7 @@ export default function NotificationsPage() {
     // body) instead of silently jumping straight to a dashboard — that
     // dashboard never showed the notification's actual content anywhere, so
     // the redirect looked like it had no reason behind it.
-    let targetRoute = '';
-    switch (notif.type) {
-      case 'project_published':
-      case 'application_approved':
-      case 'application_rejected':
-      case 'meeting_requested':
-      case 'milestone_graded':
-      case 'milestone_deadline_7d':
-      case 'milestone_deadline_1d':
-      case 'milestone_overdue':
-        // Always student-directed types.
-        targetRoute = '/student/home';
-        break;
-      case 'application_received':
-      case 'account_created':
-        // Recipient can be any role — route to whichever home matches theirs.
-        targetRoute = getHomeRoute(userData?.role);
-        break;
-      default:
-        targetRoute = '';
-    }
+    const targetRoute = computeNotifTargetRoute(notif.type, userData?.role);
 
     const params = new URLSearchParams({
       type: notif.type,

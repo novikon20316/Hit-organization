@@ -60,7 +60,7 @@ export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: strin
   new_message:            { icon: '💬', color: '#2E86FF', bg: '#EFF6FF' },
 };
 
-function roleHomeRoute(role: string | null): string {
+export function roleHomeRoute(role: string | null): string {
   switch (role) {
     case 'student':                  return '/student/home';
     case 'supervisor':
@@ -73,6 +73,31 @@ function roleHomeRoute(role: string | null): string {
     case 'grad_school_head':         return '/grad_school_head/grad_school_head_dashboard';
     case 'system_admin':             return '/admin/panel';
     default:                         return '/(auth)/login';
+  }
+}
+
+// Shared by handleTapNotif below and the [id] detail screen's own
+// next/previous navigation, so a sibling notification opened via those
+// buttons gets the exact same "Go to dashboard" target as one opened fresh
+// from this list.
+export function computeNotifTargetRoute(type: string, role: string | null): string {
+  switch (type) {
+    case 'project_published':
+    case 'application_approved':
+    case 'application_rejected':
+    case 'meeting_requested':
+    case 'milestone_graded':
+    case 'milestone_deadline_7d':
+    case 'milestone_deadline_1d':
+    case 'milestone_overdue':
+      // Always student-directed types.
+      return '/student/home';
+    case 'application_received':
+    case 'account_created':
+      // Recipient can be any role — route to whichever home matches theirs.
+      return roleHomeRoute(role);
+    default:
+      return '';
   }
 }
 
@@ -413,27 +438,7 @@ export default function NotificationsScreen() {
     // body) instead of silently jumping straight to a dashboard — that
     // dashboard never showed the notification's actual content anywhere, so
     // the redirect looked like it had no reason behind it.
-    let targetRoute = '';
-    switch (notif.type) {
-      case 'project_published':
-      case 'application_approved':
-      case 'application_rejected':
-      case 'meeting_requested':
-      case 'milestone_graded':
-      case 'milestone_deadline_7d':
-      case 'milestone_deadline_1d':
-      case 'milestone_overdue':
-        // Always student-directed types.
-        targetRoute = '/student/home';
-        break;
-      case 'application_received':
-      case 'account_created':
-        // Recipient can be any role — route to whichever home matches theirs.
-        targetRoute = roleHomeRoute(userRole);
-        break;
-      default:
-        targetRoute = '';
-    }
+    const targetRoute = computeNotifTargetRoute(notif.type, userRole);
 
     router.push({
       pathname: '/notification/[id]',
