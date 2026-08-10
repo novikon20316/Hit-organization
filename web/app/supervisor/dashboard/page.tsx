@@ -26,10 +26,11 @@ import type { MyProject, Application, SupervisorPendingMilestone, SupervisorDead
 const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
 type Tab = 'applications' | 'grading' | 'projects' | 'deadlines' | 'recommend' | 'signoffs';
-type ApplicationFilter = 'all' | 'approved' | 'meeting_requested' | 'rejected';
+type ApplicationFilter = 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected';
 
 const APPLICATION_FILTERS: { key: ApplicationFilter; he: string; en: string }[] = [
   { key: 'all', he: 'הכל', en: 'All' },
+  { key: 'applied', he: 'ממתין לטיפול', en: 'Awaiting Response' },
   { key: 'approved', he: 'אושרו', en: 'Approved' },
   { key: 'meeting_requested', he: 'תואמה פגישה', en: 'Set-Meeting' },
   { key: 'rejected', he: 'נדחו', en: 'Rejected' },

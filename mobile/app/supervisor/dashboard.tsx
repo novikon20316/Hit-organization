@@ -120,7 +120,7 @@ export default function SupervisorHome() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines' | 'recommend' | 'signoffs'>('projects');
-  const [applicationFilter, setApplicationFilter] = useState<'all' | 'approved' | 'meeting_requested' | 'rejected'>('all');
+  const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'>('all');
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
   const [deadlines, setDeadlines] = useState<any[]>([]);
@@ -783,8 +783,9 @@ export default function SupervisorHome() {
   const filteredApplications =
     applicationFilter === 'all' ? applications : applications.filter((app) => app.status === applicationFilter);
 
-  const APPLICATION_FILTERS: { key: 'all' | 'approved' | 'meeting_requested' | 'rejected'; he: string; en: string }[] = [
+  const APPLICATION_FILTERS: { key: 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'; he: string; en: string }[] = [
     { key: 'all', he: 'הכל', en: 'All' },
+    { key: 'applied', he: 'ממתין לטיפול', en: 'Awaiting Response' },
     { key: 'approved', he: 'אושרו', en: 'Approved' },
     { key: 'meeting_requested', he: 'תואמה פגישה', en: 'Set-Meeting' },
     { key: 'rejected', he: 'נדחו', en: 'Rejected' },
