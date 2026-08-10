@@ -116,7 +116,23 @@ export const getUserNotificationFeed = async (req: AuthenticatedRequest, res: Re
       .orderBy('createdAt', 'desc')
       .get();
 
-    const feedItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // createdAt is a Firestore Timestamp on docs written via
+    // admin.firestore.FieldValue.serverTimestamp() (the vast majority — see
+    // notify.ts), but a couple of older write sites (e.g.
+    // triggerNotificationDispatch above) stored it as a plain ISO string
+    // instead. Left as a raw Timestamp, Express's JSON serialization turns it
+    // into a `{_seconds, _nanoseconds}` object that `new Date(...)` on the
+    // client can't parse — surfacing as "Invalid Date" in the UI. Same
+    // toDate()?.toISOString() normalization already used for this exact
+    // mismatch elsewhere (see feedbackController.ts, milestoneController.ts).
+    const feedItems = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? data.createdAt ?? null,
+      };
+    });
     return res.status(200).json(feedItems);
 
   } catch (error: any) {
