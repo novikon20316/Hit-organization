@@ -164,10 +164,24 @@ export default function ActiveDashboard({
     ]);
   };
 
+  // Absent (a milestone from before this feature existed) keeps today's
+  // actual behavior — both fields shown, both optional — rather than being
+  // treated the same as an explicit 'none', which instead hides both
+  // entirely (see the empty-state message in the submit modal below).
+  const submissionRequirement = targetMilestone?.submissionRequirement;
+  const showFileField = submissionRequirement !== 'comment' && submissionRequirement !== 'none';
+  const showNoteField = submissionRequirement !== 'file' && submissionRequirement !== 'none';
+  const canSubmitMilestone =
+    submissionRequirement === 'file' ? files.length > 0 :
+    submissionRequirement === 'comment' ? note.trim().length > 0 :
+    submissionRequirement === 'both' ? files.length > 0 && note.trim().length > 0 :
+    true;
+
   // ── Submit milestone ───────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!targetMilestone) return;
     if (!isUnlocked(targetMilestone)) return;
+    if (!canSubmitMilestone) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
@@ -1035,37 +1049,53 @@ export default function ActiveDashboard({
           </View>
 
           {/* Files */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {tx('uploadFiles', lang)}
-          </Text>
-          {files.map((f, i) => (
-            <View key={i} style={styles.fileRow}>
-              <Text style={styles.fileName}>📎 {f.name}</Text>
-              <Pressable onPress={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}>
-                <Text style={styles.fileRemove}>✕</Text>
+          {showFileField && (
+            <>
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {tx('uploadFiles', lang)}
+                {(submissionRequirement === 'file' || submissionRequirement === 'both') ? ' *' : ''}
+              </Text>
+              {files.map((f, i) => (
+                <View key={i} style={styles.fileRow}>
+                  <Text style={styles.fileName}>📎 {f.name}</Text>
+                  <Pressable onPress={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}>
+                    <Text style={styles.fileRemove}>✕</Text>
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable style={styles.uploadBtn} onPress={pickFile}>
+                <Text style={styles.uploadBtnText}>
+                  + {lang === 'he' ? 'הוסף קובץ' : 'Add File'}
+                </Text>
               </Pressable>
-            </View>
-          ))}
-          <Pressable style={styles.uploadBtn} onPress={pickFile}>
-            <Text style={styles.uploadBtnText}>
-              + {lang === 'he' ? 'הוסף קובץ' : 'Add File'}
-            </Text>
-          </Pressable>
+            </>
+          )}
 
           {/* Note */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {tx('addNote', lang)}
-          </Text>
-          <TextInput
-            style={[styles.textarea, isRtl && styles.textRight]}
-            multiline
-            numberOfLines={4}
-            placeholder={tx('notePlaceholder', lang)}
-            placeholderTextColor="#9BA8C0"
-            value={note}
-            onChangeText={setNote}
-            textAlign={isRtl ? 'right' : 'left'}
-          />
+          {showNoteField && (
+            <>
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {tx('addNote', lang)}
+                {(submissionRequirement === 'comment' || submissionRequirement === 'both') ? ' *' : ''}
+              </Text>
+              <TextInput
+                style={[styles.textarea, isRtl && styles.textRight]}
+                multiline
+                numberOfLines={4}
+                placeholder={tx('notePlaceholder', lang)}
+                placeholderTextColor="#9BA8C0"
+                value={note}
+                onChangeText={setNote}
+                textAlign={isRtl ? 'right' : 'left'}
+              />
+            </>
+          )}
+
+          {!showFileField && !showNoteField && (
+            <Text style={[styles.fieldLabel, isRtl && styles.textRight, { fontWeight: '400' }]}>
+              {lang === 'he' ? 'אבן דרך זו אינה דורשת קובץ או הערה — ניתן להגיש ישירות.' : 'This milestone requires no file or comment — you can submit directly.'}
+            </Text>
+          )}
 
           {submitMessage && (
             <Text style={[
@@ -1077,9 +1107,9 @@ export default function ActiveDashboard({
           )}
 
           <Pressable
-            style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
+            style={[styles.submitBtn, (submitting || !canSubmitMilestone) && { opacity: 0.6 }]}
             onPress={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || !canSubmitMilestone}
           >
             {submitting
               ? <ActivityIndicator color="#fff" />

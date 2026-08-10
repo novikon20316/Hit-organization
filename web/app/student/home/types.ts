@@ -146,6 +146,12 @@ export interface Milestone {
   gradeOverride?: { status: 'pending' | 'approved' | 'rejected' } | null;
   staffRecord?: StudentVisibleStaffRecord | null;
   staffFormFields?: { key: string; labelHe: string; labelEn: string }[];
+  /** What this milestone requires the student to attach — see
+   *  server/src/services/workflowTemplates.ts's SubmissionRequirement.
+   *  Absent means no requirement recorded (a milestone created before this
+   *  feature existed) — SubmitMilestoneModal treats that the same as
+   *  'none', showing both fields as optional. */
+  submissionRequirement?: 'file' | 'comment' | 'both' | 'none';
 }
 
 export interface PendingApplication {

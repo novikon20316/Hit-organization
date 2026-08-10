@@ -165,7 +165,21 @@ export interface MilestoneSpec {
    *  everything else = 0" — today's implicit behavior. Mirrors
    *  web/app/workflow-templates/types.ts. */
   percentOfFinalGrade?: number;
+  /** What the student must attach when submitting this milestone. 'none' is
+   *  allowed but discouraged (flagged in the editor). Omitted (pre-existing
+   *  templates) means no requirement recorded — treated as unrestricted at
+   *  submission time. Mirrors web/app/workflow-templates/types.ts. */
+  submissionRequirement?: SubmissionRequirement;
 }
+
+export type SubmissionRequirement = 'file' | 'comment' | 'both' | 'none';
+
+export const SUBMISSION_REQUIREMENTS: { key: SubmissionRequirement; he: string; en: string }[] = [
+  { key: 'file', he: 'קובץ', en: 'File' },
+  { key: 'comment', he: 'הערה', en: 'Comment' },
+  { key: 'both', he: 'קובץ והערה', en: 'File and comment' },
+  { key: 'none', he: 'ללא (לא מומלץ)', en: 'Neither (not recommended)' },
+];
 
 export type ApplyMode = 'now' | 'from_now_on';
 

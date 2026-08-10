@@ -12,6 +12,7 @@ import { sanitizeMilestoneForViewer } from '../services/milestoneVisibility.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
+import { submissionRequirementMet } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -52,6 +53,29 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
 
     console.log('📥 Submit milestone:', { milestoneId, note, filesCount: files.length });
 
+    // ── Update milestone in Firestore ───────────────────────────────────────
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+
+    if (!milestoneSnap.exists)
+      return res.status(404).json({ message: 'Milestone not found.' });
+
+    const milestoneData = milestoneSnap.data()!;
+
+    // Make sure the student owns this milestone
+    const studentIds: string[] = milestoneData.studentIds ?? [];
+    if (!studentIds.includes(studentId))
+      return res.status(403).json({ message: 'Forbidden.' });
+
+    // Checked before touching Cloudinary at all — no point uploading a file
+    // for a submission that's about to be rejected anyway (or, worse,
+    // silently accepting a comment-only submission on a milestone that
+    // actually required a file).
+    if (!submissionRequirementMet(milestoneData.submissionRequirement, files.length > 0, note.trim().length > 0)) {
+      return res.status(400).json({ message: 'This milestone requires ' +
+        (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`) });
+    }
+
     // ── Upload files to Cloudinary ──────────────────────────────────────────
     const fileUrls: string[] = [];
 
@@ -66,20 +90,6 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
 
       fileUrls.push(result.secure_url);
     }
-
-    // ── Update milestone in Firestore ───────────────────────────────────────
-    const milestoneRef = db.collection('milestones').doc(milestoneId);
-    const milestoneSnap = await milestoneRef.get();
-
-    if (!milestoneSnap.exists)
-      return res.status(404).json({ message: 'Milestone not found.' });
-
-    const milestoneData = milestoneSnap.data()!;
-
-    // Make sure the student owns this milestone
-    const studentIds: string[] = milestoneData.studentIds ?? [];
-    if (!studentIds.includes(studentId))
-      return res.status(403).json({ message: 'Forbidden.' });
 
     const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
     const thisTypeIndex = MILESTONE_ORDER.indexOf(milestoneData.type);

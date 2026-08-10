@@ -34,10 +34,10 @@ import { TopBar } from '../../components/shared';
 import { ResponsiveScreen } from '../../components/ResponsiveScreen';
 import { apiClient } from '../../src/api/apiClient';
 import {
-  CHAIN_ROLES, SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel,
+  CHAIN_ROLES, SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, SUBMISSION_REQUIREMENTS,
   type ProcessType, type ChainRole, type ChainStage, type MilestoneRoutingSpec,
   type GradingComponentSpec, type FormFieldSpec, type FinalGradeComponents,
-  type MilestoneSpec, type ApplyMode,
+  type MilestoneSpec, type ApplyMode, type SubmissionRequirement,
 } from './WorkflowTemplateManager';
 
 // ─── Payload passed across the route boundary from WorkflowTemplateManager ──
@@ -69,7 +69,7 @@ function makeId(): string {
 }
 
 function emptyMilestone(order: number): MilestoneSpec {
-  return { type: `custom_${makeId()}`, nameHe: '', nameEn: '', order, dueDaysFromStart: 90, requiresExaminers: false };
+  return { type: `custom_${makeId()}`, nameHe: '', nameEn: '', order, dueDaysFromStart: 90, requiresExaminers: false, submissionRequirement: 'both' };
 }
 
 function makeStageId(): string {
@@ -362,6 +362,7 @@ export default function WorkflowTemplateEditor() {
   const [msExaminerCount, setMsExaminerCount] = useState('2');
   const [msOverrideChain, setMsOverrideChain] = useState(false);
   const [msRouting, setMsRouting] = useState<MilestoneRoutingSpec>([emptyStage()]);
+  const [msSubmissionRequirement, setMsSubmissionRequirement] = useState<SubmissionRequirement>('both');
   // research_proposal/progress_report only — an official staff (supervisor)
   // record alongside the student's own submission.
   const [msStaffRecordMode, setMsStaffRecordMode] = useState<'none' | 'upload_or_form'>('none');
@@ -407,6 +408,7 @@ export default function WorkflowTemplateEditor() {
       setMsExaminerCount(String(ms.examinerCount ?? 2));
       setMsOverrideChain(!!(ms.routing && ms.routing.length > 0));
       setMsRouting(ms.routing && ms.routing.length > 0 ? ms.routing.map((s) => ({ ...s })) : [emptyStage()]);
+      setMsSubmissionRequirement(ms.submissionRequirement ?? 'both');
       setMsStaffRecordMode(ms.staffRecordMode ?? 'none');
       setMsStaffFormFields(ms.staffFormFields ? ms.staffFormFields.map((f) => ({ ...f })) : []);
       setMsUseFinalGradeComponents(!!ms.finalGradeComponents);
@@ -421,6 +423,7 @@ export default function WorkflowTemplateEditor() {
       setMsNameHe(''); setMsNameEn(''); setMsDateMode('offset'); setMsDays('90'); setMsFixedDate(''); setMsPercentOfFinalGrade('0'); setMsExaminers(false); setMsExaminerCount('2');
       setMsOverrideChain(false);
       setMsRouting([emptyStage()]);
+      setMsSubmissionRequirement('both');
       setMsStaffRecordMode('none');
       setMsStaffFormFields([]);
       setMsUseFinalGradeComponents(false);
@@ -505,6 +508,7 @@ export default function WorkflowTemplateEditor() {
         if (m !== editingMs) return m;
         const next: MilestoneSpec = {
           ...m, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), dueDaysFromStart: days, percentOfFinalGrade, requiresExaminers: msExaminers,
+          submissionRequirement: msSubmissionRequirement,
         };
         if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
         else { delete next.dateMode; delete next.fixedDate; }
@@ -527,6 +531,7 @@ export default function WorkflowTemplateEditor() {
       setEditorMilestones((prev) => {
         const next: MilestoneSpec = {
           type: `custom_${makeId()}`, nameHe: msNameHe.trim(), nameEn: msNameEn.trim(), order: prev.length + 1, dueDaysFromStart: days, percentOfFinalGrade, requiresExaminers: msExaminers,
+          submissionRequirement: msSubmissionRequirement,
         };
         if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
         if (msExaminers) next.examinerCount = examinerCount;
@@ -855,6 +860,30 @@ export default function WorkflowTemplateEditor() {
                   placeholder="2"
                 />
               </>
+            )}
+
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 16, marginBottom: 6 }}>
+              {lang === 'he' ? 'מה נדרש בהגשת הסטודנט/ית' : "What the student's submission requires"}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {SUBMISSION_REQUIREMENTS.map((opt) => (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => setMsSubmissionRequirement(opt.key)}
+                  style={{ borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1.5, borderColor: msSubmissionRequirement === opt.key ? '#7C3AED' : '#DDD6FE', backgroundColor: msSubmissionRequirement === opt.key ? '#7C3AED' : '#fff' }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: msSubmissionRequirement === opt.key ? '#fff' : '#374151' }}>
+                    {lang === 'he' ? opt.he : opt.en}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {msSubmissionRequirement === 'none' && (
+              <Text style={{ fontSize: 11, color: '#EF4444', marginTop: 6 }}>
+                {lang === 'he'
+                  ? '⚠️ לא מומלץ — הסטודנט/ית יוכל/תוכל להגיש ללא כל קובץ או הערה.'
+                  : "⚠️ Not recommended — the student will be able to submit with no file or comment at all."}
+              </Text>
             )}
 
             {msIsProposalOrMidterm && (

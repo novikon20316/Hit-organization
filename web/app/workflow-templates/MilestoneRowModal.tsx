@@ -13,7 +13,8 @@
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { ChainEditor, emptyStage } from './ChainEditor';
-import type { FormFieldSpec, GradingComponentSpec, MilestoneRoutingSpec, MilestoneSpec } from './types';
+import { SUBMISSION_REQUIREMENTS } from './types';
+import type { FormFieldSpec, GradingComponentSpec, MilestoneRoutingSpec, MilestoneSpec, SubmissionRequirement } from './types';
 
 function emptyComponent(): GradingComponentSpec {
   return { key: `c_${Math.random().toString(36).slice(2, 8)}`, labelHe: '', labelEn: '', maxScore: 20, weight: 20, hasComment: true, visibleToStudent: true };
@@ -148,6 +149,7 @@ interface MilestoneRowModalProps {
     staffRecordMode?: 'none' | 'upload_or_form';
     staffFormFields?: FormFieldSpec[];
     finalGradeComponents?: MilestoneSpec['finalGradeComponents'];
+    submissionRequirement: SubmissionRequirement;
   }) => void;
 }
 
@@ -162,6 +164,7 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
   const [requiresExaminers, setRequiresExaminers] = useState(editing?.requiresExaminers ?? false);
   const [examinerCount, setExaminerCount] = useState(String(editing?.examinerCount ?? 2));
   const [components, setComponents] = useState<GradingComponentSpec[]>(editing?.gradingComponents ?? []);
+  const [submissionRequirement, setSubmissionRequirement] = useState<SubmissionRequirement>(editing?.submissionRequirement ?? 'both');
   const [overrideChain, setOverrideChain] = useState(!!(editing?.routing && editing.routing.length > 0));
   const [routing, setRouting] = useState<MilestoneRoutingSpec>(editing?.routing && editing.routing.length > 0 ? editing.routing.map((s) => ({ ...s })) : [emptyStage()]);
   const [error, setError] = useState('');
@@ -295,6 +298,7 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
       ...(overrideChain ? { routing } : {}),
       ...(isProposalOrMidterm ? { staffRecordMode, staffFormFields: staffRecordMode === 'upload_or_form' ? staffFormFields : [] } : {}),
       ...(finalGradeComponents ? { finalGradeComponents } : {}),
+      submissionRequirement,
     });
   };
 
@@ -380,6 +384,33 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
               />
             </label>
           )}
+
+          <div className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">
+              {lang === 'he' ? 'מה נדרש בהגשת הסטודנט/ית' : "What the student's submission requires"}
+            </span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {SUBMISSION_REQUIREMENTS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setSubmissionRequirement(opt.key)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                    submissionRequirement === opt.key ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                  }`}
+                >
+                  {lang === 'he' ? opt.he : opt.en}
+                </button>
+              ))}
+            </div>
+            {submissionRequirement === 'none' && (
+              <p className="mt-1.5 text-xs text-danger">
+                {lang === 'he'
+                  ? '⚠️ לא מומלץ — הסטודנט/ית יוכל/תוכל להגיש ללא כל קובץ או הערה.'
+                  : "⚠️ Not recommended — the student will be able to submit with no file or comment at all."}
+              </p>
+            )}
+          </div>
 
           {isProposalOrMidterm && (
             <div className="rounded-lg border border-line bg-paper p-3">

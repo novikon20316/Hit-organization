@@ -17,6 +17,7 @@ import {
   ChainRole,
   ChainStage,
   MilestoneRoutingSpec,
+  SubmissionRequirement,
   listWorkflowTemplates,
   proposeWorkflowTemplate,
   approveWorkflowTemplate,
@@ -102,6 +103,7 @@ const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'facu
 // always resolve to nobody there (or, worse, read as "an examiner approves
 // their own submission"), so it's deliberately excluded from this narrower list.
 const SIGNOFF_ROLES: ChainRole[] = CHAIN_ROLES.filter((r) => r !== 'examiner');
+const SUBMISSION_REQUIREMENTS: SubmissionRequirement[] = ['file', 'comment', 'both', 'none'];
 
 /** Validates a routing chain (either a template's defaultRouting or a
  *  milestone's per-milestone override). Returns null on malformed input —
@@ -273,6 +275,14 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
       if (!Number.isFinite(percentOfFinalGrade) || percentOfFinalGrade < 0 || percentOfFinalGrade > 100) return null;
     }
 
+    // What the student must attach to submit this milestone — defaults to
+    // 'both' (today's de-facto expectation) rather than rejecting the whole
+    // request on a missing/invalid value, same leniency as dateMode/
+    // staffRecordMode above.
+    const submissionRequirement: SubmissionRequirement = SUBMISSION_REQUIREMENTS.includes(m.submissionRequirement)
+      ? m.submissionRequirement
+      : 'both';
+
     const spec: WorkflowMilestoneSpec = {
       type: m.type.trim(),
       nameHe: m.nameHe.trim(),
@@ -280,6 +290,7 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
       order,
       dueDaysFromStart,
       requiresExaminers: !!m.requiresExaminers,
+      submissionRequirement,
     };
     if (dateMode === 'fixed') {
       spec.dateMode = 'fixed';

@@ -230,6 +230,11 @@ export async function enrollStudentInProject(
         // staff-record submission endpoint doesn't need a separate template
         // lookup. Omitted means no staff-side record for this milestone.
         ...(t.staffRecordMode === 'upload_or_form' ? { staffRecordMode: t.staffRecordMode, staffFormFields: t.staffFormFields ?? [] } : {}),
+        // What the student must attach to submit this milestone (file/
+        // comment/both/none) — see workflowTemplates.ts's
+        // submissionRequirementMet. Omitted means no requirement recorded,
+        // which submitMilestone/submitStudentMilestone treat as unrestricted.
+        ...(t.submissionRequirement ? { submissionRequirement: t.submissionRequirement } : {}),
         // Three-rubric final-grade config (defense milestones only) —
         // independent of the examiner/routing branch below, same reasoning
         // as gradingComponents. Omitted keeps today's single-rubric behavior.

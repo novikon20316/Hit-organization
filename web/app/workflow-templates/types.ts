@@ -43,6 +43,17 @@ export interface ChainStage {
 
 export type MilestoneRoutingSpec = ChainStage[];
 
+// Mirrors SubmissionRequirement in server/src/services/workflowTemplates.ts.
+// 'none' is allowed but discouraged — see MilestoneRowModal.tsx's warning.
+export type SubmissionRequirement = 'file' | 'comment' | 'both' | 'none';
+
+export const SUBMISSION_REQUIREMENTS: { key: SubmissionRequirement; he: string; en: string }[] = [
+  { key: 'file', he: 'קובץ', en: 'File' },
+  { key: 'comment', he: 'הערה', en: 'Comment' },
+  { key: 'both', he: 'קובץ והערה', en: 'File and comment' },
+  { key: 'none', he: 'ללא (לא מומלץ)', en: 'Neither (not recommended)' },
+];
+
 // Mirrors FormFieldSpec/FinalGradeRubric in server/src/services/workflowTemplates.ts.
 export interface FormFieldSpec {
   key: string;
@@ -142,6 +153,10 @@ export interface MilestoneSpec {
    *  "defense = 100, everything else = 0" — today's implicit behavior —
    *  see server/src/services/gradeEngine.ts's computeProjectFinalGrade. */
   percentOfFinalGrade?: number;
+  /** What the student must attach when submitting this milestone — see the
+   *  SubmissionRequirement type doc above. Omitted (pre-existing templates)
+   *  means no requirement recorded, same as 'none' at submission time. */
+  submissionRequirement?: SubmissionRequirement;
 }
 
 export type ApplyMode = 'now' | 'from_now_on';
@@ -250,5 +265,5 @@ export function makeId(): string {
 }
 
 export function emptyMilestone(order: number): MilestoneSpec {
-  return { type: `custom_${makeId()}`, nameHe: '', nameEn: '', order, dueDaysFromStart: 90, requiresExaminers: false };
+  return { type: `custom_${makeId()}`, nameHe: '', nameEn: '', order, dueDaysFromStart: 90, requiresExaminers: false, submissionRequirement: 'both' };
 }

@@ -101,6 +101,34 @@ export interface ChainStage {
 
 export type MilestoneRoutingSpec = ChainStage[];
 
+// What a student must attach when submitting this milestone. 'none' is
+// allowed but discouraged (flagged as such in the template editor UI) — most
+// milestones should require at least a file or a comment to review.
+// Omitted on a milestone spec/doc means "no requirement recorded" (every
+// milestone created before this feature existed) — submitMilestone/
+// submitStudentMilestone treat that the same as 'none', so nothing already
+// in flight is retroactively blocked.
+export type SubmissionRequirement = 'file' | 'comment' | 'both' | 'none';
+
+/** Shared by milestoneController.ts's submitMilestone (web/mobile student
+ *  submission) and projectController.ts's submitStudentMilestone — whether a
+ *  given file/comment combination satisfies a milestone's recorded
+ *  requirement. An absent requirement (legacy milestone, created before this
+ *  feature existed) is always satisfied — see the type doc above. */
+export function submissionRequirementMet(
+  requirement: SubmissionRequirement | undefined,
+  hasFile: boolean,
+  hasComment: boolean
+): boolean {
+  switch (requirement) {
+    case 'file':    return hasFile;
+    case 'comment': return hasComment;
+    case 'both':    return hasFile && hasComment;
+    case 'none':
+    default:        return true;
+  }
+}
+
 /** Resolves the absolute due date for one milestone spec, given the
  *  enrollment/creation base date — shared by projectEnrollment.ts,
  *  trackChange.ts, and workflowTemplateRetroactiveApply.ts so the
@@ -197,6 +225,12 @@ export interface WorkflowMilestoneSpec {
    *  everything else = 0" — today's implicit behavior — see
    *  gradeEngine.ts's computeProjectFinalGrade. */
   percentOfFinalGrade?: number;
+  /** What the student must attach when submitting this milestone — see the
+   *  SubmissionRequirement type doc above. Always written explicitly by
+   *  workflowTemplateController.ts's validateMilestones (defaulting to
+   *  'both' when omitted/invalid) for any milestone saved through that path;
+   *  only truly absent on milestones from before this feature existed. */
+  submissionRequirement?: SubmissionRequirement;
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';

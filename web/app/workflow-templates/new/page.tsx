@@ -210,6 +210,7 @@ function ProposeVersionForm({
     requiresExaminers: boolean; examinerCount?: number; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec;
     staffRecordMode?: 'none' | 'upload_or_form'; staffFormFields?: FormFieldSpec[];
     finalGradeComponents?: MilestoneSpec['finalGradeComponents'];
+    submissionRequirement: MilestoneSpec['submissionRequirement'];
   }) => {
     // `routing`/`finalGradeComponents` are only present in `values` when the
     // row's chain override / three-rubric toggle is ON — spread the rest in

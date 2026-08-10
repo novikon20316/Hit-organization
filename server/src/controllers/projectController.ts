@@ -11,6 +11,7 @@ import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches } from '../services/scopeAuthorization.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
+import { submissionRequirementMet } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -811,6 +812,13 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
     const studentIds: string[] = milestoneData.studentIds ?? [];
     if (!studentIds.includes(studentId)) {
       return res.status(403).json({ message: 'Forbidden.' });
+    }
+
+    const hasFile = Array.isArray(fileUrls) && fileUrls.length > 0;
+    const hasComment = typeof submissionNote === 'string' && submissionNote.trim().length > 0;
+    if (!submissionRequirementMet(milestoneData.submissionRequirement, hasFile, hasComment)) {
+      return res.status(400).json({ message: 'This milestone requires ' +
+        (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`) });
     }
 
     // Preserve the outgoing round before it's overwritten — see
