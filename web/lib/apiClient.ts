@@ -1577,6 +1577,47 @@ export const apiClient = {
     }>('/api/project-coordinator/grade-overrides', { method: 'GET' });
   },
 
+  /** The six statistics an administrative coordinator asked for (milestone
+   *  distribution/completion, final grades, applications-by-faculty,
+   *  on-time completion, year-of-study distribution) — omit `facultyId` for
+   *  the aggregate view across every faculty in scope, or pass one to narrow
+   *  to it. See projectCoordinatorController.ts's getCoordinatorStatistics.
+   *  The matching /export endpoint (a multi-sheet .xlsx) is downloaded via
+   *  downloadAuthenticatedFile directly, not through this method. */
+  async getCoordinatorStatistics(facultyId?: string) {
+    return request<{
+      noScopeAssigned?: boolean;
+      allowedFacultyIds: string[];
+      milestoneDistribution: Array<{
+        type: string; nameHe: string; nameEn: string; count: number; percent: number;
+        students: Array<{
+          studentId: string; studentName: string; facultyId: string;
+          projectTitleHe: string; projectTitleEn: string;
+          status: 'overdue' | 'stuck' | 'on_track'; daysInStage: number;
+        }>;
+      }>;
+      milestoneCompletion: Array<{ type: string; nameHe: string; nameEn: string; totalReached: number; completed: number; percent: number }>;
+      finalGrades: {
+        byMilestoneType: Array<{
+          type: string; nameHe: string; nameEn: string; gradedCount: number;
+          averageFinalGrade: number | null;
+          averageSupervisorEvaluation: number | null;
+          averageExaminerProjectEvaluation: number | null;
+          averageExaminerDefenseEvaluation: number | null;
+        }>;
+        byStudent: Array<{
+          studentId: string; studentName: string; facultyId: string;
+          projectId: string; projectTitleHe: string; projectTitleEn: string;
+          finalGrade: number | null; unconfigured: boolean;
+        }>;
+        averageProjectFinalGrade: number | null;
+      };
+      applicationsByFaculty: Array<{ facultyId: string; count: number; percent: number }>;
+      onTimeCompletion: Array<{ facultyId: string; onTime: number; late: number; total: number; percentOnTime: number }>;
+      yearOfStudyDistribution: Array<{ yearOfStudy: number | 'unknown'; count: number; averageProgressPercent: number }>;
+    }>('/api/project-coordinator/statistics', { method: 'GET', params: { facultyId } });
+  },
+
   /** Shared by coordinator, administrative coordinator, and system_admin — all
    *  three route to the same assignDefense controller (coordinatorController.ts),
    *  just mounted under different base paths ('admin' for the admin panel). */

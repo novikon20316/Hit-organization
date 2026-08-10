@@ -1,9 +1,29 @@
 import { Response } from 'express';
+import * as XLSX from 'xlsx';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import {
+  gatherScopedEngagements,
+  milestoneDistributionStats,
+  milestoneCompletionStats,
+  finalGradesStats,
+  applicationsByFacultyStats,
+  onTimeCompletionStats,
+  yearOfStudyDistributionStats,
+} from '../services/coordinatorStatistics.js';
+import { FACULTY_NAMES } from '../services/studentProgress.js';
 
 const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
+
+// Broader than PROJECT_COORDINATOR_DASHBOARD_ROLES above — the statistics
+// feature is also surfaced on the plain `coordinator` role's own dashboard
+// (app/coordinator/home), which is otherwise backed by a completely separate
+// controller (coordinatorController.ts). Kept as its own constant rather than
+// widening PROJECT_COORDINATOR_DASHBOARD_ROLES itself, so `coordinator`
+// doesn't also gain access to this file's OTHER endpoints (the groups
+// dashboard/students-report/grade-overrides), which were never part of this request.
+const COORDINATOR_STATISTICS_ROLES = ['administrative_secretary', 'coordinator', 'system_admin'];
 
 interface DegreeScope { facultyId: string; major?: string }
 
@@ -523,5 +543,195 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
   } catch (error: any) {
     console.error('getPendingGradeOverrides error:', error);
     return res.status(500).json({ message: 'Failed to load pending grade overrides.' });
+  }
+};
+
+/** Resolves the caller's scope plus the optional `?facultyId=` query filter —
+ *  one faculty within scope, or omitted for the aggregate view across every
+ *  faculty the caller can see. Shared by getCoordinatorStatistics and
+ *  exportCoordinatorStatistics so both stay in sync.
+ *
+ *  Scope differs per role, since this endpoint now serves two different
+ *  dashboards:
+ *  - system_admin: unrestricted (every faculty).
+ *  - administrative_secretary: her `facultyId` field is a useless 'all'
+ *    sentinel (see CROSS_FACULTY_ROLES) — her real scope lives ONLY in
+ *    coordinatorScopes, same as getProjectCoordinatorDashboard/
+ *    getStudentsReport above. No coordinatorScopes assigned means nothing
+ *    to see (noScopeAssigned), not "everything."
+ *  - coordinator: a real single facultyId (coordinatorController.ts's
+ *    getCoordinatorDashboard reads it directly, no coordinatorScopes
+ *    involved there) — falls back to that facultyId whenever coordinatorScopes
+ *    is empty, which is the common case for this role. coordinatorScopes is a
+ *    shared, non-exclusive field (see CoordinatorScopesModal) that CAN also be
+ *    set on a `coordinator` account to narrow/replace that default — when
+ *    present, it wins, same as it does for administrative_secretary. */
+function resolveStatisticsScope(req: AuthenticatedRequest): {
+  error?: { status: number; message: string };
+  isSystemAdmin: boolean;
+  scopes: DegreeScope[];
+  allowedFacultyIds: string[];
+  requestedFacultyId?: string;
+} {
+  const isSystemAdmin = req.user!.role === 'system_admin';
+  const coordinatorScopes: DegreeScope[] = (req.user!.coordinatorScopes ?? []).map(
+    (s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId })
+  );
+  const scopes: DegreeScope[] = isSystemAdmin
+    ? []
+    : coordinatorScopes.length > 0
+      ? coordinatorScopes
+      : (req.user!.role === 'coordinator' && req.user!.facultyId)
+        ? [{ facultyId: req.user!.facultyId }]
+        : [];
+  // system_admin has no coordinatorScopes/facultyId of its own to derive this
+  // from (unrestricted by design) — without this, its faculty filter dropdown
+  // would have no options to narrow by at all. Every other role's dropdown is
+  // still built from their real scopes above, never this full list.
+  const allowedFacultyIds = isSystemAdmin
+    ? Object.keys(FACULTY_NAMES)
+    : [...new Set(scopes.map((s) => s.facultyId))];
+
+  const requestedFacultyId = (req.query.facultyId as string | undefined) || undefined;
+  if (requestedFacultyId && !isSystemAdmin && !allowedFacultyIds.includes(requestedFacultyId)) {
+    return {
+      error: { status: 403, message: 'You may only view statistics for your own assigned faculties.' },
+      isSystemAdmin, scopes, allowedFacultyIds,
+    };
+  }
+
+  const result: ReturnType<typeof resolveStatisticsScope> = { isSystemAdmin, scopes, allowedFacultyIds };
+  if (requestedFacultyId) result.requestedFacultyId = requestedFacultyId;
+  return result;
+}
+
+/**
+ * GET /api/project-coordinator/statistics
+ * The six job-relevant statistics an administrative coordinator asked for:
+ * milestone distribution, milestone completion rates, final grades, applications
+ * per faculty, on-time completion, and year-of-study distribution — each
+ * computable both across every faculty in the caller's scope (no `facultyId`
+ * query param) and narrowed to one (see coordinatorStatistics.ts for the
+ * actual aggregation logic). Same coordinatorScopes-based scope resolution as
+ * getProjectCoordinatorDashboard/getStudentsReport above — NOT
+ * reportsController.ts's facultyId model, which administrative_secretary
+ * can't use (her real scope lives in coordinatorScopes, not req.user.facultyId).
+ */
+export const getCoordinatorStatistics = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !COORDINATOR_STATISTICS_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to view these statistics.' });
+  }
+
+  try {
+    const scope = resolveStatisticsScope(req);
+    if (scope.error) return res.status(scope.error.status).json({ message: scope.error.message });
+    const { isSystemAdmin, scopes, allowedFacultyIds, requestedFacultyId } = scope;
+
+    if (!isSystemAdmin && scopes.length === 0) {
+      return res.status(200).json({ noScopeAssigned: true, allowedFacultyIds: [] });
+    }
+
+    const records = await gatherScopedEngagements(scopes, isSystemAdmin, requestedFacultyId);
+    const applicationScope: string[] | 'all' = requestedFacultyId
+      ? [requestedFacultyId]
+      : (isSystemAdmin ? 'all' : allowedFacultyIds);
+
+    const [finalGrades, applicationsByFaculty, onTimeCompletion] = await Promise.all([
+      finalGradesStats(records),
+      applicationsByFacultyStats(applicationScope),
+      onTimeCompletionStats(records),
+    ]);
+
+    return res.status(200).json({
+      allowedFacultyIds,
+      milestoneDistribution: milestoneDistributionStats(records),
+      milestoneCompletion: milestoneCompletionStats(records),
+      finalGrades,
+      applicationsByFaculty,
+      onTimeCompletion,
+      yearOfStudyDistribution: yearOfStudyDistributionStats(records),
+    });
+  } catch (error: any) {
+    console.error('getCoordinatorStatistics error:', error);
+    return res.status(500).json({ message: 'Failed to load statistics.' });
+  }
+};
+
+function addStatsSheet(workbook: XLSX.WorkBook, name: string, rows: Record<string, any>[]) {
+  const worksheet = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{ Info: 'No data' }]);
+  if (rows.length > 0) {
+    const headers = Object.keys(rows[0]!);
+    worksheet['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 2, 14) }));
+  }
+  XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31));
+}
+
+/**
+ * GET /api/project-coordinator/statistics/export
+ * Same data as getCoordinatorStatistics, as a multi-sheet .xlsx — one sheet
+ * per section — reusing reportsController.ts's exact
+ * json_to_sheet/book_new/book_append_sheet/write buffer-streaming pattern
+ * (not that controller's access control, for the same reason as above).
+ */
+export const exportCoordinatorStatistics = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !COORDINATOR_STATISTICS_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to export these statistics.' });
+  }
+
+  try {
+    const scope = resolveStatisticsScope(req);
+    if (scope.error) return res.status(scope.error.status).json({ message: scope.error.message });
+    const { isSystemAdmin, scopes, allowedFacultyIds, requestedFacultyId } = scope;
+
+    if (!isSystemAdmin && scopes.length === 0) {
+      return res.status(400).json({ message: 'No degree assigned — nothing to export.' });
+    }
+
+    const records = await gatherScopedEngagements(scopes, isSystemAdmin, requestedFacultyId);
+    const applicationScope: string[] | 'all' = requestedFacultyId
+      ? [requestedFacultyId]
+      : (isSystemAdmin ? 'all' : allowedFacultyIds);
+
+    const [finalGrades, applicationsByFaculty, onTimeCompletion] = await Promise.all([
+      finalGradesStats(records),
+      applicationsByFacultyStats(applicationScope),
+      onTimeCompletionStats(records),
+    ]);
+    const milestoneDistribution = milestoneDistributionStats(records);
+    const milestoneCompletion = milestoneCompletionStats(records);
+    const yearOfStudyDistribution = yearOfStudyDistributionStats(records);
+
+    const workbook = XLSX.utils.book_new();
+    addStatsSheet(workbook, 'MilestoneDistribution', milestoneDistribution.map((r) => ({
+      Type: r.nameEn || r.type, Count: r.count, Percent: r.percent,
+    })));
+    addStatsSheet(workbook, 'MilestoneCompletion', milestoneCompletion.map((r) => ({
+      Type: r.nameEn || r.type, TotalReached: r.totalReached, Completed: r.completed, Percent: r.percent,
+    })));
+    addStatsSheet(workbook, 'FinalGrades', finalGrades.byStudent.map((r) => ({
+      Student: r.studentName, Faculty: r.facultyId, Project: r.projectTitleEn || r.projectTitleHe,
+      FinalGrade: r.finalGrade ?? '', Unconfigured: r.unconfigured ? 'Yes' : 'No',
+    })));
+    addStatsSheet(workbook, 'ApplicationsByFaculty', applicationsByFaculty.map((r) => ({
+      Faculty: r.facultyId, Count: r.count, Percent: r.percent,
+    })));
+    addStatsSheet(workbook, 'OnTimeCompletion', onTimeCompletion.map((r) => ({
+      Faculty: r.facultyId, OnTime: r.onTime, Late: r.late, Total: r.total, PercentOnTime: r.percentOnTime,
+    })));
+    addStatsSheet(workbook, 'YearOfStudy', yearOfStudyDistribution.map((r) => ({
+      Year: r.yearOfStudy, Count: r.count, AvgProgressPercent: r.averageProgressPercent,
+    })));
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="coordinator-statistics.xlsx"');
+    return res.status(200).send(buffer);
+  } catch (error: any) {
+    console.error('exportCoordinatorStatistics error:', error);
+    return res.status(500).json({ message: 'Failed to export statistics.' });
   }
 };
