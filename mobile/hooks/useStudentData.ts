@@ -71,7 +71,16 @@ export function useStudentData() {
       // year 2 while still finishing their thesis), so check hasActiveProject
       // first and only fall back to the eligibility gate when there's
       // nothing already in progress to show.
-      if (userData.hasActiveProject && userData.activeProjectId) {
+      // TEMP-MULTI-APPLY: when true, bypasses the "already has an active
+      // project" gate below so an enrolled student can still browse/apply to
+      // more projects — needed to live-test the auto-close-other-applications
+      // flow (projectEnrollment.ts's closeOtherPendingApplications) without a
+      // second throwaway account. Say "revert the temp multi-apply bypass" to
+      // undo — flip this to false, or delete it and the `&& !TEMP_ALLOW_MULTI_APPLY`
+      // condition below, restoring the original block exactly as it was.
+      const TEMP_ALLOW_MULTI_APPLY = true;
+
+      if (userData.hasActiveProject && userData.activeProjectId && !TEMP_ALLOW_MULTI_APPLY) {
         // --- CASE A: Active Project ---
         try {
           const projectRes = await apiClient.get(`/api/student/projects/${userData.activeProjectId}`);
