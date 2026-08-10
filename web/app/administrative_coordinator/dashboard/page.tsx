@@ -295,7 +295,7 @@ export default function AdministrativeCoordinatorDashboardPage() {
             </button>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3">
             {filteredGroups.map((group) => (
               <div
                 key={group.id}
