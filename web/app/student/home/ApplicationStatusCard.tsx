@@ -25,6 +25,9 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
     ? new Date(application.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : '—';
   const isMeetingRequested = application.status === 'meeting_requested';
+  const reviewedDate = application.reviewedAt
+    ? new Date(application.reviewedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
 
   const handleWithdraw = async () => {
     setBusy(true);
@@ -52,6 +55,12 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
       <p className="mt-1 text-xs text-muted">
         {lang === 'he' ? 'הוגש בתאריך' : 'Submitted on'} {submittedDate}
       </p>
+
+      {reviewedDate && isMeetingRequested && (
+        <p className="mt-1 text-xs text-muted">
+          {lang === 'he' ? 'המנחה השיב בתאריך' : 'Supervisor answered on'} {reviewedDate}
+        </p>
+      )}
 
       {isMeetingRequested && (
         <p className="mt-2 rounded-lg border border-accent bg-[#FBF3E3] p-2.5 text-xs text-ink">

@@ -797,6 +797,9 @@ export interface PendingApplication {
   projectTitleEn: string;
   submittedAt: string;
   status:      'pending' | 'meeting_requested';
+  /** Set when the supervisor requested a meeting — the date of that
+   *  response, so the student can see when the supervisor answered. */
+  reviewedAt?: string | null;
 }
 
 export interface AppNotification {
@@ -828,6 +831,10 @@ export interface Application {
   studentId: string; studentName: string; studentEmail: string;
   transcriptUrl: string; cvUrl: string; coverNote: string;
   status: string; submittedAt: any; degreeType: string;
+  /** Set alongside status on every supervisor decision (approve/reject/
+   *  meeting_requested) — see server/src/controllers/supervisorController.ts's
+   *  handleApplicationDecision. Lets the supervisor see when they answered. */
+  reviewedAt?: any;
   /** Set instead of a real rejection when this application was auto-closed
    *  because the student got accepted into a different project — see
    *  server/src/services/projectEnrollment.ts's closeOtherPendingApplications. */

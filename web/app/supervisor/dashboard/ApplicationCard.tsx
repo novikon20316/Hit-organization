@@ -13,6 +13,13 @@ const STATUS_LABEL: Record<string, { he: string; en: string }> = {
   rejected: { he: 'נדחה', en: 'Rejected' },
 };
 
+// Label for the reviewedAt date, tailored to which decision it records.
+const REVIEWED_LABEL: Record<string, { he: string; en: string }> = {
+  approved: { he: 'אושר בתאריך:', en: 'Approved:' },
+  rejected: { he: 'נדחה בתאריך:', en: 'Rejected:' },
+  meeting_requested: { he: 'פגישה נקבעה בתאריך:', en: 'Meeting requested:' },
+};
+
 const SCREENING_STYLE: Record<string, { bg: string; text: string }> = {
   strong_fit: { bg: 'var(--success-bg)', text: 'var(--success)' },
   partial_fit: { bg: '#FBF3E3', text: 'var(--accent)' },
@@ -55,6 +62,13 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
     const ms = typeof app.submittedAt === 'object' ? app.submittedAt.seconds * 1000 : new Date(app.submittedAt).getTime();
     return new Date(ms).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US');
   })();
+
+  const reviewedDate = (() => {
+    if (!app.reviewedAt) return null;
+    const ms = typeof app.reviewedAt === 'object' ? app.reviewedAt.seconds * 1000 : new Date(app.reviewedAt).getTime();
+    return new Date(ms).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US');
+  })();
+  const reviewedLabel = REVIEWED_LABEL[app.status];
 
   const decide = async (decision: 'approved' | 'rejected' | 'meeting_requested') => {
     setBusy(true);
@@ -104,6 +118,12 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
           {submittedDate && (
             <p className="text-xs text-muted">
               🗓 {lang === 'he' ? 'הוגש ב:' : 'Submitted:'} {submittedDate}
+            </p>
+          )}
+
+          {reviewedDate && reviewedLabel && !app.autoClosedReason && (
+            <p className="text-xs text-muted">
+              ✅ {reviewedLabel[lang]} {reviewedDate}
             </p>
           )}
 

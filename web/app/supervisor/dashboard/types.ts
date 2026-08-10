@@ -35,6 +35,10 @@ export interface Application {
   status: string;
   submittedAt: string | { seconds: number } | null;
   degreeType: string;
+  /** Set alongside status on every supervisor decision (approve/reject/
+   *  meeting_requested) — see server/src/controllers/supervisorController.ts's
+   *  handleApplicationDecision. Lets the supervisor see when they answered. */
+  reviewedAt?: string | { seconds: number } | null;
   /** Set instead of a real rejection when this application was auto-closed
    *  because the student got accepted into a different project — see
    *  server/src/services/projectEnrollment.ts's closeOtherPendingApplications.

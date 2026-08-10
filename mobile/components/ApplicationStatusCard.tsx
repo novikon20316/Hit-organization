@@ -21,6 +21,9 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
     ? new Date(application.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : '—';
   const isMeetingRequested = application.status === 'meeting_requested';
+  const reviewedDate = application.reviewedAt
+    ? new Date(application.reviewedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
 
   const handleWithdraw = () => {
     Alert.alert(
@@ -58,6 +61,13 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
         <Text style={styles.rowLabel}>{lang === 'he' ? 'הוגש בתאריך' : 'Submitted on'}</Text>
         <Text style={styles.rowValue}>{submittedDate}</Text>
       </View>
+
+      {reviewedDate && isMeetingRequested && (
+        <View style={[styles.row, isRtl && styles.rowReverse]}>
+          <Text style={styles.rowLabel}>{lang === 'he' ? 'המנחה השיב בתאריך' : 'Supervisor answered on'}</Text>
+          <Text style={styles.rowValue}>{reviewedDate}</Text>
+        </View>
+      )}
 
       {isMeetingRequested && (
         <View style={[styles.meetingBanner, { marginTop: 12, marginBottom: 0 }]}>

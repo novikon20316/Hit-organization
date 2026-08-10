@@ -30,6 +30,13 @@ import {
   getDoc,
 } from 'firebase/firestore';
 
+// Label for the reviewedAt date, tailored to which decision it records.
+const REVIEWED_LABEL: Record<string, { he: string; en: string }> = {
+  approved: { he: 'אושר בתאריך:', en: 'Approved:' },
+  rejected: { he: 'נדחה בתאריך:', en: 'Rejected:' },
+  meeting_requested: { he: 'פגישה נקבעה בתאריך:', en: 'Meeting requested:' },
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -402,7 +409,11 @@ export default function SupervisorHome() {
                 coverNote:      data.coverNote      ?? '',
                 status:         data.status         ?? '',
                 submittedAt:    data.submittedAt    ?? null,
+                reviewedAt:     data.reviewedAt     ?? null,
                 degreeType:     data.degreeType     ?? '',
+                autoClosedReason: data.autoClosedReason ?? undefined,
+                aiScreening:    data.aiScreening    ?? undefined,
+                aiReview:       data.aiReview       ?? undefined,
               } as Application;
             });
           // Not filtered to a single status here — the Applications tab's
@@ -1072,6 +1083,18 @@ export default function SupervisorHome() {
                               app.submittedAt?.seconds
                                 ? app.submittedAt.seconds * 1000
                                 : app.submittedAt
+                            ).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
+                          </Text>
+                        )}
+
+                        {/* Date the supervisor answered (approve/reject/meeting) */}
+                        {app.reviewedAt && REVIEWED_LABEL[app.status] && app.autoClosedReason !== 'accepted_elsewhere' && (
+                          <Text style={[styles.cardMeta, isRtl && styles.textRight, { marginBottom: 8 }]}>
+                            ✅ {REVIEWED_LABEL[app.status][lang]}{' '}
+                            {new Date(
+                              app.reviewedAt?.seconds
+                                ? app.reviewedAt.seconds * 1000
+                                : app.reviewedAt
                             ).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
                           </Text>
                         )}

@@ -155,6 +155,9 @@ export interface PendingApplication {
   projectTitleEn: string;
   submittedAt: string;
   status: 'pending' | 'meeting_requested';
+  /** Set when the supervisor requested a meeting — the date of that
+   *  response, so the student can see when the supervisor answered. */
+  reviewedAt?: string | null;
 }
 
 // Ported from the local MILESTONE_LABEL const duplicated in mobile's
