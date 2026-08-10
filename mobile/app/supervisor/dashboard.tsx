@@ -128,6 +128,7 @@ export default function SupervisorHome() {
   const [loading,        setLoading]        = useState(true);
   const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines' | 'recommend' | 'signoffs'>('projects');
   const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'>('all');
+  const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'offered'>('all');
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
   const [deadlines, setDeadlines] = useState<any[]>([]);
@@ -802,6 +803,24 @@ export default function SupervisorHome() {
     { key: 'rejected', he: 'נדחו', en: 'Rejected' },
   ];
 
+  // "active" = has at least one enrolled student; "offered" = posted but no
+  // student has been accepted into it yet. Keyed off enrolledStudentIds
+  // rather than the project doc's own `status` field — that field is
+  // literally 'active' for a freshly-posted, student-less project (see
+  // createSupervisorProject) and only flips to 'in_progress' once a
+  // student enrolls, the opposite of what "active" means here.
+  const PROJECT_FILTERS: { key: 'all' | 'active' | 'offered'; he: string; en: string }[] = [
+    { key: 'all', he: 'הכל', en: 'All' },
+    { key: 'active', he: 'פעילים', en: 'Active' },
+    { key: 'offered', he: 'מוצעים', en: 'Offered' },
+  ];
+  const filteredProjects =
+    projectFilter === 'all'
+      ? myProjects
+      : myProjects.filter((p) =>
+          projectFilter === 'active' ? (p.enrolledStudentIds?.length ?? 0) > 0 : (p.enrolledStudentIds?.length ?? 0) === 0
+        );
+
   return (
     <SafeAreaView style={styles.root}>
       <TopBar
@@ -870,10 +889,37 @@ export default function SupervisorHome() {
         {/* ════ PROJECTS TAB ════ */}
         {activeTab === 'projects' && (
           <>
-            {!myProjects || myProjects.length === 0 ? (
-              <EmptyState emoji="📭" text={lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'} />
+            <View style={[{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }, isRtl && styles.rowReverse]}>
+              {PROJECT_FILTERS.map((f) => (
+                <Pressable
+                  key={f.key}
+                  onPress={() => setProjectFilter(f.key)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    backgroundColor: projectFilter === f.key ? '#2E86FF' : '#F0F4FF',
+                    borderWidth: 1,
+                    borderColor: projectFilter === f.key ? '#2E86FF' : '#D0DEFF',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: projectFilter === f.key ? '#fff' : '#475569' }}>
+                    {lang === 'he' ? f.he : f.en}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {!filteredProjects || filteredProjects.length === 0 ? (
+              <EmptyState
+                emoji="📭"
+                text={
+                  myProjects.length === 0
+                    ? lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'
+                    : lang === 'he' ? 'אין פרויקטים התואמים את הסינון' : 'No projects match this filter'
+                }
+              />
             ) : (
-              myProjects.map((p) => {
+              filteredProjects.map((p) => {
                 console.log("Mapping project:", p.id, "Enrolled students:", p.enrolledStudentIds);
                 const fc = getFacultyColor(p.facultyId);
                 return (

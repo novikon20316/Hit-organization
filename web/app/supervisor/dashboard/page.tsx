@@ -27,6 +27,7 @@ const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
 type Tab = 'applications' | 'grading' | 'projects' | 'deadlines' | 'recommend' | 'signoffs';
 type ApplicationFilter = 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected';
+type ProjectFilter = 'all' | 'active' | 'offered';
 
 const APPLICATION_FILTERS: { key: ApplicationFilter; he: string; en: string }[] = [
   { key: 'all', he: 'הכל', en: 'All' },
@@ -36,12 +37,25 @@ const APPLICATION_FILTERS: { key: ApplicationFilter; he: string; en: string }[] 
   { key: 'rejected', he: 'נדחו', en: 'Rejected' },
 ];
 
+// "active" = has at least one enrolled student; "offered" = posted but no
+// student has been accepted into it yet. Deliberately keyed off
+// enrolledStudentIds rather than the project doc's own `status` field —
+// that field is literally 'active' for a freshly-posted, student-less
+// project (see createSupervisorProject) and only flips to 'in_progress'
+// once a student enrolls, the opposite of what "active" means here.
+const PROJECT_FILTERS: { key: ProjectFilter; he: string; en: string }[] = [
+  { key: 'all', he: 'הכל', en: 'All' },
+  { key: 'active', he: 'פעילים', en: 'Active' },
+  { key: 'offered', he: 'מוצעים', en: 'Offered' },
+];
+
 export default function SupervisorDashboardPage() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
 
   const [tab, setTab] = useState<Tab>('applications');
   const [applicationFilter, setApplicationFilter] = useState<ApplicationFilter>('all');
+  const [projectFilter, setProjectFilter] = useState<ProjectFilter>('all');
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [pendingGrades, setPendingGrades] = useState<SupervisorPendingMilestone[]>([]);
@@ -112,6 +126,13 @@ export default function SupervisorDashboardPage() {
   const pendingApplicationsCount = applications.filter((app) => app.status === 'applied').length;
   const filteredApplications =
     applicationFilter === 'all' ? applications : applications.filter((app) => app.status === applicationFilter);
+
+  const filteredProjects =
+    projectFilter === 'all'
+      ? myProjects
+      : myProjects.filter((p) =>
+          projectFilter === 'active' ? (p.enrolledStudentIds?.length ?? 0) > 0 : (p.enrolledStudentIds?.length ?? 0) === 0
+        );
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'applications', label: lang === 'he' ? 'מועמדויות' : 'Applications', count: pendingApplicationsCount },
@@ -210,12 +231,41 @@ export default function SupervisorDashboardPage() {
           )}
 
           {tab === 'projects' && (
-            <div className="grid gap-3 pb-20 sm:grid-cols-2">
-              {myProjects.map((p) => (
-                <ProjectCard key={p.id} project={p} onEdit={setEditingProject} onChanged={fetchDashboard} />
-              ))}
-              {myProjects.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'}</p>}
-            </div>
+            <>
+              <div className="mb-4 flex gap-1 overflow-x-auto">
+                {PROJECT_FILTERS.map(({ key, he, en }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setProjectFilter(key)}
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      projectFilter === key
+                        ? 'bg-primary text-primary-ink'
+                        : 'bg-paper text-muted hover:text-ink'
+                    }`}
+                  >
+                    {lang === 'he' ? he : en}
+                  </button>
+                ))}
+              </div>
+              <div className="grid gap-3 pb-20 sm:grid-cols-2">
+                {filteredProjects.map((p) => (
+                  <ProjectCard key={p.id} project={p} onEdit={setEditingProject} onChanged={fetchDashboard} />
+                ))}
+                {filteredProjects.length === 0 && (
+                  <p className="text-sm text-muted">
+                    📭{' '}
+                    {myProjects.length === 0
+                      ? lang === 'he'
+                        ? 'טרם פרסמת פרויקטים'
+                        : 'No projects posted yet'
+                      : lang === 'he'
+                        ? 'אין פרויקטים התואמים את הסינון'
+                        : 'No projects match this filter'}
+                  </p>
+                )}
+              </div>
+            </>
           )}
 
           {tab === 'deadlines' && <DeadlinesTab deadlines={deadlines} />}
