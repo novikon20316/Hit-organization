@@ -27,9 +27,7 @@ export default function StudentHomePage() {
   const {
     studentState,
     proposals,
-    activeProject,
-    milestones,
-    progress,
+    activeProjects,
     pendingApplications,
     studentDegree,
     studentCompletedCourses,
@@ -79,9 +77,16 @@ export default function StudentHomePage() {
           />
         )}
 
-        {studentState === 'active' && activeProject && (
-          <ActiveDashboard project={activeProject} milestones={milestones} progress={progress} onChanged={refresh} />
-        )}
+        {/* TEMP-2-ACTIVE-PROJECTS: activeProjects can hold more than one
+            entry while the server-side bypass is on (projectEnrollment.ts) —
+            normally just the one. Say "revert the temp 2-active-projects
+            bypass" to undo. */}
+        {studentState === 'active' &&
+          activeProjects.map((ap) => (
+            <div key={ap.project.id} className="mb-6">
+              <ActiveDashboard project={ap.project} milestones={ap.milestones} progress={ap.progress} onChanged={refresh} />
+            </div>
+          ))}
       </DashboardShell>
       <ChatbotFab />
     </>

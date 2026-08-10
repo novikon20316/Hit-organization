@@ -135,6 +135,25 @@ export async function enrollStudentInProject(
     templateDefaultRouting = resolved.defaultRouting;
   }
 
+  // TEMP-2-ACTIVE-PROJECTS: when true, lets a student be enrolled in up to
+  // TWO projects at once instead of exactly one — needed to live-test what a
+  // student with 2 concurrent active projects actually looks like across the
+  // dashboards, without a second throwaway account. Say "revert the temp
+  // 2-active-projects bypass" to undo — flip this to false (or delete it and
+  // the `&& willHaveActiveCount <= 2` condition below), restoring the
+  // original single-active-project guard exactly as it was. Scoped to this
+  // function only — the admin/faculty-admin manual-assignment endpoints
+  // still run their own separate hasActiveProject pre-check upstream of this
+  // call, so this bypass only actually takes effect via the supervisor
+  // application-decision path.
+  const TEMP_ALLOW_SECOND_ACTIVE_PROJECT = true;
+
+  // Set inside the transaction below (and re-set on any Firestore retry) —
+  // read afterward to decide whether this enrollment should trigger
+  // closeOtherPendingApplications. Declared here so that decision has access
+  // to it once the transaction settles.
+  let willHaveActiveCount = 1;
+
   // Wrapped in a transaction: the three callers (supervisor approving an
   // application, admin manual assignment, faculty-admin manual assignment)
   // each pre-check hasActiveProject with a plain read before calling this —
@@ -144,7 +163,13 @@ export async function enrollStudentInProject(
   // error instead of silently double-enrolling the student.
   await db.runTransaction(async (transaction) => {
     const studentSnap = await transaction.get(studentRef);
-    if (studentSnap.data()?.hasActiveProject) {
+    const studentDataBefore = studentSnap.data();
+
+    const priorActiveIds: string[] = studentDataBefore?.activeProjectIds
+      ?? (studentDataBefore?.hasActiveProject && studentDataBefore?.activeProjectId ? [studentDataBefore.activeProjectId] : []);
+    willHaveActiveCount = priorActiveIds.includes(projectId) ? priorActiveIds.length : priorActiveIds.length + 1;
+
+    if (studentDataBefore?.hasActiveProject && !(TEMP_ALLOW_SECOND_ACTIVE_PROJECT && willHaveActiveCount <= 2)) {
       throw new Error('Student already has an active project.');
     }
 
@@ -160,7 +185,13 @@ export async function enrollStudentInProject(
 
     transaction.update(studentRef, {
       hasActiveProject: true,
+      // Kept alongside the new array below — every other consumer of this
+      // student doc (available-students filters, "my students" rosters,
+      // etc.) still reads this scalar as "the" active project/supervisor and
+      // is unaffected by the temp bypass; only the student's own dashboard
+      // additionally reads activeProjectIds to render both at once.
       activeProjectId:  projectId,
+      activeProjectIds: admin.firestore.FieldValue.arrayUnion(projectId),
       supervisorId,
     });
 
@@ -234,9 +265,20 @@ export async function enrollStudentInProject(
     }
   });
 
-  await closeOtherPendingApplications(
-    studentId,
-    { he: projectDataForTemplate.titleHe ?? '', en: projectDataForTemplate.titleEn ?? '' },
-    studentSnapForMajor.data()?.displayName ?? studentSnapForMajor.data()?.displayNameHe ?? '',
-  );
+  // TEMP-2-ACTIVE-PROJECTS: under the bypass above, a student's first
+  // acceptance must NOT close their other pending applications — otherwise
+  // there would be nothing left for a second supervisor to ever accept them
+  // into, defeating the point of testing 2 concurrent projects. Only once
+  // this enrollment brings them to their 2nd active project does the normal
+  // "close everything else" behavior apply (still correctly capping this
+  // student at 2 active projects, never 3+). With the bypass reverted,
+  // willHaveActiveCount is always 1 on a fresh enrollment, so this runs
+  // unconditionally exactly as it did before.
+  if (willHaveActiveCount >= 2) {
+    await closeOtherPendingApplications(
+      studentId,
+      { he: projectDataForTemplate.titleHe ?? '', en: projectDataForTemplate.titleEn ?? '' },
+      studentSnapForMajor.data()?.displayName ?? studentSnapForMajor.data()?.displayNameHe ?? '',
+    );
+  }
 }

@@ -15,12 +15,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication, MilestoneType } from '@/app/student/home/types';
 import { MILESTONE_ORDER } from '@/app/student/home/types';
 
+// TEMP-2-ACTIVE-PROJECTS: one entry per project the student is currently
+// enrolled in — normally just one, but the server-side bypass in
+// projectEnrollment.ts can seat a student in up to two at once. Say "revert
+// the temp 2-active-projects bypass" to undo — once the server side is
+// reverted, activeProjectIds is always a single-element array again and
+// this just renders one dashboard, same as before this existed.
+export interface ActiveProjectEntry {
+  project: ActiveProject;
+  milestones: Milestone[];
+}
+
 export function useStudentData() {
   const { loading: authLoading, firebaseUser } = useAuth();
   const [studentState, setStudentState] = useState<StudentState>('loading');
   const [proposals, setProposals] = useState<ProjectProposal[]>([]);
-  const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [activeProjects, setActiveProjects] = useState<ActiveProjectEntry[]>([]);
   const [pendingApplications, setPendingApplications] = useState<PendingApplication[]>([]);
   const [studentName, setStudentName] = useState('');
   const [studentDegree, setStudentDegree] = useState<DegreeType>('bachelors');
@@ -63,6 +73,7 @@ export function useStudentData() {
         completedCourses?: unknown;
         hasActiveProject?: boolean;
         activeProjectId?: string;
+        activeProjectIds?: string[];
         isEligibleForProcess?: boolean;
       };
 
@@ -76,30 +87,33 @@ export function useStudentData() {
       setStudentYearOfStudy(userData.yearOfStudy ?? null);
       setStudentCompletedCourses(normalizeCompletedCourses(userData.completedCourses));
 
-      // TEMP-MULTI-APPLY: when true, bypasses the "already has an active
-      // project" gate below so an enrolled student can still browse/apply to
-      // more projects — needed to live-test the auto-close-other-applications
-      // flow (projectEnrollment.ts's closeOtherPendingApplications) without a
-      // second throwaway account. Say "revert the temp multi-apply bypass" to
-      // undo — flip this to false, or delete it and the `&& !TEMP_ALLOW_MULTI_APPLY`
-      // condition below, restoring the original block exactly as it was.
-      const TEMP_ALLOW_MULTI_APPLY = true;
+      // activeProjectIds is the TEMP-2-ACTIVE-PROJECTS field — falls back to
+      // the single scalar activeProjectId for any student not currently
+      // seated in a 2nd project (i.e. everyone, with the bypass reverted).
+      const activeIds: string[] = userData.activeProjectIds?.length
+        ? userData.activeProjectIds
+        : userData.hasActiveProject && userData.activeProjectId
+          ? [userData.activeProjectId]
+          : [];
 
-      if (userData.hasActiveProject && userData.activeProjectId && !TEMP_ALLOW_MULTI_APPLY) {
+      if (activeIds.length > 0) {
         try {
-          const project = (await apiClient.getStudentProject(userData.activeProjectId)) as unknown as ActiveProject;
-          setActiveProject(project);
-
-          const milestonesRes = await apiClient.getMilestones({ studentId: uid });
-          const sorted = (milestonesRes?.milestones || []).sort(
-            (a, b) =>
-              MILESTONE_ORDER.indexOf((a as unknown as Milestone).type as MilestoneType) -
-              MILESTONE_ORDER.indexOf((b as unknown as Milestone).type as MilestoneType)
+          const loaded = await Promise.all(
+            activeIds.map(async (pid) => {
+              const project = (await apiClient.getStudentProject(pid)) as unknown as ActiveProject;
+              const milestonesRes = await apiClient.getMilestones({ studentId: uid, projectId: pid });
+              const sorted = (milestonesRes?.milestones || []).sort(
+                (a, b) =>
+                  MILESTONE_ORDER.indexOf((a as unknown as Milestone).type as MilestoneType) -
+                  MILESTONE_ORDER.indexOf((b as unknown as Milestone).type as MilestoneType)
+              ) as unknown as Milestone[];
+              return { project, milestones: sorted };
+            })
           );
-          setMilestones(sorted as unknown as Milestone[]);
+          setActiveProjects(loaded);
           setStudentState('active');
         } catch (e) {
-          console.error('Failed to load active project:', e);
+          console.error('Failed to load active project(s):', e);
           setStudentState('no_project');
         }
       } else if (!userData.isEligibleForProcess) {
@@ -221,14 +235,19 @@ export function useStudentData() {
     return () => cancel(unsubUserDoc);
   }, [firebaseUser, fetchDashboardData]);
 
-  // ── EFFECT 4: live milestones listener (only when active project loaded) ──
+  // ── EFFECT 4: live milestones listener (only when active project(s) loaded) ──
+  // One listener covering every active project at once (studentIds
+  // array-contains, no projectId filter), grouped back out by projectId
+  // below — simpler than juggling one onSnapshot per project, and works
+  // identically whether the student has 1 or 2 active projects.
+  const activeProjectIdsKey = activeProjects.map((ap) => ap.project.id).sort().join(',');
   useEffect(() => {
     cancel(unsubMilestones);
-    if (studentState !== 'active' || !activeProject?.id) return;
+    if (studentState !== 'active' || !activeProjectIdsKey) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
-    const q = query(collection(db, 'milestones'), where('projectId', '==', activeProject.id), where('studentIds', 'array-contains', uid));
+    const q = query(collection(db, 'milestones'), where('studentIds', 'array-contains', uid));
 
     const unsub = onSnapshot(
       q,
@@ -237,6 +256,7 @@ export function useStudentData() {
           const data = d.data();
           return {
             id: d.id,
+            projectId: data.projectId,
             type: data.type,
             status: data.status,
             dueDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
@@ -250,10 +270,17 @@ export function useStudentData() {
             defenseTime: data.defenseTime ?? null,
             examinerNames: data.examinerNames ?? [],
             examinerIds: data.examinerIds ?? [],
-          } as Milestone;
+          } as Milestone & { projectId: string };
         });
 
-        setMilestones(liveMilestones.sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type)));
+        setActiveProjects((prev) =>
+          prev.map((ap) => ({
+            ...ap,
+            milestones: liveMilestones
+              .filter((m) => m.projectId === ap.project.id)
+              .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type)),
+          }))
+        );
       },
       (err) => {
         if ((err as { code?: string }).code === 'permission-denied') return;
@@ -263,13 +290,26 @@ export function useStudentData() {
 
     unsubMilestones.current = unsub;
     return () => cancel(unsubMilestones);
-  }, [studentState, activeProject?.id]);
+  }, [studentState, activeProjectIdsKey]);
 
-  const nextMilestone: Milestone | null =
-    milestones.find((m) => m.status === 'submitted' || m.status === 'supervisor_graded') ?? milestones.find((m) => m.status === 'pending') ?? null;
+  const withDerived = (milestones: Milestone[]) => ({
+    nextMilestone:
+      milestones.find((m) => m.status === 'submitted' || m.status === 'supervisor_graded') ?? milestones.find((m) => m.status === 'pending') ?? null,
+    progress:
+      milestones.length > 0
+        ? Math.round((milestones.filter((m) => m.status === 'coordinator_approved').length / milestones.length) * 100)
+        : 0,
+  });
 
-  const completedCount = milestones.filter((m) => m.status === 'coordinator_approved').length;
-  const progress = milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0;
+  const activeProjectsWithDerived = activeProjects.map((ap) => ({ ...ap, ...withDerived(ap.milestones) }));
+
+  // Back-compat single-project view for any code not yet updated to the
+  // activeProjects array — the first entry, same as the only entry when the
+  // TEMP-2-ACTIVE-PROJECTS bypass isn't in effect.
+  const activeProject = activeProjectsWithDerived[0]?.project ?? null;
+  const milestones = activeProjectsWithDerived[0]?.milestones ?? [];
+  const nextMilestone = activeProjectsWithDerived[0]?.nextMilestone ?? null;
+  const progress = activeProjectsWithDerived[0]?.progress ?? 0;
 
   return {
     studentState,
@@ -278,6 +318,7 @@ export function useStudentData() {
     studentCompletedCourses,
     studentDegree,
     proposals,
+    activeProjects: activeProjectsWithDerived,
     activeProject,
     milestones,
     nextMilestone,

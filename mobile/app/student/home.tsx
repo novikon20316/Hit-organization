@@ -3,8 +3,8 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text,
-  ActivityIndicator,
+  View, Text, Pressable,
+  ActivityIndicator, StyleSheet,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
@@ -22,10 +22,15 @@ import ChatbotFab       from '@/components/ChatbotFab';
 export default function StudentHome() {
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
+  // TEMP-2-ACTIVE-PROJECTS: which of activeProjects[] is shown below — a
+  // plain switcher rather than stacking two full ActiveDashboards (each has
+  // its own internal tab bar + flex-filling ScrollView, not designed to sit
+  // side by side). Say "revert the temp 2-active-projects bypass" to undo.
+  const [selectedProjectIndex, setSelectedProjectIndex] = useState(0);
 
   const {
     studentState, studentName, studentYearOfStudy,
-    proposals, activeProject, milestones, nextMilestone, progress,
+    proposals, activeProjects,
     pendingApplications, studentDegree, studentCompletedCourses, cancelAllListeners, refresh
   } = useStudentData();
 
@@ -95,15 +100,46 @@ export default function StudentHome() {
         />
       )}
 
-      {studentState === 'active' && activeProject && (
-        <ActiveDashboard
-          project={activeProject}
-          milestones={milestones}
-          nextMilestone={nextMilestone}
-          progress={progress}
-          lang={lang}
-          isRtl={isRtl}
-        />
+      {/* TEMP-2-ACTIVE-PROJECTS: activeProjects can hold more than one entry
+          while the server-side bypass is on (projectEnrollment.ts) —
+          normally just the one, in which case this switcher row never
+          renders at all. Say "revert the temp 2-active-projects bypass" to
+          undo. */}
+      {studentState === 'active' && activeProjects.length > 0 && (
+        <>
+          {activeProjects.length > 1 && (
+            <View style={[tempStyles.switcherRow, isRtl && tempStyles.switcherRowRtl]}>
+              {activeProjects.map((ap, i) => (
+                <Pressable
+                  key={ap.project.id}
+                  style={[tempStyles.switcherPill, i === selectedProjectIndex && tempStyles.switcherPillActive]}
+                  onPress={() => setSelectedProjectIndex(i)}
+                >
+                  <Text
+                    style={[tempStyles.switcherText, i === selectedProjectIndex && tempStyles.switcherTextActive]}
+                    numberOfLines={1}
+                  >
+                    {lang === 'he' ? ap.project.titleHe : ap.project.titleEn}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          {(() => {
+            const selected = activeProjects[Math.min(selectedProjectIndex, activeProjects.length - 1)];
+            return (
+              <ActiveDashboard
+                key={selected.project.id}
+                project={selected.project}
+                milestones={selected.milestones}
+                nextMilestone={selected.nextMilestone}
+                progress={selected.progress}
+                lang={lang}
+                isRtl={isRtl}
+              />
+            );
+          })()}
+        </>
       )}
 
       <ChatbotFab lang={lang} corner="bottom-left" />
@@ -112,3 +148,14 @@ export default function StudentHome() {
 }
 
 const styles = studentHomeStyles;
+
+// TEMP-2-ACTIVE-PROJECTS: styles for the project switcher row above — delete
+// alongside the rest of this bypass once reverted.
+const tempStyles = StyleSheet.create({
+  switcherRow:      { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E0E8FF' },
+  switcherRowRtl:   { flexDirection: 'row-reverse' },
+  switcherPill:     { flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 20, backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: '#D0DEFF', alignItems: 'center' },
+  switcherPillActive: { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
+  switcherText:     { fontSize: 12, fontWeight: '600', color: '#445' },
+  switcherTextActive: { color: '#fff' },
+});
