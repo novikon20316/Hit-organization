@@ -70,6 +70,14 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+// Same order/"done" convention used elsewhere (e.g. projectCoordinatorController.ts)
+// for resolving a project's current, still-open milestone — used below to
+// fold the old standalone Deadlines tab's info directly into each project
+// card instead.
+const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
+const DONE_MILESTONE_STATUSES = new Set(['coordinator_approved', 'completed']);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 // ─── GET /api/supervisor/dashboard ───────────────────────────────────────────
 // CRITICAL FIX: every query here used to filter on `supervisorId` only, so a
 // secondary_supervisor's dashboard was permanently empty — projects,
@@ -99,8 +107,87 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
     });
     const myProjectIds = [...seenProjectIds];
 
+    const applicationChunks = myProjectIds.length
+      ? await Promise.all(chunk(myProjectIds, 30).map((ids) => db.collection('applications').where('projectId', 'in', ids).get()))
+      : [];
+    // Not filtered to a single status — the Applications tab's status
+    // filter (Approved / Set-Meeting / Rejected / All) needs every
+    // application for this supervisor's projects, not just open ones.
+    const applications = applicationChunks
+      .flatMap((snap) => snap.docs)
+      .map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    // Unfiltered — shared below by pendingGrades (status === 'submitted') AND
+    // each project's own currentMilestone due-date info (any status), so
+    // both are derived from one Firestore read instead of two.
+    const milestoneChunks = myProjectIds.length
+      ? await Promise.all(chunk(myProjectIds, 30).map((ids) => db.collection('milestones').where('projectId', 'in', ids).get()))
+      : [];
+    const allMilestoneDocs = milestoneChunks.flatMap((snap) => snap.docs);
+    const milestoneDocs = allMilestoneDocs.filter((doc) => doc.data().status === 'submitted');
+
+    const milestonesByProjectId: Record<string, any[]> = {};
+    allMilestoneDocs.forEach((doc) => {
+      const data = doc.data();
+      (milestonesByProjectId[data.projectId] ??= []).push({ id: doc.id, ...data });
+    });
+
+    // Resolve enrolled-student display info once for every project at once —
+    // this is what used to live on the standalone Deadlines tab (student
+    // name/degree/year), now folded directly into each project card instead.
+    const enrolledStudentIds = [...new Set(projectDocs.flatMap((doc) => doc.data().enrolledStudentIds ?? []))];
+    const studentSnaps = enrolledStudentIds.length
+      ? await Promise.all(enrolledStudentIds.map((id) => db.collection('users').doc(id as string).get()))
+      : [];
+    const studentInfoById: Record<string, { name: string; degreeType: string | null; yearOfStudy: number | null }> = {};
+    studentSnaps.forEach((snap) => {
+      if (!snap.exists) return;
+      const data = snap.data()!;
+      studentInfoById[snap.id] = {
+        name:        data.displayName ?? data.displayNameHe ?? '',
+        degreeType:  data.degreeType  ?? null,
+        yearOfStudy: data.yearOfStudy ?? null,
+      };
+    });
+
+    const now = Date.now();
+
     const myProjects = projectDocs.map(doc => {
       const data = doc.data();
+      const projectMilestones = (milestonesByProjectId[doc.id] ?? [])
+        .slice()
+        .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+      // The first not-yet-done milestone, in template order — mirrors
+      // getProjectCoordinatorDashboard's own "current milestone" resolution.
+      // Fully-done projects (or ones with no milestones yet, e.g. no student
+      // enrolled) get no currentMilestone at all — there's no meaningful due
+      // date left to color-code.
+      const current = projectMilestones.find((m) => !DONE_MILESTONE_STATUSES.has(m.status)) ?? null;
+
+      let currentMilestone: {
+        nameHe: string; nameEn: string; type: string;
+        dueDate: string | null; daysLeft: number | null;
+        urgency: 'green' | 'orange' | 'red' | null;
+      } | null = null;
+
+      if (current) {
+        const dueDate = current.dueDate?.toDate?.() ?? null;
+        const daysLeft = dueDate ? Math.ceil((dueDate.getTime() - now) / DAY_MS) : null;
+        // green: more than a week left · orange: 1-7 days left · red: due
+        // today or already past due — see the supervisor dashboard's project
+        // card border color.
+        const urgency: 'green' | 'orange' | 'red' | null =
+          daysLeft === null ? null : daysLeft > 7 ? 'green' : daysLeft >= 1 ? 'orange' : 'red';
+        currentMilestone = {
+          nameHe: current.nameHe ?? current.type,
+          nameEn: current.nameEn ?? current.type,
+          type:   current.type,
+          dueDate: dueDate ? dueDate.toISOString() : null,
+          daysLeft,
+          urgency,
+        };
+      }
+
       return {
         id:                 doc.id,
         titleHe:            data.titleHe            ?? '',
@@ -117,23 +204,15 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         NumberOfStudents:   data.maxStudents        ?? data.NumberOfStudents ?? 1,
         requiredSkills:     data.requiredSkills     ?? [],
         projectFileUrl:     data.projectFileUrl     ?? null,
+        enrolledStudents: (data.enrolledStudentIds ?? []).map((sid: string) => ({
+          id: sid,
+          name: studentInfoById[sid]?.name ?? '',
+          degreeType: studentInfoById[sid]?.degreeType ?? null,
+          yearOfStudy: studentInfoById[sid]?.yearOfStudy ?? null,
+        })),
+        currentMilestone,
       };
     });
-
-    const applicationChunks = myProjectIds.length
-      ? await Promise.all(chunk(myProjectIds, 30).map((ids) => db.collection('applications').where('projectId', 'in', ids).get()))
-      : [];
-    // Not filtered to a single status — the Applications tab's status
-    // filter (Approved / Set-Meeting / Rejected / All) needs every
-    // application for this supervisor's projects, not just open ones.
-    const applications = applicationChunks
-      .flatMap((snap) => snap.docs)
-      .map((doc) => ({ id: doc.id, ...doc.data() }));
-
-    const milestoneChunks = myProjectIds.length
-      ? await Promise.all(chunk(myProjectIds, 30).map((ids) => db.collection('milestones').where('projectId', 'in', ids).get()))
-      : [];
-    const milestoneDocs = milestoneChunks.flatMap((snap) => snap.docs).filter((doc) => doc.data().status === 'submitted');
 
     const pendingGrades = milestoneDocs.map(doc => {
       const data = doc.data();

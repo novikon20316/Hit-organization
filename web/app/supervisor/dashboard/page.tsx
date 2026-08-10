@@ -20,12 +20,14 @@ import { ProjectCard } from './ProjectCard';
 import { EditProjectModal } from './EditProjectModal';
 import { NewProjectModal } from './NewProjectModal';
 import { RecommendExaminersModal } from './RecommendExaminersModal';
-import { DeadlinesTab } from './DeadlinesTab';
-import type { MyProject, Application, SupervisorPendingMilestone, SupervisorDeadline } from './types';
+import type { MyProject, Application, SupervisorPendingMilestone } from './types';
 
 const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
-type Tab = 'applications' | 'grading' | 'projects' | 'deadlines' | 'recommend' | 'signoffs';
+// 'projects' listed first — this page's root container is under
+// dir="rtl" (see app/layout.tsx), so a plain flex row already renders its
+// first child at the visual right edge; no explicit row-reverse needed.
+type Tab = 'projects' | 'applications' | 'grading' | 'recommend' | 'signoffs';
 type ApplicationFilter = 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected';
 type ProjectFilter = 'all' | 'active' | 'offered';
 
@@ -50,7 +52,7 @@ const PROJECT_FILTERS: { key: ProjectFilter; he: string; en: string }[] = [
 ];
 
 export default function SupervisorDashboardPage() {
-  const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(SUPERVISOR_ROLES);
+  const { loading: guardLoading, isAllowed } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
 
   const [tab, setTab] = useState<Tab>('projects');
@@ -61,7 +63,6 @@ export default function SupervisorDashboardPage() {
   const [pendingGrades, setPendingGrades] = useState<SupervisorPendingMilestone[]>([]);
   const [recommendations, setRecommendations] = useState<ExaminerRecommendation[]>([]);
   const [internalExaminers, setInternalExaminers] = useState<ExaminerUser[]>([]);
-  const [deadlines, setDeadlines] = useState<SupervisorDeadline[]>([]);
   const [facultyId, setFacultyId] = useState<FacultyId>('all');
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -79,23 +80,12 @@ export default function SupervisorDashboardPage() {
       setPendingGrades((data.pendingGrades ?? []) as unknown as SupervisorPendingMilestone[]);
       if (data.facultyId) setFacultyId(data.facultyId as FacultyId);
       setLoadError('');
-
-      // Non-fatal — deadlines failing to load shouldn't block the rest of
-      // the dashboard, same treatment as the recommendations fetch below.
-      try {
-        if (firebaseUser) {
-          const dl = await apiClient.getStaffDeadlines(firebaseUser.uid);
-          setDeadlines((dl.deadlines ?? []) as unknown as SupervisorDeadline[]);
-        }
-      } catch {
-        setDeadlines([]);
-      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת לוח הבקרה נכשלה' : 'Failed to load the dashboard');
     } finally {
       setLoadingData(false);
     }
-  }, [lang, firebaseUser]);
+  }, [lang]);
 
   const fetchRecommendationsData = useCallback(async () => {
     try {
@@ -135,10 +125,9 @@ export default function SupervisorDashboardPage() {
         );
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: 'projects', label: lang === 'he' ? 'הפרויקטים שלי' : 'My Projects' },
     { key: 'applications', label: lang === 'he' ? 'מועמדויות' : 'Applications', count: pendingApplicationsCount },
     { key: 'grading', label: lang === 'he' ? 'ציונים' : 'Grading', count: pendingGrades.length },
-    { key: 'projects', label: lang === 'he' ? 'הפרויקטים שלי' : 'My Projects' },
-    { key: 'deadlines', label: lang === 'he' ? 'מועדי הגשה' : 'Deadlines' },
     { key: 'recommend', label: lang === 'he' ? 'המלצת בוחנים' : 'Recommend Examiners' },
     { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
   ];
@@ -248,7 +237,7 @@ export default function SupervisorDashboardPage() {
                   </button>
                 ))}
               </div>
-              <div className="grid gap-3 pb-20 sm:grid-cols-2">
+              <div className="grid gap-3 pb-20">
                 {filteredProjects.map((p) => (
                   <ProjectCard key={p.id} project={p} onEdit={setEditingProject} onChanged={fetchDashboard} />
                 ))}
@@ -267,8 +256,6 @@ export default function SupervisorDashboardPage() {
               </div>
             </>
           )}
-
-          {tab === 'deadlines' && <DeadlinesTab deadlines={deadlines} />}
 
           {tab === 'recommend' && (
             <div className="grid gap-3 sm:grid-cols-2">

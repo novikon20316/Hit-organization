@@ -11,6 +11,15 @@ import { ProjectWorkflowModal } from './ProjectWorkflowModal';
 import type { FacultyId } from '@/lib/i18n';
 import type { MyProject } from './types';
 
+// Due-date urgency border color — green: more than a week left, orange:
+// 1-7 days left, red: due today or already past due. Matches the same
+// thresholds the server used to compute currentMilestone.urgency.
+const URGENCY_COLOR: Record<'green' | 'orange' | 'red', string> = {
+  green: '#3F6B4C',
+  orange: '#B8862E',
+  red: '#A8433A',
+};
+
 interface ProjectCardProps {
   project: MyProject;
   onEdit: (project: MyProject) => void;
@@ -24,6 +33,9 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
   const [deleting, setDeleting] = useState(false);
   const [showWorkflow, setShowWorkflow] = useState(false);
 
+  const urgency = p.currentMilestone?.urgency ?? null;
+  const urgencyColor = urgency ? URGENCY_COLOR[urgency] : 'transparent';
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -36,6 +48,7 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
   };
 
   return (
+    <div className="rounded-[calc(var(--radius)+4px)] p-1" style={{ border: `2px solid ${urgencyColor}` }}>
     <div className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
       <div className="flex items-center gap-1.5">
         <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}>
@@ -49,6 +62,35 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
         {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'} ·{' '}
         {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}
       </p>
+
+      {(p.enrolledStudents?.length ?? 0) > 0 && (
+        <div className="mt-1.5 grid gap-0.5">
+          {p.enrolledStudents!.map((s) => (
+            <p key={s.id} className="text-xs text-muted">
+              👤 {s.name || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable')}
+              {s.degreeType ? ` · ${s.degreeType === 'bachelors' ? t('bachelors') : t('masters')}` : ''}
+              {s.yearOfStudy ? ` · ${lang === 'he' ? 'שנה' : 'Year'} ${s.yearOfStudy}` : ''}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {p.currentMilestone && (
+        <p className="mt-1.5 text-xs font-medium" style={{ color: urgencyColor }}>
+          🗓 {lang === 'he' ? p.currentMilestone.nameHe : p.currentMilestone.nameEn}
+          {p.currentMilestone.daysLeft !== null &&
+            ` — ${
+              p.currentMilestone.daysLeft < 0
+                ? lang === 'he'
+                  ? `באיחור של ${Math.abs(p.currentMilestone.daysLeft)} ימים`
+                  : `${Math.abs(p.currentMilestone.daysLeft)}d overdue`
+                : lang === 'he'
+                  ? `${p.currentMilestone.daysLeft} ימים נותרו`
+                  : `${p.currentMilestone.daysLeft}d left`
+            }`}
+        </p>
+      )}
+
       {(p.applicationIds?.length ?? 0) > 0 && (
         <p className="mt-1.5 text-xs font-medium text-accent">
           📨 {p.applicationIds.length} {lang === 'he' ? 'מועמדויות' : 'applications'}
@@ -92,6 +134,7 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
+    </div>
     </div>
   );
 }

@@ -1,6 +1,22 @@
 // app/supervisor/dashboard/types.ts
 import type { FacultyId } from '@/lib/i18n';
 
+export interface MyProjectMilestoneInfo {
+  nameHe: string;
+  nameEn: string;
+  type: string;
+  dueDate: string | null;
+  daysLeft: number | null;
+  urgency: 'green' | 'orange' | 'red' | null;
+}
+
+export interface MyProjectEnrolledStudent {
+  id: string;
+  name: string;
+  degreeType: string | null;
+  yearOfStudy: number | null;
+}
+
 export interface MyProject {
   id: string;
   titleHe: string;
@@ -19,6 +35,14 @@ export interface MyProject {
   enrolledStudentIds: string[];
   applicationIds: string[];
   NumberOfStudents: number;
+  /** Resolved enrolled-student display info — what the old standalone
+   *  Deadlines tab used to show (name/degree/year), now folded directly
+   *  into each project card instead. */
+  enrolledStudents?: MyProjectEnrolledStudent[];
+  /** The project's first not-yet-done milestone, in template order — null
+   *  once every milestone is done (or none exist yet, e.g. no student
+   *  enrolled). Drives the project card's due-date border color. */
+  currentMilestone?: MyProjectMilestoneInfo | null;
 }
 
 export interface Application {

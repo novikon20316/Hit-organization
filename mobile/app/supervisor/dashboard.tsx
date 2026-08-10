@@ -37,6 +37,15 @@ const REVIEWED_LABEL: Record<string, { he: string; en: string }> = {
   meeting_requested: { he: 'פגישה נקבעה בתאריך:', en: 'Meeting requested:' },
 };
 
+// Due-date urgency border color for a project card — green: more than a
+// week left, orange: 1-7 days left, red: due today or already past due.
+// Matches the thresholds the server computes for currentMilestone.urgency.
+const URGENCY_COLOR: Record<'green' | 'orange' | 'red', string> = {
+  green: '#3F6B4C',
+  orange: '#B8862E',
+  red: '#A8433A',
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -126,13 +135,14 @@ export default function SupervisorHome() {
   const [supervisorId,   setSupervisorId]   = useState('');  
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loading,        setLoading]        = useState(true);
-  const [activeTab,      setActiveTab]      = useState<'projects' | 'applications' | 'grading' | 'deadlines' | 'recommend' | 'signoffs'>('projects');
+  // 'projects' listed last — this tab bar's ScrollView doesn't mirror for
+  // RTL (no isRtl row-reverse, unlike the rest of this file's rows), so the
+  // last array item is what ends up rightmost/last-scrolled-to.
+  const [activeTab,      setActiveTab]      = useState<'applications' | 'grading' | 'recommend' | 'signoffs' | 'projects'>('projects');
   const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'offered'>('all');
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
-  const [deadlines, setDeadlines] = useState<any[]>([]);
-  const [loadingDeadlines, setLoadingDeadlines] = useState(false);
 
   // ── New project modal ─────────────────────────────────────────────────────
   const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
@@ -259,23 +269,6 @@ export default function SupervisorHome() {
       .catch(() => {});
   }, [supervisorId]);
 
-  useEffect(() => {
-    if (activeTab !== 'deadlines' || !supervisorId) return;
-    const fetchDeadlines = async () => {
-      try {
-        setLoadingDeadlines(true);
-        const res = await apiClient.get(`/api/staff/${supervisorId}/deadlines`);
-        setDeadlines(res.data.deadlines || []);
-      } catch (e) {
-        console.error('Failed to load deadlines', e);
-        Alert.alert('Error', 'Failed to load deadlines');
-        setDeadlines([]); // Clear deadlines on error
-      } finally {
-        setLoadingDeadlines(false);
-      }
-    };
-    fetchDeadlines();
-  }, [activeTab, supervisorId]);
 
   // ── Firestore: real-time notifications unread count ───────────────────────
   // Starts listening once we have the supervisorId from the API response
@@ -846,7 +839,6 @@ export default function SupervisorHome() {
       {/* Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
-          { key: 'projects',     heLabel: 'פרויקטים',  enLabel: 'Projects',     badge: myProjects.length    },
           { key: 'applications', heLabel: 'מועמדויות',  enLabel: 'Applications', badge: pendingApplicationsCount  },
           { key: 'grading',      heLabel: 'מתן ציונים', enLabel: 'Grading',      badge: pendingGrades.length },
           { key: 'recommend', heLabel: 'המלצת בוחנים', enLabel: 'Recommend Examiners', badge: 0 },
@@ -867,20 +859,25 @@ export default function SupervisorHome() {
           </Pressable>
         ))}
         <Pressable
-          style={[styles.tab, activeTab === 'deadlines' && styles.tabActive]}
-          onPress={() => setActiveTab('deadlines')}
-        >
-          <Text style={[styles.tabText, activeTab === 'deadlines' && styles.tabTextActive]} numberOfLines={1}>
-            {lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}
-          </Text>
-        </Pressable>
-        <Pressable
           style={[styles.tab, activeTab === 'signoffs' && styles.tabActive]}
           onPress={() => setActiveTab('signoffs')}
         >
           <Text style={[styles.tabText, activeTab === 'signoffs' && styles.tabTextActive]} numberOfLines={1}>
             {lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off'}
           </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tab, activeTab === 'projects' && styles.tabActive]}
+          onPress={() => setActiveTab('projects')}
+        >
+          <Text style={[styles.tabText, activeTab === 'projects' && styles.tabTextActive]} numberOfLines={1}>
+            {lang === 'he' ? 'פרויקטים' : 'Projects'}
+          </Text>
+          {myProjects.length > 0 && (
+            <View style={[styles.tabBadge, activeTab === 'projects' && styles.tabBadgeActive]}>
+              <Text style={styles.tabBadgeText}>{myProjects.length}</Text>
+            </View>
+          )}
         </Pressable>
       </ScrollView>
 
@@ -920,10 +917,11 @@ export default function SupervisorHome() {
               />
             ) : (
               filteredProjects.map((p) => {
-                console.log("Mapping project:", p.id, "Enrolled students:", p.enrolledStudentIds);
                 const fc = getFacultyColor(p.facultyId);
+                const urgencyColor = p.currentMilestone?.urgency ? URGENCY_COLOR[p.currentMilestone.urgency] : 'transparent';
                 return (
-                  <View key={p.id} style={[styles.projectCard, isRtl ? { borderRightColor: fc.primary, borderRightWidth: 4 } : { borderLeftColor: fc.primary, borderLeftWidth: 4 }]}>
+                  <View key={p.id} style={{ borderWidth: 3, borderColor: urgencyColor, borderRadius: 22, padding: 3, marginBottom: 14 }}>
+                  <View style={[styles.projectCard, { marginBottom: 0 }, isRtl ? { borderRightColor: fc.primary, borderRightWidth: 4 } : { borderLeftColor: fc.primary, borderLeftWidth: 4 }]}>
                     <View style={[styles.row, isRtl && styles.rowReverse, { marginBottom: 8 }]}>
                       <FacultyBadge facultyId={p.facultyId} lang={lang} />
                       <View style={styles.rowGap} />
@@ -945,6 +943,35 @@ export default function SupervisorHome() {
                         {lang === 'he' ? 'סטודנטים' : 'Students'}: {(p.enrolledStudentIds?.length ?? 0)}/{(p.NumberOfStudents ?? 1)}
                       </Text>
                     </View>
+
+                    {(p.enrolledStudents?.length ?? 0) > 0 && (
+                      <View style={{ marginTop: 6 }}>
+                        {p.enrolledStudents!.map((s) => (
+                          <Text key={s.id} style={[styles.cardMeta, isRtl && styles.textRight]}>
+                            👤 {s.name || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable')}
+                            {s.degreeType ? ` · ${s.degreeType === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}` : ''}
+                            {s.yearOfStudy ? ` · ${lang === 'he' ? 'שנה' : 'Year'} ${s.yearOfStudy}` : ''}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+
+                    {p.currentMilestone && (
+                      <Text style={[styles.cardMeta, isRtl && styles.textRight, { marginTop: 6, fontWeight: '700', color: urgencyColor }]}>
+                        🗓 {lang === 'he' ? p.currentMilestone.nameHe : p.currentMilestone.nameEn}
+                        {p.currentMilestone.daysLeft !== null &&
+                          ` — ${
+                            p.currentMilestone.daysLeft < 0
+                              ? lang === 'he'
+                                ? `באיחור של ${Math.abs(p.currentMilestone.daysLeft)} ימים`
+                                : `${Math.abs(p.currentMilestone.daysLeft)}d overdue`
+                              : lang === 'he'
+                                ? `${p.currentMilestone.daysLeft} ימים נותרו`
+                                : `${p.currentMilestone.daysLeft}d left`
+                          }`}
+                      </Text>
+                    )}
+
                     {(p.applicationIds?.length ?? 0) > 0 && (
                       <View style={styles.appCount}>
                         <Text style={styles.appCountText}>
@@ -965,72 +992,9 @@ export default function SupervisorHome() {
                       </Pressable>
                     </View>
                   </View>
+                  </View>
                 );
               })
-            )}
-          </>
-        )}
-        {activeTab === 'deadlines' && (
-          <>
-            {loadingDeadlines ? (
-              <ActivityIndicator size="large" />
-            ) : deadlines.length === 0 ? (
-              <EmptyState emoji="📭" text={lang === 'he' ? 'אין מועדי הגשה' : 'No deadlines found'} />
-            ) : (
-              deadlines.map((d) => (
-                <View key={`${d.milestoneId}-${d.studentId}`} style={styles.deadlineRow}>
-                  {/* Student Name - Bold Header */}
-                  <View style={[styles.row, !isRtl && styles.rowReverse, { marginBottom: 12 }]}>
-                    <Text style={[styles.studentName, !isRtl && styles.textRight]}>👤 {d.studentName}</Text>
-                  </View>
-
-                  {/* Info Grid */}
-                  <View style={{ marginBottom: 8 }}>
-                    {/* Degree Type & Year of Study */}
-                    <View style={[styles.row, !isRtl && styles.rowReverse, { marginBottom: 6 }]}>
-                      <Text style={[styles.label, !isRtl && styles.textRight]}>
-                        {lang === 'he' ? 'תואר:' : 'Degree:'} <Text style={styles.value}>{d.degreeType || 'N/A'}</Text>
-                      </Text>
-                      <View style={{ flex: 1 }} />
-                      <Text style={[styles.label, !isRtl && styles.textRight]}>
-                        {lang === 'he' ? 'שנה:' : 'Year:'} <Text style={styles.value}>{d.yearOfStudy || '—'}</Text>
-                      </Text>
-                    </View>
-
-                    {/* Project/Thesis Name */}
-                    <View style={[styles.row, !isRtl && styles.rowReverse, { marginBottom: 6 }]}>
-                      <Text style={[styles.label, !isRtl && styles.textRight]}>
-                        {lang === 'he' ? 'פרויקט:' : 'Project:'} <Text style={styles.value}>{d.projectTitle || 'N/A'}</Text>
-                      </Text>
-                    </View>
-
-                    {/* Current Milestone */}
-                    <View style={[styles.row, !isRtl && styles.rowReverse, { marginBottom: 6 }]}>
-                      <Text style={[styles.label, !isRtl && styles.textRight]}>
-                        {lang === 'he' ? 'אבן דרך:' : 'Milestone:'} <Text style={styles.value}>{d.milestoneName || 'N/A'}</Text>
-                      </Text>
-                    </View>
-
-                    {/* Days Until Due - Color Coded */}
-                    <View style={[styles.row, !isRtl && styles.rowReverse]}>
-                      <Text style={[styles.label, !isRtl && styles.textRight]}>
-                        {lang === 'he' ? 'ימים לסיום:' : 'Days Left:'}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.daysLeft,
-                          {
-                            color: d.daysLeft !== null && d.daysLeft < 0 ? '#EF4444' : '#10B981',
-                            fontWeight: '700',
-                          },
-                        ]}
-                      >
-                        {d.daysLeft !== null ? `${d.daysLeft} ${lang === 'he' ? 'ימים' : 'days'}` : 'N/A'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              ))
             )}
           </>
         )}
