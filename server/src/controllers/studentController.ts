@@ -97,9 +97,24 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
     const actualMilestones = milestonesSnap.docs.map((d) => d.data() as { type: string; finalGrade?: number | null });
     const overallFinalGrade = computeProjectFinalGrade(templateMilestones, actualMilestones);
 
+    // The project doc itself only rarely carries a denormalized
+    // supervisorName (createSupervisorProject/createAdminProject never set
+    // it) — every staff-facing project read already falls back to a lookup
+    // by supervisorId when it's missing (see e.g. projectController.ts's
+    // getInProgressProjects, adminController.ts's getAdminProjects). This
+    // was the one student-facing read that didn't, so ActiveDashboard.tsx's
+    // `{project.supervisorName}` (no fallback text, unlike BrowseProjects)
+    // rendered blank for every student whose project never got that field.
+    let supervisorName = data?.supervisorName || '';
+    if (!supervisorName && data?.supervisorId) {
+      const supDoc = await db.collection('users').doc(data.supervisorId).get();
+      supervisorName = supDoc.data()?.displayName || supDoc.data()?.displayNameHe || 'Unknown Supervisor';
+    }
+
     return res.status(200).json({
       id: projectDoc.id,
       ...data,
+      supervisorName,
       // Parse Firestore Timestamp to ISO string if needed by JSON client
       semesterStart: data?.semesterStart ? data.semesterStart.toDate().toISOString() : null,
       overallFinalGrade,
