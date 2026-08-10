@@ -49,6 +49,8 @@ async function mergeExtractedGradesIntoCompletedCourses(
 // the same PDFs every time. A plain equality-only query (no orderBy) so it
 // doesn't need a composite Firestore index; a student's application count is
 // small enough to sort in memory.
+const isPdfUrl = (url: unknown): url is string => typeof url === 'string' && url.toLowerCase().endsWith('.pdf');
+
 export const getLastUploadedFiles = async (req: AuthenticatedRequest, res: Response) => {
   const studentId = req.user?.uid;
   if (!studentId) return res.status(401).json({ message: 'Unauthorized' });
@@ -56,11 +58,20 @@ export const getLastUploadedFiles = async (req: AuthenticatedRequest, res: Respo
     const snap = await db.collection('applications').where('studentId', '==', studentId).get();
     if (snap.empty) return res.status(200).json({ transcriptUrl: '', cvUrl: '' });
 
-    const latest = snap.docs
+    const byRecency = snap.docs
       .map((d) => d.data())
-      .sort((a, b) => new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime())[0];
+      .sort((a, b) => new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime());
 
-    return res.status(200).json({ transcriptUrl: latest?.transcriptUrl ?? '', cvUrl: latest?.cvUrl ?? '' });
+    // Applications submitted before PDF-only enforcement existed can carry a
+    // non-PDF transcriptUrl/cvUrl (e.g. a .png or .docx) — offering one of
+    // those back as "reuse this file" would silently resubmit a file the AI
+    // screening step can't read. Each field independently falls back to the
+    // most recent application that actually has a PDF there, rather than
+    // "the most recent application, whatever it has."
+    const transcriptUrl = byRecency.find((a) => isPdfUrl(a.transcriptUrl))?.transcriptUrl ?? '';
+    const cvUrl = byRecency.find((a) => isPdfUrl(a.cvUrl))?.cvUrl ?? '';
+
+    return res.status(200).json({ transcriptUrl, cvUrl });
   } catch (error) {
     console.error('getLastUploadedFiles error:', error);
     return res.status(500).json({ message: 'Internal server error' });
@@ -121,6 +132,15 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
     }
     if (!projectId || typeof projectId !== 'string') {
         return res.status(400).json({ success: false, message: 'projectId is required' });
+    }
+    // Client-side pickers already restrict to .pdf, but that's only ever a
+    // UI convenience — this endpoint is reachable directly with any URL, so
+    // it's the actual enforcement boundary. Without this, a non-PDF file
+    // (whether from a bypassed picker or the last-uploaded-files reuse path)
+    // gets stored and only surfaces later as an unreadable file during AI
+    // screening.
+    if (!isPdfUrl(transcriptUrl) || !isPdfUrl(cvUrl)) {
+        return res.status(400).json({ success: false, message: 'Transcript and CV must be PDF files.' });
     }
     try {
         // ✅ Fetch student + project in parallel (was only fetching project before)
