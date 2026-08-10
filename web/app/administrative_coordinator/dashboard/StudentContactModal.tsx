@@ -1,0 +1,63 @@
+'use client';
+
+// app/administrative_coordinator/dashboard/StudentContactModal.tsx
+// Popup shown when she clicks a student's name inside a project card, so she
+// can actually reach them — email/phone straight from their own user doc,
+// via clickable mailto:/tel: links.
+
+import { useLanguage } from '@/contexts/LanguageContext';
+
+export interface ContactMember {
+  name: string;
+  email: string;
+  phoneNumber: string | null;
+}
+
+interface StudentContactModalProps {
+  member: ContactMember | null;
+  onClose: () => void;
+}
+
+export function StudentContactModal({ member, onClose }: StudentContactModalProps) {
+  const { lang } = useLanguage();
+  if (!member) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <h2 className="text-base font-semibold text-ink">👤 {member.name}</h2>
+          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2.5">
+          {member.email ? (
+            <a
+              href={`mailto:${member.email}`}
+              className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2.5 text-sm text-ink hover:border-primary hover:text-primary"
+              dir="ltr"
+            >
+              ✉️ {member.email}
+            </a>
+          ) : (
+            <p className="text-sm italic text-muted">{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</p>
+          )}
+
+          {member.phoneNumber ? (
+            <a
+              href={`tel:${member.phoneNumber}`}
+              className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2.5 text-sm text-ink hover:border-primary hover:text-primary"
+              dir="ltr"
+            >
+              📞 {member.phoneNumber}
+            </a>
+          ) : (
+            <p className="text-sm italic text-muted">{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

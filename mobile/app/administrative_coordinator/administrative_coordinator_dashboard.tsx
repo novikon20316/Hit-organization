@@ -32,7 +32,7 @@ interface ProjectGroup {
   supervisorName:  string;
   facultyId:       string;
   trackType:       'bachelor_project' | 'masters_project';
-  members:         Array<{ uid: string; name: string }>;
+  members:         Array<{ uid: string; name: string; email: string; phoneNumber: string | null }>;
   currentMilestone:string;
   // Real milestone doc id (as opposed to the display label above) and the
   // project's already-assigned internal examiners — both needed so
@@ -450,6 +450,55 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
   );
 }
 
+// Popup shown when she taps a student's name inside a project card, so she
+// can actually reach them — email/phone straight from their own user doc,
+// tappable via mailto:/tel:.
+interface ContactMember { name: string; email: string; phoneNumber: string | null }
+
+function StudentContactModal({ member, lang, onClose }: { member: ContactMember | null; lang: Lang; onClose: () => void }) {
+  return (
+    <Modal visible={!!member} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={contactStyles.backdrop} onPress={onClose}>
+        <View style={contactStyles.card}>
+          <View style={contactStyles.header}>
+            <Text style={contactStyles.title}>👤 {member?.name}</Text>
+            <Pressable onPress={onClose}>
+              <Text style={contactStyles.closeIcon}>✕</Text>
+            </Pressable>
+          </View>
+
+          {member?.email ? (
+            <Pressable style={contactStyles.row} onPress={() => Linking.openURL(`mailto:${member.email}`)}>
+              <Text style={contactStyles.rowText}>✉️ {member.email}</Text>
+            </Pressable>
+          ) : (
+            <Text style={contactStyles.emptyText}>{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</Text>
+          )}
+
+          {member?.phoneNumber ? (
+            <Pressable style={contactStyles.row} onPress={() => Linking.openURL(`tel:${member.phoneNumber}`)}>
+              <Text style={contactStyles.rowText}>📞 {member.phoneNumber}</Text>
+            </Pressable>
+          ) : (
+            <Text style={contactStyles.emptyText}>{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</Text>
+          )}
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const contactStyles = {
+  backdrop: { flex: 1, backgroundColor: 'rgba(17,24,39,0.4)', alignItems: 'center', justifyContent: 'center', padding: 20 } as const,
+  card: { width: '100%', maxWidth: 320, backgroundColor: '#fff', borderRadius: 16, padding: 18 } as const,
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 } as const,
+  title: { fontSize: 16, fontWeight: '700', color: '#111' } as const,
+  closeIcon: { fontSize: 16, color: '#8899BB' } as const,
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F4FF', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 10 } as const,
+  rowText: { fontSize: 14, color: '#111', writingDirection: 'ltr' } as const,
+  emptyText: { fontSize: 13, color: '#8899BB', fontStyle: 'italic', marginBottom: 10 } as const,
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ProjectCoordinatorDashboard() {
@@ -470,6 +519,7 @@ export default function ProjectCoordinatorDashboard() {
   const [supervisorSearchText, setSupervisorSearchText] = useState('');
   const [examinerModalGroup, setExaminerModalGroup] = useState<ProjectGroup | null>(null);
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
+  const [contactMember, setContactMember] = useState<ContactMember | null>(null);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
 
   // ── Students Report tab ───────────────────────────────────────────────────
@@ -1071,9 +1121,17 @@ export default function ProjectCoordinatorDashboard() {
               <Text style={s.cardSub}>👨‍🏫 {group.supervisorName}</Text>
 
               {/* Members */}
-              <Text style={s.cardSub}>
-                👥 {group.members.map(m => m.name).join('  ·  ')}
-              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+                <Text style={s.cardSub}>👥 </Text>
+                {group.members.map((m, i) => (
+                  <React.Fragment key={m.uid}>
+                    {i > 0 && <Text style={s.cardSub}>  ·  </Text>}
+                    <Pressable onPress={() => setContactMember({ name: m.name, email: m.email, phoneNumber: m.phoneNumber })}>
+                      <Text style={[s.cardSub, { textDecorationLine: 'underline' }]}>{m.name}</Text>
+                    </Pressable>
+                  </React.Fragment>
+                ))}
+              </View>
 
               {/* Milestone + track */}
               <View style={s.metaRow}>
@@ -1142,6 +1200,8 @@ export default function ProjectCoordinatorDashboard() {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+
+      <StudentContactModal member={contactMember} lang={lang} onClose={() => setContactMember(null)} />
 
       {/* Send examiner modal */}
       <SendExaminerModal

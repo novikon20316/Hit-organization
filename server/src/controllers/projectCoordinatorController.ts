@@ -101,8 +101,15 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
       [...userIdsToFetch].map((id) => db.collection('users').doc(id).get()),
     );
     const usersById: Record<string, string> = {};
+    // Lets her click a student's name in a project card and get a way to
+    // actually reach them — email/phoneNumber are already collected at
+    // signup (see userImportExport.ts), just never surfaced here before.
+    const contactById: Record<string, { email: string; phoneNumber: string | null }> = {};
     userSnaps.forEach((snap) => {
-      if (snap.exists) usersById[snap.id] = snap.data()?.displayName ?? 'Unknown';
+      if (!snap.exists) return;
+      const data = snap.data();
+      usersById[snap.id] = data?.displayName ?? 'Unknown';
+      contactById[snap.id] = { email: data?.email ?? '', phoneNumber: data?.phoneNumber ?? null };
     });
 
     const now = Date.now();
@@ -147,6 +154,8 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
         return {
           uid: sid,
           name: usersById[sid] ?? 'Unknown',
+          email: contactById[sid]?.email ?? '',
+          phoneNumber: contactById[sid]?.phoneNumber ?? null,
           milestones: studentMilestones,
         };
       });

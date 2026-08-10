@@ -15,7 +15,7 @@ export interface ProjectGroup {
   facultyId: string;
   major: string | null;
   trackType: 'bachelor_project' | 'masters_project';
-  members: Array<{ uid: string; name: string; milestones: MemberMilestoneGrade[] }>;
+  members: Array<{ uid: string; name: string; email: string; phoneNumber: string | null; milestones: MemberMilestoneGrade[] }>;
   currentMilestone: string;
   currentMilestoneId: string | null;
   existingExaminerIds: string[];

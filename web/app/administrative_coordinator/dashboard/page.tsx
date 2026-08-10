@@ -23,6 +23,7 @@ import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import { NewProjectModal } from './NewProjectModal';
 import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
+import { StudentContactModal, type ContactMember } from './StudentContactModal';
 import type { ProjectGroup, MemberMilestoneGrade } from './types';
 import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
 
@@ -77,6 +78,7 @@ export default function AdministrativeCoordinatorDashboardPage() {
   const [defenseModalGroup, setDefenseModalGroup] = useState<ProjectGroup | null>(null);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
+  const [contactMember, setContactMember] = useState<ContactMember | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -307,7 +309,24 @@ export default function AdministrativeCoordinatorDashboardPage() {
                   {group.isOverdue && <span className="shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-medium text-danger">⚠️ {t('overdue')}</span>}
                 </div>
                 <p className="mt-1 text-xs text-muted">👨‍🏫 {group.supervisorName}</p>
-                <p className="mt-0.5 text-xs text-muted">👥 {group.members.map((m) => m.name).join(' · ')}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  👥{' '}
+                  {group.members.map((m, i) => (
+                    <span key={m.uid}>
+                      {i > 0 && ' · '}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setContactMember({ name: m.name, email: m.email, phoneNumber: m.phoneNumber });
+                        }}
+                        className="underline hover:text-primary"
+                      >
+                        {m.name}
+                      </button>
+                    </span>
+                  ))}
+                </p>
 
                 <div className="mt-2 flex items-center justify-between">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${group.trackType === 'bachelor_project' ? 'bg-[#E9F0F5] text-[#3E6C8C]' : 'bg-[#EFEBF6] text-[#6E5A99]'}`}>
@@ -407,6 +426,7 @@ export default function AdministrativeCoordinatorDashboardPage() {
         />
       )}
       <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
+      <StudentContactModal member={contactMember} onClose={() => setContactMember(null)} />
     </DashboardShell>
   );
 }
