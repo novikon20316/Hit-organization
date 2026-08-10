@@ -286,7 +286,15 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
 export const createSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   if (!supervisorId) return res.status(401).json({ message: 'Unauthorized access.' });
-  if (!['supervisor', 'secondary_supervisor'].includes(req.user?.role ?? '')) {
+  // Checking only req.user.role missed anyone holding 'supervisor' as an
+  // ADDITIONAL role rather than their primary one (e.g. a coordinator or
+  // program_head who also supervises — see adminController.ts's
+  // getSupervisorsList/createAdminProject, which already check both). That
+  // mismatch let such a user reach this dashboard (useRequireRole checks the
+  // full role+roles set) only to be blocked here at the actual write.
+  const supervisorRoles = ['supervisor', 'secondary_supervisor'];
+  const isAuthorized = supervisorRoles.includes(req.user?.role ?? '') || (req.user?.roles ?? []).some((r) => supervisorRoles.includes(r));
+  if (!isAuthorized) {
     return res.status(403).json({ message: 'Access denied: supervisors only.' });
   }
 
