@@ -446,6 +446,21 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     const projectTitleEn = projectSnap.data()?.titleEn ?? '';
     const supervisorName = supervisorSnap.data()?.displayNameHe ?? supervisorSnap.data()?.displayName ?? '';
 
+    // Enroll BEFORE marking the application approved — enrollStudentInProject
+    // does real work (hasActiveProject, milestones, etc.) that can fail (e.g.
+    // no active workflow template for this faculty/degree/type, or a race
+    // against another approval for the same student). If it throws, this
+    // jumps straight to the catch block below and the application is never
+    // touched, so it stays in its actionable applied/meeting_requested state
+    // instead of being permanently stuck "approved" with no real enrollment
+    // behind it — a broken state neither the supervisor nor the student could
+    // recover from without a manual Firestore edit.
+    if (decision === 'approved') {
+      // 1-3. Project/student/milestone writes — shared with the admin and
+      // faculty-admin manual-enrollment paths so all three stay in sync.
+      await enrollStudentInProject(projectId, studentId, supervisorId, facultyId, track);
+    }
+
     await applicationRef.update({
       status:        decision,
       supervisorNote: notes || null,
@@ -455,10 +470,6 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     // Delivery status (email/push/sms) is persisted on the notification doc
     // by notifyUser — see services/notify.ts.
     if (decision === 'approved') {
-      // 1-3. Project/student/milestone writes — shared with the admin and
-      // faculty-admin manual-enrollment paths so all three stay in sync.
-      await enrollStudentInProject(projectId, studentId, supervisorId, facultyId, track);
-
       await notifyUser({
         recipientId:      studentId,
         type:             'application_approved',

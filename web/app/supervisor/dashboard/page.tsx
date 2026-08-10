@@ -53,7 +53,7 @@ export default function SupervisorDashboardPage() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
 
-  const [tab, setTab] = useState<Tab>('applications');
+  const [tab, setTab] = useState<Tab>('projects');
   const [applicationFilter, setApplicationFilter] = useState<ApplicationFilter>('all');
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>('all');
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
