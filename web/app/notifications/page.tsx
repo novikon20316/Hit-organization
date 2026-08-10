@@ -16,7 +16,7 @@ import { getRoleAccent } from '@/lib/facultyColors';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { FeedbackTab } from './FeedbackTab';
-import { TYPE_STYLE, relativeTime, initials, type Notif, type ChatRow } from './types';
+import { TYPE_STYLE, relativeTime, initials, rowTimestamp, type Notif, type ChatRow } from './types';
 
 type Tab = 'notifs' | 'chats' | 'feedback';
 
@@ -103,13 +103,50 @@ export default function NotificationsPage() {
       }
     }
     refreshBadges();
-    if (notif.type === 'new_message' && notif.chatId) {
-      router.push(`/message/${notif.chatId}?otherName=${encodeURIComponent(notif.senderName ?? '')}`);
-    } else if (
-      ['project_published', 'application_approved', 'application_rejected', 'meeting_requested', 'milestone_graded', 'milestone_deadline_7d', 'milestone_deadline_1d'].includes(notif.type)
-    ) {
-      router.push('/student/home');
+
+    if (notif.type === 'new_message') {
+      if (notif.chatId) {
+        router.push(`/message/${notif.chatId}?otherName=${encodeURIComponent(notif.senderName ?? '')}`);
+      }
+      return;
     }
+
+    // Every other type opens its own full-screen detail view (full title +
+    // body) instead of silently jumping straight to a dashboard — that
+    // dashboard never showed the notification's actual content anywhere, so
+    // the redirect looked like it had no reason behind it.
+    let targetRoute = '';
+    switch (notif.type) {
+      case 'project_published':
+      case 'application_approved':
+      case 'application_rejected':
+      case 'meeting_requested':
+      case 'milestone_graded':
+      case 'milestone_deadline_7d':
+      case 'milestone_deadline_1d':
+      case 'milestone_overdue':
+        // Always student-directed types.
+        targetRoute = '/student/home';
+        break;
+      case 'application_received':
+      case 'account_created':
+        // Recipient can be any role — route to whichever home matches theirs.
+        targetRoute = getHomeRoute(userData?.role);
+        break;
+      default:
+        targetRoute = '';
+    }
+
+    const params = new URLSearchParams({
+      type: notif.type,
+      titleHe: notif.titleHe,
+      titleEn: notif.titleEn,
+      bodyHe: notif.bodyHe,
+      bodyEn: notif.bodyEn,
+      createdAt: notif.createdAt,
+      targetRoute,
+    });
+    router.push(`/notification/${notif.id}?${params.toString()}`);
   };
 
   const handleTapChat = (chat: ChatRow) => {
@@ -258,7 +295,7 @@ export default function NotificationsPage() {
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center justify-between gap-2">
                               <span className={`truncate text-sm ${n.isRead ? 'text-ink' : 'font-semibold text-ink'}`}>{lang === 'he' ? n.titleHe : n.titleEn}</span>
-                              <span className="shrink-0 text-xs text-muted">{new Date(n.createdAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</span>
+                              <span className="shrink-0 text-xs text-muted">{rowTimestamp(n.createdAt, lang)}</span>
                             </span>
                             <span className="mt-0.5 block truncate text-xs text-muted">{lang === 'he' ? n.bodyHe : n.bodyEn}</span>
                           </span>

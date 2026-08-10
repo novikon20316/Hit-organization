@@ -27,15 +27,32 @@ export interface ChatRow {
 
 export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: string }> = {
   project_published: { icon: '📢', color: '#3E6C8C', bg: '#E9F0F5' },
+  application_received: { icon: '📥', color: '#3E6C8C', bg: '#E9F0F5' },
   application_approved: { icon: '✅', color: 'var(--success)', bg: 'var(--success-bg)' },
   application_rejected: { icon: '❌', color: 'var(--danger)', bg: 'var(--danger-bg)' },
   meeting_requested: { icon: '📅', color: 'var(--accent)', bg: '#FBF3E3' },
   milestone_graded: { icon: '✏️', color: '#6E5A99', bg: '#EFEBF6' },
   milestone_deadline_7d: { icon: '⏰', color: 'var(--accent)', bg: '#FBF3E3' },
   milestone_deadline_1d: { icon: '🚨', color: 'var(--danger)', bg: 'var(--danger-bg)' },
+  milestone_overdue: { icon: '⏰', color: 'var(--danger)', bg: 'var(--danger-bg)' },
+  account_created: { icon: '🎓', color: '#3E6C8C', bg: '#E9F0F5' },
   broadcast: { icon: '📢', color: 'var(--danger)', bg: 'var(--danger-bg)' },
   new_message: { icon: '💬', color: '#3E6C8C', bg: '#E9F0F5' },
 };
+
+// Shows a bare time (e.g. "14:30") for notifications from today, since the
+// date is already redundant with that day's own date-group header — and a
+// full date (e.g. "3 Aug") for anything older. Same fix as mobile's
+// rowTimestamp (mobile/app/(tabs)/notifications.tsx).
+export function rowTimestamp(ts: string, lang: 'he' | 'en'): string {
+  const date = new Date(ts);
+  if (isNaN(date.getTime())) return '';
+  const isToday = date.toDateString() === new Date().toDateString();
+  if (isToday) {
+    return date.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short' });
+}
 
 export function relativeTime(ts: string | null | undefined, lang: 'he' | 'en'): string {
   if (!ts) return '';
