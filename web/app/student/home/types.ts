@@ -116,6 +116,13 @@ export interface Milestone {
   id: string;
   type: MilestoneType;
   status: MilestoneStatus;
+  /** Snapshotted from the workflow template's own milestone list at
+   *  enrollment — see server/src/services/projectEnrollment.ts and
+   *  workflowTemplates.ts's resolveMilestoneOrder. Absent on a milestone
+   *  created before this field existed; sort/unlock logic falls back to a
+   *  legacy type-name order in that case (see this file's own
+   *  resolveMilestoneOrder). */
+  order?: number;
   dueDate: string | null;
   submittedAt: string | null;
   fileUrls: string[];
@@ -184,7 +191,20 @@ export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   poster: { he: 'פוסטר', en: 'Poster Session' },
 };
 
-export const MILESTONE_ORDER: MilestoneType[] = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
+// Legacy fallback — the milestone TYPE ordering every faculty used before a
+// milestone doc carried its own `order` (see server/src/services/
+// projectEnrollment.ts). Mirrors the server's own resolveMilestoneOrder
+// (workflowTemplates.ts) — only ever consulted for a milestone doc that
+// predates that field; a faculty's template can define its milestones in any
+// order (including the custom_xxxxx types mentioned above), so an
+// unrecognized type sorts LAST here, never first.
+const LEGACY_MILESTONE_TYPE_ORDER: MilestoneType[] = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
+
+export function resolveMilestoneOrder(m: { type?: string; order?: number | null }): number {
+  if (typeof m.order === 'number') return m.order;
+  const idx = m.type ? LEGACY_MILESTONE_TYPE_ORDER.indexOf(m.type as MilestoneType) : -1;
+  return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+}
 
 // Ported from Activedashboard.tsx's STATUS_CONFIG, hex values swapped for
 // this site's own muted palette rather than mobile's saturated colors —

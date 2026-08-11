@@ -3,11 +3,11 @@
 // Shared "how far along is this project" logic for the grad_school_head and
 // program_head dashboards (gradSchoolHeadController.ts / programHeadController.ts).
 // Centralized here (rather than duplicated per-controller, which is this
-// codebase's usual convention for small constants like MILESTONE_ORDER) because
-// both controllers are new in the same change — copy-paste drift here would be
-// immediate, not hypothetical.
+// codebase's usual convention for small constants) because both controllers
+// are new in the same change — copy-paste drift here would be immediate, not
+// hypothetical.
 
-export const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
+import { resolveMilestoneOrder } from './workflowTemplates.js';
 
 // No confirmed college policy on what counts as "stuck" yet — provisional
 // threshold, flag to the user before relying on it for real decisions.
@@ -105,7 +105,7 @@ function stageEnteredAt(milestone: MilestoneDoc): FirebaseFirestore.Timestamp | 
 export function computeMilestoneProgress(milestones: MilestoneDoc[], clockPauses: ClockPause[] = []): MilestoneProgress {
   const ordered = milestones
     .slice()
-    .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+    .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
 
   const current =
     ordered.find((m) => !DONE_STATUSES.has(m.status)) ?? ordered[ordered.length - 1] ?? null;

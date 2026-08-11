@@ -5,7 +5,7 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db, auth } from '../src/firebase/firebase';
 import {
   StudentState, DegreeType, ProjectType, MilestoneStatus,
-  MilestoneType, ProjectProposal, ActiveProject, Milestone,
+  ProjectProposal, ActiveProject, Milestone,
   PendingApplication, AppNotification
 } from '@/types';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/components/Prerequisites';
@@ -19,6 +19,20 @@ import { normalizeCompletedCourses, type CompletedCourse } from '@/components/Pr
 export interface ActiveProjectEntry {
   project: ActiveProject;
   milestones: Milestone[];
+}
+
+// Legacy fallback — the milestone TYPE ordering every faculty used before a
+// milestone doc carried its own `order` (see server/src/services/
+// projectEnrollment.ts). Mirrors the server's own resolveMilestoneOrder
+// (workflowTemplates.ts) — only ever consulted for a milestone doc that
+// predates that field; a faculty's template can define its milestones in any
+// order (including custom_xxxxx types this list has never heard of), so an
+// unrecognized type sorts LAST here, never first.
+const LEGACY_MILESTONE_TYPE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
+function resolveMilestoneOrder(m: { type?: string; order?: number }): number {
+  if (typeof m.order === 'number') return m.order;
+  const idx = m.type ? LEGACY_MILESTONE_TYPE_ORDER.indexOf(m.type) : -1;
+  return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -93,14 +107,13 @@ export function useStudentData() {
       if (activeIds.length > 0) {
         // --- CASE A: Active Project(s) ---
         try {
-          const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
           const loaded = await Promise.all(
             activeIds.map(async (pid: string) => {
               const projectRes = await apiClient.get(`/api/student/projects/${pid}`);
               const milestonesRes = await apiClient.getMilestones({ studentId: uid, projectId: pid });
               const sorted = (milestonesRes?.milestones || []).sort(
                 (a: Milestone, b: Milestone) =>
-                  MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type)
+                  resolveMilestoneOrder(a) - resolveMilestoneOrder(b)
               );
               return { project: projectRes.data as ActiveProject, milestones: sorted as Milestone[] };
             })
@@ -263,13 +276,6 @@ export function useStudentData() {
       where('studentIds', 'array-contains', uid)
     );
 
-    const MILESTONE_ORDER: MilestoneType[] = [
-      'research_proposal',
-      'progress_report',
-      'final_report',
-      'defense',
-    ];
-
     const unsub = onSnapshot(
       q,
       (snapshot) => {
@@ -279,6 +285,7 @@ export function useStudentData() {
             id: d.id,
             projectId: data.projectId,
             type: data.type,
+            order: data.order,
             status: data.status,
             dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
             submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
@@ -297,7 +304,7 @@ export function useStudentData() {
           ...ap,
           milestones: liveMilestones
             .filter(m => m.projectId === ap.project.id)
-            .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type)),
+            .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b)),
         })));
       },
       (error) => {

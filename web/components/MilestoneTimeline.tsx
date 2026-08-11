@@ -37,6 +37,10 @@ import {
 export interface MilestoneData {
   id: string;
   type: MilestoneType;
+  /** Snapshotted from the workflow template's own milestone list at
+   *  enrollment (see server/src/services/projectEnrollment.ts). Absent on a
+   *  milestone created before this field existed. */
+  order?: number;
   status: MilestoneStatus;
   dueDate: string | null;
   submittedAt: string | null;

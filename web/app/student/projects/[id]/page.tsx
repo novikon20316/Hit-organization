@@ -22,7 +22,7 @@ import type { AppRole } from '@/lib/roles';
 import { MilestoneTimeline, type MilestoneData } from '@/components/MilestoneTimeline';
 import { GradeHistoryPanel } from '@/components/GradeHistoryPanel';
 import { SubmitMilestoneModal } from '@/app/student/home/SubmitMilestoneModal';
-import { MILESTONE_ORDER, type ActiveProject, type Milestone } from '@/app/student/home/types';
+import { resolveMilestoneOrder, type ActiveProject, type Milestone } from '@/app/student/home/types';
 
 const STUDENT_ROLES: AppRole[] = ['student'];
 
@@ -44,7 +44,7 @@ export default function StudentProjectDetailPage() {
   const fetchMilestones = useCallback(async () => {
     const res = await apiClient.getMilestones({ projectId });
     const list = (res.milestones ?? []) as unknown as Milestone[];
-    list.sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+    list.sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
     setMilestones(list);
   }, [projectId]);
 
@@ -66,7 +66,7 @@ export default function StudentProjectDetailPage() {
         if (cancelled) return;
         setProject(projectRes as unknown as ActiveProject);
         const list = (milestonesRes.milestones ?? []) as unknown as Milestone[];
-        list.sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+        list.sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
         setMilestones(list);
       } catch (err) {
         if (cancelled) return;

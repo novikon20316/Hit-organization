@@ -756,6 +756,12 @@ export interface Milestone {
   id:          string;
   type:        MilestoneType;
   status:      MilestoneStatus;
+  /** Snapshotted from the workflow template's own milestone list at
+   *  enrollment — see server/src/services/projectEnrollment.ts and
+   *  workflowTemplates.ts's resolveMilestoneOrder. Absent on a milestone
+   *  created before this field existed; sort/unlock logic falls back to a
+   *  legacy type-name order in that case. */
+  order?:      number;
   dueDate:     string;
   submittedAt: string | null;
   fileUrls:    string[];

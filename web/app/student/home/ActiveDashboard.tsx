@@ -10,7 +10,7 @@ import { SubmitMilestoneModal } from './SubmitMilestoneModal';
 import { AnnouncementsBanner } from './AnnouncementsBanner';
 import {
   MILESTONE_LABEL,
-  MILESTONE_ORDER,
+  resolveMilestoneOrder,
   STATUS_CONFIG,
   STATUS_LABEL,
   toDate,
@@ -47,10 +47,9 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
   };
 
   const isUnlocked = (m: Milestone): boolean => {
-    const idx = MILESTONE_ORDER.indexOf(m.type);
-    if (idx === 0) return true;
+    const order = resolveMilestoneOrder(m);
     return milestones
-      .filter((prev) => MILESTONE_ORDER.indexOf(prev.type) < idx)
+      .filter((prev) => resolveMilestoneOrder(prev) < order)
       .every((prev) => prev.status === 'coordinator_approved' || prev.status === 'completed');
   };
 

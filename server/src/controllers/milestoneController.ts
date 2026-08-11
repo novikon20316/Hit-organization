@@ -12,7 +12,7 @@ import { sanitizeMilestoneForViewer } from '../services/milestoneVisibility.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
-import { submissionRequirementMet } from '../services/workflowTemplates.js';
+import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -76,6 +76,25 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`) });
     }
 
+    // Sorted by the milestone's OWN order (from the template it was created
+    // under — see workflowTemplates.ts's resolveMilestoneOrder), not a
+    // hardcoded type list — a faculty's template can reorder milestones or
+    // define custom ones the old hardcoded list never knew about. Checked
+    // before touching Cloudinary, same reasoning as the requirement check
+    // above.
+    const thisOrder = resolveMilestoneOrder(milestoneData);
+    const previousSnap = await db.collection('milestones')
+      .where('projectId', '==', milestoneData.projectId)
+      .where('studentIds',  'array-contains', studentId)
+      .get();
+
+    const allPrevCompleted = previousSnap.docs
+      .filter(d => resolveMilestoneOrder(d.data()) < thisOrder)
+      .every(d => d.data().status === 'completed');
+
+    if (!allPrevCompleted)
+      return res.status(400).json({ message: 'Previous milestones must be completed before submitting this one.' });
+
     // ── Upload files to Cloudinary ──────────────────────────────────────────
     const fileUrls: string[] = [];
 
@@ -89,24 +108,6 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       });
 
       fileUrls.push(result.secure_url);
-    }
-
-    const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
-    const thisTypeIndex = MILESTONE_ORDER.indexOf(milestoneData.type);
-
-    if (thisTypeIndex > 0) {
-      // Fetch all milestones for this student on the same project
-      const previousSnap = await db.collection('milestones')
-        .where('projectId', '==', milestoneData.projectId)
-        .where('studentIds',  'array-contains', studentId)
-        .get();
-
-      const allPrevCompleted = previousSnap.docs
-        .filter(d => MILESTONE_ORDER.indexOf(d.data().type) < thisTypeIndex)
-        .every(d => d.data().status === 'completed');
-
-      if (!allPrevCompleted)
-        return res.status(400).json({ message: 'Previous milestones must be completed before submitting this one.' });
     }
 
     // Preserve the outgoing round (its file(s), note, and whatever decision

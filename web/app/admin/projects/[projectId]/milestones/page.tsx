@@ -27,7 +27,7 @@ import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import type { AppRole } from '@/lib/roles';
 import { MilestoneTimeline, type MilestoneData } from '@/components/MilestoneTimeline';
-import { MILESTONE_ORDER, type MilestoneType, type MilestoneStatus } from '@/app/student/home/types';
+import { resolveMilestoneOrder, type MilestoneType, type MilestoneStatus } from '@/app/student/home/types';
 import type { AdminProjectRecord } from '@/app/admin/panel/types';
 
 const ADMIN_ROLES: AppRole[] = ['system_admin'];
@@ -54,6 +54,7 @@ function toMilestoneData(raw: Record<string, unknown> & { id: string }): Milesto
   return {
     id: raw.id,
     type: (raw.type as MilestoneType) ?? 'research_proposal',
+    order: typeof raw.order === 'number' ? raw.order : undefined,
     status: (raw.status as MilestoneStatus) ?? 'pending',
     dueDate: toISO(raw.dueDate),
     submittedAt: toISO(raw.submittedAt),
@@ -84,7 +85,7 @@ export default function AdminProjectMilestonesPage() {
     if (!projectId) return;
     const raw = await apiClient.getAdminProjectMilestones(projectId);
     const mapped = (raw ?? []).map((m) => toMilestoneData(m));
-    mapped.sort((a, b) => MILESTONE_ORDER.indexOf(a.type as MilestoneType) - MILESTONE_ORDER.indexOf(b.type as MilestoneType));
+    mapped.sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
     setMilestones(mapped);
   }, [projectId]);
 

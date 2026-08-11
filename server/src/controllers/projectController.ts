@@ -11,7 +11,7 @@ import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches } from '../services/scopeAuthorization.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
-import { submissionRequirementMet } from '../services/workflowTemplates.js';
+import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -927,9 +927,6 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
         .where('activeProjectId', '==', project.id)
         .get();
 
-      // Define standard chronological milestone ordering
-      const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
-
       // C. Process milestones and progress per individual student
       const studentsArray = studentsSnap.docs.map(studentDoc => {
         const studentId = studentDoc.id;
@@ -942,7 +939,7 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
 
         // Sort this specific student's milestones chronologically
         studentMilestones.sort(
-          (a: any, b: any) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type)
+          (a: any, b: any) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b)
         );
 
         // Calculate individual progress percentage

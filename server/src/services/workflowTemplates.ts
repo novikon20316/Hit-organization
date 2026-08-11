@@ -164,6 +164,29 @@ export function resolveMilestoneRouting(
   return spec.routing ?? templateDefaultRouting ?? DEFAULT_ROUTING;
 }
 
+// Legacy fallback — the milestone TYPE ordering every faculty used before a
+// milestone doc carried its own `order` (see resolveMilestoneOrder below).
+// Only ever consulted for a milestone doc that predates that field. A
+// per-faculty/major template can define its own milestones in any order
+// (including custom_xxxxx types this list has never heard of), so this must
+// never be trusted as "the" ordering going forward — it's a one-time
+// migration bridge, not a source of truth.
+const LEGACY_MILESTONE_TYPE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
+
+/** The value to sort a milestone doc by, relative to its siblings on the same
+ *  project/student. Prefers the doc's own `order` (snapshotted from the
+ *  workflow template at enrollment — see projectEnrollment.ts), which is
+ *  correct for ANY template shape, including custom milestone types and
+ *  faculty-specific reordering. Falls back to LEGACY_MILESTONE_TYPE_ORDER
+ *  only for a milestone doc created before `order` was stored at all — an
+ *  unrecognized type there sorts LAST (not first), so a milestone this
+ *  fallback has never heard of is never mistaken for "the next one due". */
+export function resolveMilestoneOrder(m: { type?: unknown; order?: unknown }): number {
+  if (typeof m.order === 'number') return m.order;
+  const idx = typeof m.type === 'string' ? LEGACY_MILESTONE_TYPE_ORDER.indexOf(m.type) : -1;
+  return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+}
+
 export interface WorkflowMilestoneSpec {
   type: string;
   nameHe: string;

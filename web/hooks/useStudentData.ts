@@ -12,8 +12,8 @@ import { db, auth } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/lib/prerequisites';
 import { useAuth } from '@/contexts/AuthContext';
-import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication, MilestoneType } from '@/app/student/home/types';
-import { MILESTONE_ORDER } from '@/app/student/home/types';
+import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication } from '@/app/student/home/types';
+import { resolveMilestoneOrder } from '@/app/student/home/types';
 
 // TEMP-2-ACTIVE-PROJECTS: one entry per project the student is currently
 // enrolled in — normally just one, but the server-side bypass in
@@ -103,9 +103,7 @@ export function useStudentData() {
               const project = (await apiClient.getStudentProject(pid)) as unknown as ActiveProject;
               const milestonesRes = await apiClient.getMilestones({ studentId: uid, projectId: pid });
               const sorted = (milestonesRes?.milestones || []).sort(
-                (a, b) =>
-                  MILESTONE_ORDER.indexOf((a as unknown as Milestone).type as MilestoneType) -
-                  MILESTONE_ORDER.indexOf((b as unknown as Milestone).type as MilestoneType)
+                (a, b) => resolveMilestoneOrder(a as unknown as Milestone) - resolveMilestoneOrder(b as unknown as Milestone)
               ) as unknown as Milestone[];
               return { project, milestones: sorted };
             })
@@ -258,6 +256,7 @@ export function useStudentData() {
             id: d.id,
             projectId: data.projectId,
             type: data.type,
+            order: data.order,
             status: data.status,
             dueDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
             submittedAt: data.submittedAt?.toDate?.()?.toISOString() ?? null,
@@ -278,7 +277,7 @@ export function useStudentData() {
             ...ap,
             milestones: liveMilestones
               .filter((m) => m.projectId === ap.project.id)
-              .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type)),
+              .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b)),
           }))
         );
       },

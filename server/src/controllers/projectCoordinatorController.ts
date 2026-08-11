@@ -12,8 +12,8 @@ import {
   yearOfStudyDistributionStats,
 } from '../services/coordinatorStatistics.js';
 import { FACULTY_NAMES } from '../services/studentProgress.js';
+import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
 
-const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
 
 // Broader than PROJECT_COORDINATOR_DASHBOARD_ROLES above — the statistics
@@ -141,7 +141,7 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
       const data = doc.data();
       const projectMilestones = (milestonesByProject[doc.id] ?? [])
         .slice()
-        .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+        .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
 
       const current = projectMilestones.find(
         (m) => m.status !== 'coordinator_approved' && m.status !== 'completed',
@@ -369,7 +369,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
 
         const studentMilestones = (milestonesByProject[project.id] ?? [])
           .filter((m) => Array.isArray(m.studentIds) && m.studentIds.includes(s.id))
-          .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+          .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
         const current = studentMilestones.find((m) => !DONE_MILESTONE_STATUSES.has(m.status)) ?? studentMilestones[studentMilestones.length - 1];
 
         if (current) {

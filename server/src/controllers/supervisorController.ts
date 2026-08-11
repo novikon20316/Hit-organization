@@ -10,7 +10,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import {
   resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER,
   getMilestonesForTemplateId, getActiveMilestonesFor, deriveProcessType,
-  resolveFinalGradeSignoffRole,
+  resolveFinalGradeSignoffRole, resolveMilestoneOrder,
   type WorkflowMilestoneSpec, type FormFieldSpec,
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
@@ -70,11 +70,11 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-// Same order/"done" convention used elsewhere (e.g. projectCoordinatorController.ts)
+// Same "done" convention used elsewhere (e.g. projectCoordinatorController.ts)
 // for resolving a project's current, still-open milestone — used below to
 // fold the old standalone Deadlines tab's info directly into each project
-// card instead.
-const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
+// card instead. Ordering itself comes from resolveMilestoneOrder (each
+// milestone doc's own `order`, from the template it was created under).
 const DONE_MILESTONE_STATUSES = new Set(['coordinator_approved', 'completed']);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -156,7 +156,7 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
       const data = doc.data();
       const projectMilestones = (milestonesByProjectId[doc.id] ?? [])
         .slice()
-        .sort((a, b) => MILESTONE_ORDER.indexOf(a.type) - MILESTONE_ORDER.indexOf(b.type));
+        .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
       // The first not-yet-done milestone, in template order — mirrors
       // getProjectCoordinatorDashboard's own "current milestone" resolution.
       // Fully-done projects (or ones with no milestones yet, e.g. no student

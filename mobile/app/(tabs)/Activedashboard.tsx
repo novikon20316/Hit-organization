@@ -56,13 +56,25 @@ const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string; icon: 
   completed:            { color: '#10B981', bg: '#ECFDF5', icon: '🏁' },
 };
 
-const MILESTONE_ORDER: MilestoneType[] = [
+// Legacy fallback — the milestone TYPE ordering every faculty used before a
+// milestone doc carried its own `order` (see server/src/services/
+// projectEnrollment.ts). Mirrors the server's own resolveMilestoneOrder
+// (workflowTemplates.ts) — only ever consulted for a milestone doc that
+// predates that field; a faculty's template can define its milestones in any
+// order (including custom_xxxxx types this list has never heard of), so an
+// unrecognized type sorts LAST here, never first.
+const LEGACY_MILESTONE_TYPE_ORDER: MilestoneType[] = [
   'research_proposal',
   'progress_report',
   'final_report',
   'defense',
   'poster',
 ];
+function resolveMilestoneOrder(m: { type?: string; order?: number }): number {
+  if (typeof m.order === 'number') return m.order;
+  const idx = m.type ? LEGACY_MILESTONE_TYPE_ORDER.indexOf(m.type as MilestoneType) : -1;
+  return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+}
 
 export default function ActiveDashboard({
   project, milestones, nextMilestone, progress, lang, isRtl,
@@ -114,10 +126,9 @@ export default function ActiveDashboard({
   // A milestone is "unlocked" (ready to interact with) when all previous ones
   // have status === 'coordinator_approved' OR 'completed'.
   const isUnlocked = (m: Milestone): boolean => {
-    const idx = MILESTONE_ORDER.indexOf(m.type);
-    if (idx === 0) return true;
+    const order = resolveMilestoneOrder(m);
     return milestones
-      .filter(prev => MILESTONE_ORDER.indexOf(prev.type) < idx)
+      .filter(prev => resolveMilestoneOrder(prev) < order)
       .every(prev => prev.status === 'coordinator_approved' || prev.status === 'completed');
   };
 

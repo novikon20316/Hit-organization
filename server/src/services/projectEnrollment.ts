@@ -213,7 +213,7 @@ export async function enrollStudentInProject(
       transaction.set(milestoneRef, {
         projectId, studentIds: [studentId], supervisorId, facultyId,
         ...(secondarySupervisorId ? { secondarySupervisorId } : {}),
-        type: t.type, nameHe: t.nameHe, nameEn: t.nameEn,
+        type: t.type, nameHe: t.nameHe, nameEn: t.nameEn, order: t.order,
         status:          'pending',
         dueDate:         admin.firestore.Timestamp.fromDate(dueDate),
         createdAt:       admin.firestore.FieldValue.serverTimestamp(),
