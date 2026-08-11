@@ -91,7 +91,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       fileUrls.push(result.secure_url);
     }
 
-    const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
+    const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
     const thisTypeIndex = MILESTONE_ORDER.indexOf(milestoneData.type);
 
     if (thisTypeIndex > 0) {

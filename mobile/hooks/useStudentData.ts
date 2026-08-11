@@ -93,7 +93,7 @@ export function useStudentData() {
       if (activeIds.length > 0) {
         // --- CASE A: Active Project(s) ---
         try {
-          const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
+          const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
           const loaded = await Promise.all(
             activeIds.map(async (pid: string) => {
               const projectRes = await apiClient.get(`/api/student/projects/${pid}`);

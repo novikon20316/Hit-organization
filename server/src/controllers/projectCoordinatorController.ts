@@ -13,7 +13,7 @@ import {
 } from '../services/coordinatorStatistics.js';
 import { FACULTY_NAMES } from '../services/studentProgress.js';
 
-const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
+const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
 
 // Broader than PROJECT_COORDINATOR_DASHBOARD_ROLES above — the statistics

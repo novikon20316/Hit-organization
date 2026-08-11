@@ -928,7 +928,7 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
         .get();
 
       // Define standard chronological milestone ordering
-      const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
+      const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
 
       // C. Process milestones and progress per individual student
       const studentsArray = studentsSnap.docs.map(studentDoc => {

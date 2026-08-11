@@ -7,7 +7,7 @@
 // both controllers are new in the same change — copy-paste drift here would be
 // immediate, not hypothetical.
 
-export const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense'];
+export const MILESTONE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
 
 // No confirmed college policy on what counts as "stuck" yet — provisional
 // threshold, flag to the user before relying on it for real decisions.
