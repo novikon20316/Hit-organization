@@ -58,7 +58,13 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
     milestones.find((m) => (m.status === 'pending' || m.status === 'rejected') && isUnlocked(m)) ?? null;
   const overviewDisplayMilestone =
     milestones.find((m) => (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status)) ?? actionableNextMilestone;
-  const isWaitingApproval = milestones.some((m) => (['graded', 'supervisor_graded'] as string[]).includes(m.status));
+  // Is there a milestone currently waiting on staff (freshly submitted and
+  // not yet even looked at, or graded and waiting on the coordinator's
+  // sign-off)? Omitting 'submitted' left a just-submitted milestone showing
+  // a "days left" countdown and an enabled-looking "Submit Milestone" label
+  // while the button was actually disabled, indistinguishable from a
+  // stuck/broken button.
+  const isWaitingApproval = milestones.some((m) => (['submitted', 'graded', 'supervisor_graded'] as string[]).includes(m.status));
 
   return (
     <div>

@@ -133,9 +133,15 @@ export default function ActiveDashboard({
     milestones.find(m => ['submitted', 'supervisor_graded', 'graded'].includes(m.status))
     ?? actionableNextMilestone;
 
-  // Is there a milestone currently waiting for coordinator approval?
+  // Is there a milestone currently waiting on staff (freshly submitted and
+  // not yet even looked at, or graded and waiting on the coordinator's
+  // sign-off)? Drives both the overview banner's status pill and the submit
+  // button's disabled state/label — omitting 'submitted' left a
+  // just-submitted milestone showing a "days left" countdown and an
+  // enabled-looking "Submit Milestone" label while the button was actually
+  // disabled, indistinguishable from a stuck/broken button.
   const isWaitingApproval = milestones.some(
-    m => ['graded', 'supervisor_graded'].includes(m.status)
+    m => ['submitted', 'graded', 'supervisor_graded'].includes(m.status)
   );
 
   // ── Days until deadline ────────────────────────────────────────────────────
