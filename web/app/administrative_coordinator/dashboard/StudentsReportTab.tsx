@@ -10,6 +10,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { facultyLabel, type FacultyId } from '@/lib/i18n';
+import { majorsForFaculty } from '@/lib/permissions';
 
 type StudentStatus = 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
 
@@ -24,6 +26,8 @@ interface StudentReportRow {
   milestoneNameHe: string | null;
   milestoneNameEn: string | null;
   days: number | null;
+  facultyId: string | null;
+  major: string | null;
 }
 
 const STATUS_LABEL: Record<StudentStatus, { he: string; en: string }> = {
@@ -49,6 +53,18 @@ function statusText(row: StudentReportRow, lang: 'he' | 'en'): string {
     return `${base} ${names}`;
   }
   return base;
+}
+
+// The Major column only makes sense for a faculty that actually splits into
+// more than one major (e.g. sciences: computer_science vs applied_math) — a
+// single-major faculty would just repeat the same value on every row, so
+// that student's cell shows '—' instead.
+function majorCellText(row: StudentReportRow, lang: 'he' | 'en'): string {
+  if (!row.facultyId) return '—';
+  const majors = majorsForFaculty(row.facultyId);
+  if (majors.length <= 1) return '—';
+  const match = majors.find((m) => m.slug === row.major);
+  return match ? match.label[lang] : '—';
 }
 
 export function StudentsReportTab() {
@@ -130,6 +146,8 @@ export function StudentsReportTab() {
           <thead>
             <tr className="border-b border-line bg-paper text-xs text-muted">
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'שם' : 'Name'}</th>
+              <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'פקולטה' : 'Faculty'}</th>
+              <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'מגמה' : 'Major'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'סטטוס' : 'Status'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'פרויקט' : 'Project'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'מנחה' : 'Supervisor'}</th>
@@ -150,6 +168,8 @@ export function StudentsReportTab() {
               return (
                 <tr key={r.id} className="border-b border-line last:border-b-0">
                   <td className="px-3 py-2 font-medium text-ink">{r.name}</td>
+                  <td className="px-3 py-2 text-ink">{r.facultyId ? facultyLabel(r.facultyId as FacultyId, lang) : '—'}</td>
+                  <td className="px-3 py-2 text-ink">{majorCellText(r, lang)}</td>
                   <td className="px-3 py-2">
                     <span className="font-medium" style={{ color: STATUS_COLOR[r.status] }}>
                       {statusText(r, lang)}
@@ -166,7 +186,7 @@ export function StudentsReportTab() {
             })}
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-muted">
+                <td colSpan={8} className="px-3 py-6 text-center text-sm text-muted">
                   📭 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}
                 </td>
               </tr>
