@@ -15,10 +15,18 @@
 
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient, downloadAuthenticatedFile } from '@/lib/apiClient';
+import { apiClient, downloadAuthenticatedFile, type PaymentCategory, type SupervisorPaymentRates } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 
 type Stats = Awaited<ReturnType<typeof apiClient.getCoordinatorStatistics>>;
+
+const PAYMENT_CATEGORIES: PaymentCategory[] = ['msc_thesis', 'msc_project', 'bsc_project'];
+const CATEGORY_LABELS: Record<PaymentCategory, { he: string; en: string }> = {
+  msc_thesis: { he: 'תזה', en: 'Thesis' },
+  msc_project: { he: 'פרויקט גמר תואר שני', en: "Master's final project" },
+  bsc_project: { he: 'פרויקט גמר תואר ראשון', en: "Bachelor's final project" },
+};
+const EMPTY_RATE_ROW: Record<PaymentCategory, number | null> = { msc_thesis: null, msc_project: null, bsc_project: null };
 
 function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -56,6 +64,10 @@ export function CoordinatorStatisticsTab() {
   const [expandedType, setExpandedType] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
+  const [rateEdits, setRateEdits] = useState<SupervisorPaymentRates>({});
+  const [savingRates, setSavingRates] = useState(false);
+  const [rateSaveError, setRateSaveError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +79,7 @@ export function CoordinatorStatisticsTab() {
         setData(res);
         setAllowedFacultyIds(res.allowedFacultyIds ?? []);
         setNoScopeAssigned(!!res.noScopeAssigned);
+        setRateEdits(res.supervisorPaymentRates ?? {});
         setError('');
       })
       .catch((err) => {
@@ -78,7 +91,27 @@ export function CoordinatorStatisticsTab() {
     return () => {
       cancelled = true;
     };
-  }, [facultyFilter, lang]);
+  }, [facultyFilter, lang, reloadKey]);
+
+  const updateRateEdit = (facultyId: string, category: PaymentCategory, value: string) => {
+    setRateEdits((prev) => ({
+      ...prev,
+      [facultyId]: { ...EMPTY_RATE_ROW, ...prev[facultyId], [category]: value === '' ? null : Number(value) },
+    }));
+  };
+
+  const handleSaveRates = async () => {
+    setSavingRates(true);
+    setRateSaveError('');
+    try {
+      await apiClient.updateSupervisorPaymentRates(rateEdits);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      setRateSaveError(err instanceof Error ? err.message : lang === 'he' ? 'השמירה נכשלה' : 'Save failed');
+    } finally {
+      setSavingRates(false);
+    }
+  };
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -283,6 +316,86 @@ export function CoordinatorStatisticsTab() {
             </div>
           ))}
         </div>
+      </Section>
+
+      {/* 7. Supervisor credit points — for payment approval */}
+      <Section title={lang === 'he' ? '💰 נקודות זכות למנחים (לאישור תשלום)' : '💰 Supervisor credit points (for payment approval)'}>
+        <p className="mb-3 text-xs text-muted">
+          {lang === 'he'
+            ? 'מפתח נקודות לכל פקולטה וסוג פרויקט — יש להזין את הערכים הסופיים כשיתקבלו. עד אז, פרויקטים ללא ערך מוגדר לא יחושבו בסה"כ (מסומן ב־⚠️).'
+            : "Credit-point key per faculty/category — fill in the final values once known. Until then, categories with no rate set aren't counted in the total (flagged with ⚠️)."}
+        </p>
+
+        <div className="mb-4 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-start text-muted">
+                <th className="px-2 py-1 text-start">{lang === 'he' ? 'פקולטה' : 'Faculty'}</th>
+                {PAYMENT_CATEGORIES.map((cat) => (
+                  <th key={cat} className="px-2 py-1 text-start">{lang === 'he' ? CATEGORY_LABELS[cat].he : CATEGORY_LABELS[cat].en}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {allowedFacultyIds.length === 0 && (
+                <tr><td colSpan={4} className="px-2 py-1 text-muted">{lang === 'he' ? 'אין נתונים' : 'No data'}</td></tr>
+              )}
+              {allowedFacultyIds.map((fid) => {
+                const row = rateEdits[fid] ?? EMPTY_RATE_ROW;
+                return (
+                  <tr key={fid} className="border-t border-line">
+                    <td className="px-2 py-1.5 text-ink">{facultyLabel(fid as FacultyId, lang)}</td>
+                    {PAYMENT_CATEGORIES.map((cat) => (
+                      <td key={cat} className="px-2 py-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row[cat] ?? ''}
+                          onChange={(e) => updateRateEdit(fid, cat, e.target.value)}
+                          placeholder="—"
+                          className="w-20 rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink focus:border-primary focus:outline-none"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="mb-4 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSaveRates}
+            disabled={savingRates || allowedFacultyIds.length === 0}
+            className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-ink hover:border-primary hover:text-primary disabled:opacity-60"
+          >
+            {savingRates ? '…' : lang === 'he' ? 'שמירת המפתח' : 'Save key'}
+          </button>
+          {rateSaveError && <span className="text-xs text-danger">{rateSaveError}</span>}
+        </div>
+
+        {data.supervisorCreditPoints.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין נתונים' : 'No data'}</p>}
+        {[...new Set(data.supervisorCreditPoints.map((r) => r.facultyId))].map((fid) => (
+          <div key={fid} className="mb-3">
+            <p className="mb-1 text-xs font-semibold text-muted">{facultyLabel(fid as FacultyId, lang)}</p>
+            <div className="grid gap-1.5">
+              {data.supervisorCreditPoints.filter((r) => r.facultyId === fid).map((r) => (
+                <div key={r.supervisorId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-paper px-2.5 py-1.5 text-sm">
+                  <span className="text-ink">{r.supervisorName}</span>
+                  <span className="text-xs text-muted">
+                    {PAYMENT_CATEGORIES.map((cat) => `${lang === 'he' ? CATEGORY_LABELS[cat].he : CATEGORY_LABELS[cat].en}: ${r.counts[cat]}`).join(' · ')}
+                    {' · '}
+                    <span className="font-semibold text-ink">{lang === 'he' ? 'סה"כ נקודות' : 'Total points'}: {r.totalPoints}</span>
+                    {r.incompleteRates && (
+                      <span title={lang === 'he' ? 'המפתח לא הוגדר במלואו — הסכום חלקי' : 'Key not fully set — total is partial'}> ⚠️</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </Section>
     </div>
   );

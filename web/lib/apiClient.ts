@@ -15,6 +15,12 @@ export function getApiBaseUrl(): string {
   return getBaseUrl();
 }
 
+/** The three categories the administrative coordinator pays supervisors
+ *  against — same split as the server's ProcessType (workflowTemplates.ts). */
+export type PaymentCategory = 'msc_thesis' | 'msc_project' | 'bsc_project';
+export type PaymentCategoryCounts = Record<PaymentCategory, number>;
+export type SupervisorPaymentRates = Record<string, Record<PaymentCategory, number | null>>;
+
 /** Generic authenticated file download — fetches a binary response (e.g. an
  *  .xlsx export) with the same Bearer token apiClient attaches automatically
  *  elsewhere, then triggers a browser download. Used for any export/download
@@ -1615,7 +1621,24 @@ export const apiClient = {
       applicationsByFaculty: Array<{ facultyId: string; count: number; percent: number }>;
       onTimeCompletion: Array<{ facultyId: string; onTime: number; late: number; total: number; percentOnTime: number }>;
       yearOfStudyDistribution: Array<{ yearOfStudy: number | 'unknown'; count: number; averageProgressPercent: number }>;
+      supervisorPaymentRates: SupervisorPaymentRates;
+      supervisorCreditPoints: Array<{
+        facultyId: string; supervisorId: string; supervisorName: string;
+        counts: PaymentCategoryCounts; totalProjects: number;
+        points: Record<PaymentCategory, number | null>;
+        totalPoints: number; incompleteRates: boolean;
+      }>;
     }>('/api/project-coordinator/statistics', { method: 'GET', params: { facultyId } });
+  },
+
+  /** Saves the per-faculty×category credit-point rate an administrative
+   *  coordinator uses to turn a supervisor's project counts into a payment
+   *  total (see getCoordinatorStatistics's supervisorCreditPoints above) —
+   *  only the faculties included in `rates` are touched, everything else in
+   *  the stored table is left as-is. Returns the full merged table so the
+   *  caller can refresh its local state without a second round-trip. */
+  async updateSupervisorPaymentRates(rates: SupervisorPaymentRates) {
+    return request<{ rates: SupervisorPaymentRates }>('/api/project-coordinator/supervisor-payment-rates', { method: 'PUT', body: { rates } });
   },
 
   /** Shared by coordinator, administrative coordinator, and system_admin — all

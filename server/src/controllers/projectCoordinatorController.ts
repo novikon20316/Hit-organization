@@ -10,6 +10,10 @@ import {
   applicationsByFacultyStats,
   onTimeCompletionStats,
   yearOfStudyDistributionStats,
+  supervisorCreditPointsStats,
+  getSupervisorPaymentRates,
+  setSupervisorPaymentRates,
+  type SupervisorPaymentRates,
 } from '../services/coordinatorStatistics.js';
 import { FACULTY_NAMES } from '../services/studentProgress.js';
 import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
@@ -638,10 +642,11 @@ export const getCoordinatorStatistics = async (req: AuthenticatedRequest, res: R
       ? [requestedFacultyId]
       : (isSystemAdmin ? 'all' : allowedFacultyIds);
 
-    const [finalGrades, applicationsByFaculty, onTimeCompletion] = await Promise.all([
+    const [finalGrades, applicationsByFaculty, onTimeCompletion, supervisorPaymentRates] = await Promise.all([
       finalGradesStats(records),
       applicationsByFacultyStats(applicationScope),
       onTimeCompletionStats(records),
+      getSupervisorPaymentRates(),
     ]);
 
     return res.status(200).json({
@@ -652,10 +657,66 @@ export const getCoordinatorStatistics = async (req: AuthenticatedRequest, res: R
       applicationsByFaculty,
       onTimeCompletion,
       yearOfStudyDistribution: yearOfStudyDistributionStats(records),
+      supervisorPaymentRates,
+      supervisorCreditPoints: supervisorCreditPointsStats(records, supervisorPaymentRates),
     });
   } catch (error: any) {
     console.error('getCoordinatorStatistics error:', error);
     return res.status(500).json({ message: 'Failed to load statistics.' });
+  }
+};
+
+/**
+ * PUT /api/project-coordinator/supervisor-payment-rates
+ * Lets an administrative coordinator (or coordinator/system_admin) fill in
+ * the per-faculty×category credit-point rate she uses to approve supervisor
+ * payments (see supervisorCreditPointsStats above) — the values themselves
+ * aren't fixed yet, so this exists to let her set/adjust them over time
+ * rather than have them hardcoded. Body: { rates: { [facultyId]: {
+ * msc_thesis, msc_project, bsc_project } } } — same scope rules as the
+ * statistics endpoint (resolveStatisticsScope): system_admin may edit any
+ * faculty, everyone else only their own allowedFacultyIds.
+ */
+export const updateSupervisorPaymentRates = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !COORDINATOR_STATISTICS_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to edit these rates.' });
+  }
+
+  try {
+    const scope = resolveStatisticsScope(req);
+    if (scope.error) return res.status(scope.error.status).json({ message: scope.error.message });
+    const { isSystemAdmin, allowedFacultyIds } = scope;
+
+    const body = (req.body?.rates ?? {}) as SupervisorPaymentRates;
+    if (typeof body !== 'object' || body === null) {
+      return res.status(400).json({ message: 'Invalid rates payload.' });
+    }
+
+    const updates: SupervisorPaymentRates = {};
+    for (const [facultyId, row] of Object.entries(body)) {
+      if (!isSystemAdmin && !allowedFacultyIds.includes(facultyId)) {
+        return res.status(403).json({ message: `You may only edit rates for your own assigned faculties (not ${facultyId}).` });
+      }
+      const clean = { msc_thesis: null as number | null, msc_project: null as number | null, bsc_project: null as number | null };
+      for (const cat of ['msc_thesis', 'msc_project', 'bsc_project'] as const) {
+        const v = (row as any)?.[cat];
+        if (v === null || v === undefined || v === '') continue;
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 0) {
+          return res.status(400).json({ message: `Invalid rate for ${facultyId}/${cat}.` });
+        }
+        clean[cat] = n;
+      }
+      updates[facultyId] = clean;
+    }
+
+    const rates = await setSupervisorPaymentRates(updates);
+    return res.status(200).json({ rates });
+  } catch (error: any) {
+    console.error('updateSupervisorPaymentRates error:', error);
+    return res.status(500).json({ message: 'Failed to save rates.' });
   }
 };
 
@@ -696,14 +757,16 @@ export const exportCoordinatorStatistics = async (req: AuthenticatedRequest, res
       ? [requestedFacultyId]
       : (isSystemAdmin ? 'all' : allowedFacultyIds);
 
-    const [finalGrades, applicationsByFaculty, onTimeCompletion] = await Promise.all([
+    const [finalGrades, applicationsByFaculty, onTimeCompletion, supervisorPaymentRates] = await Promise.all([
       finalGradesStats(records),
       applicationsByFacultyStats(applicationScope),
       onTimeCompletionStats(records),
+      getSupervisorPaymentRates(),
     ]);
     const milestoneDistribution = milestoneDistributionStats(records);
     const milestoneCompletion = milestoneCompletionStats(records);
     const yearOfStudyDistribution = yearOfStudyDistributionStats(records);
+    const supervisorCreditPoints = supervisorCreditPointsStats(records, supervisorPaymentRates);
 
     const workbook = XLSX.utils.book_new();
     addStatsSheet(workbook, 'MilestoneDistribution', milestoneDistribution.map((r) => ({
@@ -724,6 +787,11 @@ export const exportCoordinatorStatistics = async (req: AuthenticatedRequest, res
     })));
     addStatsSheet(workbook, 'YearOfStudy', yearOfStudyDistribution.map((r) => ({
       Year: r.yearOfStudy, Count: r.count, AvgProgressPercent: r.averageProgressPercent,
+    })));
+    addStatsSheet(workbook, 'SupervisorCreditPoints', supervisorCreditPoints.map((r) => ({
+      Faculty: r.facultyId, Supervisor: r.supervisorName,
+      ThesisCount: r.counts.msc_thesis, MastersProjectCount: r.counts.msc_project, BachelorsProjectCount: r.counts.bsc_project,
+      TotalProjects: r.totalProjects, TotalPoints: r.totalPoints, RatesIncomplete: r.incompleteRates ? 'Yes' : 'No',
     })));
 
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;

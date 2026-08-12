@@ -26,7 +26,7 @@ import { computeMilestoneProgress, type MilestoneDoc } from './studentProgress.j
 import { programLengthYearsFor } from './accountDeletion.js';
 import {
   getMilestonesForTemplateId, getActiveMilestonesFor, deriveProcessType,
-  type WorkflowTemplateRef,
+  type WorkflowTemplateRef, type ProcessType,
 } from './workflowTemplates.js';
 import { computeProjectFinalGrade } from './gradeEngine.js';
 
@@ -403,4 +403,97 @@ export function yearOfStudyDistributionStats(records: EngagementRecord[]): YearO
       if (b.yearOfStudy === 'unknown') return -1;
       return (a.yearOfStudy as number) - (b.yearOfStudy as number);
     });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Supervisor credit points — for payment approval. Buckets each
+//    supervisor's projects into the three categories the administrative
+//    coordinator pays against (thesis / master's final project / bachelor's
+//    final project — the same split as deriveProcessType's ProcessType) and
+//    multiplies by a per-faculty rate table she fills in herself, since the
+//    actual point values aren't fixed yet (see getSupervisorPaymentRates). A
+//    category with no rate set contributes 0 to the total and flips
+//    incompleteRates so the UI can flag the row as partial rather than
+//    silently showing a wrong-looking total.
+// ─────────────────────────────────────────────────────────────────────────────
+export type SupervisorPaymentRates = Record<string, Record<ProcessType, number | null>>;
+
+const PAYMENT_CATEGORIES: ProcessType[] = ['msc_thesis', 'msc_project', 'bsc_project'];
+const PAYMENT_RATES_DOC = db.collection('config').doc('supervisorPaymentRates');
+
+function emptyRateRow(): Record<ProcessType, number | null> {
+  return { msc_thesis: null, msc_project: null, bsc_project: null };
+}
+
+export async function getSupervisorPaymentRates(): Promise<SupervisorPaymentRates> {
+  const snap = await PAYMENT_RATES_DOC.get();
+  return (snap.exists ? snap.data()?.rates : undefined) ?? {};
+}
+
+/** Merges `updates` (one row per facultyId being edited) into the stored
+ *  rate table and returns the full merged table. Callers must only pass
+ *  faculties the caller is allowed to edit — this function itself has no
+ *  scope check, that's the controller's job (same split as everywhere else
+ *  in this file). */
+export async function setSupervisorPaymentRates(updates: SupervisorPaymentRates): Promise<SupervisorPaymentRates> {
+  const current = await getSupervisorPaymentRates();
+  const merged: SupervisorPaymentRates = { ...current };
+  for (const [facultyId, row] of Object.entries(updates)) {
+    merged[facultyId] = { ...emptyRateRow(), ...current[facultyId], ...row };
+  }
+  await PAYMENT_RATES_DOC.set({ rates: merged }, { merge: true });
+  return merged;
+}
+
+export interface SupervisorCreditPointsRow {
+  facultyId: string;
+  supervisorId: string;
+  supervisorName: string;
+  counts: Record<ProcessType, number>;
+  totalProjects: number;
+  points: Record<ProcessType, number | null>;
+  totalPoints: number;
+  incompleteRates: boolean;
+}
+
+export function supervisorCreditPointsStats(records: EngagementRecord[], rates: SupervisorPaymentRates): SupervisorCreditPointsRow[] {
+  // One row per project, not per (project, student) — gatherEngagements
+  // duplicates a shared project across each of its enrolled students.
+  const byProject = new Map<string, EngagementRecord>();
+  for (const r of records) {
+    if (!r.advisorId || byProject.has(r.projectId)) continue;
+    byProject.set(r.projectId, r);
+  }
+
+  const byKey = new Map<string, { facultyId: string; supervisorId: string; supervisorName: string; counts: Record<ProcessType, number> }>();
+  for (const r of byProject.values()) {
+    const category = deriveProcessType(r.degreeType, r.projectType);
+    const key = `${r.facultyId}::${r.advisorId}`;
+    const bucket = byKey.get(key) ?? {
+      facultyId: r.facultyId, supervisorId: r.advisorId, supervisorName: r.advisorName,
+      counts: { msc_thesis: 0, msc_project: 0, bsc_project: 0 },
+    };
+    bucket.counts[category]++;
+    byKey.set(key, bucket);
+  }
+
+  return [...byKey.values()]
+    .map((b) => {
+      const rateRow = rates[b.facultyId] ?? emptyRateRow();
+      const points = emptyRateRow();
+      let totalPoints = 0;
+      let incompleteRates = false;
+      for (const cat of PAYMENT_CATEGORIES) {
+        const rate = rateRow[cat];
+        if (b.counts[cat] > 0 && rate == null) incompleteRates = true;
+        points[cat] = rate == null ? null : b.counts[cat] * rate;
+        totalPoints += points[cat] ?? 0;
+      }
+      return {
+        ...b,
+        totalProjects: b.counts.msc_thesis + b.counts.msc_project + b.counts.bsc_project,
+        points, totalPoints, incompleteRates,
+      };
+    })
+    .sort((a, b) => a.facultyId.localeCompare(b.facultyId) || a.supervisorName.localeCompare(b.supervisorName));
 }
