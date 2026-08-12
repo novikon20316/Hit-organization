@@ -13,6 +13,14 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
 import { getHomeRoute, getUserRoles, type AppRole, type UserDoc } from '@/lib/roles';
 import { resolveActiveRole, setStoredActiveRole } from '@/lib/activeRole';
+import { useIdleTimer } from '@/hooks/useIdleTimer';
+import { SessionExpiredModal } from '@/components/SessionExpiredModal';
+
+// After this long with no mouse/keyboard/touch activity, we assume the
+// Firebase ID token is stale enough that API calls will start failing in
+// confusing ways (the "site just stops responding" symptom this guards
+// against) — so we proactively force a re-login instead.
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
 interface AuthContextValue {
   firebaseUser: User | null;
@@ -60,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authResolved, setAuthResolved] = useState(false);
   const [profileResolved, setProfileResolved] = useState(false);
   const [activeRole, setActiveRoleState] = useState<AppRole | undefined>(undefined);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -112,6 +121,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signOut(auth);
   };
 
+  // Only watch for idle time once a user is actually signed in — no point
+  // arming this on /login itself.
+  useIdleTimer(() => setSessionExpired(true), IDLE_TIMEOUT_MS, !!firebaseUser);
+
+  const handleSessionExpiredConfirm = async () => {
+    setSessionExpired(false);
+    await logout();
+    router.replace('/login');
+  };
+
   const setActiveRole = (role: AppRole) => {
     if (!userData) return;
     setStoredActiveRole(userData.uid, role);
@@ -132,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <SessionExpiredModal open={sessionExpired} onConfirm={handleSessionExpiredConfirm} />
     </AuthContext.Provider>
   );
 }

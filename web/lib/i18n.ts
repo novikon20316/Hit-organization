@@ -77,6 +77,10 @@ export const t = {
   version:            { he: 'גרסה',                                    en: 'Version' },
   createdAt:          { he: 'נוצר בתאריך',                            en: 'Created at' },
   updatedAt:          { he: 'עודכן בתאריך',                           en: 'Updated at' },
+  ok:                 { he: 'אישור',                                   en: 'OK' },
+  sessionExpiredTitle:   { he: 'עברו מספר דקות ללא פעילות',              en: 'You have been inactive for a while' },
+  sessionExpiredMessage: { he: 'לא עבדת במערכת זמן מה, לכן עליך להתחבר מחדש כדי לוודא שזה באמת אתה.',
+                           en: 'You have not worked on the system for a while, so you need to log in again to make sure it is really you.' },
   by:                 { he: 'על ידי',                                  en: 'By' },
 
   // ══════════════════════════════════════════════════════════════════════════
