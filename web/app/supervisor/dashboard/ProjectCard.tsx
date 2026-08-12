@@ -20,6 +20,11 @@ const URGENCY_COLOR: Record<'green' | 'orange' | 'red', string> = {
   red: '#A8433A',
 };
 
+const PROJECT_STATUS_LABEL: Record<string, { he: string; en: string }> = {
+  active: { he: 'פעיל', en: 'Active' },
+  in_progress: { he: 'בתהליך', en: 'In Progress' },
+};
+
 interface ProjectCardProps {
   project: MyProject;
   onEdit: (project: MyProject) => void;
@@ -54,7 +59,9 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
         <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}>
           {facultyLabel(p.facultyId as FacultyId, lang)}
         </span>
-        <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">{p.status}</span>
+        <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
+          {PROJECT_STATUS_LABEL[p.status]?.[lang] ?? p.status}
+        </span>
       </div>
       <p className="mt-2 text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe : p.titleEn}</p>
       <p className="mt-1 text-xs text-muted">
