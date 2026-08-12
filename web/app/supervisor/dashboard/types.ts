@@ -150,11 +150,11 @@ export interface SupervisorDeadline {
 }
 
 export const GRADING_CRITERIA = [
-  { key: 'clarity', max: 20, he: 'בהירות המחקר (0–20)', en: 'Research Clarity (0–20)' },
-  { key: 'methodology', max: 25, he: 'מתודולוגיה (0–25)', en: 'Methodology (0–25)' },
-  { key: 'feasibility', max: 20, he: 'ישימות (0–20)', en: 'Feasibility (0–20)' },
-  { key: 'innovation', max: 15, he: 'חדשנות (0–15)', en: 'Innovation (0–15)' },
-  { key: 'writing', max: 20, he: 'כתיבה (0–20)', en: 'Writing Quality (0–20)' },
+  { key: 'clarity', max: 20, he: 'בהירות המחקר', en: 'Research Clarity' },
+  { key: 'methodology', max: 25, he: 'מתודולוגיה', en: 'Methodology' },
+  { key: 'feasibility', max: 20, he: 'ישימות', en: 'Feasibility' },
+  { key: 'innovation', max: 15, he: 'חדשנות', en: 'Innovation' },
+  { key: 'writing', max: 20, he: 'כתיבה', en: 'Writing Quality' },
 ] as const;
 
 export type GradingCriterionKey = (typeof GRADING_CRITERIA)[number]['key'];
