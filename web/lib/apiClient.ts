@@ -541,8 +541,40 @@ export const apiClient = {
     return request<{ facultyIds: string[] }>(`/api/permissions/my-grants?action=${encodeURIComponent(action)}`, { method: 'GET' });
   },
 
+  /** Archives the project (see server's services/projectErasure.ts) — never
+   *  a permanent delete, always restorable from the Archived tab. */
   async deleteAdminProject(projectId: string) {
     return request<{ success: boolean; message: string }>(`/api/admin/projects/${projectId}`, { method: 'DELETE' });
+  },
+
+  // ─── Project erasure/archive protocol (coordinator + system_admin only,
+  // except requestProjectErasure above which is supervisor-only) ────────────
+  async listPendingErasureRequests() {
+    return request<{ requests: Array<{
+      id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
+      facultyId: string; requestedBy: string; requestedByRole: string; reason: string;
+      status: 'pending' | 'approved' | 'rejected'; createdAt: string | null;
+    }> }>(`/api/projects/erasure-requests/pending`, { method: 'GET' });
+  },
+
+  async decideErasureRequest(requestId: string, decision: 'approved' | 'rejected', reason?: string) {
+    return request<{ success: boolean }>(`/api/projects/erasure-requests/${requestId}/decide`, {
+      method: 'POST',
+      body: { decision, reason },
+    });
+  },
+
+  async listArchivedProjects() {
+    return request<{ projects: Array<{
+      id: string; titleHe: string; titleEn: string; facultyId: string;
+      supervisorId: string; supervisorName: string; enrolledStudentIds: string[];
+      enrolledStudentNames: string[];
+      deletedAt: string | null; erasedBy: string | null; milestones: any[];
+    }> }>(`/api/projects/archived`, { method: 'GET' });
+  },
+
+  async restoreProject(projectId: string) {
+    return request<{ success: boolean; message: string }>(`/api/projects/${projectId}/restore`, { method: 'POST' });
   },
 
   /** POST /api/admin/projects/:id/enroll-student — distinct from
@@ -1075,8 +1107,8 @@ export const apiClient = {
     return request<{ success?: boolean; message?: string }>(`/api/supervisor/projects/${projectId}`, { method: 'PUT', body: payload });
   },
 
-  async deleteSupervisorProject(projectId: string) {
-    return request<{ success?: boolean; message?: string }>(`/api/supervisor/projects/${projectId}`, { method: 'DELETE' });
+  async requestProjectErasure(projectId: string, reason: string) {
+    return request<{ success: boolean; request: unknown }>(`/api/projects/${projectId}/request-erasure`, { method: 'POST', body: { reason } });
   },
 
   async getSupervisorProjectDetail(projectId: string) {

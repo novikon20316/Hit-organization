@@ -129,7 +129,7 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
                   onClick={() => setDeletingProject(p)}
                   className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-danger hover:border-danger"
                 >
-                  🗑️ {lang === 'he' ? 'מחק' : 'Delete'}
+                  🗑️ {lang === 'he' ? 'מחק' : 'Erase'}
                 </button>
               </div>
             </div>
@@ -154,9 +154,9 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
 
       <ConfirmDialog
         open={!!deletingProject}
-        title={lang === 'he' ? 'מחיקת פרויקט' : 'Delete Project'}
-        message={lang === 'he' ? 'האם אתה בטוח?' : 'Are you sure?'}
-        confirmLabel={lang === 'he' ? 'מחק' : 'Delete'}
+        title={lang === 'he' ? 'מחיקת פרויקט' : 'Erase Project'}
+        message={lang === 'he' ? 'הפרויקט יועבר לארכיון וניתן יהיה לשחזרו בכל עת.' : 'The project will be moved to the archive and can be restored at any time.'}
+        confirmLabel={lang === 'he' ? 'מחק' : 'Erase'}
         cancelLabel={lang === 'he' ? 'ביטול' : 'Cancel'}
         destructive
         busy={deleting}

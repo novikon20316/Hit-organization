@@ -34,13 +34,14 @@ import { MaintenanceModal } from './MaintenanceModal';
 import { AcademicCalendarModal } from './AcademicCalendarModal';
 import { StudentStatusesModal } from './StudentStatusesModal';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
+import { ArchivedProjectsTab } from '@/components/ArchivedProjectsTab';
 import type { AdminUserRecord, AdminProjectRecord, AdminMilestoneRecord, StudentStatusConfig } from './types';
 
 const ADMIN_ROLES: AppRole[] = ['system_admin'];
 const DISPLAYED_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
 const selectCls = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none';
 
-type AdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs' | 'statistics';
+type AdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs' | 'statistics' | 'archived';
 
 export default function AdminPanelPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_ROLES);
@@ -206,7 +207,7 @@ export default function AdminPanelPage() {
       }
     >
       <div className="mb-5 flex flex-wrap gap-1 border-b border-line">
-        {(['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster', 'signoffs', 'statistics'] as const).map((key) => (
+        {(['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster', 'signoffs', 'statistics', 'archived'] as const).map((key) => (
           <button
             key={key}
             type="button"
@@ -301,6 +302,8 @@ export default function AdminPanelPage() {
         <PendingSignoffsWidget showEmptyState />
       ) : tab === 'statistics' ? (
         <CoordinatorStatisticsTab />
+      ) : tab === 'archived' ? (
+        <ArchivedProjectsTab />
       ) : (
         <FeedbackTab />
       )}
@@ -357,6 +360,7 @@ const TAB_LABELS: Record<AdminTab, { he: string; en: string }> = {
   studentRoster: { he: 'רשימת סטודנטים', en: 'Student Roster' },
   signoffs: { he: 'ממתין לאישורך', en: 'Awaiting Your Sign-off' },
   statistics: { he: 'סטטיסטיקות', en: 'Statistics' },
+  archived: { he: 'ארכיון', en: 'Archived' },
 };
 
 function OverviewTab({

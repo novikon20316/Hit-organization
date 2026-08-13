@@ -21,6 +21,8 @@ import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal } from '@/components/modals';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
+import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
+import { useActiveRole } from '@/contexts/ActiveRoleContext';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -59,7 +61,8 @@ export default function CoordinatorHome() {
   const [coordinatorName, setCoordinatorName] = useState('');
   const [loading, setLoading]     = useState(true);
   
-  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs'>('pending');
+  const { activeRole } = useActiveRole();
+  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived'>('pending');
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
@@ -785,6 +788,14 @@ export default function CoordinatorHome() {
         >
           <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
         </Pressable>
+        {activeRole !== 'administrative_secretary' && (
+          <Pressable
+            style={[styles.tab, activeTab === 'archived' && styles.tabActive]}
+            onPress={() => setActiveTab('archived')}
+          >
+            <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'ארכיון' : 'Archived'}</Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -1531,6 +1542,10 @@ export default function CoordinatorHome() {
 
         {activeTab === 'signoffs' && (
           <PendingSignoffsWidget lang={lang} showEmptyState />
+        )}
+
+        {activeTab === 'archived' && (
+          <ArchivedProjectsSection lang={lang} />
         )}
 
         <View style={{ height: 60 }} />

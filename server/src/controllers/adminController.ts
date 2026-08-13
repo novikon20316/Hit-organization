@@ -8,6 +8,7 @@ import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount, getEffectiveRoles } from '../services/accountDeletion.js';
 import { VALID_ROLES, generateTempPassword, setTempPasswordHash } from '../services/userImportExport.js';
 import { listPendingLockouts, liftLockout } from '../services/loginSecurity.js';
+import { eraseProjectDirectly } from '../services/projectErasure.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
 import { WEBSITE_URL, APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
@@ -106,14 +107,19 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
     const usersById: Record<string, string> = {};
     usersSnap.docs.forEach((d) => { usersById[d.id] = d.data()?.displayName ?? 'Unknown'; });
 
-    const projects = projectsSnap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        ...data,
-        supervisorName: data.supervisorId ? (usersById[data.supervisorId] ?? 'Unknown') : 'Unassigned',
-      };
-    });
+    // Archived projects (services/projectErasure.ts) belong in the Archived
+    // tab, not the normal project list — filtered in-memory since Firestore
+    // can't match `isArchived == false` against docs that predate the field.
+    const projects = projectsSnap.docs
+      .filter((d) => !d.data().isArchived)
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          supervisorName: data.supervisorId ? (usersById[data.supervisorId] ?? 'Unknown') : 'Unassigned',
+        };
+      });
 
     const milestones = milestonesSnap.docs.map((d) => ({
       id: d.id,
@@ -1088,7 +1094,8 @@ export const liftLoginLockout = async (req: AuthenticatedRequest, res: Response)
 
 /**
  * 10. DELETE /api/admin/projects/:id
- * Permanently removes a project from the system.
+ * Erases a project — archives it (see services/projectErasure.ts), never a
+ * permanent delete, so it always shows up restorable in the Archived tab.
  */
 export const deleteAdminProject = async (req: AuthenticatedRequest, res: Response) => {
   const isSystemAdmin = req.user?.role === 'system_admin';
@@ -1114,12 +1121,12 @@ export const deleteAdminProject = async (req: AuthenticatedRequest, res: Respons
       }
     }
 
-    await projectRef.delete();
+    await eraseProjectDirectly({ projectId, erasedBy: req.user!.uid, erasedByRole: req.user!.role });
 
-    return res.status(200).json({ success: true, message: 'Project permanently deleted.' });
+    return res.status(200).json({ success: true, message: 'Project archived.' });
   } catch (error: any) {
     console.error('deleteAdminProject Error:', error);
-    return res.status(500).json({ message: 'Failed to delete project.' });
+    return res.status(400).json({ message: error.message || 'Failed to erase project.' });
   }
 };
 

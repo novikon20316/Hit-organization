@@ -6,8 +6,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
-import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
+import { RequestErasureModal } from './RequestErasureModal';
 import type { FacultyId } from '@/lib/i18n';
 import type { MyProject } from './types';
 
@@ -34,23 +34,11 @@ interface ProjectCardProps {
 export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps) {
   const { lang, t } = useLanguage();
   const facultyColor = getFacultyColor(p.facultyId);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [showRequestErasure, setShowRequestErasure] = useState(false);
   const [showWorkflow, setShowWorkflow] = useState(false);
 
   const urgency = p.currentMilestone?.urgency ?? null;
   const urgencyColor = urgency ? URGENCY_COLOR[urgency] : 'transparent';
-
-  const handleDelete = async () => {
-    setDeleting(true);
-    try {
-      await apiClient.deleteSupervisorProject(p.id);
-      setConfirmDelete(false);
-      onChanged();
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   return (
     <div className="rounded-[calc(var(--radius)+4px)] p-1" style={{ border: `2px solid ${urgencyColor}` }}>
@@ -121,26 +109,18 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
         </button>
         <button
           type="button"
-          onClick={() => setConfirmDelete(true)}
+          onClick={() => setShowRequestErasure(true)}
           className="flex-1 rounded-lg border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger-bg"
         >
-          {lang === 'he' ? 'מחיקה' : 'Delete'}
+          {t('requestErasure')}
         </button>
       </div>
 
       {showWorkflow && <ProjectWorkflowModal project={p} onClose={() => setShowWorkflow(false)} />}
 
-      <ConfirmDialog
-        open={confirmDelete}
-        title={lang === 'he' ? 'מחיקת פרויקט' : 'Delete Project'}
-        message={lang === 'he' ? 'האם אתה בטוח שברצונך להעביר פרויקט זה לארכיון?' : 'Are you sure you want to archive this project?'}
-        confirmLabel={lang === 'he' ? 'מחק' : 'Delete'}
-        cancelLabel={t('cancel')}
-        destructive
-        busy={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmDelete(false)}
-      />
+      {showRequestErasure && (
+        <RequestErasureModal project={p} onClose={() => setShowRequestErasure(false)} onSubmitted={onChanged} />
+      )}
     </div>
     </div>
   );

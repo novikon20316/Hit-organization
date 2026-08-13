@@ -70,6 +70,7 @@ export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Resp
     const projects: any[] = [];
     for (const pDoc of projectsSnap.docs) {
       const pData = pDoc.data();
+      if (pData.isArchived) continue; // archived — see services/projectErasure.ts
       let supervisorName = 'Unassigned';
       if (pData.supervisorId) {
         const sMatch = users.find(u => u.id === pData.supervisorId);

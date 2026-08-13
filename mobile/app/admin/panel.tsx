@@ -41,6 +41,7 @@ import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal,
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
+import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
 
 export default function PanelScreen() {
   const router = useRouter();
@@ -66,7 +67,7 @@ export default function PanelScreen() {
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs'
+    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs' | 'archived'
   >('overview');
 
   // ── Real feedback awaiting review — one-way (see feedbackController.ts);
@@ -832,22 +833,28 @@ export default function PanelScreen() {
   };
 
   const deleteProject = async (projectId: string) => {
-    Alert.alert('Delete Project', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            // 🚀 Replaced direct updateDoc mutation flag
-            await apiClient.delete(`/api/admin/projects/${projectId}`);
-            fetchAllDashboardData();
-          } catch (e) {
-            console.log(e);
-          }
+    // Server now archives instead of permanently deleting (see
+    // server/src/services/projectErasure.ts) — restorable from the
+    // Archived tab, never gone for good.
+    Alert.alert(
+      lang === 'he' ? 'מחיקת פרויקט' : 'Erase Project',
+      lang === 'he' ? 'הפרויקט יועבר לארכיון וניתן יהיה לשחזרו בכל עת.' : 'The project will be moved to the archive and can be restored at any time.',
+      [
+        { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
+        {
+          text: lang === 'he' ? 'מחק' : 'Erase',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiClient.delete(`/api/admin/projects/${projectId}`);
+              fetchAllDashboardData();
+            } catch (e) {
+              console.log(e);
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const handleScheduleDefense = async (fields: { time: string; room: string; building: string }) => {
@@ -1242,6 +1249,10 @@ export default function PanelScreen() {
           {
             key: 'signoffs',
             label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off',
+          },
+          {
+            key: 'archived',
+            label: lang === 'he' ? 'ארכיון' : 'Archived',
           },
         ].map((tab) => (
           <Pressable
@@ -2048,6 +2059,8 @@ export default function PanelScreen() {
         )}
 
         {activeTab === 'signoffs' && <PendingSignoffsWidget lang={lang} showEmptyState />}
+
+        {activeTab === 'archived' && <ArchivedProjectsSection lang={lang} />}
 
         <View style={{ height: (activeTab === 'users' || activeTab === 'projects') ? 90 : 80 }} />
       </ScrollView>

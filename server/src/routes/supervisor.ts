@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
 import {
     updateSupervisorProject,
-    deleteSupervisorProject,
     getSupervisorDashboard,
     getSupervisorProjectDetail,
     handleApplicationDecision,
@@ -19,7 +18,6 @@ const router = Router();
 router.get('/dashboard', verifyToken, getSupervisorDashboard)
 router.get('/projects/:id/detail', verifyToken, getSupervisorProjectDetail)
 router.put('/projects/:id', verifyToken, updateSupervisorProject)
-router.delete('/projects/:id', verifyToken, deleteSupervisorProject)
 // Grading goes through POST /api/projects/milestones/:milestoneId/grade
 // (submitMilestoneGrade) — this file's own duplicate gradeMilestone endpoint
 // (with zero live callers) was removed.

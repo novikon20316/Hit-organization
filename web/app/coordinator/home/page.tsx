@@ -22,14 +22,15 @@ import { DeadlinesTab } from './DeadlinesTab';
 import { BulkImportModal } from '@/components/BulkImportModal';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
+import { ArchivedProjectsTab } from '@/components/ArchivedProjectsTab';
 import type { CoordinatorDeadline, CoordinatorPendingMilestone, ExaminerRecommendation, ExaminerUser, InProgressProject, Project } from './types';
 
 const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
 
-type Tab = 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'statistics';
+type Tab = 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'statistics' | 'archived';
 
 export default function CoordinatorHomePage() {
-  const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(COORDINATOR_ROLES);
+  const { loading: guardLoading, isAllowed, firebaseUser, userData } = useRequireRole(COORDINATOR_ROLES);
   const { lang, t } = useLanguage();
 
   const [tab, setTab] = useState<Tab>('pending');
@@ -111,6 +112,9 @@ export default function CoordinatorHomePage() {
     { key: 'recommendations', label: lang === 'he' ? 'המלצות בוחנים' : 'Examiner Recommendations', count: recommendations.length },
     { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
     { key: 'statistics', label: lang === 'he' ? 'סטטיסטיקות' : 'Statistics' },
+    // Erasure/archive protocol is coordinator + system_admin only —
+    // administrative_secretary shares this page but not this tab.
+    ...(userData?.role !== 'administrative_secretary' ? [{ key: 'archived' as Tab, label: t('archivedTab') }] : []),
   ];
 
   if (guardLoading) {
@@ -192,6 +196,8 @@ export default function CoordinatorHomePage() {
         </div>
       ) : tab === 'statistics' ? (
         <CoordinatorStatisticsTab />
+      ) : tab === 'archived' ? (
+        <ArchivedProjectsTab />
       ) : (
         <PendingSignoffsWidget showEmptyState />
       )}

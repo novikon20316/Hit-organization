@@ -445,16 +445,23 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
         .get(),
     ]);
 
+    // Archived projects (see services/projectErasure.ts) never showed up
+    // filtered before — isArchived/deletedAt existed but nothing read them.
+    // Firestore can't query `isArchived == false` directly since older
+    // project docs predate the field entirely (a missing field never
+    // matches an equality filter), so this excludes in-memory instead.
+    const activeProjectDocs = projectsSnap.docs.filter((doc) => !doc.data().isArchived);
+
     // ── Index projects by ID for O(1) lookup ──────────────────────────────
     const projectsById: Record<string, any> = {};
-    projectsSnap.docs.forEach((doc) => {
+    activeProjectDocs.forEach((doc) => {
       projectsById[doc.id] = { id: doc.id, ...doc.data() };
     });
 
     // ── Collect all unique userIds we need to resolve ─────────────────────
     // (supervisors + enrolled students across all projects)
     const userIdsToFetch = new Set<string>();
-    projectsSnap.docs.forEach((doc) => {
+    activeProjectDocs.forEach((doc) => {
       const data = doc.data();
       if (data.supervisorId) userIdsToFetch.add(data.supervisorId);
       (data.enrolledStudentIds ?? []).forEach((id: string) => userIdsToFetch.add(id));
@@ -477,6 +484,10 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
       const data = doc.data();
       const pid  = data.projectId;
       const project = projectsById[pid];
+      // Not in projectsById means either archived (filtered out above) or
+      // gone — either way it shouldn't surface as a ghost pending-milestone
+      // with blank project info.
+      if (!project) return;
 
       // Raw milestone docs have no studentNames of their own (that's derived
       // from the project's enrolledStudentIds) — compute it once here so
@@ -536,7 +547,7 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
     });
 
     // ── Build final projects list (same as before, now using cached data) ──
-    const projects = projectsSnap.docs.map((doc) => {
+    const projects = activeProjectDocs.map((doc) => {
       const data = doc.data() as ProjectDocument;
       return {
         id:                 doc.id,

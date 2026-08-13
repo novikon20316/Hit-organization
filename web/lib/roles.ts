@@ -96,7 +96,8 @@ export type Permission =
   | 'view_templates' | 'create_template' | 'edit_template' | 'approve_template_grad_school'
   | 'view_faculty_reports' | 'view_cross_faculty_reports' | 'export_reports'
   | 'manage_users' | 'manage_system_config' | 'view_audit_log' | 'toggle_maintenance'
-  | 'send_message' | 'view_own_messages';
+  | 'send_message' | 'view_own_messages'
+  | 'request_project_erasure' | 'approve_project_erasure' | 'view_archived_projects' | 'restore_project';
 
 export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
   create_project:                ['supervisor', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'],
@@ -158,6 +159,15 @@ export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
 
   send_message:                  ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
   view_own_messages:             ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
+
+  // Project erasure/archive protocol — deliberately narrower than the other
+  // "coordinator-tier" keys above (no faculty_admin/program_head/
+  // administrative_secretary): only a real coordinator or system_admin may
+  // approve an erasure, view the archive, or restore a project.
+  request_project_erasure:       ['supervisor', 'secondary_supervisor'],
+  approve_project_erasure:       ['coordinator', 'system_admin'],
+  view_archived_projects:        ['coordinator', 'system_admin'],
+  restore_project:               ['coordinator', 'system_admin'],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

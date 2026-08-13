@@ -243,6 +243,45 @@ class ApiClient {
     const response = await this.api.get(`/api/grades/history/${projectId}`);
     return response.data;
   }
+
+  // ─── 6. PROJECT ERASURE/ARCHIVE PROTOCOL ─────────────────────────────────
+  // See server/src/services/projectErasure.ts. Supervisors request; only
+  // coordinator/system_admin may decide, erase directly, restore, or view
+  // the archive.
+
+  async requestProjectErasure(projectId: string, reason: string) {
+    const response = await this.api.post(`/api/projects/${projectId}/request-erasure`, { reason });
+    return response.data;
+  }
+
+  async listPendingErasureRequests() {
+    const response = await this.api.get('/api/projects/erasure-requests/pending');
+    return response.data as { requests: Array<{
+      id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
+      facultyId: string; requestedBy: string; requestedByRole: string; reason: string;
+      status: 'pending' | 'approved' | 'rejected'; createdAt: string | null;
+    }> };
+  }
+
+  async decideErasureRequest(requestId: string, decision: 'approved' | 'rejected', reason?: string) {
+    const response = await this.api.post(`/api/projects/erasure-requests/${requestId}/decide`, { decision, reason });
+    return response.data as { success: boolean };
+  }
+
+  async listArchivedProjects() {
+    const response = await this.api.get('/api/projects/archived');
+    return response.data as { projects: Array<{
+      id: string; titleHe: string; titleEn: string; facultyId: string;
+      supervisorId: string; supervisorName: string; enrolledStudentIds: string[];
+      enrolledStudentNames: string[];
+      deletedAt: string | null; erasedBy: string | null; milestones: any[];
+    }> };
+  }
+
+  async restoreProject(projectId: string) {
+    const response = await this.api.post(`/api/projects/${projectId}/restore`);
+    return response.data as { success: boolean; message: string };
+  }
 }
 
 export const apiClient = new ApiClient();

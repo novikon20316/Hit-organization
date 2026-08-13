@@ -855,6 +855,31 @@ export const t = {
   examinerRemoveFromList:   { he: 'הסר מהרשימה',                       en: 'Remove from List' },
   examinerAddToList:        { he: 'הוסף לרשימה',                       en: 'Add to List' },
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // PROJECT ERASURE / ARCHIVE
+  // ══════════════════════════════════════════════════════════════════════════
+  archivedTab:              { he: 'ארכיון',                            en: 'Archived' },
+  requestErasure:           { he: 'בקש מחיקת פרויקט',                  en: 'Request Erasure' },
+  requestErasureTitle:      { he: 'בקשת מחיקת פרויקט',                 en: 'Request Project Erasure' },
+  requestErasureMessage:    { he: 'הבקשה תישלח לרכז לאישור. הפרויקט לא יימחק עד לאישור.', en: 'This request will be sent to the coordinator for approval. The project will not be erased until approved.' },
+  requestErasureReason:     { he: 'סיבת הבקשה',                        en: 'Reason for request' },
+  requestErasureSent:       { he: '✅ הבקשה נשלחה לרכז',                en: '✅ Request sent to coordinator' },
+  pendingErasureRequests:   { he: 'בקשות מחיקה ממתינות',               en: 'Pending Erasure Requests' },
+  noErasureRequests:        { he: 'אין בקשות מחיקה ממתינות',           en: 'No pending erasure requests' },
+  erasureRequestedBy:       { he: 'התבקש על ידי',                      en: 'Requested by' },
+  erasureReason:            { he: 'סיבה',                              en: 'Reason' },
+  approveErasure:           { he: 'אשר מחיקה',                         en: 'Approve' },
+  rejectErasure:            { he: 'דחה',                                en: 'Reject' },
+  rejectErasureReasonRequired: { he: 'יש להזין סיבה לדחיית הבקשה',     en: 'A reason is required to reject this request' },
+  searchArchivedProjects:   { he: 'חפש פרויקט לפי שם...',              en: 'Search project by name...' },
+  noArchivedProjects:       { he: 'אין פרויקטים בארכיון',              en: 'No archived projects' },
+  erasedOn:                 { he: 'נמחק בתאריך',                       en: 'Erased on' },
+  restoreProject:           { he: 'שחזר פרויקט',                       en: 'Restore Project' },
+  restoreProjectConfirm:    { he: 'האם להחזיר את הפרויקט לפעילות?',   en: 'Restore this project to active status?' },
+  restoreProjectSuccess:    { he: '✅ הפרויקט שוחזר',                  en: '✅ Project restored' },
+  eraseProject:             { he: 'מחק פרויקט',                        en: 'Erase Project' },
+  eraseProjectConfirm:      { he: 'הפרויקט יועבר לארכיון וניתן יהיה לשחזרו בכל עת.', en: 'The project will be moved to the archive and can be restored at any time.' },
+
 } as const;
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

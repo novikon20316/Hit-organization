@@ -701,23 +701,31 @@ export default function SupervisorHome() {
     }
   };
 
-  // ── Delete project ────────────────────────────────────────────────────────
-  const handleDeleteProject = async (projectId: string) => {
-    Alert.alert('Delete', 'Are you sure you want to archive this project?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await apiClient.delete(`/api/supervisor/projects/${projectId}`);
-            Alert.alert('Success', 'Project archived.');
-            fetchDashboardData();
-          } catch (e) {
-            Alert.alert('Error', 'Could not delete project.');
-          }
-        },
-      },
-    ]);
+  // ── Request project erasure ───────────────────────────────────────────────
+  // Supervisors can no longer erase a project directly — only ask the
+  // coordinator to. See server/src/services/projectErasure.ts.
+  const [erasureProject, setErasureProject] = useState<MyProject | null>(null);
+  const [erasureReason, setErasureReason] = useState('');
+  const [submittingErasure, setSubmittingErasure] = useState(false);
+
+  const submitErasureRequest = async () => {
+    if (!erasureProject) return;
+    if (!erasureReason.trim()) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין סיבה' : 'A reason is required');
+      return;
+    }
+    setSubmittingErasure(true);
+    try {
+      await apiClient.requestProjectErasure(erasureProject.id, erasureReason.trim());
+      setErasureProject(null);
+      setErasureReason('');
+      Alert.alert(lang === 'he' ? 'נשלח' : 'Sent', tx('requestErasureSent', lang));
+      fetchDashboardData();
+    } catch (e) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'שליחת הבקשה נכשלה' : 'Failed to send request');
+    } finally {
+      setSubmittingErasure(false);
+    }
   };
 
   const handleOpenDocument = async (url: string) => {
@@ -987,8 +995,8 @@ export default function SupervisorHome() {
                       <Pressable style={[styles.actionBtn, styles.editBtn]} onPress={() => handleOpenEditModal(p)}>
                         <Text style={styles.actionBtnText}>{lang === 'he' ? 'עריכה' : 'Edit'}</Text>
                       </Pressable>
-                      <Pressable style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDeleteProject(p.id)}>
-                        <Text style={styles.actionBtnText}>{lang === 'he' ? 'מחיקה' : 'Delete'}</Text>
+                      <Pressable style={[styles.actionBtn, styles.deleteBtn]} onPress={() => setErasureProject(p)}>
+                        <Text style={styles.actionBtnText}>{tx('requestErasure', lang)}</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -1645,6 +1653,47 @@ export default function SupervisorHome() {
           projectTitleEn={workflowProject.titleEn}
         />
       )}
+
+      <Modal visible={!!erasureProject} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setErasureProject(null)}>
+        <View style={{ flex: 1, padding: 20, backgroundColor: '#fff' }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: '#111' }}>{tx('requestErasureTitle', lang)}</Text>
+          {erasureProject && (
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', marginTop: 6 }}>
+              {lang === 'he' ? erasureProject.titleHe : erasureProject.titleEn}
+            </Text>
+          )}
+          <Text style={{ fontSize: 13, color: '#8899BB', marginTop: 8 }}>{tx('requestErasureMessage', lang)}</Text>
+
+          <TextInput
+            value={erasureReason}
+            onChangeText={setErasureReason}
+            placeholder={tx('requestErasureReason', lang)}
+            placeholderTextColor="#9CA3AF"
+            multiline
+            numberOfLines={3}
+            style={{ borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 8, padding: 10, marginTop: 16, fontSize: 14, minHeight: 80, textAlignVertical: 'top' }}
+          />
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+            <Pressable
+              onPress={() => { setErasureProject(null); setErasureReason(''); }}
+              disabled={submittingErasure}
+              style={{ flex: 1, borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#111' }}>{tx('cancel', lang)}</Text>
+            </Pressable>
+            <Pressable
+              onPress={submitErasureRequest}
+              disabled={submittingErasure}
+              style={{ flex: 1, backgroundColor: '#A8433A', borderRadius: 8, paddingVertical: 12, alignItems: 'center', opacity: submittingErasure ? 0.6 : 1 }}
+            >
+              {submittingErasure
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{tx('requestErasure', lang)}</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

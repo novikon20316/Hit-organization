@@ -95,7 +95,10 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
         snap.docs.forEach((d) => projectDocsById.set(d.id, d));
       }));
     }
-    const projectDocs = [...projectDocsById.values()];
+    // Archived — see services/projectErasure.ts — excluded in-memory since
+    // older project docs predate isArchived (a missing field never matches
+    // an equality filter, so this can't be pushed into the queries above).
+    const projectDocs = [...projectDocsById.values()].filter((d) => !d.data().isArchived);
 
     // Milestones are only ever looked up per matched project id below (via
     // milestonesByProject), so fetching per distinct faculty here — rather

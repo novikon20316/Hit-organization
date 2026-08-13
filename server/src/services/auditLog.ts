@@ -55,6 +55,11 @@ export type AuditAction =
   | 'permission_denied'
   | 'password_reset_by_admin'
   | 'login_lockout_lifted_by_admin'
+  | 'project_erasure_requested'
+  | 'project_erasure_approved'
+  | 'project_erasure_rejected'
+  | 'project_erased_directly'
+  | 'project_restored'
   // Three-rubric final-grade workflow (data_science, or any faculty whose
   // template configures finalGradeComponents) — see supervisorController.ts's
   // decideFinalGrade, gradSchoolHeadController.ts's decideGradeOverride, and

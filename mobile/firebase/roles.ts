@@ -141,7 +141,12 @@ export type Permission =
   | 'toggle_maintenance'
   // Chat
   | 'send_message'
-  | 'view_own_messages';
+  | 'view_own_messages'
+  // Project erasure/archive protocol
+  | 'request_project_erasure'
+  | 'approve_project_erasure'
+  | 'view_archived_projects'
+  | 'restore_project';
 
 export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
   // ── Project ───────────────────────────────────────────────────────────────
@@ -214,6 +219,16 @@ export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
   // ── Chat ──────────────────────────────────────────────────────────────────
   send_message:                 ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
   view_own_messages:            ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
+
+  // ── Project erasure/archive protocol ──────────────────────────────────────
+  // Deliberately narrower than the other "coordinator-tier" keys above (no
+  // faculty_admin/program_head/administrative_secretary): only a real
+  // coordinator or system_admin may approve an erasure, view the archive,
+  // or restore a project.
+  request_project_erasure:      ['supervisor', 'secondary_supervisor'],
+  approve_project_erasure:      ['coordinator', 'system_admin'],
+  view_archived_projects:       ['coordinator', 'system_admin'],
+  restore_project:              ['coordinator', 'system_admin'],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

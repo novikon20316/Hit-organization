@@ -102,6 +102,7 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
     const seenProjectIds = new Set<string>();
     const projectDocs = [...asPrimarySnap.docs, ...asSecondarySnap.docs].filter((doc) => {
       if (seenProjectIds.has(doc.id)) return false;
+      if (doc.data().isArchived) return false; // archived — see services/projectErasure.ts
       seenProjectIds.add(doc.id);
       return true;
     });
@@ -745,87 +746,6 @@ export const createExaminerRecommendation = async (req: AuthenticatedRequest, re
   } catch (error: any) {
     console.error('createExaminerRecommendation error:', error);
     return res.status(500).json({ message: 'Failed to submit examiner recommendation.' });
-  }
-};
-
-// ─── DELETE /api/supervisor/projects/:id ─────────────────────────────────────
-export const deleteSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
-  const supervisorId = req.user?.uid;
-  const { id: projectId } = req.params;
-
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!projectId || typeof projectId !== 'string')
-    return res.status(400).json({ message: 'Invalid projectId.' });
-
-  try {
-    const projectRef  = db.collection('projects').doc(projectId);
-    const projectSnap = await projectRef.get();
-
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
-    if (projectSnap.data()?.supervisorId !== supervisorId && projectSnap.data()?.secondarySupervisorId !== supervisorId)
-      return res.status(403).json({ message: 'Forbidden.' });
-
-    const enrolledStudentIds: string[] = projectSnap.data()?.enrolledStudentIds ?? [];
-    const titleHe = projectSnap.data()?.titleHe ?? '';
-    const titleEn = projectSnap.data()?.titleEn ?? '';
-
-    if (enrolledStudentIds.length === 0) {
-      // No student was ever enrolled — there's no grade/defense history to
-      // preserve, so this is a real hard delete: every Firestore doc tied to
-      // the project goes, not just an isArchived flag. (Uploaded files on
-      // Cloudinary are left alone — a separate service, not part of
-      // Firebase's own storage quota.)
-      const [milestonesSnap, applicationsSnap, notificationsSnap] = await Promise.all([
-        db.collection('milestones').where('projectId', '==', projectId).get(),
-        db.collection('applications').where('projectId', '==', projectId).get(),
-        db.collection('notifications').where('relatedProjectId', '==', projectId).get(),
-      ]);
-
-      const batch = db.batch();
-      milestonesSnap.forEach((d) => batch.delete(d.ref));
-      applicationsSnap.forEach((d) => batch.delete(d.ref));
-      notificationsSnap.forEach((d) => batch.delete(d.ref));
-      batch.delete(projectRef);
-      await batch.commit();
-
-      return res.status(200).json({ success: true, message: 'Project deleted successfully.' });
-    }
-
-    // A project with real enrollment history keeps today's soft delete —
-    // hidden from active lists but still readable in coordinator reports —
-    // rather than erasing students' recorded grades/defense outcomes.
-    await projectRef.update({
-      isArchived: true,
-      deletedAt:  admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // ✅ Notify enrolled students the project was removed
-    await Promise.all(enrolledStudentIds.map(async (studentId) => {
-      await createNotification({
-        recipientId:      studentId,
-        type:             'project_deleted',
-        titleHe:          'פרויקט הוסר ⚠️',
-        titleEn:          'Project Removed ⚠️',
-        bodyHe:           `הפרויקט "${titleHe}" הוסר על ידי המנחה.`,
-        bodyEn:           `The project "${titleEn}" has been removed by your supervisor.`,
-        relatedProjectId: projectId,
-      });
-
-      const token = await getUserPushToken(studentId);
-      if (token) {
-        await sendPushNotification(
-          token,
-          '⚠️ Project Removed',
-          `"${titleEn}" has been removed by your supervisor.`,
-          { projectId },
-        );
-      }
-    }));
-
-    return res.status(200).json({ success: true, message: 'Project deleted successfully.' });
-  } catch (error: any) {
-    console.error('deleteSupervisorProject Error:', error);
-    return res.status(500).json({ message: 'Failed to delete project.' });
   }
 };
 
