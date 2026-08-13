@@ -125,10 +125,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // arming this on /login itself.
   useIdleTimer(() => setSessionExpired(true), IDLE_TIMEOUT_MS, !!firebaseUser);
 
-  const handleSessionExpiredConfirm = async () => {
+  const handleSessionExpiredConfirm = () => {
+    // Deliberately not `await logout()` here: signOut() can hang on a
+    // network call for a long time if the connection is in exactly the
+    // stale state that got us into this idle-timeout flow in the first
+    // place — the whole point of this alert is to recover from that, so
+    // the redirect can't wait on it. Clear local auth state synchronously
+    // instead (so the login page doesn't see a truthy firebaseUser and
+    // bounce straight back to the dashboard), navigate, then let the real
+    // signOut() finish in the background.
     setSessionExpired(false);
-    await logout();
+    clearSessionCookie();
+    setFirebaseUser(null);
+    setUserData(null);
     router.replace('/login');
+    signOut(auth).catch(() => {});
   };
 
   const setActiveRole = (role: AppRole) => {
