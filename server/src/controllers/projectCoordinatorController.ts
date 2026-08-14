@@ -422,6 +422,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
         name: s.displayName ?? '',
         facultyId: s.facultyId ?? null,
         major: s.major ?? null,
+        degreeType: s.degreeType ?? null,
         status,
         appliedProjects,
         projectTitleHe,

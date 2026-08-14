@@ -1571,6 +1571,7 @@ export const apiClient = {
         name: string;
         facultyId: string | null;
         major: string | null;
+        degreeType: 'bachelors' | 'masters' | null;
         status: 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
         /** Only populated when status === 'applied'. */
         appliedProjects: Array<{ titleHe: string; titleEn: string }>;

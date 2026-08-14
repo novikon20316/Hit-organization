@@ -12,6 +12,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
+import { HIT_FACULTIES } from '@/lib/faculties';
 
 type StudentStatus = 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
 
@@ -28,6 +29,7 @@ interface StudentReportRow {
   days: number | null;
   facultyId: string | null;
   major: string | null;
+  degreeType: 'bachelors' | 'masters' | null;
 }
 
 const STATUS_LABEL: Record<StudentStatus, { he: string; en: string }> = {
@@ -59,10 +61,24 @@ function statusText(row: StudentReportRow, lang: 'he' | 'en'): string {
 // more than one major (e.g. sciences: computer_science vs applied_math) — a
 // single-major faculty would just repeat the same value on every row, so
 // that student's cell shows '—' instead.
+//
+// majorsForFaculty() dedupes by slug and strips the degree prefix (a
+// bachelor's and master's program can share one slug, e.g. Computer Science)
+// — that's the right shape for pickers where degree level is chosen
+// separately, but here it would make a B.Sc and M.Sc Computer Science
+// student look identical. So once we know the faculty has more than one
+// major, look the student's exact program back up in the raw (undeduped)
+// HIT_FACULTIES data using both `major` and `degreeType`, which keeps the
+// degree prefix in the returned label and disambiguates the two.
 function majorCellText(row: StudentReportRow, lang: 'he' | 'en'): string {
   if (!row.facultyId) return '—';
   const majors = majorsForFaculty(row.facultyId);
   if (majors.length <= 1) return '—';
+  const faculty = HIT_FACULTIES.find((f) => f.key === row.facultyId);
+  const program =
+    faculty?.programs.find((p) => p.slug === row.major && p.level === row.degreeType) ??
+    faculty?.programs.find((p) => p.slug === row.major);
+  if (program) return program.label[lang];
   const match = majors.find((m) => m.slug === row.major);
   return match ? match.label[lang] : '—';
 }
