@@ -17,11 +17,26 @@ const parseUserRow = (doc: admin.firestore.DocumentSnapshot) => {
   };
 };
 
+// Every role except 'student' — staff can reach any other staff member
+// regardless of faculty/department (see getAllStaffIds below), on top of
+// whatever relationship-specific contacts their role already gets (own
+// students, own-faculty users, etc). Students are deliberately excluded from
+// this list: their eligible partners stay limited to their own supervisor
+// relationship, unchanged from before.
+const STAFF_ROLES = [
+  'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
+  'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
+];
+
+async function getAllStaffIds(excludeUid: string): Promise<Set<string>> {
+  const snap = await db.collection('users').where('role', 'in', STAFF_ROLES).get();
+  return new Set(snap.docs.filter((d) => d.id !== excludeUid).map((d) => d.id));
+}
+
 // Shared eligibility resolver — same relationship rules getChatCandidates uses
 // to DISPLAY contacts also gate who findOrCreateDirectChat will let you actually
 // message. Returns 'all' for system_admin, otherwise a concrete set of allowed
-// partner uids (empty set for any role with no defined relationship, e.g. a
-// role getChatCandidates itself doesn't branch on — deny by default).
+// partner uids.
 async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> {
   const meSnap = await db.collection('users').doc(uid).get();
   if (!meSnap.exists) return new Set();
@@ -32,16 +47,6 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
   const activeProjectId = me.activeProjectId ?? null;
 
   if (myRole === 'system_admin') return 'all';
-
-  if (myRole === 'faculty_admin') {
-    const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
-    return new Set(snap.docs.filter((d) => d.id !== uid).map((d) => d.id));
-  }
-
-  if (myRole === 'supervisor') {
-    const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
-    return new Set(appsSnap.docs.map((d) => d.data().studentId as string));
-  }
 
   if (myRole === 'student') {
     const ids = new Set<string>();
@@ -56,7 +61,21 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
     return ids;
   }
 
-  return new Set();
+  // Every remaining role is staff: cross-faculty staff contacts, plus
+  // whatever relationship-specific contacts this particular role also gets.
+  const ids = await getAllStaffIds(uid);
+
+  if (myRole === 'faculty_admin') {
+    const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
+    snap.docs.forEach((d) => { if (d.id !== uid) ids.add(d.id); });
+  }
+
+  if (myRole === 'supervisor') {
+    const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
+    appsSnap.docs.forEach((d) => ids.add(d.data().studentId as string));
+  }
+
+  return ids;
 }
 
 // Recognized Cloudinary hosts for chat images — matches the same cloud name
@@ -341,29 +360,19 @@ export const getChatCandidates = async (req: Request, res: Response) => {
     const myFaculty = me.facultyId ?? '';
     const activeProjectId = me.activeProjectId ?? null;
 
-    let candidates: any[] = [];
+    // Deduped by uid — a staff member's cross-faculty staff contacts (below)
+    // can overlap with their relationship-specific ones (e.g. a faculty_admin's
+    // own-faculty query already includes their own-faculty staff coworkers).
+    const candidateMap = new Map<string, any>();
+    const addDoc = (d: admin.firestore.DocumentSnapshot) => {
+      if (d.id !== uid) candidateMap.set(d.id, parseUserRow(d));
+    };
 
     // --- System Admins see everyone ---
     if (myRole === 'system_admin') {
       const snap = await db.collection('users').get();
-      snap.forEach((d) => { if (d.id !== uid) candidates.push(parseUserRow(d)); });
-    } 
-    // --- Faculty Admins see everyone in their school unit ---
-    else if (myRole === 'faculty_admin') {
-      const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
-      snap.forEach((d) => { if (d.id !== uid) candidates.push(parseUserRow(d)); });
-    } 
-    // --- Supervisors see students linked via applications ---
-    else if (myRole === 'supervisor') {
-      const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
-      const studentIds = [...new Set(appsSnap.docs.map((d) => d.data().studentId as string))];
-      
-      if (studentIds.length > 0) {
-        // Firestore 'in' queries are capped at groups of 30, chunks handles safeguards
-        const studentSnaps = await db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', studentIds.slice(0, 30)).get();
-        studentSnaps.forEach((d) => candidates.push(parseUserRow(d)));
-      }
-    } 
+      snap.forEach(addDoc);
+    }
     // --- Students find assigned or target supervisors ---
     else if (myRole === 'student') {
       if (activeProjectId) {
@@ -371,19 +380,45 @@ export const getChatCandidates = async (req: Request, res: Response) => {
         const supId = projSnap.data()?.supervisorId;
         if (supId) {
           const supSnap = await db.collection('users').doc(supId).get();
-          if (supSnap.exists) candidates.push(parseUserRow(supSnap));
+          if (supSnap.exists) addDoc(supSnap);
         }
       } else {
         const appsSnap = await db.collection('applications').where('studentId', '==', uid).get();
         const supervisorIds = [...new Set(appsSnap.docs.map((d) => d.data().supervisorId as string))];
-        
+
         if (supervisorIds.length > 0) {
           const supSnaps = await db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', supervisorIds.slice(0, 30)).get();
-          supSnaps.forEach((d) => candidates.push(parseUserRow(d)));
+          supSnaps.forEach(addDoc);
+        }
+      }
+    }
+    // --- Every remaining role is staff: see every other staff member
+    // regardless of faculty/department, plus whatever relationship-specific
+    // contacts this particular role also gets. ---
+    else {
+      const staffSnap = await db.collection('users').where('role', 'in', STAFF_ROLES).get();
+      staffSnap.forEach(addDoc);
+
+      // --- Faculty Admins additionally see everyone (staff or student) in their own faculty ---
+      if (myRole === 'faculty_admin') {
+        const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
+        snap.forEach(addDoc);
+      }
+
+      // --- Supervisors additionally see students linked via applications ---
+      if (myRole === 'supervisor') {
+        const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
+        const studentIds = [...new Set(appsSnap.docs.map((d) => d.data().studentId as string))];
+
+        if (studentIds.length > 0) {
+          // Firestore 'in' queries are capped at groups of 30, chunks handles safeguards
+          const studentSnaps = await db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', studentIds.slice(0, 30)).get();
+          studentSnaps.forEach(addDoc);
         }
       }
     }
 
+    const candidates = [...candidateMap.values()];
     return res.status(200).json({ myRole, candidates });
   } catch (error) {
     console.error('Error fetching chat candidates:', error);
