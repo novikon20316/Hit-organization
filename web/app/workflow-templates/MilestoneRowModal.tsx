@@ -305,21 +305,33 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
   const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+    <div className="fixed inset-0 z-[60] overflow-y-auto bg-paper">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface px-4 py-3 sm:px-6">
         <h2 className="text-base font-semibold text-ink">
           {editing ? `✏️ ${lang === 'he' ? 'עריכת אבן דרך' : 'Edit Milestone'}` : `➕ ${lang === 'he' ? 'אבן דרך חדשה' : 'New Milestone'}`}
         </h2>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onCancel} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+            {t('cancel')}
+          </button>
+          <button type="button" onClick={handleSave} className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover">
+            {t('save')}
+          </button>
+        </div>
+      </div>
 
-        <div className="mt-3 grid gap-3">
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}</span>
-            <input dir="rtl" value={nameHe} onChange={(e) => setNameHe(e.target.value)} placeholder="שם אבן הדרך" className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}</span>
-            <input dir="ltr" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="Milestone name" className={inputCls} />
-          </label>
+      <div className="mx-auto max-w-3xl px-4 py-5 sm:px-6">
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}</span>
+              <input dir="rtl" value={nameHe} onChange={(e) => setNameHe(e.target.value)} placeholder="שם אבן הדרך" className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}</span>
+              <input dir="ltr" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="Milestone name" className={inputCls} />
+            </label>
+          </div>
           <div className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מועד יעד' : 'Due date'}</span>
             <div className="mb-2 flex gap-1.5">
