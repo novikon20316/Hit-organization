@@ -23,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { apiClient } from '@/lib/apiClient';
-import { majorsForFaculty } from '@/lib/permissions';
+import { majorsForFaculty, degreeLevelsForFaculty } from '@/lib/permissions';
 import type { FacultyId } from '@/lib/i18n';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
@@ -41,7 +41,13 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
   const [titleEn, setTitleEn] = useState('');
   const [descHe, setDescHe] = useState('');
   const [descEn, setDescEn] = useState('');
-  const [degreeTypes, setDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
+  // Some faculties only offer one degree level (e.g. data_science is
+  // masters-only) — seed with whatever this supervisor's (fixed) faculty
+  // actually offers instead of always defaulting to bachelors.
+  const degreeOptions = useMemo(() => degreeLevelsForFaculty(facultyId), [facultyId]);
+  const [degreeTypes, setDegreeTypes] = useState<('bachelors' | 'masters')[]>(() =>
+    degreeOptions.includes('bachelors') ? ['bachelors'] : degreeOptions
+  );
   const [projectTypes, setProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [skills, setSkills] = useState('');
   const [prerequisites, setPrerequisites] = useState<PrerequisiteSpec[]>([]);
@@ -188,15 +194,24 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
             <div>
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
               <div className="flex gap-3">
-                <label className="flex items-center gap-1.5 text-sm text-ink">
-                  <input type="checkbox" checked={degreeTypes.includes('bachelors')} onChange={() => toggleDegreeType('bachelors')} className="h-4 w-4" />
-                  {t('bachelors')}
-                </label>
-                <label className="flex items-center gap-1.5 text-sm text-ink">
-                  <input type="checkbox" checked={degreeTypes.includes('masters')} onChange={() => toggleDegreeType('masters')} className="h-4 w-4" />
-                  {t('masters')}
-                </label>
+                {degreeOptions.includes('bachelors') && (
+                  <label className="flex items-center gap-1.5 text-sm text-ink">
+                    <input type="checkbox" checked={degreeTypes.includes('bachelors')} onChange={() => toggleDegreeType('bachelors')} className="h-4 w-4" />
+                    {t('bachelors')}
+                  </label>
+                )}
+                {degreeOptions.includes('masters') && (
+                  <label className="flex items-center gap-1.5 text-sm text-ink">
+                    <input type="checkbox" checked={degreeTypes.includes('masters')} onChange={() => toggleDegreeType('masters')} className="h-4 w-4" />
+                    {t('masters')}
+                  </label>
+                )}
               </div>
+              {degreeOptions.length === 1 && (
+                <p className="mt-1 text-xs text-muted">
+                  {lang === 'he' ? 'לפקולטה שלך יש רק תואר אחד' : 'Your faculty only offers one degree level'}
+                </p>
+              )}
             </div>
             <div>
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג' : 'Type'}</span>

@@ -1,9 +1,10 @@
 'use client';
 
 // app/supervisor/dashboard/EditProjectModal.tsx
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { degreeLevelsForFaculty } from '@/lib/permissions';
 import type { MyProject } from './types';
 
 interface EditProjectModalProps {
@@ -26,6 +27,11 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
   const [skills, setSkills] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Some faculties only offer one degree level (e.g. data_science is
+  // masters-only) — this project's faculty is fixed, so the choice is
+  // narrowed/locked rather than reacted to.
+  const degreeOptions = useMemo(() => degreeLevelsForFaculty(project.facultyId), [project.facultyId]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -84,10 +90,15 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
-              <select value={degreeType} onChange={(e) => setDegreeType(e.target.value)} className={inputCls}>
-                <option value="bachelors">{t('bachelors')}</option>
-                <option value="masters">{t('masters')}</option>
+              <select value={degreeType} onChange={(e) => setDegreeType(e.target.value)} className={inputCls} disabled={degreeOptions.length === 1}>
+                {degreeOptions.includes('bachelors') && <option value="bachelors">{t('bachelors')}</option>}
+                {degreeOptions.includes('masters') && <option value="masters">{t('masters')}</option>}
               </select>
+              {degreeOptions.length === 1 && (
+                <p className="mt-1 text-xs text-muted">
+                  {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
+                </p>
+              )}
             </label>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג' : 'Type'}</span>

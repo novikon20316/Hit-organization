@@ -19,7 +19,7 @@
 // the NewUserModal fix that makes major a validated picker instead of free
 // text.
 
-import { HIT_FACULTIES } from './faculties';
+import { HIT_FACULTIES, stripDegreePrefix } from './faculties';
 
 export type DegreeLevel = 'bachelors' | 'masters';
 
@@ -141,7 +141,9 @@ export function degreeLevelsForFaculty(facultyId: string): DegreeLevel[] {
   return (['bachelors', 'masters'] as const).filter((l) => levels.has(l));
 }
 
-/** Every distinct major slug available for a given faculty, deduped (a slug can repeat across bachelor's/master's rows). */
+/** Every distinct major slug available for a given faculty, deduped (a slug
+ *  can repeat across bachelor's/master's rows — label's degree prefix is
+ *  stripped since the surviving entry no longer represents just one level). */
 export function majorsForFaculty(facultyId: string): { slug: string; label: { he: string; en: string } }[] {
   const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
   if (!faculty) return [];
@@ -150,7 +152,10 @@ export function majorsForFaculty(facultyId: string): { slug: string; label: { he
   for (const program of faculty.programs) {
     if (seen.has(program.slug)) continue;
     seen.add(program.slug);
-    out.push({ slug: program.slug, label: program.label });
+    out.push({
+      slug: program.slug,
+      label: { he: stripDegreePrefix(program.label.he), en: stripDegreePrefix(program.label.en) },
+    });
   }
   return out;
 }

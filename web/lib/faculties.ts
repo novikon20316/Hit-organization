@@ -103,3 +103,15 @@ export const PROGRAM_DEGREE_LENGTHS: Record<string, number> = {
 // Mirror of server/src/config/majors.ts — every valid `major` slug, used to
 // validate client-side before the server round-trip bothers rejecting it.
 export const VALID_MAJORS = new Set(HIT_FACULTIES.flatMap((f) => f.programs.map((p) => p.slug)));
+
+// Program labels carry a leading degree abbreviation (e.g. "B.Sc. in Computer
+// Science" / "B.Sc במדעי המחשב") meant for places that list full program
+// names. A bachelor's and master's program can share the same `slug` (see
+// Program.slug above) with degree level tracked separately elsewhere (e.g.
+// ScopeDescriptor.degreeLevel, a project's degreeTypes) — anywhere that
+// dedupes programs by slug must strip this prefix first, or the surviving
+// label misleadingly implies only one degree level exists for that major.
+const DEGREE_PREFIX_RE = /^(B\.Sc|M\.Sc|B\.A|M\.A|B\.Des|M\.Des)\.?\s+/i;
+export function stripDegreePrefix(label: string): string {
+  return label.replace(DEGREE_PREFIX_RE, '');
+}

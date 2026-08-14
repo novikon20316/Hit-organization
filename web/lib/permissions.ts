@@ -20,7 +20,7 @@
 // Major-based scoping depends on every user's `major` field actually being
 // one of HIT_FACULTIES's canonical slugs (lib/faculties.ts).
 
-import { HIT_FACULTIES } from './faculties';
+import { HIT_FACULTIES, stripDegreePrefix } from './faculties';
 import { VALID_FACULTY_IDS, type FacultyId } from './roles';
 import type { Lang } from './i18n';
 
@@ -133,7 +133,8 @@ export function degreeLevelsForFaculty(facultyId: string): DegreeLevel[] {
 }
 
 /** Every distinct major slug available for a given faculty, deduped (a slug
- *  can repeat across bachelor's/master's rows). */
+ *  can repeat across bachelor's/master's rows — label's degree prefix is
+ *  stripped since the surviving entry no longer represents just one level). */
 export function majorsForFaculty(facultyId: string): { slug: string; label: Record<Lang, string> }[] {
   const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
   if (!faculty) return [];
@@ -142,7 +143,10 @@ export function majorsForFaculty(facultyId: string): { slug: string; label: Reco
   for (const program of faculty.programs) {
     if (seen.has(program.slug)) continue;
     seen.add(program.slug);
-    out.push({ slug: program.slug, label: program.label });
+    out.push({
+      slug: program.slug,
+      label: { he: stripDegreePrefix(program.label.he), en: stripDegreePrefix(program.label.en) },
+    });
   }
   return out;
 }

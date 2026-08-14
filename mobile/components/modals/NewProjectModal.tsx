@@ -8,10 +8,11 @@
 // not one of the multi-faculty roles), but also gets the degree/type
 // checkbox conversion. Every selected combination must resolve to an
 // approved workflow template — see WorkflowTemplatePreview.
-import React from "react";
+import React, { useEffect, useMemo } from "react";
 import {AppUser, DegreeLevel, Program, Faculty, UserRole }from '@/types'
 import { tx } from '../../components/i18n';
 import { HIT_FACULTIES, getFacultyByKey, getFilteredPrograms } from '../../constants/faculties';
+import { degreeLevelsForFaculty } from '../../constants/permissions';
 import {
   Modal, View, Text, ScrollView, Pressable,
   TextInput, ActivityIndicator
@@ -153,6 +154,30 @@ export default function NewProjectModal({
   const singleFaculty = isSupervisor ? effectiveFaculty : (facultyIds.length === 1 ? facultyIds[0] : undefined);
   const singleDegreeType = degreeTypes.length === 1 ? degreeTypes[0] : undefined;
 
+  // Some faculties only offer one degree level (e.g. data_science is
+  // masters-only). Admin/faculty_admin fan a single submission out into one
+  // project doc per selected faculty (see createAdminProject), so the
+  // degreeTypes chosen must be valid for EVERY selected faculty at
+  // once — intersection, not union. Supervisor mode has exactly one
+  // (locked) faculty, so this collapses to that faculty's own levels.
+  const degreeOptions = useMemo((): ("bachelors" | "masters")[] => {
+    if (isSupervisor) return effectiveFaculty ? degreeLevelsForFaculty(effectiveFaculty) : ["bachelors", "masters"];
+    if (facultyIds.length === 0) return ["bachelors", "masters"];
+    return (["bachelors", "masters"] as const).filter((lvl) => facultyIds.every((id) => degreeLevelsForFaculty(id).includes(lvl)));
+  }, [isSupervisor, effectiveFaculty, facultyIds]);
+
+  // Self-corrects regardless of how the caller initialized degreeTypes (e.g.
+  // a plain ['bachelors'] default that's invalid once the locked/selected
+  // faculty turns out to be masters-only) — the checkbox below won't even
+  // render an unavailable option, but the prop value itself needs fixing too.
+  useEffect(() => {
+    const kept = degreeTypes.filter((d) => degreeOptions.includes(d));
+    if (kept.length !== degreeTypes.length) {
+      setDegreeTypes(kept.length > 0 ? kept : [...degreeOptions]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when the available options actually change, not on every degreeTypes edit (that would fight the user's own toggles)
+  }, [degreeOptions]);
+
   const toggleDegreeType = (d: "bachelors" | "masters") => {
     setDegreeTypes(degreeTypes.includes(d) ? degreeTypes.filter((x) => x !== d) : [...degreeTypes, d]);
     setSelectedProgram?.(null);
@@ -257,6 +282,11 @@ export default function NewProjectModal({
               onChange={(ids) => {
                 setFacultyIds?.(ids);
                 setSelectedProgram?.(null);
+                const opts = ids.length === 0
+                  ? (["bachelors", "masters"] as const)
+                  : (["bachelors", "masters"] as const).filter((lvl) => ids.every((id) => degreeLevelsForFaculty(id).includes(lvl)));
+                const kept = degreeTypes.filter((d) => opts.includes(d));
+                setDegreeTypes(kept.length > 0 ? kept : [...opts]);
               }}
               lang={lang}
             />
@@ -307,7 +337,7 @@ export default function NewProjectModal({
           {lang === "he" ? "סוג תואר" : "Degree Type"}
         </Text>
         <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
-          {(["bachelors", "masters"] as const).map((d) => {
+          {degreeOptions.map((d) => {
             const isSelected = degreeTypes.includes(d);
             return (
               <Pressable
@@ -325,6 +355,11 @@ export default function NewProjectModal({
             );
           })}
         </View>
+        {degreeOptions.length === 1 && (
+          <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
+            {lang === "he" ? "הפקולטה/ות שנבחרו מציעות תואר אחד בלבד" : "The selected faculty/ies only offer one degree level"}
+          </Text>
+        )}
 
         {/* ── Program picker (shown when exactly one faculty + one degree are selected) ── */}
         {showProgramPicker && (

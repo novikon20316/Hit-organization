@@ -10,7 +10,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { tx, type Lang } from '../components/i18n';
 import { InfoFilesStyles } from '../constants/styles';
 import { FACULTY_COLORS } from '../components/shared';
-import { PERMISSION_FACULTY_IDS, majorsForFaculty } from '../constants/permissions';
+import { PERMISSION_FACULTY_IDS, majorsForFaculty, degreeLevelsForFaculty } from '../constants/permissions';
 import { HIT_FACULTIES } from '../constants/faculties';
 
 interface InfoFile {
@@ -43,19 +43,33 @@ interface FacultyContentItem {
 // ALL non-empty axes; the actual filtering happens server-side in
 // getInfoFiles, this screen only builds/displays the scope.
 const SELECTABLE_FACULTIES = PERMISSION_FACULTY_IDS.filter((id) => id !== 'all');
+// majorsForFaculty() already dedupes-by-slug and strips the degree prefix
+// (see constants/permissions.ts) — reused here instead of a local
+// re-implementation so a master's program sharing a slug with a bachelor's
+// one (e.g. Computer Science) isn't silently shadowed.
 const ALL_MAJORS = (() => {
   const seen = new Set<string>();
   const out: { slug: string; label: Record<'he' | 'en', string> }[] = [];
   for (const faculty of HIT_FACULTIES) {
-    for (const program of faculty.programs) {
-      if (seen.has(program.slug)) continue;
-      seen.add(program.slug);
-      out.push({ slug: program.slug, label: program.label });
+    for (const m of majorsForFaculty(faculty.key)) {
+      if (seen.has(m.slug)) continue;
+      seen.add(m.slug);
+      out.push(m);
     }
   }
   return out;
 })();
-const DEGREE_TYPES = ['bachelors', 'masters'] as const;
+// Union (not intersection) across the selected faculties — facultyIds is an
+// OR within its own axis, so e.g. picking data_science (masters-only) and
+// electrical_engineering (both) together should still offer both degree
+// types. With only data_science selected, that union collapses to
+// masters-only, which is what stops staff from picking bachelors for it.
+function availableDegreeTypesFor(facultyIds: string[]): ('bachelors' | 'masters')[] {
+  if (facultyIds.length === 0) return ['bachelors', 'masters'];
+  const set = new Set<'bachelors' | 'masters'>();
+  facultyIds.forEach((f) => degreeLevelsForFaculty(f).forEach((l) => set.add(l)));
+  return (['bachelors', 'masters'] as const).filter((l) => set.has(l));
+}
 
 function scopeSummary(f: InfoFile, lang: Lang): string {
   const parts: string[] = [];
@@ -112,6 +126,8 @@ export default function InfoFilesAdmin() {
     return out;
   }, [scopeFacultyIds]);
 
+  const availableDegreeTypes = useMemo(() => availableDegreeTypesFor(scopeFacultyIds), [scopeFacultyIds]);
+
   const toggleIn = (list: string[], value: string, setList: (v: string[]) => void) => {
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   };
@@ -121,12 +137,15 @@ export default function InfoFilesAdmin() {
       ? scopeFacultyIds.filter((v) => v !== facultyId)
       : [...scopeFacultyIds, facultyId];
     setScopeFacultyIds(next);
-    // Drop any selected major that no longer belongs to the (now narrower)
-    // set of faculties, so the stored scope never silently contradicts itself.
+    // Drop any selected major or degree type that no longer belongs to the
+    // (now narrower) set of faculties, so the stored scope never silently
+    // contradicts itself.
     const validSlugs = new Set(
       next.length === 0 ? ALL_MAJORS.map((m) => m.slug) : next.flatMap((f) => majorsForFaculty(f).map((m) => m.slug))
     );
     setScopeMajors((prev) => prev.filter((m) => validSlugs.has(m)));
+    const validDegrees = new Set(availableDegreeTypesFor(next));
+    setScopeDegreeTypes((prev) => prev.filter((d) => validDegrees.has(d as 'bachelors' | 'masters')));
   };
 
   // ── Faculty procedures / announcements — free-text companion to the file
@@ -158,6 +177,8 @@ export default function InfoFilesAdmin() {
     return out;
   }, [contentScopeFacultyIds]);
 
+  const contentAvailableDegreeTypes = useMemo(() => availableDegreeTypesFor(contentScopeFacultyIds), [contentScopeFacultyIds]);
+
   const toggleContentFaculty = (facultyId: string) => {
     const next = contentScopeFacultyIds.includes(facultyId)
       ? contentScopeFacultyIds.filter((v) => v !== facultyId)
@@ -167,6 +188,8 @@ export default function InfoFilesAdmin() {
       next.length === 0 ? ALL_MAJORS.map((m) => m.slug) : next.flatMap((f) => majorsForFaculty(f).map((m) => m.slug))
     );
     setContentScopeMajors((prev) => prev.filter((m) => validSlugs.has(m)));
+    const validDegrees = new Set(availableDegreeTypesFor(next));
+    setContentScopeDegreeTypes((prev) => prev.filter((d) => validDegrees.has(d as 'bachelors' | 'masters')));
   };
 
   const fetchContent = useCallback(async () => {
@@ -445,7 +468,7 @@ export default function InfoFilesAdmin() {
               {lang === 'he' ? 'תואר' : 'Degree'}
             </Text>
             <View style={styles.chipRow}>
-              {DEGREE_TYPES.map((d) => {
+              {availableDegreeTypes.map((d) => {
                 const active = scopeDegreeTypes.includes(d);
                 return (
                   <Pressable
@@ -582,7 +605,7 @@ export default function InfoFilesAdmin() {
 
             <Text style={[styles.scopeGroupLabel, isRtl && styles.textRight]}>{lang === 'he' ? 'תואר' : 'Degree'}</Text>
             <View style={styles.chipRow}>
-              {DEGREE_TYPES.map((d) => {
+              {contentAvailableDegreeTypes.map((d) => {
                 const active = contentScopeDegreeTypes.includes(d);
                 return (
                   <Pressable key={d} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleIn(contentScopeDegreeTypes, d, setContentScopeDegreeTypes)}>

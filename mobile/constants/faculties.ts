@@ -108,6 +108,18 @@ export function getFacultyByKey(key: string): Faculty | undefined {
   return HIT_FACULTIES.find((f) => f.key === key);
 }
 
+// Program labels carry a leading degree abbreviation (e.g. "B.Sc. in Computer
+// Science" / "B.Sc במדעי המחשב") meant for places that list full program
+// names. A bachelor's and master's program can share the same `slug` (level
+// tracked separately elsewhere — e.g. ScopeDescriptor.degreeLevel) — anywhere
+// that dedupes programs by slug must strip this prefix first, or the
+// surviving label misleadingly implies only one degree level exists for that
+// major.
+const DEGREE_PREFIX_RE = /^(B\.Sc|M\.Sc|B\.A|M\.A|B\.Des|M\.Des)\.?\s+/i;
+export function stripDegreePrefix(label: string): string {
+  return label.replace(DEGREE_PREFIX_RE, '');
+}
+
 export function getFilteredPrograms(
   facultyKey: string,
   level: 'bachelors' | 'masters' | 'both',

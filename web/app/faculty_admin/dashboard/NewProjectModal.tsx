@@ -26,6 +26,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { FacultyId } from '@/lib/i18n';
+import { degreeLevelsForFaculty } from '@/lib/permissions';
 import type { SupervisorOption } from './types';
 import { FacultyCheckboxes } from '@/components/FacultyCheckboxes';
 import { SupervisorCheckboxes } from '@/components/SupervisorCheckboxes';
@@ -52,7 +53,10 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
   const [titleEn, setTitleEn] = useState('');
   const [descHe, setDescHe] = useState('');
   const [descEn, setDescEn] = useState('');
-  const [degreeTypes, setDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
+  // Some faculties only offer one degree level (e.g. data_science is
+  // masters-only) — seed with whatever ownFacultyId actually offers instead
+  // of always defaulting to bachelors.
+  const [degreeTypes, setDegreeTypes] = useState<('bachelors' | 'masters')[]>(() => degreeLevelsForFaculty(ownFacultyId).includes('bachelors') ? ['bachelors'] : degreeLevelsForFaculty(ownFacultyId));
   const [projectTypes, setProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [maxStudents, setMaxStudents] = useState(1);
   const [skills, setSkills] = useState('');
@@ -83,6 +87,12 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
       cancelled = true;
     };
   }, [facultyIds.join(',')]);
+
+  const degreeOptionsFor = (ids: string[]): ('bachelors' | 'masters')[] => {
+    if (ids.length === 0) return ['bachelors', 'masters'];
+    return (['bachelors', 'masters'] as const).filter((lvl) => ids.every((id) => degreeLevelsForFaculty(id).includes(lvl)));
+  };
+  const degreeOptions = degreeOptionsFor(facultyIds);
 
   const toggleDegreeType = (d: 'bachelors' | 'masters') => {
     setDegreeTypes((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
@@ -172,6 +182,11 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
               onChange={(ids) => {
                 setFacultyIds(ids);
                 setSupervisorIds([]);
+                const opts = degreeOptionsFor(ids);
+                setDegreeTypes((prev) => {
+                  const kept = prev.filter((d) => opts.includes(d));
+                  return kept.length > 0 ? kept : opts;
+                });
               }}
             />
           </Field>
@@ -189,15 +204,29 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
           <div className="grid grid-cols-2 gap-4">
             <Field label={lang === 'he' ? 'סוג תואר' : 'Degree Type'}>
               <div className="flex gap-3">
-                <label className="flex items-center gap-1.5 text-sm text-ink">
-                  <input type="checkbox" checked={degreeTypes.includes('bachelors')} onChange={() => toggleDegreeType('bachelors')} className="h-4 w-4" />
-                  {lang === 'he' ? 'תואר ראשון' : "Bachelor's"}
-                </label>
-                <label className="flex items-center gap-1.5 text-sm text-ink">
-                  <input type="checkbox" checked={degreeTypes.includes('masters')} onChange={() => toggleDegreeType('masters')} className="h-4 w-4" />
-                  {lang === 'he' ? 'תואר שני' : "Master's"}
-                </label>
+                {degreeOptions.includes('bachelors') && (
+                  <label className="flex items-center gap-1.5 text-sm text-ink">
+                    <input type="checkbox" checked={degreeTypes.includes('bachelors')} onChange={() => toggleDegreeType('bachelors')} className="h-4 w-4" />
+                    {lang === 'he' ? 'תואר ראשון' : "Bachelor's"}
+                  </label>
+                )}
+                {degreeOptions.includes('masters') && (
+                  <label className="flex items-center gap-1.5 text-sm text-ink">
+                    <input type="checkbox" checked={degreeTypes.includes('masters')} onChange={() => toggleDegreeType('masters')} className="h-4 w-4" />
+                    {lang === 'he' ? 'תואר שני' : "Master's"}
+                  </label>
+                )}
               </div>
+              {degreeOptions.length === 1 && (
+                <p className="mt-1 text-xs text-muted">
+                  {lang === 'he' ? 'הפקולטה/ות שנבחרו מציעות תואר אחד בלבד' : 'The selected faculty/ies only offer one degree level'}
+                </p>
+              )}
+              {degreeOptions.length === 0 && (
+                <p className="mt-1 text-xs text-danger">
+                  {lang === 'he' ? 'לפקולטות שנבחרו אין תואר משותף' : 'The selected faculties share no common degree level'}
+                </p>
+              )}
             </Field>
             <Field label={lang === 'he' ? 'סוג פרויקט' : 'Project Type'}>
               <div className="flex gap-3">
