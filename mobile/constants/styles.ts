@@ -2475,6 +2475,21 @@ export const PendingScreenStyles = StyleSheet.create({
     backgroundColor: '#FFF0F0',
   },
   withdrawText: { color: '#D32F2F', fontWeight: '600', fontSize: 14 },
+
+  confirmBanner: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: '#E8F5E9', borderRadius: 14, padding: 14,
+    borderLeftWidth: 4, borderLeftColor: '#2E7D32',
+    marginBottom: 0, width: '100%',
+  },
+  confirmIcon: { fontSize: 18, marginRight: 10 },
+  confirmText: { flex: 1, fontSize: 13, color: '#1B5E20', lineHeight: 19 },
+  confirmRow: { flexDirection: 'row', marginTop: 12, gap: 10 },
+  confirmYesBtn: {
+    paddingVertical: 12, paddingHorizontal: 20,
+    borderRadius: 12, backgroundColor: '#2E7D32',
+  },
+  confirmYesText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });
 
 // ─── Auth screens ─────────────────────────────────────────────────────────────

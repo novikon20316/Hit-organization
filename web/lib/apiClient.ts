@@ -923,6 +923,18 @@ export const apiClient = {
     return request<{ success?: boolean }>(`/api/applications/${applicationId}/withdraw`, { method: 'POST' });
   },
 
+  /** A supervisor's approval only puts an application into
+   *  'awaiting_student_confirmation' — this is the student's actual decision
+   *  to start (or not) that project. 'yes' enrolls them and auto-closes
+   *  every other pending/approved application they have; 'no' just declines
+   *  this one and notifies the supervisor, leaving everything else as-is. */
+  async confirmApplicationStart(applicationId: string, decision: 'yes' | 'no') {
+    return request<{ success?: boolean; message?: string }>(`/api/applications/${applicationId}/confirm-start`, {
+      method: 'POST',
+      body: { decision },
+    });
+  },
+
   async getInfoFiles() {
     return request<{
       files: Array<{

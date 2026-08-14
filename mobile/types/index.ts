@@ -808,7 +808,12 @@ export interface PendingApplication {
   projectTitleHe: string;
   projectTitleEn: string;
   submittedAt: string;
-  status:      'pending' | 'meeting_requested';
+  /** 'awaiting_student_confirmation' = a supervisor approved this
+   *  application but the student hasn't yet decided whether to actually
+   *  start the project (see server/src/controllers/applicationController.ts's
+   *  confirmApplicationStart) — lets a student holding several approvals at
+   *  once pick which one to take. */
+  status:      'pending' | 'meeting_requested' | 'awaiting_student_confirmation';
   /** Set when the supervisor requested a meeting — the date of that
    *  response, so the student can see when the supervisor answered. */
   reviewedAt?: string | null;

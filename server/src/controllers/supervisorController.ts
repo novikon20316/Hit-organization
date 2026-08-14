@@ -2,7 +2,6 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
 import { resolveStaffForScope } from '../services/scopeAuthorization.js';
@@ -494,11 +493,12 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
       return res.status(403).json({ message: 'Forbidden.' });
 
     // A student can now have several open applications at once — the moment
-    // any one of them is approved (here, or via an admin/faculty-admin
-    // manual assignment), enrollStudentInProject auto-closes the rest (see
-    // projectEnrollment.ts's closeOtherPendingApplications). This guard
-    // catches a second supervisor still trying to act on one of those after
-    // the fact, whether they're looking at stale UI or two requests raced.
+    // the student actually confirms one of their approvals (see
+    // applicationController.ts's confirmApplicationStart), enrollStudentInProject
+    // auto-closes the rest (see projectEnrollment.ts's
+    // closeOtherPendingApplications). This guard catches a second supervisor
+    // still trying to act on one of those after the fact, whether they're
+    // looking at stale UI or two requests raced.
     if (!['applied', 'meeting_requested'].includes(appSnap.data()?.status)) {
       return res.status(409).json({
         message: appSnap.data()?.autoClosedReason === 'accepted_elsewhere'
@@ -509,18 +509,6 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
 
     const projectId = appSnap.data()?.projectId;
     const studentId = appSnap.data()?.studentId;
-    const facultyId = appSnap.data()?.facultyId ?? '';
-    // The student's own track — degreeType is the fixed value already
-    // denormalized onto every application (see applyApplication);
-    // selectedProjectType is the student's actual choice at apply time, only
-    // present when the project offered more than one. Absent on
-    // pre-migration applications, in which case enrollStudentInProject falls
-    // back to the project's own primary degreeType/projectType.
-    const applicationDegreeType = appSnap.data()?.degreeType;
-    const selectedProjectType = appSnap.data()?.selectedProjectType;
-    const track = applicationDegreeType && selectedProjectType
-      ? { degreeType: applicationDegreeType, projectType: selectedProjectType }
-      : undefined;
 
     // Fetch project title + supervisor's display name in parallel — notifyUser
     // fetches the student's own doc (for email/push/sms) itself, so no
@@ -534,23 +522,17 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     const projectTitleEn = projectSnap.data()?.titleEn ?? '';
     const supervisorName = supervisorSnap.data()?.displayNameHe ?? supervisorSnap.data()?.displayName ?? '';
 
-    // Enroll BEFORE marking the application approved — enrollStudentInProject
-    // does real work (hasActiveProject, milestones, etc.) that can fail (e.g.
-    // no active workflow template for this faculty/degree/type, or a race
-    // against another approval for the same student). If it throws, this
-    // jumps straight to the catch block below and the application is never
-    // touched, so it stays in its actionable applied/meeting_requested state
-    // instead of being permanently stuck "approved" with no real enrollment
-    // behind it — a broken state neither the supervisor nor the student could
-    // recover from without a manual Firestore edit.
-    if (decision === 'approved') {
-      // 1-3. Project/student/milestone writes — shared with the admin and
-      // faculty-admin manual-enrollment paths so all three stay in sync.
-      await enrollStudentInProject(projectId, studentId, supervisorId, facultyId, track);
-    }
-
+    // Approval no longer enrolls the student immediately — it hands the
+    // decision to the student instead (see applicationController.ts's
+    // confirmApplicationStart, POST /api/applications/:id/confirm-start),
+    // since they may be sitting on several other approvals/pending
+    // applications at once and should get to pick which one to actually
+    // start. enrollStudentInProject (and the auto-close of every other
+    // pending application it triggers) only runs once the student confirms
+    // 'yes' there — an outright 'no' just closes this one application,
+    // leaving every other pending application untouched.
     await applicationRef.update({
-      status:        decision,
+      status:        decision === 'approved' ? 'awaiting_student_confirmation' : decision,
       supervisorNote: notes || null,
       reviewedAt:    new Date().toISOString(),
     });
@@ -561,10 +543,10 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
       await notifyUser({
         recipientId:      studentId,
         type:             'application_approved',
-        titleHe:          'בקשתך אושרה! 🎉',
-        titleEn:          'Application Approved! 🎉',
-        bodyHe:           `המנחה ${supervisorName} אישר את בקשתך לפרויקט "${projectTitleHe}".`,
-        bodyEn:           `Supervisor ${supervisorName} approved your application for "${projectTitleEn}".`,
+        titleHe:          'בקשתך אושרה! 🎉 אשר/י שברצונך להתחיל',
+        titleEn:          'Application Approved! 🎉 Confirm you want to start',
+        bodyHe:           `המנחה ${supervisorName} אישר את בקשתך לפרויקט "${projectTitleHe}". יש לאשר שברצונך להתחיל בפרויקט זה.`,
+        bodyEn:           `Supervisor ${supervisorName} approved your application for "${projectTitleEn}". Please confirm whether you want to start this project.`,
         relatedProjectId: projectId,
         emailData:        { projectTitle: { he: projectTitleHe, en: projectTitleEn } },
       });

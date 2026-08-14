@@ -6,6 +6,7 @@ import { reviewApplication } from '../services/applicationReviewService.js'
 import { extractCompletedCourses } from '../services/transcriptExtractionService.js'
 import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js'
 import { notifyUser } from '../services/notify.js'
+import { enrollStudentInProject } from '../services/projectEnrollment.js'
 
 const db = admin.firestore();
 
@@ -100,9 +101,12 @@ export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =
         const degree = studentData?.degreeType || 'bachelors'; 
 
         // 4. Query your applications collection for this student's pending applications
+        // — 'awaiting_student_confirmation' included so an approved-but-not-yet-
+        // started application still shows up here for the student to decide on
+        // (see confirmApplicationStart below).
         const applicationsSnapshot = await db.collection('applications')
             .where('studentId', '==', studentId)
-            .where('status', 'in', ['applied', 'meeting_requested'])
+            .where('status', 'in', ['applied', 'meeting_requested', 'awaiting_student_confirmation'])
             .get();
 
         // 5. Format the documents into a clean array
@@ -359,3 +363,91 @@ export const withdrawApplication = async(req:AuthenticatedRequest,res:Response) 
         res.status(500).json({ message: 'Internal server error' });
     }
 }
+
+// ─── POST /api/applications/:id/confirm-start ────────────────────────────────
+// A supervisor's approval no longer starts the project on its own (see
+// supervisorController.ts's handleApplicationDecision) — it puts the
+// application into 'awaiting_student_confirmation' and leaves the actual
+// start up to the student, since they may hold several approvals/pending
+// applications at once. 'yes' does the real enrollment (and, via
+// enrollStudentInProject, auto-closes every other pending application —
+// same as the old immediate-enroll-on-approval behavior, just deferred to
+// here); 'no' just closes this one application and lets every other one the
+// student has stand untouched.
+export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { decision } = req.body;
+    const studentId = req.user?.uid;
+
+    if (!studentId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (decision !== 'yes' && decision !== 'no') {
+        return res.status(400).json({ success: false, message: "decision must be 'yes' or 'no'." });
+    }
+    if (!id || typeof id !== 'string') {
+        return res.status(400).json({ success: false, message: 'A valid application id is required.' });
+    }
+
+    try {
+        const applicationRef = db.collection('applications').doc(id);
+        const appSnap = await applicationRef.get();
+
+        if (!appSnap.exists) return res.status(404).json({ success: false, message: 'Application not found.' });
+
+        const appData = appSnap.data() ?? {};
+
+        // 🔒 Security check: only the applicant themself can decide this.
+        if (appData.studentId !== studentId) {
+            return res.status(403).json({
+                success: false,
+                message: "Forbidden: you are not authorized to decide on another student's application.",
+            });
+        }
+
+        if (appData.status !== 'awaiting_student_confirmation') {
+            return res.status(409).json({ success: false, message: 'This application is not awaiting your confirmation.' });
+        }
+
+        const { projectId, supervisorId, facultyId, projectTitleHe, projectTitleEn, studentName, degreeType, selectedProjectType } = appData;
+        const track = degreeType && selectedProjectType ? { degreeType, projectType: selectedProjectType } : undefined;
+
+        if (decision === 'yes') {
+            try {
+                // Same canonical enrollment write the supervisor-approval path used
+                // to call directly — auto-closes every other pending application.
+                await enrollStudentInProject(projectId, studentId, supervisorId, facultyId ?? '', track);
+            } catch (enrollError: any) {
+                if (enrollError?.message === 'Student already has an active project.') {
+                    return res.status(409).json({ success: false, message: 'You already have an active project.' });
+                }
+                throw enrollError;
+            }
+
+            await applicationRef.update({ status: 'approved', confirmedAt: new Date().toISOString() });
+        } else {
+            await applicationRef.update({ status: 'declined_by_student', reviewedAt: new Date().toISOString() });
+
+            if (supervisorId) {
+                await notifyUser({
+                    recipientId:      supervisorId,
+                    type:             'application_declined_by_student',
+                    titleHe:          '😕 הסטודנט/ית החליט/ה שלא להתחיל בפרויקט',
+                    titleEn:          '😕 Student decided not to start the project',
+                    bodyHe:           `${studentName ?? ''} בחר/ה שלא להתחיל את "${projectTitleHe ?? ''}" לאחר שהבקשה אושרה.`,
+                    bodyEn:           `${studentName ?? ''} decided not to start "${projectTitleEn ?? ''}" after their application was approved.`,
+                    relatedProjectId: projectId ?? null,
+                    emailData: {
+                        studentName: studentName ?? '',
+                        projectTitle: { he: projectTitleHe ?? '', en: projectTitleEn ?? '' },
+                    },
+                }).catch((notifyError) => {
+                    console.error(`application_declined_by_student notification failed for supervisor ${supervisorId}:`, notifyError);
+                });
+            }
+        }
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('confirmApplicationStart error:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};

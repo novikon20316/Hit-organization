@@ -34,6 +34,7 @@ export type NotificationType =
   | 'project_published'
   | 'application_received'
   | 'application_approved'
+  | 'application_declined_by_student'
   | 'application_rejected'
   | 'meeting_requested'
   | 'milestone_graded'
@@ -104,12 +105,27 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     bodyHe: (d) => `
       <p>שלום ${d.name || ''},</p>
       <p>בקשתך לפרויקט <strong>${d.projectTitle || ''}</strong> אושרה!</p>
-      <p>כעת תוכל להתחיל לעבוד על הפרויקט. בהצלחה!</p>
+      <p>היכנס/י למערכת ואשר/י שברצונך להתחיל בפרויקט זה — אישור יסגור אוטומטית כל בקשה ממתינה אחרת שהגשת.</p>
     `,
     bodyEn: (d) => `
       <p>Hello ${d.name || ''},</p>
       <p>Your application for project <strong>${d.projectTitle || ''}</strong> has been approved!</p>
-      <p>You can now start working on the project. Good luck!</p>
+      <p>Log in and confirm whether you want to start this project — confirming will automatically close any other pending application you've submitted.</p>
+    `,
+  },
+
+  application_declined_by_student: {
+    subjectHe: '😕 הסטודנט/ית החליט/ה שלא להתחיל בפרויקט',
+    subjectEn: '😕 Student Decided Not to Start the Project',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p><strong>${d.studentName || ''}</strong> בחר/ה שלא להתחיל את הפרויקט <strong>${d.projectTitle || ''}</strong> לאחר שהבקשה אושרה.</p>
+      <p>הפרויקט עדיין פתוח לבקשות נוספות.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p><strong>${d.studentName || ''}</strong> decided not to start the project <strong>${d.projectTitle || ''}</strong> after their application was approved.</p>
+      <p>The project remains open for other applications.</p>
     `,
   },
 

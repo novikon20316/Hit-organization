@@ -20,11 +20,14 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
   const { lang, t } = useLanguage();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [declineOpen, setDeclineOpen] = useState(false);
+  const [error, setError] = useState('');
 
   const submittedDate = application.submittedAt
     ? new Date(application.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : '—';
   const isMeetingRequested = application.status === 'meeting_requested';
+  const isAwaitingConfirmation = application.status === 'awaiting_student_confirmation';
   const reviewedDate = application.reviewedAt
     ? new Date(application.reviewedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
@@ -40,16 +43,34 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
     }
   };
 
+  const handleConfirmStart = async (decision: 'yes' | 'no') => {
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.confirmApplicationStart(application.id, decision);
+      setDeclineOpen(false);
+      onWithdrawn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'הפעולה נכשלה' : 'Action failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-ink">{lang === 'he' ? application.projectTitleHe : application.projectTitleEn}</p>
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-            isMeetingRequested ? 'bg-[#FBF3E3] text-accent' : 'bg-paper text-ink'
+            isAwaitingConfirmation ? 'bg-[var(--success-bg)] text-[#3F6B4C]' : isMeetingRequested ? 'bg-[#FBF3E3] text-accent' : 'bg-paper text-ink'
           }`}
         >
-          {isMeetingRequested ? (lang === 'he' ? '📅 נדרשת פגישה' : '📅 Meeting Requested') : lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting Review'}
+          {isAwaitingConfirmation
+            ? (lang === 'he' ? '🎉 אושר — ממתין לאישורך' : '🎉 Approved — awaiting your decision')
+            : isMeetingRequested
+              ? (lang === 'he' ? '📅 נדרשת פגישה' : '📅 Meeting Requested')
+              : (lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting Review')}
         </span>
       </div>
       <p className="mt-1 text-xs text-muted">
@@ -70,13 +91,44 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
         </p>
       )}
 
-      <button
-        type="button"
-        onClick={() => setConfirmOpen(true)}
-        className="mt-3 rounded-lg border border-danger px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger-bg"
-      >
-        {lang === 'he' ? 'משוך מועמדות' : 'Withdraw Application'}
-      </button>
+      {isAwaitingConfirmation && (
+        <>
+          <p className="mt-2 rounded-lg border border-[#3F6B4C] bg-[var(--success-bg)] p-2.5 text-xs text-ink">
+            🎉 {lang === 'he'
+              ? 'המנחה אישר את בקשתך! האם ברצונך להתחיל בפרויקט זה? אישור יסגור אוטומטית את שאר הבקשות הממתינות שלך.'
+              : "The supervisor approved your application! Do you want to start this project? Confirming will automatically close your other pending applications."}
+          </p>
+          {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleConfirmStart('yes')}
+              disabled={busy}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            >
+              {lang === 'he' ? 'כן, התחל בפרויקט' : 'Yes, start this project'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeclineOpen(true)}
+              disabled={busy}
+              className="rounded-lg border border-danger px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger-bg disabled:opacity-60"
+            >
+              {lang === 'he' ? 'לא, תודה' : 'No, thanks'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {!isAwaitingConfirmation && (
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(true)}
+          className="mt-3 rounded-lg border border-danger px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger-bg"
+        >
+          {lang === 'he' ? 'משוך מועמדות' : 'Withdraw Application'}
+        </button>
+      )}
 
       <ConfirmDialog
         open={confirmOpen}
@@ -88,6 +140,22 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
         busy={busy}
         onConfirm={handleWithdraw}
         onCancel={() => setConfirmOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={declineOpen}
+        title={lang === 'he' ? 'דחיית הפרויקט' : 'Decline the Project'}
+        message={
+          lang === 'he'
+            ? 'האם אתה בטוח שאינך רוצה להתחיל בפרויקט זה? המנחה יקבל התראה על כך.'
+            : "Are you sure you don't want to start this project? The supervisor will be notified."
+        }
+        confirmLabel={lang === 'he' ? 'כן, דחה' : 'Yes, decline'}
+        cancelLabel={t('cancel')}
+        destructive
+        busy={busy}
+        onConfirm={() => handleConfirmStart('no')}
+        onCancel={() => setDeclineOpen(false)}
       />
     </div>
   );

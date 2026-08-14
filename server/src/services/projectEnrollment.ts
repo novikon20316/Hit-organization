@@ -25,19 +25,31 @@ import { notifyUser } from './notify.js';
 // best-effort" split as the notifications already fired around this call.
 async function closeOtherPendingApplications(
   studentId: string,
+  enrolledProjectId: string,
   enrolledProjectTitle: { he: string; en: string },
   studentName: string,
 ): Promise<void> {
   try {
+    // Includes 'awaiting_student_confirmation' — the student may be sitting
+    // on more than one approval waiting for their decision (see
+    // applicationController.ts's confirmApplicationStart) when they confirm
+    // this one; those other approvals need closing out too, not just
+    // still-undecided 'applied'/'meeting_requested' applications.
     const otherPendingSnap = await db.collection('applications')
       .where('studentId', '==', studentId)
-      .where('status', 'in', ['applied', 'meeting_requested'])
+      .where('status', 'in', ['applied', 'meeting_requested', 'awaiting_student_confirmation'])
       .get();
 
-    if (otherPendingSnap.empty) return;
+    // The application for the project just enrolled into is itself still in
+    // one of the statuses above at this point (its caller updates it to
+    // 'approved' right after this call returns) — excluded here so it isn't
+    // wrongly "auto-closed as accepted elsewhere" a moment before being set
+    // to its real final status.
+    const otherDocs = otherPendingSnap.docs.filter((doc) => doc.data().projectId !== enrolledProjectId);
+    if (otherDocs.length === 0) return;
 
     const batch = db.batch();
-    for (const doc of otherPendingSnap.docs) {
+    for (const doc of otherDocs) {
       batch.update(doc.ref, {
         status:           'rejected',
         reviewedAt:       new Date().toISOString(),
@@ -49,7 +61,7 @@ async function closeOtherPendingApplications(
     }
     await batch.commit();
 
-    await Promise.all(otherPendingSnap.docs.map((doc) => {
+    await Promise.all(otherDocs.map((doc) => {
       const data = doc.data();
       if (!data.supervisorId) return Promise.resolve();
       const closedProjectTitleHe = data.projectTitleHe ?? '';
@@ -282,6 +294,7 @@ export async function enrollStudentInProject(
   if (willHaveActiveCount >= 2) {
     await closeOtherPendingApplications(
       studentId,
+      projectId,
       { he: projectDataForTemplate.titleHe ?? '', en: projectDataForTemplate.titleEn ?? '' },
       studentSnapForMajor.data()?.displayName ?? studentSnapForMajor.data()?.displayNameHe ?? '',
     );
