@@ -155,10 +155,11 @@ export default function TabLayout() {
   const [loaded, setLoaded] = useState(false);
   const { activeRole } = useActiveRole();
 
-  // Keeps the tab bar in sync when the user switches roles via TopBar's
-  // switcher mid-session — that flow updates ActiveRoleContext directly, not
-  // through a fresh auth-state event, so this effect is what this file needs
-  // to pick up the change without waiting on the fetch below.
+  // Keeps the tab bar in sync if the resolved highest-ranked role changes
+  // live (e.g. an admin grants/revokes a role while the user is signed in) —
+  // that updates ActiveRoleContext directly, not through a fresh auth-state
+  // event, so this effect is what this file needs to pick up the change
+  // without waiting on the fetch below.
   useEffect(() => {
     if (activeRole) setRole(activeRole);
   }, [activeRole]);

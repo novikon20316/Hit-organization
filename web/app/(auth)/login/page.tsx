@@ -25,8 +25,7 @@ import {
 } from 'firebase/auth';
 import { auth, db, googleProvider, appleProvider } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
-import { getHomeRoute, type UserDoc } from '@/lib/roles';
-import { resolveActiveRole } from '@/lib/activeRole';
+import { getHomeRoute, resolveActiveRole, type UserDoc } from '@/lib/roles';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';

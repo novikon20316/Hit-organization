@@ -10,8 +10,7 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getHomeRoute, type AppRole } from '@/lib/roles';
-import { resolveActiveRole } from '@/lib/activeRole';
+import { getHomeRoute, resolveActiveRole, type AppRole } from '@/lib/roles';
 
 const ACCOUNT_DELETION_PENDING_PATH = '/account-deletion-pending';
 const CHANGE_PASSWORD_PATH = '/change-password';

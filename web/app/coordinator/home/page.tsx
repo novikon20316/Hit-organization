@@ -10,6 +10,7 @@ import { ReportsLink } from '@/components/ReportsLink';
 import { InfoFilesLink } from '@/components/InfoFilesLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
@@ -31,6 +32,7 @@ type Tab = 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations
 
 export default function CoordinatorHomePage() {
   const { loading: guardLoading, isAllowed, firebaseUser, userData } = useRequireRole(COORDINATOR_ROLES);
+  const { activeRole } = useAuth();
   const { lang, t } = useLanguage();
 
   const [tab, setTab] = useState<Tab>('pending');
@@ -113,8 +115,11 @@ export default function CoordinatorHomePage() {
     { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
     { key: 'statistics', label: lang === 'he' ? 'סטטיסטיקות' : 'Statistics' },
     // Erasure/archive protocol is coordinator + system_admin only —
-    // administrative_secretary shares this page but not this tab.
-    ...(userData?.role !== 'administrative_secretary' ? [{ key: 'archived' as Tab, label: t('archivedTab') }] : []),
+    // administrative_secretary shares this page but not this tab. Checked
+    // against activeRole (the resolved highest-ranked role), not the primary
+    // `role` field, so a multi-role user's actual dashboard identity decides
+    // this — matches mobile's equivalent check.
+    ...(activeRole !== 'administrative_secretary' ? [{ key: 'archived' as Tab, label: t('archivedTab') }] : []),
   ];
 
   if (guardLoading) {

@@ -198,13 +198,48 @@ export function isGradSchoolApprover(role: AppRole | undefined): boolean {
 
 /** All distinct roles a user holds — primary `role` plus `roles[]`, deduped.
  *  Use this (not `userData.role` alone) anywhere a multi-role user's full
- *  set of roles matters, e.g. the role switcher. */
+ *  set of roles matters. */
 export function getUserRoles(userData: { role?: AppRole; roles?: AppRole[] } | null | undefined): AppRole[] {
   if (!userData) return [];
   const set = new Set<AppRole>();
   if (userData.role) set.add(userData.role);
   (userData.roles ?? []).forEach((r) => set.add(r));
   return Array.from(set);
+}
+
+/** Seniority order for auto-resolving which of a multi-role user's dashboards
+ *  they see (no manual switching — see resolveActiveRole below). Grounded in
+ *  the permission matrix above, not an explicit source: system_admin bypasses
+ *  every check; grad_school_head is the sole non-admin holder of the most
+ *  senior approvals; faculty_admin is the only non-admin role with
+ *  manage_users; program_head is excluded from DELEGATE_MANAGEABLE_ROLES
+ *  while coordinator isn't; administrative_secretary is explicitly narrower
+ *  than coordinator for the erasure/archive protocol; secondary_supervisor
+ *  never holds more authority than supervisor; internal_examiner has no
+ *  approval authority but still outranks student. */
+const ROLE_RANK: Record<AppRole, number> = {
+  system_admin: 0,
+  grad_school_head: 1,
+  faculty_admin: 2,
+  program_head: 3,
+  coordinator: 4,
+  administrative_secretary: 5,
+  supervisor: 6,
+  secondary_supervisor: 7,
+  internal_examiner: 8,
+  student: 9,
+};
+
+export function highestRankedRole(roles: AppRole[]): AppRole | undefined {
+  if (roles.length === 0) return undefined;
+  return roles.reduce((best, r) => (ROLE_RANK[r] < ROLE_RANK[best] ? r : best));
+}
+
+/** Which role's dashboard a multi-role user sees — always their
+ *  highest-ranked role, never a manual choice. */
+export function resolveActiveRole(userData: { role?: AppRole; roles?: AppRole[] } | null | undefined): AppRole | undefined {
+  if (!userData) return undefined;
+  return highestRankedRole(getUserRoles(userData));
 }
 
 /**

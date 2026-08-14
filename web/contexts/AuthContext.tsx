@@ -6,13 +6,12 @@
 // doc so role/profile changes (e.g. an admin flips isActive) reflect
 // immediately without a manual refresh.
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
-import { getHomeRoute, getUserRoles, type AppRole, type UserDoc } from '@/lib/roles';
-import { resolveActiveRole, setStoredActiveRole } from '@/lib/activeRole';
+import { getUserRoles, resolveActiveRole, type AppRole, type UserDoc } from '@/lib/roles';
 import { useIdleTimer } from '@/hooks/useIdleTimer';
 import { SessionExpiredModal } from '@/components/SessionExpiredModal';
 
@@ -33,13 +32,10 @@ interface AuthContextValue {
   /** All distinct roles the signed-in user holds (primary `role` + `roles[]`,
    *  deduped) — see lib/roles.ts's getUserRoles. */
   roles: AppRole[];
-  /** Which of `roles` the user is currently viewing the app as — see
-   *  lib/activeRole.ts. Falls back to `userData.role` until resolved. */
+  /** Which role's dashboard this user sees — always their highest-ranked
+   *  role (see lib/roles.ts's resolveActiveRole/highestRankedRole); no
+   *  manual switching. */
   activeRole: AppRole | undefined;
-  /** Switches the active role, persists the choice, and navigates to that
-   *  role's home route (see components/dashboard/DashboardShell.tsx's role
-   *  switcher). */
-  setActiveRole: (role: AppRole) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -67,8 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userData, setUserData] = useState<UserDoc | null>(null);
   const [authResolved, setAuthResolved] = useState(false);
   const [profileResolved, setProfileResolved] = useState(false);
-  const [activeRole, setActiveRoleState] = useState<AppRole | undefined>(undefined);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const activeRole = useMemo(() => resolveActiveRole(userData), [userData]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -107,12 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [firebaseUser]);
 
-  // Re-resolve the active role whenever the profile changes (fresh login,
-  // live role edit by an admin, or a stored choice that's no longer valid).
-  useEffect(() => {
-    setActiveRoleState(resolveActiveRole(userData));
-  }, [userData]);
-
   const logout = async () => {
     // Cleared eagerly, before the async signOut() below resolves — closes
     // the window where clicking "sign out" and immediately pressing back
@@ -142,13 +132,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut(auth).catch(() => {});
   };
 
-  const setActiveRole = (role: AppRole) => {
-    if (!userData) return;
-    setStoredActiveRole(userData.uid, role);
-    setActiveRoleState(role);
-    router.push(getHomeRoute(role));
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -158,7 +141,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         roles: getUserRoles(userData),
         activeRole,
-        setActiveRole,
       }}
     >
       {children}
