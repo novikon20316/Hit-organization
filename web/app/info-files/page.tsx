@@ -32,6 +32,15 @@ const ALL_MAJORS = (() => {
 })();
 const DEGREE_TYPES = ['bachelors', 'masters'] as const;
 
+// Major labels in HIT_FACULTIES carry a leading degree abbreviation (e.g.
+// "B.Sc. in Computer Science" / "B.Sc במדעי המחשב") meant for places that
+// list full program names — redundant here since Degree is already its own
+// separate pill group on this page, so it's stripped for display only.
+const DEGREE_PREFIX_RE = /^(B\.Sc|M\.Sc|B\.A|M\.A|B\.Des|M\.Des)\.?\s+/i;
+function stripDegreePrefix(label: string): string {
+  return label.replace(DEGREE_PREFIX_RE, '');
+}
+
 interface InfoFile {
   id: string;
   titleHe: string;
@@ -62,7 +71,7 @@ function scopeSummary(f: { facultyIds: string[]; majors: string[]; degreeTypes: 
   if (f.majors?.length) {
     parts.push(
       f.majors
-        .map((slug) => ALL_MAJORS.find((m) => m.slug === slug)?.label[lang] ?? slug)
+        .map((slug) => stripDegreePrefix(ALL_MAJORS.find((m) => m.slug === slug)?.label[lang] ?? slug))
         .join(', ')
     );
   }
@@ -103,6 +112,7 @@ export default function InfoFilesPage() {
   const [contentScopeFacultyIds, setContentScopeFacultyIds] = useState<string[]>([]);
   const [contentScopeMajors, setContentScopeMajors] = useState<string[]>([]);
   const [contentScopeDegreeTypes, setContentScopeDegreeTypes] = useState<string[]>([]);
+  const [selectAllContent, setSelectAllContent] = useState(false);
   const [posting, setPosting] = useState(false);
   const [contentError, setContentError] = useState('');
   const [deletingContent, setDeletingContent] = useState<FacultyContentItem | null>(null);
@@ -111,10 +121,15 @@ export default function InfoFilesPage() {
   // Visibility scoping — each empty means unrestricted for that axis (the
   // file stays visible to everyone along that dimension). A student must
   // match ALL three non-empty axes to see the file; enforced server-side in
-  // getInfoFiles, not just here.
+  // getInfoFiles, not just here. Leaving all three empty used to be the only
+  // way to target "everyone" — now that must be an explicit choice (the
+  // "Show to everyone" checkbox below), so an empty selection with the
+  // checkbox unchecked is rejected at submit time instead of silently
+  // meaning "all".
   const [scopeFacultyIds, setScopeFacultyIds] = useState<string[]>([]);
   const [scopeMajors, setScopeMajors] = useState<string[]>([]);
   const [scopeDegreeTypes, setScopeDegreeTypes] = useState<string[]>([]);
+  const [selectAllFiles, setSelectAllFiles] = useState(false);
 
   // Cascades to just the selected faculties' majors once any are picked —
   // otherwise the full cross-faculty list, since a major on its own is a
@@ -196,6 +211,14 @@ export default function InfoFilesPage() {
       setContentError(lang === 'he' ? 'יש להזין תוכן' : 'Please enter body text');
       return;
     }
+    if (!selectAllContent && contentScopeFacultyIds.length === 0 && contentScopeMajors.length === 0 && contentScopeDegreeTypes.length === 0) {
+      setContentError(
+        lang === 'he'
+          ? 'יש לבחור פקולטה, מגמה או תואר אחד לפחות — או לסמן "הצג לכולם"'
+          : 'Select at least one faculty, major, or degree — or check "Show to everyone"'
+      );
+      return;
+    }
     setPosting(true);
     setContentError('');
     try {
@@ -205,9 +228,9 @@ export default function InfoFilesPage() {
         titleEn: contentTitleEn.trim(),
         bodyHe: contentBodyHe.trim(),
         bodyEn: contentBodyEn.trim(),
-        facultyIds: contentScopeFacultyIds,
-        majors: contentScopeMajors,
-        degreeTypes: contentScopeDegreeTypes,
+        facultyIds: selectAllContent ? [] : contentScopeFacultyIds,
+        majors: selectAllContent ? [] : contentScopeMajors,
+        degreeTypes: selectAllContent ? [] : contentScopeDegreeTypes,
       });
       setContentTitleHe('');
       setContentTitleEn('');
@@ -216,6 +239,7 @@ export default function InfoFilesPage() {
       setContentScopeFacultyIds([]);
       setContentScopeMajors([]);
       setContentScopeDegreeTypes([]);
+      setSelectAllContent(false);
       await fetchContent();
     } catch (err) {
       setContentError(err instanceof Error ? err.message : lang === 'he' ? 'הפרסום נכשל' : 'Failed to post');
@@ -247,6 +271,14 @@ export default function InfoFilesPage() {
       setError(lang === 'he' ? 'יש להזין כותרת' : 'Please enter a title');
       return;
     }
+    if (!selectAllFiles && scopeFacultyIds.length === 0 && scopeMajors.length === 0 && scopeDegreeTypes.length === 0) {
+      setError(
+        lang === 'he'
+          ? 'יש לבחור פקולטה, מגמה או תואר אחד לפחות — או לסמן "הצג לכולם"'
+          : 'Select at least one faculty, major, or degree — or check "Show to everyone"'
+      );
+      return;
+    }
     setUploading(true);
     setError('');
     try {
@@ -254,9 +286,9 @@ export default function InfoFilesPage() {
       formData.append('file', pickedFile);
       formData.append('titleHe', titleHe.trim());
       formData.append('titleEn', titleEn.trim());
-      formData.append('facultyIds', JSON.stringify(scopeFacultyIds));
-      formData.append('majors', JSON.stringify(scopeMajors));
-      formData.append('degreeTypes', JSON.stringify(scopeDegreeTypes));
+      formData.append('facultyIds', JSON.stringify(selectAllFiles ? [] : scopeFacultyIds));
+      formData.append('majors', JSON.stringify(selectAllFiles ? [] : scopeMajors));
+      formData.append('degreeTypes', JSON.stringify(selectAllFiles ? [] : scopeDegreeTypes));
       await apiClient.uploadInfoFile(formData);
       setTitleHe('');
       setTitleEn('');
@@ -264,6 +296,7 @@ export default function InfoFilesPage() {
       setScopeFacultyIds([]);
       setScopeMajors([]);
       setScopeDegreeTypes([]);
+      setSelectAllFiles(false);
       await fetchFiles();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'העלאת הקובץ נכשלה' : 'Failed to upload file');
@@ -323,19 +356,36 @@ export default function InfoFilesPage() {
         <div className="mt-4 grid gap-3 rounded-lg border border-line bg-paper p-3">
           <p className="text-xs font-medium text-muted">
             {lang === 'he'
-              ? '🎯 חשיפה (אופציונלי) — השאר ריק כדי להציג לכולם'
-              : '🎯 Visibility (optional) — leave everything blank to show this to everyone'}
+              ? '🎯 חשיפה — בחר פקולטה, מגמה או תואר אחד לפחות, או סמן "הצג לכולם"'
+              : '🎯 Visibility — select at least one faculty, major, or degree, or check "Show to everyone"'}
           </p>
 
-          <div>
+          <label className="flex items-center gap-2 text-xs font-medium text-ink">
+            <input
+              type="checkbox"
+              checked={selectAllFiles}
+              onChange={(e) => {
+                setSelectAllFiles(e.target.checked);
+                if (e.target.checked) {
+                  setScopeFacultyIds([]);
+                  setScopeMajors([]);
+                  setScopeDegreeTypes([]);
+                }
+              }}
+            />
+            {lang === 'he' ? '🌐 הצג לכולם (בחר הכל)' : '🌐 Show to everyone (select all)'}
+          </label>
+
+          <div className={selectAllFiles ? 'opacity-50' : undefined}>
             <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
             <div className="flex flex-wrap gap-1.5">
               {SELECTABLE_FACULTIES.map((id) => (
                 <button
                   key={id}
                   type="button"
+                  disabled={selectAllFiles}
                   onClick={() => toggleFaculty(id)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
                     scopeFacultyIds.includes(id) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
                   }`}
                 >
@@ -345,33 +395,35 @@ export default function InfoFilesPage() {
             </div>
           </div>
 
-          <div>
+          <div className={selectAllFiles ? 'opacity-50' : undefined}>
             <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'מגמה' : 'Major'}</span>
             <div className="flex flex-wrap gap-1.5">
               {availableMajors.map((m) => (
                 <button
                   key={m.slug}
                   type="button"
+                  disabled={selectAllFiles}
                   onClick={() => toggleIn(scopeMajors, m.slug, setScopeMajors)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
                     scopeMajors.includes(m.slug) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
                   }`}
                 >
-                  {m.label[lang]}
+                  {stripDegreePrefix(m.label[lang])}
                 </button>
               ))}
             </div>
           </div>
 
-          <div>
+          <div className={selectAllFiles ? 'opacity-50' : undefined}>
             <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
             <div className="flex flex-wrap gap-1.5">
               {DEGREE_TYPES.map((d) => (
                 <button
                   key={d}
                   type="button"
+                  disabled={selectAllFiles}
                   onClick={() => toggleIn(scopeDegreeTypes, d, setScopeDegreeTypes)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
                     scopeDegreeTypes.includes(d) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
                   }`}
                 >
@@ -482,17 +534,35 @@ export default function InfoFilesPage() {
 
         <div className="mt-4 grid gap-3 rounded-lg border border-line bg-paper p-3">
           <p className="text-xs font-medium text-muted">
-            {lang === 'he' ? '🎯 חשיפה (אופציונלי) — השאר ריק כדי להציג לכולם' : '🎯 Visibility (optional) — leave blank to show everyone'}
+            {lang === 'he'
+              ? '🎯 חשיפה — בחר פקולטה, מגמה או תואר אחד לפחות, או סמן "הצג לכולם"'
+              : '🎯 Visibility — select at least one faculty, major, or degree, or check "Show to everyone"'}
           </p>
-          <div>
+          <label className="flex items-center gap-2 text-xs font-medium text-ink">
+            <input
+              type="checkbox"
+              checked={selectAllContent}
+              onChange={(e) => {
+                setSelectAllContent(e.target.checked);
+                if (e.target.checked) {
+                  setContentScopeFacultyIds([]);
+                  setContentScopeMajors([]);
+                  setContentScopeDegreeTypes([]);
+                }
+              }}
+            />
+            {lang === 'he' ? '🌐 הצג לכולם (בחר הכל)' : '🌐 Show to everyone (select all)'}
+          </label>
+          <div className={selectAllContent ? 'opacity-50' : undefined}>
             <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
             <div className="flex flex-wrap gap-1.5">
               {SELECTABLE_FACULTIES.map((id) => (
                 <button
                   key={id}
                   type="button"
+                  disabled={selectAllContent}
                   onClick={() => toggleContentFaculty(id)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
                     contentScopeFacultyIds.includes(id) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
                   }`}
                 >
@@ -501,32 +571,34 @@ export default function InfoFilesPage() {
               ))}
             </div>
           </div>
-          <div>
+          <div className={selectAllContent ? 'opacity-50' : undefined}>
             <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'מגמה' : 'Major'}</span>
             <div className="flex flex-wrap gap-1.5">
               {contentAvailableMajors.map((m) => (
                 <button
                   key={m.slug}
                   type="button"
+                  disabled={selectAllContent}
                   onClick={() => toggleIn(contentScopeMajors, m.slug, setContentScopeMajors)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
                     contentScopeMajors.includes(m.slug) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
                   }`}
                 >
-                  {m.label[lang]}
+                  {stripDegreePrefix(m.label[lang])}
                 </button>
               ))}
             </div>
           </div>
-          <div>
+          <div className={selectAllContent ? 'opacity-50' : undefined}>
             <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
             <div className="flex flex-wrap gap-1.5">
               {DEGREE_TYPES.map((d) => (
                 <button
                   key={d}
                   type="button"
+                  disabled={selectAllContent}
                   onClick={() => toggleIn(contentScopeDegreeTypes, d, setContentScopeDegreeTypes)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
                     contentScopeDegreeTypes.includes(d) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
                   }`}
                 >
