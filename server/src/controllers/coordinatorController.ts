@@ -519,6 +519,14 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
           facultyId:        data.facultyId     ?? project?.facultyId ?? '',
           type:             data.type,
           status:           data.status,
+          // Chain-driven milestones (see services/milestoneRouting.ts) can
+          // sit at a status this array's own filter matches (e.g.
+          // 'supervisor_graded') while their CURRENT stage is actually owned
+          // by a different role/action — the coordinator dashboard's Pending
+          // tab needs these to tell "genuinely awaiting my approval right
+          // now" apart from "just happens to share a coarse status string".
+          routing:          data.routing ?? null,
+          currentStageIndex: data.currentStageIndex ?? 0,
 
           // ── The fields the frontend was missing ──────────────────────
           supervisorScore:   data.supervisorScore   ?? null,

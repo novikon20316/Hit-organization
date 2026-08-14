@@ -607,6 +607,13 @@ export interface PendingMilestone {
   fileUrls?: string[];
   submissionNote?: string;
   revisionHistory?: MilestoneRevision[];
+  /** Chain-driven routing (see server's milestoneRouting.ts) — null/undefined
+   *  for legacy, non-chain-driven milestones. Used to tell "genuinely
+   *  awaiting a coordinator approve decision right now" apart from a
+   *  chain-driven milestone that just happens to share this array's coarse
+   *  status filter while its current stage belongs to a different role/action. */
+  routing?: { action: 'grade' | 'approve'; [key: string]: any }[] | null;
+  currentStageIndex?: number;
 
   examinerIds: string[];
   examiner1Score: number | null;

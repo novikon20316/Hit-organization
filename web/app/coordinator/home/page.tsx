@@ -100,9 +100,26 @@ export default function CoordinatorHomePage() {
   const defenseCards = useMemo(() => buildDefenseCards(allMilestones, projects), [allMilestones, projects]);
 
   // Same split mobile applies: a final_report already fully graded moves to
-  // the Defense tab instead of staying in Pending.
+  // the Defense tab instead of staying in Pending. Two more exclusions catch
+  // items that share this array's coarse status filter (see
+  // coordinatorController.ts's getCoordinatorDashboard) without actually
+  // still needing a coordinator decision:
+  //  - 'coordinator_approved' means fully finalized already — the Defense
+  //    tab still wants those (its "setup" bucket), Pending shouldn't.
+  //  - a chain-driven milestone (has `routing`) whose CURRENT stage isn't an
+  //    'approve' action — its status can still be 'submitted'/
+  //    'supervisor_graded' from a stage owned by a different role/action, so
+  //    clicking Approve/Reject here would always fail server-side.
   const pendingMilestones = useMemo(
-    () => allMilestones.filter((m) => !(m.type === 'final_report' && m.status === 'graded')),
+    () => allMilestones.filter((m) => {
+      if (m.type === 'final_report' && m.status === 'graded') return false;
+      if (m.status === 'coordinator_approved') return false;
+      if (m.routing && m.routing.length > 0 && m.type !== 'defense') {
+        const stage = m.routing[m.currentStageIndex ?? 0];
+        if (!stage || stage.action !== 'approve') return false;
+      }
+      return true;
+    }),
     [allMilestones]
   );
 

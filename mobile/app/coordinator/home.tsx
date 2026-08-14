@@ -151,10 +151,24 @@ export default function CoordinatorHome() {
       setCoordinatorName(profileRes.data?.displayName || 'Coordinator');
       if (profileRes.data?.language) setLang(profileRes.data.language);
       const allMilestones = dashboardRes.data.pendingMilestones || [];
-      setPendingMilestones(allMilestones.filter(
-        (m: PendingMilestone) =>
-          !(m.type === 'final_report' && m.status === 'graded')
-      ));
+      // Excludes items that share this array's coarse status filter (see
+      // coordinatorController.ts's getCoordinatorDashboard) without actually
+      // still needing a coordinator decision:
+      //  - 'coordinator_approved' means fully finalized already — the
+      //    defenseSetups bucket below still wants those, Pending shouldn't.
+      //  - a chain-driven milestone (has `routing`) whose CURRENT stage isn't
+      //    an 'approve' action — its status can still be 'submitted'/
+      //    'supervisor_graded' from a stage owned by a different role/action,
+      //    so approving/rejecting here would always fail server-side.
+      setPendingMilestones(allMilestones.filter((m: PendingMilestone) => {
+        if (m.type === 'final_report' && m.status === 'graded') return false;
+        if (m.status === 'coordinator_approved') return false;
+        if (m.routing && m.routing.length > 0 && m.type !== 'defense') {
+          const stage = m.routing[m.currentStageIndex ?? 0];
+          if (!stage || stage.action !== 'approve') return false;
+        }
+        return true;
+      }));
       setDefenseSetups(allMilestones.filter(
         (m: PendingMilestone) =>
           m.type === 'final_report' && (m.status === 'graded' || m.status === 'coordinator_approved')

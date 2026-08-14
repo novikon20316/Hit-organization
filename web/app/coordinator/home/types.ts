@@ -1,5 +1,6 @@
 // app/coordinator/home/types.ts
 import type { FacultyId } from '@/lib/i18n';
+import type { ChainStage } from '@/app/workflow-templates/types';
 
 // ── Defense tab (mobile parity) ─────────────────────────────────────────────
 // See server/src/services/defenseScheduling.ts for how these get written.
@@ -106,6 +107,13 @@ export interface CoordinatorPendingMilestone {
   projectTitleEn: string;
   type: string;
   status: string;
+  /** Chain-driven routing (see services/milestoneRouting.ts) — null for
+   *  legacy, non-chain-driven milestones. Used to tell "genuinely awaiting a
+   *  coordinator approve decision right now" apart from a chain-driven
+   *  milestone that just happens to share this array's coarse status filter
+   *  while its current stage belongs to a different role/action. */
+  routing?: ChainStage[] | null;
+  currentStageIndex?: number;
   studentNames: string[];
   studentIds: string[];
   supervisorId: string;
