@@ -6,7 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
-import { ProjectWorkflowModal } from './ProjectWorkflowModal';
+import { ProjectWorkflowSection } from './ProjectWorkflowSection';
 import { RequestErasureModal } from './RequestErasureModal';
 import type { FacultyId } from '@/lib/i18n';
 import type { MyProject } from './types';
@@ -35,7 +35,6 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
   const { lang, t } = useLanguage();
   const facultyColor = getFacultyColor(p.facultyId);
   const [showRequestErasure, setShowRequestErasure] = useState(false);
-  const [showWorkflow, setShowWorkflow] = useState(false);
 
   const urgency = p.currentMilestone?.urgency ?? null;
   const urgencyColor = urgency ? URGENCY_COLOR[urgency] : 'transparent';
@@ -95,13 +94,6 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          onClick={() => setShowWorkflow(true)}
-          className="flex-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
-        >
-          🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}
-        </button>
-        <button
-          type="button"
           onClick={() => onEdit(p)}
           className="flex-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
         >
@@ -116,7 +108,7 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
         </button>
       </div>
 
-      {showWorkflow && <ProjectWorkflowModal project={p} onClose={() => setShowWorkflow(false)} />}
+      <ProjectWorkflowSection project={p} />
 
       {showRequestErasure && (
         <RequestErasureModal project={p} onClose={() => setShowRequestErasure(false)} onSubmitted={onChanged} />
