@@ -901,10 +901,33 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
   }
 
   try {
-    // 1. Fetch all active projects
-    const projectsSnap = await db.collection('projects')
-      .where('status', '==', 'active')
-      .get();
+    // A coordinator/faculty_admin oversees one faculty (or a handful, via
+    // coordinatorScopes) — this tab should default to every project in that
+    // scope, not just ones they personally supervise, so they can see what
+    // other supervisors in their faculty are running too. 'admin' stays
+    // unrestricted (system-wide), matching its behavior everywhere else.
+    // facultyId 'all' (administrative-coordinator-style provisioning) is
+    // likewise unrestricted rather than an empty/no-match scope.
+    let unrestricted = role === 'admin';
+    let facultyIds: string[] = [];
+    if (!unrestricted) {
+      const coordinatorScopes = req.user?.coordinatorScopes ?? [];
+      facultyIds = coordinatorScopes.length > 0
+        ? [...new Set(coordinatorScopes.map((s) => s.facultyId))]
+        : (req.user?.facultyId ? [req.user.facultyId] : []);
+      if (facultyIds.includes('all')) unrestricted = true;
+    }
+
+    if (!unrestricted && facultyIds.length === 0) {
+      return res.status(200).json({ InProgress: [] });
+    }
+
+    // 1. Fetch active projects, scoped to the caller's faculty(ies) unless unrestricted
+    let projectsQuery = db.collection('projects').where('status', '==', 'active') as FirebaseFirestore.Query;
+    if (!unrestricted) {
+      projectsQuery = projectsQuery.where('facultyId', 'in', facultyIds);
+    }
+    const projectsSnap = await projectsQuery.get();
 
     if (projectsSnap.empty) {
       return res.status(200).json({ InProgress: [] });
@@ -983,6 +1006,7 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
         projectTitleHe: project.titleHe || '',
         projectTitleEn: project.titleEn || '',
         facultyId: project.facultyId || '',
+        supervisorId: project.supervisorId || '',
         supervisorName,
         status: project.status,
         students: studentsArray // Custom nested block containing targeted progress loops

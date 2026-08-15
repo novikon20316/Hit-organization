@@ -67,6 +67,7 @@ export interface InProgressProject {
   projectTitleHe: string;
   projectTitleEn: string;
   facultyId: FacultyId;
+  supervisorId?: string;
   supervisorName: string;
   status: string;
   students: InProgressStudent[];

@@ -70,6 +70,7 @@ export default function CoordinatorHome() {
   const [pendingMilestones, setPendingMilestones] = useState<PendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [inProgressProjects, setInProgressProjects] = useState<InProgressProject[]>([]);
+  const [inProgressScope, setInProgressScope] = useState<'all' | 'mine'>('all');
   const [defenseSetups,    setDefenseSetups]    = useState<PendingMilestone[]>([]);
   const [allExaminers,     setAllExaminers]     = useState<ExaminerUser[]>([]);
 
@@ -1236,7 +1237,26 @@ export default function CoordinatorHome() {
                 </Text>
               </View>
             ) : (
-              inProgressProjects.map((p) => (
+              <>
+                <View style={styles.sortRow}>
+                  {([
+                    { key: 'all' as const, heLabel: 'כל הפרויקטים', enLabel: 'All Projects' },
+                    { key: 'mine' as const, heLabel: 'הפרויקטים שלי', enLabel: 'My Projects' },
+                  ]).map((opt) => (
+                    <Pressable
+                      key={opt.key}
+                      style={[styles.sortChip, inProgressScope === opt.key && styles.sortChipActive]}
+                      onPress={() => setInProgressScope(opt.key)}
+                    >
+                      <Text style={[styles.sortChipText, inProgressScope === opt.key && styles.sortChipTextActive]}>
+                        {lang === 'he' ? opt.heLabel : opt.enLabel}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {inProgressProjects
+                  .filter((p) => inProgressScope === 'all' || p.supervisorId === coordinatorId)
+                  .map((p) => (
         <View
           key={p.id}
           style={[styles.card, expandedCards[p.id] && styles.cardExpanded]} // Re-applied the card expanded style here
@@ -1387,7 +1407,8 @@ export default function CoordinatorHome() {
             </Text>
           </Pressable>
         </View>
-      ))
+      ))}
+              </>
             )}
           </>
         )}

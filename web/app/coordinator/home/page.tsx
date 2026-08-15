@@ -204,7 +204,7 @@ export default function CoordinatorHomePage() {
           onOpenAssignExaminers={setAssigningMilestone}
         />
       ) : tab === 'inProgress' ? (
-        <InProgressTab projects={inProgressProjects} />
+        <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} />
       ) : tab === 'deadlines' ? (
         <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchAll} />
       ) : tab === 'recommendations' ? (

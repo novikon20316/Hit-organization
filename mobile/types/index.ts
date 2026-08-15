@@ -657,6 +657,7 @@ export interface InProgressProject {
   projectTitleHe: string;
   projectTitleEn: string;
   facultyId: string;
+  supervisorId?: string;
   supervisorName: string;
   status: string;
 

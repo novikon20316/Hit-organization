@@ -16,15 +16,45 @@ import { TrackChangeControl } from '@/components/TrackChangeControl';
 
 interface InProgressTabProps {
   projects: InProgressProject[];
+  currentUserId?: string;
 }
 
-export function InProgressTab({ projects }: InProgressTabProps) {
+export function InProgressTab({ projects, currentUserId }: InProgressTabProps) {
   const { lang } = useLanguage();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
+  const [scope, setScope] = useState<'all' | 'mine'>('all');
+
+  const visibleProjects = scope === 'mine' ? projects.filter((p) => p.supervisorId === currentUserId) : projects;
+
+  const scopeToggle = (
+    <div className="mb-3 flex gap-1 rounded-full bg-paper p-0.5" style={{ width: 'fit-content' }}>
+      {(['all', 'mine'] as const).map((s) => (
+        <button
+          key={s}
+          type="button"
+          onClick={() => setScope(s)}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            scope === s ? 'bg-primary text-primary-ink' : 'text-muted'
+          }`}
+        >
+          {s === 'all' ? (lang === 'he' ? 'כל הפרויקטים' : 'All Projects') : lang === 'he' ? 'הפרויקטים שלי' : 'My Projects'}
+        </button>
+      ))}
+    </div>
+  );
 
   if (projects.length === 0) {
     return <p className="text-sm text-muted">📁 {lang === 'he' ? 'אין פרויקטים פעילים' : 'No projects in progress'}</p>;
+  }
+
+  if (visibleProjects.length === 0) {
+    return (
+      <div>
+        {scopeToggle}
+        <p className="text-sm text-muted">📁 {lang === 'he' ? 'אין פרויקטים משלך' : 'No projects of your own'}</p>
+      </div>
+    );
   }
 
   const statusColor = (status: string) => {
@@ -48,8 +78,10 @@ export function InProgressTab({ projects }: InProgressTabProps) {
   };
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {projects.map((p) => {
+    <div>
+      {scopeToggle}
+      <div className="grid gap-3 sm:grid-cols-2">
+      {visibleProjects.map((p) => {
         const facultyColor = getFacultyColor(p.facultyId);
         const isOpen = !!expanded[p.id];
         return (
@@ -127,6 +159,7 @@ export function InProgressTab({ projects }: InProgressTabProps) {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
