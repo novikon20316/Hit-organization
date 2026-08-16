@@ -661,7 +661,7 @@ export default function WorkflowTemplateManager() {
           // administrative_secretary proposes/edits templates but has no
           // approval authority (see canApproveTemplate) — she also
           // shouldn't see what's awaiting someone else's decision.
-          ...(isCoordinator ? [] : [{ key: 'pending' as const, he: 'ממתין לאישור', en: 'Pending Approval', badge: pending.length }]),
+          ...(isCoordinator ? [] : [{ key: 'pending' as const, he: 'ממתין לאישור', en: 'Pending Approval', badge: pendingForActive.length }]),
           { key: 'history' as const, he: 'היסטוריה', en: 'History' },
         ]).map((tab) => (
           <Pressable
@@ -781,7 +781,7 @@ export default function WorkflowTemplateManager() {
 
         {activeTab === 'pending' && !isCoordinator && (
           <>
-            {pending.length === 0 ? (
+            {pendingForActive.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <Text style={{ fontSize: 40, marginBottom: 10 }}>✅</Text>
                 <Text style={{ fontSize: 14, color: '#8899BB' }}>
@@ -789,7 +789,7 @@ export default function WorkflowTemplateManager() {
                 </Text>
               </View>
             ) : (
-              pending.map((tpl) => {
+              pendingForActive.map((tpl) => {
                 const canApprove = canApproveTemplate(tpl, userRole, permissionRules);
                 const ptLabel = PROCESS_TYPES.find((p) => p.key === tpl.processType);
                 return (

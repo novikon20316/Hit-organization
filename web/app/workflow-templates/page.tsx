@@ -296,7 +296,7 @@ function WorkflowTemplatesContent() {
           // administrative_secretary proposes/edits templates but has no
           // approval authority (see canApproveTemplate) — she also shouldn't
           // see what's awaiting someone else's decision.
-          ...(isCoordinator ? [] : [{ key: 'pending' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Pending Approval', badge: pending.length }]),
+          ...(isCoordinator ? [] : [{ key: 'pending' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Pending Approval', badge: pendingForActive.length }]),
           { key: 'history' as const, label: lang === 'he' ? 'היסטוריה' : 'History', badge: 0 },
         ]).map(({ key, label, badge }) => (
           <button
@@ -411,11 +411,11 @@ function WorkflowTemplatesContent() {
             )}
           </div>
         </div>
-      ) : tab === 'pending' && !isCoordinator ? pending.length === 0 ? (
+      ) : tab === 'pending' && !isCoordinator ? pendingForActive.length === 0 ? (
         <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין הצעות ממתינות' : 'No pending proposals'}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {pending.map((tpl) => {
+          {pendingForActive.map((tpl) => {
             const canApprove = canApproveTemplate(tpl, userData);
             return (
               <div key={tpl.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
