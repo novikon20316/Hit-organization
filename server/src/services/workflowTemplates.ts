@@ -86,7 +86,15 @@ export interface FinalGradeRubric {
 // resolveStaffForScope, which special-cases it the same way it already does
 // 'supervisor'. Lets a milestone type be graded examiner-only (no supervisor
 // stage at all), e.g. a Poster-session milestone.
-export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+// 'committee' resolves to the department's thesis/final_project committee
+// (see committeeController.ts's resolveCommitteeForProject) — 'thesis' if
+// the project's own projectType is 'thesis', else 'final_project'. Unlike
+// every other role here, it's NOT single-actor "first one wins": every
+// committee member votes independently, and only the committee's chairman
+// can actually advance/reject the stage — see the dedicated
+// committee-vote/committee-decision endpoints in committeeReviewController.ts,
+// not the generic approve/reject chain endpoints.
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head' | 'committee';
 // 'student', or another stage's `id` within the same chain (self-reference allowed).
 export type RejectionTarget = 'student' | string;
 

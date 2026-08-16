@@ -13,6 +13,7 @@ import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
 import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
+import { onEnterCommitteeStage } from './committeeReviewController.js';
 
 const db = admin.firestore();
 
@@ -163,6 +164,15 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
     });
+
+    // A fresh (or resubmitted) chain-driven milestone always restarts at
+    // stage 0 above — if that stage routes to a committee, every member
+    // needs notifying with the just-uploaded files/note, same as the
+    // supervisor notification below but fanned out to the whole panel.
+    if (isChainDriven(milestoneData) && milestoneData.routing[0]?.role === 'committee') {
+      const freshMilestone = (await milestoneRef.get()).data()!;
+      await onEnterCommitteeStage(milestoneId, freshMilestone);
+    }
 
     // ── Notify supervisor ───────────────────────────────────────────────────
     const supervisorId  = milestoneData.supervisorId ?? null;

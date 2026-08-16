@@ -1999,7 +1999,88 @@ export const apiClient = {
       body: { decision, note },
     });
   },
+
+  // ─── 22. COMMITTEES — thesis/final_project review panels per (facultyId,
+  // major, type). See server/src/controllers/committeeController.ts and
+  // committeeReviewController.ts. ─────────────────────────────────────────────
+  async listCommittees(facultyId?: string) {
+    return request<{ committees: CommitteeRecord[] }>('/api/committees', { method: 'GET', params: { facultyId } });
+  },
+
+  async getMyCommittees() {
+    return request<{ committees: CommitteeRecord[] }>('/api/committees/mine', { method: 'GET' });
+  },
+
+  async listEligibleCommitteeMembers(facultyId?: string) {
+    return request<{ members: Array<{ id: string; displayName: string; email: string; role: string; facultyId: string }> }>(
+      '/api/committees/eligible-members',
+      { method: 'GET', params: { facultyId } },
+    );
+  },
+
+  async createCommittee(payload: { facultyId: string; major: string; type: 'thesis' | 'final_project'; chairmanId?: string; memberIds: string[] }) {
+    return request<{ success: boolean; id: string }>('/api/committees', { method: 'POST', body: payload });
+  },
+
+  async updateCommittee(id: string, payload: { memberIds?: string[]; chairmanId?: string | null }) {
+    return request<{ success: boolean }>(`/api/committees/${id}`, { method: 'PUT', body: payload });
+  },
+
+  async getMyPendingCommitteeReviews() {
+    return request<{ reviews: CommitteePendingReview[] }>('/api/committees/mine/pending-reviews', { method: 'GET' });
+  },
+
+  async getCommitteeReview(milestoneId: string) {
+    return request<CommitteeReviewDetail>(`/api/milestones/${milestoneId}/committee-review`, { method: 'GET' });
+  },
+
+  async submitCommitteeVote(milestoneId: string, vote: 'approve' | 'reject', comment: string) {
+    return request<{ success: boolean }>(`/api/milestones/${milestoneId}/committee-vote`, { method: 'POST', body: { vote, comment } });
+  },
+
+  async submitCommitteeDecision(milestoneId: string, decision: 'approve' | 'reject', comment: string) {
+    return request<{ success: boolean; message: string }>(`/api/milestones/${milestoneId}/committee-decision`, { method: 'POST', body: { decision, comment } });
+  },
 };
+
+export interface CommitteeRecord {
+  id: string;
+  facultyId: string;
+  major: string;
+  type: 'thesis' | 'final_project';
+  chairmanId: string | null;
+  memberIds: string[];
+}
+
+export interface CommitteePendingReview {
+  milestoneId: string;
+  type: string;
+  projectId: string | null;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  committeeId: string;
+  isChairman: boolean;
+  alreadyVoted: boolean;
+  voteCount: number;
+  memberCount: number;
+}
+
+export interface CommitteeVoteRecord {
+  memberId: string;
+  vote: 'approve' | 'reject';
+  comment: string;
+  votedAt: string;
+}
+
+export interface CommitteeReviewDetail {
+  milestoneId: string;
+  type: string;
+  submissionNote: string;
+  fileUrls: string[];
+  committee: { id: string; chairmanId: string | null; memberIds: string[]; memberNames: Record<string, string> };
+  isChairman: boolean;
+  votes: CommitteeVoteRecord[];
+}
 
 // See server/src/services/revisionDecisions.ts (P1 #13).
 export type RevisionDecisionType = 'proceed_to_defense' | 'require_corrections' | 're_judge' | 'add_examiner';

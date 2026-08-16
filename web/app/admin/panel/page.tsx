@@ -14,6 +14,7 @@ import { InfoFilesLink } from '@/components/InfoFilesLink';
 import { AcademicYearLink } from '@/components/AcademicYearLink';
 import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
+import { CommitteesLink } from '@/components/CommitteesLink';
 import { LiveTransportationLink } from '@/components/LiveTransportationLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -173,6 +174,7 @@ export default function AdminPanelPage() {
           <AcademicYearLink />
           <BulkPermissionsLink />
           <WorkflowTemplatesLink />
+          <CommitteesLink />
           <ReportsLink />
           <LiveTransportationLink />
           <button

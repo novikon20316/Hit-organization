@@ -13,6 +13,7 @@ import {
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType, resolveExaminerSignoffRole, type ChainStage } from '../services/workflowTemplates.js';
 import { authorizeStageActor, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
+import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser } from '../services/notify.js';
 
 // Matches the Firestore project document shape exactly
@@ -676,6 +677,7 @@ async function approveChainMilestone(
   let previousStatus: string | undefined;
   let finalized = false;
   let finalizedMilestone: FirebaseFirestore.DocumentData | undefined;
+  let enteredCommitteeStage = false;
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -695,6 +697,7 @@ async function approveChainMilestone(
       if (nextStage) {
         update.currentStageIndex = freshIndex + 1;
         update.status = statusForStage(nextStage);
+        enteredCommitteeStage = nextStage.role === 'committee';
       } else {
         update.status = 'coordinator_approved';
         update.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
@@ -718,6 +721,10 @@ async function approveChainMilestone(
 
     if (finalized && finalizedMilestone) {
       await notifyMilestoneApprovalComplete(finalizedMilestone, milestoneId);
+    }
+    if (enteredCommitteeStage) {
+      const freshMilestone = (await milestoneRef.get()).data()!;
+      await onEnterCommitteeStage(milestoneId, freshMilestone);
     }
 
     return res.status(200).json({
@@ -985,6 +992,14 @@ async function rejectChainMilestone(
     // inside db.runTransaction" rule the legacy path already follows.
     if (!rejectsToStudent && rejectedMilestone) {
       const targetStage = routing[targetIndex]!;
+      // A committee target has no broadly-held 'committee' role to resolve
+      // via resolveStaffForScope (it'd just return empty) — needs its own
+      // resolve+notify, same as the approve path above.
+      if (targetStage.role === 'committee') {
+        const freshMilestone = (await milestoneRef.get()).data()!;
+        await onEnterCommitteeStage(milestoneId, freshMilestone);
+        return res.status(200).json({ success: true, message: 'Milestone routed back internally.' });
+      }
       const targetUids = await resolveStaffForScope(targetStage.role, resource, projectSupervisorIds, milestone.examinerIds ?? []);
       const milestoneTitle = { he: rejectedMilestone.nameHe ?? rejectedMilestone.type ?? '', en: rejectedMilestone.nameEn ?? rejectedMilestone.type ?? '' };
       await Promise.all(targetUids.map(async (uid) => {

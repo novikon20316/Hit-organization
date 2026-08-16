@@ -17,6 +17,7 @@ import type { AppRole } from '@/lib/roles';
 import { BulkDueDateModal } from '@/components/BulkDueDateModal';
 import { AcademicYearLink } from '@/components/AcademicYearLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
+import { CommitteesLink } from '@/components/CommitteesLink';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { SendExaminerModal } from './SendExaminerModal';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
@@ -156,6 +157,7 @@ export default function AdministrativeCoordinatorDashboardPage() {
       actions={
         <div className="flex items-center gap-2">
           <WorkflowTemplatesLink />
+          <CommitteesLink />
           <AcademicYearLink />
         </div>
       }

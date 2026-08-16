@@ -9,6 +9,7 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ReportsLink } from '@/components/ReportsLink';
 import { InfoFilesLink } from '@/components/InfoFilesLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
+import { CommitteesLink } from '@/components/CommitteesLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -156,6 +157,7 @@ export default function CoordinatorHomePage() {
         <div className="flex items-center gap-2">
           <InfoFilesLink />
           <WorkflowTemplatesLink />
+          <CommitteesLink />
           <ReportsLink />
           <button
             type="button"

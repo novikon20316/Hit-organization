@@ -9,6 +9,7 @@ import {
   bulkUpdateMilestoneDueDates,
 } from '../controllers/milestoneController.js'
 import { submitRevisionDecision, getExaminerOpinions } from '../controllers/revisionDecisionController.js';
+import { getCommitteeReview, submitCommitteeVote, submitCommitteeDecision } from '../controllers/committeeReviewController.js';
 const router = Router();
 
 // GET /api/milestones  — fetch milestones by query params
@@ -27,6 +28,12 @@ router.get('/:milestoneId/examiner-opinions', verifyToken, getExaminerOpinions)
 // POST /api/milestones/:milestoneId/revision-decision — advisor/coordinator decides
 // proceed_to_defense/require_corrections/re_judge/add_examiner after examiner opinions are in
 router.post('/:milestoneId/revision-decision', verifyToken, submitRevisionDecision)
+// GET /api/milestones/:id/committee-review — submission + votes so far, for a committee member/chairman
+router.get('/:id/committee-review', verifyToken, getCommitteeReview)
+// POST /api/milestones/:id/committee-vote — a committee member's own independent opinion
+router.post('/:id/committee-vote', verifyToken, submitCommitteeVote)
+// POST /api/milestones/:id/committee-decision — the chairman's one final, binding decision
+router.post('/:id/committee-decision', verifyToken, submitCommitteeDecision)
 
 
 export default router;

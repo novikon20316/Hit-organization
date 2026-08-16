@@ -883,7 +883,7 @@ export default function ActiveDashboard({
                     comments: m.supervisorEvaluation.comment,
                   }
                 : undefined;
-              const hasExpandableDetail = !!(detail || m.staffRecord || m.autoCalculatedFinalGrade != null || m.gradeOverride);
+              const hasExpandableDetail = !!(detail || m.staffRecord || m.autoCalculatedFinalGrade != null || m.gradeOverride || (m as any).committeeReviewHistory?.length);
               const canExpand = gradeVisible && hasExpandableDetail;
 
               return (
@@ -1065,6 +1065,39 @@ export default function ActiveDashboard({
                               );
                             })
                           )}
+                        </View>
+                      )}
+
+                      {(m as any).committeeReviewHistory?.length > 0 && (
+                        <View style={{ marginTop: 8 }}>
+                          <Text style={[breakdownStyles.commentsLabel, isRtl && styles.textRight]}>
+                            {lang === 'he' ? 'ביקורת הוועדה' : 'Committee Review'}
+                          </Text>
+                          {(m as any).committeeReviewHistory.map((round: any, i: number) => (
+                            <View key={`${round.committeeId}-${round.decidedAt}-${i}`} style={{ marginTop: 6, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#F0F4FF', paddingTop: i > 0 ? 6 : 0 }}>
+                              <Text style={{ fontSize: 11, color: '#8899BB', fontWeight: '600' }}>
+                                {lang === 'he' ? `סבב ${i + 1} — ${round.memberVotes.length} חברי ועדה הביעו דעה` : `Round ${i + 1} — ${round.memberVotes.length} members weighed in`}
+                              </Text>
+                              {round.memberVotes.map((v: any, vi: number) => (
+                                <View key={vi} style={[{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }, isRtl && styles.rowReverse]}>
+                                  <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? `חבר ועדה ${vi + 1}` : `Member ${vi + 1}`}</Text>
+                                  <Text style={{ fontSize: 11, fontWeight: '600', color: v.vote === 'approve' ? '#10B981' : '#EF4444' }}>
+                                    {v.vote === 'approve' ? (lang === 'he' ? '✓ בעד' : '✓ Approved') : (lang === 'he' ? '✗ נגד' : '✗ Rejected')}
+                                    {v.comment ? ` — ${v.comment}` : ''}
+                                  </Text>
+                                </View>
+                              ))}
+                              <View style={{ marginTop: 4, borderTopWidth: 1, borderTopColor: '#F0F4FF', paddingTop: 4 }}>
+                                <Text style={{ fontSize: 11 }}>
+                                  <Text style={{ fontWeight: '700' }}>{lang === 'he' ? 'החלטת היו"ר: ' : "Chairman's decision: "}</Text>
+                                  <Text style={{ fontWeight: '600', color: round.chairmanDecision === 'approve' ? '#10B981' : '#EF4444' }}>
+                                    {round.chairmanDecision === 'approve' ? (lang === 'he' ? '✓ אושר' : '✓ Approved') : (lang === 'he' ? '✗ נדחה' : '✗ Rejected')}
+                                  </Text>
+                                </Text>
+                                {round.chairmanComment ? <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>{round.chairmanComment}</Text> : null}
+                              </View>
+                            </View>
+                          ))}
                         </View>
                       )}
                     </View>

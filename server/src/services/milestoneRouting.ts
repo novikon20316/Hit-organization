@@ -55,6 +55,14 @@ export async function authorizeStageActor(
   milestoneExaminerIds: string[] = [],
 ): Promise<boolean> {
   if (!user) return false;
+  // 'committee' is a multi-actor vote-then-chairman-decides flow, never
+  // authorized via this single-actor gate — see
+  // committeeReviewController.ts's dedicated committee-vote/
+  // committee-decision endpoints, the only legitimate way to act on a
+  // committee-role stage. Without this, the FIRST person resolveStaffForScope
+  // happened to return for 'committee' would silently finalize the stage via
+  // the generic approve/reject endpoints, discarding every other member's vote.
+  if (stage.role === 'committee') return false;
   const uids = await resolveStaffForScope(stage.role, resource, projectSupervisorIds, milestoneExaminerIds);
   return uids.includes(user.uid);
 }

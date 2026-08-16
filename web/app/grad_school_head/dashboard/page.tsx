@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ReportsLink } from '@/components/ReportsLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
+import { CommitteesLink } from '@/components/CommitteesLink';
 import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -252,6 +253,7 @@ export default function GradSchoolHeadDashboardPage() {
           </button>
           <CreateOwnProjectButton onCreated={fetchDashboard} />
           <WorkflowTemplatesLink />
+          <CommitteesLink />
           <BulkPermissionsLink />
           <ReportsLink />
         </div>

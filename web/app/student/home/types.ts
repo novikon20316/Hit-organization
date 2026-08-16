@@ -159,6 +159,22 @@ export interface Milestone {
    *  feature existed) — SubmitMilestoneModal treats that the same as
    *  'none', showing both fields as optional. */
   submissionRequirement?: 'file' | 'comment' | 'both' | 'none';
+  /** Permanent record of every committee stage this milestone ever passed
+   *  through (see server/src/controllers/committeeReviewController.ts) —
+   *  every member's vote+comment plus the chairman's final decision, one
+   *  entry per round. The "timeline of the review conversation" this
+   *  feature exists for. */
+  committeeReviewHistory?: CommitteeReviewHistoryEntry[];
+}
+
+export interface CommitteeReviewHistoryEntry {
+  committeeId: string;
+  stageId: string;
+  memberVotes: Array<{ memberId: string; vote: 'approve' | 'reject'; comment: string; votedAt: string }>;
+  chairmanId: string;
+  chairmanDecision: 'approve' | 'reject';
+  chairmanComment: string;
+  decidedAt: string;
 }
 
 export interface PendingApplication {

@@ -339,7 +339,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
             // coordinator sign-off (see workflowTemplates.ts's
             // finalGradeComponents/staffRecordMode — absent for any
             // milestone/faculty that hasn't configured them).
-            const hasExpandableDetail = !!(m.supervisorEvaluation || m.staffRecord || m.autoCalculatedFinalGrade != null || m.gradeOverride);
+            const hasExpandableDetail = !!(m.supervisorEvaluation || m.staffRecord || m.autoCalculatedFinalGrade != null || m.gradeOverride || m.committeeReviewHistory?.length);
             const isExpanded = expandedGradeIds[m.id] ?? false;
 
             return (
@@ -431,6 +431,39 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                             })}
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {m.committeeReviewHistory && m.committeeReviewHistory.length > 0 && (
+                      <div className="rounded-md bg-paper p-2.5 text-xs text-ink">
+                        <p className="font-semibold">{lang === 'he' ? 'ביקורת הוועדה' : 'Committee Review'}</p>
+                        <div className="mt-1.5 grid gap-2">
+                          {m.committeeReviewHistory.map((round, i) => (
+                            <div key={`${round.committeeId}-${round.decidedAt}-${i}`} className="rounded-md border border-line bg-surface p-2">
+                              <p className="text-[11px] font-semibold text-muted">
+                                {lang === 'he' ? `סבב ${i + 1} — ${round.memberVotes.length} חברי ועדה הביעו דעה` : `Round ${i + 1} — ${round.memberVotes.length} members weighed in`}
+                              </p>
+                              {round.memberVotes.map((v, vi) => (
+                                <div key={vi} className="mt-1 flex items-start justify-between gap-2 text-[11px]">
+                                  <span className="text-muted">{lang === 'he' ? `חבר ועדה ${vi + 1}` : `Member ${vi + 1}`}</span>
+                                  <span className={v.vote === 'approve' ? 'font-medium text-success' : 'font-medium text-danger'}>
+                                    {v.vote === 'approve' ? (lang === 'he' ? '✓ בעד' : '✓ Approved') : (lang === 'he' ? '✗ נגד' : '✗ Rejected')}
+                                    {v.comment ? ` — ${v.comment}` : ''}
+                                  </span>
+                                </div>
+                              ))}
+                              <div className="mt-1.5 border-t border-line pt-1.5">
+                                <p className="text-[11px]">
+                                  <span className="font-semibold">{lang === 'he' ? 'החלטת היו"ר: ' : "Chairman's decision: "}</span>
+                                  <span className={round.chairmanDecision === 'approve' ? 'font-medium text-success' : 'font-medium text-danger'}>
+                                    {round.chairmanDecision === 'approve' ? (lang === 'he' ? '✓ אושר' : '✓ Approved') : (lang === 'he' ? '✗ נדחה' : '✗ Rejected')}
+                                  </span>
+                                </p>
+                                {round.chairmanComment && <p className="mt-0.5 text-muted">{round.chairmanComment}</p>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

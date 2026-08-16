@@ -23,6 +23,7 @@ import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWid
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { ProjectCard } from '@/app/supervisor/dashboard/ProjectCard';
+import { CommitteesLink } from '@/components/CommitteesLink';
 import { EditProjectModal } from '@/app/supervisor/dashboard/EditProjectModal';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
 import type { MyProject } from '@/app/supervisor/dashboard/types';
@@ -170,6 +171,11 @@ export default function ProgramHeadDashboardPage() {
     <DashboardShell
       title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש תוכנית תואר שני' : "Master's Program Head"}
       subtitle={lang === 'he' ? 'סטודנטים, אישורים ועומס הנחיה' : 'Students, approvals, and supervision load'}
+      actions={
+        <div className="flex items-center gap-2">
+          <CommitteesLink />
+        </div>
+      }
     >
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard value={stats.totalStudents} label={lang === 'he' ? 'סה"כ' : 'Total'} color={facultyColor} />

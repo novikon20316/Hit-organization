@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ReportsLink } from '@/components/ReportsLink';
 import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
+import { CommitteesLink } from '@/components/CommitteesLink';
 import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -118,6 +119,7 @@ export default function FacultyAdminDashboardPage() {
             📋 {lang === 'he' ? 'תבניות פרויקט' : 'Project Templates'}
           </Link>
           <WorkflowTemplatesLink />
+          <CommitteesLink />
           <BulkPermissionsLink />
           <ReportsLink />
         </div>

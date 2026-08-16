@@ -97,12 +97,17 @@ function resolveCoordinatorScope(
 // 'examiner', which resolves to a milestone's own assigned panel (see
 // scopeAuthorization.ts's resolveStaffForScope), letting a milestone type be
 // graded examiner-only (e.g. a Poster session) with no supervisor stage.
-const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'program_head'];
+// 'committee' routes to the department's thesis/final_project committee —
+// see workflowTemplates.ts's ChainRole doc comment.
+const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'program_head', 'committee'];
 // examinerSignoffRole/finalGradeSignoffRole are a single overall approver
 // resolved without any per-milestone examinerIds in scope — 'examiner' would
 // always resolve to nobody there (or, worse, read as "an examiner approves
 // their own submission"), so it's deliberately excluded from this narrower list.
-const SIGNOFF_ROLES: ChainRole[] = CHAIN_ROLES.filter((r) => r !== 'examiner');
+// 'committee' is excluded for the same reason as 'examiner', plus its own:
+// it's a multi-actor vote-then-chairman-decides flow, not a single approver
+// the signoff endpoints (gradSchoolHeadController.ts) know how to resolve.
+const SIGNOFF_ROLES: ChainRole[] = CHAIN_ROLES.filter((r) => r !== 'examiner' && r !== 'committee');
 const SUBMISSION_REQUIREMENTS: SubmissionRequirement[] = ['file', 'comment', 'both', 'none'];
 
 /** Validates a routing chain (either a template's defaultRouting or a

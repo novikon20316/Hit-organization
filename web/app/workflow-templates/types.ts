@@ -31,7 +31,7 @@ export interface GradingComponentSpec {
 
 // Mirrors ChainRole/RejectionTarget/ChainStage/MilestoneRoutingSpec in
 // server/src/services/workflowTemplates.ts.
-export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head' | 'committee';
 export type RejectionTarget = 'student' | string;
 
 export interface ChainStage {
@@ -88,13 +88,21 @@ export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
   { key: 'administrative_secretary', he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' },
   { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
   { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
+  // Routes to the department's thesis/final_project committee (see
+  // server/src/controllers/committeeController.ts) — 'thesis' if the
+  // project's own projectType is 'thesis', else 'final_project'. Unlike
+  // every other role here, every committee member votes independently and
+  // only the chairman can actually advance/reject the stage.
+  { key: 'committee', he: 'ועדה', en: 'Committee' },
 ];
 
 // examinerSignoffRole/finalGradeSignoffRole are a single overall approver
 // resolved without any per-milestone examinerIds in scope — 'examiner' would
 // always resolve to nobody there, so it's excluded from this narrower list
 // (matches the server-side SIGNOFF_ROLES split in workflowTemplateController.ts).
-export const SIGNOFF_ROLES = CHAIN_ROLES.filter((r) => r.key !== 'examiner');
+// 'committee' excluded for the same reason plus its own — it's a
+// multi-actor vote-then-chairman-decides flow, not a single approver.
+export const SIGNOFF_ROLES = CHAIN_ROLES.filter((r) => r.key !== 'examiner' && r.key !== 'committee');
 
 export function chainRoleLabel(role: ChainRole, lang: 'he' | 'en'): string {
   return CHAIN_ROLES.find((r) => r.key === role)?.[lang] ?? role;
