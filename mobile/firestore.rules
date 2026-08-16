@@ -166,10 +166,34 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────────────────────────────────
     match /projects/{projectId} {
-      allow read: if isSignedIn() && (
+      // Split from a single `allow read` — studentCanReadProjectByMajor
+      // depends on resource.data.major, a field the browse query (see
+      // useStudentData.ts) never filters on. Firestore can only allow a
+      // LIST request when every OR-branch is provable from the query's own
+      // where() constraints; a branch checking an unconstrained field makes
+      // Firestore deny the ENTIRE query (not just the mismatched documents),
+      // which was silently breaking project browsing for every student
+      // regardless of faculty/degree/major match (the client's onSnapshot
+      // error handler swallows exactly this permission-denied — see
+      // useStudentData.ts's proposals listener). GET (a direct fetch of one
+      // known project id) still gets the full major check; LIST relies on
+      // the query's own status/facultyId/degreeTypes constraints plus the
+      // client-side major convenience-filter plus the real enforcement at
+      // apply time (applicationController.ts's applyApplication).
+      allow get: if isSignedIn() && (
         request.auth.uid in resource.data.get('enrolledStudentIds', []) ||
         studentCanReadProjectByMajor(resource) ||
         isStaffRole(userDoc())
+      );
+      // The `status == 'active'` check here mirrors the browse query's own
+      // where('status','==','active') exactly (same field/value Firestore
+      // can verify structurally against the query), so it doesn't reintroduce
+      // the list-breaking problem above — it just stops a student from
+      // crafting a raw query to list draft/archived/in_progress projects,
+      // which the app's own UI never exposes to them anyway.
+      allow list: if isSignedIn() && (
+        isStaffRole(userDoc()) ||
+        (role(userDoc()) == 'student' && resource.data.get('status', '') == 'active')
       );
       allow create: if isSignedIn() &&
         role(userDoc()) in ['supervisor', 'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary'];
