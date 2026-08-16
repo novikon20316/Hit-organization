@@ -95,9 +95,17 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       .where('studentIds',  'array-contains', studentId)
       .get();
 
+    // Matches the client's own definition of "done" (see ActiveDashboard.tsx/
+    // Activedashboard.tsx's isUnlocked) — 'coordinator_approved' is the real
+    // terminal status every milestone actually reaches; 'completed' is never
+    // written anywhere, only checked defensively. Checking 'completed' alone
+    // left the client's Submit button enabled (it considered the previous
+    // milestone done) while this endpoint unconditionally rejected the
+    // submission — the exact "previous milestones must be completed" error
+    // students hit even after their prior milestone was genuinely approved.
     const allPrevCompleted = previousSnap.docs
       .filter(d => resolveMilestoneOrder(d.data()) < thisOrder)
-      .every(d => d.data().status === 'completed');
+      .every(d => d.data().status === 'coordinator_approved' || d.data().status === 'completed');
 
     if (!allPrevCompleted)
       return res.status(400).json({
