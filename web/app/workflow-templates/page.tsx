@@ -86,6 +86,14 @@ function WorkflowTemplatesContent() {
   const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isCoordinator ? coordinatorScope?.facultyId : userData?.facultyId;
   const major: string | null = role === 'system_admin' ? selectedMajor : isCoordinator ? (coordinatorScope?.major ?? null) : null;
 
+  // administrative_secretary has no Pending Approval tab (see the tabs list
+  // further below) — correct for the `?tab=pending` redirect case (or any
+  // other stale state) rather than leaving her stuck on a tab with no
+  // button left to reach it from.
+  useEffect(() => {
+    if (isCoordinator && tab === 'pending') setTab('current');
+  }, [isCoordinator, tab]);
+
   useEffect(() => {
     if (isFreeChoiceCrossFaculty && !selectedFacultyId && SELECTABLE_FACULTY_IDS.length > 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- role (and so isFreeChoiceCrossFaculty) only becomes known once userData loads asynchronously; this just seeds a sensible default the first time that becomes true, same pattern as the fetch-on-mount effects elsewhere in this file
@@ -285,7 +293,10 @@ function WorkflowTemplatesContent() {
       <div className="mb-5 flex gap-1 border-b border-line">
         {([
           { key: 'current' as const, label: lang === 'he' ? 'תבנית נוכחית' : 'Current Template', badge: 0 },
-          { key: 'pending' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Pending Approval', badge: pending.length },
+          // administrative_secretary proposes/edits templates but has no
+          // approval authority (see canApproveTemplate) — she also shouldn't
+          // see what's awaiting someone else's decision.
+          ...(isCoordinator ? [] : [{ key: 'pending' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Pending Approval', badge: pending.length }]),
           { key: 'history' as const, label: lang === 'he' ? 'היסטוריה' : 'History', badge: 0 },
         ]).map(({ key, label, badge }) => (
           <button
@@ -372,7 +383,7 @@ function WorkflowTemplatesContent() {
             </div>
           )}
 
-          {pendingForActive.length > 0 && (
+          {!isCoordinator && pendingForActive.length > 0 && (
             <p className="mb-3 text-xs font-semibold text-accent">
               ⏳ {lang === 'he' ? 'יש הצעה ממתינה לאישור לתהליך זה' : 'A proposal is pending approval for this process'}
             </p>
@@ -400,7 +411,7 @@ function WorkflowTemplatesContent() {
             )}
           </div>
         </div>
-      ) : tab === 'pending' ? pending.length === 0 ? (
+      ) : tab === 'pending' && !isCoordinator ? pending.length === 0 ? (
         <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין הצעות ממתינות' : 'No pending proposals'}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">

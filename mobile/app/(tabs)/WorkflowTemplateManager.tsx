@@ -225,8 +225,11 @@ export const PROCESS_TYPES: { key: ProcessType; he: string; en: string }[] = [
   { key: 'bsc_project', he: 'פרויקט לתואר ראשון',       en: "Bachelor's Project" },
 ];
 
-const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'administrative_secretary', 'system_admin'];
-const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'administrative_secretary', 'system_admin'];
+// administrative_secretary is a proposer only — she must never be able to
+// approve, reject, or delete a template herself (maker/checker separation;
+// mirrors server/src/controllers/workflowTemplateController.ts).
+const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'system_admin'];
+const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'system_admin'];
 // system_admin and grad_school_head get a free faculty picker (no single
 // "home" faculty — see workflowTemplateController.ts). administrative_secretary
 // is scoped further still: never a free choice, only whichever subject(s)
@@ -339,11 +342,14 @@ export default function WorkflowTemplateManager() {
   // in-modal onProposed behavior of jumping straight to the Pending tab).
   // Cleared via router.setParams so it doesn't re-fire on a later focus.
   useEffect(() => {
-    if (initialTab === 'pending') {
+    // administrative_secretary has no Pending Approval tab (see the tabs
+    // list below) — she proposes/edits templates but has no approval
+    // authority, and shouldn't see what's awaiting someone else's decision.
+    if (initialTab === 'pending' && !isCoordinator) {
       setActiveTab('pending');
       router.setParams({ initialTab: undefined } as any);
     }
-  }, [initialTab]);
+  }, [initialTab, isCoordinator]);
 
   useEffect(() => {
     if (!uid) { setLoading(false); return; }
@@ -644,7 +650,10 @@ export default function WorkflowTemplateManager() {
       >
         {([
           { key: 'current' as const, he: 'תבנית נוכחית', en: 'Current Template' },
-          { key: 'pending' as const, he: 'ממתין לאישור', en: 'Pending Approval', badge: pending.length },
+          // administrative_secretary proposes/edits templates but has no
+          // approval authority (see canApproveTemplate) — she also
+          // shouldn't see what's awaiting someone else's decision.
+          ...(isCoordinator ? [] : [{ key: 'pending' as const, he: 'ממתין לאישור', en: 'Pending Approval', badge: pending.length }]),
           { key: 'history' as const, he: 'היסטוריה', en: 'History' },
         ]).map((tab) => (
           <Pressable
@@ -731,7 +740,7 @@ export default function WorkflowTemplateManager() {
               </View>
             )}
 
-            {pendingForActive.length > 0 && (
+            {!isCoordinator && pendingForActive.length > 0 && (
               <Text style={{ fontSize: 12, color: '#F59E0B', fontWeight: '600', marginBottom: 10 }}>
                 {lang === 'he' ? '⏳ יש הצעה ממתינה לאישור לתהליך זה' : '⏳ A proposal is pending approval for this process'}
               </Text>
@@ -762,7 +771,7 @@ export default function WorkflowTemplateManager() {
           </>
         )}
 
-        {activeTab === 'pending' && (
+        {activeTab === 'pending' && !isCoordinator && (
           <>
             {pending.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>

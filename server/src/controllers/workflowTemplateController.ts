@@ -34,12 +34,12 @@ const PROCESS_TYPES: ProcessType[] = ['msc_thesis', 'msc_project', 'bsc_project'
 // never propose/add one themselves, even though they're the head-of-school
 // role this whole approval chain is built around.
 const PROPOSER_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
-// administrative_secretary added to both — templates must be modifiable by
-// system_admin, administrative_secretary, and the relevant head-of-faculty/
-// head-of-school regardless of process type (previously administrative_secretary
-// could propose a template but never actually approve/activate one).
-const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'administrative_secretary', 'system_admin'];
-const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'administrative_secretary', 'system_admin'];
+// administrative_secretary is a proposer only (see PROPOSER_ROLES above) —
+// she can draft/edit a template version but must never be able to approve,
+// reject, or delete one herself (maker/checker separation — approval stays
+// with the relevant head-of-faculty/head-of-school or system_admin).
+const GRAD_SCHOOL_APPROVER_ROLES = ['grad_school_head', 'system_admin'];
+const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'system_admin'];
 // Roles with no single "home" faculty — must name a real target faculty
 // explicitly rather than silently proposing against their own facultyId
 // ('all'), which getActiveMilestonesFor would never match against a real project.
