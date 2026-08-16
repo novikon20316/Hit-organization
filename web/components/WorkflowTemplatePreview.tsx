@@ -77,12 +77,32 @@ export function WorkflowTemplatePreview({ facultyIds, degreeTypes, projectTypes,
     setRows(combos.map((c) => ({ ...c, key: `${c.facultyId}|${c.degreeType}|${c.projectType}`, state: 'loading' as const })));
 
     Promise.all(
-      facultyIds.map((facultyId) =>
-        apiClient
-          .getWorkflowTemplates(facultyId, major ?? null)
-          .then((r) => [facultyId, r.templates] as const)
-          .catch(() => [facultyId, null] as const)
-      )
+      facultyIds.map(async (facultyId) => {
+        try {
+          // Fetch both the exact-major tier and the "all majors" (major:
+          // null) fallback tier — an approved template scoped to null
+          // applies to every major, including whichever one is selected
+          // here. Mirrors services/workflowTemplates.ts's
+          // findApprovedTemplateId, which does this same two-tier lookup
+          // server-side at actual submit time; this preview used to only
+          // check the exact-major tier, so it could show a false "no
+          // approved template" warning for a combination that would
+          // actually succeed on submit.
+          const [exact, fallback] = await Promise.all([
+            apiClient.getWorkflowTemplates(facultyId, major ?? null),
+            major ? apiClient.getWorkflowTemplates(facultyId, null) : Promise.resolve(null),
+          ]);
+          const seen = new Set<string>();
+          const merged = [...exact.templates, ...(fallback?.templates ?? [])].filter((t) => {
+            if (seen.has(t.id)) return false;
+            seen.add(t.id);
+            return true;
+          });
+          return [facultyId, merged] as const;
+        } catch {
+          return [facultyId, null] as const;
+        }
+      })
     ).then((pairs) => {
       if (cancelled) return;
       const templatesByFaculty = new Map(pairs);

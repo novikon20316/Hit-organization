@@ -68,12 +68,33 @@ export default function WorkflowTemplatePreview({ facultyIds, degreeTypes, proje
     setRows(combos.map((c) => ({ ...c, key: `${c.facultyId}|${c.degreeType}|${c.projectType}`, state: 'loading' as const })));
 
     Promise.all(
-      facultyIds.map((facultyId) =>
-        apiClient
-          .get('/api/workflow-templates', { params: { facultyId, major: major ? major : 'all' } })
-          .then((res) => [facultyId, res.data.templates as any[]] as const)
-          .catch(() => [facultyId, null] as const)
-      )
+      facultyIds.map(async (facultyId) => {
+        try {
+          // Fetch both the exact-major tier and the "all majors" (major:
+          // null, sent as 'all') fallback tier — an approved template
+          // scoped to null applies to every major, including whichever one
+          // is selected here. Mirrors the server's findApprovedTemplateId,
+          // which does this same two-tier lookup at actual submit time;
+          // this preview used to only check the exact-major tier, so it
+          // could show a false "no approved template" warning for a
+          // combination that would actually succeed on submit.
+          const [exactRes, fallbackRes] = await Promise.all([
+            apiClient.get('/api/workflow-templates', { params: { facultyId, major: major ? major : 'all' } }),
+            major
+              ? apiClient.get('/api/workflow-templates', { params: { facultyId, major: 'all' } })
+              : Promise.resolve(null),
+          ]);
+          const seen = new Set<string>();
+          const merged = [...(exactRes.data.templates as any[]), ...((fallbackRes?.data.templates as any[]) ?? [])].filter((t) => {
+            if (seen.has(t.id)) return false;
+            seen.add(t.id);
+            return true;
+          });
+          return [facultyId, merged] as const;
+        } catch {
+          return [facultyId, null] as const;
+        }
+      })
     ).then((pairs) => {
       if (cancelled) return;
       const templatesByFaculty = new Map(pairs);
