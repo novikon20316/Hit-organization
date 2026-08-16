@@ -20,6 +20,7 @@ import FloatingActionMenu from '@/components/FloatingActionMenu';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal } from '@/components/modals';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
+import ProjectStageChain from '@/components/ProjectStageChain';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
@@ -1391,6 +1392,18 @@ export default function CoordinatorHome() {
                             );
                           })
                         )}
+                        <ProjectStageChain
+                          lang={lang}
+                          createdAt={p.createdAt}
+                          milestones={milestones.map((m: any) => ({
+                            type: m.type,
+                            status: m.status,
+                            grade: m.finalGrade ?? m.supervisorScore ?? null,
+                            percentOfFinalGrade: m.percentOfFinalGrade,
+                            dueDate: m.dueDate,
+                            submittedAt: m.submittedAt,
+                          }))}
+                        />
                       </View>
                       );
                     })()}

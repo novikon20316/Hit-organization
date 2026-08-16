@@ -1129,6 +1129,7 @@ export const apiClient = {
         type: string; nameHe: string; nameEn: string; order: number;
         dateMode?: 'offset' | 'fixed'; dueDaysFromStart: number; fixedDate?: string;
         requiresExaminers: boolean;
+        percentOfFinalGrade?: number;
         staffRecordMode?: 'none' | 'upload_or_form';
         staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean }>;
         finalGradeComponents?: {
@@ -1161,6 +1162,7 @@ export const apiClient = {
           gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
         }>;
       }>;
+      createdAt: string | null;
     }>(`/api/supervisor/projects/${projectId}/detail`, { method: 'GET' });
   },
 

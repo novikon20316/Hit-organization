@@ -11,7 +11,7 @@ import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches } from '../services/scopeAuthorization.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
-import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
+import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -956,12 +956,19 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
 
     // 2. Map through projects and construct per-student relational data structures
     const inProgressPromises = rawProjects.map(async (project: any) => {
-      
-      // A. Fetch all milestones linked to this specific project
-      const milestonesSnap = await db.collection('milestones')
-        .where('projectId', '==', project.id)
-        .get();
-      
+
+      // A. Fetch all milestones linked to this specific project, plus this
+      // project's own resolved template (for each milestone type's
+      // percentOfFinalGrade — the ProjectStageChain view's "weight" column).
+      const [milestonesSnap, templateMilestones] = await Promise.all([
+        db.collection('milestones').where('projectId', '==', project.id).get(),
+        resolveProjectTemplateMilestones(project),
+      ]);
+      const weightByType: Record<string, number> = {};
+      templateMilestones.forEach((tm) => {
+        weightByType[tm.type] = tm.percentOfFinalGrade ?? (tm.type === 'defense' ? 100 : 0);
+      });
+
       const allProjectMilestones = milestonesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       // B. Fetch all students assigned to this active project
@@ -1001,7 +1008,10 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
         const formattedMilestones = studentMilestones.map((m: any) => ({
           type: m.type,
           status: m.status,
-          supervisorScore: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? m.supervisorScore ?? null
+          supervisorScore: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? m.supervisorScore ?? null,
+          percentOfFinalGrade: weightByType[m.type] ?? 0,
+          dueDate: m.dueDate?.toDate?.()?.toISOString() ?? null,
+          submittedAt: m.submittedAt?.toDate?.()?.toISOString() ?? null,
         }));
 
         return {
@@ -1028,6 +1038,7 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
         supervisorId: project.supervisorId || '',
         supervisorName,
         status: project.status,
+        createdAt: project.createdAt?.toDate?.()?.toISOString() ?? null,
         students: studentsArray // Custom nested block containing targeted progress loops
       };
     });

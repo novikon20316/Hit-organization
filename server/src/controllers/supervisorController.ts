@@ -354,7 +354,11 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
       };
     });
 
-    return res.status(200).json({ templateMilestones, students });
+    return res.status(200).json({
+      templateMilestones,
+      students,
+      createdAt: project.createdAt?.toDate?.()?.toISOString() ?? null,
+    });
   } catch (error: any) {
     console.error('getSupervisorProjectDetail error:', error);
     return res.status(500).json({ message: 'Failed to load project workflow detail.' });

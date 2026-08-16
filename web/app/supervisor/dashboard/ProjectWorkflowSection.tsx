@@ -17,6 +17,7 @@ import { apiClient } from '@/lib/apiClient';
 import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
+import { ProjectStageChain } from '@/components/ProjectStageChain';
 import type { MyProject } from './types';
 
 interface ProjectWorkflowSectionProps {
@@ -32,6 +33,7 @@ interface TemplateMilestone {
   dueDaysFromStart: number;
   fixedDate?: string;
   requiresExaminers: boolean;
+  percentOfFinalGrade?: number;
   staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean }>;
   finalGradeComponents?: {
     supervisorEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }>; weight: number };
@@ -85,6 +87,7 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
   const { lang } = useLanguage();
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -99,6 +102,7 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
       .then((res) => {
         setTemplateMilestones([...res.templateMilestones].sort((a, b) => a.order - b.order));
         setStudents(res.students);
+        setProjectCreatedAt(res.createdAt);
         setError('');
       })
       .catch((err) => {
@@ -217,6 +221,22 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
                       );
                     })}
                   </div>
+                  <ProjectStageChain
+                    createdAt={projectCreatedAt}
+                    milestones={s.milestones.map((m) => {
+                      const spec = templateMilestones.find((t) => t.type === m.type);
+                      return {
+                        type: m.type,
+                        status: m.status,
+                        nameHe: spec?.nameHe,
+                        nameEn: spec?.nameEn,
+                        percentOfFinalGrade: spec?.percentOfFinalGrade,
+                        grade: m.finalGrade,
+                        dueDate: m.dueDate,
+                        submittedAt: m.submittedAt,
+                      };
+                    })}
+                  />
                 </div>
               ))}
             </div>

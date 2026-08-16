@@ -13,6 +13,7 @@ import { facultyLabel } from '@/lib/i18n';
 import { MILESTONE_LABEL, type InProgressProject } from './types';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { TrackChangeControl } from '@/components/TrackChangeControl';
+import { ProjectStageChain } from '@/components/ProjectStageChain';
 
 interface InProgressTabProps {
   projects: InProgressProject[];
@@ -149,6 +150,17 @@ export function InProgressTab({ projects, currentUserId }: InProgressTabProps) {
                               </div>
                             ))
                           )}
+                          <ProjectStageChain
+                            createdAt={p.createdAt}
+                            milestones={student.milestones.map((m) => ({
+                              type: m.type,
+                              status: m.status,
+                              grade: m.supervisorScore,
+                              percentOfFinalGrade: m.percentOfFinalGrade,
+                              dueDate: m.dueDate,
+                              submittedAt: m.submittedAt,
+                            }))}
+                          />
                         </div>
                       )}
                     </div>

@@ -53,6 +53,12 @@ export interface InProgressStudentMilestone {
   type: string;
   status: string;
   supervisorScore: number | null;
+  /** This milestone type's share of the project's overall final grade (0-100)
+   *  — see gradeEngine.ts's computeProjectFinalGrade. Defaults to 0 (100 for
+   *  defense) when the faculty hasn't configured a workflow template yet. */
+  percentOfFinalGrade?: number;
+  dueDate?: string | null;
+  submittedAt?: string | null;
 }
 
 export interface InProgressStudent {
@@ -70,6 +76,7 @@ export interface InProgressProject {
   supervisorId?: string;
   supervisorName: string;
   status: string;
+  createdAt?: string | null;
   students: InProgressStudent[];
 }
 

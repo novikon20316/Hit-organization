@@ -489,6 +489,33 @@ export async function getMilestonesForTemplateId(
   return result;
 }
 
+/** Resolves a project's own resolved template milestone list — same
+ *  fallback chain used inline by supervisorController.ts's
+ *  getSupervisorProjectDetail and coordinatorStatistics.ts's
+ *  resolveTemplateMilestones (not exported there): an explicit
+ *  workflowTemplateRefs entry for the project's own track first, else the
+ *  faculty's currently-active template. Pulled out here as a third call site
+ *  (getActiveProjects) needed the exact same resolution. */
+export async function resolveProjectTemplateMilestones(projectData: {
+  workflowTemplateRefs?: { degreeType: string; projectType: string; templateId: string }[];
+  degreeType?: string | null;
+  projectType?: string | null;
+  facultyId?: string | null;
+  major?: string | null;
+}): Promise<WorkflowMilestoneSpec[]> {
+  const refs = projectData.workflowTemplateRefs ?? [];
+  const matchingRef = refs.find(
+    (r) => r.degreeType === projectData.degreeType && r.projectType === projectData.projectType
+  );
+  if (matchingRef) {
+    const resolved = await getMilestonesForTemplateId(matchingRef.templateId);
+    if (resolved) return resolved.milestones;
+  }
+  const processType = deriveProcessType(projectData.degreeType ?? null, projectData.projectType ?? null);
+  const resolved = await getActiveMilestonesFor(projectData.facultyId ?? '', processType, projectData.major ?? null);
+  return resolved.milestones;
+}
+
 export async function listWorkflowTemplates(facultyId: string, major?: string | null): Promise<WorkflowTemplateDoc[]> {
   // Sorted in memory rather than via .orderBy('createdAt') — combining that
   // with the facultyId equality filter needs a composite index Firestore

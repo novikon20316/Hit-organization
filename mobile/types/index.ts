@@ -660,6 +660,7 @@ export interface InProgressProject {
   supervisorId?: string;
   supervisorName: string;
   status: string;
+  createdAt?: string | null;
 
   students: {
     id: string;
@@ -669,6 +670,9 @@ export interface InProgressProject {
       type: string;
       status: string;
       supervisorScore: number | null;
+      percentOfFinalGrade?: number;
+      dueDate?: string | null;
+      submittedAt?: string | null;
     }[];
   }[];
 }
