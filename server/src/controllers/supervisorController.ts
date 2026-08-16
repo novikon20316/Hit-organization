@@ -493,8 +493,20 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     const appSnap = await applicationRef.get();
 
     if (!appSnap.exists) return res.status(404).json({ message: 'Application not found.' });
-    if (appSnap.data()?.supervisorId !== supervisorId)
-      return res.status(403).json({ message: 'Forbidden.' });
+    // The application doc only ever denormalizes the project's PRIMARY
+    // supervisorId at apply time (see applyApplication) — it never carries
+    // secondarySupervisorId, so a co-supervisor (who can already see this
+    // application via getSupervisorDashboard's own projectId-based query)
+    // got a flat 403 here even on their own jointly-supervised project.
+    // Falls back to the project doc's secondarySupervisorId when the direct
+    // match fails, same ownership model as updateSupervisorProject.
+    const appData = appSnap.data()!;
+    if (appData.supervisorId !== supervisorId) {
+      const projectSnap = appData.projectId ? await db.collection('projects').doc(appData.projectId).get() : null;
+      if (projectSnap?.data()?.secondarySupervisorId !== supervisorId) {
+        return res.status(403).json({ message: 'Forbidden.' });
+      }
+    }
 
     // A student can now have several open applications at once — the moment
     // the student actually confirms one of their approvals (see

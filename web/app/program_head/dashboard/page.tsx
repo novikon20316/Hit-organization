@@ -22,6 +22,7 @@ import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
+import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { ProjectCard } from '@/app/supervisor/dashboard/ProjectCard';
 import { CommitteesLink } from '@/components/CommitteesLink';
 import { EditProjectModal } from '@/app/supervisor/dashboard/EditProjectModal';
@@ -314,6 +315,9 @@ export default function ProgramHeadDashboardPage() {
         <div>
           <div className="mb-4">
             <CreateOwnProjectButton onCreated={fetchMyProjects} />
+          </div>
+          <div className="mb-4">
+            <MyApplicationsWidget />
           </div>
           <div className="grid gap-3">
             {myProjects.map((p) => (

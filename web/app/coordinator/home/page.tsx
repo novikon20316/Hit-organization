@@ -26,6 +26,7 @@ import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWid
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { ArchivedProjectsTab } from '@/components/ArchivedProjectsTab';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
+import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import type { CoordinatorDeadline, CoordinatorPendingMilestone, ExaminerRecommendation, ExaminerUser, InProgressProject, Project } from './types';
 
 const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
@@ -209,7 +210,12 @@ export default function CoordinatorHomePage() {
       ) : tab === 'inProgress' ? (
         <>
           <CreateOwnProjectButton onCreated={fetchAll} />
-          <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} onChanged={fetchAll} />
+          <div className="mt-3">
+            <MyApplicationsWidget />
+          </div>
+          <div className="mt-3">
+            <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} onChanged={fetchAll} />
+          </div>
         </>
       ) : tab === 'deadlines' ? (
         <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchAll} />

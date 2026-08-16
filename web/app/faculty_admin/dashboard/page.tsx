@@ -31,6 +31,7 @@ import { ProjectCard } from './ProjectCard';
 import { EnrollStudentModal } from './EnrollStudentModal';
 import { NewProjectModal } from './NewProjectModal';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
+import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { DeadlinesTab } from './DeadlinesTab';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline } from './types';
@@ -166,11 +167,16 @@ export default function FacultyAdminDashboardPage() {
           scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }}
         />
       ) : tab === 'projects' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} onEnroll={setEnrollingProject} />
-          ))}
-          {projects.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין פרויקטים בפקולטה' : 'No projects in this faculty'}</p>}
+        <div>
+          <div className="mb-3">
+            <MyApplicationsWidget />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {projects.map((p) => (
+              <ProjectCard key={p.id} project={p} onEnroll={setEnrollingProject} />
+            ))}
+            {projects.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין פרויקטים בפקולטה' : 'No projects in this faculty'}</p>}
+          </div>
         </div>
       ) : tab === 'deadlines' ? (
         <DeadlinesTab deadlines={deadlines} projects={projects} users={users} onSaved={fetchDashboard} />

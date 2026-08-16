@@ -25,6 +25,7 @@ import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import { NewProjectModal } from './NewProjectModal';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
+import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
 
 const GRAD_SCHOOL_HEAD_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
@@ -378,6 +379,9 @@ export default function GradSchoolHeadDashboardPage() {
         </div>
       ) : tab === 'overview' ? (
         <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <MyApplicationsWidget />
+          </div>
           {processSummaries.map((f) => (
             <div key={f.facultyId} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': '#6E5A99' } as React.CSSProperties}>
               <p className="text-sm font-semibold text-ink">{lang === 'he' ? f.facultyNameHe : f.facultyNameEn}</p>

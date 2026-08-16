@@ -23,6 +23,7 @@ import { SendExaminerModal } from './SendExaminerModal';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import { NewProjectModal } from './NewProjectModal';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
+import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
@@ -230,6 +231,10 @@ export default function AdministrativeCoordinatorDashboardPage() {
             >
               📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
             </button>
+          </div>
+
+          <div className="mb-4">
+            <MyApplicationsWidget />
           </div>
 
           {!viewingSupervisorKey ? (
