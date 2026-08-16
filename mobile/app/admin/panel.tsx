@@ -114,6 +114,7 @@ export default function PanelScreen() {
   const [facultyFilter, setFacultyFilter] = useState('all');
   const [userStaffFilter, setUserStaffFilter] = useState<'all' | 'staff' | 'student'>('all');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | AppRole>('all');
+  const [userFacultyFilter, setUserFacultyFilter] = useState('all');
 
   const [userModal, setUserModal] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
@@ -937,7 +938,8 @@ export default function PanelScreen() {
     const staffOk =
       userStaffFilter === 'all' || (userStaffFilter === 'staff' ? isStaff(u.role as AppRole) : u.role === 'student');
     const roleOk = userRoleFilter === 'all' || u.role === userRoleFilter || (u.roles ?? []).includes(userRoleFilter);
-    return searchOk && staffOk && roleOk;
+    const facultyOk = userFacultyFilter === 'all' || u.facultyId === userFacultyFilter;
+    return searchOk && staffOk && roleOk && facultyOk;
   });
 
   const filteredProjects = projects.filter((p) => {
@@ -1332,6 +1334,28 @@ export default function PanelScreen() {
                 </Text>
               </Pressable>
             ))}
+            <View style={styles.userFilterDivider} />
+            <Pressable
+              style={[styles.userFilterChip, userFacultyFilter === 'all' && styles.userFilterChipActive]}
+              onPress={() => setUserFacultyFilter('all')}
+            >
+              <Text style={[styles.userFilterChipText, userFacultyFilter === 'all' && styles.userFilterChipTextActive]}>
+                {lang === 'he' ? 'כל הפקולטות' : 'All faculties'}
+              </Text>
+            </Pressable>
+            {Object.entries(FACULTY_COLORS)
+              .filter(([k]) => k !== 'default' && k !== 'all')
+              .map(([id, fc]) => (
+                <Pressable
+                  key={id}
+                  style={[styles.userFilterChip, userFacultyFilter === id && styles.userFilterChipActive]}
+                  onPress={() => setUserFacultyFilter(id)}
+                >
+                  <Text style={[styles.userFilterChipText, userFacultyFilter === id && styles.userFilterChipTextActive]}>
+                    {fc.label[lang]}
+                  </Text>
+                </Pressable>
+              ))}
           </ScrollView>
         </>
       )}

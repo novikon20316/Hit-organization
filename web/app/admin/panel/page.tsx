@@ -56,6 +56,7 @@ export default function AdminPanelPage() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | AppRole>('all');
   const [staffFilter, setStaffFilter] = useState<'all' | 'staff' | 'student'>('all');
+  const [facultyFilter, setFacultyFilter] = useState<'all' | FacultyId>('all');
   const [showNewUser, setShowNewUser] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [showMaintenance, setShowMaintenance] = useState(false);
@@ -149,9 +150,10 @@ export default function AdminPanelPage() {
         !q || u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q);
       const roleOk = roleFilter === 'all' || u.role === roleFilter || (u.roles ?? []).includes(roleFilter);
       const staffOk = staffFilter === 'all' || (staffFilter === 'staff' ? isStaff(u.role) : u.role === 'student');
-      return searchOk && roleOk && staffOk;
+      const facultyOk = facultyFilter === 'all' || u.facultyId === facultyFilter;
+      return searchOk && roleOk && staffOk && facultyOk;
     });
-  }, [users, search, roleFilter, staffFilter]);
+  }, [users, search, roleFilter, staffFilter, facultyFilter]);
 
   if (guardLoading) {
     return (
@@ -246,6 +248,14 @@ export default function AdminPanelPage() {
               {VALID_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {roleLabel(r, lang)}
+                </option>
+              ))}
+            </select>
+            <select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value as typeof facultyFilter)} className={selectCls}>
+              <option value="all">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
+              {DISPLAYED_FACULTIES.map((id) => (
+                <option key={id} value={id}>
+                  {facultyLabel(id, lang)}
                 </option>
               ))}
             </select>
