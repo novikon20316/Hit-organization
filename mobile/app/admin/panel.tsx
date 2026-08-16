@@ -42,6 +42,7 @@ import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
+import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 
 export default function PanelScreen() {
   const router = useRouter();
@@ -1582,6 +1583,7 @@ export default function PanelScreen() {
 
         {activeTab === 'projects' && (
           <>
+            <CreateOwnProjectButton lang={lang} isRtl={isRtl} onCreated={fetchAllDashboardData} />
             {filteredProjects.map((p) => (
               <View key={p.id} style={styles.projectCard}>
                 <View style={styles.projectHeader}>

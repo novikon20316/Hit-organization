@@ -37,6 +37,7 @@ import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import ManagedStaffSection from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
+import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 
 const { width } = Dimensions.get('window');
 
@@ -400,6 +401,8 @@ export default function PanelScreen() {
       >
         <Text style={localStyles.tabLabel}>📁 {lang === 'he' ? 'פרויקט חדש' : 'New Project'}</Text>
       </Pressable>
+
+      <CreateOwnProjectButton lang={lang} isRtl={isRtl} onCreated={fetchAdminDashboard} />
 
       <ScrollView>
         {activeTab === 'staff' ? (

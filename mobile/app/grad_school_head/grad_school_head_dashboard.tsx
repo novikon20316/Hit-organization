@@ -19,6 +19,7 @@ import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { NewProjectModal } from '@/components/modals';
+import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import type { AppUser } from '@/types';
 
@@ -412,6 +413,16 @@ export default function GradSchoolHeadDashboard() {
       {/* Manage Milestone Templates / Reports / Bulk Permissions by Role
           moved into the TopBar's ☰ menu (extraMenuItems above) — same
           routes, no functionality dropped, just decluttered off the header. */}
+
+      {/* Self-service "create my own project" entry point for a
+          grad_school_head who also holds supervisor/secondary_supervisor
+          among their full roles — separate from the admin "Post New
+          Project" menu item above (which creates a project on behalf of
+          another supervisor). Renders nothing if the signed-in user
+          doesn't qualify. */}
+      <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+        <CreateOwnProjectButton lang={lang} isRtl={lang === 'he'} onCreated={fetchData} />
+      </View>
 
       {/* Stats strip */}
       <View style={s.statsStrip}>

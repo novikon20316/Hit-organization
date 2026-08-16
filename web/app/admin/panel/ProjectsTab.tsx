@@ -11,6 +11,7 @@ import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { NewProjectModal } from './NewProjectModal';
 import { AddStudentToProjectModal } from './AddStudentToProjectModal';
 import { ScheduleDefenseModal } from './ScheduleDefenseModal';
@@ -66,6 +67,10 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
 
   return (
     <div>
+      <div className="mb-4">
+        <CreateOwnProjectButton onCreated={onChanged} />
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
           <option value="all">{lang === 'he' ? 'כל הסטטוסים' : 'All statuses'}</option>

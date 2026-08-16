@@ -29,6 +29,7 @@ import type { AdminUserRecord } from '@/app/admin/panel/types';
 import { ProjectCard } from './ProjectCard';
 import { EnrollStudentModal } from './EnrollStudentModal';
 import { NewProjectModal } from './NewProjectModal';
+import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { DeadlinesTab } from './DeadlinesTab';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline } from './types';
@@ -109,6 +110,7 @@ export default function FacultyAdminDashboardPage() {
               + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
             </button>
           )}
+          {tab === 'projects' && <CreateOwnProjectButton onCreated={fetchDashboard} />}
           <Link
             href="/faculty_admin/templates"
             className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"

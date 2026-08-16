@@ -20,6 +20,8 @@ import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
+import { useActiveRole } from '@/contexts/ActiveRoleContext';
+import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,11 +71,19 @@ interface DashboardData {
 
 export default function ProgramHeadDashboard() {
   const router              = useRouter();
+  const { roles }           = useActiveRole();
   const [lang, setLang]     = useState<Lang>('he');
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData]             = useState<DashboardData | null>(null);
-  const [activeTab, setActiveTab]   = useState<'students' | 'approvals' | 'supervisors' | 'staff'>('students');
+  const [activeTab, setActiveTab]   = useState<'students' | 'approvals' | 'supervisors' | 'staff' | 'myProjects'>('students');
+  // A program_head who's ALSO a supervisor/secondary_supervisor otherwise
+  // has no way to reach the supervisor dashboard's own "New Project" button
+  // — program_head always outranks supervisor, so that's never their
+  // landing screen (see firebase/roles.ts's highestRankedRole). This tab
+  // exists only for that overlap; a plain program_head never sees it.
+  const canCreateOwnProject = roles.includes('supervisor') || roles.includes('secondary_supervisor');
+  const [myProjects, setMyProjects] = useState<Array<{ id: string; titleHe: string; titleEn: string; degreeType: string; projectType: string; enrolledStudentIds?: string[]; NumberOfStudents?: number }>>([]);
   // Own-faculty staff this role can now manage directly (see
   // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — a
   // separate endpoint from the read-only dashboard data above, since
@@ -114,8 +124,21 @@ export default function ProgramHeadDashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); fetchStaff(); }, [fetchData, fetchStaff]);
-  const onRefresh = () => { setRefreshing(true); fetchData(); fetchStaff(); };
+  const fetchMyProjects = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/supervisor/dashboard');
+      setMyProjects(res.data.myProjects ?? []);
+    } catch (e) {
+      // Non-fatal — the tab just shows an empty list if this fails.
+      console.error('program_head fetchMyProjects error:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData(); fetchStaff();
+    if (canCreateOwnProject) fetchMyProjects();
+  }, [fetchData, fetchStaff, canCreateOwnProject, fetchMyProjects]);
+  const onRefresh = () => { setRefreshing(true); fetchData(); fetchStaff(); if (canCreateOwnProject) fetchMyProjects(); };
 
   // ── Filter students ────────────────────────────────────────────────────────
   const filteredStudents = (data?.students ?? []).filter(s => {
@@ -145,6 +168,9 @@ export default function ProgramHeadDashboard() {
     { key: 'approvals'  as const, he: 'ממתין לאישור',   en: 'Approvals',   badge: data?.pendingApprovals.length ?? 0 },
     { key: 'supervisors'as const, he: 'מנחים',          en: 'Supervisors', badge: 0 },
     { key: 'staff'       as const, he: 'סגל',            en: 'Staff',       badge: 0 },
+    ...(canCreateOwnProject
+      ? [{ key: 'myProjects' as const, he: 'הפרויקטים שלי', en: 'My Projects', badge: myProjects.length }]
+      : []),
   ];
 
   return (
@@ -342,6 +368,31 @@ export default function ProgramHeadDashboard() {
             lang={lang}
             isRtl={lang === 'he'}
           />
+        )}
+
+        {/* ── MY PROJECTS TAB (only for a program_head who's also a supervisor) ── */}
+        {activeTab === 'myProjects' && (
+          <>
+            <CreateOwnProjectButton lang={lang} isRtl={lang === 'he'} onCreated={fetchMyProjects} />
+            {myProjects.length === 0 ? (
+              <EmptyState emoji="📭" text={lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'} />
+            ) : (
+              myProjects.map((p) => (
+                <View key={p.id} style={[s.statCard, { alignItems: 'flex-start', marginBottom: 10, width: '100%' }]}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }}>
+                    {lang === 'he' ? p.titleHe : p.titleEn}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
+                    {p.degreeType === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
+                    {' · '}
+                    {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : (lang === 'he' ? 'תזה' : 'Thesis')}
+                    {' · '}
+                    {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}
+                  </Text>
+                </View>
+              ))
+            )}
+          </>
         )}
 
         <View style={{ height: 60 }} />

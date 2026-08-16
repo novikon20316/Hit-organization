@@ -21,6 +21,7 @@ import { BulkDueDateModal, NewProjectModal } from '@/components/modals';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import { AdministrativeCoordinatorDashboardStyles, AdministrativeCoordinatorModalStyles, adminPanelStyles } from '../../constants/styles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
+import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import type { AppUser } from '@/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1019,6 +1020,7 @@ export default function ProjectCoordinatorDashboard() {
           </View>
         ) : !viewingSupervisorKey ? (
         <>
+        <CreateOwnProjectButton lang={lang} isRtl={lang === 'he'} onCreated={fetchData} />
         <TextInput
           style={s.searchInput}
           value={supervisorSearchText}

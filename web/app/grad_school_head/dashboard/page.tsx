@@ -23,6 +23,7 @@ import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import { NewProjectModal } from './NewProjectModal';
+import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
 
 const GRAD_SCHOOL_HEAD_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
@@ -249,6 +250,7 @@ export default function GradSchoolHeadDashboardPage() {
           >
             📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}
           </button>
+          <CreateOwnProjectButton onCreated={fetchDashboard} />
           <WorkflowTemplatesLink />
           <BulkPermissionsLink />
           <ReportsLink />

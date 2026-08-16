@@ -21,7 +21,11 @@ import { TrackChangeControl } from '@/components/TrackChangeControl';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
+import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
+import { ProjectCard } from '@/app/supervisor/dashboard/ProjectCard';
+import { EditProjectModal } from '@/app/supervisor/dashboard/EditProjectModal';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
+import type { MyProject } from '@/app/supervisor/dashboard/types';
 
 const PROGRAM_HEAD_ROLES: AppRole[] = ['program_head', 'system_admin'];
 
@@ -55,10 +59,19 @@ interface SupervisorLoad {
 
 export default function ProgramHeadDashboardPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(PROGRAM_HEAD_ROLES);
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, roles } = useAuth();
   const { lang, t } = useLanguage();
 
-  const [tab, setTab] = useState<'students' | 'approvals' | 'supervisors' | 'staff'>('students');
+  // A program_head who's ALSO a supervisor/secondary_supervisor otherwise
+  // has no way to reach /supervisor/dashboard's own "New Project" button —
+  // program_head always outranks supervisor, so that's never their landing
+  // dashboard (see lib/roles.ts's resolveActiveRole). This tab exists only
+  // for that overlap; a plain program_head never sees it.
+  const canCreateOwnProject = roles.includes('supervisor') || roles.includes('secondary_supervisor');
+
+  const [tab, setTab] = useState<'students' | 'approvals' | 'supervisors' | 'staff' | 'myProjects'>('students');
+  const [myProjects, setMyProjects] = useState<MyProject[]>([]);
+  const [editingProject, setEditingProject] = useState<MyProject | null>(null);
   const [headName, setHeadName] = useState('');
   const [facultyId, setFacultyId] = useState('');
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -105,11 +118,23 @@ export default function ProgramHeadDashboardPage() {
     }
   }, []);
 
+  // Only relevant to the overlap this tab exists for (see
+  // canCreateOwnProject above) — a plain program_head skips this fetch.
+  const fetchMyProjects = useCallback(async () => {
+    try {
+      const data = await apiClient.getSupervisorDashboard();
+      setMyProjects(data.myProjects as unknown as MyProject[]);
+    } catch {
+      // Non-fatal — the tab just shows an empty list if this fails.
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
     if (isAllowed) fetchStaff();
-  }, [isAllowed, fetchDashboard, fetchStaff]);
+    if (isAllowed && canCreateOwnProject) fetchMyProjects();
+  }, [isAllowed, fetchDashboard, fetchStaff, canCreateOwnProject, fetchMyProjects]);
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -136,6 +161,9 @@ export default function ProgramHeadDashboardPage() {
     { key: 'approvals' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Approvals', badge: stats.pendingCount },
     { key: 'supervisors' as const, label: lang === 'he' ? 'מנחים' : 'Supervisors', badge: 0 },
     { key: 'staff' as const, label: lang === 'he' ? 'סגל' : 'Staff', badge: 0 },
+    ...(canCreateOwnProject
+      ? [{ key: 'myProjects' as const, label: lang === 'he' ? 'הפרויקטים שלי' : 'My Projects', badge: myProjects.length }]
+      : []),
   ];
 
   return (
@@ -274,8 +302,25 @@ export default function ProgramHeadDashboardPage() {
           ))}
           {supervisorLoads.length === 0 && <p className="text-sm text-muted">👨‍🏫 {lang === 'he' ? 'אין מנחים' : 'No supervisors'}</p>}
         </div>
-      ) : (
+      ) : tab === 'staff' ? (
         <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }} />
+      ) : (
+        <div>
+          <div className="mb-4">
+            <CreateOwnProjectButton onCreated={fetchMyProjects} />
+          </div>
+          <div className="grid gap-3">
+            {myProjects.map((p) => (
+              <ProjectCard key={p.id} project={p} onEdit={setEditingProject} onChanged={fetchMyProjects} />
+            ))}
+            {myProjects.length === 0 && (
+              <p className="text-sm text-muted">{lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'}</p>
+            )}
+          </div>
+          {editingProject && (
+            <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSaved={fetchMyProjects} />
+          )}
+        </div>
       )}
     </DashboardShell>
   );

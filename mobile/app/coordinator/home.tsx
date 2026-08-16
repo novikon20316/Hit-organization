@@ -24,6 +24,7 @@ import ProjectStageChain from '@/components/ProjectStageChain';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
+import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -1230,6 +1231,7 @@ export default function CoordinatorHome() {
         )}
         {activeTab === 'inProgress' && (
           <>
+            <CreateOwnProjectButton lang={lang} isRtl={isRtl} onCreated={fetchCoordinatorDashboard} />
             {inProgressProjects.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>📁</Text>

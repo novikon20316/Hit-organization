@@ -229,7 +229,7 @@ function RootLayoutInner() {
         // context) reflects it, not just the primary role.
         const roles = getUserRoles(userData);
         const activeRole = resolveActiveRole(userData) ?? role;
-        sync(user.uid, roles);
+        sync(user.uid, roles, userData.facultyId ?? '');
 
         // ── Forced password change (accounts created via Excel import) ──────
         // Takes priority over everything below, including the 2FA gate.

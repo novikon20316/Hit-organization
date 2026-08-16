@@ -24,6 +24,7 @@ import { BulkImportModal } from '@/components/BulkImportModal';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { ArchivedProjectsTab } from '@/components/ArchivedProjectsTab';
+import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import type { CoordinatorDeadline, CoordinatorPendingMilestone, ExaminerRecommendation, ExaminerUser, InProgressProject, Project } from './types';
 
 const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
@@ -204,7 +205,10 @@ export default function CoordinatorHomePage() {
           onOpenAssignExaminers={setAssigningMilestone}
         />
       ) : tab === 'inProgress' ? (
-        <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} />
+        <>
+          <CreateOwnProjectButton onCreated={fetchAll} />
+          <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} />
+        </>
       ) : tab === 'deadlines' ? (
         <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchAll} />
       ) : tab === 'recommendations' ? (
