@@ -72,8 +72,15 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     // silently accepting a comment-only submission on a milestone that
     // actually required a file).
     if (!submissionRequirementMet(milestoneData.submissionRequirement, files.length > 0, note.trim().length > 0)) {
-      return res.status(400).json({ message: 'This milestone requires ' +
-        (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`) });
+      const req = milestoneData.submissionRequirement;
+      const messageEn = 'This milestone requires ' + (req === 'both' ? 'a file and a comment.' : `a ${req}.`);
+      const messageHe = 'אבן דרך זו דורשת ' + (req === 'both' ? 'קובץ והערה.' : req === 'file' ? 'קובץ.' : 'הערה.');
+      // messageHe/messageEn let the client (which knows the student's own
+      // language preference — the server has no per-user language field to
+      // read, see contexts/LanguageContext.tsx) show this in the right
+      // language; `message` stays the English fallback for any caller that
+      // predates these fields.
+      return res.status(400).json({ message: messageEn, messageHe, messageEn });
     }
 
     // Sorted by the milestone's OWN order (from the template it was created
@@ -93,7 +100,11 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       .every(d => d.data().status === 'completed');
 
     if (!allPrevCompleted)
-      return res.status(400).json({ message: 'Previous milestones must be completed before submitting this one.' });
+      return res.status(400).json({
+        message: 'Previous milestones must be completed before submitting this one.',
+        messageHe: 'יש להשלים את אבני הדרך הקודמות לפני הגשת אבן דרך זו.',
+        messageEn: 'Previous milestones must be completed before submitting this one.',
+      });
 
     // ── Upload files to Cloudinary ──────────────────────────────────────────
     const fileUrls: string[] = [];

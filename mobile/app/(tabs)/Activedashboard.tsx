@@ -231,7 +231,13 @@ export default function ActiveDashboard({
 
     } catch (e: any) {
       console.error('Submit milestone error:', e?.message);
-      setSubmitMessage(e?.response?.data?.message || tx('submitError', lang));
+      // Prefer the server's per-language variant (see milestoneController.ts's
+      // submitMilestone) when it sent one — the server has no per-user
+      // language field to localize this itself, so it returns both and the
+      // client (which knows the student's own language setting) picks.
+      const data = e?.response?.data;
+      const localized = data?.[lang === 'he' ? 'messageHe' : 'messageEn'];
+      setSubmitMessage(localized || data?.message || tx('submitError', lang));
     } finally {
       setSubmitting(false);
     }

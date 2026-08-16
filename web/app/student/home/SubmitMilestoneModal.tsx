@@ -57,7 +57,13 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
         onClose();
       }, 1200);
     } catch (err) {
-      const text = err instanceof ApiError ? err.message : (lang === 'he' ? 'שגיאה בהגשה' : 'Failed to submit');
+      // Prefer the server's per-language variant (see milestoneController.ts's
+      // submitMilestone) when it sent one — the server has no per-user
+      // language field to localize this itself, so it returns both and the
+      // client (which knows the student's actual UI language) picks.
+      const body = err instanceof ApiError ? (err.body as { messageHe?: string; messageEn?: string } | null) : null;
+      const localized = body?.[lang === 'he' ? 'messageHe' : 'messageEn'];
+      const text = localized ?? (err instanceof ApiError ? err.message : (lang === 'he' ? 'שגיאה בהגשה' : 'Failed to submit'));
       setMessage({ text, ok: false });
     } finally {
       setSubmitting(false);
