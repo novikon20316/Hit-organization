@@ -848,7 +848,8 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
 export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
   try {
     // Extract the query parameters sent by the frontend
-    const { facultyId, degreeType } = req.query;
+    const { facultyId } = req.query;
+    let degreeType: unknown = req.query.degreeType;
     // Default to 'active' so an omitted filter doesn't dump draft/archived
     // projects to whoever calls this. Only staff roles may opt out with
     // status=all — a student passing that should still only see active ones.
@@ -856,6 +857,20 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
     const status = (canSeeAllStatuses && req.query.status === 'all')
       ? undefined
       : (req.query.status ?? 'active');
+
+    // This endpoint has no role gate at all — any authenticated user,
+    // including a student, can call it — and `degreeType` above is
+    // caller-supplied. A masters student must never be able to browse
+    // bachelors-only projects (or vice versa) by passing a different
+    // ?degreeType=, or by omitting the filter entirely (which previously
+    // returned every degree level unfiltered). For a non-staff caller, their
+    // own degreeType always wins here, ignoring whatever the query string
+    // asked for.
+    if (!canSeeAllStatuses) {
+      const uid = req.user?.uid;
+      const userSnap = uid ? await db.collection('users').doc(uid).get() : null;
+      degreeType = userSnap?.data()?.degreeType ?? degreeType;
+    }
 
     // Start with a reference to the projects collection
     let projectsQuery: FirebaseFirestore.Query = db.collection('projects');
@@ -868,9 +883,12 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
       projectsQuery = projectsQuery.where('facultyId', '==', facultyId);
     }
     if (degreeType) {
-      // Note: Make sure 'degreeType' matches the exact field name in your Firestore project documents!
-      // (Sometimes people name it 'targetDegree' or 'allowedDegrees')
-      projectsQuery = projectsQuery.where('degreeType', '==', degreeType);
+      // Canonical field is the `degreeTypes` array (a project can legitimately
+      // target more than one degree level at once — see NewProjectModal.tsx's
+      // checkboxes); array-contains matches both that and the common case of
+      // a single-degree project, same convention as useStudentData.ts's own
+      // browse query.
+      projectsQuery = projectsQuery.where('degreeTypes', 'array-contains', degreeType);
     }
 
     // Execute the query

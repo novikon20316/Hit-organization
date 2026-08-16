@@ -139,10 +139,29 @@ service cloud.firestore {
     // existed. Written as its own function (one `let`, one get()) rather than
     // composing role(userDoc()) + a second call, matching this file's existing
     // "exactly 1 get() per match block" cost discipline noted above.
+    // A project's degree eligibility lives in the `degreeTypes` array (a
+    // project can legitimately target both bachelors and masters at once —
+    // see NewProjectModal.tsx's checkboxes); pre-migration docs only ever
+    // had the single scalar `degreeType` field, so that's the fallback,
+    // matching every client-side reader's own `degreeTypes ?? [degreeType]`
+    // convention exactly.
+    function projectDegreeTypes(res) {
+      return res.data.get('degreeTypes', []).size() > 0
+        ? res.data.get('degreeTypes', [])
+        : [res.data.get('degreeType', '')];
+    }
+
     function studentCanReadProjectByMajor(res) {
       let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return u.role == 'student' && res.data.get('status', '') == 'active' &&
-        (res.data.get('major', '') == '' || res.data.get('major', '') == u.get('major', ''));
+        (res.data.get('major', '') == '' || res.data.get('major', '') == u.get('major', '')) &&
+        // A masters student must never be able to read a bachelors-only
+        // project (and vice versa) — this was previously unchecked here, so
+        // any Firestore query shape other than the app's own (which happens
+        // to always add a degreeTypes array-contains clause) could read
+        // cross-degree projects; rules, not the client's own query, are the
+        // real read-authorization boundary.
+        u.get('degreeType', '') in projectDegreeTypes(res);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

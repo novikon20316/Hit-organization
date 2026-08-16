@@ -24,7 +24,6 @@ interface Props {
   onApplicationsChanged: () => void;
 }
 
-type DegreeFilter = 'all' | 'bachelors' | 'masters';
 type TypeFilter   = 'all' | 'project' | 'thesis';
 type EligibilityFilter = 'all' | 'eligible';
 
@@ -33,7 +32,6 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   // Inside BrowseProjects component, add at the top:
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [search,       setSearch]       = useState('');
-  const [degreeFilter, setDegreeFilter] = useState<DegreeFilter>('all');
   const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all');
   const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('all');
   const [selected,     setSelected]     = useState<ProjectProposal | null>(null);
@@ -89,22 +87,23 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       const textOk =
         !search || titleMatch || supervisorMatch || skillMatch;
 
+      // No degree filter here — `proposals` is already scoped to the
+      // student's own degree by the query that fetched it (see
+      // useStudentData.ts), so a filter offering "view the other degree
+      // level's projects" would be actively misleading, not just redundant.
       // `?? [scalar]` keeps this correct against pre-migration projects that
-      // only ever had the single scalar degreeType/projectType field.
-      const degreeOk =
-        degreeFilter === 'all' ||
-        (p.degreeTypes ?? [p.degreeType]).includes(degreeFilter);
+      // only ever had the single scalar projectType field.
       const typeOk =
         typeFilter === 'all' || (p.projectTypes ?? [p.projectType]).includes(typeFilter);
-      // Independent of the type/degree filters above — "can apply" means the
+      // Independent of the type filter above — "can apply" means the
       // student has already met every prerequisite and hasn't already applied.
       const eligibilityOk =
         eligibilityFilter === 'all' ||
         (getMissingCourses(p).length === 0 && !appliedProjectIds.includes(p.id));
 
-      return textOk && degreeOk && typeOk && eligibilityOk;
+      return textOk && typeOk && eligibilityOk;
     });
-  }, [proposals, search, degreeFilter, typeFilter, eligibilityFilter, completedCourses, appliedProjectIds, lang]);
+  }, [proposals, search, typeFilter, eligibilityFilter, completedCourses, appliedProjectIds, lang]);
 
   const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
 
@@ -284,6 +283,11 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
           ))}
         </View>
       )}
+
+      <Text style={[{ fontSize: 11, color: '#8899BB', paddingHorizontal: 14, marginBottom: 4 }, isRtl && styles.textRight]}>
+        {lang === 'he' ? 'מוצגים פרויקטים עבור: ' : 'Showing projects for: '}
+        <Text style={{ fontWeight: '700', color: '#333' }}>{tx(studentDegree === 'masters' ? 'masters' : 'bachelors', lang)}</Text>
+      </Text>
 
       {/* Search + Filters */}
       <View style={styles.searchBar}>

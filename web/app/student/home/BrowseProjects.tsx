@@ -19,7 +19,6 @@ interface BrowseProjectsProps {
   onApplicationsChanged: () => void;
 }
 
-type DegreeFilter = 'all' | DegreeType;
 type TypeFilter = 'all' | 'project' | 'thesis';
 type EligibilityFilter = 'all' | 'eligible';
 
@@ -41,7 +40,6 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
   const appliedProjectIds = useMemo(() => pendingApplications.map((a) => a.projectId), [pendingApplications]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [degreeFilter, setDegreeFilter] = useState<DegreeFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('all');
   const [selected, setSelected] = useState<ProjectProposal | null>(null);
@@ -78,17 +76,20 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
         title?.toLowerCase().includes(q) ||
         p.supervisorName?.toLowerCase().includes(q) ||
         (p.requiredSkills ?? []).some((s) => s.toLowerCase().includes(q));
+      // No degree filter here — `proposals` is already scoped to the
+      // student's own degree by the query that fetched it (see
+      // useStudentData.ts), so a filter offering "view the other degree
+      // level's projects" would be actively misleading, not just redundant.
       // `?? [scalar]` keeps this correct against pre-migration projects that
-      // only ever had the single scalar degreeType/projectType field.
-      const degreeOk = degreeFilter === 'all' || (p.degreeTypes ?? [p.degreeType]).includes(degreeFilter);
+      // only ever had the single scalar projectType field.
       const typeOk = typeFilter === 'all' || (p.projectTypes ?? [p.projectType]).includes(typeFilter);
-      // Independent of the type/degree filters above — "can apply" means the
+      // Independent of the type filter above — "can apply" means the
       // student has already met every prerequisite and hasn't already applied.
       const eligibilityOk =
         eligibilityFilter === 'all' || (getMissingCourses(p).length === 0 && !appliedProjectIds.includes(p.id));
-      return textOk && degreeOk && typeOk && eligibilityOk;
+      return textOk && typeOk && eligibilityOk;
     });
-  }, [proposals, search, degreeFilter, typeFilter, eligibilityFilter, completedCourses, appliedProjectIds, lang]);
+  }, [proposals, search, typeFilter, eligibilityFilter, completedCourses, appliedProjectIds, lang]);
 
   const projectTypesOf = (p: ProjectProposal): ('project' | 'thesis')[] => p.projectTypes ?? (p.projectType ? [p.projectType] : []);
 
@@ -180,6 +181,11 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
         </div>
       )}
 
+      <p className="mb-2 text-xs text-muted">
+        {lang === 'he' ? 'מוצגים פרויקטים עבור: ' : 'Showing projects for: '}
+        <span className="font-medium text-ink">{studentDegree === 'masters' ? t('masters') : t('bachelors')}</span>
+      </p>
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <input
           value={search}
@@ -200,22 +206,6 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
               {tp === 'all' ? t('all') : tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
             </button>
           ))}
-          {studentDegree === 'masters' && (
-            <>
-              {(['all', 'bachelors', 'masters'] as DegreeFilter[]).map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDegreeFilter(d)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                    degreeFilter === d ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'
-                  }`}
-                >
-                  {d === 'all' ? t('all') : d === 'bachelors' ? t('bachelors') : t('masters')}
-                </button>
-              ))}
-            </>
-          )}
         </div>
       </div>
 
