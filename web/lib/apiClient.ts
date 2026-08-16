@@ -923,6 +923,38 @@ export const apiClient = {
     return request<{ success?: boolean }>(`/api/applications/${applicationId}/withdraw`, { method: 'POST' });
   },
 
+  /** What a student with no active project should see first — browse/apply
+   *  to individually-posted projects, or browse/choose a supervisor instead
+   *  — resolved from the approved workflow-template for the student's own
+   *  faculty+degree. See workflowTemplates.ts's resolveFirstStepMode. */
+  async getFirstStepMode() {
+    return request<{ firstStepMode: 'browse_projects' | 'choose_supervisor'; supervisorSelectionRequiresApproval: boolean }>(
+      '/api/student/first-step-mode', { method: 'GET' }
+    );
+  },
+
+  /** Supervisor-grouped view of the student's eligible open projects —
+   *  used by BrowseSupervisors.tsx when getFirstStepMode() resolves to
+   *  'choose_supervisor'. */
+  async getBrowseSupervisors() {
+    return request<{
+      supervisors: Array<{
+        supervisorId: string; supervisorName: string;
+        projects: Array<{
+          id: string; titleHe: string; titleEn: string; descriptionHe: string; descriptionEn: string;
+          projectTypes: string[]; major: string | null; remainingCapacity: number;
+        }>;
+      }>;
+    }>('/api/student/browse-supervisors', { method: 'GET' });
+  },
+
+  /** Self-service, no-application, no-approval enrollment — only usable when
+   *  getFirstStepMode() resolved supervisorSelectionRequiresApproval: false.
+   *  Re-checked server-side regardless of what the client believes. */
+  async joinProjectDirect(projectId: string) {
+    return request<{ success?: boolean; message?: string }>('/api/student/join-project-direct', { method: 'POST', body: { projectId } });
+  },
+
   /** A supervisor's approval only puts an application into
    *  'awaiting_student_confirmation' — this is the student's actual decision
    *  to start (or not) that project. 'yes' enrolls them and auto-closes
@@ -1476,6 +1508,13 @@ export const apiClient = {
      *  a ChainRole (no 'none' option, this step is always required). Omitted
      *  uses the server's legacy default (grad_school_head). */
     finalGradeSignoffRole?: string;
+    /** What a student with no active project sees first for this subject —
+     *  omitted uses the server's default ('browse_projects', today's only
+     *  behavior). See workflowTemplates.ts's resolveFirstStepMode. */
+    firstStepMode?: 'browse_projects' | 'choose_supervisor';
+    /** Only meaningful when firstStepMode === 'choose_supervisor'. Omitted
+     *  uses the server's default (true — requires approval). */
+    supervisorSelectionRequiresApproval?: boolean;
   }) {
     return request<{ success: boolean; id: string; status: string }>('/api/workflow-templates', {
       method: 'POST',

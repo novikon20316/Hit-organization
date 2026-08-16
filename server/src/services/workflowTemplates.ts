@@ -300,6 +300,18 @@ export interface WorkflowTemplateDoc {
    *  branching, so the default doesn't vary by process type either). See
    *  resolveFinalGradeSignoffRole. */
   finalGradeSignoffRole?: ChainRole;
+  /** What a student with no active project sees first, for this template's
+   *  faculty+processType+major: browse/apply to individually-posted projects
+   *  (today's only behavior), or browse/pick a supervisor instead. Omitted →
+   *  'browse_projects'. See resolveFirstStepMode. */
+  firstStepMode?: 'browse_projects' | 'choose_supervisor';
+  /** Only meaningful when firstStepMode === 'choose_supervisor'. Whether
+   *  picking a supervisor still requires submitting files for that
+   *  supervisor's approval (today's application flow, applyToProject/
+   *  handleApplicationDecision/confirmApplicationStart, unchanged), or seats
+   *  the student immediately (joinProjectDirect, mirrors enrollStudentAdmin).
+   *  Omitted → true (the safer default — requires approval). */
+  supervisorSelectionRequiresApproval?: boolean;
   approvedBy?: string;
   approvedAt?: string;
   /** Set once, at approval time, only when applyMode === 'now'. */
@@ -349,6 +361,7 @@ export async function findApprovedTemplateId(
 ): Promise<{
   id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec;
   examinerSignoffRole?: ChainRole | 'none'; finalGradeSignoffRole?: ChainRole;
+  firstStepMode?: 'browse_projects' | 'choose_supervisor'; supervisorSelectionRequiresApproval?: boolean;
 } | null> {
   const tryMajor = async (m: string | null) => {
     const snap = await db.collection(COLLECTION)
@@ -366,10 +379,15 @@ export async function findApprovedTemplateId(
     const result: {
       id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec;
       examinerSignoffRole?: ChainRole | 'none'; finalGradeSignoffRole?: ChainRole;
+      firstStepMode?: 'browse_projects' | 'choose_supervisor'; supervisorSelectionRequiresApproval?: boolean;
     } = { id: doc.id, milestones };
     if (data.defaultRouting) result.defaultRouting = data.defaultRouting as MilestoneRoutingSpec;
     if (data.examinerSignoffRole) result.examinerSignoffRole = data.examinerSignoffRole as ChainRole | 'none';
     if (data.finalGradeSignoffRole) result.finalGradeSignoffRole = data.finalGradeSignoffRole as ChainRole;
+    if (data.firstStepMode) result.firstStepMode = data.firstStepMode as 'browse_projects' | 'choose_supervisor';
+    if (data.supervisorSelectionRequiresApproval !== undefined && data.supervisorSelectionRequiresApproval !== null) {
+      result.supervisorSelectionRequiresApproval = data.supervisorSelectionRequiresApproval as boolean;
+    }
     return result;
   };
 
@@ -416,6 +434,43 @@ export async function resolveFinalGradeSignoffRole(
 ): Promise<ChainRole> {
   const resolved = await findApprovedTemplateId(facultyId, processType, major);
   return resolved?.finalGradeSignoffRole ?? 'grad_school_head';
+}
+
+/** What a student with no active project in this faculty+degree(+major)
+ *  should see first — see WorkflowTemplateDoc.firstStepMode. Bachelor's has
+ *  exactly one processType (bsc_project), so this is a single lookup.
+ *  Master's splits into msc_thesis/msc_project — a browsing student hasn't
+ *  picked between them yet, so both are resolved; if they agree, that mode
+ *  wins (supervisorSelectionRequiresApproval taken from whichever config
+ *  said 'choose_supervisor', defaulting true if unset), and if they disagree
+ *  or either has no approved template, this falls back to 'browse_projects'
+ *  — always safe, since it's today's universal, unconditional behavior. */
+export async function resolveFirstStepMode(
+  facultyId: string, degreeType: 'bachelors' | 'masters', major: string | null
+): Promise<{ firstStepMode: 'browse_projects' | 'choose_supervisor'; supervisorSelectionRequiresApproval: boolean }> {
+  const fallback = { firstStepMode: 'browse_projects' as const, supervisorSelectionRequiresApproval: true };
+
+  if (degreeType === 'bachelors') {
+    const resolved = await findApprovedTemplateId(facultyId, 'bsc_project', major);
+    if (!resolved?.firstStepMode) return fallback;
+    return {
+      firstStepMode: resolved.firstStepMode,
+      supervisorSelectionRequiresApproval: resolved.supervisorSelectionRequiresApproval ?? true,
+    };
+  }
+
+  const [thesis, project] = await Promise.all([
+    findApprovedTemplateId(facultyId, 'msc_thesis', major),
+    findApprovedTemplateId(facultyId, 'msc_project', major),
+  ]);
+  const thesisMode = thesis?.firstStepMode ?? 'browse_projects';
+  const projectMode = project?.firstStepMode ?? 'browse_projects';
+  if (thesisMode !== projectMode) return fallback;
+  if (thesisMode === 'browse_projects') return fallback;
+  // Both agree on 'choose_supervisor' — require approval unless BOTH
+  // configs explicitly opted out of it.
+  const requiresApproval = (thesis?.supervisorSelectionRequiresApproval ?? true) || (project?.supervisorSelectionRequiresApproval ?? true);
+  return { firstStepMode: 'choose_supervisor', supervisorSelectionRequiresApproval: requiresApproval };
 }
 
 /** The milestone list a NEW enrollment should use, falling back to the app
@@ -540,6 +595,8 @@ export async function proposeWorkflowTemplate(params: {
   defaultRouting?: MilestoneRoutingSpec;
   examinerSignoffRole?: ChainRole | 'none';
   finalGradeSignoffRole?: ChainRole;
+  firstStepMode?: 'browse_projects' | 'choose_supervisor';
+  supervisorSelectionRequiresApproval?: boolean;
 }): Promise<{ id: string }> {
   // Version numbering is scoped per facultyId+processType+major — each
   // subject gets its own clean version history, rather than an unrelated
@@ -566,6 +623,10 @@ export async function proposeWorkflowTemplate(params: {
     defaultRouting: params.defaultRouting ?? null,
     examinerSignoffRole: params.examinerSignoffRole ?? null,
     finalGradeSignoffRole: params.finalGradeSignoffRole ?? null,
+    firstStepMode: params.firstStepMode ?? null,
+    supervisorSelectionRequiresApproval: params.firstStepMode === 'choose_supervisor'
+      ? (params.supervisorSelectionRequiresApproval ?? true)
+      : null,
   });
   return { id: ref.id };
 }

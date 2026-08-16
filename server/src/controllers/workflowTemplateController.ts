@@ -446,6 +446,22 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     }
     finalGradeSignoffRole = req.body.finalGradeSignoffRole;
   }
+  // What a student with no active project sees first for this subject —
+  // see WorkflowTemplateDoc.firstStepMode/resolveFirstStepMode.
+  let firstStepMode: 'browse_projects' | 'choose_supervisor' | undefined;
+  if (req.body.firstStepMode !== undefined) {
+    if (req.body.firstStepMode !== 'browse_projects' && req.body.firstStepMode !== 'choose_supervisor') {
+      return res.status(400).json({ message: `Invalid firstStepMode: ${req.body.firstStepMode}` });
+    }
+    firstStepMode = req.body.firstStepMode;
+  }
+  let supervisorSelectionRequiresApproval: boolean | undefined;
+  if (req.body.supervisorSelectionRequiresApproval !== undefined) {
+    if (typeof req.body.supervisorSelectionRequiresApproval !== 'boolean') {
+      return res.status(400).json({ message: 'supervisorSelectionRequiresApproval must be a boolean.' });
+    }
+    supervisorSelectionRequiresApproval = req.body.supervisorSelectionRequiresApproval;
+  }
 
   try {
     const result = await proposeWorkflowTemplate({
@@ -453,6 +469,8 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
       ...(defaultRouting.value ? { defaultRouting: defaultRouting.value } : {}),
       ...(examinerSignoffRole !== undefined ? { examinerSignoffRole } : {}),
       ...(finalGradeSignoffRole !== undefined ? { finalGradeSignoffRole } : {}),
+      ...(firstStepMode !== undefined ? { firstStepMode } : {}),
+      ...(supervisorSelectionRequiresApproval !== undefined ? { supervisorSelectionRequiresApproval } : {}),
     });
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval' });
   } catch (error: any) {

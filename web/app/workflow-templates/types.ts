@@ -192,6 +192,13 @@ export interface WorkflowTemplateDoc {
    *  required. Omitted → legacy default (grad_school_head, for any process
    *  type). */
   finalGradeSignoffRole?: ChainRole;
+  /** What a student with no active project sees first for this subject —
+   *  omitted means 'browse_projects' (today's only behavior). See
+   *  server's workflowTemplates.ts's resolveFirstStepMode. */
+  firstStepMode?: 'browse_projects' | 'choose_supervisor';
+  /** Only meaningful when firstStepMode === 'choose_supervisor'. Omitted
+   *  means true (the safer default — requires approval). */
+  supervisorSelectionRequiresApproval?: boolean;
   approvedBy?: string;
   approvedAt?: string;
   retroactiveAppliedAt?: string;

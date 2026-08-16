@@ -41,6 +41,7 @@ export function useStudentData() {
   const [proposals,          setProposals]          = useState<ProjectProposal[]>([]);
   const [activeProjects,     setActiveProjects]     = useState<ActiveProjectEntry[]>([]);
   const [pendingApplications, setPendingApplications] = useState<PendingApplication[]>([]);
+  const [supervisorSelectionRequiresApproval, setSupervisorSelectionRequiresApproval] = useState(true);
   const [notifications,      setNotifications]      = useState<AppNotification[]>([]);
   const [studentName,        setStudentName]        = useState('');
   const [studentDegree,      setStudentDegree]      = useState<DegreeType>('bachelors');
@@ -136,7 +137,20 @@ export function useStudentData() {
         const appsRes = await apiClient.get('/api/applications/pending');
         const pendingApps = appsRes.data?.applications || [];
         setPendingApplications(pendingApps);
-        setStudentState('no_project');
+
+        // Which "no active project" screen to show is faculty/degree-driven
+        // (see server's workflowTemplates.ts's resolveFirstStepMode) —
+        // defaults to today's behavior (browse projects) if this call fails
+        // for any reason, so a resolution hiccup never blocks the student
+        // from seeing anything at all.
+        try {
+          const firstStepRes = await apiClient.get('/api/student/first-step-mode');
+          const firstStep = firstStepRes.data ?? { firstStepMode: 'browse_projects', supervisorSelectionRequiresApproval: true };
+          setSupervisorSelectionRequiresApproval(firstStep.supervisorSelectionRequiresApproval);
+          setStudentState(firstStep.firstStepMode === 'choose_supervisor' ? 'choose_supervisor' : 'no_project');
+        } catch (e) {
+          setStudentState('no_project');
+        }
       }
 
       // Always fetch notifications
@@ -352,6 +366,7 @@ export function useStudentData() {
     nextMilestone,
     progress,
     pendingApplications,
+    supervisorSelectionRequiresApproval,
     notifications,
     studentDegree,
     error,

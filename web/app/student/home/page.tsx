@@ -16,6 +16,7 @@ import { useStudentData } from '@/hooks/useStudentData';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { BrowseProjects } from './BrowseProjects';
+import { BrowseSupervisors } from './BrowseSupervisors';
 import { ActiveDashboard } from './ActiveDashboard';
 import { InfoScreen } from './InfoScreen';
 
@@ -29,6 +30,7 @@ export default function StudentHomePage() {
     proposals,
     activeProjects,
     pendingApplications,
+    supervisorSelectionRequiresApproval,
     studentDegree,
     studentCompletedCourses,
     refresh,
@@ -73,6 +75,14 @@ export default function StudentHomePage() {
             studentDegree={studentDegree}
             pendingApplications={pendingApplications}
             completedCourses={studentCompletedCourses}
+            onApplicationsChanged={refresh}
+          />
+        )}
+
+        {studentState === 'choose_supervisor' && (
+          <BrowseSupervisors
+            pendingApplications={pendingApplications}
+            supervisorSelectionRequiresApproval={supervisorSelectionRequiresApproval}
             onApplicationsChanged={refresh}
           />
         )}

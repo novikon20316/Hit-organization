@@ -208,6 +208,12 @@ export interface WorkflowTemplateDoc {
    *  No 'none' option — always required. Omitted → legacy default
    *  (grad_school_head, for any process type). */
   finalGradeSignoffRole?: ChainRole;
+  /** What a student with no active project sees first for this subject —
+   *  omitted means 'browse_projects' (today's only behavior). */
+  firstStepMode?: 'browse_projects' | 'choose_supervisor';
+  /** Only meaningful when firstStepMode === 'choose_supervisor'. Omitted
+   *  means true (the safer default — requires approval). */
+  supervisorSelectionRequiresApproval?: boolean;
   approvedBy?: string;
   approvedAt?: string;
   retroactiveAppliedAt?: string;
@@ -437,6 +443,8 @@ export default function WorkflowTemplateManager() {
       defaultRouting: from?.defaultRouting ?? null,
       examinerSignoffRole: from?.examinerSignoffRole ?? null,
       finalGradeSignoffRole: from?.finalGradeSignoffRole ?? null,
+      firstStepMode: from?.firstStepMode ?? null,
+      supervisorSelectionRequiresApproval: from?.supervisorSelectionRequiresApproval ?? null,
       copiedFromLabel: source && otherLabel ? (lang === 'he' ? otherLabel.he : otherLabel.en) : null,
     };
     router.push({ pathname: '/WorkflowTemplateEditor', params: { payload: JSON.stringify(payload) } } as any);

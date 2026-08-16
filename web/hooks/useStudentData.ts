@@ -32,6 +32,7 @@ export function useStudentData() {
   const [proposals, setProposals] = useState<ProjectProposal[]>([]);
   const [activeProjects, setActiveProjects] = useState<ActiveProjectEntry[]>([]);
   const [pendingApplications, setPendingApplications] = useState<PendingApplication[]>([]);
+  const [supervisorSelectionRequiresApproval, setSupervisorSelectionRequiresApproval] = useState(true);
   const [studentName, setStudentName] = useState('');
   const [studentDegree, setStudentDegree] = useState<DegreeType>('bachelors');
   const [studentFaculty, setStudentFaculty] = useState('');
@@ -123,7 +124,17 @@ export function useStudentData() {
         const appsRes = await apiClient.getPendingApplications();
         const pendingApps = appsRes?.applications || [];
         setPendingApplications(pendingApps as unknown as PendingApplication[]);
-        setStudentState('no_project');
+
+        // Which "no active project" screen to show is faculty/degree-driven
+        // (see workflowTemplates.ts's resolveFirstStepMode) — defaults to
+        // today's behavior (browse projects) if this call fails for any
+        // reason, so a resolution hiccup never blocks the student from
+        // seeing anything at all.
+        const firstStep = await apiClient.getFirstStepMode().catch(
+          () => ({ firstStepMode: 'browse_projects' as const, supervisorSelectionRequiresApproval: true })
+        );
+        setSupervisorSelectionRequiresApproval(firstStep.supervisorSelectionRequiresApproval);
+        setStudentState(firstStep.firstStepMode === 'choose_supervisor' ? 'choose_supervisor' : 'no_project');
       }
     } catch (err) {
       console.error('Student Dashboard Fetch Error:', err);
@@ -323,6 +334,7 @@ export function useStudentData() {
     nextMilestone,
     progress,
     pendingApplications,
+    supervisorSelectionRequiresApproval,
     error,
     refresh: fetchDashboardData,
     cancelAllListeners,

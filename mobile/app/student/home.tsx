@@ -15,6 +15,7 @@ import { TopBar } from '../../components/shared';
 
 // ─── Sub-screens ──────────────────────────────────────────────────────────────
 import BrowseProjects  from '../(tabs)/Browseprojects';
+import BrowseSupervisors from '../(tabs)/BrowseSupervisors';
 import ActiveDashboard from '../(tabs)/Activedashboard';
 import InfoScreen      from './info';
 import ChatbotFab       from '@/components/ChatbotFab';
@@ -31,7 +32,7 @@ export default function StudentHome() {
   const {
     studentState, studentName, studentYearOfStudy,
     proposals, activeProjects,
-    pendingApplications, studentDegree, studentCompletedCourses, cancelAllListeners, refresh
+    pendingApplications, supervisorSelectionRequiresApproval, studentDegree, studentCompletedCourses, cancelAllListeners, refresh
   } = useStudentData();
 
   // Passed as TopBar's onBeforeSignOut — runs (and is awaited) before it
@@ -97,6 +98,16 @@ export default function StudentHome() {
         pendingApplications={pendingApplications}
         completedCourses={studentCompletedCourses}
         onApplicationsChanged={refresh}
+        />
+      )}
+
+      {studentState === 'choose_supervisor' && (
+        <BrowseSupervisors
+          lang={lang}
+          isRtl={isRtl}
+          pendingApplications={pendingApplications}
+          supervisorSelectionRequiresApproval={supervisorSelectionRequiresApproval}
+          onApplicationsChanged={refresh}
         />
       )}
 

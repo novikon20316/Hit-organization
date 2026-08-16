@@ -58,6 +58,8 @@ export interface WorkflowTemplateEditorPayload {
   defaultRouting: MilestoneRoutingSpec | null;
   examinerSignoffRole: ChainRole | 'none' | null;
   finalGradeSignoffRole: ChainRole | null;
+  firstStepMode: 'browse_projects' | 'choose_supervisor' | null;
+  supervisorSelectionRequiresApproval: boolean | null;
   copiedFromLabel: string | null;
 }
 
@@ -345,6 +347,12 @@ export default function WorkflowTemplateEditor() {
   const [editorFinalGradeSignoffRole, setEditorFinalGradeSignoffRole] = useState<ChainRole>(
     payload.finalGradeSignoffRole ?? 'grad_school_head'
   );
+  const [editorFirstStepMode, setEditorFirstStepMode] = useState<'browse_projects' | 'choose_supervisor'>(
+    payload.firstStepMode ?? 'browse_projects'
+  );
+  const [editorSupervisorSelectionRequiresApproval, setEditorSupervisorSelectionRequiresApproval] = useState(
+    payload.supervisorSelectionRequiresApproval ?? true
+  );
   const editorCopiedFromLabel = payload.copiedFromLabel ?? null;
 
   // Milestone row editor (inside this screen) — stays a small in-screen
@@ -577,6 +585,8 @@ export default function WorkflowTemplateEditor() {
         defaultRouting: editorDefaultRouting,
         examinerSignoffRole: editorExaminerSignoffRole,
         finalGradeSignoffRole: editorFinalGradeSignoffRole,
+        firstStepMode: editorFirstStepMode,
+        ...(editorFirstStepMode === 'choose_supervisor' ? { supervisorSelectionRequiresApproval: editorSupervisorSelectionRequiresApproval } : {}),
         ...(payload.includeFacultyIdInSubmit && payload.facultyId ? { facultyId: payload.facultyId } : {}),
       });
       Alert.alert(
@@ -716,6 +726,54 @@ export default function WorkflowTemplateEditor() {
             </Pressable>
           ))}
         </ScrollView>
+
+        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 16 }}>
+          {lang === 'he' ? 'מה הסטודנט/ית רואה קודם?' : 'What does the student see first?'}
+        </Text>
+        <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 4 }}>
+          {lang === 'he'
+            ? 'לסטודנט/ית ללא פרויקט פעיל: עיון בפרויקטים בודדים (ברירת המחדל), או בחירת מנחה מתוך רשימה.'
+            : 'For a student with no active project: browse individually-posted projects (default), or choose a supervisor from a list.'}
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 4 }}>
+          {([
+            { key: 'browse_projects' as const, he: 'עיון בפרויקטים', en: 'Browse projects' },
+            { key: 'choose_supervisor' as const, he: 'בחירת מנחה', en: 'Choose a supervisor' },
+          ]).map((opt) => (
+            <Pressable
+              key={opt.key}
+              onPress={() => setEditorFirstStepMode(opt.key)}
+              style={{ borderWidth: 1.5, borderColor: editorFirstStepMode === opt.key ? '#7C3AED' : '#DDD6FE', backgroundColor: editorFirstStepMode === opt.key ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '600', color: editorFirstStepMode === opt.key ? '#fff' : '#7C3AED' }}>
+                {lang === 'he' ? opt.he : opt.en}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {editorFirstStepMode === 'choose_supervisor' && (
+          <Pressable
+            onPress={() => setEditorSupervisorSelectionRequiresApproval((v) => !v)}
+            style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, padding: 12, marginTop: 8 }}
+          >
+            <View style={{
+              width: 18, height: 18, borderRadius: 4, borderWidth: 2, marginTop: 2,
+              borderColor: editorSupervisorSelectionRequiresApproval ? '#7C3AED' : '#DDD6FE',
+              backgroundColor: editorSupervisorSelectionRequiresApproval ? '#7C3AED' : '#fff',
+            }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F1235' }}>
+                {lang === 'he' ? 'בחירת מנחה מצריכה אישור' : 'Choosing a supervisor requires approval'}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>
+                {lang === 'he'
+                  ? 'כאשר מסומן: הגשת גיליון ציונים וקורות חיים ואישור מהמנחה. כשלא מסומן: הצטרפות מיידית ללא אישור.'
+                  : 'When checked: submits a transcript/CV for the supervisor to approve. When unchecked: joins immediately, no approval needed.'}
+              </Text>
+            </View>
+          </Pressable>
+        )}
 
         <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 20 }}>
           {lang === 'he' ? 'מתי התבנית תיכנס לתוקף?' : 'When should this take effect?'}

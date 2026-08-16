@@ -129,6 +129,8 @@ function ProposeVersionContent() {
           initialDefaultRouting={sourceTpl?.defaultRouting}
           initialExaminerSignoffRole={sourceTpl?.examinerSignoffRole}
           initialFinalGradeSignoffRole={sourceTpl?.finalGradeSignoffRole}
+          initialFirstStepMode={sourceTpl?.firstStepMode}
+          initialSupervisorSelectionRequiresApproval={sourceTpl?.supervisorSelectionRequiresApproval}
           copiedFromLabel={proposeFrom === 'other' && otherProcessType ? processTypeLabel(otherProcessType, lang) : undefined}
           loadError={loadError}
           onDone={() => router.push('/workflow-templates?tab=pending')}
@@ -147,6 +149,8 @@ interface ProposeVersionFormProps {
   initialDefaultRouting?: MilestoneRoutingSpec;
   initialExaminerSignoffRole?: ChainRole | 'none';
   initialFinalGradeSignoffRole?: ChainRole;
+  initialFirstStepMode?: 'browse_projects' | 'choose_supervisor';
+  initialSupervisorSelectionRequiresApproval?: boolean;
   copiedFromLabel?: string;
   loadError: string;
   onDone: () => void;
@@ -159,6 +163,7 @@ interface ProposeVersionFormProps {
 // MilestoneRowModal.tsx stays an actual modal, opened from within this page.
 function ProposeVersionForm({
   processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, initialFinalGradeSignoffRole,
+  initialFirstStepMode, initialSupervisorSelectionRequiresApproval,
   copiedFromLabel, loadError, onDone, onCancel,
 }: ProposeVersionFormProps) {
   const { lang, t } = useLanguage();
@@ -171,6 +176,12 @@ function ProposeVersionForm({
   );
   const [finalGradeSignoffRole, setFinalGradeSignoffRole] = useState<ChainRole>(
     initialFinalGradeSignoffRole ?? 'grad_school_head'
+  );
+  const [firstStepMode, setFirstStepMode] = useState<'browse_projects' | 'choose_supervisor'>(
+    initialFirstStepMode ?? 'browse_projects'
+  );
+  const [supervisorSelectionRequiresApproval, setSupervisorSelectionRequiresApproval] = useState(
+    initialSupervisorSelectionRequiresApproval ?? true
   );
   const [note, setNote] = useState('');
   const [applyMode, setApplyMode] = useState<'now' | 'from_now_on'>('from_now_on');
@@ -268,6 +279,8 @@ function ProposeVersionForm({
         defaultRouting,
         examinerSignoffRole,
         finalGradeSignoffRole,
+        firstStepMode,
+        ...(firstStepMode === 'choose_supervisor' ? { supervisorSelectionRequiresApproval } : {}),
       });
       onDone();
     } catch (err) {
@@ -384,6 +397,46 @@ function ProposeVersionForm({
             ))}
           </select>
         </label>
+
+        <label className="block rounded-[var(--radius)] border border-line bg-surface p-5">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'מה הסטודנט/ית רואה קודם?' : 'What does the student see first?'}
+          </span>
+          <p className="mb-1.5 text-xs text-muted">
+            {lang === 'he'
+              ? 'לסטודנט/ית ללא פרויקט פעיל בפקולטה/תואר זה: עיון בפרויקטים בודדים (ברירת המחדל), או בחירת מנחה מתוך רשימה.'
+              : 'For a student with no active project in this faculty/degree: browse individually-posted projects (default), or choose a supervisor from a list.'}
+          </p>
+          <select
+            value={firstStepMode}
+            onChange={(e) => setFirstStepMode(e.target.value as 'browse_projects' | 'choose_supervisor')}
+            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+          >
+            <option value="browse_projects">{lang === 'he' ? 'עיון בפרויקטים' : 'Browse projects'}</option>
+            <option value="choose_supervisor">{lang === 'he' ? 'בחירת מנחה' : 'Choose a supervisor'}</option>
+          </select>
+        </label>
+
+        {firstStepMode === 'choose_supervisor' && (
+          <label className="flex items-start justify-between gap-3 rounded-[var(--radius)] border border-line bg-surface p-5">
+            <span>
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'בחירת מנחה מצריכה אישור' : 'Choosing a supervisor requires approval'}
+              </span>
+              <span className="block text-xs text-muted">
+                {lang === 'he'
+                  ? 'כאשר מסומן: הסטודנט/ית מגיש/ה גיליון ציונים וקורות חיים והמנחה מאשר/ת (כמו הגשת מועמדות לפרויקט היום). כשלא מסומן: הצטרפות מיידית ללא צורך באישור.'
+                  : "When checked: the student submits a transcript/CV and the supervisor approves (like applying to a project today). When unchecked: joins immediately, no approval needed."}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={supervisorSelectionRequiresApproval}
+              onChange={(e) => setSupervisorSelectionRequiresApproval(e.target.checked)}
+              className="mt-1 h-4 w-4 shrink-0 accent-[var(--primary)]"
+            />
+          </label>
+        )}
       </div>
 
       <div className="mt-4 rounded-[var(--radius)] border border-line bg-surface p-5">
