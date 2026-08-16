@@ -3,7 +3,7 @@
 // app/student/home/SubmitMilestoneModal.tsx
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { MILESTONE_LABEL, type Milestone } from './types';
 
 interface SubmitMilestoneModalProps {
@@ -56,8 +56,9 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
         onSubmitted();
         onClose();
       }, 1200);
-    } catch {
-      setMessage({ text: lang === 'he' ? 'שגיאה בהגשה' : 'Failed to submit', ok: false });
+    } catch (err) {
+      const text = err instanceof ApiError ? err.message : (lang === 'he' ? 'שגיאה בהגשה' : 'Failed to submit');
+      setMessage({ text, ok: false });
     } finally {
       setSubmitting(false);
     }

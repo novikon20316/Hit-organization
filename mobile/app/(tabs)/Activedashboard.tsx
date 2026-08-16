@@ -231,7 +231,7 @@ export default function ActiveDashboard({
 
     } catch (e: any) {
       console.error('Submit milestone error:', e?.message);
-      setSubmitMessage(tx('submitError', lang));
+      setSubmitMessage(e?.response?.data?.message || tx('submitError', lang));
     } finally {
       setSubmitting(false);
     }
