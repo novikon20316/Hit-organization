@@ -922,18 +922,37 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
       return res.status(200).json({ InProgress: [] });
     }
 
-    // 1. Fetch active projects, scoped to the caller's faculty(ies) unless unrestricted
-    let projectsQuery = db.collection('projects').where('status', '==', 'active') as FirebaseFirestore.Query;
-    if (!unrestricted) {
-      projectsQuery = projectsQuery.where('facultyId', 'in', facultyIds);
-    }
-    const projectsSnap = await projectsQuery.get();
+    // 1. Fetch active projects. status:'active' means "open for applications,
+    // not yet enrolled" (see workflowTemplateRetroactiveApply.ts) — an
+    // enrolled, ongoing project is 'in_progress'. This endpoint matched only
+    // 'active' before, so it always returned zero rows against real data;
+    // every sibling "how many active projects" tally (coordinatorController's
+    // activeProjects count, projectCoordinatorController/programHeadController/
+    // gradSchoolHeadController's isActive checks) treats both as active, so
+    // this does too. Firestore allows only one 'in'/'array-contains-any'
+    // clause per query, and it's already spent on status, so faculty scoping
+    // is applied in-memory below instead of as a second 'in' clause.
+    const projectsSnap = await db.collection('projects')
+      .where('status', 'in', ['active', 'in_progress'])
+      .get();
 
     if (projectsSnap.empty) {
       return res.status(200).json({ InProgress: [] });
     }
 
-    const rawProjects = projectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    let rawProjects = projectsSnap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      // Archived projects (services/projectErasure.ts) keep their last
+      // status, which is usually still 'in_progress' — exclude them here too,
+      // matching getCoordinatorDashboard's identical isArchived filter.
+      .filter((p: any) => !p.isArchived);
+    if (!unrestricted) {
+      rawProjects = rawProjects.filter((p: any) => facultyIds.includes(p.facultyId));
+    }
+
+    if (rawProjects.length === 0) {
+      return res.status(200).json({ InProgress: [] });
+    }
 
     // 2. Map through projects and construct per-student relational data structures
     const inProgressPromises = rawProjects.map(async (project: any) => {
