@@ -13,7 +13,7 @@ export const t = {
   // ══════════════════════════════════════════════════════════════════════════
   // GENERAL / SHARED
   // ══════════════════════════════════════════════════════════════════════════
-  appName:            { he: 'מערכת פרויקטי גמר',                     en: 'Final Projects System' },
+  appName:            { he: 'מערכת פרויקטי גמר ותיזות',                en: 'Final Projects and Theses System' },
   hitName:            { he: 'המכון הטכנולוגי חולון',                  en: 'Holon Institute of Technology' },
   logout:             { he: 'יציאה',                                   en: 'Sign Out' },
   loading:            { he: 'טוען...',                                  en: 'Loading...' },

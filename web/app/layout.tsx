@@ -18,8 +18,8 @@ const plexSansHebrew = IBM_Plex_Sans_Hebrew({
 
 export const metadata: Metadata = {
   title: {
-    default: "מערכת פרויקטי גמר | HIT Final Projects System",
-    template: "%s | HIT Final Projects System",
+    default: "מערכת פרויקטי גמר ותיזות | HIT Final Projects and Theses System",
+    template: "%s | HIT Final Projects and Theses System",
   },
   description:
     "Holon Institute of Technology — final projects & thesis management: milestones, supervision, examiners, defenses, and grading.",
