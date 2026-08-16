@@ -1146,6 +1146,12 @@ export const apiClient = {
       degreeType: string;
       projectType: string;
       requiredSkills: string[];
+      /** Kept in sync with the legacy `NumberOfStudents` field server-side —
+       *  see updateSupervisorProject's own comment. Also callable by a
+       *  coordinator/faculty_admin/administrative_secretary/system_admin
+       *  whose scope covers this project's faculty, not just its own
+       *  supervisor — see withinCoordinatorScope in the same handler. */
+      maxStudents?: number;
     }
   ) {
     return request<{ success?: boolean; message?: string }>(`/api/supervisor/projects/${projectId}`, { method: 'PUT', body: payload });

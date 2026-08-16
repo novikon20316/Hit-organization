@@ -207,7 +207,7 @@ export default function CoordinatorHomePage() {
       ) : tab === 'inProgress' ? (
         <>
           <CreateOwnProjectButton onCreated={fetchAll} />
-          <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} />
+          <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} onChanged={fetchAll} />
         </>
       ) : tab === 'deadlines' ? (
         <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchAll} />

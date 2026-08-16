@@ -14,17 +14,20 @@ import { MILESTONE_LABEL, type InProgressProject } from './types';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { TrackChangeControl } from '@/components/TrackChangeControl';
 import { ProjectStageChain } from '@/components/ProjectStageChain';
+import { EditProjectModal } from './EditProjectModal';
 
 interface InProgressTabProps {
   projects: InProgressProject[];
   currentUserId?: string;
+  onChanged?: () => void;
 }
 
-export function InProgressTab({ projects, currentUserId }: InProgressTabProps) {
+export function InProgressTab({ projects, currentUserId, onChanged }: InProgressTabProps) {
   const { lang } = useLanguage();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
   const [scope, setScope] = useState<'all' | 'mine'>('all');
+  const [editingProject, setEditingProject] = useState<InProgressProject | null>(null);
 
   const visibleProjects = scope === 'mine' ? projects.filter((p) => p.supervisorId === currentUserId) : projects;
 
@@ -104,6 +107,13 @@ export function InProgressTab({ projects, currentUserId }: InProgressTabProps) {
 
             <ClockPauseControl projectId={p.id} />
             <TrackChangeControl projectId={p.id} />
+            <button
+              type="button"
+              onClick={() => setEditingProject(p)}
+              className="mt-2 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              ✏️ {lang === 'he' ? 'עריכת פרויקט (שם, מספר סטודנטים ועוד)' : 'Edit Project (name, student count, etc.)'}
+            </button>
 
             {isOpen && (
               <div className="mt-3 grid gap-3 border-t border-line pt-3">
@@ -172,6 +182,15 @@ export function InProgressTab({ projects, currentUserId }: InProgressTabProps) {
         );
       })}
       </div>
+
+      {editingProject && (
+        <EditProjectModal
+          key={editingProject.id}
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+          onSaved={() => onChanged?.()}
+        />
+      )}
     </div>
   );
 }

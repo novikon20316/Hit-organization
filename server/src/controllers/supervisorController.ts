@@ -4,7 +4,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
-import { resolveStaffForScope } from '../services/scopeAuthorization.js';
+import { resolveStaffForScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import {
   resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER,
@@ -604,20 +604,37 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
 // Only fields the mobile "edit project" form actually sends — a blind
 // `{...req.body}` spread previously let a supervisor overwrite anything on
 // their own project doc, including facultyId/supervisorId/status/enrolledStudentIds.
+// `maxStudents` also lets a coordinator (see PROJECT_EDIT_COORDINATOR_ROLES
+// below) fix a human-error student-count typo from the Active Projects tab.
 const EDITABLE_PROJECT_FIELDS = [
   'titleHe', 'titleEn', 'descriptionHe', 'descriptionEn',
-  'degreeType', 'projectType', 'requiredSkills', 'projectFileUrl',
+  'degreeType', 'projectType', 'requiredSkills', 'projectFileUrl', 'maxStudents',
 ] as const;
 
+// A coordinator overseeing a faculty needs to be able to fix another
+// supervisor's human-error typo (wrong title, wrong student count) on this
+// same endpoint — previously ownership-only, so a coordinator got a flat
+// 403 here regardless of scope. Mirrors the role set already gated on
+// elsewhere for coordinator-tier project actions (coordinatorController.ts's
+// COORDINATOR_ROLES), not getActiveProjects's narrower list, since this is a
+// write action several of those roles legitimately need.
+const PROJECT_EDIT_COORDINATOR_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'system_admin'];
+
 export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
-  const supervisorId = req.user?.uid;
+  const requesterId = req.user?.uid;
   const { id: projectId } = req.params;
   const updateData: Record<string, unknown> = {};
   for (const field of EDITABLE_PROJECT_FIELDS) {
     if (req.body?.[field] !== undefined) updateData[field] = req.body[field];
   }
+  // Both field names coexist in real data with no migration (supervisor-
+  // created projects write `NumberOfStudents`, admin-created ones write
+  // `maxStudents` — every read site already falls back `maxStudents ??
+  // NumberOfStudents`) — keeping both in sync here, rather than picking one,
+  // avoids adding a THIRD divergent value instead of resolving the existing one.
+  if (updateData.maxStudents !== undefined) updateData.NumberOfStudents = updateData.maxStudents;
 
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requesterId) return res.status(401).json({ message: 'Unauthorized.' });
   if (!projectId || typeof projectId !== 'string')
     return res.status(400).json({ message: 'Invalid projectId.' });
 
@@ -626,17 +643,32 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
     const projectSnap = await projectRef.get();
 
     if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    const projectData = projectSnap.data() ?? {};
     // Co-supervisors were previously locked out of editing their own
     // jointly-owned project — this check only ever recognized supervisorId.
-    if (projectSnap.data()?.supervisorId !== supervisorId && projectSnap.data()?.secondarySupervisorId !== supervisorId)
+    const isOwner = projectData.supervisorId === requesterId || projectData.secondarySupervisorId === requesterId;
+    const role = req.user?.role;
+    const inCoordinatorScope = !!role && PROJECT_EDIT_COORDINATOR_ROLES.includes(role) && withinCoordinatorScope(req.user, {
+      facultyId: projectData.facultyId ?? '',
+      major: projectData.major || undefined,
+      degreeLevel: projectData.degreeType || undefined,
+      processType: projectData.projectType || undefined,
+    });
+    if (!isOwner && !inCoordinatorScope)
       return res.status(403).json({ message: 'Forbidden.' });
 
     await projectRef.update({ ...updateData, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
 
     // ✅ Notify enrolled students that the project was updated
-    const enrolledStudentIds: string[] = projectSnap.data()?.enrolledStudentIds ?? [];
-    const titleHe = projectSnap.data()?.titleHe ?? '';
-    const titleEn = projectSnap.data()?.titleEn ?? '';
+    const enrolledStudentIds: string[] = projectData.enrolledStudentIds ?? [];
+    const titleHe = projectData.titleHe ?? '';
+    const titleEn = projectData.titleEn ?? '';
+    // "by your supervisor" is only accurate for the ownership path — a
+    // coordinator fixing another supervisor's typo isn't the student's own
+    // supervisor, so the notification stays role-agnostic whenever the edit
+    // came from coordinator scope instead of ownership.
+    const actorHe = isOwner ? 'על ידי המנחה' : 'על ידי הרכז/ת';
+    const actorEn = isOwner ? 'by your supervisor' : 'by the coordinator';
 
     await Promise.all(enrolledStudentIds.map(async (studentId) => {
       await createNotification({
@@ -644,8 +676,8 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
         type:             'project_updated',
         titleHe:          'פרויקט עודכן 📝',
         titleEn:          'Project Updated 📝',
-        bodyHe:           `הפרויקט "${titleHe}" עודכן על ידי המנחה.`,
-        bodyEn:           `Your project "${titleEn}" was updated by your supervisor.`,
+        bodyHe:           `הפרויקט "${titleHe}" עודכן ${actorHe}.`,
+        bodyEn:           `Your project "${titleEn}" was updated ${actorEn}.`,
         relatedProjectId: projectId,
       });
 
@@ -654,7 +686,7 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
         await sendPushNotification(
           token,
           '📝 Project Updated',
-          `"${titleEn}" has been updated by your supervisor.`,
+          `"${titleEn}" has been updated ${actorEn}.`,
           { projectId },
         );
       }

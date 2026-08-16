@@ -1057,6 +1057,17 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
         supervisorName,
         status: project.status,
         createdAt: project.createdAt?.toDate?.()?.toISOString() ?? null,
+        // Editable-field snapshot for the coordinator's "fix a human error"
+        // Edit Project control (see EditProjectModal.tsx) — mirrors
+        // updateSupervisorProject's own EDITABLE_PROJECT_FIELDS allowlist.
+        // Both `maxStudents` and `NumberOfStudents` coexist in real data with
+        // no migration; this normalizes to one client-facing field.
+        descriptionHe: project.descriptionHe || '',
+        descriptionEn: project.descriptionEn || '',
+        degreeType: project.degreeType || '',
+        projectType: project.projectType || '',
+        requiredSkills: project.requiredSkills ?? [],
+        maxStudents: project.maxStudents ?? project.NumberOfStudents ?? 1,
         students: studentsArray // Custom nested block containing targeted progress loops
       };
     });

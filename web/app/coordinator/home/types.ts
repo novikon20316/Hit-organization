@@ -77,6 +77,15 @@ export interface InProgressProject {
   supervisorName: string;
   status: string;
   createdAt?: string | null;
+  // Editable-field snapshot — powers the coordinator's Edit Project control
+  // (fixing a human-error typo in the title/student count/etc. on any
+  // project in their faculty scope, not just their own).
+  descriptionHe?: string;
+  descriptionEn?: string;
+  degreeType?: string;
+  projectType?: string;
+  requiredSkills?: string[];
+  maxStudents?: number;
   students: InProgressStudent[];
 }
 
