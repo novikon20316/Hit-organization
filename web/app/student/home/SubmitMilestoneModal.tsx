@@ -60,10 +60,16 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
       // Prefer the server's per-language variant (see milestoneController.ts's
       // submitMilestone) when it sent one — the server has no per-user
       // language field to localize this itself, so it returns both and the
-      // client (which knows the student's actual UI language) picks.
+      // client (which knows the student's actual UI language) picks. Any
+      // error without one (an unexpected exception the server never
+      // localized) falls back to the translated generic message, NOT the
+      // raw (often English-only, sometimes a bare third-party SDK string)
+      // server text — showing that verbatim was the whole bug this is
+      // fixing, not just for the two validation errors that got messageHe/
+      // messageEn, but for anything else the server might ever throw.
       const body = err instanceof ApiError ? (err.body as { messageHe?: string; messageEn?: string } | null) : null;
       const localized = body?.[lang === 'he' ? 'messageHe' : 'messageEn'];
-      const text = localized ?? (err instanceof ApiError ? err.message : (lang === 'he' ? 'שגיאה בהגשה' : 'Failed to submit'));
+      const text = localized ?? (lang === 'he' ? 'שגיאה בהגשה' : 'Failed to submit');
       setMessage({ text, ok: false });
     } finally {
       setSubmitting(false);

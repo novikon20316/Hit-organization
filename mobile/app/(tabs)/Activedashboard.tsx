@@ -234,10 +234,14 @@ export default function ActiveDashboard({
       // Prefer the server's per-language variant (see milestoneController.ts's
       // submitMilestone) when it sent one — the server has no per-user
       // language field to localize this itself, so it returns both and the
-      // client (which knows the student's own language setting) picks.
+      // client (which knows the student's own language setting) picks. Any
+      // error without one (an unexpected exception the server never
+      // localized) falls back to the translated generic message, not the
+      // raw server text — showing that verbatim in whatever language the
+      // server happened to throw it in was the bug being fixed here.
       const data = e?.response?.data;
       const localized = data?.[lang === 'he' ? 'messageHe' : 'messageEn'];
-      setSubmitMessage(localized || data?.message || tx('submitError', lang));
+      setSubmitMessage(localized || tx('submitError', lang));
     } finally {
       setSubmitting(false);
     }

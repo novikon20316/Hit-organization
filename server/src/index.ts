@@ -115,6 +115,17 @@ const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
 const apiKey = process.env.CLOUDINARY_API_KEY!;
 const apiSecret = process.env.CLOUDINARY_API_SECRET!;
 
+// Missing any of these doesn't crash the server (most routes don't touch
+// Cloudinary) — it silently produces a working-looking cloudinary.config()
+// that fails cryptically ("Must supply api_key") the moment a student
+// actually uploads a milestone file. Loud at startup instead, so a rotated/
+// missing credential on the deployment (Render env vars, not this repo's
+// local .env) shows up in the boot log immediately rather than being
+// diagnosed one confused bug report at a time.
+if (!cloudName || !apiKey || !apiSecret) {
+  console.error('⚠️  Cloudinary is misconfigured — missing CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET. File uploads (milestone submissions, etc.) will fail until these are set in the environment.');
+}
+
 cloudinary.config({
   cloud_name: cloudName,
   api_key: apiKey,

@@ -117,16 +117,31 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     // ── Upload files to Cloudinary ──────────────────────────────────────────
     const fileUrls: string[] = [];
 
-    for (const file of files) {
-      const base64 = file.buffer.toString('base64');
-      const dataUri = `data:${file.mimetype};base64,${base64}`;
+    try {
+      for (const file of files) {
+        const base64 = file.buffer.toString('base64');
+        const dataUri = `data:${file.mimetype};base64,${base64}`;
 
-      const result = await cloudinary.uploader.upload(dataUri, {
-        resource_type: 'raw',
-        folder: 'milestones',
+        const result = await cloudinary.uploader.upload(dataUri, {
+          resource_type: 'raw',
+          folder: 'milestones',
+        });
+
+        fileUrls.push(result.secure_url);
+      }
+    } catch (uploadError: any) {
+      // A misconfigured/rotated Cloudinary credential (see the startup
+      // warning in index.ts) surfaces here as a raw SDK error — e.g. "Must
+      // supply api_key" — which used to reach the student verbatim, in
+      // English only, with no indication it was a server-side problem and
+      // not something wrong with their submission. Logged in full for
+      // debugging; the student gets a clean, bilingual, actionable message.
+      console.error('submitMilestone file upload error:', uploadError);
+      return res.status(502).json({
+        message: 'File upload failed. Please try again in a few minutes.',
+        messageHe: 'העלאת הקובץ נכשלה. נא לנסות שוב בעוד מספר דקות.',
+        messageEn: 'File upload failed. Please try again in a few minutes.',
       });
-
-      fileUrls.push(result.secure_url);
     }
 
     // Preserve the outgoing round (its file(s), note, and whatever decision
