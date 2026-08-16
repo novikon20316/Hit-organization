@@ -22,6 +22,18 @@ export interface TrackChangeResult {
   newProjectId: string;
 }
 
+// Carries both language variants so the controller can return a localized
+// message without the client having to string-match the (English-only)
+// Error#message — see trackChangeController.ts's catch and, on the client,
+// TrackChangeControl.tsx (mirrors the messageHe/messageEn pattern
+// milestoneController.ts's submitMilestone already uses).
+export class TrackChangeError extends Error {
+  constructor(public messageEn: string, public messageHe: string) {
+    super(messageEn);
+    this.name = 'TrackChangeError';
+  }
+}
+
 function trackOf(projectType: unknown): ProjectTrack {
   return projectType === 'thesis' ? 'thesis' : 'project';
 }
@@ -35,21 +47,25 @@ export async function changeProjectTrack(
 ): Promise<TrackChangeResult> {
   const oldProjectRef = db.collection('projects').doc(oldProjectId);
   const oldSnap = await oldProjectRef.get();
-  if (!oldSnap.exists) throw new Error('Project not found.');
+  if (!oldSnap.exists) throw new TrackChangeError('Project not found.', 'הפרויקט לא נמצא.');
   const oldProject = oldSnap.data()!;
 
   const currentTrack = trackOf(oldProject.projectType);
   if (currentTrack === newTrack) {
-    throw new Error(`Project is already on the ${newTrack} track.`);
+    throw new TrackChangeError(
+      `Project is already on the ${newTrack} track.`,
+      `הפרויקט כבר נמצא במסלול ${newTrack === 'thesis' ? 'תזה' : 'פרויקט'}.`
+    );
   }
   if (oldProject.status === 'track_changed') {
-    throw new Error('This project has already been migrated to a new track.');
+    throw new TrackChangeError('This project has already been migrated to a new track.', 'הפרויקט כבר הועבר למסלול חדש.');
   }
 
+  // Everything below tolerates an empty enrolledStudentIds fine (the
+  // milestone/student-update loops are no-ops on an empty array) — a
+  // project with no students yet still needs to be able to switch track,
+  // so this is never a reason to block the change.
   const enrolledStudentIds: string[] = oldProject.enrolledStudentIds ?? [];
-  if (enrolledStudentIds.length === 0) {
-    throw new Error('Project has no enrolled students to migrate.');
-  }
 
   const newProjectRef = db.collection('projects').doc();
   // Track change (project <-> thesis) is only ever meaningful for masters
@@ -65,7 +81,10 @@ export async function changeProjectTrack(
     oldProject.facultyId, [newDegreeType], [newTrack], oldProject.major ?? null
   );
   if (missing.length > 0) {
-    throw new Error(`No approved workflow template for ${newDegreeType}/${newTrack} in this faculty — approve one in Workflow Templates first.`);
+    throw new TrackChangeError(
+      `No approved workflow template for ${newDegreeType}/${newTrack} in this faculty — approve one in Workflow Templates first.`,
+      `אין תבנית תהליך מאושרת עבור ${newDegreeType === 'masters' ? 'תואר שני' : 'תואר ראשון'}/${newTrack === 'thesis' ? 'תזה' : 'פרויקט'} בפקולטה זו — יש לאשר תבנית תחילה במסך תבניות תהליך.`
+    );
   }
   const newTemplateRef = workflowTemplateRefs[0]!;
   const resolvedTemplate = await getMilestonesForTemplateId(newTemplateRef.templateId);

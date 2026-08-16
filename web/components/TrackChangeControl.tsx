@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 
 export function TrackChangeControl({ projectId, onChanged }: { projectId: string; onChanged?: (newProjectId: string) => void }) {
   const { lang } = useLanguage();
@@ -28,7 +28,13 @@ export function TrackChangeControl({ projectId, onChanged }: { projectId: string
       setDone(res.newProjectId);
       onChanged?.(res.newProjectId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : lang === 'he' ? 'שינוי המסלול נכשל' : 'Failed to change track');
+      // Prefer the server's per-language variant (see trackChange.ts's
+      // TrackChangeError) when it sent one — same pattern as
+      // SubmitMilestoneModal.tsx's milestone-submission error handling.
+      const body = err instanceof ApiError ? (err.body as { messageHe?: string; messageEn?: string } | null) : null;
+      const localized = body?.[lang === 'he' ? 'messageHe' : 'messageEn'];
+      const text = localized ?? (err instanceof ApiError ? err.message : lang === 'he' ? 'שינוי המסלול נכשל' : 'Failed to change track');
+      setError(text);
     } finally {
       setSaving(false);
     }

@@ -6,7 +6,7 @@
 
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { changeProjectTrack, type ProjectTrack } from '../services/trackChange.js';
+import { changeProjectTrack, TrackChangeError, type ProjectTrack } from '../services/trackChange.js';
 
 // Matches CLOCK_PAUSE_ROLES in clockPauseController.ts — this backlog item
 // explicitly names coordinator/program-head as the initiators.
@@ -30,7 +30,11 @@ export const changeTrack = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await changeProjectTrack(projectId, newTrack, req.user.uid, req.user.role, reason);
     return res.status(200).json({ success: true, ...result });
-  } catch (error: any) {
-    return res.status(400).json({ message: error.message || 'Failed to change track.' });
+  } catch (error) {
+    if (error instanceof TrackChangeError) {
+      return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
+    }
+    const message = error instanceof Error ? error.message : 'Failed to change track.';
+    return res.status(400).json({ message });
   }
 };
