@@ -172,13 +172,46 @@ export default function ActiveDashboard({
   };
 
   // ── File picker ────────────────────────────────────────────────────────────
+  // A file name that reaches the server intact (multer never rejects it —
+  // there's no filename-length limit there, and Cloudinary never even sees
+  // the original name, since the upload call doesn't pass use_filename) can
+  // still break somewhere in the multipart request itself once it's long
+  // enough — most commonly a Hebrew name, since Hebrew characters take 2
+  // bytes each in UTF-8, so a name that "looks" short in characters can
+  // still exceed the ~255-byte filename limit most filesystems/HTTP layers
+  // assume. Caught here, before it's ever sent, with a clear message,
+  // instead of a confusing generic "upload failed" once it's already
+  // through the picker.
+  const MAX_FILENAME_BYTES = 150;
+  const tooLongFileName = (name: string): boolean => {
+    let bytes = 0;
+    for (let i = 0; i < name.length; i++) {
+      const code = name.codePointAt(i)!;
+      if (code > 0xffff) i++; // surrogate pair — codePointAt already consumed both units
+      bytes += code <= 0x7f ? 1 : code <= 0x7ff ? 2 : code <= 0xffff ? 3 : 4;
+      if (bytes > MAX_FILENAME_BYTES) return true;
+    }
+    return false;
+  };
+
   const pickFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({ multiple: true });
     if (result.canceled || !result.assets?.length) return;
-    setFiles((prev) => [
-      ...prev,
-      ...result.assets.map((a) => ({ uri: a.uri, name: a.name, mimeType: a.mimeType })),
-    ]);
+    const tooLong = result.assets.filter((a) => tooLongFileName(a.name));
+    const ok = result.assets.filter((a) => !tooLongFileName(a.name));
+    if (tooLong.length > 0) {
+      setSubmitMessage(
+        lang === 'he'
+          ? `שם הקובץ ארוך מדי (מקסימום כ-${MAX_FILENAME_BYTES} תווים באנגלית, פחות בעברית): ${tooLong.map((a) => a.name).join(', ')}. נא לקצר את שם הקובץ ולנסות שוב.`
+          : `File name too long (max ~${MAX_FILENAME_BYTES} characters): ${tooLong.map((a) => a.name).join(', ')}. Please shorten the file name and try again.`
+      );
+    }
+    if (ok.length > 0) {
+      setFiles((prev) => [
+        ...prev,
+        ...ok.map((a) => ({ uri: a.uri, name: a.name, mimeType: a.mimeType })),
+      ]);
+    }
   };
 
   // Absent (a milestone from before this feature existed) keeps today's
