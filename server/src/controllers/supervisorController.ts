@@ -334,6 +334,11 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             status: (m?.status as string | undefined) ?? 'not_created',
             dueDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
             submittedAt: m?.submittedAt?.toDate?.()?.toISOString() ?? null,
+            // The student's submitted files/note for this milestone — lets
+            // the supervisor preview/download them straight from the
+            // project card instead of a separate Grading tab.
+            fileUrls: m?.fileUrls ?? [],
+            submissionNote: m?.submissionNote ?? '',
             // Staff-record config (research_proposal/progress_report only —
             // see workflowTemplates.ts's staffRecordMode) and its current
             // submission, if any.

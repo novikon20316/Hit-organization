@@ -26,8 +26,9 @@ import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { ProjectCard } from '@/app/supervisor/dashboard/ProjectCard';
 import { CommitteesLink } from '@/components/CommitteesLink';
 import { EditProjectModal } from '@/app/supervisor/dashboard/EditProjectModal';
+import { GradeMilestoneModal } from '@/app/supervisor/dashboard/GradeMilestoneModal';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
-import type { MyProject } from '@/app/supervisor/dashboard/types';
+import type { MyProject, SupervisorPendingMilestone } from '@/app/supervisor/dashboard/types';
 
 const PROGRAM_HEAD_ROLES: AppRole[] = ['program_head', 'system_admin'];
 
@@ -73,7 +74,9 @@ export default function ProgramHeadDashboardPage() {
 
   const [tab, setTab] = useState<'students' | 'approvals' | 'supervisors' | 'staff' | 'myProjects'>('students');
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
+  const [pendingGrades, setPendingGrades] = useState<SupervisorPendingMilestone[]>([]);
   const [editingProject, setEditingProject] = useState<MyProject | null>(null);
+  const [gradingTarget, setGradingTarget] = useState<SupervisorPendingMilestone | null>(null);
   const [headName, setHeadName] = useState('');
   const [facultyId, setFacultyId] = useState('');
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -126,6 +129,7 @@ export default function ProgramHeadDashboardPage() {
     try {
       const data = await apiClient.getSupervisorDashboard();
       setMyProjects(data.myProjects as unknown as MyProject[]);
+      setPendingGrades((data.pendingGrades ?? []) as unknown as SupervisorPendingMilestone[]);
     } catch {
       // Non-fatal — the tab just shows an empty list if this fails.
     }
@@ -321,7 +325,14 @@ export default function ProgramHeadDashboardPage() {
           </div>
           <div className="grid gap-3">
             {myProjects.map((p) => (
-              <ProjectCard key={p.id} project={p} onEdit={setEditingProject} onChanged={fetchMyProjects} />
+              <ProjectCard
+                key={p.id}
+                project={p}
+                onEdit={setEditingProject}
+                onChanged={fetchMyProjects}
+                pendingGrades={pendingGrades}
+                onGrade={setGradingTarget}
+              />
             ))}
             {myProjects.length === 0 && (
               <p className="text-sm text-muted">{lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'}</p>
@@ -329,6 +340,14 @@ export default function ProgramHeadDashboardPage() {
           </div>
           {editingProject && (
             <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSaved={fetchMyProjects} />
+          )}
+          {gradingTarget && (
+            <GradeMilestoneModal
+              key={gradingTarget.id}
+              milestone={gradingTarget}
+              onClose={() => setGradingTarget(null)}
+              onGraded={fetchMyProjects}
+            />
           )}
         </div>
       )}

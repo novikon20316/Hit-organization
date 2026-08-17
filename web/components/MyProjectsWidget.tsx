@@ -22,7 +22,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { ProjectCard } from '@/app/supervisor/dashboard/ProjectCard';
 import { EditProjectModal } from '@/app/supervisor/dashboard/EditProjectModal';
-import type { MyProject } from '@/app/supervisor/dashboard/types';
+import { GradeMilestoneModal } from '@/app/supervisor/dashboard/GradeMilestoneModal';
+import type { MyProject, SupervisorPendingMilestone } from '@/app/supervisor/dashboard/types';
 
 export function MyProjectsWidget() {
   const { lang } = useLanguage();
@@ -30,17 +31,22 @@ export function MyProjectsWidget() {
   const isSupervisor = roles.includes('supervisor') || roles.includes('secondary_supervisor');
 
   const [projects, setProjects] = useState<MyProject[]>([]);
+  const [pendingGrades, setPendingGrades] = useState<SupervisorPendingMilestone[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState('');
   const [editingProject, setEditingProject] = useState<MyProject | null>(null);
+  const [gradingTarget, setGradingTarget] = useState<SupervisorPendingMilestone | null>(null);
 
   const fetchProjects = useCallback(() => {
     setLoading(true);
     setError('');
     apiClient
       .getSupervisorDashboard()
-      .then((res) => setProjects((res.myProjects ?? []) as unknown as MyProject[]))
+      .then((res) => {
+        setProjects((res.myProjects ?? []) as unknown as MyProject[]);
+        setPendingGrades((res.pendingGrades ?? []) as unknown as SupervisorPendingMilestone[]);
+      })
       .catch((err) => {
         setProjects([]);
         setError(err instanceof Error ? err.message : lang === 'he' ? 'הטעינה נכשלה' : 'Failed to load');
@@ -82,13 +88,31 @@ export function MyProjectsWidget() {
           ) : projects.length === 0 ? (
             <p className="text-sm text-muted">{lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'}</p>
           ) : (
-            projects.map((p) => <ProjectCard key={p.id} project={p} onEdit={setEditingProject} onChanged={fetchProjects} />)
+            projects.map((p) => (
+              <ProjectCard
+                key={p.id}
+                project={p}
+                onEdit={setEditingProject}
+                onChanged={fetchProjects}
+                pendingGrades={pendingGrades}
+                onGrade={setGradingTarget}
+              />
+            ))
           )}
         </div>
       )}
 
       {editingProject && (
         <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSaved={fetchProjects} />
+      )}
+
+      {gradingTarget && (
+        <GradeMilestoneModal
+          key={gradingTarget.id}
+          milestone={gradingTarget}
+          onClose={() => setGradingTarget(null)}
+          onGraded={fetchProjects}
+        />
       )}
     </div>
   );

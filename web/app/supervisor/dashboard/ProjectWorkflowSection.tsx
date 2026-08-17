@@ -17,11 +17,17 @@ import { apiClient } from '@/lib/apiClient';
 import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
+import { MilestoneFilePanel } from './MilestoneFilePanel';
 import { ProjectStageChain } from '@/components/ProjectStageChain';
-import type { MyProject } from './types';
+import type { MyProject, SupervisorPendingMilestone } from './types';
 
 interface ProjectWorkflowSectionProps {
   project: MyProject;
+  // The dashboard-wide list of milestones awaiting a grade — matched here by
+  // milestone id so the "Grade" action (formerly the standalone Grading tab)
+  // can be triggered straight from this milestone row.
+  pendingGrades: SupervisorPendingMilestone[];
+  onGrade: (milestone: SupervisorPendingMilestone) => void;
 }
 
 interface TemplateMilestone {
@@ -46,6 +52,8 @@ interface StudentMilestoneRow {
   status: string;
   dueDate: string | null;
   submittedAt: string | null;
+  fileUrls: string[];
+  submissionNote: string;
   staffRecordMode: 'none' | 'upload_or_form' | null;
   staffRecordSubmitted: boolean;
   hasFinalGradeComponents: boolean;
@@ -83,7 +91,7 @@ function statusLabel(status: string, lang: 'he' | 'en'): string {
   return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
 }
 
-export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps) {
+export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: ProjectWorkflowSectionProps) {
   const { lang } = useLanguage();
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -94,6 +102,7 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: TemplateMilestone['staffFormFields'] } | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: NonNullable<TemplateMilestone['finalGradeComponents']>['supervisorEvaluation']['components'] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
+  const [previewFor, setPreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
 
   const fetchDetail = useCallback(() => {
     setLoading(true);
@@ -116,23 +125,23 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
   }, [fetchDetail]);
 
   return (
-    <div className="mt-3 border-t border-line pt-3">
-      <p className="mb-2 text-sm font-semibold text-ink">🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}</p>
+    <div className="mt-3 border-t border-[#c5c5d3] pt-3">
+      <p className="mb-2 text-sm font-semibold text-[#1a1b21]">🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}</p>
 
       {loading ? (
-        <p className="text-sm text-muted">…</p>
+        <p className="text-sm text-[#444651]">…</p>
       ) : error ? (
         <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>
       ) : (
         <>
-          <div className="rounded-lg border border-line bg-paper p-3">
-            <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'אבני הדרך של תבנית זו' : 'This template\'s milestones'}</p>
+          <div className="rounded-lg border border-[#c5c5d3] bg-[#eeedf4] p-3">
+            <p className="mb-2 text-sm font-semibold text-[#1a1b21]">{lang === 'he' ? 'אבני הדרך של תבנית זו' : 'This template\'s milestones'}</p>
             <div className="grid gap-1.5">
               {templateMilestones.map((m, idx) => (
                 <div key={m.type} className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EDE9FE] font-bold text-primary">{idx + 1}</span>
-                  <span className="min-w-0 flex-1 truncate font-medium text-ink">{lang === 'he' ? m.nameHe : m.nameEn}</span>
-                  <span className="shrink-0 whitespace-nowrap text-muted">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EDE9FE] font-bold text-[#00236f]">{idx + 1}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium text-[#1a1b21]">{lang === 'he' ? m.nameHe : m.nameEn}</span>
+                  <span className="shrink-0 whitespace-nowrap text-[#444651]">
                     📅 {m.dateMode === 'fixed'
                       ? (lang === 'he' ? `תאריך קבוע: ${m.fixedDate ?? '—'}` : `Fixed: ${m.fixedDate ?? '—'}`)
                       : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
@@ -141,23 +150,23 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
                 </div>
               ))}
               {templateMilestones.length === 0 && (
-                <p className="text-xs text-muted">{lang === 'he' ? 'לא נמצאה תבנית עבור פרויקט זה' : 'No template found for this project'}</p>
+                <p className="text-xs text-[#444651]">{lang === 'he' ? 'לא נמצאה תבנית עבור פרויקט זה' : 'No template found for this project'}</p>
               )}
             </div>
           </div>
 
           <div className="mt-4">
-            <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'סטטוס הגשה לפי סטודנט' : 'Submission status per student'}</p>
+            <p className="mb-2 text-sm font-semibold text-[#1a1b21]">{lang === 'he' ? 'סטטוס הגשה לפי סטודנט' : 'Submission status per student'}</p>
             {students.length === 0 && (
-              <p className="text-sm text-muted">{lang === 'he' ? 'אין סטודנטים רשומים' : 'No enrolled students'}</p>
+              <p className="text-sm text-[#444651]">{lang === 'he' ? 'אין סטודנטים רשומים' : 'No enrolled students'}</p>
             )}
             <div className="grid gap-3">
               {students.map((s) => (
-                <div key={s.studentId} className="rounded-lg border border-line bg-surface p-3">
+                <div key={s.studentId} className="rounded-lg border border-[#c5c5d3] bg-white p-3">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-ink">👤 {s.studentName}</p>
+                    <p className="text-sm font-semibold text-[#1a1b21]">👤 {s.studentName}</p>
                     {s.overallFinalGrade != null && (
-                      <span className="rounded-full bg-[#EDE9FE] px-2.5 py-1 text-xs font-semibold text-primary">
+                      <span className="rounded-full bg-[#EDE9FE] px-2.5 py-1 text-xs font-semibold text-[#00236f]">
                         🎓 {lang === 'he' ? `ציון סופי כולל: ${s.overallFinalGrade}` : `Overall final grade: ${s.overallFinalGrade}`}
                       </span>
                     )}
@@ -166,20 +175,62 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
                     {s.milestones.map((m) => {
                       const spec = templateMilestones.find((t) => t.type === m.type);
                       return (
-                        <div key={m.type} className="border-t border-line py-1.5 first:border-t-0">
+                        <div key={m.type} className="border-t border-[#c5c5d3] py-1.5 first:border-t-0">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="font-medium text-ink">{spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}</span>
+                            {m.fileUrls.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewFor({
+                                    title: spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type,
+                                    subtitle: s.studentName,
+                                    submissionNote: m.submissionNote,
+                                    fileUrls: m.fileUrls,
+                                  })
+                                }
+                                className="font-medium text-[#00236f] hover:underline"
+                              >
+                                {spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}
+                              </button>
+                            ) : (
+                              <span className="font-medium text-[#1a1b21]">{spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}</span>
+                            )}
                             <span className="font-semibold" style={{ color: statusColor(m.status) }}>
                               {statusLabel(m.status, lang)}
                             </span>
                           </div>
+
+                          {/* Grade action/display for ordinary milestones — the
+                              three-rubric defense workflow below handles its own. */}
+                          {!m.hasFinalGradeComponents && m.id && (() => {
+                            const pending = pendingGrades.find((pg) => pg.id === m.id);
+                            if (m.finalGrade != null) {
+                              return (
+                                <p className="mt-1 text-xs font-semibold text-success">
+                                  🎓 {lang === 'he' ? `ציון: ${m.finalGrade}` : `Grade: ${m.finalGrade}`}
+                                </p>
+                              );
+                            }
+                            if (pending) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => onGrade(pending)}
+                                  className="mt-1 text-xs font-medium text-[#00236f] hover:underline"
+                                >
+                                  ✏️ {lang === 'he' ? 'תן ציון' : 'Grade'}
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
 
                           {/* Staff record action (research_proposal/progress_report only). */}
                           {m.staffRecordMode === 'upload_or_form' && m.id && (
                             <button
                               type="button"
                               onClick={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })}
-                              className="mt-1 text-xs font-medium text-primary hover:underline"
+                              className="mt-1 text-xs font-medium text-[#00236f] hover:underline"
                             >
                               {m.staffRecordSubmitted
                                 ? `✓ ${lang === 'he' ? 'רשומת מנחה הוגשה — עדכן' : 'Staff record submitted — update'}`
@@ -200,7 +251,7 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
                                 <button
                                   type="button"
                                   onClick={() => setFinalGradeDecisionFor({ milestoneId: m.id!, autoGrade: m.autoCalculatedFinalGrade! })}
-                                  className="font-medium text-primary hover:underline"
+                                  className="font-medium text-[#00236f] hover:underline"
                                 >
                                   🎓 {lang === 'he' ? `ציון סופי מחושב: ${m.autoCalculatedFinalGrade} — לחץ להחלטה` : `Computed final grade: ${m.autoCalculatedFinalGrade} — click to decide`}
                                 </button>
@@ -208,12 +259,12 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
                                 <button
                                   type="button"
                                   onClick={() => setSupervisorEvalFor({ milestoneId: m.id!, components: spec?.finalGradeComponents?.supervisorEvaluation.components ?? [] })}
-                                  className="font-medium text-primary hover:underline"
+                                  className="font-medium text-[#00236f] hover:underline"
                                 >
                                   📝 {lang === 'he' ? 'הגש הערכת מנחה' : 'Submit supervisor evaluation'}
                                 </button>
                               ) : (
-                                <span className="text-muted">{lang === 'he' ? 'ממתין להערכות בוחנים' : "Waiting on examiners' evaluations"}</span>
+                                <span className="text-[#444651]">{lang === 'he' ? 'ממתין להערכות בוחנים' : "Waiting on examiners' evaluations"}</span>
                               )}
                             </div>
                           )}
@@ -266,6 +317,15 @@ export function ProjectWorkflowSection({ project }: ProjectWorkflowSectionProps)
           autoCalculatedFinalGrade={finalGradeDecisionFor.autoGrade}
           onClose={() => setFinalGradeDecisionFor(null)}
           onDecided={fetchDetail}
+        />
+      )}
+      {previewFor && (
+        <MilestoneFilePanel
+          title={previewFor.title}
+          subtitle={previewFor.subtitle}
+          submissionNote={previewFor.submissionNote}
+          fileUrls={previewFor.fileUrls}
+          onClose={() => setPreviewFor(null)}
         />
       )}
     </div>

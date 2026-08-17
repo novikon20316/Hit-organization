@@ -1,8 +1,9 @@
 'use client';
 
 // app/supervisor/dashboard/page.tsx
-// Ported from mobile/app/supervisor/dashboard.tsx — Applications, Grading,
-// Projects, Deadlines, and Recommend tabs.
+// Ported from mobile/app/supervisor/dashboard.tsx — Applications, Projects,
+// Deadlines, and Recommend tabs. Grading lives inline on each milestone row
+// inside the Projects tab (see ProjectWorkflowSection.tsx), not its own tab.
 
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
@@ -14,12 +15,12 @@ import type { AppRole } from '@/lib/roles';
 import type { FacultyId } from '@/lib/i18n';
 import type { ExaminerUser, ExaminerRecommendation } from '@/app/coordinator/home/types';
 import { ApplicationCard } from './ApplicationCard';
-import { GradingCard } from './GradingCard';
 import { GradeMilestoneModal } from './GradeMilestoneModal';
 import { ProjectCard } from './ProjectCard';
 import { EditProjectModal } from './EditProjectModal';
 import { NewProjectModal } from './NewProjectModal';
 import { RecommendExaminersModal } from './RecommendExaminersModal';
+import { QuickTasksPanel } from './QuickTasksPanel';
 import type { MyProject, Application, SupervisorPendingMilestone } from './types';
 
 const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
@@ -27,7 +28,10 @@ const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 // 'projects' listed first — this page's root container is under
 // dir="rtl" (see app/layout.tsx), so a plain flex row already renders its
 // first child at the visual right edge; no explicit row-reverse needed.
-type Tab = 'projects' | 'applications' | 'grading' | 'recommend' | 'signoffs';
+// No standalone 'grading' tab — grading (and the file preview/download it
+// needs) lives inline on each milestone row inside the Projects tab now, see
+// ProjectWorkflowSection.tsx.
+type Tab = 'projects' | 'applications' | 'recommend' | 'signoffs';
 type ApplicationFilter = 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected';
 type ProjectFilter = 'all' | 'active' | 'offered';
 
@@ -127,7 +131,6 @@ export default function SupervisorDashboardPage() {
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'projects', label: lang === 'he' ? 'הפרויקטים שלי' : 'My Projects' },
     { key: 'applications', label: lang === 'he' ? 'מועמדויות' : 'Applications', count: pendingApplicationsCount },
-    { key: 'grading', label: lang === 'he' ? 'ציונים' : 'Grading', count: pendingGrades.length },
     { key: 'recommend', label: lang === 'he' ? 'המלצת בוחנים' : 'Recommend Examiners' },
     { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
   ];
@@ -141,21 +144,54 @@ export default function SupervisorDashboardPage() {
           <button
             type="button"
             onClick={() => setShowRecommendModal(true)}
-            className="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            className="rounded-[4px] bg-[#00236f] px-4 py-1.5 text-sm font-semibold uppercase tracking-wide text-white hover:bg-[#1e3a8a]"
           >
             + {lang === 'he' ? 'המלצה חדשה' : 'New Recommendation'}
           </button>
         ) : undefined
       }
     >
-      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-line">
+      {/* Academic Precision overview strip — real counts, no new fetches */}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-[8px] border border-[#c5c5d3] bg-white p-4">
+          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#505f76]">
+            {lang === 'he' ? 'הפרויקטים שלי' : 'Active Projects'}
+          </h4>
+          <div className="flex items-end justify-between">
+            <span className="text-4xl font-bold leading-none text-[#1a1b21]">{myProjects.length}</span>
+            <span className="text-2xl">📁</span>
+          </div>
+        </div>
+        <div className="rounded-[8px] border border-[#c5c5d3] bg-white p-4">
+          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#505f76]">
+            {lang === 'he' ? 'מועמדויות ממתינות' : 'Pending Applications'}
+          </h4>
+          <div className="flex items-end justify-between">
+            <span className="text-4xl font-bold leading-none text-[#1a1b21]">{pendingApplicationsCount}</span>
+            <span className="text-2xl">📨</span>
+          </div>
+        </div>
+        <div className="rounded-[8px] border border-l-4 border-[#c5c5d3] border-l-[#00236f] bg-white p-4">
+          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#00236f]">
+            {lang === 'he' ? 'ציונים לבדיקה' : 'Milestones to Review'}
+          </h4>
+          <div className="flex items-end justify-between">
+            <span className="text-4xl font-bold leading-none text-[#1a1b21]">{pendingGrades.length}</span>
+            <span className="text-2xl">⏰</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex-1">
+      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-[#c5c5d3]">
         {tabs.map(({ key, label, count }) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
-            className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+            className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
+              tab === key ? 'border-[#00236f] text-[#00236f]' : 'border-transparent text-[#505f76] hover:text-[#1a1b21]'
             }`}
           >
             {label}
@@ -178,10 +214,10 @@ export default function SupervisorDashboardPage() {
                     key={key}
                     type="button"
                     onClick={() => setApplicationFilter(key)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    className={`shrink-0 rounded-[4px] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
                       applicationFilter === key
-                        ? 'bg-primary text-primary-ink'
-                        : 'bg-paper text-muted hover:text-ink'
+                        ? 'bg-[#00236f] text-white'
+                        : 'bg-[#eeedf4] text-[#505f76] hover:text-[#1a1b21]'
                     }`}
                   >
                     {lang === 'he' ? he : en}
@@ -208,17 +244,6 @@ export default function SupervisorDashboardPage() {
             </>
           )}
 
-          {tab === 'grading' && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {pendingGrades.map((m) => (
-                <GradingCard key={m.id} milestone={m} onGrade={setGradingTarget} />
-              ))}
-              {pendingGrades.length === 0 && (
-                <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין הגשות הממתינות לציון' : 'No submissions awaiting grading'}</p>
-              )}
-            </div>
-          )}
-
           {tab === 'projects' && (
             <>
               <div className="mb-4 flex gap-1 overflow-x-auto">
@@ -227,10 +252,10 @@ export default function SupervisorDashboardPage() {
                     key={key}
                     type="button"
                     onClick={() => setProjectFilter(key)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    className={`shrink-0 rounded-[4px] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
                       projectFilter === key
-                        ? 'bg-primary text-primary-ink'
-                        : 'bg-paper text-muted hover:text-ink'
+                        ? 'bg-[#00236f] text-white'
+                        : 'bg-[#eeedf4] text-[#505f76] hover:text-[#1a1b21]'
                     }`}
                   >
                     {lang === 'he' ? he : en}
@@ -239,7 +264,14 @@ export default function SupervisorDashboardPage() {
               </div>
               <div className="grid gap-3 pb-20">
                 {filteredProjects.map((p) => (
-                  <ProjectCard key={p.id} project={p} onEdit={setEditingProject} onChanged={fetchDashboard} />
+                  <ProjectCard
+                    key={p.id}
+                    project={p}
+                    onEdit={setEditingProject}
+                    onChanged={fetchDashboard}
+                    pendingGrades={pendingGrades}
+                    onGrade={setGradingTarget}
+                  />
                 ))}
                 {filteredProjects.length === 0 && (
                   <p className="text-sm text-muted">
@@ -260,15 +292,15 @@ export default function SupervisorDashboardPage() {
           {tab === 'recommend' && (
             <div className="grid gap-3 sm:grid-cols-2">
               {recommendations.map((rec) => (
-                <div key={rec.id} className="rounded-[var(--radius)] border border-line bg-surface p-4">
-                  <p className="text-sm font-semibold text-ink">{lang === 'he' ? rec.projectTitleHe : rec.projectTitleEn}</p>
-                  <p className="mt-1 text-xs text-muted">
+                <div key={rec.id} className="rounded-[8px] border border-[#c5c5d3] bg-white p-4">
+                  <p className="text-sm font-semibold text-[#1a1b21]">{lang === 'he' ? rec.projectTitleHe : rec.projectTitleEn}</p>
+                  <p className="mt-1 text-xs text-[#444651]">
                     👥 {rec.recommendedExaminers?.length ?? 0} {lang === 'he' ? 'בוחנים הומלצו' : 'examiners recommended'}
                   </p>
                 </div>
               ))}
               {recommendations.length === 0 && (
-                <p className="text-sm text-muted">👥 {lang === 'he' ? 'לא נשלחו המלצות בוחנים' : 'No examiner recommendations sent yet'}</p>
+                <p className="text-sm text-[#444651]">👥 {lang === 'he' ? 'לא נשלחו המלצות בוחנים' : 'No examiner recommendations sent yet'}</p>
               )}
             </div>
           )}
@@ -276,6 +308,12 @@ export default function SupervisorDashboardPage() {
           {tab === 'signoffs' && <PendingSignoffsWidget showEmptyState />}
         </>
       )}
+      </div>
+
+      <div className="w-full shrink-0 lg:w-80">
+        <QuickTasksPanel myProjects={myProjects} applications={applications} />
+      </div>
+      </div>
 
       {gradingTarget && (
         <GradeMilestoneModal
@@ -295,12 +333,12 @@ export default function SupervisorDashboardPage() {
       )}
 
       {tab === 'projects' && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-4 py-3">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#c5c5d3] bg-white px-4 py-3">
           <div className="mx-auto max-w-6xl">
             <button
               type="button"
               onClick={() => setShowNewProject(true)}
-              className="w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+              className="w-full rounded-[4px] bg-[#00236f] py-3 text-sm font-semibold uppercase tracking-wide text-white hover:bg-[#1e3a8a]"
             >
               + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
             </button>

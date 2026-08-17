@@ -10,7 +10,7 @@ import { facultyLabel } from '@/lib/i18n';
 import { ProjectWorkflowSection } from './ProjectWorkflowSection';
 import { RequestErasureModal } from './RequestErasureModal';
 import type { FacultyId } from '@/lib/i18n';
-import type { MyProject } from './types';
+import type { MyProject, SupervisorPendingMilestone } from './types';
 
 // Due-date urgency border color — green: more than a week left, orange:
 // 1-7 days left, red: due today or already past due. Matches the same
@@ -30,15 +30,18 @@ interface ProjectCardProps {
   project: MyProject;
   onEdit: (project: MyProject) => void;
   onChanged: () => void;
+  pendingGrades: SupervisorPendingMilestone[];
+  onGrade: (milestone: SupervisorPendingMilestone) => void;
 }
 
-export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps) {
+export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGrade }: ProjectCardProps) {
   const { lang, t } = useLanguage();
   const router = useRouter();
   const facultyColor = getFacultyColor(p.facultyId);
   const [showRequestErasure, setShowRequestErasure] = useState(false);
   const [messagingId, setMessagingId] = useState<string | null>(null);
   const [messageError, setMessageError] = useState('');
+  const [expanded, setExpanded] = useState(false);
 
   // Same reasoning as ApplicationCard.tsx's messageStudent — the chat
   // backend only needs the student's uid (no email/phone required), so an
@@ -60,28 +63,38 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
   const urgencyColor = urgency ? URGENCY_COLOR[urgency] : 'transparent';
 
   return (
-    <div className="rounded-[calc(var(--radius)+4px)] p-1" style={{ border: `2px solid ${urgencyColor}` }}>
-    <div className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
-      <div className="flex items-center gap-1.5">
-        <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}>
-          {facultyLabel(p.facultyId as FacultyId, lang)}
-        </span>
-        <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
-          {PROJECT_STATUS_LABEL[p.status]?.[lang] ?? p.status}
-        </span>
-      </div>
-      <p className="mt-2 text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe : p.titleEn}</p>
-      <p className="mt-1 text-xs text-muted">
-        {p.degreeType === 'bachelors' ? t('bachelors') : t('masters')} ·{' '}
-        {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'} ·{' '}
-        {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}
-      </p>
+    <div className="rounded-[12px] p-1" style={{ border: `2px solid ${urgencyColor}` }}>
+    <div className="role-rail rounded-[8px] border border-[#c5c5d3] bg-white p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        className="block w-full text-left"
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}>
+            {facultyLabel(p.facultyId as FacultyId, lang)}
+          </span>
+          <span className="rounded-[4px] bg-[#eeedf4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#1a1b21]">
+            {PROJECT_STATUS_LABEL[p.status]?.[lang] ?? p.status}
+          </span>
+          <span className="ml-auto text-xs text-[#757682]">{expanded ? '▲' : '▼'}</span>
+        </div>
+        <p className="mt-2 text-sm font-semibold text-[#1a1b21]">{lang === 'he' ? p.titleHe : p.titleEn}</p>
+        <p className="mt-1 text-xs text-[#444651]">
+          {p.degreeType === 'bachelors' ? t('bachelors') : t('masters')} ·{' '}
+          {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'} ·{' '}
+          {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}
+        </p>
+      </button>
 
+      {expanded && (
+      <>
       {(p.enrolledStudents?.length ?? 0) > 0 && (
         <div className="mt-1.5 grid gap-0.5">
           {p.enrolledStudents!.map((s) => (
             <div key={s.id} className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted">
+              <p className="text-xs text-[#444651]">
                 👤 {s.name || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable')}
                 {s.degreeType ? ` · ${s.degreeType === 'bachelors' ? t('bachelors') : t('masters')}` : ''}
                 {s.yearOfStudy ? ` · ${lang === 'he' ? 'שנה' : 'Year'} ${s.yearOfStudy}` : ''}
@@ -90,7 +103,7 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
                 type="button"
                 onClick={() => messageStudent(s.id, s.name)}
                 disabled={messagingId === s.id}
-                className="shrink-0 text-xs font-medium text-primary hover:underline disabled:opacity-60"
+                className="shrink-0 text-xs font-medium text-[#00236f] hover:underline disabled:opacity-60"
               >
                 💬 {messagingId === s.id ? '…' : lang === 'he' ? 'הודעה' : 'Message'}
               </button>
@@ -127,7 +140,7 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
         <button
           type="button"
           onClick={() => onEdit(p)}
-          className="flex-1 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+          className="flex-1 rounded-[4px] border border-[#c5c5d3] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[#505f76] hover:border-[#00236f] hover:text-[#00236f]"
         >
           {lang === 'he' ? 'עריכה' : 'Edit'}
         </button>
@@ -140,7 +153,9 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
         </button>
       </div>
 
-      <ProjectWorkflowSection project={p} />
+      <ProjectWorkflowSection project={p} pendingGrades={pendingGrades} onGrade={onGrade} />
+      </>
+      )}
 
       {showRequestErasure && (
         <RequestErasureModal project={p} onClose={() => setShowRequestErasure(false)} onSubmitted={onChanged} />

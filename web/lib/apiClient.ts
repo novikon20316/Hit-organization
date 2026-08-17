@@ -1190,6 +1190,8 @@ export const apiClient = {
           status: string;
           dueDate: string | null;
           submittedAt: string | null;
+          fileUrls: string[];
+          submissionNote: string;
           staffRecordMode: 'none' | 'upload_or_form' | null;
           staffRecordSubmitted: boolean;
           hasFinalGradeComponents: boolean;
