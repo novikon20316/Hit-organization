@@ -197,6 +197,19 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
   const [sort, setSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [logisticsTarget, setLogisticsTarget] = useState<{ project: Project; milestone: AssignedMilestone } | null>(null);
   const [conflictTarget, setConflictTarget] = useState<AssignedMilestone | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d;
+  });
+
+  // Only these three kinds carry a real, confirmed defense date — the rest
+  // (setup/stuckPending/awaitingDate/conflict) have no date yet, so a
+  // calendar can't place them; they stay in the list below.
+  const datedCards = useMemo(
+    () => cards.filter((c) => (c.kind === 'dateSet' || c.kind === 'scheduledUpcoming' || c.kind === 'expiredUngraded') && c.milestone),
+    [cards]
+  );
 
   const sortedCards = useMemo(() => {
     const copy = [...cards];
@@ -236,8 +249,109 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
     });
   };
 
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstWeekday = new Date(year, month, 1).getDay(); // 0 = Sunday
+  const monthLabel = calendarMonth.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { month: 'long', year: 'numeric' });
+  const weekdayLabels = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(2024, 0, 7 + i); // a known Sun..Sat week
+    return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { weekday: 'short' });
+  });
+
+  const cardsByDay = useMemo(() => {
+    const map = new Map<number, DefenseCard[]>();
+    for (const c of datedCards) {
+      const d = parseServerDate(c.milestone!.dueDate);
+      if (!d || d.getFullYear() !== year || d.getMonth() !== month) continue;
+      const day = d.getDate();
+      if (!map.has(day)) map.set(day, []);
+      map.get(day)!.push(c);
+    }
+    return map;
+  }, [datedCards, year, month]);
+
+  const totalCells = firstWeekday + daysInMonth;
+  const cellCount = Math.ceil(totalCells / 7) * 7;
+
   return (
     <div>
+      {/* Defense date calendar — visualizes every confirmed/scheduled defense date this month */}
+      <div className="mb-5 overflow-hidden rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest">
+        <div className="flex items-center justify-between border-b border-coordinator-outline-variant bg-coordinator-surface-container-low px-4 py-2.5">
+          <h3 className="text-sm font-bold text-coordinator-on-surface">{monthLabel}</h3>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setCalendarMonth(new Date(year, month - 1, 1))}
+              className="rounded-coordinator border border-coordinator-outline-variant px-2 py-1 text-xs text-coordinator-secondary hover:bg-coordinator-surface-container-lowest"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarMonth(new Date())}
+              className="rounded-coordinator border border-coordinator-outline-variant px-2 py-1 text-xs text-coordinator-secondary hover:bg-coordinator-surface-container-lowest"
+            >
+              {lang === 'he' ? 'היום' : 'Today'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarMonth(new Date(year, month + 1, 1))}
+              className="rounded-coordinator border border-coordinator-outline-variant px-2 py-1 text-xs text-coordinator-secondary hover:bg-coordinator-surface-container-lowest"
+            >
+              ›
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-7 border-b border-coordinator-outline-variant bg-coordinator-surface-container-low">
+          {weekdayLabels.map((wd) => (
+            <div
+              key={wd}
+              className="border-e border-coordinator-outline-variant py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-coordinator-secondary last:border-e-0"
+            >
+              {wd}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-px bg-coordinator-outline-variant">
+          {Array.from({ length: cellCount }, (_, i) => {
+            const dayNum = i - firstWeekday + 1;
+            const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
+            const dayCards = inMonth ? (cardsByDay.get(dayNum) ?? []) : [];
+            return (
+              <div
+                key={i}
+                className={`min-h-[86px] p-1.5 ${inMonth ? 'bg-coordinator-surface-container-lowest' : 'bg-coordinator-surface-container-low text-coordinator-outline-variant'}`}
+              >
+                {inMonth && <span className="text-xs text-coordinator-on-surface-variant">{dayNum}</span>}
+                <div className="mt-1 grid gap-1">
+                  {dayCards.map((c) => {
+                    const accent = getDefenseAccent(c);
+                    const title = lang === 'he' ? c.titleHe : c.titleEn;
+                    const clickable = c.kind === 'dateSet' && c.project && c.milestone;
+                    return (
+                      <button
+                        key={c.key}
+                        type="button"
+                        disabled={!clickable}
+                        onClick={() => clickable && setLogisticsTarget({ project: c.project!, milestone: c.milestone! })}
+                        title={title}
+                        className="truncate rounded-coordinator-sm px-1 py-0.5 text-start text-[10px] leading-tight text-white disabled:cursor-default"
+                        style={{ backgroundColor: accent }}
+                      >
+                        {c.milestone?.defenseTime ? `${c.milestone.defenseTime} ` : ''}
+                        {title}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-1.5">
         {(
           [
