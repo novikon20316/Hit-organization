@@ -43,10 +43,17 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
 
   const me = meSnap.data() || {};
   const myRole = me.role ?? '';
+  // A dual-role account (e.g. a coordinator who's ALSO a supervisor on their
+  // own projects — the exact case that just hit "Forbidden." trying to
+  // message an enrolled student) has 'supervisor' in `roles`, not as their
+  // primary `role` — every check below needs the FULL set, not just the
+  // single highest-ranked role, same fix already applied to
+  // resolveActiveRole/getUserRoles on the client for this identical bug shape.
+  const myRoles = new Set<string>([myRole, ...((me.roles as string[] | undefined) ?? [])]);
   const myFaculty = me.facultyId ?? '';
   const activeProjectId = me.activeProjectId ?? null;
 
-  if (myRole === 'system_admin') return 'all';
+  if (myRoles.has('system_admin')) return 'all';
 
   if (myRole === 'student') {
     const ids = new Set<string>();
@@ -65,12 +72,12 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
   // whatever relationship-specific contacts this particular role also gets.
   const ids = await getAllStaffIds(uid);
 
-  if (myRole === 'faculty_admin') {
+  if (myRoles.has('faculty_admin')) {
     const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
     snap.docs.forEach((d) => { if (d.id !== uid) ids.add(d.id); });
   }
 
-  if (myRole === 'supervisor' || myRole === 'secondary_supervisor') {
+  if (myRoles.has('supervisor') || myRoles.has('secondary_supervisor')) {
     const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
     appsSnap.docs.forEach((d) => ids.add(d.data().studentId as string));
     // Applications alone miss a student enrolled without ever applying
@@ -369,6 +376,12 @@ export const getChatCandidates = async (req: Request, res: Response) => {
 
     const me = meSnap.data() || {};
     const myRole = me.role ?? '';
+    // Same dual-role fix as getEligiblePartnerIds above — a coordinator who's
+    // ALSO a supervisor on their own projects has 'supervisor' in `roles`,
+    // not as their primary `role`, so the sub-checks below (which gate
+    // whether their own students even show up as chat candidates) must
+    // check the full set, not just the single highest-ranked role.
+    const myRoles = new Set<string>([myRole, ...((me.roles as string[] | undefined) ?? [])]);
     const myFaculty = me.facultyId ?? '';
     const activeProjectId = me.activeProjectId ?? null;
 
@@ -412,7 +425,7 @@ export const getChatCandidates = async (req: Request, res: Response) => {
       staffSnap.forEach(addDoc);
 
       // --- Faculty Admins additionally see everyone (staff or student) in their own faculty ---
-      if (myRole === 'faculty_admin') {
+      if (myRoles.has('faculty_admin')) {
         const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
         snap.forEach(addDoc);
       }
@@ -424,7 +437,7 @@ export const getChatCandidates = async (req: Request, res: Response) => {
       // which this candidate list must stay in sync with: findOrCreateDirectChat
       // enforces THAT list, so a student missing HERE but present there
       // would be messageable yet invisible in the "+" picker). ---
-      if (myRole === 'supervisor' || myRole === 'secondary_supervisor') {
+      if (myRoles.has('supervisor') || myRoles.has('secondary_supervisor')) {
         const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
         const studentIds = new Set<string>(appsSnap.docs.map((d) => d.data().studentId as string));
 
