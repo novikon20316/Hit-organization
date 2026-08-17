@@ -36,14 +36,25 @@ export function MyApplicationsWidget() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  // A silently-swallowed fetch failure (auth token issue, network error, a
+  // real server error) used to look IDENTICAL to "genuinely zero
+  // applications" — indistinguishable from here, and from the outside,
+  // exactly the symptom this widget exists to fix in the first place. Now
+  // surfaced instead of hidden behind an empty state.
+  const [error, setError] = useState('');
 
   const fetchApplications = useCallback(() => {
     setLoading(true);
+    setError('');
     apiClient
       .getSupervisorDashboard()
       .then((res) => setApplications((res.applications ?? []) as unknown as Application[]))
-      .catch(() => setApplications([]))
+      .catch((err) => {
+        setApplications([]);
+        setError(err instanceof Error ? err.message : lang === 'he' ? 'הטעינה נכשלה' : 'Failed to load');
+      })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lang is read once per call, not a reactive dependency worth re-binding the callback over
   }, []);
 
   useEffect(() => {
@@ -63,6 +74,11 @@ export function MyApplicationsWidget() {
           {pending.length > 0 && (
             <span className="ms-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">{pending.length}</span>
           )}
+          {error && !loading && (
+            <span className="ms-2 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-bold text-danger">
+              ⚠️ {lang === 'he' ? 'שגיאת טעינה' : 'Load error'}
+            </span>
+          )}
         </span>
         <span className="text-xs text-muted">{expanded ? '▲' : '▼'}</span>
       </button>
@@ -71,6 +87,8 @@ export function MyApplicationsWidget() {
         <div className="mt-3 grid gap-2 border-t border-line pt-3 sm:grid-cols-2">
           {loading ? (
             <p className="text-sm text-muted">…</p>
+          ) : error ? (
+            <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger sm:col-span-2">{error}</p>
           ) : pending.length === 0 ? (
             <p className="text-sm text-muted">{lang === 'he' ? '✅ אין בקשות הממתינות לטיפולך' : '✅ No applications awaiting your response'}</p>
           ) : (
