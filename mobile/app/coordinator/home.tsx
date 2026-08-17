@@ -64,7 +64,7 @@ export default function CoordinatorHome() {
   const [loading, setLoading]     = useState(true);
   
   const { activeRole } = useActiveRole();
-  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived'>('inProgress');
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
@@ -778,9 +778,12 @@ export default function CoordinatorHome() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
+          // Listed (and defaulted to, see the useState above) first,
+          // matching the same change on web's coordinator dashboard — the
+          // Active Projects tab is now the landing tab there too.
+          { key: 'inProgress', heLabel: 'פרויקטים פעילים', enLabel: 'In Progress',       badge: inProgressProjects.length },
           { key: 'pending', heLabel: 'ממתין לאישור', enLabel: 'Pending Approval', badge: pendingMilestones.length },
           { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: sortedDefenseCards.length },
-          { key: 'inProgress', heLabel: 'פרויקטים פעילים', enLabel: 'In Progress',       badge: inProgressProjects.length },
           { key: 'recommendations', heLabel: 'המלצות בוחנים', enLabel: 'Examiner Recs', badge: examinerRecs.length },
           { key: 'signoffs', heLabel: 'ממתין לאישורך', enLabel: 'Awaiting Your Sign-off', badge: 0 },
         ] as const).map((tab) => (

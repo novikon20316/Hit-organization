@@ -38,7 +38,7 @@ export default function CoordinatorHomePage() {
   const { activeRole } = useAuth();
   const { lang, t } = useLanguage();
 
-  const [tab, setTab] = useState<Tab>('pending');
+  const [tab, setTab] = useState<Tab>('inProgress');
   const [allMilestones, setAllMilestones] = useState<CoordinatorPendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [examiners, setExaminers] = useState<ExaminerUser[]>([]);
@@ -127,9 +127,16 @@ export default function CoordinatorHomePage() {
   );
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
+    // Listed first — same "the page is dir='rtl', so a plain flex row
+    // renders its first child at the visual right edge" convention as
+    // InProgressTab's own project-card ordering. This is also the default
+    // landing tab (see the useState above) — where MyApplicationsWidget
+    // lives, so a coordinator who's also a supervisor sees their own
+    // pending applications immediately instead of only after finding this
+    // tab on their own (see the "still shows 0" investigation this fixes).
+    { key: 'inProgress', label: lang === 'he' ? 'פרויקטים פעילים' : 'In Progress', count: inProgressProjects.length },
     { key: 'pending', label: lang === 'he' ? 'ממתינים לאישור' : 'Pending Approval', count: pendingMilestones.length },
     { key: 'defense', label: lang === 'he' ? 'הגנות' : 'Defenses', count: defenseCards.length },
-    { key: 'inProgress', label: lang === 'he' ? 'פרויקטים פעילים' : 'In Progress', count: inProgressProjects.length },
     { key: 'deadlines', label: lang === 'he' ? 'מועדי הגשה' : 'Deadlines' },
     { key: 'recommendations', label: lang === 'he' ? 'המלצות בוחנים' : 'Examiner Recommendations', count: recommendations.length },
     { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
