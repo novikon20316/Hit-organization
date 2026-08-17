@@ -32,6 +32,7 @@ import { EnrollStudentModal } from './EnrollStudentModal';
 import { NewProjectModal } from './NewProjectModal';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
+import { MyProjectsWidget } from '@/components/MyProjectsWidget';
 import { DeadlinesTab } from './DeadlinesTab';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline } from './types';
@@ -170,6 +171,9 @@ export default function FacultyAdminDashboardPage() {
         <div>
           <div className="mb-3">
             <MyApplicationsWidget />
+          </div>
+          <div className="mb-3">
+            <MyProjectsWidget />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {projects.map((p) => (

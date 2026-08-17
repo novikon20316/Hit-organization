@@ -27,6 +27,7 @@ import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStat
 import { ArchivedProjectsTab } from '@/components/ArchivedProjectsTab';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
+import { MyProjectsWidget } from '@/components/MyProjectsWidget';
 import type { CoordinatorDeadline, CoordinatorPendingMilestone, ExaminerRecommendation, ExaminerUser, InProgressProject, Project } from './types';
 
 const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
@@ -219,6 +220,9 @@ export default function CoordinatorHomePage() {
           <CreateOwnProjectButton onCreated={fetchAll} />
           <div className="mt-3">
             <MyApplicationsWidget />
+          </div>
+          <div className="mt-3">
+            <MyProjectsWidget />
           </div>
           <div className="mt-3">
             <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} onChanged={fetchAll} />

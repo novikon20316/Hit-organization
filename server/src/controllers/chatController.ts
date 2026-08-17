@@ -70,9 +70,21 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
     snap.docs.forEach((d) => { if (d.id !== uid) ids.add(d.id); });
   }
 
-  if (myRole === 'supervisor') {
+  if (myRole === 'supervisor' || myRole === 'secondary_supervisor') {
     const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
     appsSnap.docs.forEach((d) => ids.add(d.data().studentId as string));
+    // Applications alone miss a student enrolled without ever applying
+    // (direct admin enrollment — see adminController.ts/facultyAdminController.ts's
+    // enrollStudentInProject) — every application doc persists forever
+    // (never deleted, see applicationController.ts), so this only ever ADDS
+    // coverage, it never needs to replace the applications-based check above.
+    const [ownedSnap, secondarySnap] = await Promise.all([
+      db.collection('projects').where('supervisorId', '==', uid).get(),
+      db.collection('projects').where('secondarySupervisorId', '==', uid).get(),
+    ]);
+    [...ownedSnap.docs, ...secondarySnap.docs].forEach((d) => {
+      (d.data().enrolledStudentIds ?? []).forEach((sid: string) => ids.add(sid));
+    });
   }
 
   return ids;
@@ -405,14 +417,29 @@ export const getChatCandidates = async (req: Request, res: Response) => {
         snap.forEach(addDoc);
       }
 
-      // --- Supervisors additionally see students linked via applications ---
-      if (myRole === 'supervisor') {
+      // --- Supervisors (and co-supervisors) additionally see students
+      // linked via applications, plus anyone actually enrolled in one of
+      // their projects even without an application doc (direct admin
+      // enrollment — see getEligiblePartnerIds's identical fix above,
+      // which this candidate list must stay in sync with: findOrCreateDirectChat
+      // enforces THAT list, so a student missing HERE but present there
+      // would be messageable yet invisible in the "+" picker). ---
+      if (myRole === 'supervisor' || myRole === 'secondary_supervisor') {
         const appsSnap = await db.collection('applications').where('supervisorId', '==', uid).get();
-        const studentIds = [...new Set(appsSnap.docs.map((d) => d.data().studentId as string))];
+        const studentIds = new Set<string>(appsSnap.docs.map((d) => d.data().studentId as string));
 
-        if (studentIds.length > 0) {
+        const [ownedSnap, secondarySnap] = await Promise.all([
+          db.collection('projects').where('supervisorId', '==', uid).get(),
+          db.collection('projects').where('secondarySupervisorId', '==', uid).get(),
+        ]);
+        [...ownedSnap.docs, ...secondarySnap.docs].forEach((d) => {
+          (d.data().enrolledStudentIds ?? []).forEach((sid: string) => studentIds.add(sid));
+        });
+
+        const idList = [...studentIds];
+        if (idList.length > 0) {
           // Firestore 'in' queries are capped at groups of 30, chunks handles safeguards
-          const studentSnaps = await db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', studentIds.slice(0, 30)).get();
+          const studentSnaps = await db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', idList.slice(0, 30)).get();
           studentSnaps.forEach(addDoc);
         }
       }

@@ -28,6 +28,22 @@ import { apiClient } from '@/lib/apiClient';
 import { ApplicationCard } from '@/app/supervisor/dashboard/ApplicationCard';
 import type { Application } from '@/app/supervisor/dashboard/types';
 
+// Buckets, not strict status equality — 'awaiting_student_confirmation' (she
+// already said yes; the student hasn't confirmed which of possibly several
+// approvals to start yet — see applicationController.ts's
+// confirmApplicationStart) reads as "approved" from her side, and
+// 'declined_by_student' reads as "rejected" outcome-wise, even though
+// neither is a status SHE set directly. Same data as the full
+// /supervisor/dashboard Applications tab (getSupervisorDashboard returns
+// every status, unfiltered) — this is just a compact view of the same history.
+type Filter = 'pending' | 'approved' | 'rejected' | 'all';
+const FILTERS: { key: Filter; he: string; en: string; match: (status: string) => boolean }[] = [
+  { key: 'pending', he: 'ממתין לטיפול', en: 'Awaiting Response', match: (s) => s === 'applied' || s === 'meeting_requested' },
+  { key: 'approved', he: 'אושרו', en: 'Approved', match: (s) => s === 'approved' || s === 'awaiting_student_confirmation' },
+  { key: 'rejected', he: 'נדחו', en: 'Rejected', match: (s) => s === 'rejected' || s === 'declined_by_student' },
+  { key: 'all', he: 'הכל', en: 'All', match: () => true },
+];
+
 export function MyApplicationsWidget() {
   const { lang } = useLanguage();
   const { roles } = useAuth();
@@ -36,6 +52,7 @@ export function MyApplicationsWidget() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const [filter, setFilter] = useState<Filter>('pending');
   // A silently-swallowed fetch failure (auth token issue, network error, a
   // real server error) used to look IDENTICAL to "genuinely zero
   // applications" — indistinguishable from here, and from the outside,
@@ -64,15 +81,20 @@ export function MyApplicationsWidget() {
 
   if (!isSupervisor) return null;
 
-  const pending = applications.filter((a) => a.status === 'applied' || a.status === 'meeting_requested');
+  // The header badge always counts what needs HER action, regardless of
+  // which filter is currently selected below — switching to "Approved" to
+  // check on a student shouldn't make the actionable count disappear.
+  const pendingCount = applications.filter((a) => a.status === 'applied' || a.status === 'meeting_requested').length;
+  const activeFilter = FILTERS.find((f) => f.key === filter)!;
+  const filtered = applications.filter((a) => activeFilter.match(a.status));
 
   return (
     <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
       <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-center justify-between gap-2 text-start">
         <span className="text-sm font-semibold text-ink">
           📥 {lang === 'he' ? 'בקשות לפרויקטים שלי (כמנחה)' : 'Applications to My Projects (as Supervisor)'}
-          {pending.length > 0 && (
-            <span className="ms-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">{pending.length}</span>
+          {pendingCount > 0 && (
+            <span className="ms-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">{pendingCount}</span>
           )}
           {error && !loading && (
             <span className="ms-2 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-bold text-danger">
@@ -84,16 +106,36 @@ export function MyApplicationsWidget() {
       </button>
 
       {expanded && (
-        <div className="mt-3 grid gap-2 border-t border-line pt-3 sm:grid-cols-2">
-          {loading ? (
-            <p className="text-sm text-muted">…</p>
-          ) : error ? (
-            <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger sm:col-span-2">{error}</p>
-          ) : pending.length === 0 ? (
-            <p className="text-sm text-muted">{lang === 'he' ? '✅ אין בקשות הממתינות לטיפולך' : '✅ No applications awaiting your response'}</p>
-          ) : (
-            pending.map((app) => <ApplicationCard key={app.id} application={app} onDecided={fetchApplications} />)
-          )}
+        <div className="mt-3 border-t border-line pt-3">
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilter(f.key)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                  filter === f.key ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'
+                }`}
+              >
+                {lang === 'he' ? f.he : f.en}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {loading ? (
+              <p className="text-sm text-muted">…</p>
+            ) : error ? (
+              <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger sm:col-span-2">{error}</p>
+            ) : filtered.length === 0 ? (
+              <p className="text-sm text-muted">
+                {filter === 'pending'
+                  ? (lang === 'he' ? '✅ אין בקשות הממתינות לטיפולך' : '✅ No applications awaiting your response')
+                  : (lang === 'he' ? 'אין בקשות בקטגוריה זו' : 'No applications in this category')}
+              </p>
+            ) : (
+              filtered.map((app) => <ApplicationCard key={app.id} application={app} onDecided={fetchApplications} />)
+            )}
+          </div>
         </div>
       )}
     </div>

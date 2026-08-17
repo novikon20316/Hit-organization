@@ -2,6 +2,7 @@
 
 // app/supervisor/dashboard/ApplicationCard.tsx
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { Application } from './types';
@@ -53,9 +54,28 @@ interface ApplicationCardProps {
 
 export function ApplicationCard({ application: app, onDecided }: ApplicationCardProps) {
   const { lang } = useLanguage();
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [messaging, setMessaging] = useState(false);
   const [error, setError] = useState('');
+
+  // Backend already permits supervisor<->applicant messaging the moment an
+  // application exists (chatController.ts's getEligiblePartnerIds) — no
+  // project/application context is carried by the chat doc itself, so this
+  // just opens (or resumes) the same plain 1:1 thread the global Notifications
+  // "+" inbox would produce, from directly where the context actually is.
+  const messageStudent = async () => {
+    setMessaging(true);
+    setError('');
+    try {
+      const { chatId } = await apiClient.findOrCreateDirectChat(app.studentId);
+      router.push(`/message/${chatId}?otherName=${encodeURIComponent(app.studentName)}&otherRole=${encodeURIComponent('student')}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'פתיחת השיחה נכשלה' : 'Failed to open chat');
+      setMessaging(false);
+    }
+  };
 
   const submittedDate = (() => {
     if (!app.submittedAt) return null;
@@ -154,6 +174,14 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
                 📋 {lang === 'he' ? 'קורות חיים' : 'CV'}
               </a>
             )}
+            <button
+              type="button"
+              onClick={messageStudent}
+              disabled={messaging}
+              className="rounded-full border border-line bg-paper px-2.5 py-1 text-xs font-medium text-ink hover:border-primary hover:text-primary disabled:opacity-60"
+            >
+              💬 {messaging ? '…' : lang === 'he' ? 'שלח הודעה' : 'Message'}
+            </button>
           </div>
 
           {app.aiScreening && screening && (

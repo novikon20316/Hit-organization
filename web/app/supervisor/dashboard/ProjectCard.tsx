@@ -2,6 +2,7 @@
 
 // app/supervisor/dashboard/ProjectCard.tsx
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
@@ -33,8 +34,27 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps) {
   const { lang, t } = useLanguage();
+  const router = useRouter();
   const facultyColor = getFacultyColor(p.facultyId);
   const [showRequestErasure, setShowRequestErasure] = useState(false);
+  const [messagingId, setMessagingId] = useState<string | null>(null);
+  const [messageError, setMessageError] = useState('');
+
+  // Same reasoning as ApplicationCard.tsx's messageStudent — the chat
+  // backend only needs the student's uid (no email/phone required), so an
+  // enrolled student can be messaged from here with no new server-side
+  // contact field, even though MyProjectEnrolledStudent never carries one.
+  const messageStudent = async (studentId: string, studentName: string) => {
+    setMessagingId(studentId);
+    setMessageError('');
+    try {
+      const { chatId } = await apiClient.findOrCreateDirectChat(studentId);
+      router.push(`/message/${chatId}?otherName=${encodeURIComponent(studentName)}&otherRole=${encodeURIComponent('student')}`);
+    } catch (err) {
+      setMessagingId(null);
+      setMessageError(err instanceof Error ? err.message : lang === 'he' ? 'פתיחת השיחה נכשלה' : 'Failed to open chat');
+    }
+  };
 
   const urgency = p.currentMilestone?.urgency ?? null;
   const urgencyColor = urgency ? URGENCY_COLOR[urgency] : 'transparent';
@@ -60,14 +80,26 @@ export function ProjectCard({ project: p, onEdit, onChanged }: ProjectCardProps)
       {(p.enrolledStudents?.length ?? 0) > 0 && (
         <div className="mt-1.5 grid gap-0.5">
           {p.enrolledStudents!.map((s) => (
-            <p key={s.id} className="text-xs text-muted">
-              👤 {s.name || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable')}
-              {s.degreeType ? ` · ${s.degreeType === 'bachelors' ? t('bachelors') : t('masters')}` : ''}
-              {s.yearOfStudy ? ` · ${lang === 'he' ? 'שנה' : 'Year'} ${s.yearOfStudy}` : ''}
-            </p>
+            <div key={s.id} className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted">
+                👤 {s.name || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable')}
+                {s.degreeType ? ` · ${s.degreeType === 'bachelors' ? t('bachelors') : t('masters')}` : ''}
+                {s.yearOfStudy ? ` · ${lang === 'he' ? 'שנה' : 'Year'} ${s.yearOfStudy}` : ''}
+              </p>
+              <button
+                type="button"
+                onClick={() => messageStudent(s.id, s.name)}
+                disabled={messagingId === s.id}
+                className="shrink-0 text-xs font-medium text-primary hover:underline disabled:opacity-60"
+              >
+                💬 {messagingId === s.id ? '…' : lang === 'he' ? 'הודעה' : 'Message'}
+              </button>
+            </div>
           ))}
         </div>
       )}
+
+      {messageError && <p className="mt-1.5 rounded-md bg-danger-bg px-2 py-1 text-xs text-danger">{messageError}</p>}
 
       {p.currentMilestone && (
         <p className="mt-1.5 text-xs font-medium" style={{ color: urgencyColor }}>
