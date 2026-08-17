@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -53,6 +54,55 @@ function emptyExaminerSlot(): ExaminerSlotState {
   return { type: 'internal', id: '', ext: { name: '', email: '', institution: '' } };
 }
 
+// ─── Academic Precision (Stitch) — coordinator screen only ───────────────────
+// Local StyleSheet, not an addition to constants/styles.ts's shared
+// `coordinatorHomeStyles` (which this file's own `styles` already isolates
+// per-screen, but adding to it would still mean touching a file every other
+// coordinator-adjacent screen could import from). New Overview + Milestones
+// tabs only.
+const apStyles = StyleSheet.create({
+  metricCard: {
+    flex: 1,
+    minWidth: 150,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#c5c5d3',
+    padding: 14,
+  },
+  metricCardAlert: { borderColor: '#ffdad6', backgroundColor: 'rgba(186,26,26,0.05)' },
+  metricLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4, color: '#505f76', marginBottom: 8 },
+  metricLabelAlert: { color: '#ba1a1a' },
+  metricValue: { fontSize: 28, fontWeight: '700', color: '#1a1b21' },
+  metricValueAlert: { color: '#ba1a1a' },
+  sectionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#c5c5d3',
+    padding: 14,
+    marginTop: 14,
+  },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#1a1b21', marginBottom: 10 },
+  feedItem: { borderWidth: 1, borderColor: '#c5c5d3', borderRadius: 4, padding: 10, marginBottom: 8 },
+  feedItemAlert: { borderColor: '#ffdad6' },
+  feedBadge: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, color: '#54647a', backgroundColor: '#d0e1fb', alignSelf: 'flex-start', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 },
+  feedBadgeAlert: { color: '#ba1a1a', backgroundColor: '#ffdad6' },
+  feedTitle: { fontSize: 13, fontWeight: '600', color: '#1a1b21' },
+  emptyText: { fontSize: 13, color: '#444651' },
+  trackerCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#c5c5d3',
+    padding: 14,
+    marginBottom: 10,
+  },
+  trackerTitle: { fontSize: 14, fontWeight: '700', color: '#1a1b21', marginBottom: 6 },
+  trackerBarTrack: { height: 8, borderRadius: 999, backgroundColor: '#eeedf4', overflow: 'hidden', marginBottom: 6 },
+  trackerBarFill: { height: '100%', borderRadius: 999, backgroundColor: '#00236f' },
+  trackerMeta: { fontSize: 11, color: '#444651' },
+});
 
 
 export default function CoordinatorHome() {
@@ -64,7 +114,7 @@ export default function CoordinatorHome() {
   const [loading, setLoading]     = useState(true);
   
   const { activeRole } = useActiveRole();
-  const [activeTab, setActiveTab] = useState<'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived'>('inProgress');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'defense' | 'inProgress' | 'milestones' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived'>('overview');
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
@@ -778,12 +828,14 @@ export default function CoordinatorHome() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
-          // Listed (and defaulted to, see the useState above) first,
-          // matching the same change on web's coordinator dashboard — the
-          // Active Projects tab is now the landing tab there too.
+          // Overview is the default landing tab (see the useState above) —
+          // a read-only summary, matching the same change on web's
+          // coordinator dashboard.
+          { key: 'overview', heLabel: 'סקירה', enLabel: 'Overview', badge: 0 },
           { key: 'inProgress', heLabel: 'פרויקטים פעילים', enLabel: 'In Progress',       badge: inProgressProjects.length },
           { key: 'pending', heLabel: 'ממתין לאישור', enLabel: 'Pending Approval', badge: pendingMilestones.length },
           { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: sortedDefenseCards.length },
+          { key: 'milestones', heLabel: 'אבני דרך', enLabel: 'Milestones', badge: 0 },
           { key: 'recommendations', heLabel: 'המלצות בוחנים', enLabel: 'Examiner Recs', badge: examinerRecs.length },
           { key: 'signoffs', heLabel: 'ממתין לאישורך', enLabel: 'Awaiting Your Sign-off', badge: 0 },
         ] as const).map((tab) => (
@@ -819,6 +871,90 @@ export default function CoordinatorHome() {
       </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content}>
+
+        {activeTab === 'overview' && (() => {
+          const alertCards = sortedDefenseCards.filter((c) => c.kind === 'conflict' || c.kind === 'expiredUngraded');
+          return (
+            <>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                <View style={apStyles.metricCard}>
+                  <Text style={apStyles.metricLabel}>{lang === 'he' ? 'פרויקטים פעילים' : 'Active Projects'}</Text>
+                  <Text style={apStyles.metricValue}>{inProgressProjects.length}</Text>
+                </View>
+                <View style={apStyles.metricCard}>
+                  <Text style={apStyles.metricLabel}>{lang === 'he' ? 'ממתינים לאישור' : 'Pending Approvals'}</Text>
+                  <Text style={apStyles.metricValue}>{pendingMilestones.length}</Text>
+                </View>
+                <View style={apStyles.metricCard}>
+                  <Text style={apStyles.metricLabel}>{lang === 'he' ? 'הגנות' : 'Defenses'}</Text>
+                  <Text style={apStyles.metricValue}>{sortedDefenseCards.length}</Text>
+                </View>
+                <View style={[apStyles.metricCard, apStyles.metricCardAlert]}>
+                  <Text style={[apStyles.metricLabel, apStyles.metricLabelAlert]}>{lang === 'he' ? 'התראות מערכת' : 'System Alerts'}</Text>
+                  <Text style={[apStyles.metricValue, apStyles.metricValueAlert]}>{alertCards.length}</Text>
+                </View>
+              </View>
+
+              <View style={apStyles.sectionCard}>
+                <Text style={apStyles.sectionTitle}>⚠️ {lang === 'he' ? 'פעולות דחופות' : 'Urgent Actions'}</Text>
+                {pendingMilestones.length === 0 && alertCards.length === 0 ? (
+                  <Text style={apStyles.emptyText}>✅ {lang === 'he' ? 'אין פעולות דחופות כרגע' : 'Nothing urgent right now'}</Text>
+                ) : (
+                  <>
+                    {pendingMilestones.slice(0, 3).map((m) => (
+                      <Pressable key={m.id} style={apStyles.feedItem} onPress={() => setActiveTab('pending')}>
+                        <Text style={apStyles.feedBadge}>{lang === 'he' ? 'ממתין לאישור' : 'Pending Approval'}</Text>
+                        <Text style={apStyles.feedTitle}>{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</Text>
+                      </Pressable>
+                    ))}
+                    {alertCards.slice(0, 3).map((c) => (
+                      <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => setActiveTab('defense')}>
+                        <Text style={[apStyles.feedBadge, apStyles.feedBadgeAlert]}>
+                          {c.kind === 'conflict'
+                            ? lang === 'he' ? 'התנגשות תאריכים' : 'Date Conflict'
+                            : lang === 'he' ? 'הגנה שחלפה ללא ציון' : 'Overdue Grading'}
+                        </Text>
+                        <Text style={apStyles.feedTitle}>{lang === 'he' ? c.titleHe : c.titleEn}</Text>
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+              </View>
+            </>
+          );
+        })()}
+
+        {activeTab === 'milestones' && (
+          <>
+            {inProgressProjects.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyEmoji}>🎯</Text>
+                <Text style={styles.emptyText}>{lang === 'he' ? 'אין פרויקטים פעילים' : 'No active projects'}</Text>
+              </View>
+            ) : (
+              inProgressProjects.map((p: any) => {
+                const students = p.students ?? [];
+                const overallProgress = students.length > 0
+                  ? Math.round(students.reduce((sum: number, s: any) => sum + (s.progress ?? 0), 0) / students.length)
+                  : 0;
+                return (
+                  <View key={p.id} style={apStyles.trackerCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={apStyles.trackerTitle}>{lang === 'he' ? p.projectTitleHe : p.projectTitleEn}</Text>
+                      <FacultyBadge facultyId={p.facultyId} lang={lang} />
+                    </View>
+                    <View style={apStyles.trackerBarTrack}>
+                      <View style={[apStyles.trackerBarFill, { width: `${overallProgress}%` }]} />
+                    </View>
+                    <Text style={apStyles.trackerMeta}>
+                      {overallProgress}% {lang === 'he' ? 'הושלם' : 'complete'} · {students.length} {lang === 'he' ? 'סטודנטים' : 'students'}
+                    </Text>
+                  </View>
+                );
+              })
+            )}
+          </>
+        )}
 
         {activeTab === 'pending' && (
           <>
