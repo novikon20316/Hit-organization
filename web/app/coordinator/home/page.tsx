@@ -32,14 +32,14 @@ import type { CoordinatorDeadline, CoordinatorPendingMilestone, ExaminerRecommen
 
 const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
 
-type Tab = 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'statistics' | 'archived';
+type Tab = 'overview' | 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'statistics' | 'archived';
 
 export default function CoordinatorHomePage() {
   const { loading: guardLoading, isAllowed, firebaseUser, userData } = useRequireRole(COORDINATOR_ROLES);
   const { activeRole } = useAuth();
   const { lang, t } = useLanguage();
 
-  const [tab, setTab] = useState<Tab>('inProgress');
+  const [tab, setTab] = useState<Tab>('overview');
   const [allMilestones, setAllMilestones] = useState<CoordinatorPendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [examiners, setExaminers] = useState<ExaminerUser[]>([]);
@@ -127,14 +127,25 @@ export default function CoordinatorHomePage() {
     [allMilestones]
   );
 
+  // Defense cards with no confirmed path forward yet — surfaced on the
+  // Overview tab's "Alerts" metric and Urgent Actions feed.
+  const defenseAlertCards = useMemo(
+    () => defenseCards.filter((c) => c.kind === 'conflict' || c.kind === 'expiredUngraded'),
+    [defenseCards]
+  );
+
   const tabs: { key: Tab; label: string; count?: number }[] = [
-    // Listed first — same "the page is dir='rtl', so a plain flex row
-    // renders its first child at the visual right edge" convention as
-    // InProgressTab's own project-card ordering. This is also the default
-    // landing tab (see the useState above) — where MyApplicationsWidget
-    // lives, so a coordinator who's also a supervisor sees their own
-    // pending applications immediately instead of only after finding this
-    // tab on their own (see the "still shows 0" investigation this fixes).
+    // Overview is the default landing tab (see the useState above) — a
+    // read-only summary that links into the tabs below, so a coordinator
+    // sees what needs attention before picking a specific queue.
+    { key: 'overview', label: lang === 'he' ? 'סקירה' : 'Overview' },
+    // Listed first among the actual queues — same "the page is dir='rtl', so
+    // a plain flex row renders its first child at the visual right edge"
+    // convention as InProgressTab's own project-card ordering. This tab is
+    // also where MyApplicationsWidget lives, so a coordinator who's also a
+    // supervisor sees their own pending applications immediately instead of
+    // only after finding this tab on their own (see the "still shows 0"
+    // investigation this fixes).
     { key: 'inProgress', label: lang === 'he' ? 'פרויקטים פעילים' : 'In Progress', count: inProgressProjects.length },
     { key: 'pending', label: lang === 'he' ? 'ממתינים לאישור' : 'Pending Approval', count: pendingMilestones.length },
     { key: 'defense', label: lang === 'he' ? 'הגנות' : 'Defenses', count: defenseCards.length },
@@ -178,14 +189,16 @@ export default function CoordinatorHomePage() {
         </div>
       }
     >
-      <div className="mb-5 flex flex-wrap gap-1 border-b border-line">
+      <div className="mb-5 flex flex-wrap gap-1 border-b border-coordinator-outline-variant">
         {tabs.map(({ key, label, count }) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
-            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+            className={`border-b-2 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
+              tab === key
+                ? 'border-coordinator-primary text-coordinator-primary'
+                : 'border-transparent text-coordinator-secondary hover:text-coordinator-on-surface'
             }`}
           >
             {label}
@@ -198,6 +211,81 @@ export default function CoordinatorHomePage() {
 
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>
+      ) : tab === 'overview' ? (
+        <div className="grid gap-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <div className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4">
+              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-coordinator-secondary">
+                {lang === 'he' ? 'פרויקטים פעילים' : 'Active Projects'}
+              </h4>
+              <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{inProgressProjects.length}</span>
+            </div>
+            <div className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4">
+              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-coordinator-secondary">
+                {lang === 'he' ? 'ממתינים לאישור' : 'Pending Approvals'}
+              </h4>
+              <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{pendingMilestones.length}</span>
+            </div>
+            <div className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4">
+              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-coordinator-secondary">
+                {lang === 'he' ? 'הגנות' : 'Defenses'}
+              </h4>
+              <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{defenseCards.length}</span>
+            </div>
+            <div className="rounded-coordinator-lg border border-coordinator-error-container bg-coordinator-error-container/10 p-4">
+              <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-coordinator-error">
+                {lang === 'he' ? 'התראות מערכת' : 'System Alerts'}
+              </h4>
+              <span className="text-4xl font-bold leading-none text-coordinator-error">{defenseAlertCards.length}</span>
+            </div>
+          </div>
+
+          <div className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-5">
+            <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-coordinator-on-surface">
+              ⚠️ {lang === 'he' ? 'פעולות דחופות' : 'Urgent Actions'}
+            </h3>
+            {pendingMilestones.length === 0 && defenseAlertCards.length === 0 ? (
+              <p className="text-sm text-coordinator-on-surface-variant">
+                ✅ {lang === 'he' ? 'אין פעולות דחופות כרגע' : 'Nothing urgent right now'}
+              </p>
+            ) : (
+              <ul className="grid gap-2">
+                {pendingMilestones.slice(0, 3).map((m) => (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() => setTab('pending')}
+                      className="w-full rounded-coordinator border border-coordinator-outline-variant p-3 text-start transition-colors hover:bg-coordinator-surface-container-low"
+                    >
+                      <span className="mb-1 block rounded-coordinator-sm bg-coordinator-secondary-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coordinator-on-secondary-container">
+                        {lang === 'he' ? 'ממתין לאישור' : 'Pending Approval'}
+                      </span>
+                      <p className="text-sm font-medium text-coordinator-on-surface">
+                        {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+                {defenseAlertCards.slice(0, 3).map((c) => (
+                  <li key={c.key}>
+                    <button
+                      type="button"
+                      onClick={() => setTab('defense')}
+                      className="w-full rounded-coordinator border border-coordinator-error-container p-3 text-start transition-colors hover:bg-coordinator-surface-container-low"
+                    >
+                      <span className="mb-1 block rounded-coordinator-sm bg-coordinator-error-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coordinator-error">
+                        {c.kind === 'conflict'
+                          ? lang === 'he' ? 'התנגשות תאריכים' : 'Date Conflict'
+                          : lang === 'he' ? 'הגנה שחלפה ללא ציון' : 'Overdue Grading'}
+                      </span>
+                      <p className="text-sm font-medium text-coordinator-on-surface">{lang === 'he' ? c.titleHe : c.titleEn}</p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       ) : tab === 'pending' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {pendingMilestones.map((m) => (

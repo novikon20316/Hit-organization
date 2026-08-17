@@ -107,3 +107,138 @@ select:not(:disabled):hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * "Academic Precision" tokens — student screens only
+ * ────────────────────────────────────────────────────
+ * Pulled from the Stitch design project "Unified Academic Project Manager"
+ * (screens: Student Project Discovery, Student Milestone Dashboard) so the
+ * student-facing web pages and the student-facing mobile screens read as one
+ * design. Scoped under a `--student-` prefix rather than overwriting the
+ * tokens above — every other role keeps the existing "official paper + a
+ * seal" palette untouched. Font stays --font-plex (IBM Plex Sans Hebrew):
+ * the source design's Work Sans/Inter/JetBrains Mono are Latin-only and would
+ * break Hebrew glyph rendering, so only the color/spacing/radius/type-scale
+ * system was ported, not the typefaces.
+ */
+:root {
+  --student-primary: #00236f;
+  --student-primary-container: #1e3a8a;
+  --student-on-primary: #ffffff;
+  --student-on-primary-container: #90a8ff;
+  --student-primary-fixed: #dce1ff;
+  --student-primary-fixed-dim: #b6c4ff;
+  --student-on-primary-fixed: #00164e;
+  --student-secondary: #505f76;
+  --student-secondary-container: #d0e1fb;
+  --student-on-secondary-container: #54647a;
+  --student-surface: #faf8ff;
+  --student-surface-container-lowest: #ffffff;
+  --student-surface-container-low: #f4f3fa;
+  --student-surface-container: #eeedf4;
+  --student-surface-container-high: #e9e7ef;
+  --student-surface-variant: #e3e1e9;
+  --student-on-surface: #1a1b21;
+  --student-on-surface-variant: #444651;
+  --student-outline: #757682;
+  --student-outline-variant: #c5c5d3;
+  --student-error: #ba1a1a;
+  --student-error-container: #ffdad6;
+  --student-on-error-container: #93000a;
+  --student-radius-sm: 2px;
+  --student-radius: 4px;
+  --student-radius-lg: 8px;
+}
+
+@theme inline {
+  --color-student-primary: var(--student-primary);
+  --color-student-primary-container: var(--student-primary-container);
+  --color-student-on-primary: var(--student-on-primary);
+  --color-student-on-primary-container: var(--student-on-primary-container);
+  --color-student-primary-fixed: var(--student-primary-fixed);
+  --color-student-primary-fixed-dim: var(--student-primary-fixed-dim);
+  --color-student-on-primary-fixed: var(--student-on-primary-fixed);
+  --color-student-secondary: var(--student-secondary);
+  --color-student-secondary-container: var(--student-secondary-container);
+  --color-student-on-secondary-container: var(--student-on-secondary-container);
+  --color-student-surface: var(--student-surface);
+  --color-student-surface-container-lowest: var(--student-surface-container-lowest);
+  --color-student-surface-container-low: var(--student-surface-container-low);
+  --color-student-surface-container: var(--student-surface-container);
+  --color-student-surface-container-high: var(--student-surface-container-high);
+  --color-student-surface-variant: var(--student-surface-variant);
+  --color-student-on-surface: var(--student-on-surface);
+  --color-student-on-surface-variant: var(--student-on-surface-variant);
+  --color-student-outline: var(--student-outline);
+  --color-student-outline-variant: var(--student-outline-variant);
+  --color-student-error: var(--student-error);
+  --color-student-error-container: var(--student-error-container);
+  --color-student-on-error-container: var(--student-on-error-container);
+  --radius-student-sm: var(--student-radius-sm);
+  --radius-student: var(--student-radius);
+  --radius-student-lg: var(--student-radius-lg);
+}
+
+/*
+ * "Academic Precision" tokens — coordinator screens only
+ * ────────────────────────────────────────────────────────
+ * Same palette as the --student- tokens above, pulled from the same Stitch
+ * design project (screens: Coordinator Dashboard Overview, Defense
+ * Scheduling & Logistics) — kept as its own `--coordinator-` prefix rather
+ * than reusing --student- so each role's tokens can be told apart/adjusted
+ * independently, and so neither role's screens are affected by changes to
+ * the other's. Every other role keeps the existing "official paper + a
+ * seal" palette untouched. Font stays --font-plex for the same Hebrew/RTL
+ * reason documented above.
+ */
+:root {
+  --coordinator-primary: #00236f;
+  --coordinator-primary-container: #1e3a8a;
+  --coordinator-on-primary: #ffffff;
+  --coordinator-on-primary-container: #90a8ff;
+  --coordinator-secondary: #505f76;
+  --coordinator-secondary-container: #d0e1fb;
+  --coordinator-on-secondary-container: #54647a;
+  --coordinator-surface: #faf8ff;
+  --coordinator-surface-container-lowest: #ffffff;
+  --coordinator-surface-container-low: #f4f3fa;
+  --coordinator-surface-container: #eeedf4;
+  --coordinator-surface-container-high: #e9e7ef;
+  --coordinator-surface-variant: #e3e1e9;
+  --coordinator-on-surface: #1a1b21;
+  --coordinator-on-surface-variant: #444651;
+  --coordinator-outline: #757682;
+  --coordinator-outline-variant: #c5c5d3;
+  --coordinator-error: #ba1a1a;
+  --coordinator-error-container: #ffdad6;
+  --coordinator-on-error-container: #93000a;
+  --coordinator-radius-sm: 2px;
+  --coordinator-radius: 4px;
+  --coordinator-radius-lg: 8px;
+}
+
+@theme inline {
+  --color-coordinator-primary: var(--coordinator-primary);
+  --color-coordinator-primary-container: var(--coordinator-primary-container);
+  --color-coordinator-on-primary: var(--coordinator-on-primary);
+  --color-coordinator-on-primary-container: var(--coordinator-on-primary-container);
+  --color-coordinator-secondary: var(--coordinator-secondary);
+  --color-coordinator-secondary-container: var(--coordinator-secondary-container);
+  --color-coordinator-on-secondary-container: var(--coordinator-on-secondary-container);
+  --color-coordinator-surface: var(--coordinator-surface);
+  --color-coordinator-surface-container-lowest: var(--coordinator-surface-container-lowest);
+  --color-coordinator-surface-container-low: var(--coordinator-surface-container-low);
+  --color-coordinator-surface-container: var(--coordinator-surface-container);
+  --color-coordinator-surface-container-high: var(--coordinator-surface-container-high);
+  --color-coordinator-surface-variant: var(--coordinator-surface-variant);
+  --color-coordinator-on-surface: var(--coordinator-on-surface);
+  --color-coordinator-on-surface-variant: var(--coordinator-on-surface-variant);
+  --color-coordinator-outline: var(--coordinator-outline);
+  --color-coordinator-outline-variant: var(--coordinator-outline-variant);
+  --color-coordinator-error: var(--coordinator-error);
+  --color-coordinator-error-container: var(--coordinator-error-container);
+  --color-coordinator-on-error-container: var(--coordinator-on-error-container);
+  --radius-coordinator-sm: var(--coordinator-radius-sm);
+  --radius-coordinator: var(--coordinator-radius);
+  --radius-coordinator-lg: var(--coordinator-radius-lg);
+}
