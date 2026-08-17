@@ -2,15 +2,16 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  Modal, TextInput, ActivityIndicator, Linking,
+  ActivityIndicator, Linking, StyleSheet,
 } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
-import { auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
-import type { ActiveProject, Milestone, MilestoneType, MilestoneStatus } from '@/types';
-import { ActivateDashboardStyles } from '@/constants';
+import type { ActiveProject, Milestone, MilestoneType } from '@/types';
+import {
+  ActivateDashboardStyles, GradeBreakdownStyles,
+  studentPalette, studentSpacing, studentRadius, studentCardStyles,
+} from '@/constants';
 import { apiClient } from '../../src/api/apiClient';
-import { ThesisTemplateCardStyles, GradeBreakdownStyles } from '../../constants/styles';
+import SubmitMilestoneModal from '../../components/modals/SubmitMilestoneModal';
 
 interface Props {
   project:       ActiveProject;
@@ -39,23 +40,6 @@ const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   poster:            { he: 'פוסטר',        en: 'Poster Session' },
 };
 
-const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string; icon: string }> = {
-  pending:              { color: '#8899BB', bg: '#F0F4FF', icon: '🕐' },
-  submitted:            { color: '#F59E0B', bg: '#FFFBEB', icon: '📤' },
-  rejected:             { color: '#EF4444', bg: '#FEF2F2', icon: '❌' },
-  supervisor_graded:    { color: '#3B82F6', bg: '#EFF6FF', icon: '👨‍🏫' },
-  graded:               { color: '#3B82F6', bg: '#EFF6FF', icon: '👨‍🏫' },
-  coordinator_approved: { color: '#8B5CF6', bg: '#F5F3FF', icon: '✅' },
-  examiners_assigned:   { color: '#6366F1', bg: '#EEF2FF', icon: '👥' },
-  examiner_graded:      { color: '#10B981', bg: '#ECFDF5', icon: '🎓' },
-  both_examiners_graded:{ color: '#10B981', bg: '#ECFDF5', icon: '🎓' },
-  awaiting_defense_date:{ color: '#F59E0B', bg: '#FFFBEB', icon: '📅' },
-  date_conflict:        { color: '#EF4444', bg: '#FEF2F2', icon: '⚠️' },
-  defense_date_set:     { color: '#6366F1', bg: '#EEF2FF', icon: '📌' },
-  scheduled:            { color: '#10B981', bg: '#ECFDF5', icon: '🎓' },
-  completed:            { color: '#10B981', bg: '#ECFDF5', icon: '🏁' },
-};
-
 // Legacy fallback — the milestone TYPE ordering every faculty used before a
 // milestone doc carried its own `order` (see server/src/services/
 // projectEnrollment.ts). Mirrors the server's own resolveMilestoneOrder
@@ -79,16 +63,15 @@ function resolveMilestoneOrder(m: { type?: string; order?: number }): number {
 export default function ActiveDashboard({
   project, milestones, nextMilestone, progress, lang, isRtl,
 }: Props) {
-  const [submitModal,     setSubmitModal]     = useState(false);
-  const [targetMilestone, setTargetMilestone] = useState<Milestone | null>(null);
-  const [note,            setNote]            = useState('');
-  const [files,           setFiles]           = useState<Array<{ uri: string; name: string; mimeType?: string }>>([]);
-  const [submitting,      setSubmitting]      = useState(false);
-  const [submitMessage,   setSubmitMessage]   = useState<string | null>(null);
-  const [activeTab,       setActiveTab]       = useState<'overview' | 'milestones' | 'grades'>('overview');
+  const [activeTab,       setActiveTab]       = useState<'overview' | 'grades'>('overview');
   const [expandedGrades,   setExpandedGrades]   = useState<Record<string, boolean>>({});
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
-  const [announcements, setAnnouncements] = useState<Array<{ id: string; titleHe: string; titleEn: string; bodyHe: string; bodyEn: string }>>([]);
+  const [announcements, setAnnouncements] = useState<Array<{ id: string; titleHe: string; titleEn: string; bodyHe: string; bodyEn: string; createdAt?: string | null }>>([]);
+  // The single milestone currently targeted by the shared submit modal — null
+  // when the modal is closed. Replaces the old inline submitModal/
+  // targetMilestone/note/files/submitting state, all of which now live inside
+  // components/modals/SubmitMilestoneModal.tsx.
+  const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
 
   // Running faculty/college announcements (requirements doc section 15) —
   // shown here too, not just the ineligible-state student/info.tsx screen,
@@ -138,23 +121,6 @@ export default function ActiveDashboard({
   const actionableNextMilestone: Milestone | null =
     milestones.find(m => m.status === 'pending' && isUnlocked(m)) ?? null;
 
-  // ─── Overview banner: what to display ─────────────────────────────────────
-  // Show the submitted/in-review milestone if any, otherwise the next pending one.
-  const overviewDisplayMilestone: Milestone | null =
-    milestones.find(m => ['submitted', 'supervisor_graded', 'graded'].includes(m.status))
-    ?? actionableNextMilestone;
-
-  // Is there a milestone currently waiting on staff (freshly submitted and
-  // not yet even looked at, or graded and waiting on the coordinator's
-  // sign-off)? Drives both the overview banner's status pill and the submit
-  // button's disabled state/label — omitting 'submitted' left a
-  // just-submitted milestone showing a "days left" countdown and an
-  // enabled-looking "Submit Milestone" label while the button was actually
-  // disabled, indistinguishable from a stuck/broken button.
-  const isWaitingApproval = milestones.some(
-    m => ['submitted', 'graded', 'supervisor_graded'].includes(m.status)
-  );
-
   // ── Days until deadline ────────────────────────────────────────────────────
   const daysUntil = (ts: string | null | undefined): number | null => {
     const date = toDate(ts);
@@ -171,119 +137,7 @@ export default function ActiveDashboard({
     return isNaN(d.getTime()) ? null : d;
   };
 
-  // ── File picker ────────────────────────────────────────────────────────────
-  // A file name that reaches the server intact (multer never rejects it —
-  // there's no filename-length limit there, and Cloudinary never even sees
-  // the original name, since the upload call doesn't pass use_filename) can
-  // still break somewhere in the multipart request itself once it's long
-  // enough — most commonly a Hebrew name, since Hebrew characters take 2
-  // bytes each in UTF-8, so a name that "looks" short in characters can
-  // still exceed the ~255-byte filename limit most filesystems/HTTP layers
-  // assume. Caught here, before it's ever sent, with a clear message,
-  // instead of a confusing generic "upload failed" once it's already
-  // through the picker.
-  const MAX_FILENAME_BYTES = 150;
-  const tooLongFileName = (name: string): boolean => {
-    let bytes = 0;
-    for (let i = 0; i < name.length; i++) {
-      const code = name.codePointAt(i)!;
-      if (code > 0xffff) i++; // surrogate pair — codePointAt already consumed both units
-      bytes += code <= 0x7f ? 1 : code <= 0x7ff ? 2 : code <= 0xffff ? 3 : 4;
-      if (bytes > MAX_FILENAME_BYTES) return true;
-    }
-    return false;
-  };
-
-  const pickFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ multiple: true });
-    if (result.canceled || !result.assets?.length) return;
-    const tooLong = result.assets.filter((a) => tooLongFileName(a.name));
-    const ok = result.assets.filter((a) => !tooLongFileName(a.name));
-    if (tooLong.length > 0) {
-      setSubmitMessage(
-        lang === 'he'
-          ? `שם הקובץ ארוך מדי (מקסימום כ-${MAX_FILENAME_BYTES} תווים באנגלית, פחות בעברית): ${tooLong.map((a) => a.name).join(', ')}. נא לקצר את שם הקובץ ולנסות שוב.`
-          : `File name too long (max ~${MAX_FILENAME_BYTES} characters): ${tooLong.map((a) => a.name).join(', ')}. Please shorten the file name and try again.`
-      );
-    }
-    if (ok.length > 0) {
-      setFiles((prev) => [
-        ...prev,
-        ...ok.map((a) => ({ uri: a.uri, name: a.name, mimeType: a.mimeType })),
-      ]);
-    }
-  };
-
-  // Absent (a milestone from before this feature existed) keeps today's
-  // actual behavior — both fields shown, both optional — rather than being
-  // treated the same as an explicit 'none', which instead hides both
-  // entirely (see the empty-state message in the submit modal below).
-  const submissionRequirement = targetMilestone?.submissionRequirement;
-  const showFileField = submissionRequirement !== 'comment' && submissionRequirement !== 'none';
-  const showNoteField = submissionRequirement !== 'file' && submissionRequirement !== 'none';
-  const canSubmitMilestone =
-    submissionRequirement === 'file' ? files.length > 0 :
-    submissionRequirement === 'comment' ? note.trim().length > 0 :
-    submissionRequirement === 'both' ? files.length > 0 && note.trim().length > 0 :
-    true;
-
-  // ── Submit milestone ───────────────────────────────────────────────────────
-  const handleSubmit = async () => {
-    if (!targetMilestone) return;
-    if (!isUnlocked(targetMilestone)) return;
-    if (!canSubmitMilestone) return;
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    try {
-      setSubmitting(true);
-      setSubmitMessage(null);
-
-      const formData = new FormData();
-      files.forEach((f) => {
-        const fileExtension = f.name?.split('.').pop()?.toLowerCase();
-        const fallbackType  = fileExtension === 'pdf' ? 'application/pdf' : 'application/octet-stream';
-        formData.append('files', {
-          uri:  f.uri,
-          name: f.name,
-          type: f.mimeType || fallbackType,
-        } as any);
-      });
-      formData.append('note',        note);
-      formData.append('milestoneId', targetMilestone.id);
-      formData.append('projectId',   project.id);
-      await apiClient.submitMilestone(targetMilestone.id, formData);
-
-      setSubmitMessage('✅ ' + tx('submitSuccess', lang));
-      setTimeout(() => {
-        setSubmitModal(false);
-        setFiles([]);
-        setNote('');
-        setSubmitMessage(null);
-      }, 1500);
-
-    } catch (e: any) {
-      console.error('Submit milestone error:', e?.message);
-      // Prefer the server's per-language variant (see milestoneController.ts's
-      // submitMilestone) when it sent one — the server has no per-user
-      // language field to localize this itself, so it returns both and the
-      // client (which knows the student's own language setting) picks. Any
-      // error without one (an unexpected exception the server never
-      // localized) falls back to the translated generic message, not the
-      // raw server text — showing that verbatim in whatever language the
-      // server happened to throw it in was the bug being fixed here.
-      const data = e?.response?.data;
-      const localized = data?.[lang === 'he' ? 'messageHe' : 'messageEn'];
-      setSubmitMessage(localized || tx('submitError', lang));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openSubmit = (m: Milestone) => {
-    setTargetMilestone(m);
-    setSubmitModal(true);
-  };
+  const openSubmit = (m: Milestone) => setSubmitTarget(m);
 
   const handleExpandGrade = (milestoneId: string) => {
     setExpandedGrades((prev) => ({ ...prev, [milestoneId]: !prev[milestoneId] }));
@@ -307,23 +161,105 @@ export default function ActiveDashboard({
     if (grade >= 60) return '#FFEDD5';
     return '#FEE2E2';
   };
-  
+
+  // ─── Overview metrics — reused, not recomputed, elsewhere ─────────────────
+  // Same "coordinator_approved" filter useStudentData.ts's withDerived() used
+  // to produce the `progress` prop — kept as its own count here too since the
+  // metric card needs the raw X/Y, not just the rounded percentage.
+  const completedMilestonesCount = milestones.filter(m => m.status === 'coordinator_approved').length;
+  const totalMilestonesCount = milestones.length;
+
+  // ─── Next deadline card — sourced straight from the `nextMilestone` prop ──
+  const nextDeadlineDate = nextMilestone ? toDate(nextMilestone.dueDate) : null;
+  const nextDeadlineDays = nextMilestone ? daysUntil(nextMilestone.dueDate) : null;
+  const nextMilestoneLabel = nextMilestone
+    ? (lang === 'he' ? (MILESTONE_LABEL[nextMilestone.type]?.he ?? nextMilestone.type)
+                      : (MILESTONE_LABEL[nextMilestone.type]?.en ?? nextMilestone.type))
+    : '';
+
+  // ─── Recent Activity — derived from real data already loaded on this
+  // screen (announcements + milestone status fields), never fabricated. Each
+  // milestone contributes at most one entry, picking whichever of these is
+  // most relevant to its current state (rejection reason > coordinator
+  // comment > a plain "submitted" event) — items with no usable date are
+  // dropped rather than guessed at.
+  const timeAgo = (date: Date): string => {
+    const diffMs = Date.now() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) {
+      const diffHours = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60)));
+      return lang === 'he' ? `לפני ${diffHours} שעות` : `${diffHours}h ago`;
+    }
+    if (diffDays === 1) return lang === 'he' ? 'אתמול' : 'Yesterday';
+    if (diffDays < 30) return lang === 'he' ? `לפני ${diffDays} ימים` : `${diffDays}d ago`;
+    return date.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short' });
+  };
+
+  type ActivityItem = { id: string; icon: string; title: string; subtitle: string; date: Date };
+  const activityCandidates: Array<{ id: string; icon: string; title: string; subtitle: string; date: Date | null }> = [];
+
+  announcements.forEach((a) => {
+    activityCandidates.push({
+      id: `ann-${a.id}`,
+      icon: '📣',
+      title: lang === 'he' ? (a.titleHe || a.titleEn) : (a.titleEn || a.titleHe),
+      subtitle: lang === 'he' ? (a.bodyHe || a.bodyEn) : (a.bodyEn || a.bodyHe),
+      date: toDate(a.createdAt),
+    });
+  });
+
+  milestones.forEach((m) => {
+    const normalizedStatus = (m.status ?? '').trim().toLowerCase();
+    const label = lang === 'he' ? (MILESTONE_LABEL[m.type]?.he ?? m.type) : (MILESTONE_LABEL[m.type]?.en ?? m.type);
+
+    if (normalizedStatus === 'rejected' && m.rejectionReason) {
+      activityCandidates.push({
+        id: `rej-${m.id}`,
+        icon: '↩',
+        title: lang === 'he' ? `הוחזר לתיקון: ${label}` : `Returned for revision: ${label}`,
+        subtitle: m.rejectionReason,
+        date: toDate(m.submittedAt),
+      });
+    } else if ((normalizedStatus === 'coordinator_approved' || normalizedStatus === 'completed') && m.coordinatorComment) {
+      activityCandidates.push({
+        id: `appr-${m.id}`,
+        icon: '✅',
+        title: lang === 'he' ? `אושר ע"י הרכז: ${label}` : `Approved by coordinator: ${label}`,
+        subtitle: m.coordinatorComment,
+        date: toDate(m.submittedAt),
+      });
+    } else if (m.submittedAt && ['submitted', 'supervisor_graded', 'graded', 'examiners_assigned', 'examiner_graded', 'both_examiners_graded'].includes(normalizedStatus)) {
+      activityCandidates.push({
+        id: `sub-${m.id}`,
+        icon: '📤',
+        title: lang === 'he' ? `הוגש: ${label}` : `Submitted: ${label}`,
+        subtitle: lang === 'he' ? 'ממתין לבדיקה' : 'Awaiting review',
+        date: toDate(m.submittedAt),
+      });
+    }
+  });
+
+  const recentActivity: Array<ActivityItem & { timeLabel: string }> = activityCandidates
+    .filter((it): it is ActivityItem => it.date !== null)
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 5)
+    .map((it) => ({ ...it, timeLabel: timeAgo(it.date) }));
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, ov.screenBg]}>
 
       {/* ── Tab Bar ── */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {([
-          { key: 'overview',   labelHe: 'סקירה',    labelEn: 'Overview' },
-          { key: 'milestones', labelHe: 'אבני דרך', labelEn: 'Milestones' },
-          { key: 'grades',     labelHe: 'ציונים',   labelEn: 'Grades' },
+          { key: 'overview', labelHe: 'סקירה',  labelEn: 'Overview' },
+          { key: 'grades',    labelHe: 'ציונים', labelEn: 'Grades' },
         ] as const).map((tab) => (
           <Pressable
             key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            style={[styles.tab, activeTab === tab.key && ov.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
+            <Text style={[styles.tabText, activeTab === tab.key && ov.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.labelHe : tab.labelEn}
             </Text>
           </Pressable>
@@ -349,482 +285,156 @@ export default function ActiveDashboard({
               </View>
             ))}
 
-            {/* Project card */}
-            <View style={styles.projectCard}>
-              <View style={[styles.projectCardHeader, isRtl && styles.rowReverse]}>
-                <Text style={styles.projectCardEmoji}>📁</Text>
-                <View style={{ flex: 1, marginLeft: isRtl ? 0 : 10, marginRight: isRtl ? 10 : 0 }}>
-                  <Text style={[styles.projectTitle, isRtl && styles.textRight]}>
-                    {lang === 'he' ? project.titleHe : project.titleEn}
-                  </Text>
-                  <Text style={[styles.projectMeta, isRtl && styles.textRight]}>
-                    👨‍🏫 {project.supervisorName} · {project.academicYear}
-                  </Text>
+            {/* Header */}
+            <View style={ov.header}>
+              <Text style={[ov.welcomeTitle, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'ברוך שובך 👋' : 'Welcome back 👋'}
+              </Text>
+              <Text style={[ov.welcomeSubtitle, isRtl && styles.textRight]} numberOfLines={1}>
+                {lang === 'he' ? project.titleHe : project.titleEn}
+              </Text>
+            </View>
+
+            {/* Metric cards */}
+            <View style={[ov.metricsRow, isRtl && styles.rowReverse]}>
+              <View style={ov.metricCard}>
+                <View style={[ov.metricHeader, isRtl && styles.rowReverse]}>
+                  <Text style={ov.metricLabel}>{lang === 'he' ? 'ציון סופי' : 'FINAL GRADE'}</Text>
+                  <Text style={ov.metricIcon}>📊</Text>
                 </View>
+                <Text style={ov.metricValue}>
+                  {project.overallFinalGrade != null ? String(project.overallFinalGrade) : '—'}
+                </Text>
               </View>
 
-              {/* Progress bar */}
-              <View style={styles.progressSection}>
-                <View style={[styles.progressLabelRow, isRtl && styles.rowReverse]}>
-                  <Text style={styles.progressLabel}>
-                    {lang === 'he' ? 'התקדמות' : 'Progress'}
-                  </Text>
-                  <Text style={styles.progressPct}>{progress}%</Text>
+              <View style={ov.metricCard}>
+                <View style={[ov.metricHeader, isRtl && styles.rowReverse]}>
+                  <Text style={ov.metricLabel}>{lang === 'he' ? 'אבני דרך' : 'MILESTONES'}</Text>
+                  <Text style={ov.metricIcon}>🎯</Text>
                 </View>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                <View style={[ov.metricValueRow, isRtl && styles.rowReverse]}>
+                  <Text style={ov.metricValue}>{completedMilestonesCount}</Text>
+                  <Text style={ov.metricValueSub}> / {totalMilestonesCount}</Text>
                 </View>
-                <Text style={[styles.progressSub, !isRtl && styles.textRight]}>
-                  {milestones.length} / {milestones.filter((m) => m.status === 'coordinator_approved').length}{' '}
-                  {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
-                </Text>
               </View>
             </View>
 
-            {/* ── Next milestone banner ── */}
-            {overviewDisplayMilestone && (
-              <View style={styles.nextMilestone}>
-                <View style={[styles.nextHeader, isRtl && styles.rowReverse]}>
-                  <Text style={styles.nextLabel}>⚡ {tx('nextMilestone', lang)}</Text>
-
-                  {/* Status badge */}
-                  {isWaitingApproval ? (
-                    <View style={[styles.daysBadge, { backgroundColor: '#FFFBEB', borderColor: '#F59E0B', borderWidth: 1 }]}>
-                      <Text style={[styles.daysBadgeText, { color: '#F59E0B' }]}>
-                        {lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Waiting for approval'}
+            {/* Next deadline card */}
+            {nextMilestone && (
+              <View style={ov.deadlineCard}>
+                <View style={[ov.deadlineHeader, isRtl && styles.rowReverse]}>
+                  <Text style={ov.metricLabel}>{lang === 'he' ? 'המועד הקרוב' : 'NEXT DEADLINE'}</Text>
+                  <Text style={ov.metricIcon}>⏰</Text>
+                </View>
+                <View style={[ov.deadlineBody, isRtl && styles.rowReverse]}>
+                  {nextDeadlineDays !== null && (
+                    <View style={ov.deadlineChip}>
+                      <Text style={ov.deadlineChipNum}>
+                        {nextDeadlineDays < 0 ? Math.abs(nextDeadlineDays) : nextDeadlineDays}
                       </Text>
-                    </View>
-                  ) : (
-                    
-                    <View style={[styles.daysBadge, styles.daysBadgeBlue]}>
-                      <Text style={styles.daysBadgeText}>
-                        {daysUntil(
-                          overviewDisplayMilestone.type === 'defense'   // ← moved here, now safe
-                            ? overviewDisplayMilestone.defenseDate
-                            : overviewDisplayMilestone.dueDate
-                        )} {tx('daysLeft', lang)}
+                      <Text style={ov.deadlineChipLabel}>
+                        {nextDeadlineDays < 0
+                          ? (lang === 'he' ? 'איחור' : 'LATE')
+                          : (lang === 'he' ? 'ימים' : 'DAYS')}
                       </Text>
                     </View>
                   )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[ov.deadlineTitle, isRtl && styles.textRight]} numberOfLines={1}>
+                      {nextMilestoneLabel}
+                    </Text>
+                    <Text style={[ov.deadlineSub, isRtl && styles.textRight]}>
+                      {tx('dueDate', lang)}{' '}
+                      {nextDeadlineDate?.toLocaleDateString(
+                        lang === 'he' ? 'he-IL' : 'en-US',
+                        { day: 'numeric', month: 'short', year: 'numeric' }
+                      ) ?? '—'}
+                    </Text>
+                  </View>
                 </View>
-
-                {/* Milestone title */}
-                <Text style={[styles.nextTitle, isRtl && styles.textRight]}>
-                  {(() => {
-                    // If something is in-review, peek forward to the next pending milestone
-                    const nextPending = milestones.find(m => m.status === 'pending');
-                    const displayType = nextPending?.type ?? overviewDisplayMilestone.type;
-                    return lang === 'he'
-                      ? (MILESTONE_LABEL[displayType]?.he ?? displayType)
-                      : (MILESTONE_LABEL[displayType]?.en ?? displayType);
-                  })()}
-                </Text>
-                {actionableNextMilestone?.type === 'defense' && (() => {
-                  const m = actionableNextMilestone;
-                  
-                  const defenseDate = m.defenseDate
-                    ? ((m.defenseDate as any)?.toDate
-                        ? (m.defenseDate as any).toDate()
-                        : new Date(m.defenseDate))
-                    : null;
-
-                  const formattedDate = defenseDate
-                    ? defenseDate.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
-                        day: 'numeric', month: 'long', year: 'numeric',
-                      })
-                    : (lang === 'he' ? 'טרם נקבע' : 'Not set yet');
-
-                  const notSetYet = lang === 'he' ? 'טרם נקבע' : 'Not set yet';
-
-                  const rows = [
-                    {
-                      label: lang === 'he' ? 'בוחן 1' : 'Examiner 1',
-                      value: m.examinerNames?.[0] ?? (lang === 'he' ? 'טרם שובץ' : 'Not assigned yet'),
-                    },
-                    {
-                      label: lang === 'he' ? 'בוחן 2' : 'Examiner 2',
-                      value: m.examinerNames?.[1] ?? (lang === 'he' ? 'טרם שובץ' : 'Not assigned yet'),
-                    },
-                    {
-                      label: lang === 'he' ? 'תאריך' : 'Date',
-                      value: formattedDate,
-                    },
-                    {
-                      label: lang === 'he' ? 'שעה' : 'Time',
-                      value: m.defenseTime ?? notSetYet,
-                    },
-                    {
-                      label: lang === 'he' ? 'בניין' : 'Building',
-                      value: m.defenseBuilding ?? notSetYet,
-                    },
-                    {
-                      label: lang === 'he' ? 'חדר' : 'Room',
-                      value: m.defenseRoom ?? notSetYet,
-                    },
-                  ];
-
-                  return (
-                    <View style={{
-                      marginTop: 12,
-                      backgroundColor: '#F5F3FF',
-                      borderRadius: 12,
-                      padding: 14,
-                      borderLeftWidth: 4,
-                      borderLeftColor: '#8B5CF6',
-                      gap: 8,
-                    }}>
-                      <Text style={{
-                        fontSize: 13,
-                        fontWeight: '700',
-                        color: '#5B21B6',
-                        marginBottom: 4,
-                      }}>
-                        🎓 {lang === 'he' ? 'פרטי ההגנה' : 'Defense Details'}
-                      </Text>
-
-                      {rows.map((row) => (
-                        <View key={row.label} style={{
-                          flexDirection: isRtl ? 'row-reverse' : 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          paddingVertical: 4,
-                          borderBottomWidth: 1,
-                          borderBottomColor: '#EDE9FE',
-                        }}>
-                          <Text style={{
-                            fontSize: 13,
-                            fontWeight: '600',
-                            color: '#7C3AED',
-                            textAlign: isRtl ? 'right' : 'left',
-                          }}>
-                            {row.label}
-                          </Text>
-                          <Text style={{
-                            fontSize: 13,
-                            color: '#1F1344',
-                            fontWeight: '500',
-                            textAlign: isRtl ? 'left' : 'right',
-                            flexShrink: 1,
-                            marginLeft: isRtl ? 0 : 8,
-                            marginRight: isRtl ? 8 : 0,
-                          }}>
-                            {row.value}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  );
-                })()}
-                {/* ── Submit button ──
-                    Enabled ONLY when:
-                    • There is an actionable (pending + unlocked) next milestone
-                    • AND we are NOT waiting for coordinator approval on any milestone
-                */}
-                {actionableNextMilestone?.type !== 'defense' && (() => {
-                  
-                  const canSubmit = !!actionableNextMilestone && !isWaitingApproval;
-                  return (
-                    <Pressable
-                      style={[styles.submitMilestoneBtn, !canSubmit && { opacity: 0.45 }]}
-                      disabled={!canSubmit}
-                      onPress={() => actionableNextMilestone && openSubmit(actionableNextMilestone)}
-                    >
-                      <Text style={styles.submitMilestoneBtnText}>
-                        {isWaitingApproval
-                          ? (lang === 'he' ? 'ממתין לאישור סגל' : 'Awaiting Faculty Approval')
-                          : tx('submitMilestone', lang)}
-                      </Text>
-                    </Pressable>
-                  );
-                })()}
               </View>
             )}
 
+            {/* Quick Actions */}
+            <View style={ov.section}>
+              <Text style={[ov.sectionHeading, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'פעולות מהירות' : 'Quick Actions'}
+              </Text>
+              <View style={[ov.quickActionsRow, isRtl && styles.rowReverse]}>
+                {actionableNextMilestone && (
+                  <Pressable style={ov.primaryActionBtn} onPress={() => openSubmit(actionableNextMilestone)}>
+                    <Text style={ov.primaryActionBtnText}>📤 {tx('submitMilestone', lang)}</Text>
+                  </Pressable>
+                )}
+                {isMastersThesis && (
+                  <Pressable
+                    style={[ov.secondaryActionBtn, downloadingTemplate && { opacity: 0.6 }]}
+                    onPress={handleDownloadThesisTemplate}
+                    disabled={downloadingTemplate}
+                  >
+                    {downloadingTemplate
+                      ? <ActivityIndicator color={studentPalette.secondary} size="small" />
+                      : (
+                        <Text style={ov.secondaryActionBtnText}>
+                          ⬇ {lang === 'he' ? 'תבנית תזה' : 'Thesis Template'}
+                        </Text>
+                      )}
+                  </Pressable>
+                )}
+              </View>
+            </View>
+
+            {/* Recent Activity */}
+            <View style={ov.section}>
+              <Text style={[ov.sectionHeading, isRtl && styles.textRight]}>
+                {lang === 'he' ? 'פעילות אחרונה' : 'Recent Activity'}
+              </Text>
+              {recentActivity.length === 0 ? (
+                <View style={ov.activityEmpty}>
+                  <Text style={ov.activityEmptyText}>
+                    {lang === 'he' ? 'אין פעילות אחרונה להצגה' : 'No recent activity yet'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={ov.activityList}>
+                  {recentActivity.map((item, idx) => (
+                    <View
+                      key={item.id}
+                      style={[
+                        ov.activityRow,
+                        idx < recentActivity.length - 1 && ov.activityRowDivider,
+                        isRtl && styles.rowReverse,
+                      ]}
+                    >
+                      <View style={ov.activityIconWrap}>
+                        <Text style={ov.activityIconText}>{item.icon}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={[ov.activityTopRow, isRtl && styles.rowReverse]}>
+                          <Text style={[ov.activityTitle, isRtl && styles.textRight]} numberOfLines={1}>
+                            {item.title}
+                          </Text>
+                          <Text style={ov.activityTime}>{item.timeLabel}</Text>
+                        </View>
+                        <Text style={[ov.activitySubtitle, isRtl && styles.textRight]} numberOfLines={2}>
+                          {item.subtitle}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
             {/* Description */}
-            <View style={styles.descCard}>
-              <Text style={[styles.descTitle, isRtl && styles.textRight]}>
+            <View style={ov.descCard}>
+              <Text style={[ov.descTitle, isRtl && styles.textRight]}>
                 {lang === 'he' ? 'תיאור הפרויקט' : 'Project Description'}
               </Text>
-              <Text style={[styles.descBody, isRtl && styles.textRight]}>
+              <Text style={[ov.descBody, isRtl && styles.textRight]}>
                 {lang === 'he' ? project.descriptionHe : project.descriptionEn}
               </Text>
             </View>
-
-            {/* Thesis template — masters-thesis students only */}
-            {isMastersThesis && (
-              <View style={styles.descCard}>
-                <Text style={[styles.descTitle, isRtl && styles.textRight]}>
-                  📄 {lang === 'he' ? 'תבנית לתזה' : 'Thesis Template'}
-                </Text>
-                <Text style={[styles.descBody, isRtl && styles.textRight]}>
-                  {lang === 'he'
-                    ? 'תבנית ה-Word הרשמית לכתיבת עבודת התזה שלך.'
-                    : 'The official Word template for writing your thesis.'}
-                </Text>
-                <Pressable
-                  style={[thesisTemplateStyles.downloadBtn, downloadingTemplate && { opacity: 0.6 }]}
-                  onPress={handleDownloadThesisTemplate}
-                  disabled={downloadingTemplate}
-                >
-                  {downloadingTemplate
-                    ? <ActivityIndicator color="#fff" size="small" />
-                    : (
-                      <Text style={thesisTemplateStyles.downloadBtnText}>
-                        ⬇ {lang === 'he' ? 'הורדת התבנית' : 'Download Template'}
-                      </Text>
-                    )}
-                </Pressable>
-              </View>
-            )}
-          </>
-        )}
-
-        {/* ══════════════ MILESTONES TAB ══════════════ */}
-        {activeTab === 'milestones' && (
-          <>
-            <Text style={[styles.sectionTitle, isRtl && styles.textRight]}>
-              {tx('milestonesTitle', lang)}
-            </Text>
-
-            {milestones.map((m, index) => {
-              const unlocked  = isUnlocked(m);
-              const cfg       = STATUS_CONFIG[m.status as MilestoneStatus] ??
-              { color: '#8899BB', bg: '#F0F4FF', icon: '🕐' }
-              const days      = daysUntil(m.dueDate);
-              const label     = lang === 'he' ? (MILESTONE_LABEL[m.type]?.he ?? m.type) : (MILESTONE_LABEL[m.type]?.en ?? m.type);
-              const isDefense = m.type === 'defense';
-
-              // ── Per-milestone display logic ──────────────────────────────
-              // submitted / supervisor_graded  → show "submitted" text, disable button
-              // coordinator_approved / completed → show ✅ green check
-              const normalizedStatus = (m.status ?? '').trim().toLowerCase();
-              const isSubmittedInReview =
-                normalizedStatus === 'submitted' ||
-                normalizedStatus === 'supervisor_graded' ||
-                normalizedStatus === 'graded';          
-
-              const isApprovedOrDone =
-                normalizedStatus === 'coordinator_approved' ||
-                normalizedStatus === 'completed';
-              
-              return (
-                <View key={m.id} style={styles.milestoneCard}>
-                  {/* Timeline dot + connector */}
-                  <View style={styles.timelineCol}>
-                    <View style={[styles.timelineDot, { backgroundColor: isApprovedOrDone ? '#10B981' : cfg.color }]}>
-                      {isApprovedOrDone
-                        ? <Text style={styles.timelineNum}>✓</Text>
-                        : <Text style={styles.timelineNum}>{index + 1}</Text>
-                      }
-                    </View>
-                    {index < milestones.length - 1 && (
-                      <View style={[
-                        styles.timelineLine,
-                        isApprovedOrDone && styles.timelineLineDone,
-                      ]} />
-                    )}
-                  </View>
-
-                  {/* Content */}
-                  <View style={[styles.milestoneContent, isRtl && styles.milestoneContentRtl]}>
-                    {/* Header */}
-                    <View style={[styles.milestoneHeader, isRtl && styles.rowReverse]}>
-                      <Text style={styles.milestoneTitle}>{label}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: isApprovedOrDone ? '#ECFDF5' : cfg.bg }]}>
-                        <Text style={[styles.statusBadgeText, { color: isApprovedOrDone ? '#10B981' : cfg.color }]}>
-                          {isApprovedOrDone ? '✅' : cfg.icon}{' '}
-                          {lang === 'he'
-                            ? ({
-                                pending:              'ממתין',
-                                submitted:            'הוגש',
-                                rejected:             'הוחזר לתיקון',
-                                supervisor_graded:    'נוקד ע"י מנחה',
-                                graded:               'נוקד ע"י מנחה',
-                                examiners_assigned:   'נבחרו בוחנים',
-                                examiner_graded:      'נוקד ע"י בוחן',
-                                both_examiners_graded:'שני בוחנים ניקדו',
-                                awaiting_defense_date:'ממתין לתאריך הגנה',
-                                date_conflict:        'לא נמצא תאריך משותף',
-                                defense_date_set:      'תאריך הגנה נקבע',
-                                scheduled:            'הגנה נקבעה',
-                                coordinator_approved: 'אושר ע"י רכז',
-                                completed:            'הושלם',
-                              }[m.status])
-                            : ({
-                                pending:              'Pending',
-                                submitted:            'Submitted',
-                                rejected:             'Returned for revision',
-                                supervisor_graded:    'Supervisor Graded',
-                                graded:               'Supervisor Graded',
-                                examiners_assigned:   'Examiners Assigned',
-                                examiner_graded:      'Examiner Graded',
-                                both_examiners_graded:'Both Examiners Graded',
-                                awaiting_defense_date:'Awaiting Defense Date',
-                                date_conflict:        'No Common Date',
-                                defense_date_set:      'Defense Date Set',
-                                scheduled:            'Defense Scheduled',
-                                coordinator_approved: 'Coordinator Approved',
-                                completed:            'Completed',
-                              }[m.status])
-                          }
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* ── Due date / Submitted / Approved display ── */}
-                    {!unlocked ? (
-                      <Text style={[styles.notScheduled, isRtl && styles.textRight]}>
-                        🔒{' '}
-                        {lang === 'he'
-                          ? 'יש להשלים אבני דרך קודמות'
-                          : 'Need to complete previous milestones'}
-                      </Text>
-                    ) : isApprovedOrDone ? (
-                      // Green check + approved label replaces the due date row
-                      <Text style={[{ fontSize: 13, color: '#10B981', fontWeight: '600', marginTop: 4 }, isRtl && styles.textRight]}>
-                        ✅ {lang === 'he' ? 'אושר ע"י הרכז' : 'Approved by coordinator'}
-                        {m.finalGrade !== null && (
-                          <Text style={{ color: '#059669' }}> · {tx('grade', lang)}: {m.finalGrade}</Text>
-                        )}
-                      </Text>
-                    ) : isSubmittedInReview ? (
-                      // "Submitted" replaces the due date
-                      <Text style={[{ fontSize: 13, color: '#F59E0B', fontWeight: '600', marginTop: 4 }, isRtl && styles.textRight]}>
-                        📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}
-                      </Text>
-                    ) : normalizedStatus === 'rejected' ? (
-                      <Text style={[{ fontSize: 13, color: '#EF4444', fontWeight: '600', marginTop: 4 }, isRtl && styles.textRight]}>
-                        ↩ {lang === 'he' ? 'הוחזר לתיקון — יש להגיש גרסה מתוקנת' : 'Returned for revision — please resubmit a corrected version'}
-                      </Text>
-                    ) : (
-                      // Normal due date row (pending + unlocked)
-                      <Text style={[styles.milestoneDue, isRtl && styles.textRight]}>
-                        📅 {tx('dueDate', lang)}{' '}
-                        {toDate(m.dueDate)?.toLocaleDateString(
-                          lang === 'he' ? 'he-IL' : 'en-US',
-                          { day: 'numeric', month: 'short', year: 'numeric' }
-                        )}
-                        {days !== null && m.status === 'pending' && unlocked && (
-                          <Text style={[
-                            styles.daysTag,
-                            days < 0  ? { color: '#D32F2F' }
-                            : days <= 7 ? { color: '#F59E0B' }
-                            : { color: '#10B981' },
-                          ]}>
-                            {' '}({days < 0
-                              ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}`
-                              : `${days} ${tx('daysLeft', lang)}`
-                            })
-                          </Text>
-                        )}
-                      </Text>
-                    )}
-
-                    {/* Defense info */}
-                    {isDefense && m.defenseDate && (
-                      <View style={styles.defenseInfo}>
-                        <Text style={[styles.defenseRow, isRtl && styles.textRight]}>
-                          📅 {tx('defenseDate', lang)}{' '}
-                          {toDate(m.defenseDate)?.toLocaleDateString(
-                            lang === 'he' ? 'he-IL' : 'en-US',
-                            { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
-                          )}
-                        </Text>
-                        {m.defenseRoom && (
-                          <Text style={[styles.defenseRow, isRtl && styles.textRight]}>
-                            🏫 {tx('defenseRoom', lang)} {m.defenseRoom}
-                          </Text>
-                        )}
-                        {m.examinerNames?.length > 0 && (
-                          <Text style={[styles.defenseRow, isRtl && styles.textRight]}>
-                            👥 {tx('examiners', lang)} {m.examinerNames.join(', ')}
-                          </Text>
-                        )}
-                      </View>
-                    )}
-
-                    {isDefense && !m.defenseDate && (
-                      <Text style={[styles.notScheduled, isRtl && styles.textRight]}>
-                        {tx('defenseNotScheduled', lang)}
-                      </Text>
-                    )}
-
-                    {/* Coordinator's rejection reason — shown so the student knows
-                        what to fix before resubmitting. */}
-                    {normalizedStatus === 'rejected' && m.rejectionReason && (
-                      <View style={{ backgroundColor: '#FEF2F2', borderRadius: 8, padding: 10, marginTop: 8 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>
-                          {lang === 'he' ? 'סיבת ההחזרה:' : 'Reason for return:'}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 2 }}>{m.rejectionReason}</Text>
-                      </View>
-                    )}
-
-                    {/* Coordinator's optional approval comment — approval stays
-                        binary, this is how a "conditional approval" gets expressed. */}
-                    {isApprovedOrDone && m.coordinatorComment && (
-                      <View style={{ backgroundColor: '#F5F6F8', borderRadius: 8, padding: 10, marginTop: 8 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#1F2937' }}>
-                          {lang === 'he' ? 'הערת הרכז:' : "Coordinator's comment:"}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{m.coordinatorComment}</Text>
-                      </View>
-                    )}
-
-                    {/* ── Submit button ──
-                        Show when:
-                        • status is 'pending' OR 'rejected' (resubmission after a
-                          coordinator return — previously this was 'pending'-only,
-                          which left a rejected milestone with no way to resubmit)
-                        • not the defense milestone
-                        • milestone is unlocked (previous was coordinator_approved/completed)
-                    */}
-                    {(m.status === 'pending' || normalizedStatus === 'rejected') && !isDefense && unlocked && !m.defenseDate && (
-                      <Pressable
-                        style={[styles.milestoneSubmitBtn, normalizedStatus === 'rejected' && { backgroundColor: '#EF4444' }]}
-                        onPress={() => openSubmit(m)}
-                      >
-                        <Text style={styles.milestoneSubmitBtnText}>
-                          {normalizedStatus === 'rejected'
-                            ? (lang === 'he' ? 'הגש גרסה מתוקנת' : 'Submit Corrected Version')
-                            : tx('submitMilestone', lang)}
-                        </Text>
-                      </Pressable>
-                    )}
-
-                    {/* Submission history — preserves earlier rejected rounds so
-                        nothing gets silently overwritten on resubmission. */}
-                    {(m as any).revisionHistory?.length > 0 && (
-                      <View style={{ marginTop: 8 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280' }}>
-                          🕘 {lang === 'he' ? `היסטוריית הגשות (${(m as any).revisionHistory.length})` : `Submission History (${(m as any).revisionHistory.length})`}
-                        </Text>
-                        {(m as any).revisionHistory.map((rev: any) => (
-                          <View key={rev.version} style={{ backgroundColor: '#F9FAFB', borderRadius: 8, padding: 8, marginTop: 4 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#374151' }}>
-                              {lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}
-                              {rev.decision === 'rejected' ? (lang === 'he' ? ' · נדחתה' : ' · Rejected') : ''}
-                            </Text>
-                            {rev.decisionReason && (
-                              <Text style={{ fontSize: 11, color: '#EF4444', marginTop: 2 }}>{rev.decisionReason}</Text>
-                            )}
-                          </View>
-                        ))}
-                      </View>
-                    )}
-
-                    {/* Submitted files count */}
-                    {m.fileUrls?.length > 0 && (
-                      <View style={styles.filesRow}>
-                        <Text style={styles.filesLabel}>
-                          📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים הוגשו' : 'files submitted'}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
           </>
         )}
 
@@ -834,32 +444,32 @@ export default function ActiveDashboard({
             <Text style={[styles.sectionTitle, !isRtl && styles.textRight]}>
               {lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}
             </Text>
-        
+
             {milestones.map((m) => {
               const label = lang === 'he'
                 ? (MILESTONE_LABEL[m.type]?.he ?? m.type)
                 : (MILESTONE_LABEL[m.type]?.en ?? m.type);
-        
+
               const normalizedStatus = (m.status ?? '').trim().toLowerCase();
               const grade   = m.finalGrade ?? m.supervisorScore ?? null;
               const hasGrade = typeof grade === 'number' && !isNaN(grade);
-        
+
               const isSubmittedState = !hasGrade && (
                 normalizedStatus === 'submitted' ||
                 normalizedStatus === 'supervisor_graded' ||
                 normalizedStatus === 'graded'
               );
-        
+
               const isGradeVisible =
                 normalizedStatus === 'coordinator_approved' ||
                 normalizedStatus === 'completed';
-        
+
               const gradeVisible = isGradeVisible && hasGrade;
-        
+
               const barColor   = hasGrade ? gradeColor(grade)      : '#E0E8FF';
               const trackColor = hasGrade ? gradeTrackColor(grade) : '#F0F4FF';
               const barFlex    = hasGrade ? (grade / 100) : 0;
-        
+
               // Expandable state for this card
               const isExpanded     = expandedGrades[m.id] ?? false;
               // Derived directly from the already-fetched milestone (no
@@ -925,7 +535,7 @@ export default function ActiveDashboard({
                       )}
                     </View>
                   </View>
-        
+
                   {/* ── Grade bar ── */}
                   {hasGrade ? (
                     <View style={{ marginTop: 8 }}>
@@ -958,7 +568,7 @@ export default function ActiveDashboard({
                       <View style={{ flexGrow: 1, backgroundColor: 'transparent' }} />
                     </View>
                   )}
-        
+
                   {/* ── Expanded criteria breakdown ── */}
                   {canExpand && isExpanded && (
                     <View style={breakdownStyles.container}>
@@ -991,10 +601,10 @@ export default function ActiveDashboard({
                               </View>
                             </View>
                           ))}
-        
+
                           {/* Divider */}
                           <View style={breakdownStyles.divider} />
-        
+
                           {/* Total */}
                           <View style={[breakdownStyles.row, { marginTop: 4 }]}>
                             <Text style={[breakdownStyles.criterionLabel, { fontWeight: '800', color: '#111' }]}>
@@ -1004,7 +614,7 @@ export default function ActiveDashboard({
                               {detail.total ?? '—'} / 100
                             </Text>
                           </View>
-        
+
                           {/* Comments */}
                           {detail.comments ? (
                             <View style={breakdownStyles.commentsBox}>
@@ -1105,7 +715,7 @@ export default function ActiveDashboard({
                 </Pressable>
               );
             })}
-        
+
             {/* Final grade card */}
             {project.overallFinalGrade != null && (
               <View style={styles.finalGradeCard}>
@@ -1125,98 +735,130 @@ export default function ActiveDashboard({
       </ScrollView>
 
       {/* ── Submit Milestone Modal ── */}
-      <Modal visible={submitModal} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
-          <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
-            <Text style={styles.modalTitle}>
-              {tx('submitTitle', lang)}{' '}
-              {targetMilestone
-                ? (lang === 'he'
-                    ? (MILESTONE_LABEL[targetMilestone.type]?.he ?? targetMilestone.type)
-                    : (MILESTONE_LABEL[targetMilestone.type]?.en ?? targetMilestone.type))
-                : ''}
-            </Text>
-            <Pressable onPress={() => { setSubmitModal(false); setFiles([]); setNote(''); }}>
-              <Text style={styles.modalClose}>✕</Text>
-            </Pressable>
-          </View>
-
-          {/* Files */}
-          {showFileField && (
-            <>
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                {tx('uploadFiles', lang)}
-                {(submissionRequirement === 'file' || submissionRequirement === 'both') ? ' *' : ''}
-              </Text>
-              {files.map((f, i) => (
-                <View key={i} style={styles.fileRow}>
-                  <Text style={styles.fileName}>📎 {f.name}</Text>
-                  <Pressable onPress={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}>
-                    <Text style={styles.fileRemove}>✕</Text>
-                  </Pressable>
-                </View>
-              ))}
-              <Pressable style={styles.uploadBtn} onPress={pickFile}>
-                <Text style={styles.uploadBtnText}>
-                  + {lang === 'he' ? 'הוסף קובץ' : 'Add File'}
-                </Text>
-              </Pressable>
-            </>
-          )}
-
-          {/* Note */}
-          {showNoteField && (
-            <>
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                {tx('addNote', lang)}
-                {(submissionRequirement === 'comment' || submissionRequirement === 'both') ? ' *' : ''}
-              </Text>
-              <TextInput
-                style={[styles.textarea, isRtl && styles.textRight]}
-                multiline
-                numberOfLines={4}
-                placeholder={tx('notePlaceholder', lang)}
-                placeholderTextColor="#9BA8C0"
-                value={note}
-                onChangeText={setNote}
-                textAlign={isRtl ? 'right' : 'left'}
-              />
-            </>
-          )}
-
-          {!showFileField && !showNoteField && (
-            <Text style={[styles.fieldLabel, isRtl && styles.textRight, { fontWeight: '400' }]}>
-              {lang === 'he' ? 'אבן דרך זו אינה דורשת קובץ או הערה — ניתן להגיש ישירות.' : 'This milestone requires no file or comment — you can submit directly.'}
-            </Text>
-          )}
-
-          {submitMessage && (
-            <Text style={[
-              styles.submitMsg,
-              submitMessage.includes('✅') ? styles.submitMsgOk : styles.submitMsgErr,
-            ]}>
-              {submitMessage}
-            </Text>
-          )}
-
-          <Pressable
-            style={[styles.submitBtn, (submitting || !canSubmitMilestone) && { opacity: 0.6 }]}
-            onPress={handleSubmit}
-            disabled={submitting || !canSubmitMilestone}
-          >
-            {submitting
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.submitBtnText}>{tx('submit', lang)}</Text>
-            }
-          </Pressable>
-        </ScrollView>
-      </Modal>
+      {submitTarget && (
+        <SubmitMilestoneModal
+          milestone={submitTarget}
+          projectId={project.id}
+          lang={lang}
+          isRtl={isRtl}
+          onClose={() => setSubmitTarget(null)}
+          onSubmitted={() => setSubmitTarget(null)}
+        />
+      )}
     </View>
   );
 }
 
 const styles = ActivateDashboardStyles;
 
-const thesisTemplateStyles = ThesisTemplateCardStyles;
-
 const breakdownStyles = GradeBreakdownStyles;
+
+// ─── "Student Mobile Home" reskin — Overview tab only ──────────────────────
+// Built strictly from studentTheme.ts tokens (studentPalette/studentRadius/
+// studentSpacing/studentCardStyles) — see that file's own header comment for
+// why this stays separate from constants/theme.ts + constants/styles.ts.
+const ov = StyleSheet.create({
+  screenBg: { backgroundColor: studentPalette.surface },
+
+  tabActive:     { borderBottomColor: studentPalette.primary },
+  tabTextActive: { color: studentPalette.primary },
+
+  header: { paddingVertical: studentSpacing.xs, marginBottom: studentSpacing.md },
+  welcomeTitle: { fontSize: 22, fontWeight: '700', color: studentPalette.onSurface },
+  welcomeSubtitle: { fontSize: 14, color: studentPalette.onSurfaceVariant, marginTop: studentSpacing.xs },
+
+  metricsRow: { flexDirection: 'row', gap: studentSpacing.sm, marginBottom: studentSpacing.sm },
+  metricCard: {
+    ...studentCardStyles.metric,
+    flex: 1,
+    minHeight: 96,
+  },
+  metricHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  metricLabel: {
+    fontSize: 11, fontWeight: '600', color: studentPalette.onSurfaceVariant,
+    textTransform: 'uppercase', letterSpacing: 0.5,
+  },
+  metricIcon: { fontSize: 16 },
+  metricValue: { fontSize: 30, fontWeight: '800', color: studentPalette.primary, marginTop: studentSpacing.sm },
+  metricValueRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: studentSpacing.sm },
+  metricValueSub: { fontSize: 14, color: studentPalette.onSurfaceVariant, marginBottom: 3 },
+
+  deadlineCard: {
+    ...studentCardStyles.base,
+    marginBottom: studentSpacing.md,
+  },
+  deadlineHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: studentSpacing.sm },
+  deadlineBody: { flexDirection: 'row', alignItems: 'center', gap: studentSpacing.md },
+  deadlineChip: {
+    backgroundColor: studentPalette.errorContainer,
+    borderRadius: studentRadius.lg,
+    paddingVertical: studentSpacing.sm,
+    paddingHorizontal: studentSpacing.sm,
+    alignItems: 'center',
+    minWidth: 64,
+  },
+  deadlineChipNum: { fontSize: 22, fontWeight: '800', color: studentPalette.onErrorContainer, lineHeight: 26 },
+  deadlineChipLabel: {
+    fontSize: 10, fontWeight: '700', color: studentPalette.onErrorContainer,
+    textTransform: 'uppercase', marginTop: 2,
+  },
+  deadlineTitle: { fontSize: 15, fontWeight: '700', color: studentPalette.onSurface },
+  deadlineSub: { fontSize: 12, color: studentPalette.onSurfaceVariant, marginTop: 2 },
+
+  section: { marginTop: studentSpacing.sm, marginBottom: studentSpacing.md },
+  sectionHeading: { fontSize: 15, fontWeight: '700', color: studentPalette.onSurface, marginBottom: studentSpacing.sm },
+
+  quickActionsRow: { flexDirection: 'row', gap: studentSpacing.sm },
+  primaryActionBtn: {
+    flex: 1,
+    backgroundColor: studentPalette.primary,
+    borderRadius: studentRadius.sm,
+    paddingVertical: studentSpacing.sm + 2,
+    paddingHorizontal: studentSpacing.md,
+    alignItems: 'center',
+  },
+  primaryActionBtnText: { color: studentPalette.onPrimary, fontSize: 13, fontWeight: '700' },
+  secondaryActionBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: studentPalette.secondary,
+    borderRadius: studentRadius.sm,
+    paddingVertical: studentSpacing.sm + 2,
+    paddingHorizontal: studentSpacing.md,
+    alignItems: 'center',
+  },
+  secondaryActionBtnText: { color: studentPalette.secondary, fontSize: 13, fontWeight: '700' },
+
+  activityEmpty: {
+    ...studentCardStyles.base,
+    alignItems: 'center',
+    paddingVertical: studentSpacing.lg,
+  },
+  activityEmptyText: { fontSize: 13, color: studentPalette.onSurfaceVariant },
+  activityList: {
+    backgroundColor: studentPalette.surfaceContainerLowest,
+    borderRadius: studentRadius.lg,
+    borderWidth: 1,
+    borderColor: studentPalette.outlineVariant,
+    overflow: 'hidden',
+  },
+  activityRow: { flexDirection: 'row', gap: studentSpacing.sm, padding: studentSpacing.md, alignItems: 'flex-start' },
+  activityRowDivider: { borderBottomWidth: 1, borderBottomColor: studentPalette.outlineVariant },
+  activityIconWrap: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: studentPalette.secondaryContainer,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  activityIconText: { fontSize: 16 },
+  activityTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: studentSpacing.sm },
+  activityTitle: { fontSize: 13, fontWeight: '700', color: studentPalette.onSurface, flex: 1 },
+  activityTime: { fontSize: 11, color: studentPalette.onSurfaceVariant },
+  activitySubtitle: { fontSize: 12, color: studentPalette.onSurfaceVariant, marginTop: 2, lineHeight: 17 },
+
+  descCard: {
+    ...studentCardStyles.base,
+    marginTop: studentSpacing.xs,
+  },
+  descTitle: { fontSize: 14, fontWeight: '700', color: studentPalette.onSurface, marginBottom: studentSpacing.sm },
+  descBody: { fontSize: 13, color: studentPalette.onSurfaceVariant, lineHeight: 20 },
+});

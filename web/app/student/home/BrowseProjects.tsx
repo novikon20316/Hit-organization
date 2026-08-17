@@ -170,7 +170,7 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
 
       {pendingApplications.length > 0 && (
         <div className="mb-4">
-          <p className="mb-2 text-sm font-semibold text-ink">
+          <p className="mb-2 text-sm font-semibold text-student-on-surface">
             {lang === 'he' ? 'הבקשות שלי' : 'My Applications'} ({pendingApplications.length})
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -181,140 +181,165 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
         </div>
       )}
 
-      <p className="mb-2 text-xs text-muted">
-        {lang === 'he' ? 'מוצגים פרויקטים עבור: ' : 'Showing projects for: '}
-        <span className="font-medium text-ink">{studentDegree === 'masters' ? t('masters') : t('bachelors')}</span>
-      </p>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+        {/* Filters sidebar */}
+        <aside className="grid gap-4 lg:col-span-3">
+          <div>
+            <h2 className="text-lg font-semibold text-student-primary">
+              {lang === 'he' ? 'גילוי פרויקטים' : 'Project Discovery'}
+            </h2>
+            <p className="mt-1 text-xs text-student-on-surface-variant">
+              {lang === 'he' ? 'סננו הזדמנויות מחקר זמינות.' : 'Filter available research opportunities.'}
+            </p>
+            <p className="mt-2 text-xs text-student-on-surface-variant">
+              {lang === 'he' ? 'מוצגים פרויקטים עבור: ' : 'Showing projects for: '}
+              <span className="font-medium text-student-on-surface">{studentDegree === 'masters' ? t('masters') : t('bachelors')}</span>
+            </p>
+          </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={lang === 'he' ? 'חיפוש פרויקטים...' : 'Search projects...'}
-          className="w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
-        />
-        <div className="flex gap-1.5">
-          {(['all', 'project', 'thesis'] as TypeFilter[]).map((tp) => (
-            <button
-              key={tp}
-              type="button"
-              onClick={() => setTypeFilter(tp)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                typeFilter === tp ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'
-              }`}
-            >
-              {tp === 'all' ? t('all') : tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-4">
+            <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-student-on-surface">
+              {lang === 'he' ? 'חיפוש' : 'Search'}
+            </h3>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={lang === 'he' ? 'חיפוש פרויקטים...' : 'Search projects...'}
+              className="w-full rounded-student border border-student-outline-variant bg-student-surface px-3 py-2 text-sm text-student-on-surface focus:border-student-primary focus:outline-none"
+            />
+          </div>
 
-      <div className="mt-2 flex gap-1.5">
-        {(['all', 'eligible'] as EligibilityFilter[]).map((ef) => (
-          <button
-            key={ef}
-            type="button"
-            onClick={() => setEligibilityFilter(ef)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-              eligibilityFilter === ef
-                ? 'border-primary bg-primary text-primary-ink'
-                : 'border-line bg-surface text-ink hover:border-primary hover:text-primary'
-            }`}
-          >
-            {ef === 'all'
-              ? lang === 'he'
-                ? 'כל הפרויקטים'
-                : 'All projects'
-              : lang === 'he'
-                ? 'פרויקטים שניתן להגיש להם'
-                : 'Projects you can apply to'}
-          </button>
-        ))}
-      </div>
+          <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-4">
+            <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-student-on-surface">
+              {lang === 'he' ? 'סוג' : 'Type'}
+            </h3>
+            <div className="flex flex-wrap gap-1.5">
+              {(['all', 'project', 'thesis'] as TypeFilter[]).map((tp) => (
+                <button
+                  key={tp}
+                  type="button"
+                  onClick={() => setTypeFilter(tp)}
+                  className={`rounded-student border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    typeFilter === tp
+                      ? 'border-student-primary bg-student-primary text-student-on-primary'
+                      : 'border-student-outline-variant bg-student-surface text-student-on-surface-variant hover:border-student-primary hover:text-student-primary'
+                  }`}
+                >
+                  {tp === 'all' ? t('all') : tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <p className="mt-3 text-xs text-muted">
-        {filtered.length} {lang === 'he' ? 'פרויקטים' : 'projects'}
-      </p>
+          <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-4">
+            <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-student-on-surface">
+              {lang === 'he' ? 'זכאות' : 'Eligibility'}
+            </h3>
+            <div className="grid gap-1.5">
+              {(['all', 'eligible'] as EligibilityFilter[]).map((ef) => (
+                <button
+                  key={ef}
+                  type="button"
+                  onClick={() => setEligibilityFilter(ef)}
+                  className={`rounded-student border px-3 py-1.5 text-start text-xs font-medium transition-colors ${
+                    eligibilityFilter === ef
+                      ? 'border-student-primary bg-student-primary text-student-on-primary'
+                      : 'border-student-outline-variant bg-student-surface text-student-on-surface-variant hover:border-student-primary hover:text-student-primary'
+                  }`}
+                >
+                  {ef === 'all'
+                    ? lang === 'he'
+                      ? 'כל הפרויקטים'
+                      : 'All projects'
+                    : lang === 'he'
+                      ? 'פרויקטים שניתן להגיש להם'
+                      : 'Projects you can apply to'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
 
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        {filtered.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? '📭 לא נמצאו פרויקטים' : '📭 No projects found'}</p>}
-        {filtered.map((p) => {
-          const isExpanded = expandedId === p.id;
-          const missingCourses = getMissingCourses(p);
-          const isQualified = missingCourses.length === 0;
-          const alreadyApplied = appliedProjectIds.includes(p.id);
-          return (
-            <div key={p.id} className="rounded-[var(--radius)] border border-line bg-surface p-4">
-              <button type="button" onClick={() => setExpandedId(isExpanded ? null : p.id)} className="w-full text-start">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {(p.degreeTypes ?? [p.degreeType]).map((d) => (
-                    <span key={d} className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
-                      {d === 'masters' ? t('masters') : t('bachelors')}
-                    </span>
-                  ))}
-                  {projectTypesOf(p).map((tp) => (
-                    <span key={tp} className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
-                      {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-2 text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe : p.titleEn}</p>
-                <p className="mt-1 text-xs text-muted">
-                  👨‍🏫 {p.supervisorName || (lang === 'he' ? 'לא צוין' : 'Not specified')}
-                </p>
-                {p.requiredSkills?.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {p.requiredSkills.slice(0, 4).map((sk) => (
-                      <span key={sk} className="rounded-full bg-paper px-2 py-0.5 text-xs text-muted">
-                        {sk}
+        {/* Project grid */}
+        <div className="lg:col-span-9">
+          <p className="mb-3 text-xs font-medium text-student-on-surface-variant">
+            {filtered.length} {lang === 'he' ? 'פרויקטים' : 'projects'}
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {filtered.length === 0 && <p className="text-sm text-student-on-surface-variant">{lang === 'he' ? '📭 לא נמצאו פרויקטים' : '📭 No projects found'}</p>}
+            {filtered.map((p) => {
+              const isExpanded = expandedId === p.id;
+              const missingCourses = getMissingCourses(p);
+              const isQualified = missingCourses.length === 0;
+              const alreadyApplied = appliedProjectIds.includes(p.id);
+              const initials = (p.supervisorName || '??')
+                .split(' ')
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join('')
+                .toUpperCase();
+              return (
+                <div
+                  key={p.id}
+                  className="flex flex-col rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-4 transition-shadow hover:shadow-[0_4px_6px_-1px_rgb(0,0,0,0.1)]"
+                >
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {(p.degreeTypes ?? [p.degreeType]).map((d) => (
+                      <span key={d} className="rounded-student bg-student-primary-fixed px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-student-primary">
+                        {d === 'masters' ? t('masters') : t('bachelors')}
+                      </span>
+                    ))}
+                    {projectTypesOf(p).map((tp) => (
+                      <span key={tp} className="rounded-student bg-student-secondary-container px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-student-on-secondary-container">
+                        {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
                       </span>
                     ))}
                   </div>
-                )}
-              </button>
 
-              {isExpanded && (
-                <div className="mt-3 grid gap-2 border-t border-line pt-3">
-                  <p className="text-xs text-muted">{lang === 'he' ? p.descriptionHe : p.descriptionEn}</p>
-                  {p.academicYear && (
-                    <p className="text-xs text-muted">
-                      📅 {lang === 'he' ? 'שנה"ל:' : 'Academic year:'} {p.academicYear}
+                  <button type="button" onClick={() => setExpandedId(isExpanded ? null : p.id)} className="mt-2 w-full text-start">
+                    <p className="text-sm font-semibold text-student-on-surface">{lang === 'he' ? p.titleHe : p.titleEn}</p>
+                    <p className={`mt-1.5 text-xs text-student-on-surface-variant ${isExpanded ? '' : 'line-clamp-3'}`}>
+                      {lang === 'he' ? p.descriptionHe : p.descriptionEn}
                     </p>
-                  )}
-                  <p className="text-xs text-muted">
-                    👥 {lang === 'he' ? 'מקסימום סטודנטים:' : 'Max students:'} {p.NumberOfStudents ?? 1}
-                  </p>
-                  {normalizePrerequisites(p.prerequisites).length > 0 && (
-                    <p className="text-xs text-muted">
-                      📚 {lang === 'he' ? 'דרישות קדם:' : 'Prerequisites:'}{' '}
-                      {normalizePrerequisites(p.prerequisites).map((pr) => formatPrerequisite(pr, lang)).join(', ')}
-                    </p>
-                  )}
-                  {p.projectFileUrl && (
-                    <a
-                      href={p.projectFileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-lg border border-line bg-paper px-3 py-2 text-xs font-medium text-ink hover:border-primary hover:text-primary"
-                    >
-                      📄 {lang === 'he' ? 'קובץ פרויקט' : 'Project File'}
-                    </a>
-                  )}
+                    {p.requiredSkills?.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {p.requiredSkills.slice(0, 4).map((sk) => (
+                          <span key={sk} className="rounded-student bg-student-surface-container-low px-2 py-0.5 text-xs text-student-on-surface-variant">
+                            {sk}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
 
-                  {alreadyApplied ? (
-                    <span className="rounded-lg bg-[#F59E0B] px-3 py-2 text-center text-xs font-semibold text-white">
-                      {lang === 'he' ? '✓ בקשה נשלחה' : '✓ Sent Application'}
-                    </span>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={!isQualified}
-                        onClick={() => openApply(p)}
-                        className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-40"
-                      >
-                        {lang === 'he' ? 'הגש מועמדות' : 'Apply'}
-                      </button>
+                  {isExpanded && (
+                    <div className="mt-2 grid gap-1.5 border-t border-student-outline-variant pt-2.5">
+                      {p.academicYear && (
+                        <p className="text-xs text-student-on-surface-variant">
+                          📅 {lang === 'he' ? 'שנה"ל:' : 'Academic year:'} {p.academicYear}
+                        </p>
+                      )}
+                      <p className="text-xs text-student-on-surface-variant">
+                        👥 {lang === 'he' ? 'מקסימום סטודנטים:' : 'Max students:'} {p.NumberOfStudents ?? 1}
+                      </p>
+                      {normalizePrerequisites(p.prerequisites).length > 0 && (
+                        <p className="text-xs text-student-on-surface-variant">
+                          📚 {lang === 'he' ? 'דרישות קדם:' : 'Prerequisites:'}{' '}
+                          {normalizePrerequisites(p.prerequisites).map((pr) => formatPrerequisite(pr, lang)).join(', ')}
+                        </p>
+                      )}
+                      {p.projectFileUrl && (
+                        <a
+                          href={p.projectFileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-student border border-student-outline-variant bg-student-surface-container-low px-3 py-2 text-xs font-medium text-student-on-surface hover:border-student-primary hover:text-student-primary"
+                        >
+                          📄 {lang === 'he' ? 'קובץ פרויקט' : 'Project File'}
+                        </a>
+                      )}
                       {!isQualified && (
                         <p className="text-xs text-danger">
                           {lang === 'he'
@@ -322,38 +347,64 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
                             : `Not qualified for this project/thesis. You need to have studied: ${missingCourses.map((c) => formatPrerequisite(c, lang)).join(', ')}`}
                         </p>
                       )}
-                    </>
+                    </div>
                   )}
+
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-student-surface-variant pt-3">
+                    <div className="flex items-center">
+                      <span className="me-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-student-secondary-container text-xs font-bold text-student-on-secondary-container">
+                        {initials}
+                      </span>
+                      <div>
+                        <p className="text-xs font-medium text-student-on-surface">{p.supervisorName || (lang === 'he' ? 'לא צוין' : 'Not specified')}</p>
+                        <p className="text-[11px] text-student-on-surface-variant">{lang === 'he' ? 'מנחה' : 'Supervisor'}</p>
+                      </div>
+                    </div>
+                    {alreadyApplied ? (
+                      <span className="rounded-student bg-success-bg px-3 py-1.5 text-center text-xs font-semibold text-success">
+                        {lang === 'he' ? '✓ בקשה נשלחה' : '✓ Sent Application'}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!isQualified}
+                        onClick={() => openApply(p)}
+                        className="rounded-student border border-student-primary px-3 py-1.5 text-xs font-semibold text-student-primary hover:bg-student-primary-fixed/40 disabled:opacity-40"
+                      >
+                        {lang === 'he' ? 'הגש מועמדות' : 'Apply'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {showApply && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-6 shadow-lg">
             <div className="flex items-start justify-between">
-              <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
-              <button type="button" onClick={closeApply} className="text-muted hover:text-ink">
+              <h2 className="text-lg font-semibold text-student-on-surface">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
+              <button type="button" onClick={closeApply} className="text-student-on-surface-variant hover:text-student-on-surface">
                 ✕
               </button>
             </div>
-            <p className="mt-1 text-sm text-muted">{lang === 'he' ? selected.titleHe : selected.titleEn}</p>
+            <p className="mt-1 text-sm text-student-on-surface-variant">{lang === 'he' ? selected.titleHe : selected.titleEn}</p>
 
             {projectTypesOf(selected).length > 1 && (
               <div className="mt-4">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מסלול *' : 'Track *'}</span>
+                <span className="mb-1.5 block text-sm font-medium text-student-on-surface">{lang === 'he' ? 'מסלול *' : 'Track *'}</span>
                 <div className="flex gap-3">
                   {projectTypesOf(selected).map((tp) => (
-                    <label key={tp} className="flex items-center gap-1.5 text-sm text-ink">
+                    <label key={tp} className="flex items-center gap-1.5 text-sm text-student-on-surface">
                       <input
                         type="radio"
                         name="applyProjectType"
                         checked={selectedProjectType === tp}
                         onChange={() => setSelectedProjectType(tp)}
-                        className="h-4 w-4"
+                        className="h-4 w-4 accent-student-primary"
                       />
                       {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
                     </label>
@@ -363,12 +414,12 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
             )}
 
             <label className="mt-4 block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-student-on-surface">{lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}</span>
               <textarea
                 rows={4}
                 value={coverNote}
                 onChange={(e) => setCoverNote(e.target.value)}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-student border border-student-outline-variant bg-student-surface-container-low px-3 py-2 text-sm text-student-on-surface focus:border-student-primary focus:bg-student-surface-container-lowest focus:outline-none"
               />
             </label>
 
@@ -390,7 +441,7 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
             />
 
             {applyMessage && (
-              <p className={`mt-4 rounded-md px-3 py-2 text-sm ${applyMessage.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}>
+              <p className={`mt-4 rounded-student px-3 py-2 text-sm ${applyMessage.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}>
                 {applyMessage.text}
               </p>
             )}
@@ -399,7 +450,7 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
               type="button"
               onClick={handleApply}
               disabled={submitting}
-              className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              className="mt-4 w-full rounded-student bg-student-primary py-2.5 text-sm font-semibold text-student-on-primary hover:opacity-90 disabled:opacity-60"
             >
               {submitting ? '…' : t('submit')}
             </button>
@@ -446,9 +497,9 @@ function FileField({
 
   return (
     <label className="relative mt-4 block">
-      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
-      <div className="relative flex items-center justify-between overflow-hidden rounded-lg border border-dashed border-line bg-paper px-3 py-2.5 text-sm">
-        <span className={file || reusing ? 'text-success' : 'text-muted'}>
+      <span className="mb-1.5 block text-sm font-medium text-student-on-surface">{label}</span>
+      <div className="relative flex items-center justify-between overflow-hidden rounded-student border border-dashed border-student-outline-variant bg-student-surface-container-low px-3 py-2.5 text-sm">
+        <span className={file || reusing ? 'text-success' : 'text-student-on-surface-variant'}>
           {file
             ? `✓ ${file.name}`
             : reusing
@@ -464,10 +515,10 @@ function FileField({
       </div>
       {reusing && (
         <div className="mt-1 flex items-center gap-3 text-xs">
-          <a href={reuseUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+          <a href={reuseUrl} target="_blank" rel="noopener noreferrer" className="text-student-primary hover:underline">
             {lang === 'he' ? 'צפייה בקובץ' : 'View file'}
           </a>
-          <span className="text-muted">{lang === 'he' ? 'לחץ למעלה כדי להחליף' : 'Click above to replace it'}</span>
+          <span className="text-student-on-surface-variant">{lang === 'he' ? 'לחץ למעלה כדי להחליף' : 'Click above to replace it'}</span>
           <button type="button" onClick={onClearReuse} className="text-danger hover:opacity-70">
             {lang === 'he' ? 'הסר' : 'Remove'}
           </button>

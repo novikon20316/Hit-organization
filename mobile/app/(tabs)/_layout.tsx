@@ -66,8 +66,9 @@ const ROLE_TABS: Record<string, Array<{
   labelEn:       string;
 }>> = {
   student: [
-    { name: 'student/home',     iconActive: '🏠', iconInactive: '🏚️', labelHe: 'בית',      labelEn: 'Home'      },
-    { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
+    { name: 'student/home',       iconActive: '🏠', iconInactive: '🏚️', labelHe: 'בית',      labelEn: 'Home'      },
+    { name: 'student/milestones', iconActive: '🎯', iconInactive: '📌', labelHe: 'אבני דרך', labelEn: 'Milestones'},
+    { name: 'notifications',      iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   supervisor: [
     { name: 'supervisor/home',  iconActive: '📋', iconInactive: '📋', labelHe: 'פרויקטים', labelEn: 'Projects'  },

@@ -65,16 +65,43 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
   // stuck/broken button.
   const isWaitingApproval = milestones.some((m) => (['submitted', 'graded', 'supervisor_graded'] as string[]).includes(m.status));
 
+  // Real "Recent Feedback" source for the Milestones tab's right-column
+  // panel — never fabricated: prefer the most recently reached milestone
+  // that has a rejectionReason, falling back to the most recently reached
+  // one with a coordinatorComment. Milestones are order-gated (see
+  // isUnlocked above), so "most recent" == highest resolveMilestoneOrder.
+  const mostRecentWith = (pred: (m: Milestone) => boolean): Milestone | null =>
+    milestones.filter(pred).reduce<Milestone | null>(
+      (best, m) => (best === null || resolveMilestoneOrder(m) > resolveMilestoneOrder(best) ? m : best),
+      null,
+    );
+  const feedbackMilestone =
+    mostRecentWith((m) => m.status === 'rejected' && !!m.rejectionReason) ??
+    mostRecentWith((m) => !!m.coordinatorComment);
+
   return (
     <div>
-      <div className="mb-5 flex gap-1 border-b border-line">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-student-on-surface md:text-3xl">
+          {lang === 'he' ? 'התקדמות הפרויקט הפעיל' : 'Active Project Progress'}
+        </h1>
+        <p className="mt-1 text-sm text-student-on-surface-variant">
+          {lang === 'he'
+            ? `מעקב אחר אבני הדרך והמשוב האחרון של המנחה לפרויקט '${project.titleHe}'.`
+            : `Track your milestones and recent supervisor feedback for '${project.titleEn}'.`}
+        </p>
+      </div>
+
+      <div className="mb-6 flex gap-1 border-b border-student-outline-variant">
         {(['overview', 'milestones', 'grades'] as const).map((key) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
-            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+            className={`border-b-2 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+              tab === key
+                ? 'border-student-primary text-student-primary'
+                : 'border-transparent text-student-on-surface-variant hover:text-student-on-surface'
             }`}
           >
             {key === 'overview'
@@ -90,20 +117,20 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
         <div className="grid gap-4">
           <AnnouncementsBanner />
 
-          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-            <p className="text-base font-semibold text-ink">📁 {lang === 'he' ? project.titleHe : project.titleEn}</p>
-            <p className="mt-1 text-sm text-muted">
+          <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
+            <p className="text-base font-semibold text-student-on-surface">📁 {lang === 'he' ? project.titleHe : project.titleEn}</p>
+            <p className="mt-1 text-sm text-student-on-surface-variant">
               👨‍🏫 {project.supervisorName} · {project.academicYear}
             </p>
             <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-muted">
+              <div className="flex items-center justify-between text-xs text-student-on-surface-variant">
                 <span>{lang === 'he' ? 'התקדמות' : 'Progress'}</span>
                 <span>{progress}%</span>
               </div>
-              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-paper">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-student-surface-container">
+                <div className="h-full rounded-full bg-student-primary" style={{ width: `${progress}%` }} />
               </div>
-              <p className="mt-1.5 text-xs text-muted">
+              <p className="mt-1.5 text-xs text-student-on-surface-variant">
                 {milestones.filter((m) => m.status === 'coordinator_approved').length} / {milestones.length}{' '}
                 {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
               </p>
@@ -111,9 +138,12 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
           </div>
 
           {overviewDisplayMilestone && (
-            <div className="role-rail rounded-[var(--radius)] bg-surface p-5" style={{ '--rail-color': 'var(--primary)' } as React.CSSProperties}>
+            <div
+              className="role-rail rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm"
+              style={{ '--rail-color': 'var(--student-primary)' } as React.CSSProperties}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-ink">⚡ {lang === 'he' ? 'אבן הדרך הבאה' : 'Next Milestone'}</span>
+                <span className="text-sm font-semibold text-student-on-surface">⚡ {lang === 'he' ? 'אבן הדרך הבאה' : 'Next Milestone'}</span>
                 {isWaitingApproval ? (
                   <span className="rounded-full bg-[#FBF3E3] px-2.5 py-1 text-xs font-medium text-accent">
                     {lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting approval'}
@@ -130,7 +160,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                 )}
               </div>
 
-              <p className="mt-2 text-sm text-ink">
+              <p className="mt-2 text-sm text-student-on-surface">
                 {(() => {
                   const nextPending = milestones.find((m) => m.status === 'pending' || m.status === 'rejected');
                   const displayType = nextPending?.type ?? overviewDisplayMilestone.type;
@@ -147,7 +177,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                   type="button"
                   disabled={!actionableNextMilestone || isWaitingApproval}
                   onClick={() => actionableNextMilestone && setSubmitTarget(actionableNextMilestone)}
-                  className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-40"
+                  className="mt-4 w-full rounded-student-lg bg-student-primary py-2.5 text-sm font-semibold text-student-on-primary hover:bg-student-primary-container disabled:opacity-40"
                 >
                   {isWaitingApproval ? (lang === 'he' ? 'ממתין לאישור סגל' : 'Awaiting Faculty Approval') : (lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone')}
                 </button>
@@ -155,178 +185,219 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
             </div>
           )}
 
-          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-            <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'תיאור הפרויקט' : 'Project Description'}</p>
-            <p className="mt-1.5 text-sm text-muted">{lang === 'he' ? project.descriptionHe : project.descriptionEn}</p>
+          <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
+            <p className="text-sm font-semibold text-student-on-surface">{lang === 'he' ? 'תיאור הפרויקט' : 'Project Description'}</p>
+            <p className="mt-1.5 text-sm text-student-on-surface-variant">{lang === 'he' ? project.descriptionHe : project.descriptionEn}</p>
           </div>
-
-          {isMastersThesis && (
-            <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-              <p className="text-sm font-semibold text-ink">📄 {lang === 'he' ? 'תבנית לתזה' : 'Thesis Template'}</p>
-              <p className="mt-1.5 text-sm text-muted">
-                {lang === 'he' ? 'תבנית ה-Word הרשמית לכתיבת עבודת התזה שלך.' : 'The official Word template for writing your thesis.'}
-              </p>
-              <button
-                type="button"
-                onClick={handleDownloadTemplate}
-                disabled={downloadingTemplate}
-                className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
-              >
-                {downloadingTemplate ? '…' : `⬇ ${lang === 'he' ? 'הורדת התבנית' : 'Download Template'}`}
-              </button>
-            </div>
-          )}
         </div>
       )}
 
       {tab === 'milestones' && (
-        <div className="grid gap-3">
-          <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'אבני הדרך שלך' : 'Your Milestones'}</p>
-          {milestones.map((m, index) => {
-            const unlocked = isUnlocked(m);
-            const cfg = STATUS_CONFIG[m.status] ?? { color: '#6B7280', bg: '#F1F0EC', icon: '🕐' };
-            const days = daysUntil(m.dueDate);
-            const label = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
-            const isDefense = m.type === 'defense';
-            const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
-            const isApprovedOrDone = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
-            const isRejected = m.status === 'rejected';
+        <div className="grid gap-4 xl:grid-cols-12">
+          <div className="xl:col-span-8 rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
+            <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-student-on-surface">
+              {lang === 'he' ? 'אבני הדרך שלך' : 'Your Milestones'}
+            </p>
+            <div className="grid">
+              {milestones.map((m, index) => {
+                const unlocked = isUnlocked(m);
+                const cfg = STATUS_CONFIG[m.status] ?? { color: '#6B7280', bg: '#F1F0EC', icon: '🕐' };
+                const days = daysUntil(m.dueDate);
+                const label = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
+                const isDefense = m.type === 'defense';
+                const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
+                const isApprovedOrDone = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
+                const isRejected = m.status === 'rejected';
+                const isCurrent = unlocked && !isApprovedOrDone;
 
-            return (
-              <div key={m.id} className="flex gap-3 rounded-[var(--radius)] border border-line bg-surface p-4">
-                <div className="flex flex-col items-center">
-                  <span
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                    style={{ backgroundColor: isApprovedOrDone ? 'var(--success)' : cfg.color }}
-                  >
-                    {isApprovedOrDone ? '✓' : index + 1}
-                  </span>
-                  {index < milestones.length - 1 && <span className="mt-1 w-px flex-1 bg-line" />}
-                </div>
-
-                <div className="flex-1 pb-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-ink">{label}</span>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs font-medium"
-                      style={{ backgroundColor: isApprovedOrDone ? 'var(--success-bg)' : cfg.bg, color: isApprovedOrDone ? 'var(--success)' : cfg.color }}
-                    >
-                      {isApprovedOrDone ? '✅' : cfg.icon} {STATUS_LABEL[m.status]?.[lang] ?? m.status}
-                    </span>
-                  </div>
-
-                  {!unlocked ? (
-                    <p className="mt-1 text-xs text-muted">🔒 {lang === 'he' ? 'יש להשלים אבני דרך קודמות' : 'Need to complete previous milestones'}</p>
-                  ) : isApprovedOrDone ? (
-                    <p className="mt-1 text-xs font-medium text-success">
-                      ✅ {lang === 'he' ? 'אושר ע"י הרכז' : 'Approved by coordinator'}
-                      {m.finalGrade !== null && ` · ${t('grade')}: ${m.finalGrade}`}
-                    </p>
-                  ) : isSubmittedInReview ? (
-                    <p className="mt-1 text-xs font-medium text-accent">📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}</p>
-                  ) : isRejected ? (
-                    <p className="mt-1 text-xs font-medium text-danger">
-                      ↩ {lang === 'he' ? 'הוחזר לתיקון — יש להגיש גרסה מתוקנת' : 'Returned for revision — please resubmit a corrected version'}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-muted">
-                      📅 {t('dueDate')} {toDate(m.dueDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {days !== null && m.status === 'pending' && unlocked && (
-                        <span className={days < 0 ? 'text-danger' : days <= 7 ? 'text-accent' : 'text-success'}>
-                          {' '}
-                          ({days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : `${days} ${lang === 'he' ? 'ימים' : 'days left'}`})
-                        </span>
-                      )}
-                    </p>
-                  )}
-
-                  {isDefense && m.defenseDate && (
-                    <div className="mt-2 grid gap-0.5 text-xs text-muted">
-                      <span>
-                        📅 {t('defenseDate')} {toDate(m.defenseDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                return (
+                  <div key={m.id} className={`flex gap-3 ${!unlocked ? 'opacity-60' : ''}`}>
+                    <div className="flex flex-col items-center">
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 ${
+                          isCurrent
+                            ? 'border-student-primary bg-student-primary-fixed ring-4 ring-student-primary/10'
+                            : 'border-student-outline-variant bg-student-surface-container-lowest'
+                        }`}
+                      >
+                        {isApprovedOrDone && <span className="text-xs text-student-on-surface-variant">✓</span>}
+                        {isCurrent && <span className="h-2 w-2 rounded-full bg-student-primary" />}
                       </span>
-                      {m.defenseRoom && (
-                        <span>
-                          🏫 {t('defenseRoom')} {m.defenseRoom}
+                      {index < milestones.length - 1 && <span className="mt-1 w-px flex-1 bg-student-outline-variant" />}
+                    </div>
+
+                    <div className={`flex-1 pb-6 ${isCurrent ? 'rounded-student-lg border border-student-primary/20 bg-student-primary/5 p-3 -mt-1' : ''}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-student-on-surface">{label}</span>
+                        <span
+                          className="rounded-student px-2 py-1 text-xs font-semibold uppercase tracking-wide"
+                          style={{ backgroundColor: isApprovedOrDone ? 'var(--success-bg)' : cfg.bg, color: isApprovedOrDone ? 'var(--success)' : cfg.color }}
+                        >
+                          {isApprovedOrDone ? '✅' : cfg.icon} {STATUS_LABEL[m.status]?.[lang] ?? m.status}
                         </span>
-                      )}
-                      {m.examinerNames?.length > 0 && (
-                        <span>
-                          👥 {t('examiners')} {m.examinerNames.join(', ')}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {isDefense && !m.defenseDate && <p className="mt-1 text-xs text-muted">{t('defenseNotScheduled')}</p>}
-
-                  {isRejected && m.rejectionReason && (
-                    <div className="mt-2 rounded-lg bg-danger-bg p-2.5">
-                      <p className="text-xs font-semibold text-danger">{lang === 'he' ? 'סיבת ההחזרה:' : 'Reason for return:'}</p>
-                      <p className="mt-0.5 text-xs text-danger">{m.rejectionReason}</p>
-                    </div>
-                  )}
-
-                  {isApprovedOrDone && m.coordinatorComment && (
-                    <div className="mt-2 rounded-lg bg-paper p-2.5">
-                      <p className="text-xs font-semibold text-ink">{lang === 'he' ? 'הערת הרכז:' : "Coordinator's comment:"}</p>
-                      <p className="mt-0.5 text-xs text-muted">{m.coordinatorComment}</p>
-                    </div>
-                  )}
-
-                  {(m.status === 'pending' || isRejected) && !isDefense && unlocked && !m.defenseDate && (
-                    <button
-                      type="button"
-                      onClick={() => setSubmitTarget(m)}
-                      className={`mt-2 rounded-full px-3 py-1.5 text-xs font-semibold hover:opacity-90 ${
-                        isRejected ? 'bg-danger text-white' : 'bg-primary text-primary-ink'
-                      }`}
-                    >
-                      {isRejected
-                        ? (lang === 'he' ? 'הגש גרסה מתוקנת' : 'Submit Corrected Version')
-                        : (lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone')}
-                    </button>
-                  )}
-
-                  {m.fileUrls?.length > 0 && (
-                    <p className="mt-1.5 text-xs text-muted">
-                      📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים הוגשו' : 'files submitted'}
-                    </p>
-                  )}
-
-                  {m.revisionHistory && m.revisionHistory.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-xs font-medium text-muted hover:text-ink">
-                        {lang === 'he' ? `🕘 היסטוריית הגשות (${m.revisionHistory.length})` : `🕘 Submission History (${m.revisionHistory.length})`}
-                      </summary>
-                      <div className="mt-1.5 grid gap-1.5">
-                        {m.revisionHistory.map((rev) => (
-                          <div key={rev.version} className="rounded-md border border-line bg-paper p-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold text-ink">
-                                {lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}
-                              </span>
-                              {rev.decision === 'rejected' && (
-                                <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-medium text-danger">
-                                  {lang === 'he' ? '❌ נדחתה' : '❌ Rejected'}
-                                </span>
-                              )}
-                            </div>
-                            {rev.decisionReason && <p className="mt-1 text-xs text-danger">{rev.decisionReason}</p>}
-                          </div>
-                        ))}
                       </div>
-                    </details>
-                  )}
+
+                      {!unlocked ? (
+                        <p className="mt-1 text-xs text-student-on-surface-variant">🔒 {lang === 'he' ? 'יש להשלים אבני דרך קודמות' : 'Need to complete previous milestones'}</p>
+                      ) : isApprovedOrDone ? (
+                        <p className="mt-1 text-xs font-medium text-success">
+                          ✅ {lang === 'he' ? 'אושר ע"י הרכז' : 'Approved by coordinator'}
+                          {m.finalGrade !== null && ` · ${t('grade')}: ${m.finalGrade}`}
+                        </p>
+                      ) : isSubmittedInReview ? (
+                        <p className="mt-1 text-xs font-medium text-accent">📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}</p>
+                      ) : isRejected ? (
+                        <p className="mt-1 text-xs font-medium text-danger">
+                          ↩ {lang === 'he' ? 'הוחזר לתיקון — יש להגיש גרסה מתוקנת' : 'Returned for revision — please resubmit a corrected version'}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs text-student-on-surface-variant">
+                          📅 {t('dueDate')} {toDate(m.dueDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {days !== null && m.status === 'pending' && unlocked && (
+                            <span className={days < 0 ? 'text-danger' : days <= 7 ? 'text-accent' : 'text-success'}>
+                              {' '}
+                              ({days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : `${days} ${lang === 'he' ? 'ימים' : 'days left'}`})
+                            </span>
+                          )}
+                        </p>
+                      )}
+
+                      {isDefense && m.defenseDate && (
+                        <div className="mt-2 grid gap-0.5 text-xs text-student-on-surface-variant">
+                          <span>
+                            📅 {t('defenseDate')} {toDate(m.defenseDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                          {m.defenseRoom && (
+                            <span>
+                              🏫 {t('defenseRoom')} {m.defenseRoom}
+                            </span>
+                          )}
+                          {m.examinerNames?.length > 0 && (
+                            <span>
+                              👥 {t('examiners')} {m.examinerNames.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {isDefense && !m.defenseDate && <p className="mt-1 text-xs text-student-on-surface-variant">{t('defenseNotScheduled')}</p>}
+
+                      {isRejected && m.rejectionReason && (
+                        <div className="mt-2 rounded-student bg-danger-bg p-2.5">
+                          <p className="text-xs font-semibold text-danger">{lang === 'he' ? 'סיבת ההחזרה:' : 'Reason for return:'}</p>
+                          <p className="mt-0.5 text-xs text-danger">{m.rejectionReason}</p>
+                        </div>
+                      )}
+
+                      {isApprovedOrDone && m.coordinatorComment && (
+                        <div className="mt-2 rounded-student bg-student-surface-container-low p-2.5">
+                          <p className="text-xs font-semibold text-student-on-surface">{lang === 'he' ? 'הערת הרכז:' : "Coordinator's comment:"}</p>
+                          <p className="mt-0.5 text-xs text-student-on-surface-variant">{m.coordinatorComment}</p>
+                        </div>
+                      )}
+
+                      {(m.status === 'pending' || isRejected) && !isDefense && unlocked && !m.defenseDate && (
+                        <button
+                          type="button"
+                          onClick={() => setSubmitTarget(m)}
+                          className={`mt-2 rounded-student px-3 py-1.5 text-xs font-semibold hover:opacity-90 ${
+                            isRejected ? 'bg-danger text-white' : 'bg-student-primary text-student-on-primary'
+                          }`}
+                        >
+                          {isRejected
+                            ? (lang === 'he' ? 'הגש גרסה מתוקנת' : 'Submit Corrected Version')
+                            : (lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone')}
+                        </button>
+                      )}
+
+                      {m.fileUrls?.length > 0 && (
+                        <p className="mt-1.5 text-xs text-student-on-surface-variant">
+                          📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים הוגשו' : 'files submitted'}
+                        </p>
+                      )}
+
+                      {m.revisionHistory && m.revisionHistory.length > 0 && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs font-medium text-student-on-surface-variant hover:text-student-on-surface">
+                            {lang === 'he' ? `🕘 היסטוריית הגשות (${m.revisionHistory.length})` : `🕘 Submission History (${m.revisionHistory.length})`}
+                          </summary>
+                          <div className="mt-1.5 grid gap-1.5">
+                            {m.revisionHistory.map((rev) => (
+                              <div key={rev.version} className="rounded-student border border-student-outline-variant bg-student-surface-container-low p-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-student-on-surface">
+                                    {lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}
+                                  </span>
+                                  {rev.decision === 'rejected' && (
+                                    <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-medium text-danger">
+                                      {lang === 'he' ? '❌ נדחתה' : '❌ Rejected'}
+                                    </span>
+                                  )}
+                                </div>
+                                {rev.decisionReason && <p className="mt-1 text-xs text-danger">{rev.decisionReason}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="xl:col-span-4 flex flex-col gap-4">
+            <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-low p-5 shadow-sm">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-student-on-surface">
+                💬 {lang === 'he' ? 'משוב אחרון' : 'Recent Feedback'}
+              </h3>
+              {feedbackMilestone ? (
+                <div className="rounded-student border border-student-outline-variant bg-student-surface-container-lowest p-3">
+                  <p className="text-xs font-semibold text-student-on-surface">
+                    {MILESTONE_LABEL[feedbackMilestone.type]?.[lang] ?? feedbackMilestone.type}
+                  </p>
+                  <p className="mt-0.5 text-xs font-medium text-student-on-surface-variant">
+                    {feedbackMilestone.rejectionReason
+                      ? (lang === 'he' ? 'סיבת ההחזרה:' : 'Reason for return:')
+                      : (lang === 'he' ? 'הערת הרכז:' : "Coordinator's comment:")}
+                  </p>
+                  <p className={`mt-2 text-sm italic ${feedbackMilestone.rejectionReason ? 'text-danger' : 'text-student-on-surface'}`}>
+                    “{feedbackMilestone.rejectionReason ?? feedbackMilestone.coordinatorComment}”
+                  </p>
                 </div>
+              ) : (
+                <p className="text-sm text-student-on-surface-variant">
+                  {lang === 'he' ? 'אין עדיין משוב כתוב על אבני הדרך שלך.' : 'No written feedback on your milestones yet.'}
+                </p>
+              )}
+            </div>
+
+            {isMastersThesis && (
+              <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
+                <h3 className="mb-3 border-b border-student-outline-variant pb-2 text-sm font-semibold text-student-on-surface">
+                  📄 {lang === 'he' ? 'תבנית לתזה' : 'Thesis Template'}
+                </h3>
+                <p className="text-xs text-student-on-surface-variant">
+                  {lang === 'he' ? 'תבנית ה-Word הרשמית לכתיבת עבודת התזה שלך.' : 'The official Word template for writing your thesis.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  disabled={downloadingTemplate}
+                  className="mt-3 flex w-full items-center gap-2 rounded-student p-2 text-sm font-medium text-student-primary hover:bg-student-surface-container-low disabled:opacity-60"
+                >
+                  <span>⬇</span>
+                  <span>{downloadingTemplate ? '…' : (lang === 'he' ? 'הורדת התבנית' : 'Download Template')}</span>
+                </button>
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
       )}
 
       {tab === 'grades' && (
         <div className="grid gap-3">
-          <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}</p>
+          <p className="text-sm font-semibold text-student-on-surface">{lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}</p>
           {milestones.map((m) => {
             const label = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
             const grade = m.finalGrade ?? m.supervisorScore ?? null;
@@ -343,27 +414,27 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
             const isExpanded = expandedGradeIds[m.id] ?? false;
 
             return (
-              <div key={m.id} className="rounded-[var(--radius)] border border-line bg-surface p-4">
+              <div key={m.id} className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-4 shadow-sm">
                 <div
                   className={`flex items-center justify-between ${hasExpandableDetail ? 'cursor-pointer' : ''}`}
                   onClick={hasExpandableDetail ? () => setExpandedGradeIds((prev) => ({ ...prev, [m.id]: !prev[m.id] })) : undefined}
                 >
-                  <span className="text-sm font-semibold text-ink">
+                  <span className="text-sm font-semibold text-student-on-surface">
                     {hasExpandableDetail && (isExpanded ? '▾ ' : '▸ ')}{label}
                   </span>
                   {gradeVisible ? (
-                    <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: gradeColor(grade as number), backgroundColor: '#F1F0EC' }}>
+                    <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: gradeColor(grade as number), backgroundColor: 'var(--student-surface-container)' }}>
                       {grade}
                     </span>
                   ) : isSubmittedState ? (
                     <span className="text-xs font-medium text-accent">📤 {lang === 'he' ? 'הוגש' : 'Submitted'}</span>
                   ) : (
-                    <span className="text-xs text-muted">📭 {lang === 'he' ? 'טרם הוגש' : 'Not submitted yet'}</span>
+                    <span className="text-xs text-student-on-surface-variant">📭 {lang === 'he' ? 'טרם הוגש' : 'Not submitted yet'}</span>
                   )}
                 </div>
 
                 {hasGrade ? (
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper">
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-student-surface-container">
                     <div className="h-full rounded-full" style={{ width: `${grade}%`, backgroundColor: gradeColor(grade as number) }} />
                   </div>
                 ) : isSubmittedState ? (
@@ -371,31 +442,31 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                 ) : null}
 
                 {isExpanded && hasExpandableDetail && (
-                  <div className="mt-3 grid gap-2 border-t border-line pt-3">
+                  <div className="mt-3 grid gap-2 border-t border-student-outline-variant pt-3">
                     {m.supervisorEvaluation && (
-                      <div className="rounded-md bg-paper p-2.5">
+                      <div className="rounded-student bg-student-surface-container-low p-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ink">{lang === 'he' ? 'הערכת המנחה' : "Supervisor's evaluation"}</span>
-                          <span className="text-xs font-bold text-ink">{m.supervisorEvaluation.total}</span>
+                          <span className="text-xs font-semibold text-student-on-surface">{lang === 'he' ? 'הערכת המנחה' : "Supervisor's evaluation"}</span>
+                          <span className="text-xs font-bold text-student-on-surface">{m.supervisorEvaluation.total}</span>
                         </div>
                         {m.finalGradeComponents?.supervisorEvaluation.components.map((c) => {
                           const s = m.supervisorEvaluation!.scores[c.key];
                           if (!s) return null;
                           return (
-                            <div key={c.key} className="mt-1 flex items-center justify-between text-[11px] text-muted">
+                            <div key={c.key} className="mt-1 flex items-center justify-between text-[11px] text-student-on-surface-variant">
                               <span>{lang === 'he' ? c.labelHe : c.labelEn}</span>
                               <span>{s.score}/{s.maxScore}</span>
                             </div>
                           );
                         })}
                         {m.supervisorEvaluation.comment && (
-                          <p className="mt-1.5 text-[11px] text-ink">💬 {m.supervisorEvaluation.comment}</p>
+                          <p className="mt-1.5 text-[11px] text-student-on-surface">💬 {m.supervisorEvaluation.comment}</p>
                         )}
                       </div>
                     )}
 
                     {m.autoCalculatedFinalGrade != null && (
-                      <div className="rounded-md bg-paper p-2.5 text-xs text-ink">
+                      <div className="rounded-student bg-student-surface-container-low p-2.5 text-xs text-student-on-surface">
                         <div className="flex items-center justify-between">
                           <span>{lang === 'he' ? 'ציון מחושב' : 'Computed grade'}</span>
                           <span className="font-bold">{m.autoCalculatedFinalGrade}</span>
@@ -407,7 +478,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                     )}
 
                     {m.staffRecord && (
-                      <div className="rounded-md bg-paper p-2.5 text-xs text-ink">
+                      <div className="rounded-student bg-student-surface-container-low p-2.5 text-xs text-student-on-surface">
                         <p className="font-semibold">{lang === 'he' ? 'רשומת מנחה' : "Supervisor's record"}</p>
                         {m.staffRecord.mode === 'upload' ? (
                           <div className="mt-1 flex flex-wrap gap-2">
@@ -424,8 +495,8 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                               if (v === undefined || v === null || v === '') return null;
                               return (
                                 <div key={f.key} className="flex items-start justify-between gap-2 text-[11px]">
-                                  <span className="text-muted">{lang === 'he' ? f.labelHe : f.labelEn}</span>
-                                  <span className="text-ink text-right">{String(v)}</span>
+                                  <span className="text-student-on-surface-variant">{lang === 'he' ? f.labelHe : f.labelEn}</span>
+                                  <span className="text-student-on-surface text-right">{String(v)}</span>
                                 </div>
                               );
                             })}
@@ -435,31 +506,31 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
                     )}
 
                     {m.committeeReviewHistory && m.committeeReviewHistory.length > 0 && (
-                      <div className="rounded-md bg-paper p-2.5 text-xs text-ink">
+                      <div className="rounded-student bg-student-surface-container-low p-2.5 text-xs text-student-on-surface">
                         <p className="font-semibold">{lang === 'he' ? 'ביקורת הוועדה' : 'Committee Review'}</p>
                         <div className="mt-1.5 grid gap-2">
                           {m.committeeReviewHistory.map((round, i) => (
-                            <div key={`${round.committeeId}-${round.decidedAt}-${i}`} className="rounded-md border border-line bg-surface p-2">
-                              <p className="text-[11px] font-semibold text-muted">
+                            <div key={`${round.committeeId}-${round.decidedAt}-${i}`} className="rounded-student border border-student-outline-variant bg-student-surface-container-lowest p-2">
+                              <p className="text-[11px] font-semibold text-student-on-surface-variant">
                                 {lang === 'he' ? `סבב ${i + 1} — ${round.memberVotes.length} חברי ועדה הביעו דעה` : `Round ${i + 1} — ${round.memberVotes.length} members weighed in`}
                               </p>
                               {round.memberVotes.map((v, vi) => (
                                 <div key={vi} className="mt-1 flex items-start justify-between gap-2 text-[11px]">
-                                  <span className="text-muted">{lang === 'he' ? `חבר ועדה ${vi + 1}` : `Member ${vi + 1}`}</span>
+                                  <span className="text-student-on-surface-variant">{lang === 'he' ? `חבר ועדה ${vi + 1}` : `Member ${vi + 1}`}</span>
                                   <span className={v.vote === 'approve' ? 'font-medium text-success' : 'font-medium text-danger'}>
                                     {v.vote === 'approve' ? (lang === 'he' ? '✓ בעד' : '✓ Approved') : (lang === 'he' ? '✗ נגד' : '✗ Rejected')}
                                     {v.comment ? ` — ${v.comment}` : ''}
                                   </span>
                                 </div>
                               ))}
-                              <div className="mt-1.5 border-t border-line pt-1.5">
+                              <div className="mt-1.5 border-t border-student-outline-variant pt-1.5">
                                 <p className="text-[11px]">
                                   <span className="font-semibold">{lang === 'he' ? 'החלטת היו"ר: ' : "Chairman's decision: "}</span>
                                   <span className={round.chairmanDecision === 'approve' ? 'font-medium text-success' : 'font-medium text-danger'}>
                                     {round.chairmanDecision === 'approve' ? (lang === 'he' ? '✓ אושר' : '✓ Approved') : (lang === 'he' ? '✗ נדחה' : '✗ Rejected')}
                                   </span>
                                 </p>
-                                {round.chairmanComment && <p className="mt-0.5 text-muted">{round.chairmanComment}</p>}
+                                {round.chairmanComment && <p className="mt-0.5 text-student-on-surface-variant">{round.chairmanComment}</p>}
                               </div>
                             </div>
                           ))}
@@ -473,10 +544,10 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
           })}
 
           {project.overallFinalGrade != null && (
-            <div className="rounded-[var(--radius)] border border-line bg-surface p-5 text-center">
-              <p className="text-sm text-muted">{t('finalGrade')}</p>
-              <p className="text-3xl font-bold text-ink">{project.overallFinalGrade}</p>
-              <p className="mt-1 text-xs text-muted">
+            <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 text-center shadow-sm">
+              <p className="text-sm text-student-on-surface-variant">{t('finalGrade')}</p>
+              <p className="text-3xl font-bold text-student-on-surface">{project.overallFinalGrade}</p>
+              <p className="mt-1 text-xs text-student-on-surface-variant">
                 {lang === 'he' ? '* הציון מחושב לפי האחוזים שנקבעו לכל אבן דרך בתבנית התהליך המאושרת' : "* Grade calculated using each milestone's percentage in the approved workflow template"}
               </p>
             </div>
@@ -515,12 +586,12 @@ function DefenseDetails({ milestone: m }: { milestone: Milestone }) {
   ];
 
   return (
-    <div className="role-rail mt-3 grid gap-1.5 rounded-lg bg-[#EFEBF6] p-3.5" style={{ '--rail-color': '#6E5A99' } as React.CSSProperties}>
+    <div className="role-rail mt-3 grid gap-1.5 rounded-student-lg bg-[#EFEBF6] p-3.5" style={{ '--rail-color': '#6E5A99' } as React.CSSProperties}>
       <p className="mb-1 text-xs font-semibold text-[#5B3E99]">🎓 {lang === 'he' ? 'פרטי ההגנה' : 'Defense Details'}</p>
       {rows.map((row) => (
         <div key={row.label} className="flex items-center justify-between border-b border-[#DCD3EE] py-1 last:border-0">
           <span className="text-xs font-medium text-[#6E5A99]">{row.label}</span>
-          <span className="text-xs font-medium text-ink">{row.value}</span>
+          <span className="text-xs font-medium text-student-on-surface">{row.value}</span>
         </div>
       ))}
     </div>
