@@ -57,7 +57,7 @@ export default function Index() {
             break;
           case "system_admin":
           case "admin":
-            safeSetRedirectPath("/admin/panel");
+            safeSetRedirectPath("/admin/overview");
             break;
           case "coordinator":
             safeSetRedirectPath("/coordinator/home");

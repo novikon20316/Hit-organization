@@ -71,7 +71,7 @@ export function roleHomeRoute(role: string | null): string {
     case 'program_head':             return '/program_head/program_head_dashboard';
     case 'administrative_secretary': return '/administrative_coordinator/administrative_coordinator_dashboard';
     case 'grad_school_head':         return '/grad_school_head/grad_school_head_dashboard';
-    case 'system_admin':             return '/admin/panel';
+    case 'system_admin':             return '/admin/overview';
     default:                         return '/(auth)/login';
   }
 }

@@ -49,7 +49,7 @@ const ROLE_ROUTES: Record<string, string> = {
   program_head:         '/program_head/program_head_dashboard',
   administrative_secretary:  '/administrative_coordinator/administrative_coordinator_dashboard',
   grad_school_head:     '/grad_school_head/grad_school_head_dashboard',
-  system_admin:         '/admin/panel',
+  system_admin:         '/admin/overview',
 };
 
 function isKnownRoute(pathname: string): boolean {

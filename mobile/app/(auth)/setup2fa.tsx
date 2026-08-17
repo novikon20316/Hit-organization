@@ -35,7 +35,7 @@ export default function Setup2FA() {
 
         setTimeout(() => {
             router.replace(
-            role === 'system_admin'         ? '/admin/panel'
+            role === 'system_admin'         ? '/admin/overview'
             : role === 'faculty_admin'        ? '/faculty_admin/dashboard'
             : role === 'coordinator'          ? '/coordinator/home'
             : role === 'program_head'         ? '/program_head/program_head_dashboard'

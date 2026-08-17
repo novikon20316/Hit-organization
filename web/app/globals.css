@@ -242,3 +242,66 @@ select:not(:disabled):hover {
   --radius-coordinator: var(--coordinator-radius);
   --radius-coordinator-lg: var(--coordinator-radius-lg);
 }
+
+/*
+ * "Academic Precision" tokens — system_admin screens only
+ * ────────────────────────────────────────────────────────
+ * Same palette as the --student-/--coordinator- tokens above, pulled from
+ * the same Stitch design project "Unified Academic Project Manager"
+ * (screens: Admin User Management, System Admin Dashboard Overview, Admin
+ * Mobile Overview) — kept as its own `--admin-` prefix for the same reason
+ * as --coordinator-: each role's tokens can be told apart/adjusted
+ * independently, and neither role's screens are affected by changes to the
+ * other's.
+ */
+:root {
+  --admin-primary: #00236f;
+  --admin-primary-container: #1e3a8a;
+  --admin-on-primary: #ffffff;
+  --admin-on-primary-container: #90a8ff;
+  --admin-secondary: #505f76;
+  --admin-secondary-container: #d0e1fb;
+  --admin-on-secondary-container: #54647a;
+  --admin-surface: #faf8ff;
+  --admin-surface-container-lowest: #ffffff;
+  --admin-surface-container-low: #f4f3fa;
+  --admin-surface-container: #eeedf4;
+  --admin-surface-container-high: #e9e7ef;
+  --admin-surface-variant: #e3e1e9;
+  --admin-on-surface: #1a1b21;
+  --admin-on-surface-variant: #444651;
+  --admin-outline: #757682;
+  --admin-outline-variant: #c5c5d3;
+  --admin-error: #ba1a1a;
+  --admin-error-container: #ffdad6;
+  --admin-on-error-container: #93000a;
+  --admin-radius-sm: 2px;
+  --admin-radius: 4px;
+  --admin-radius-lg: 8px;
+}
+
+@theme inline {
+  --color-admin-primary: var(--admin-primary);
+  --color-admin-primary-container: var(--admin-primary-container);
+  --color-admin-on-primary: var(--admin-on-primary);
+  --color-admin-on-primary-container: var(--admin-on-primary-container);
+  --color-admin-secondary: var(--admin-secondary);
+  --color-admin-secondary-container: var(--admin-secondary-container);
+  --color-admin-on-secondary-container: var(--admin-on-secondary-container);
+  --color-admin-surface: var(--admin-surface);
+  --color-admin-surface-container-lowest: var(--admin-surface-container-lowest);
+  --color-admin-surface-container-low: var(--admin-surface-container-low);
+  --color-admin-surface-container: var(--admin-surface-container);
+  --color-admin-surface-container-high: var(--admin-surface-container-high);
+  --color-admin-surface-variant: var(--admin-surface-variant);
+  --color-admin-on-surface: var(--admin-on-surface);
+  --color-admin-on-surface-variant: var(--admin-on-surface-variant);
+  --color-admin-outline: var(--admin-outline);
+  --color-admin-outline-variant: var(--admin-outline-variant);
+  --color-admin-error: var(--admin-error);
+  --color-admin-error-container: var(--admin-error-container);
+  --color-admin-on-error-container: var(--admin-on-error-container);
+  --radius-admin-sm: var(--admin-radius-sm);
+  --radius-admin: var(--admin-radius);
+  --radius-admin-lg: var(--admin-radius-lg);
+}

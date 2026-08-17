@@ -108,22 +108,22 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
   };
 
   return (
-    <div className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+    <div className="role-rail rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
       <div className="flex items-center gap-3">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-admin text-sm font-semibold text-white"
           style={{ backgroundColor: facultyColor }}
         >
           {(user.displayName || '?').charAt(0).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-ink">{user.displayName}</p>
-          <p className="truncate text-xs text-muted" dir="ltr">
+          <p className="truncate text-sm font-semibold text-admin-on-surface">{user.displayName}</p>
+          <p className="truncate text-xs text-admin-on-surface-variant" dir="ltr">
             {user.email}
           </p>
         </div>
         <label className="inline-flex shrink-0 cursor-pointer items-center gap-2">
-          <span className="text-xs text-muted">{user.isActive ? (lang === 'he' ? 'פעיל' : 'Active') : lang === 'he' ? 'מושבת' : 'Suspended'}</span>
+          <span className="text-xs text-admin-on-surface-variant">{user.isActive ? (lang === 'he' ? 'פעיל' : 'Active') : lang === 'he' ? 'לא פעיל' : 'Inactive'}</span>
           <span className="relative inline-block h-5 w-9">
             <input
               type="checkbox"
@@ -132,7 +132,7 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
               onChange={handleToggleActive}
               className="peer absolute h-0 w-0 opacity-0"
             />
-            <span className="absolute inset-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-disabled:opacity-60" />
+            <span className="absolute inset-0 rounded-full bg-admin-outline-variant transition-colors peer-checked:bg-admin-primary peer-disabled:opacity-60" />
             <span className="absolute top-0.5 start-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4 rtl:peer-checked:-translate-x-4" />
           </span>
         </label>
@@ -161,7 +161,7 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
             <button
               type="button"
               onClick={() => setConfirmDisable2fa(true)}
-              className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-accent hover:text-accent"
+              className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-accent hover:text-accent"
             >
               🔓 {lang === 'he' ? 'בטל 2FA' : 'Disable 2FA'}
             </button>
@@ -169,21 +169,21 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
           <button
             type="button"
             onClick={() => setConfirmResetPassword(true)}
-            className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-accent hover:text-accent"
+            className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-accent hover:text-accent"
           >
             🔑 {lang === 'he' ? 'איפוס סיסמה' : 'Reset password'}
           </button>
           <button
             type="button"
             onClick={() => onEdit(user)}
-            className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+            className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-admin-primary hover:text-admin-primary"
           >
             ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
           </button>
           <button
             type="button"
             onClick={() => setConfirmErase(true)}
-            className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-danger hover:text-danger"
+            className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-danger hover:text-danger"
           >
             🗑️ {lang === 'he' ? 'מחק' : 'Erase'}
           </button>
@@ -191,25 +191,25 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
       </div>
 
       {resetTempPassword && (
-        <div className="mt-3 grid gap-2 rounded-lg border border-line bg-paper p-3">
-          <span className="text-xs font-medium text-muted">
+        <div className="mt-3 grid gap-2 rounded-lg border border-admin-outline-variant bg-admin-surface-container-low p-3">
+          <span className="text-xs font-medium text-admin-on-surface-variant">
             {lang === 'he' ? 'סיסמה זמנית חדשה — מסרו אותה למשתמש:' : 'New temporary password — hand this to the user:'}
           </span>
           <div className="flex items-center gap-2">
-            <code dir="ltr" className="flex-1 rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink">
+            <code dir="ltr" className="flex-1 rounded-md border border-admin-outline-variant bg-admin-surface-container-lowest px-3 py-2 text-sm text-admin-on-surface">
               {resetTempPassword}
             </code>
             <button
               type="button"
               onClick={handleCopyResetPassword}
-              className="rounded-lg border border-line px-3 py-2 text-xs font-medium text-ink hover:bg-surface"
+              className="rounded-lg border border-admin-outline-variant px-3 py-2 text-xs font-medium text-admin-on-surface hover:bg-admin-surface-container-low"
             >
               {copiedResetPassword ? (lang === 'he' ? 'הועתק!' : 'Copied!') : (lang === 'he' ? 'העתק' : 'Copy')}
             </button>
             <button
               type="button"
               onClick={() => setResetTempPassword(null)}
-              className="rounded-lg border border-line px-3 py-2 text-xs font-medium text-muted hover:text-ink"
+              className="rounded-lg border border-admin-outline-variant px-3 py-2 text-xs font-medium text-admin-on-surface-variant hover:text-admin-on-surface"
             >
               {lang === 'he' ? 'סגור' : 'Dismiss'}
             </button>

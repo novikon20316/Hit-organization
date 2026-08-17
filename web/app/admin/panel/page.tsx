@@ -36,6 +36,7 @@ import { AcademicCalendarModal } from './AcademicCalendarModal';
 import { StudentStatusesModal } from './StudentStatusesModal';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { ArchivedProjectsTab } from '@/components/ArchivedProjectsTab';
+import { RolePermissionsCard } from './RolePermissionsCard';
 import type { AdminUserRecord, AdminProjectRecord, AdminMilestoneRecord, StudentStatusConfig } from './types';
 
 const ADMIN_ROLES: AppRole[] = ['system_admin'];
@@ -98,12 +99,6 @@ export default function AdminPanelPage() {
     }
   }, []);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls all happen after its awaited network call resolves, not synchronously in this effect
-    if (isAllowed) fetchDashboard();
-    if (isAllowed) fetchStatusConfig();
-  }, [isAllowed, fetchDashboard, fetchStatusConfig]);
-
   const fetchLockedUsers = useCallback(async () => {
     try {
       setLoadingLocked(true);
@@ -117,9 +112,13 @@ export default function AdminPanelPage() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-tab-open; setState calls happen after the awaited network call resolves
-    if (isAllowed && tab === 'users') fetchLockedUsers();
-  }, [isAllowed, tab, fetchLockedUsers]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls all happen after its awaited network call resolves, not synchronously in this effect
+    if (isAllowed) fetchDashboard();
+    if (isAllowed) fetchStatusConfig();
+    // Also needed on the Overview tab's stat tiles (Locked Accounts), not
+    // just when the Users tab is opened — see fetchDashboard above.
+    if (isAllowed) fetchLockedUsers();
+  }, [isAllowed, fetchDashboard, fetchStatusConfig, fetchLockedUsers]);
 
   const handleLiftLockout = async (code: string) => {
     if (liftingCode) return;
@@ -137,6 +136,8 @@ export default function AdminPanelPage() {
   const stats = useMemo(
     () => ({
       totalUsers: users.length,
+      activeUsers: users.filter((u) => u.isActive).length,
+      inactiveUsers: users.filter((u) => !u.isActive).length,
       totalProjects: projects.length,
       activeProjects: projects.filter((p) => p.status === 'in_progress').length,
       pendingMilestones: milestones.filter((m) => m.status === 'submitted').length,
@@ -158,8 +159,8 @@ export default function AdminPanelPage() {
 
   if (guardLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper">
-        <p className="text-sm text-muted">…</p>
+      <div className="flex min-h-screen items-center justify-center bg-admin-surface">
+        <p className="text-sm text-admin-on-surface-variant">…</p>
       </div>
     );
   }
@@ -210,14 +211,16 @@ export default function AdminPanelPage() {
         </div>
       }
     >
-      <div className="mb-5 flex flex-wrap gap-1 border-b border-line">
+      <div className="mb-5 flex flex-wrap gap-1 border-b border-admin-outline-variant">
         {(['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster', 'signoffs', 'statistics', 'archived'] as const).map((key) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
             className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+              tab === key
+                ? 'border-admin-primary text-admin-primary'
+                : 'border-transparent text-admin-on-surface-variant hover:text-admin-on-surface'
             }`}
           >
             {TAB_LABELS[key][lang]}
@@ -230,7 +233,7 @@ export default function AdminPanelPage() {
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>
       ) : tab === 'overview' ? (
-        <OverviewTab stats={stats} projects={projects} lang={lang} />
+        <OverviewTab stats={stats} projects={projects} users={users} lockedUsers={lockedUsers} lang={lang} />
       ) : tab === 'users' ? (
         <div className="pb-20">
           <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -378,55 +381,71 @@ const TAB_LABELS: Record<AdminTab, { he: string; en: string }> = {
 function OverviewTab({
   stats,
   projects,
+  users,
+  lockedUsers,
   lang,
 }: {
-  stats: { totalUsers: number; totalProjects: number; activeProjects: number; pendingMilestones: number };
+  stats: { totalUsers: number; activeUsers: number; inactiveUsers: number; totalProjects: number; activeProjects: number; pendingMilestones: number };
   projects: AdminProjectRecord[];
+  users: AdminUserRecord[];
+  lockedUsers: Array<{ code: string; uid: string; email: string; displayName: string; ip: string; location: string; createdAt: string }>;
   lang: 'he' | 'en';
 }) {
   return (
-    <div className="grid gap-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard emoji="👥" value={stats.totalUsers} label={lang === 'he' ? 'משתמשים' : 'Users'} />
-        <StatCard emoji="📁" value={stats.totalProjects} label={lang === 'he' ? 'פרויקטים' : 'Projects'} />
-        <StatCard emoji="🔥" value={stats.activeProjects} label={lang === 'he' ? 'פעילים' : 'Active'} />
-        <StatCard emoji="⏳" value={stats.pendingMilestones} label={lang === 'he' ? 'ממתינים' : 'Pending'} />
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="flex flex-col gap-6 lg:col-span-9">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard icon="👥" value={stats.totalUsers} label={lang === 'he' ? 'סה"כ משתמשים' : 'Total Users'} />
+          <StatCard icon="✅" value={stats.activeUsers} label={lang === 'he' ? 'פעילים' : 'Active'} tone="success" />
+          <StatCard icon="💤" value={stats.inactiveUsers} label={lang === 'he' ? 'לא פעילים' : 'Inactive'} />
+          <StatCard icon="🔒" value={lockedUsers.length} label={lang === 'he' ? 'חשבונות נעולים' : 'Locked Accounts'} tone={lockedUsers.length > 0 ? 'danger' : undefined} />
+        </div>
+
+        <div className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-5">
+          <h2 className="mb-4 text-sm font-semibold text-admin-on-surface">🎨 {lang === 'he' ? 'פרויקטים לפי פקולטה' : 'Projects by Faculty'}</h2>
+          <div className="grid gap-3">
+            {DISPLAYED_FACULTIES.map((id) => {
+              const count = projects.filter((p) => p.facultyId === id).length;
+              if (!count) return null;
+              const color = getFacultyColor(id);
+              return (
+                <div key={id} className="flex items-center gap-3">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="w-40 shrink-0 truncate text-sm text-admin-on-surface">{facultyLabel(id as FacultyId, lang)}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-admin-surface-container">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${(count / Math.max(projects.length, 1)) * 100}%`, backgroundColor: color }}
+                    />
+                  </div>
+                  <span className="w-6 shrink-0 text-end text-sm text-admin-on-surface-variant">{count}</span>
+                </div>
+              );
+            })}
+            {projects.length === 0 && <p className="text-sm text-admin-on-surface-variant">{lang === 'he' ? 'אין פרויקטים עדיין' : 'No projects yet'}</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+          <StatCard icon="📁" value={stats.totalProjects} label={lang === 'he' ? 'פרויקטים' : 'Projects'} />
+          <StatCard icon="🔥" value={stats.activeProjects} label={lang === 'he' ? 'פעילים' : 'In Progress'} />
+        </div>
       </div>
 
-      <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-        <h2 className="mb-4 text-sm font-semibold text-ink">🎨 {lang === 'he' ? 'פרויקטים לפי פקולטה' : 'Projects by Faculty'}</h2>
-        <div className="grid gap-3">
-          {DISPLAYED_FACULTIES.map((id) => {
-            const count = projects.filter((p) => p.facultyId === id).length;
-            if (!count) return null;
-            const color = getFacultyColor(id);
-            return (
-              <div key={id} className="flex items-center gap-3">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                <span className="w-40 shrink-0 truncate text-sm text-ink">{facultyLabel(id as FacultyId, lang)}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-paper">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${(count / Math.max(projects.length, 1)) * 100}%`, backgroundColor: color }}
-                  />
-                </div>
-                <span className="w-6 shrink-0 text-end text-sm text-muted">{count}</span>
-              </div>
-            );
-          })}
-          {projects.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין פרויקטים עדיין' : 'No projects yet'}</p>}
-        </div>
+      <div className="lg:col-span-3">
+        <RolePermissionsCard users={users} lockedUsers={lockedUsers} lang={lang} />
       </div>
     </div>
   );
 }
 
-function StatCard({ emoji, value, label }: { emoji: string; value: number; label: string }) {
+function StatCard({ icon, value, label, tone }: { icon: string; value: number; label: string; tone?: 'success' | 'danger' }) {
+  const valueCls = tone === 'success' ? 'text-[#059669]' : tone === 'danger' ? 'text-admin-error' : 'text-admin-on-surface';
   return (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
-      <div className="text-2xl">{emoji}</div>
-      <div className="mt-1 text-2xl font-semibold text-ink">{value}</div>
-      <div className="text-xs text-muted">{label}</div>
+    <div className="flex flex-col items-center justify-center rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 text-center transition-colors hover:border-admin-primary-container">
+      <span className="mb-2 text-[28px] leading-none">{icon}</span>
+      <span className={`text-3xl font-semibold leading-none ${valueCls}`}>{value}</span>
+      <span className="mt-1 text-[11px] font-medium uppercase tracking-wider text-admin-on-surface-variant">{label}</span>
     </div>
   );
 }

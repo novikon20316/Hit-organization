@@ -321,7 +321,7 @@ export function getHomeRoute(role: AppRole | undefined): string {
     case 'administrative_secretary':  return '/administrative_coordinator/dashboard';
     case 'grad_school_head':     return '/grad_school_head/dashboard';
     case 'internal_examiner':    return '/examinor/home';
-    case 'system_admin':         return '/admin/panel';
+    case 'system_admin':         return '/admin/overview';
     default:                     return '/(auth)/login';
   }
 }

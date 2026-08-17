@@ -22,7 +22,7 @@ const ROLE_ROUTES: Record<string, string> = {
   coordinator:   '/coordinator/home',
   examiner:      '/examinor/home',
   faculty_admin: '/faculty_admin/dashboard',
-  system_admin:  '/admin/panel',
+  system_admin:  '/admin/overview',
 };
 
 export default function AccountDeletionPending() {

@@ -352,10 +352,12 @@ export default function LiveTransportationPage() {
     }
   };
 
+  const failedLoginCount = useMemo(() => auditRows.filter((r) => r.action === 'login_failed').length, [auditRows]);
+
   if (guardLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper">
-        <p className="text-sm text-muted">…</p>
+      <div className="flex min-h-screen items-center justify-center bg-admin-surface">
+        <p className="text-sm text-admin-on-surface-variant">…</p>
       </div>
     );
   }
@@ -366,51 +368,102 @@ export default function LiveTransportationPage() {
       subtitle={lang === 'he' ? 'משתמשים פעילים ופעולות בזמן אמת' : 'Active users and actions in real time'}
     >
       <div className="grid gap-6">
-        <section className="rounded-[var(--radius)] border border-line bg-surface p-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-ink">{lang === 'he' ? 'משתמשים מחוברים כעת' : 'Active now'}</h2>
-            <span className="text-2xl font-bold text-primary">{onlineUsers.length}</span>
-          </div>
-          <p className="mt-1 text-xs text-muted">
-            {lang === 'he' ? `אתר: ${byPlatform.web} · אפליקציה: ${byPlatform.mobile}` : `Web: ${byPlatform.web} · Mobile: ${byPlatform.mobile}`}
+        <div>
+          <h1 className="text-2xl font-semibold text-admin-primary">{lang === 'he' ? 'סקירת מערכת' : 'System Health Overview'}</h1>
+          <p className="mt-1 text-sm text-admin-on-surface-variant">
+            {lang === 'he' ? 'מדדים בזמן אמת ופעילות ניהולית אחרונה.' : 'Real-time metrics and recent administrative activity.'}
           </p>
-          {presenceError && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{presenceError}</p>}
-          {historyError && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{historyError}</p>}
-          <div className="mt-3 h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={history}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                <XAxis dataKey="t" tickFormatter={timeFmt} minTickGap={40} stroke="var(--muted)" fontSize={11} />
-                <YAxis allowDecimals={false} width={30} stroke="var(--muted)" fontSize={11} />
-                <Tooltip labelFormatter={(t) => timeFmt(t as number)} />
-                <Area type="monotone" dataKey="count" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.2} isAnimationActive={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
+        </div>
 
-        <section className="rounded-[var(--radius)] border border-line bg-surface p-4">
-          <h2 className="mb-3 text-sm font-semibold text-ink">{lang === 'he' ? 'פעולות נפוצות (100 אחרונות)' : 'Action breakdown (last 100)'}</h2>
-          {/* Recharts isn't RTL-aware — under the page's ambient dir="rtl" the
-              SVG's tick labels (always plain English action names) end up
-              mispositioned relative to the bars. Forcing this chart's own
-              container to dir="ltr" keeps its internal layout consistent
-              regardless of the page language. */}
-          <div className="h-56 w-full" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={actionCounts} layout="vertical" margin={{ top: 5, right: 24, bottom: 5, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                <XAxis type="number" allowDecimals={false} stroke="var(--muted)" fontSize={11} />
-                <YAxis type="category" dataKey="action" width={180} tick={{ fontSize: 11 }} stroke="var(--muted)" />
-                <Tooltip />
-                <Bar dataKey="count" fill="var(--primary)" isAnimationActive={false} />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-admin-on-surface-variant">
+              {lang === 'he' ? 'משתמשים מחוברים' : 'Active Sessions'}
+            </span>
+            <div className="mt-2 flex items-end justify-between">
+              <span className="text-3xl font-semibold text-admin-primary">{onlineUsers.length}</span>
+              <span className="mb-1 text-xl">👥</span>
+            </div>
           </div>
-        </section>
+          <div className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-admin-on-surface-variant">
+              {lang === 'he' ? 'אתר / אפליקציה' : 'Web / Mobile'}
+            </span>
+            <div className="mt-2 flex items-end justify-between">
+              <span className="text-3xl font-semibold text-admin-on-surface">{byPlatform.web} / {byPlatform.mobile}</span>
+              <span className="mb-1 text-xl">💻</span>
+            </div>
+          </div>
+          <div className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-admin-on-surface-variant">
+              {lang === 'he' ? 'התחברויות שנכשלו' : 'Failed Logins'}
+            </span>
+            <div className="mt-2 flex items-end justify-between">
+              <span className="text-3xl font-semibold text-admin-on-surface">{failedLoginCount}</span>
+              <span className="mb-1 text-xl">🔑</span>
+            </div>
+          </div>
+          <div className={`rounded-admin-lg border p-4 shadow-sm ${failedLoginCount > 0 ? 'border-admin-error bg-admin-error-container' : 'border-admin-outline-variant bg-admin-surface'}`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider ${failedLoginCount > 0 ? 'text-admin-on-error-container' : 'text-admin-on-surface-variant'}`}>
+              {lang === 'he' ? 'פעולות ביומן' : 'Logged Actions'}
+            </span>
+            <div className="mt-2 flex items-end justify-between">
+              <span className={`text-3xl font-semibold ${failedLoginCount > 0 ? 'text-admin-error' : 'text-admin-on-surface'}`}>{auditRows.length}</span>
+              <span className="mb-1 text-xl">{failedLoginCount > 0 ? '⚠️' : '📋'}</span>
+            </div>
+          </div>
+        </div>
 
-        <section className="rounded-[var(--radius)] border border-line bg-surface p-4">
-          <h2 className="mb-3 text-sm font-semibold text-ink">{lang === 'he' ? 'פעולות אחרונות (100 אחרונות)' : 'Recent actions (last 100)'}</h2>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <section className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-bold text-admin-primary">{lang === 'he' ? 'משתמשים מחוברים כעת' : 'Active now'}</h2>
+              <span className="text-2xl font-bold text-admin-primary">{onlineUsers.length}</span>
+            </div>
+            <p className="mt-1 text-xs text-admin-on-surface-variant">
+              {lang === 'he' ? `אתר: ${byPlatform.web} · אפליקציה: ${byPlatform.mobile}` : `Web: ${byPlatform.web} · Mobile: ${byPlatform.mobile}`}
+            </p>
+            {presenceError && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{presenceError}</p>}
+            {historyError && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{historyError}</p>}
+            <div className="mt-3 h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={history}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--admin-outline-variant)" />
+                  <XAxis dataKey="t" tickFormatter={timeFmt} minTickGap={40} stroke="var(--admin-on-surface-variant)" fontSize={11} />
+                  <YAxis allowDecimals={false} width={30} stroke="var(--admin-on-surface-variant)" fontSize={11} />
+                  <Tooltip labelFormatter={(t) => timeFmt(t as number)} />
+                  <Area type="monotone" dataKey="count" stroke="var(--admin-primary)" fill="var(--admin-primary)" fillOpacity={0.2} isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          <section className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-bold text-admin-primary">{lang === 'he' ? 'פעולות נפוצות (100 אחרונות)' : 'Action breakdown (last 100)'}</h2>
+            {/* Recharts isn't RTL-aware — under the page's ambient dir="rtl" the
+                SVG's tick labels (always plain English action names) end up
+                mispositioned relative to the bars. Forcing this chart's own
+                container to dir="ltr" keeps its internal layout consistent
+                regardless of the page language. */}
+            <div className="h-56 w-full" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={actionCounts} layout="vertical" margin={{ top: 5, right: 24, bottom: 5, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--admin-outline-variant)" />
+                  <XAxis type="number" allowDecimals={false} stroke="var(--admin-on-surface-variant)" fontSize={11} />
+                  <YAxis type="category" dataKey="action" width={180} tick={{ fontSize: 11 }} stroke="var(--admin-on-surface-variant)" />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="var(--admin-primary)" isAnimationActive={false} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        </div>
+
+        <section className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface shadow-sm overflow-hidden">
+          <div className="border-b border-admin-outline-variant bg-admin-surface-container-low p-4">
+            <h2 className="text-sm font-bold text-admin-primary">{lang === 'he' ? 'פעולות אחרונות (100 אחרונות)' : 'Recent actions (last 100)'}</h2>
+          </div>
+          <div className="p-4">
           {auditError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{auditError}</p>}
           {deleteError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{deleteError}</p>}
 
@@ -419,7 +472,7 @@ export default function LiveTransportationPage() {
               type="button"
               disabled={selectedIds.size === 0}
               onClick={() => setConfirmAction('selected')}
-              className="rounded-md border border-danger px-3 py-1.5 text-xs font-medium text-danger disabled:border-line disabled:text-muted disabled:opacity-50"
+              className="rounded-md border border-danger px-3 py-1.5 text-xs font-medium text-danger disabled:border-admin-outline-variant disabled:text-admin-on-surface-variant disabled:opacity-50"
             >
               {lang === 'he' ? `מחק נבחרים (${selectedIds.size})` : `Delete selected (${selectedIds.size})`}
             </button>
@@ -438,12 +491,12 @@ export default function LiveTransportationPage() {
               value={tableSearch}
               onChange={(e) => setTableSearch(e.target.value)}
               placeholder={lang === 'he' ? 'חפש לפי משתמש, פעולה, תאריך או שעה...' : 'Search user, action, date, or time...'}
-              className="min-w-[220px] flex-1 rounded-md border border-line bg-paper px-3 py-1.5 text-xs text-ink"
+              className="min-w-[220px] flex-1 rounded-md border border-admin-outline-variant bg-admin-surface-container-lowest px-3 py-1.5 text-xs text-admin-on-surface"
             />
             <select
               value={tableActionFilter}
               onChange={(e) => setTableActionFilter(e.target.value)}
-              className="rounded-md border border-line bg-paper px-2 py-1.5 text-xs text-ink"
+              className="rounded-md border border-admin-outline-variant bg-admin-surface-container-lowest px-2 py-1.5 text-xs text-admin-on-surface"
             >
               <option value="all">{lang === 'he' ? 'כל הפעולות' : 'All actions'}</option>
               {distinctActions.map((a) => (
@@ -454,13 +507,13 @@ export default function LiveTransportationPage() {
               type="date"
               value={tableDateFilter}
               onChange={(e) => setTableDateFilter(e.target.value)}
-              className="rounded-md border border-line bg-paper px-2 py-1.5 text-xs text-ink"
+              className="rounded-md border border-admin-outline-variant bg-admin-surface-container-lowest px-2 py-1.5 text-xs text-admin-on-surface"
             />
             {(tableSearch || tableActionFilter !== 'all' || tableDateFilter) && (
               <button
                 type="button"
                 onClick={() => { setTableSearch(''); setTableActionFilter('all'); setTableDateFilter(''); }}
-                className="rounded-md border border-line px-2 py-1.5 text-xs text-muted hover:text-ink"
+                className="rounded-md border border-admin-outline-variant px-2 py-1.5 text-xs text-admin-on-surface-variant hover:text-admin-on-surface"
               >
                 {lang === 'he' ? 'נקה' : 'Clear'}
               </button>
@@ -473,11 +526,11 @@ export default function LiveTransportationPage() {
               order and text alignment consistent (Hebrew header text still
               renders correctly — Unicode bidi shaping is per-run, not
               container-direction-dependent). */}
-          <div className="overflow-x-auto" dir="ltr">
+          <div className="overflow-x-auto rounded-admin border border-admin-outline-variant" dir="ltr">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line text-left text-xs text-muted">
-                  <th className="py-2 pr-3">
+                <tr className="border-b border-admin-outline-variant bg-admin-surface-container-low text-left text-[11px] font-semibold uppercase tracking-wide text-admin-on-surface-variant">
+                  <th className="py-2 pl-3 pr-3">
                     <input
                       type="checkbox"
                       checked={allOnPageSelected}
@@ -495,15 +548,16 @@ export default function LiveTransportationPage() {
                   <th className="cursor-pointer select-none py-2 pr-3" onClick={() => toggleTableSort('date')}>
                     {(lang === 'he' ? 'תאריך' : 'Date') + sortArrow('date')}
                   </th>
-                  <th className="py-2">{lang === 'he' ? 'שעה' : 'Time'}</th>
+                  <th className="py-2 pr-3">{lang === 'he' ? 'שעה' : 'Time'}</th>
                 </tr>
               </thead>
               <tbody>
                 {pagedActionRows.map((row) => {
                   const d = row.timestampMs ? new Date(row.timestampMs) : null;
+                  const isFailure = row.action === 'login_failed';
                   return (
-                    <tr key={row.id} className="border-b border-line/50">
-                      <td className="py-2 pr-3">
+                    <tr key={row.id} className={`border-b border-admin-outline-variant/50 transition-colors hover:bg-admin-surface-container-low ${isFailure ? 'bg-admin-error-container/10' : ''}`}>
+                      <td className="py-2 pl-3 pr-3">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(row.id)}
@@ -511,17 +565,17 @@ export default function LiveTransportationPage() {
                           aria-label={lang === 'he' ? 'בחר שורה' : 'Select row'}
                         />
                       </td>
-                      <td className="py-2 pr-3 text-ink">{displayNameFor(row)}</td>
-                      <td className="py-2 pr-3 text-ink">{row.action}</td>
-                      <td className="py-2 pr-3 text-muted">{row.explanation || '—'}</td>
-                      <td className="py-2 pr-3 text-muted">{d ? d.toLocaleDateString() : '—'}</td>
-                      <td className="py-2 text-muted">{d ? d.toLocaleTimeString() : '—'}</td>
+                      <td className="py-2 pr-3 text-admin-on-surface">{displayNameFor(row)}</td>
+                      <td className="py-2 pr-3 font-mono text-xs text-admin-on-surface">{row.action}</td>
+                      <td className="py-2 pr-3 text-admin-on-surface-variant">{row.explanation || '—'}</td>
+                      <td className="py-2 pr-3 font-mono text-xs text-admin-on-surface-variant">{d ? d.toLocaleDateString() : '—'}</td>
+                      <td className="py-2 pr-3 font-mono text-xs text-admin-on-surface-variant">{d ? d.toLocaleTimeString() : '—'}</td>
                     </tr>
                   );
                 })}
                 {sortedActionRows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-sm text-muted">
+                    <td colSpan={6} className="py-6 text-center text-sm text-admin-on-surface-variant">
                       {lang === 'he' ? 'אין פעולות תואמות' : 'No matching actions'}
                     </td>
                   </tr>
@@ -531,7 +585,7 @@ export default function LiveTransportationPage() {
           </div>
 
           {sortedActionRows.length > 0 && (
-            <div className="mt-3 flex items-center justify-between text-xs text-muted">
+            <div className="mt-3 flex items-center justify-between text-xs text-admin-on-surface-variant">
               <span>
                 {lang === 'he'
                   ? `עמוד ${clampedActionsPage} מתוך ${actionsPageCount} (${sortedActionRows.length} תוצאות)`
@@ -542,7 +596,7 @@ export default function LiveTransportationPage() {
                   type="button"
                   disabled={clampedActionsPage <= 1}
                   onClick={() => setTablePage((p) => Math.max(1, p - 1))}
-                  className="rounded-md border border-line px-2 py-1 disabled:opacity-40"
+                  className="rounded-md border border-admin-outline-variant px-2 py-1 disabled:opacity-40"
                 >
                   {lang === 'he' ? 'הקודם' : 'Prev'}
                 </button>
@@ -550,13 +604,14 @@ export default function LiveTransportationPage() {
                   type="button"
                   disabled={clampedActionsPage >= actionsPageCount}
                   onClick={() => setTablePage((p) => Math.min(actionsPageCount, p + 1))}
-                  className="rounded-md border border-line px-2 py-1 disabled:opacity-40"
+                  className="rounded-md border border-admin-outline-variant px-2 py-1 disabled:opacity-40"
                 >
                   {lang === 'he' ? 'הבא' : 'Next'}
                 </button>
               </div>
             </div>
           )}
+          </div>
         </section>
       </div>
 
