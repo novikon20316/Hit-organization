@@ -96,43 +96,61 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
         {filteredProjects.map((p) => {
           const color = getFacultyColor(p.facultyId);
           const title = lang === 'he' ? p.titleHe : p.titleEn;
+          const isActive = p.status.toLowerCase().includes('active');
           return (
-            <div key={p.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': color } as React.CSSProperties}>
+            <div
+              key={p.id}
+              className="role-rail rounded-admin-lg border border-admin-outline-variant bg-admin-surface-container-lowest p-4"
+              style={{ '--rail-color': color } as React.CSSProperties}
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${color}1F`, color }}>
                   {facultyLabel(p.facultyId as FacultyId, lang)}
                 </span>
-                <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">{p.status}</span>
+                <span
+                  className={`rounded-admin px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    isActive ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-admin-surface-container-high text-admin-on-surface-variant'
+                  }`}
+                >
+                  {p.status}
+                </span>
               </div>
 
-              <Link href={`/admin/projects/${p.id}/milestones`} className="mt-2 block text-sm font-semibold text-ink hover:text-primary hover:underline">
+              <Link
+                href={`/admin/projects/${p.id}/milestones`}
+                className="mt-2 block text-sm font-semibold text-admin-on-surface hover:text-admin-primary hover:underline"
+              >
                 {title || '—'}
               </Link>
 
-              <p className="mt-1 text-xs text-muted">👨‍🏫 {p.supervisorName || (lang === 'he' ? 'ללא מנחה' : 'No Supervisor')}</p>
-              <p className="mt-1 text-xs text-muted">
-                👥 {p.enrolledStudentIds?.length ?? 0} {lang === 'he' ? 'סטודנטים' : 'students'}
-              </p>
+              <div className="mt-2 grid gap-1">
+                <p className="text-xs text-admin-on-surface-variant">
+                  👨‍🏫 {p.supervisorName || (lang === 'he' ? 'ללא מנחה' : 'No Supervisor')}
+                </p>
+                <p className="text-xs text-admin-on-surface-variant">
+                  👥 {p.enrolledStudentIds?.length ?? 0} {lang === 'he' ? 'סטודנטים' : 'students'}
+                </p>
+              </div>
 
-              <div className="mt-3 grid gap-1.5">
+              <div className="mt-3 grid gap-1.5 border-t border-admin-outline-variant pt-3">
                 <button
                   type="button"
                   onClick={() => setAddStudentProject(p)}
-                  className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+                  className="rounded-admin border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-admin-primary hover:text-admin-primary"
                 >
                   👤➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setDefenseProject(p)}
-                  className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+                  className="rounded-admin border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-admin-primary hover:text-admin-primary"
                 >
                   🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setDeletingProject(p)}
-                  className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-danger hover:border-danger"
+                  className="rounded-admin border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger-bg"
                 >
                   🗑️ {lang === 'he' ? 'מחק' : 'Erase'}
                 </button>
@@ -140,7 +158,9 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
             </div>
           );
         })}
-        {filteredProjects.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין פרויקטים להצגה' : 'No projects to display'}</p>}
+        {filteredProjects.length === 0 && (
+          <p className="text-sm text-admin-on-surface-variant">{lang === 'he' ? 'אין פרויקטים להצגה' : 'No projects to display'}</p>
+        )}
       </div>
 
       <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} onCreated={onChanged} />

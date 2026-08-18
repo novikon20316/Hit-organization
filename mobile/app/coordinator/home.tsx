@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
-import { TopBar, FacultyBadge } from '../../components/shared';
+import { TopBar, FacultyBadge, getFacultyColor } from '../../components/shared';
 import {type GradeWeights } from '../../components/Milestoneservice';
 import { coordinatorHomeStyles } from '../../constants/styles';
 import {tx} from '../../components/i18n';
@@ -1401,15 +1401,19 @@ export default function CoordinatorHome() {
                   .map((p) => (
         <View
           key={p.id}
-          style={[styles.card, expandedCards[p.id] && styles.cardExpanded]} // Re-applied the card expanded style here
+          style={[
+            styles.card,
+            { borderLeftWidth: 4, borderLeftColor: getFacultyColor(p.facultyId).primary },
+            expandedCards[p.id] && styles.cardExpanded,
+          ]} // Re-applied the card expanded style here
         >
           {/* ── Header (Now Clickable again to expand the general project card view) ── */}
-          <Pressable 
+          <Pressable
             style={styles.cardHeader}
             onPress={() => toggleCardExpansion(p.id)} // Restored general project card expansion toggle
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.milestoneType}>
+              <Text style={styles.cardTitle}>
                 {lang === 'he' ? p.projectTitleHe : p.projectTitleEn}
               </Text>
             </View>

@@ -1609,7 +1609,7 @@ export default function PanelScreen() {
           <>
             <CreateOwnProjectButton lang={lang} isRtl={isRtl} onCreated={fetchAllDashboardData} />
             {filteredProjects.map((p) => (
-              <View key={p.id} style={styles.projectCard}>
+              <View key={p.id} style={[styles.projectCard, { borderLeftColor: getFacultyColor(p.facultyId).primary }]}>
                 <View style={styles.projectHeader}>
                   <FacultyBadge facultyId={p.facultyId} lang={lang} />
                   <StatusBadge status={p.status} lang={lang} />
@@ -1628,37 +1628,40 @@ export default function PanelScreen() {
                   {lang === 'he' ? 'סטודנטים' : 'students'}
                 </Text>
 
-                {/* ── Add Student Button ── */}
-                <Pressable
-                  style={styles.addStudentBtn}
-                  onPress={() => {
-                    setAddStudentProject(p);
-                    setStudentSearch('');
-                    setAddStudentModal(true);
-                  }}
-                >
-                  <Text style={styles.addStudentBtnText}>
-                    👤➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}
-                  </Text>
-                </Pressable>
+                {/* Footer — separated from the metadata above like every
+                    other role's project card (Fresh Project Card Designs) */}
+                <View style={{ marginTop: 4, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                  <Pressable
+                    style={styles.addStudentBtn}
+                    onPress={() => {
+                      setAddStudentProject(p);
+                      setStudentSearch('');
+                      setAddStudentModal(true);
+                    }}
+                  >
+                    <Text style={styles.addStudentBtnText}>
+                      👤➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}
+                    </Text>
+                  </Pressable>
 
-                <Pressable
-                  style={styles.addStudentBtn}
-                  onPress={() => setDefenseProject(p)}
-                >
-                  <Text style={styles.addStudentBtnText}>
-                    🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}
-                  </Text>
-                </Pressable>
+                  <Pressable
+                    style={styles.addStudentBtn}
+                    onPress={() => setDefenseProject(p)}
+                  >
+                    <Text style={styles.addStudentBtnText}>
+                      🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}
+                    </Text>
+                  </Pressable>
 
-                <Pressable
-                  style={styles.deleteBtn}
-                  onPress={() => deleteProject(p.id)}
-                >
-                  <Text style={styles.deleteBtnText}>
-                    🗑️ {lang === 'he' ? 'מחק' : 'Delete'}
-                  </Text>
-                </Pressable>
+                  <Pressable
+                    style={styles.deleteBtn}
+                    onPress={() => deleteProject(p.id)}
+                  >
+                    <Text style={styles.deleteBtnText}>
+                      🗑️ {lang === 'he' ? 'מחק' : 'Delete'}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
           </>

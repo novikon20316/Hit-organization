@@ -103,22 +103,24 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
     <div className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
       <button type="button" onClick={() => setExpanded((v) => !v)} className="w-full text-start">
         <p className="text-sm font-semibold text-ink">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
-        <p className="mt-0.5 text-xs text-muted">👤 {m.studentNames.join(', ')}</p>
-        <p className="mt-0.5 text-xs text-muted">
-          👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}
-        </p>
-        {isIdentityKeyed ? (
-          otherExaminers.length > 0 && (
-            <p className="mt-0.5 text-xs text-muted">
-              🤝 {lang === 'he' ? (otherExaminers.length > 1 ? 'בוחנים נוספים:' : 'בוחן/ת נוסף/ת:') : otherExaminers.length > 1 ? 'Co-examiners:' : 'Co-examiner:'}{' '}
-              {otherExaminers
-                .map((oe) => `${oe.name} (${oe.graded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : lang === 'he' ? 'טרם הוגש' : 'pending'})`)
-                .join(', ')}
-            </p>
-          )
-        ) : (
-          <p className="mt-0.5 text-xs text-muted">🔢 {lang === 'he' ? `אני בוחן #${examinerIndex}` : `I am Examiner #${examinerIndex}`}</p>
-        )}
+        <div className="mt-1.5 grid gap-1">
+          <p className="text-xs text-muted">👤 {m.studentNames.join(', ')}</p>
+          <p className="text-xs text-muted">
+            👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}
+          </p>
+          {isIdentityKeyed ? (
+            otherExaminers.length > 0 && (
+              <p className="text-xs text-muted">
+                🤝 {lang === 'he' ? (otherExaminers.length > 1 ? 'בוחנים נוספים:' : 'בוחן/ת נוסף/ת:') : otherExaminers.length > 1 ? 'Co-examiners:' : 'Co-examiner:'}{' '}
+                {otherExaminers
+                  .map((oe) => `${oe.name} (${oe.graded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : lang === 'he' ? 'טרם הוגש' : 'pending'})`)
+                  .join(', ')}
+              </p>
+            )
+          ) : (
+            <p className="text-xs text-muted">🔢 {lang === 'he' ? `אני בוחן #${examinerIndex}` : `I am Examiner #${examinerIndex}`}</p>
+          )}
+        </div>
         {m.defenseDate && (
           <p className="mt-1.5 inline-block rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-ink">
             📅 {new Date(m.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}

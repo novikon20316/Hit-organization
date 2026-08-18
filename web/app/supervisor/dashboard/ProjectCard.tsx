@@ -26,6 +26,14 @@ const PROJECT_STATUS_LABEL: Record<string, { he: string; en: string }> = {
   in_progress: { he: 'בתהליך', en: 'In Progress' },
 };
 
+// Fresh Project Card Designs' status-pill convention (10%-opacity tint +
+// full-opacity text) — active gets the semantic success color, everything
+// else stays a neutral badge so it doesn't compete with the urgency border.
+const PROJECT_STATUS_BADGE_CLASS: Record<string, string> = {
+  active: 'bg-success-bg text-success',
+  in_progress: 'bg-[#eeedf4] text-[#1a1b21]',
+};
+
 interface ProjectCardProps {
   project: MyProject;
   onEdit: (project: MyProject) => void;
@@ -75,7 +83,11 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
           <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}>
             {facultyLabel(p.facultyId as FacultyId, lang)}
           </span>
-          <span className="rounded-[4px] bg-[#eeedf4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#1a1b21]">
+          <span
+            className={`rounded-[4px] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              PROJECT_STATUS_BADGE_CLASS[p.status] ?? PROJECT_STATUS_BADGE_CLASS.in_progress
+            }`}
+          >
             {PROJECT_STATUS_LABEL[p.status]?.[lang] ?? p.status}
           </span>
           <span className="ml-auto text-xs text-[#757682]">{expanded ? '▲' : '▼'}</span>
@@ -136,7 +148,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         </p>
       )}
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex gap-2 border-t border-[#c5c5d3] pt-3">
         <button
           type="button"
           onClick={() => onEdit(p)}
@@ -147,7 +159,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         <button
           type="button"
           onClick={() => setShowRequestErasure(true)}
-          className="flex-1 rounded-lg border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger-bg"
+          className="flex-1 rounded-[4px] border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger-bg"
         >
           {t('requestErasure')}
         </button>

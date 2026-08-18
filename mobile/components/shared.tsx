@@ -472,6 +472,7 @@ export function FacultyBadge({ facultyId, lang }: { facultyId: string; lang: Lan
 }
 
 const STATUS_MAP = {
+  active:               { bg: '#ECFDF5', color: '#10B981', he: 'פעיל',            en: 'Active' },
   pending:              { bg: '#F1F5F9', color: '#64748B', he: 'ממתין',           en: 'Pending' },
   submitted:            { bg: '#FFFBEB', color: '#F59E0B', he: 'הוגש',            en: 'Submitted' },
   supervisor_graded:    { bg: '#EFF6FF', color: '#2E86FF', he: 'נוקד ע"י מנחה',  en: 'Supervisor Graded' },

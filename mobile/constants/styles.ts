@@ -1304,6 +1304,11 @@ export const adminPanelStyles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     marginBottom: 14,
+    // Matches milestoneCard's accent rail below — project cards had none,
+    // inconsistent with every other role's project card (Fresh Project Card
+    // Designs rollout). Color is set per-item inline (faculty color), same
+    // pattern as milestoneCard's static warning-color rail.
+    borderLeftWidth: 5,
   },
 
   projectHeader: {
@@ -4088,8 +4093,8 @@ export const FacultyBadgeStyles = StyleSheet.create({
 });
 
 export const StatusBadgeStyles = StyleSheet.create({
-  badge: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3 },
-  text:  { fontSize: 11, fontWeight: '700' },
+  badge: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3, alignSelf: 'flex-start' },
+  text:  { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
 });
 
 export const SecurityModalStyles = StyleSheet.create({

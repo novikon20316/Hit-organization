@@ -378,16 +378,17 @@ export default function ProgramHeadDashboard() {
               <EmptyState emoji="📭" text={lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'} />
             ) : (
               myProjects.map((p) => (
-                <View key={p.id} style={[s.statCard, { alignItems: 'flex-start', marginBottom: 10, width: '100%' }]}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }}>
+                <View key={p.id} style={[s.card, { borderLeftColor: fc.primary }]}>
+                  <Text style={s.cardTitle}>
                     {lang === 'he' ? p.titleHe : p.titleEn}
                   </Text>
-                  <Text style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-                    {p.degreeType === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
+                  <Text style={s.cardSub}>
+                    🎓 {p.degreeType === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
                     {' · '}
                     {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : (lang === 'he' ? 'תזה' : 'Thesis')}
-                    {' · '}
-                    {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}
+                  </Text>
+                  <Text style={s.cardSub}>
+                    👥 {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}
                   </Text>
                 </View>
               ))

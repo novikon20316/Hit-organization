@@ -89,20 +89,26 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
         const facultyColor = getFacultyColor(p.facultyId);
         const isOpen = !!expanded[p.id];
         return (
-          <div key={p.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+          <div
+            key={p.id}
+            className="role-rail rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4"
+            style={{ '--rail-color': facultyColor } as React.CSSProperties}
+          >
             <button type="button" onClick={() => setExpanded((prev) => ({ ...prev, [p.id]: !prev[p.id] }))} className="w-full text-start">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-ink">{lang === 'he' ? p.projectTitleHe : p.projectTitleEn}</p>
+                <p className="text-sm font-semibold text-coordinator-on-surface">{lang === 'he' ? p.projectTitleHe : p.projectTitleEn}</p>
                 <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}>
                   {facultyLabel(p.facultyId, lang)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-muted">
-                👤 {p.students?.length > 0 ? (lang === 'he' ? `${p.students.length} סטודנטים` : `${p.students.length} students`) : lang === 'he' ? 'אין סטודנטים' : 'No students'}
-              </p>
-              <p className="mt-0.5 text-xs text-muted">
-                👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {p.supervisorName}
-              </p>
+              <div className="mt-1.5 grid gap-1">
+                <p className="text-xs text-coordinator-on-surface-variant">
+                  👤 {p.students?.length > 0 ? (lang === 'he' ? `${p.students.length} סטודנטים` : `${p.students.length} students`) : lang === 'he' ? 'אין סטודנטים' : 'No students'}
+                </p>
+                <p className="text-xs text-coordinator-on-surface-variant">
+                  👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {p.supervisorName}
+                </p>
+              </div>
             </button>
 
             <ClockPauseControl projectId={p.id} />
@@ -110,13 +116,13 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
             <button
               type="button"
               onClick={() => setEditingProject(p)}
-              className="mt-2 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              className="mt-2 flex items-center gap-1 text-xs font-medium text-coordinator-primary hover:underline"
             >
               ✏️ {lang === 'he' ? 'עריכת פרויקט (שם, מספר סטודנטים ועוד)' : 'Edit Project (name, student count, etc.)'}
             </button>
 
             {isOpen && (
-              <div className="mt-3 grid gap-3 border-t border-line pt-3">
+              <div className="mt-3 grid gap-3 border-t border-coordinator-outline-variant pt-3">
                 {(p.students ?? []).map((student, sIdx) => {
                   const key = `${p.id}-${sIdx}`;
                   const studentOpen = !!expandedStudents[key];
