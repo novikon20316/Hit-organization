@@ -8,8 +8,12 @@
 // /admin/panel on mobile with params that screen never reads, and that page
 // is system_admin-gated anyway — so those Approve/Return buttons are shown
 // as informational only here rather than as dead links.
+//
+// useSearchParams() forces this static route into client-side rendering at
+// the Suspense boundary during prerendering (Next.js requirement) — wrapped
+// below so the rest of the app shell can still be prerendered.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -87,7 +91,7 @@ const URGENCY_COLOR: Record<PendingApproval['urgency'], string> = {
   low: 'var(--success)',
 };
 
-export default function GradSchoolHeadDashboardPage() {
+function GradSchoolHeadDashboardContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(GRAD_SCHOOL_HEAD_ROLES);
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
@@ -494,6 +498,14 @@ export default function GradSchoolHeadDashboardPage() {
       )}
       <NewProjectModal open={showNewProject} onClose={closeNewProject} onCreated={fetchDashboard} />
     </DashboardShell>
+  );
+}
+
+export default function GradSchoolHeadDashboardPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <GradSchoolHeadDashboardContent />
+    </Suspense>
   );
 }
 

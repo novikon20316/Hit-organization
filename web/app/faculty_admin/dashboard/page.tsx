@@ -12,8 +12,12 @@
 // role check. Both are now fixed — createAdminProject accepts faculty_admin
 // (via req.user.role or req.user.roles[]), and getDeadLines's role check
 // includes faculty_admin and returns faculty-wide deadlines for that role.
+//
+// useSearchParams() forces this static route into client-side rendering at
+// the Suspense boundary during prerendering (Next.js requirement) — wrapped
+// below so the rest of the app shell can still be prerendered.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -37,7 +41,7 @@ const FACULTY_ADMIN_ROLES: AppRole[] = ['faculty_admin', 'system_admin'];
 
 type Tab = 'overview' | 'users' | 'projects' | 'deadlines' | 'signoffs';
 
-export default function FacultyAdminDashboardPage() {
+function FacultyAdminDashboardContent() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(FACULTY_ADMIN_ROLES);
   const { lang, t } = useLanguage();
   const router = useRouter();
@@ -190,6 +194,14 @@ export default function FacultyAdminDashboardPage() {
         <NewProjectModal facultyId={facultyId} onClose={closeNewProject} onCreated={fetchDashboard} />
       )}
     </DashboardShell>
+  );
+}
+
+export default function FacultyAdminDashboardPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <FacultyAdminDashboardContent />
+    </Suspense>
   );
 }
 

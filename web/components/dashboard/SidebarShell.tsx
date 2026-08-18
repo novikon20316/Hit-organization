@@ -24,7 +24,7 @@
 //    (same route, different accent) since it reads the signed-in user's
 //    own activeRole rather than taking a hardcoded prop.
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { Suspense, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -61,9 +61,66 @@ interface SidebarShellProps {
 
 const COLLAPSE_STORAGE_KEY = 'sidebarCollapsed';
 
-export function SidebarShell({ brand, sections, quickActions, theme, children }: SidebarShellProps) {
+type ThemeClasses = Record<'nav' | 'brand' | 'subtitle' | 'avatar' | 'sectionLabel' | 'itemActive' | 'itemInactive', string>;
+
+// Isolated in its own component (rather than called directly in
+// SidebarShell) because useSearchParams() forces whatever calls it into a
+// Suspense boundary during prerendering (Next.js requirement) — this way
+// every page under every role's layout gets that boundary for free instead
+// of each page having to wrap itself.
+function SidebarNavSections({
+  sections,
+  quickActions,
+  cls,
+  collapsed,
+  lang,
+}: {
+  sections: SidebarSection[];
+  quickActions?: SidebarSection;
+  cls: ThemeClasses;
+  collapsed: boolean;
+  lang: 'he' | 'en';
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const resolveHref = (href: SidebarNavItem['href']) => (typeof href === 'function' ? href(searchParams) : href);
+
+  const renderSection = (section: SidebarSection) => (
+    <div key={section.title.en} className="mb-4 px-3">
+      {!collapsed && (
+        <p className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider ${cls.sectionLabel}`}>{section.title[lang]}</p>
+      )}
+      <ul className="flex flex-col gap-1">
+        {section.items.map((item) => {
+          const active = item.isActive(pathname, searchParams);
+          return (
+            <li key={item.key}>
+              <Link
+                href={resolveHref(item.href)}
+                title={collapsed ? item.label[lang] : undefined}
+                className={`flex items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} ${
+                  active ? `border-e-4 font-bold ${cls.itemActive}` : cls.itemInactive
+                }`}
+              >
+                <span className="text-base leading-none">{item.icon}</span>
+                {!collapsed && item.label[lang]}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+
+  return (
+    <>
+      {sections.map((section) => renderSection(section))}
+      {quickActions && renderSection(quickActions)}
+    </>
+  );
+}
+
+export function SidebarShell({ brand, sections, quickActions, theme, children }: SidebarShellProps) {
   const { lang } = useLanguage();
   const { userData, activeRole } = useAuth();
 
@@ -123,34 +180,6 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
         };
 
   const initial = (userData?.displayName || '?').charAt(0).toUpperCase();
-  const resolveHref = (href: SidebarNavItem['href']) => (typeof href === 'function' ? href(searchParams) : href);
-
-  const renderSection = (section: SidebarSection) => (
-    <div key={section.title.en} className="mb-4 px-3">
-      {!collapsed && (
-        <p className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider ${cls.sectionLabel}`}>{section.title[lang]}</p>
-      )}
-      <ul className="flex flex-col gap-1">
-        {section.items.map((item) => {
-          const active = item.isActive(pathname, searchParams);
-          return (
-            <li key={item.key}>
-              <Link
-                href={resolveHref(item.href)}
-                title={collapsed ? item.label[lang] : undefined}
-                className={`flex items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} ${
-                  active ? `border-e-4 font-bold ${cls.itemActive}` : cls.itemInactive
-                }`}
-              >
-                <span className="text-base leading-none">{item.icon}</span>
-                {!collapsed && item.label[lang]}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -179,8 +208,9 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
           )}
         </div>
 
-        {sections.map((section) => renderSection(section))}
-        {quickActions && renderSection(quickActions)}
+        <Suspense fallback={null}>
+          <SidebarNavSections sections={sections} quickActions={quickActions} cls={cls} collapsed={collapsed} lang={lang} />
+        </Suspense>
       </nav>
 
       {/* Retracts the sidebar on any click outside it — including

@@ -5,8 +5,12 @@
 // Milestones, Defense Access, and Feedback tabs, plus maintenance-mode/
 // academic-calendar settings. Staff import lives in BulkImportModal
 // (already wired into the Users tab toolbar below).
+//
+// useSearchParams() forces this static route into client-side rendering at
+// the Suspense boundary during prerendering (Next.js requirement) — wrapped
+// below so the rest of the app shell can still be prerendered.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
@@ -51,7 +55,7 @@ type AdminModal = 'maintenance' | 'academicCalendar' | 'studentStatuses' | 'bulk
 const ADMIN_MODALS: AdminModal[] = ['maintenance', 'academicCalendar', 'studentStatuses', 'bulkImport'];
 const isAdminModal = (v: string | null): v is AdminModal => !!v && (ADMIN_MODALS as string[]).includes(v);
 
-export default function AdminPanelPage() {
+function AdminPanelContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_ROLES);
   const { lang, t } = useLanguage();
   const router = useRouter();
@@ -350,6 +354,14 @@ export default function AdminPanelPage() {
         </div>
       )}
     </DashboardShell>
+  );
+}
+
+export default function AdminPanelPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <AdminPanelContent />
+    </Suspense>
   );
 }
 

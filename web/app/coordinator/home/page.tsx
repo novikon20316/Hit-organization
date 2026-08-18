@@ -3,8 +3,12 @@
 // app/coordinator/home/page.tsx
 // Ported from mobile/app/coordinator/home.tsx — Pending, Defense, In
 // Progress, Deadlines, and Recommendations tabs.
+//
+// useSearchParams() forces this static route into client-side rendering at
+// the Suspense boundary during prerendering (Next.js requirement) — wrapped
+// below so the rest of the app shell can still be prerendered.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -31,7 +35,7 @@ const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary',
 
 type Tab = 'overview' | 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'statistics' | 'archived';
 
-export default function CoordinatorHomePage() {
+function CoordinatorHomeContent() {
   const { loading: guardLoading, isAllowed, firebaseUser, userData } = useRequireRole(COORDINATOR_ROLES);
   const { activeRole } = useAuth();
   const { lang, t } = useLanguage();
@@ -341,5 +345,13 @@ export default function CoordinatorHomePage() {
       )}
       {showBulkImport && <BulkImportModal scope="coordinator" onClose={closeBulkImport} onImported={fetchAll} />}
     </DashboardShell>
+  );
+}
+
+export default function CoordinatorHomePage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <CoordinatorHomeContent />
+    </Suspense>
   );
 }

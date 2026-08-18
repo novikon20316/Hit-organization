@@ -4,8 +4,12 @@
 // Ported from mobile/app/supervisor/dashboard.tsx — Applications, Projects,
 // Deadlines, and Recommend tabs. Grading lives inline on each milestone row
 // inside the Projects tab (see ProjectWorkflowSection.tsx), not its own tab.
+//
+// useSearchParams() forces this static route into client-side rendering at
+// the Suspense boundary during prerendering (Next.js requirement) — wrapped
+// below so the rest of the app shell can still be prerendered.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
@@ -56,7 +60,7 @@ const PROJECT_FILTERS: { key: ProjectFilter; he: string; en: string }[] = [
   { key: 'offered', he: 'מוצעים', en: 'Offered' },
 ];
 
-export default function SupervisorDashboardPage() {
+function SupervisorDashboardContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
   const router = useRouter();
@@ -358,5 +362,13 @@ export default function SupervisorDashboardPage() {
         />
       )}
     </DashboardShell>
+  );
+}
+
+export default function SupervisorDashboardPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <SupervisorDashboardContent />
+    </Suspense>
   );
 }
