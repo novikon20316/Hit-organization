@@ -7,15 +7,9 @@
 // (already wired into the Users tab toolbar below).
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
-import { ReportsLink } from '@/components/ReportsLink';
-import { InfoFilesLink } from '@/components/InfoFilesLink';
-import { AcademicYearLink } from '@/components/AcademicYearLink';
-import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
-import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
-import { CommitteesLink } from '@/components/CommitteesLink';
-import { LiveTransportationLink } from '@/components/LiveTransportationLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -45,11 +39,50 @@ const selectCls = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm 
 
 type AdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs' | 'statistics' | 'archived';
 
+const ADMIN_TABS: AdminTab[] = ['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster', 'signoffs', 'statistics', 'archived'];
+const isAdminTab = (v: string | null): v is AdminTab => !!v && (ADMIN_TABS as string[]).includes(v);
+
+// Every quick-action modal that used to live in this page's own
+// DashboardShell hamburger menu — now triggered from AdminSidebarNav
+// instead, via this same "URL is the source of truth" pattern as `tab`
+// above, so they open correctly from any admin page, not just when this
+// one happens to already be mounted.
+type AdminModal = 'maintenance' | 'academicCalendar' | 'studentStatuses' | 'bulkImport';
+const ADMIN_MODALS: AdminModal[] = ['maintenance', 'academicCalendar', 'studentStatuses', 'bulkImport'];
+const isAdminModal = (v: string | null): v is AdminModal => !!v && (ADMIN_MODALS as string[]).includes(v);
+
 export default function AdminPanelPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_ROLES);
   const { lang, t } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [tab, setTab] = useState<AdminTab>('overview');
+  // The URL's `?tab=` is the single source of truth for which tab is open —
+  // no separate mirrored state — so that AdminSidebarNav's "User
+  // Management" link (/admin/panel?tab=users) actually switches tabs even
+  // when this page is already mounted (a same-page client-side navigation
+  // doesn't remount the component), and browser back/forward works too.
+  // useSearchParams() re-renders this Client Component on every such
+  // navigation, so this stays in sync automatically.
+  const paramTab = searchParams.get('tab');
+  const tab: AdminTab = isAdminTab(paramTab) ? paramTab : 'overview';
+  const setTab = useCallback(
+    (next: AdminTab) => {
+      router.replace(next === 'overview' ? '/admin/panel' : `/admin/panel?tab=${next}`, { scroll: false });
+    },
+    [router]
+  );
+  // Same URL-as-source-of-truth idea as `tab` — AdminSidebarNav links to
+  // /admin/panel?modal=maintenance (etc.), preserving whatever `tab` is
+  // already in the URL. Closing a modal just strips `modal` back out.
+  const paramModal = searchParams.get('modal');
+  const activeModal: AdminModal | null = isAdminModal(paramModal) ? paramModal : null;
+  const closeModal = useCallback(() => {
+    const qs = new URLSearchParams(searchParams);
+    qs.delete('modal');
+    const query = qs.toString();
+    router.replace(query ? `/admin/panel?${query}` : '/admin/panel', { scroll: false });
+  }, [router, searchParams]);
   const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [projects, setProjects] = useState<AdminProjectRecord[]>([]);
   const [milestones, setMilestones] = useState<AdminMilestoneRecord[]>([]);
@@ -60,10 +93,6 @@ export default function AdminPanelPage() {
   const [staffFilter, setStaffFilter] = useState<'all' | 'staff' | 'student'>('all');
   const [facultyFilter, setFacultyFilter] = useState<'all' | FacultyId>('all');
   const [showNewUser, setShowNewUser] = useState(false);
-  const [showBulkImport, setShowBulkImport] = useState(false);
-  const [showMaintenance, setShowMaintenance] = useState(false);
-  const [showAcademicCalendar, setShowAcademicCalendar] = useState(false);
-  const [showStudentStatuses, setShowStudentStatuses] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
   const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
   // Accounts currently disabled by the 3-strikes failed-login flow.
@@ -169,50 +198,9 @@ export default function AdminPanelPage() {
     <DashboardShell
       title={lang === 'he' ? 'פאנל ניהול' : 'Admin Panel'}
       subtitle={lang === 'he' ? 'סטטיסטיקות מערכת וניהול משתמשים' : 'System stats and user management'}
-      actions={
-        <div className="flex items-center gap-2">
-          <InfoFilesLink />
-          <AcademicYearLink />
-          <BulkPermissionsLink />
-          <WorkflowTemplatesLink />
-          <CommitteesLink />
-          <ReportsLink />
-          <LiveTransportationLink />
-          <button
-            type="button"
-            onClick={() => setShowAcademicCalendar(true)}
-            className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
-          >
-            📅 {lang === 'he' ? 'לוח שנה' : 'Calendar'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowMaintenance(true)}
-            className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
-          >
-            🛠️ {lang === 'he' ? 'תחזוקה' : 'Maintenance'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowStudentStatuses(true)}
-            className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
-          >
-            🏷️ {lang === 'he' ? 'סטטוסי סטודנטים' : 'Student Statuses'}
-          </button>
-          {(tab === 'users' || tab === 'studentRoster') && (
-            <button
-              type="button"
-              onClick={() => setShowBulkImport(true)}
-              className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
-            >
-              📥 {lang === 'he' ? 'ייבוא/ייצוא' : 'Import/Export'}
-            </button>
-          )}
-        </div>
-      }
     >
       <div className="mb-5 flex flex-wrap gap-1 border-b border-admin-outline-variant">
-        {(['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster', 'signoffs', 'statistics', 'archived'] as const).map((key) => (
+        {ADMIN_TABS.map((key) => (
           <button
             key={key}
             type="button"
@@ -327,22 +315,22 @@ export default function AdminPanelPage() {
       {editingUser && (
         <EditUserModal key={editingUser.id} user={editingUser} onClose={() => setEditingUser(null)} onSaved={fetchDashboard} />
       )}
-      {showBulkImport && (
+      {activeModal === 'bulkImport' && (
         <BulkImportModal
           scope="admin"
-          onClose={() => setShowBulkImport(false)}
+          onClose={closeModal}
           onImported={() => {
             fetchDashboard();
             setRosterRefreshKey((k) => k + 1);
           }}
         />
       )}
-      {showMaintenance && <MaintenanceModal onClose={() => setShowMaintenance(false)} />}
-      {showAcademicCalendar && <AcademicCalendarModal onClose={() => setShowAcademicCalendar(false)} />}
-      {showStudentStatuses && (
+      {activeModal === 'maintenance' && <MaintenanceModal onClose={closeModal} />}
+      {activeModal === 'academicCalendar' && <AcademicCalendarModal onClose={closeModal} />}
+      {activeModal === 'studentStatuses' && (
         <StudentStatusesModal
           onClose={() => {
-            setShowStudentStatuses(false);
+            closeModal();
             fetchStatusConfig();
           }}
         />

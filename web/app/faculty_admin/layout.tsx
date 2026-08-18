@@ -1,0 +1,89 @@
+'use client';
+
+// app/faculty_admin/layout.tsx
+// A client component — see app/admin/layout.tsx's note (NAV_SECTIONS'
+// isActive functions can't cross the server/client boundary as props).
+//
+// Migrates faculty_admin's DashboardShell hamburger-menu actions (Project
+// Templates, Process Templates, Committees, Bulk Permissions, Reports,
+// Post New Project) into the persistent collapsible sidebar. Also covers
+// /faculty_admin/templates (no layout of its own needed — it's nested
+// under this route).
+
+import { SidebarShell, type SidebarSection } from '@/components/dashboard/SidebarShell';
+
+const NAV_SECTIONS: SidebarSection[] = [
+  {
+    title: { he: 'ניווט', en: 'Navigation' },
+    items: [
+      {
+        key: 'home',
+        icon: '🏠',
+        href: '/faculty_admin/dashboard',
+        label: { he: 'בית', en: 'Home' },
+        isActive: (pathname) => pathname === '/faculty_admin/dashboard',
+      },
+      {
+        key: 'projectTemplates',
+        icon: '📋',
+        href: '/faculty_admin/templates',
+        label: { he: 'תבניות פרויקט', en: 'Project Templates' },
+        isActive: (pathname) => pathname === '/faculty_admin/templates',
+      },
+      {
+        key: 'workflowTemplates',
+        icon: '🧬',
+        href: '/workflow-templates',
+        label: { he: 'תבניות תהליך', en: 'Process Templates' },
+        isActive: (pathname) => pathname === '/workflow-templates',
+      },
+      {
+        key: 'committees',
+        icon: '🧑‍⚖️',
+        href: '/committees',
+        label: { he: 'ועדות', en: 'Committees' },
+        isActive: (pathname) => pathname === '/committees',
+      },
+      {
+        key: 'bulkPermissions',
+        icon: '🛡️',
+        href: '/bulk-permissions',
+        label: { he: 'הרשאות מרוכזות', en: 'Bulk Permissions' },
+        isActive: (pathname) => pathname === '/bulk-permissions',
+      },
+      {
+        key: 'reports',
+        icon: '📈',
+        href: '/reports',
+        label: { he: 'דוחות', en: 'Reports' },
+        isActive: (pathname) => pathname === '/reports',
+      },
+    ],
+  },
+];
+
+const QUICK_ACTIONS: SidebarSection = {
+  title: { he: 'פעולות מהירות', en: 'Quick Actions' },
+  items: [
+    {
+      key: 'newProject',
+      icon: '📁',
+      href: '/faculty_admin/dashboard?modal=newProject',
+      label: { he: 'פרסם פרויקט חדש', en: 'Post New Project' },
+      isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('modal') === 'newProject',
+    },
+  ],
+};
+
+export default function FacultyAdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SidebarShell
+      brand={{ name: 'HIT', subtitle: { he: 'פורטל ראש מנהל פקולטה', en: 'Faculty Admin Portal' } }}
+      sections={NAV_SECTIONS}
+      quickActions={QUICK_ACTIONS}
+      theme={{ mode: 'accent' }}
+    >
+      {children}
+    </SidebarShell>
+  );
+}

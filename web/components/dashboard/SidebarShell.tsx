@@ -1,0 +1,193 @@
+'use client';
+
+// components/dashboard/SidebarShell.tsx
+// The one reusable, collapsible sidebar-nav + content-wrapper shared by
+// every role's /<role>/layout.tsx. Started as app/admin/AdminSidebarNav.tsx
+// (system_admin's Stitch-derived sidebar) — generalized so every other
+// role can reuse it too, each with their own migrated DashboardShell
+// `actions` content and their own color theme.
+//
+// Renders the <nav> AND the content wrapper together (not just the nav) so
+// toggling collapse resizes both in the same render — no state needs to be
+// shared across sibling components.
+//
+// Two theme modes:
+//  - 'tokens' (system_admin only): keeps using the existing hand-tuned
+//    --admin-* Tailwind classes, pixel-matched to the approved Stitch
+//    mockup — untouched by this refactor.
+//  - 'accent' (every other role): every role has exactly one existing
+//    accent hex (lib/facultyColors.ts's getRoleAccent) and no full color
+//    system, so the sidebar's dark background/active/text tones are
+//    derived from that single hex at render time (lib/colorTones.ts) —
+//    gives each role a visually distinct sidebar with no new design assets
+//    per role, and correctly differs for supervisor vs. secondary_supervisor
+//    (same route, different accent) since it reads the signed-in user's
+//    own activeRole rather than taking a hardcoded prop.
+
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { getRoleAccent } from '@/lib/facultyColors';
+import { deriveSidebarTones } from '@/lib/colorTones';
+
+export interface SidebarNavItem {
+  key: string;
+  icon: string;
+  /** A function is used when the destination needs to reflect the current
+   *  URL — e.g. a modal-opening quick action that should preserve
+   *  whatever `?tab=` is already open, so closing it doesn't bounce the
+   *  user back to the default tab. */
+  href: string | ((searchParams: URLSearchParams) => string);
+  label: { he: string; en: string };
+  isActive: (pathname: string, searchParams: URLSearchParams) => boolean;
+}
+
+export interface SidebarSection {
+  title: { he: string; en: string };
+  items: SidebarNavItem[];
+}
+
+export type SidebarTheme = { mode: 'tokens'; tokenPrefix: 'admin' } | { mode: 'accent' };
+
+interface SidebarShellProps {
+  brand: { name: string; subtitle: { he: string; en: string } };
+  sections: SidebarSection[];
+  quickActions?: SidebarSection;
+  theme: SidebarTheme;
+  children: ReactNode;
+}
+
+const COLLAPSE_STORAGE_KEY = 'sidebarCollapsed';
+
+export function SidebarShell({ brand, sections, quickActions, theme, children }: SidebarShellProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { lang } = useLanguage();
+  const { userData, activeRole } = useAuth();
+
+  // Starts expanded on every render (server included) to avoid a
+  // server/client hydration mismatch, then syncs from the persisted
+  // preference right after mount — same one-shared-preference idea as
+  // the TOTP nudge dismissal elsewhere in the app (sessionStorage there,
+  // localStorage here since this should persist across sessions).
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from an external system (localStorage) on mount, not derivable during render/SSR
+    setCollapsed(localStorage.getItem(COLLAPSE_STORAGE_KEY) === '1');
+  }, []);
+  // Retract on any click outside the sidebar (the content area, including
+  // DashboardShell's own header) — expand only by clicking the avatar
+  // inside the sidebar. No separate toggle button.
+  const expand = () => {
+    localStorage.setItem(COLLAPSE_STORAGE_KEY, '0');
+    setCollapsed(false);
+  };
+  const retract = () => {
+    if (collapsed) return;
+    localStorage.setItem(COLLAPSE_STORAGE_KEY, '1');
+    setCollapsed(true);
+  };
+
+  const tones = theme.mode === 'accent' ? deriveSidebarTones(getRoleAccent(activeRole)) : null;
+  const accentStyle: CSSProperties | undefined = tones
+    ? ({
+        '--sb-bg': tones.bg,
+        '--sb-container': tones.container,
+        '--sb-fg-muted': tones.fgMuted,
+        '--sb-fg-active': tones.fgActive,
+        '--sb-accent': tones.accentBright,
+      } as CSSProperties)
+    : undefined;
+
+  const cls =
+    theme.mode === 'tokens'
+      ? {
+          nav: 'bg-admin-tertiary border-admin-outline-variant',
+          brand: 'text-admin-primary-fixed',
+          subtitle: 'text-admin-tertiary-fixed-dim',
+          avatar: 'bg-admin-tertiary-container text-admin-on-tertiary-container',
+          sectionLabel: 'text-admin-tertiary-fixed-dim/70',
+          itemActive: 'border-admin-primary-fixed bg-admin-tertiary-container text-admin-primary-fixed',
+          itemInactive: 'text-admin-tertiary-fixed-dim hover:bg-admin-tertiary-container/60 hover:text-admin-on-tertiary-container',
+        }
+      : {
+          nav: 'bg-[var(--sb-bg)] border-[var(--sb-fg-muted)]/20',
+          brand: 'text-[var(--sb-fg-active)]',
+          subtitle: 'text-[var(--sb-fg-muted)]',
+          avatar: 'bg-[var(--sb-container)] text-[var(--sb-fg-active)]',
+          sectionLabel: 'text-[var(--sb-fg-muted)]/70',
+          itemActive: 'border-[var(--sb-accent)] bg-[var(--sb-container)] text-[var(--sb-fg-active)]',
+          itemInactive: 'text-[var(--sb-fg-muted)] hover:bg-[var(--sb-container)]/60 hover:text-[var(--sb-fg-active)]',
+        };
+
+  const initial = (userData?.displayName || '?').charAt(0).toUpperCase();
+  const resolveHref = (href: SidebarNavItem['href']) => (typeof href === 'function' ? href(searchParams) : href);
+
+  const renderSection = (section: SidebarSection) => (
+    <div key={section.title.en} className="mb-4 px-3">
+      {!collapsed && (
+        <p className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider ${cls.sectionLabel}`}>{section.title[lang]}</p>
+      )}
+      <ul className="flex flex-col gap-1">
+        {section.items.map((item) => {
+          const active = item.isActive(pathname, searchParams);
+          return (
+            <li key={item.key}>
+              <Link
+                href={resolveHref(item.href)}
+                title={collapsed ? item.label[lang] : undefined}
+                className={`flex items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} ${
+                  active ? `border-e-4 font-bold ${cls.itemActive}` : cls.itemInactive
+                }`}
+              >
+                <span className="text-base leading-none">{item.icon}</span>
+                {!collapsed && item.label[lang]}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-screen bg-paper">
+      <nav
+        aria-label={lang === 'he' ? 'ניווט' : 'Navigation'}
+        style={accentStyle}
+        className={`hidden shrink-0 flex-col gap-1 overflow-y-auto border-s py-6 transition-[width] duration-200 lg:sticky lg:top-0 lg:flex lg:h-screen ${
+          collapsed ? 'w-[4.5rem]' : 'w-64'
+        } ${cls.nav}`}
+      >
+        <div className={`mb-8 flex items-center gap-3 px-4 ${collapsed ? 'justify-center' : ''}`}>
+          <button
+            type="button"
+            onClick={expand}
+            title={lang === 'he' ? 'הרחב תפריט' : 'Expand menu'}
+            aria-label={lang === 'he' ? 'הרחב תפריט' : 'Expand menu'}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-opacity hover:opacity-80 ${cls.avatar}`}
+          >
+            {initial}
+          </button>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <h2 className={`truncate text-lg font-bold ${cls.brand}`}>{brand.name}</h2>
+              <p className={`truncate text-xs ${cls.subtitle}`}>{brand.subtitle[lang]}</p>
+            </div>
+          )}
+        </div>
+
+        {sections.map((section) => renderSection(section))}
+        {quickActions && renderSection(quickActions)}
+      </nav>
+
+      {/* Retracts the sidebar on any click outside it — including
+          DashboardShell's own header, which renders inside `children`. */}
+      <div className="min-w-0 flex-1" onClickCapture={retract}>
+        {children}
+      </div>
+    </div>
+  );
+}

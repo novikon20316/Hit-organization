@@ -6,6 +6,7 @@
 // inside the Projects tab (see ProjectWorkflowSection.tsx), not its own tab.
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -58,6 +59,20 @@ const PROJECT_FILTERS: { key: ProjectFilter; he: string; en: string }[] = [
 export default function SupervisorDashboardPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // "New Recommendation" used to be a DashboardShell hamburger action,
+  // shown only on the recommend tab — it now lives in the sidebar
+  // (app/supervisor/layout.tsx) and opens via this ?modal= param instead,
+  // same "URL is the source of truth" pattern as app/admin/panel/page.tsx.
+  const showRecommendModal = searchParams.get('modal') === 'recommend';
+  const closeRecommendModal = useCallback(() => {
+    const qs = new URLSearchParams(searchParams);
+    qs.delete('modal');
+    const query = qs.toString();
+    router.replace(query ? `/supervisor/dashboard?${query}` : '/supervisor/dashboard', { scroll: false });
+  }, [router, searchParams]);
 
   const [tab, setTab] = useState<Tab>('projects');
   const [applicationFilter, setApplicationFilter] = useState<ApplicationFilter>('all');
@@ -73,7 +88,6 @@ export default function SupervisorDashboardPage() {
 
   const [gradingTarget, setGradingTarget] = useState<SupervisorPendingMilestone | null>(null);
   const [editingProject, setEditingProject] = useState<MyProject | null>(null);
-  const [showRecommendModal, setShowRecommendModal] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
@@ -139,17 +153,6 @@ export default function SupervisorDashboardPage() {
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — מנחה' : 'Supervisor Dashboard'}
       subtitle={lang === 'he' ? 'מועמדויות, ציונים ופרויקטים' : 'Applications, grading, and projects'}
-      actions={
-        tab === 'recommend' ? (
-          <button
-            type="button"
-            onClick={() => setShowRecommendModal(true)}
-            className="rounded-[4px] bg-[#00236f] px-4 py-1.5 text-sm font-semibold uppercase tracking-wide text-white hover:bg-[#1e3a8a]"
-          >
-            + {lang === 'he' ? 'המלצה חדשה' : 'New Recommendation'}
-          </button>
-        ) : undefined
-      }
     >
       {/* Academic Precision overview strip — real counts, no new fetches */}
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -350,7 +353,7 @@ export default function SupervisorDashboardPage() {
         <RecommendExaminersModal
           myProjects={myProjects}
           internalExaminers={internalExaminers}
-          onClose={() => setShowRecommendModal(false)}
+          onClose={closeRecommendModal}
           onSubmitted={fetchRecommendationsData}
         />
       )}

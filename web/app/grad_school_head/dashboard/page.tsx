@@ -10,11 +10,8 @@
 // as informational only here rather than as dead links.
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
-import { ReportsLink } from '@/components/ReportsLink';
-import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
-import { CommitteesLink } from '@/components/CommitteesLink';
-import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -94,6 +91,20 @@ export default function GradSchoolHeadDashboardPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(GRAD_SCHOOL_HEAD_ROLES);
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // "Post New Project" used to be a DashboardShell hamburger action — it
+  // now lives in the sidebar (app/grad_school_head/layout.tsx) and opens
+  // via this ?modal= param instead, same "URL is the source of truth"
+  // pattern as app/admin/panel/page.tsx.
+  const showNewProject = searchParams.get('modal') === 'newProject';
+  const closeNewProject = useCallback(() => {
+    const qs = new URLSearchParams(searchParams);
+    qs.delete('modal');
+    const query = qs.toString();
+    router.replace(query ? `/grad_school_head/dashboard?${query}` : '/grad_school_head/dashboard', { scroll: false });
+  }, [router, searchParams]);
 
   const [tab, setTab] = useState<'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff'>('approvals');
   const [headName, setHeadName] = useState('');
@@ -114,7 +125,6 @@ export default function GradSchoolHeadDashboardPage() {
   const [examinerRejectReason, setExaminerRejectReason] = useState('');
   const [finalGradeRejectTargetId, setFinalGradeRejectTargetId] = useState<string | null>(null);
   const [finalGradeRejectReason, setFinalGradeRejectReason] = useState('');
-  const [showNewProject, setShowNewProject] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -244,23 +254,10 @@ export default function GradSchoolHeadDashboardPage() {
     <DashboardShell
       title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש בית הספר ללימודי מוסמכים' : 'Graduate School Head'}
       subtitle={lang === 'he' ? 'אישורים, תקועים ועומס בוחנים' : 'Approvals, stuck students, and examiner load'}
-      actions={
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowNewProject(true)}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
-          >
-            📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}
-          </button>
-          <CreateOwnProjectButton onCreated={fetchDashboard} />
-          <WorkflowTemplatesLink />
-          <CommitteesLink />
-          <BulkPermissionsLink />
-          <ReportsLink />
-        </div>
-      }
     >
+      <div className="mb-5">
+        <CreateOwnProjectButton onCreated={fetchDashboard} />
+      </div>
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard value={stats.totalMasters} label={t('gradSchoolMastersOverview')} color="#6E5A99" />
         <StatCard value={stats.pendingCount} label={t('gradSchoolPendingApprovals')} color="var(--accent)" />
@@ -495,7 +492,7 @@ export default function GradSchoolHeadDashboardPage() {
       ) : (
         <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }} />
       )}
-      <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
+      <NewProjectModal open={showNewProject} onClose={closeNewProject} onCreated={fetchDashboard} />
     </DashboardShell>
   );
 }

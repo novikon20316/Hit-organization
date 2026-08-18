@@ -14,12 +14,8 @@
 // includes faculty_admin and returns faculty-wide deadlines for that role.
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
-import { ReportsLink } from '@/components/ReportsLink';
-import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
-import { CommitteesLink } from '@/components/CommitteesLink';
-import { BulkPermissionsLink } from '@/components/BulkPermissionsLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -44,6 +40,21 @@ type Tab = 'overview' | 'users' | 'projects' | 'deadlines' | 'signoffs';
 export default function FacultyAdminDashboardPage() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(FACULTY_ADMIN_ROLES);
   const { lang, t } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // "Post New Project" used to be a DashboardShell hamburger action, shown
+  // only on the projects tab — it now lives in the sidebar
+  // (app/faculty_admin/layout.tsx) and opens via this ?modal= param
+  // instead, same "URL is the source of truth" pattern as
+  // app/admin/panel/page.tsx.
+  const showNewProject = searchParams.get('modal') === 'newProject';
+  const closeNewProject = useCallback(() => {
+    const qs = new URLSearchParams(searchParams);
+    qs.delete('modal');
+    const query = qs.toString();
+    router.replace(query ? `/faculty_admin/dashboard?${query}` : '/faculty_admin/dashboard', { scroll: false });
+  }, [router, searchParams]);
 
   const [tab, setTab] = useState<Tab>('overview');
   const [users, setUsers] = useState<FacultyAdminUserRecord[]>([]);
@@ -56,7 +67,6 @@ export default function FacultyAdminDashboardPage() {
   const [loadError, setLoadError] = useState('');
 
   const [enrollingProject, setEnrollingProject] = useState<FacultyAdminProjectRecord | null>(null);
-  const [showNewProject, setShowNewProject] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -102,30 +112,6 @@ export default function FacultyAdminDashboardPage() {
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — ראש מנהל פקולטה' : 'Faculty Admin Dashboard'}
       subtitle={lang === 'he' ? 'ניהול משתמשים ופרויקטים בפקולטה' : 'Managing users and projects in your faculty'}
-      actions={
-        <div className="flex items-center gap-2">
-          {tab === 'projects' && (
-            <button
-              type="button"
-              onClick={() => setShowNewProject(true)}
-              className="rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
-            >
-              + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
-            </button>
-          )}
-          {tab === 'projects' && <CreateOwnProjectButton onCreated={fetchDashboard} />}
-          <Link
-            href="/faculty_admin/templates"
-            className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
-          >
-            📋 {lang === 'he' ? 'תבניות פרויקט' : 'Project Templates'}
-          </Link>
-          <WorkflowTemplatesLink />
-          <CommitteesLink />
-          <BulkPermissionsLink />
-          <ReportsLink />
-        </div>
-      }
     >
       <div className="mb-5 flex gap-1 border-b border-line">
         {(['overview', 'users', 'projects', 'deadlines', 'signoffs'] as const).map((key) => (
@@ -170,6 +156,9 @@ export default function FacultyAdminDashboardPage() {
       ) : tab === 'projects' ? (
         <div>
           <div className="mb-3">
+            <CreateOwnProjectButton onCreated={fetchDashboard} />
+          </div>
+          <div className="mb-3">
             <MyApplicationsWidget />
           </div>
           <div className="mb-3">
@@ -198,7 +187,7 @@ export default function FacultyAdminDashboardPage() {
         />
       )}
       {showNewProject && (
-        <NewProjectModal facultyId={facultyId} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
+        <NewProjectModal facultyId={facultyId} onClose={closeNewProject} onCreated={fetchDashboard} />
       )}
     </DashboardShell>
   );

@@ -278,6 +278,19 @@ select:not(:disabled):hover {
   --admin-radius-sm: 2px;
   --admin-radius: 4px;
   --admin-radius-lg: 8px;
+  /* Dark navy sidebar-nav tokens (Admin User Management / System Admin
+   * Dashboard Overview screens' SideNavBar) — not needed by any other
+   * role yet since none of them have a dedicated sidebar. */
+  --admin-tertiary: #222a3e;
+  --admin-on-tertiary: #ffffff;
+  --admin-tertiary-container: #384055;
+  --admin-on-tertiary-container: #a4acc5;
+  --admin-tertiary-fixed: #dae2fd;
+  --admin-tertiary-fixed-dim: #bec6e0;
+  --admin-on-tertiary-fixed: #131b2e;
+  --admin-primary-fixed: #dce1ff;
+  --admin-primary-fixed-dim: #b6c4ff;
+  --admin-on-primary-fixed: #00164e;
 }
 
 @theme inline {
@@ -304,4 +317,14 @@ select:not(:disabled):hover {
   --radius-admin-sm: var(--admin-radius-sm);
   --radius-admin: var(--admin-radius);
   --radius-admin-lg: var(--admin-radius-lg);
+  --color-admin-tertiary: var(--admin-tertiary);
+  --color-admin-on-tertiary: var(--admin-on-tertiary);
+  --color-admin-tertiary-container: var(--admin-tertiary-container);
+  --color-admin-on-tertiary-container: var(--admin-on-tertiary-container);
+  --color-admin-tertiary-fixed: var(--admin-tertiary-fixed);
+  --color-admin-tertiary-fixed-dim: var(--admin-tertiary-fixed-dim);
+  --color-admin-on-tertiary-fixed: var(--admin-on-tertiary-fixed);
+  --color-admin-primary-fixed: var(--admin-primary-fixed);
+  --color-admin-primary-fixed-dim: var(--admin-primary-fixed-dim);
+  --color-admin-on-primary-fixed: var(--admin-on-primary-fixed);
 }

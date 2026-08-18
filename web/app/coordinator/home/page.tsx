@@ -5,11 +5,8 @@
 // Progress, Deadlines, and Recommendations tabs.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
-import { ReportsLink } from '@/components/ReportsLink';
-import { InfoFilesLink } from '@/components/InfoFilesLink';
-import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
-import { CommitteesLink } from '@/components/CommitteesLink';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -38,6 +35,20 @@ export default function CoordinatorHomePage() {
   const { loading: guardLoading, isAllowed, firebaseUser, userData } = useRequireRole(COORDINATOR_ROLES);
   const { activeRole } = useAuth();
   const { lang, t } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // "Import/Export" used to be a DashboardShell hamburger action — it now
+  // lives in the sidebar (app/coordinator/layout.tsx) and opens via this
+  // ?modal= param instead, same "URL is the source of truth" pattern as
+  // app/admin/panel/page.tsx.
+  const showBulkImport = searchParams.get('modal') === 'bulkImport';
+  const closeBulkImport = useCallback(() => {
+    const qs = new URLSearchParams(searchParams);
+    qs.delete('modal');
+    const query = qs.toString();
+    router.replace(query ? `/coordinator/home?${query}` : '/coordinator/home', { scroll: false });
+  }, [router, searchParams]);
 
   const [tab, setTab] = useState<Tab>('overview');
   const [allMilestones, setAllMilestones] = useState<CoordinatorPendingMilestone[]>([]);
@@ -49,7 +60,6 @@ export default function CoordinatorHomePage() {
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [assigningMilestone, setAssigningMilestone] = useState<CoordinatorPendingMilestone | null>(null);
-  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -173,21 +183,6 @@ export default function CoordinatorHomePage() {
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — רכז' : 'Coordinator Dashboard'}
       subtitle={lang === 'he' ? 'אישור אבני דרך והמלצות בוחנים' : 'Milestone approvals and examiner recommendations'}
-      actions={
-        <div className="flex items-center gap-2">
-          <InfoFilesLink />
-          <WorkflowTemplatesLink />
-          <CommitteesLink />
-          <ReportsLink />
-          <button
-            type="button"
-            onClick={() => setShowBulkImport(true)}
-            className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"
-          >
-            📥 {lang === 'he' ? 'ייבוא/ייצוא' : 'Import/Export'}
-          </button>
-        </div>
-      }
     >
       <div className="mb-5 flex flex-wrap gap-1 border-b border-coordinator-outline-variant">
         {tabs.map(({ key, label, count }) => (
@@ -344,7 +339,7 @@ export default function CoordinatorHomePage() {
           onAssigned={fetchAll}
         />
       )}
-      {showBulkImport && <BulkImportModal scope="coordinator" onClose={() => setShowBulkImport(false)} onImported={fetchAll} />}
+      {showBulkImport && <BulkImportModal scope="coordinator" onClose={closeBulkImport} onImported={fetchAll} />}
     </DashboardShell>
   );
 }
