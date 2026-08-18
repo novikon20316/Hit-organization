@@ -25,11 +25,13 @@ interface ActiveDashboardProps {
   milestones: Milestone[];
   progress: number;
   onChanged: () => void;
+  /** Driven by the page's `?tab=` — see app/student/home/page.tsx and
+   *  app/student/layout.tsx's sidebar entries. */
+  tab: 'overview' | 'milestones' | 'grades';
 }
 
-export function ActiveDashboard({ project, milestones, progress, onChanged }: ActiveDashboardProps) {
+export function ActiveDashboard({ project, milestones, progress, onChanged, tab }: ActiveDashboardProps) {
   const { lang, t } = useLanguage();
-  const [tab, setTab] = useState<'overview' | 'milestones' | 'grades'>('overview');
   const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [expandedGradeIds, setExpandedGradeIds] = useState<Record<string, boolean>>({});
@@ -90,27 +92,6 @@ export function ActiveDashboard({ project, milestones, progress, onChanged }: Ac
             ? `מעקב אחר אבני הדרך והמשוב האחרון של המנחה לפרויקט '${project.titleHe}'.`
             : `Track your milestones and recent supervisor feedback for '${project.titleEn}'.`}
         </p>
-      </div>
-
-      <div className="mb-6 flex gap-1 border-b border-student-outline-variant">
-        {(['overview', 'milestones', 'grades'] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`border-b-2 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
-              tab === key
-                ? 'border-student-primary text-student-primary'
-                : 'border-transparent text-student-on-surface-variant hover:text-student-on-surface'
-            }`}
-          >
-            {key === 'overview'
-              ? lang === 'he' ? 'סקירה' : 'Overview'
-              : key === 'milestones'
-                ? lang === 'he' ? 'אבני דרך' : 'Milestones'
-                : lang === 'he' ? 'ציונים' : 'Grades'}
-          </button>
-        ))}
       </div>
 
       {tab === 'overview' && (

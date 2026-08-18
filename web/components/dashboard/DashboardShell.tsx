@@ -24,9 +24,6 @@ interface DashboardShellProps {
   title: string;
   subtitle?: string;
   children: ReactNode;
-  /** Extra controls rendered next to the language toggle (e.g. a primary
-   *  "New X" action for the current page). */
-  actions?: ReactNode;
   /** Runs before the actual sign-out (Firebase signOut + redirect to
    *  /login) — e.g. calling a backend logout endpoint or unsubscribing live
    *  Firestore listeners first. Failures here don't block sign-out. */
@@ -35,18 +32,13 @@ interface DashboardShellProps {
 
 const TOTP_NUDGE_DISMISS_KEY = 'totpNudgeDismissedAt';
 
-export function DashboardShell({ title, subtitle, children, actions, onBeforeSignOut }: DashboardShellProps) {
+export function DashboardShell({ title, subtitle, children, onBeforeSignOut }: DashboardShellProps) {
   const router = useRouter();
   const { firebaseUser, userData, logout, activeRole } = useAuth();
   const { lang } = useLanguage();
   usePresenceHeartbeat(!!firebaseUser);
   const railColor = getRoleAccent(activeRole);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
-  // Every per-page nav link (Reports, Workflow Templates, Academic Year, Bulk
-  // Permissions, ...) gets injected here via `actions` — it only ever shows
-  // up in this hamburger dropdown, at every screen size, so the header
-  // itself stays fixed to Language + role/name + Delete Account + Sign Out.
-  const [menuOpen, setMenuOpen] = useState(false);
   const [totpNudgeDismissed, setTotpNudgeDismissed] = useState(
     () => typeof window !== 'undefined' && sessionStorage.getItem(TOTP_NUDGE_DISMISS_KEY) === '1'
   );
@@ -101,28 +93,9 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
 
             <div className="flex shrink-0 items-center gap-3">
               <NotificationBell />
-
-              {/* Every per-page nav/action button (Reports, Workflow
-               *  Templates, Academic Year, Maintenance, ...) lives only in
-               *  this dropdown — at every screen size — so the header itself
-               *  never grows past Language + Sign Out. */}
-              {actions && (
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen((v) => !v)}
-                  aria-label={lang === 'he' ? 'תפריט' : 'Menu'}
-                  aria-expanded={menuOpen}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink"
-                >
-                  <span className="text-lg leading-none">{menuOpen ? '✕' : '☰'}</span>
-                </button>
-              )}
             </div>
           </div>
 
-          {/* Always visible, at every screen size — just Language + role/name
-           *  + Delete Account + Sign Out. Page-specific action buttons never
-           *  land here; they're hamburger-only (see `menuOpen` below). */}
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <LanguageToggle />
             {userData && (
@@ -153,18 +126,6 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
             </button>
           </div>
         </div>
-
-        {menuOpen && actions && (
-          <div className="border-t border-line bg-surface px-4 py-3">
-            {/* `actions` is arbitrary page-provided markup (often its own
-             *  `flex items-center gap-2` row of link pills) — this can't
-             *  force it into a column, but flex-wrap keeps it from
-             *  overflowing horizontally in the dropdown instead. */}
-            <div className="flex flex-wrap items-center gap-2 [&>div]:flex-wrap [&>div]:gap-2 [&_a]:text-center [&_button]:text-center">
-              {actions}
-            </div>
-          </div>
-        )}
       </header>
 
       {showTotpNudge && (

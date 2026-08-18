@@ -5,8 +5,10 @@
 // isActive functions can't cross the server/client boundary as props).
 //
 // internal_examiner never had any DashboardShell hamburger-menu actions to
-// migrate — this just gives the role the same collapsible sidebar shell
-// every other role now has, for consistency, with a single Home link.
+// migrate. This also migrates home/page.tsx's former in-page tab bar
+// (Defenses / Schedule) into permanent nav entries pointing at that same
+// route via ?tab= — same URL-as-source-of-truth pattern as
+// app/admin/layout.tsx + app/admin/panel/page.tsx.
 
 import { SidebarShell, type SidebarSection } from '@/components/dashboard/SidebarShell';
 
@@ -16,10 +18,17 @@ const NAV_SECTIONS: SidebarSection[] = [
     items: [
       {
         key: 'home',
-        icon: '🏠',
+        icon: '🎓',
         href: '/examinor/home',
-        label: { he: 'בית', en: 'Home' },
-        isActive: (pathname) => pathname === '/examinor/home',
+        label: { he: 'הגנות לבחינה', en: 'Defenses' },
+        isActive: (pathname, sp) => pathname === '/examinor/home' && (!sp.get('tab') || sp.get('tab') === 'defenses'),
+      },
+      {
+        key: 'schedule',
+        icon: '📅',
+        href: '/examinor/home?tab=schedule',
+        label: { he: 'לוח זמנים', en: 'Schedule' },
+        isActive: (pathname, sp) => pathname === '/examinor/home' && sp.get('tab') === 'schedule',
       },
     ],
   },

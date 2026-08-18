@@ -9,6 +9,7 @@
 // below so the rest of the app shell can still be prerendered.
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -35,6 +36,9 @@ const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary',
 
 type Tab = 'overview' | 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'statistics' | 'archived';
 
+const TABS: Tab[] = ['overview', 'pending', 'defense', 'inProgress', 'deadlines', 'recommendations', 'signoffs', 'statistics', 'archived'];
+const isTab = (v: string | null): v is Tab => !!v && (TABS as string[]).includes(v);
+
 function CoordinatorHomeContent() {
   const { loading: guardLoading, isAllowed, firebaseUser, userData } = useRequireRole(COORDINATOR_ROLES);
   const { activeRole } = useAuth();
@@ -54,7 +58,16 @@ function CoordinatorHomeContent() {
     router.replace(query ? `/coordinator/home?${query}` : '/coordinator/home', { scroll: false });
   }, [router, searchParams]);
 
-  const [tab, setTab] = useState<Tab>('overview');
+  // The URL's `?tab=` is the single source of truth for which tab is open —
+  // no separate mirrored state — same pattern as app/admin/panel/page.tsx,
+  // so the sidebar's coordinator nav items (app/coordinator/layout.tsx,
+  // each linking to /coordinator/home?tab=...) actually switch tabs even
+  // when this page is already mounted, and browser back/forward works too.
+  // `archived` is additionally gated here against a hand-edited URL — it's
+  // coordinator/system_admin-only, matching the activeRole check the item
+  // used to make locally when building the now-removed tab-bar array.
+  const paramTab = searchParams.get('tab');
+  const tab: Tab = isTab(paramTab) && !(paramTab === 'archived' && activeRole === 'administrative_secretary') ? paramTab : 'overview';
   const [allMilestones, setAllMilestones] = useState<CoordinatorPendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [examiners, setExaminers] = useState<ExaminerUser[]>([]);
@@ -148,33 +161,6 @@ function CoordinatorHomeContent() {
     [defenseCards]
   );
 
-  const tabs: { key: Tab; label: string; count?: number }[] = [
-    // Overview is the default landing tab (see the useState above) — a
-    // read-only summary that links into the tabs below, so a coordinator
-    // sees what needs attention before picking a specific queue.
-    { key: 'overview', label: lang === 'he' ? 'סקירה' : 'Overview' },
-    // Listed first among the actual queues — same "the page is dir='rtl', so
-    // a plain flex row renders its first child at the visual right edge"
-    // convention as InProgressTab's own project-card ordering. This tab is
-    // also where MyApplicationsWidget lives, so a coordinator who's also a
-    // supervisor sees their own pending applications immediately instead of
-    // only after finding this tab on their own (see the "still shows 0"
-    // investigation this fixes).
-    { key: 'inProgress', label: lang === 'he' ? 'פרויקטים פעילים' : 'In Progress', count: inProgressProjects.length },
-    { key: 'pending', label: lang === 'he' ? 'ממתינים לאישור' : 'Pending Approval', count: pendingMilestones.length },
-    { key: 'defense', label: lang === 'he' ? 'הגנות' : 'Defenses', count: defenseCards.length },
-    { key: 'deadlines', label: lang === 'he' ? 'מועדי הגשה' : 'Deadlines' },
-    { key: 'recommendations', label: lang === 'he' ? 'המלצות בוחנים' : 'Examiner Recommendations', count: recommendations.length },
-    { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
-    { key: 'statistics', label: lang === 'he' ? 'סטטיסטיקות' : 'Statistics' },
-    // Erasure/archive protocol is coordinator + system_admin only —
-    // administrative_secretary shares this page but not this tab. Checked
-    // against activeRole (the resolved highest-ranked role), not the primary
-    // `role` field, so a multi-role user's actual dashboard identity decides
-    // this — matches mobile's equivalent check.
-    ...(activeRole !== 'administrative_secretary' ? [{ key: 'archived' as Tab, label: t('archivedTab') }] : []),
-  ];
-
   if (guardLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper">
@@ -188,24 +174,6 @@ function CoordinatorHomeContent() {
       title={lang === 'he' ? 'לוח בקרה — רכז' : 'Coordinator Dashboard'}
       subtitle={lang === 'he' ? 'אישור אבני דרך והמלצות בוחנים' : 'Milestone approvals and examiner recommendations'}
     >
-      <div className="mb-5 flex flex-wrap gap-1 border-b border-coordinator-outline-variant">
-        {tabs.map(({ key, label, count }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`border-b-2 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
-              tab === key
-                ? 'border-coordinator-primary text-coordinator-primary'
-                : 'border-transparent text-coordinator-secondary hover:text-coordinator-on-surface'
-            }`}
-          >
-            {label}
-            {count !== undefined ? ` (${count})` : ''}
-          </button>
-        ))}
-      </div>
-
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 
       {loadingData ? (
@@ -251,10 +219,9 @@ function CoordinatorHomeContent() {
               <ul className="grid gap-2">
                 {pendingMilestones.slice(0, 3).map((m) => (
                   <li key={m.id}>
-                    <button
-                      type="button"
-                      onClick={() => setTab('pending')}
-                      className="w-full rounded-coordinator border border-coordinator-outline-variant p-3 text-start transition-colors hover:bg-coordinator-surface-container-low"
+                    <Link
+                      href="/coordinator/home?tab=pending"
+                      className="block w-full rounded-coordinator border border-coordinator-outline-variant p-3 text-start transition-colors hover:bg-coordinator-surface-container-low"
                     >
                       <span className="mb-1 block rounded-coordinator-sm bg-coordinator-secondary-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coordinator-on-secondary-container">
                         {lang === 'he' ? 'ממתין לאישור' : 'Pending Approval'}
@@ -262,15 +229,14 @@ function CoordinatorHomeContent() {
                       <p className="text-sm font-medium text-coordinator-on-surface">
                         {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
                       </p>
-                    </button>
+                    </Link>
                   </li>
                 ))}
                 {defenseAlertCards.slice(0, 3).map((c) => (
                   <li key={c.key}>
-                    <button
-                      type="button"
-                      onClick={() => setTab('defense')}
-                      className="w-full rounded-coordinator border border-coordinator-error-container p-3 text-start transition-colors hover:bg-coordinator-surface-container-low"
+                    <Link
+                      href="/coordinator/home?tab=defense"
+                      className="block w-full rounded-coordinator border border-coordinator-error-container p-3 text-start transition-colors hover:bg-coordinator-surface-container-low"
                     >
                       <span className="mb-1 block rounded-coordinator-sm bg-coordinator-error-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coordinator-error">
                         {c.kind === 'conflict'
@@ -278,7 +244,7 @@ function CoordinatorHomeContent() {
                           : lang === 'he' ? 'הגנה שחלפה ללא ציון' : 'Overdue Grading'}
                       </span>
                       <p className="text-sm font-medium text-coordinator-on-surface">{lang === 'he' ? c.titleHe : c.titleEn}</p>
-                    </button>
+                    </Link>
                   </li>
                 ))}
               </ul>

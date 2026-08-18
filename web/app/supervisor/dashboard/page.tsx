@@ -30,13 +30,12 @@ import type { MyProject, Application, SupervisorPendingMilestone } from './types
 
 const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
-// 'projects' listed first — this page's root container is under
-// dir="rtl" (see app/layout.tsx), so a plain flex row already renders its
-// first child at the visual right edge; no explicit row-reverse needed.
 // No standalone 'grading' tab — grading (and the file preview/download it
 // needs) lives inline on each milestone row inside the Projects tab now, see
 // ProjectWorkflowSection.tsx.
 type Tab = 'projects' | 'applications' | 'recommend' | 'signoffs';
+const SUPERVISOR_TABS: Tab[] = ['projects', 'applications', 'recommend', 'signoffs'];
+const isSupervisorTab = (v: string | null): v is Tab => !!v && (SUPERVISOR_TABS as string[]).includes(v);
 type ApplicationFilter = 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected';
 type ProjectFilter = 'all' | 'active' | 'offered';
 
@@ -78,7 +77,12 @@ function SupervisorDashboardContent() {
     router.replace(query ? `/supervisor/dashboard?${query}` : '/supervisor/dashboard', { scroll: false });
   }, [router, searchParams]);
 
-  const [tab, setTab] = useState<Tab>('projects');
+  // Same URL-as-source-of-truth pattern as `showRecommendModal` above (and
+  // as app/admin/panel/page.tsx's `tab`) — the sidebar (app/supervisor/
+  // layout.tsx) links to /supervisor/dashboard?tab=... for each top-level
+  // tab, so there's no local state to keep in sync.
+  const paramTab = searchParams.get('tab');
+  const tab: Tab = isSupervisorTab(paramTab) ? paramTab : 'projects';
   const [applicationFilter, setApplicationFilter] = useState<ApplicationFilter>('all');
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>('all');
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
@@ -146,13 +150,6 @@ function SupervisorDashboardContent() {
           projectFilter === 'active' ? (p.enrolledStudentIds?.length ?? 0) > 0 : (p.enrolledStudentIds?.length ?? 0) === 0
         );
 
-  const tabs: { key: Tab; label: string; count?: number }[] = [
-    { key: 'projects', label: lang === 'he' ? 'הפרויקטים שלי' : 'My Projects' },
-    { key: 'applications', label: lang === 'he' ? 'מועמדויות' : 'Applications', count: pendingApplicationsCount },
-    { key: 'recommend', label: lang === 'he' ? 'המלצת בוחנים' : 'Recommend Examiners' },
-    { key: 'signoffs', label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off' },
-  ];
-
   return (
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — מנחה' : 'Supervisor Dashboard'}
@@ -191,22 +188,6 @@ function SupervisorDashboardContent() {
 
       <div className="flex flex-col gap-6 lg:flex-row">
       <div className="flex-1">
-      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-[#c5c5d3]">
-        {tabs.map(({ key, label, count }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
-              tab === key ? 'border-[#00236f] text-[#00236f]' : 'border-transparent text-[#505f76] hover:text-[#1a1b21]'
-            }`}
-          >
-            {label}
-            {count !== undefined ? ` (${count})` : ''}
-          </button>
-        ))}
-      </div>
-
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 
       {loadingData ? (

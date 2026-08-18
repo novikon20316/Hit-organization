@@ -70,12 +70,6 @@ function AdminPanelContent() {
   // navigation, so this stays in sync automatically.
   const paramTab = searchParams.get('tab');
   const tab: AdminTab = isAdminTab(paramTab) ? paramTab : 'overview';
-  const setTab = useCallback(
-    (next: AdminTab) => {
-      router.replace(next === 'overview' ? '/admin/panel' : `/admin/panel?tab=${next}`, { scroll: false });
-    },
-    [router]
-  );
   // Same URL-as-source-of-truth idea as `tab` — AdminSidebarNav links to
   // /admin/panel?modal=maintenance (etc.), preserving whatever `tab` is
   // already in the URL. Closing a modal just strips `modal` back out.
@@ -203,23 +197,6 @@ function AdminPanelContent() {
       title={lang === 'he' ? 'פאנל ניהול' : 'Admin Panel'}
       subtitle={lang === 'he' ? 'סטטיסטיקות מערכת וניהול משתמשים' : 'System stats and user management'}
     >
-      <div className="mb-5 flex flex-wrap gap-1 border-b border-admin-outline-variant">
-        {ADMIN_TABS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key
-                ? 'border-admin-primary text-admin-primary'
-                : 'border-transparent text-admin-on-surface-variant hover:text-admin-on-surface'
-            }`}
-          >
-            {TAB_LABELS[key][lang]}
-          </button>
-        ))}
-      </div>
-
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 
       {loadingData ? (
@@ -365,18 +342,6 @@ export default function AdminPanelPage() {
   );
 }
 
-const TAB_LABELS: Record<AdminTab, { he: string; en: string }> = {
-  overview: { he: 'סקירה', en: 'Overview' },
-  users: { he: 'משתמשים', en: 'Users' },
-  projects: { he: 'פרויקטים', en: 'Projects' },
-  milestones: { he: 'אבני דרך', en: 'Milestones' },
-  defenseAccess: { he: 'גישת הגנה', en: 'Defense Access' },
-  feedback: { he: 'משוב', en: 'Feedback' },
-  studentRoster: { he: 'רשימת סטודנטים', en: 'Student Roster' },
-  signoffs: { he: 'ממתין לאישורך', en: 'Awaiting Your Sign-off' },
-  statistics: { he: 'סטטיסטיקות', en: 'Statistics' },
-  archived: { he: 'ארכיון', en: 'Archived' },
-};
 
 function OverviewTab({
   stats,

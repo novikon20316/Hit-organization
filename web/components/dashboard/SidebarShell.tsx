@@ -1,15 +1,15 @@
 'use client';
 
 // components/dashboard/SidebarShell.tsx
-// The one reusable, collapsible sidebar-nav + content-wrapper shared by
-// every role's /<role>/layout.tsx. Started as app/admin/AdminSidebarNav.tsx
+// The one reusable, permanent sidebar-nav + content-wrapper shared by every
+// role's /<role>/layout.tsx. Started as app/admin/AdminSidebarNav.tsx
 // (system_admin's Stitch-derived sidebar) — generalized so every other
 // role can reuse it too, each with their own migrated DashboardShell
 // `actions` content and their own color theme.
 //
-// Renders the <nav> AND the content wrapper together (not just the nav) so
-// toggling collapse resizes both in the same render — no state needs to be
-// shared across sibling components.
+// Fixed width and position at all times — the only thing that moves it is
+// <html dir> (RTL for Hebrew, LTR for English, see LanguageContext), which
+// flexbox uses to place it on the trailing/leading side automatically.
 //
 // Two theme modes:
 //  - 'tokens' (system_admin only): keeps using the existing hand-tuned
@@ -24,7 +24,7 @@
 //    (same route, different accent) since it reads the signed-in user's
 //    own activeRole rather than taking a hardcoded prop.
 
-import { Suspense, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { Suspense, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -59,8 +59,6 @@ interface SidebarShellProps {
   children: ReactNode;
 }
 
-const COLLAPSE_STORAGE_KEY = 'sidebarCollapsed';
-
 type ThemeClasses = Record<'nav' | 'brand' | 'subtitle' | 'avatar' | 'sectionLabel' | 'itemActive' | 'itemInactive', string>;
 
 // Isolated in its own component (rather than called directly in
@@ -72,13 +70,11 @@ function SidebarNavSections({
   sections,
   quickActions,
   cls,
-  collapsed,
   lang,
 }: {
   sections: SidebarSection[];
   quickActions?: SidebarSection;
   cls: ThemeClasses;
-  collapsed: boolean;
   lang: 'he' | 'en';
 }) {
   const pathname = usePathname();
@@ -87,9 +83,7 @@ function SidebarNavSections({
 
   const renderSection = (section: SidebarSection) => (
     <div key={section.title.en} className="mb-4 px-3">
-      {!collapsed && (
-        <p className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider ${cls.sectionLabel}`}>{section.title[lang]}</p>
-      )}
+      <p className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider ${cls.sectionLabel}`}>{section.title[lang]}</p>
       <ul className="flex flex-col gap-1">
         {section.items.map((item) => {
           const active = item.isActive(pathname, searchParams);
@@ -97,13 +91,12 @@ function SidebarNavSections({
             <li key={item.key}>
               <Link
                 href={resolveHref(item.href)}
-                title={collapsed ? item.label[lang] : undefined}
-                className={`flex items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} ${
+                className={`flex items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${
                   active ? `border-e-4 font-bold ${cls.itemActive}` : cls.itemInactive
                 }`}
               >
                 <span className="text-base leading-none">{item.icon}</span>
-                {!collapsed && item.label[lang]}
+                {item.label[lang]}
               </Link>
             </li>
           );
@@ -123,29 +116,6 @@ function SidebarNavSections({
 export function SidebarShell({ brand, sections, quickActions, theme, children }: SidebarShellProps) {
   const { lang } = useLanguage();
   const { userData, activeRole } = useAuth();
-
-  // Starts expanded on every render (server included) to avoid a
-  // server/client hydration mismatch, then syncs from the persisted
-  // preference right after mount — same one-shared-preference idea as
-  // the TOTP nudge dismissal elsewhere in the app (sessionStorage there,
-  // localStorage here since this should persist across sessions).
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from an external system (localStorage) on mount, not derivable during render/SSR
-    setCollapsed(localStorage.getItem(COLLAPSE_STORAGE_KEY) === '1');
-  }, []);
-  // Retract on any click outside the sidebar (the content area, including
-  // DashboardShell's own header) — expand only by clicking the avatar
-  // inside the sidebar. No separate toggle button.
-  const expand = () => {
-    localStorage.setItem(COLLAPSE_STORAGE_KEY, '0');
-    setCollapsed(false);
-  };
-  const retract = () => {
-    if (collapsed) return;
-    localStorage.setItem(COLLAPSE_STORAGE_KEY, '1');
-    setCollapsed(true);
-  };
 
   const tones = theme.mode === 'accent' ? deriveSidebarTones(getRoleAccent(activeRole)) : null;
   const accentStyle: CSSProperties | undefined = tones
@@ -186,38 +156,27 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
       <nav
         aria-label={lang === 'he' ? 'ניווט' : 'Navigation'}
         style={accentStyle}
-        className={`hidden shrink-0 flex-col gap-1 overflow-y-auto border-s py-6 transition-[width] duration-200 lg:sticky lg:top-0 lg:flex lg:h-screen ${
-          collapsed ? 'w-[4.5rem]' : 'w-64'
-        } ${cls.nav}`}
+        className={`hidden w-64 shrink-0 flex-col gap-1 overflow-y-auto border-s py-6 lg:sticky lg:top-0 lg:flex lg:h-screen ${cls.nav}`}
       >
-        <div className={`mb-8 flex items-center gap-3 px-4 ${collapsed ? 'justify-center' : ''}`}>
-          <button
-            type="button"
-            onClick={expand}
-            title={lang === 'he' ? 'הרחב תפריט' : 'Expand menu'}
-            aria-label={lang === 'he' ? 'הרחב תפריט' : 'Expand menu'}
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-opacity hover:opacity-80 ${cls.avatar}`}
+        <div className="mb-8 flex items-center gap-3 px-4">
+          <div
+            title={brand.name}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${cls.avatar}`}
           >
             {initial}
-          </button>
-          {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <h2 className={`truncate text-lg font-bold ${cls.brand}`}>{brand.name}</h2>
-              <p className={`truncate text-xs ${cls.subtitle}`}>{brand.subtitle[lang]}</p>
-            </div>
-          )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className={`truncate text-lg font-bold ${cls.brand}`}>{brand.name}</h2>
+            <p className={`truncate text-xs ${cls.subtitle}`}>{brand.subtitle[lang]}</p>
+          </div>
         </div>
 
         <Suspense fallback={null}>
-          <SidebarNavSections sections={sections} quickActions={quickActions} cls={cls} collapsed={collapsed} lang={lang} />
+          <SidebarNavSections sections={sections} quickActions={quickActions} cls={cls} lang={lang} />
         </Suspense>
       </nav>
 
-      {/* Retracts the sidebar on any click outside it — including
-          DashboardShell's own header, which renders inside `children`. */}
-      <div className="min-w-0 flex-1" onClickCapture={retract}>
-        {children}
-      </div>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

@@ -8,6 +8,8 @@
 // DashboardShell instead of a bespoke top bar. ChatbotFab is mounted here
 // specifically because mobile only shows it on this screen, not globally.
 
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ChatbotFab } from '@/components/ChatbotFab';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -22,9 +24,17 @@ import { InfoScreen } from './InfoScreen';
 
 const STUDENT_ROLES: AppRole[] = ['student'];
 
-export default function StudentHomePage() {
+type ActiveTab = 'overview' | 'milestones' | 'grades';
+const isActiveTab = (v: string | null): v is ActiveTab => v === 'overview' || v === 'milestones' || v === 'grades';
+
+function StudentHomeContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(STUDENT_ROLES);
   const { t } = useLanguage();
+  const searchParams = useSearchParams();
+  // The URL's `?tab=` is the single source of truth for ActiveDashboard's
+  // Overview/Milestones/Grades tab — see app/student/layout.tsx's sidebar
+  // entries. Mirrors app/admin/panel/page.tsx's identical pattern.
+  const activeTab: ActiveTab = isActiveTab(searchParams.get('tab')) ? (searchParams.get('tab') as ActiveTab) : 'overview';
   const {
     studentState,
     proposals,
@@ -94,11 +104,19 @@ export default function StudentHomePage() {
         {studentState === 'active' &&
           activeProjects.map((ap) => (
             <div key={ap.project.id} className="mb-6">
-              <ActiveDashboard project={ap.project} milestones={ap.milestones} progress={ap.progress} onChanged={refresh} />
+              <ActiveDashboard project={ap.project} milestones={ap.milestones} progress={ap.progress} onChanged={refresh} tab={activeTab} />
             </div>
           ))}
       </DashboardShell>
       <ChatbotFab />
     </>
+  );
+}
+
+export default function StudentHomePage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <StudentHomeContent />
+    </Suspense>
   );
 }

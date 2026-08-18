@@ -21,9 +21,6 @@ import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import type { AppRole } from '@/lib/roles';
 import { BulkDueDateModal } from '@/components/BulkDueDateModal';
-import { AcademicYearLink } from '@/components/AcademicYearLink';
-import { WorkflowTemplatesLink } from '@/components/WorkflowTemplatesLink';
-import { CommitteesLink } from '@/components/CommitteesLink';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { SendExaminerModal } from './SendExaminerModal';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
@@ -66,12 +63,16 @@ function AdministrativeCoordinatorDashboardContent() {
   const { lang, t } = useLanguage();
   const searchParams = useSearchParams();
 
-  // Lets the student-detail page's back link (?tab=students) land back on
-  // the Students Report tab instead of always resetting to Groups.
-  const initialTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<'groups' | 'students' | 'overrides' | 'statistics'>(
-    initialTab === 'students' || initialTab === 'overrides' || initialTab === 'statistics' ? initialTab : 'groups'
-  );
+  // The URL's `?tab=` is the single source of truth for which tab is open —
+  // no separate mirrored state — so that the sidebar's links (e.g.
+  // /administrative_coordinator/dashboard?tab=students) actually switch
+  // tabs even when this page is already mounted, and browser back/forward
+  // works too. Also lets the student-detail page's back link (?tab=students)
+  // land back on the Students Report tab instead of always resetting to
+  // Groups.
+  const paramTab = searchParams.get('tab');
+  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' =
+    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' ? paramTab : 'groups';
   const [facultyId, setFacultyId] = useState('');
   const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [stats, setStats] = useState({ totalGroups: 0, activeGroups: 0, scheduledDefenses: 0, overdueGroups: 0 });
@@ -168,13 +169,6 @@ function AdministrativeCoordinatorDashboardContent() {
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — רכזת אדמיניסטרטיבית' : 'Administrative Coordinator Dashboard'}
       subtitle={lang === 'he' ? 'קבוצות פרויקט, הגנות ובוחנים חיצוניים' : 'Project groups, defenses, and external examiners'}
-      actions={
-        <div className="flex items-center gap-2">
-          <WorkflowTemplatesLink />
-          <CommitteesLink />
-          <AcademicYearLink />
-        </div>
-      }
     >
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard value={stats.totalGroups} label={lang === 'he' ? 'קבוצות' : 'Groups'} color={facultyColor} />
@@ -184,27 +178,6 @@ function AdministrativeCoordinatorDashboardContent() {
       </div>
 
       <PendingSignoffsWidget />
-
-      <div className="mb-4 flex border-b border-line">
-        {(['groups', 'students', 'overrides', 'statistics'] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setActiveTab(key)}
-            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              activeTab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
-            }`}
-          >
-            {key === 'groups'
-              ? (lang === 'he' ? 'קבוצות פרויקט' : 'Project Groups')
-              : key === 'students'
-                ? (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')
-                : key === 'overrides'
-                  ? (lang === 'he' ? 'אישור ציונים סופיים' : 'Final Grade Approvals')
-                  : (lang === 'he' ? 'סטטיסטיקות' : 'Statistics')}
-          </button>
-        ))}
-      </div>
 
       {activeTab === 'overrides' ? (
         <GradeOverridesTab />

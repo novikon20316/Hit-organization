@@ -41,11 +41,22 @@ const FACULTY_ADMIN_ROLES: AppRole[] = ['faculty_admin', 'system_admin'];
 
 type Tab = 'overview' | 'users' | 'projects' | 'deadlines' | 'signoffs';
 
+const FACULTY_ADMIN_TABS: Tab[] = ['overview', 'users', 'projects', 'deadlines', 'signoffs'];
+const isFacultyAdminTab = (v: string | null): v is Tab => !!v && (FACULTY_ADMIN_TABS as string[]).includes(v);
+
 function FacultyAdminDashboardContent() {
   const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(FACULTY_ADMIN_ROLES);
   const { lang, t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // The URL's `?tab=` is the single source of truth for which tab is open —
+  // no separate mirrored state — so that the sidebar's links (e.g.
+  // /faculty_admin/dashboard?tab=users) actually switch tabs even when this
+  // page is already mounted, and browser back/forward works too. Same
+  // pattern as app/admin/panel/page.tsx.
+  const paramTab = searchParams.get('tab');
+  const tab: Tab = isFacultyAdminTab(paramTab) ? paramTab : 'overview';
 
   // "Post New Project" used to be a DashboardShell hamburger action, shown
   // only on the projects tab — it now lives in the sidebar
@@ -60,7 +71,6 @@ function FacultyAdminDashboardContent() {
     router.replace(query ? `/faculty_admin/dashboard?${query}` : '/faculty_admin/dashboard', { scroll: false });
   }, [router, searchParams]);
 
-  const [tab, setTab] = useState<Tab>('overview');
   const [users, setUsers] = useState<FacultyAdminUserRecord[]>([]);
   const [projects, setProjects] = useState<FacultyAdminProjectRecord[]>([]);
   const [availableStudents, setAvailableStudents] = useState<FacultyAdminUserRecord[]>([]);
@@ -117,29 +127,6 @@ function FacultyAdminDashboardContent() {
       title={lang === 'he' ? 'לוח בקרה — ראש מנהל פקולטה' : 'Faculty Admin Dashboard'}
       subtitle={lang === 'he' ? 'ניהול משתמשים ופרויקטים בפקולטה' : 'Managing users and projects in your faculty'}
     >
-      <div className="mb-5 flex gap-1 border-b border-line">
-        {(['overview', 'users', 'projects', 'deadlines', 'signoffs'] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
-            }`}
-          >
-            {key === 'overview'
-              ? lang === 'he' ? 'סקירה' : 'Overview'
-              : key === 'users'
-                ? lang === 'he' ? 'משתמשים' : 'Users'
-                : key === 'projects'
-                  ? lang === 'he' ? 'פרויקטים' : 'Projects'
-                  : key === 'deadlines'
-                    ? lang === 'he' ? 'מועדי הגשה' : 'Deadlines'
-                    : lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off'}
-          </button>
-        ))}
-      </div>
-
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 
       {loadingData ? (

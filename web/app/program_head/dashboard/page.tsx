@@ -8,7 +8,8 @@
 // onPress at all. So this is a faithful, complete port: nothing is missing
 // relative to mobile, since mobile itself only ever displays this data.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,13 +25,16 @@ import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { ProjectCard } from '@/app/supervisor/dashboard/ProjectCard';
-import { CommitteesLink } from '@/components/CommitteesLink';
 import { EditProjectModal } from '@/app/supervisor/dashboard/EditProjectModal';
 import { GradeMilestoneModal } from '@/app/supervisor/dashboard/GradeMilestoneModal';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
 import type { MyProject, SupervisorPendingMilestone } from '@/app/supervisor/dashboard/types';
 
 const PROGRAM_HEAD_ROLES: AppRole[] = ['program_head', 'system_admin'];
+
+type ProgramHeadTab = 'students' | 'approvals' | 'supervisors' | 'staff' | 'myProjects';
+const PROGRAM_HEAD_TABS: ProgramHeadTab[] = ['students', 'approvals', 'supervisors', 'staff', 'myProjects'];
+const isProgramHeadTab = (v: string | null): v is ProgramHeadTab => !!v && (PROGRAM_HEAD_TABS as string[]).includes(v);
 
 interface StudentRow {
   uid: string;
@@ -60,10 +64,11 @@ interface SupervisorLoad {
   activeStudents: number;
 }
 
-export default function ProgramHeadDashboardPage() {
+function ProgramHeadDashboardContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(PROGRAM_HEAD_ROLES);
   const { firebaseUser, roles } = useAuth();
   const { lang, t } = useLanguage();
+  const searchParams = useSearchParams();
 
   // A program_head who's ALSO a supervisor/secondary_supervisor otherwise
   // has no way to reach /supervisor/dashboard's own "New Project" button —
@@ -72,7 +77,12 @@ export default function ProgramHeadDashboardPage() {
   // for that overlap; a plain program_head never sees it.
   const canCreateOwnProject = roles.includes('supervisor') || roles.includes('secondary_supervisor');
 
-  const [tab, setTab] = useState<'students' | 'approvals' | 'supervisors' | 'staff' | 'myProjects'>('students');
+  // The URL's `?tab=` is the single source of truth for which tab is open —
+  // no separate mirrored state — so the sidebar's links actually switch
+  // tabs even when this page is already mounted. Guards against someone
+  // hand-editing the URL to `myProjects` when they're not eligible for it.
+  const paramTab = searchParams.get('tab');
+  const tab: ProgramHeadTab = isProgramHeadTab(paramTab) && (paramTab !== 'myProjects' || canCreateOwnProject) ? paramTab : 'students';
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
   const [pendingGrades, setPendingGrades] = useState<SupervisorPendingMilestone[]>([]);
   const [editingProject, setEditingProject] = useState<MyProject | null>(null);
@@ -162,47 +172,16 @@ export default function ProgramHeadDashboardPage() {
     );
   }
 
-  const tabs = [
-    { key: 'students' as const, label: lang === 'he' ? 'סטודנטים' : 'Students', badge: stats.totalStudents },
-    { key: 'approvals' as const, label: lang === 'he' ? 'ממתין לאישור' : 'Approvals', badge: stats.pendingCount },
-    { key: 'supervisors' as const, label: lang === 'he' ? 'מנחים' : 'Supervisors', badge: 0 },
-    { key: 'staff' as const, label: lang === 'he' ? 'סגל' : 'Staff', badge: 0 },
-    ...(canCreateOwnProject
-      ? [{ key: 'myProjects' as const, label: lang === 'he' ? 'הפרויקטים שלי' : 'My Projects', badge: myProjects.length }]
-      : []),
-  ];
-
   return (
     <DashboardShell
       title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש תוכנית תואר שני' : "Master's Program Head"}
       subtitle={lang === 'he' ? 'סטודנטים, אישורים ועומס הנחיה' : 'Students, approvals, and supervision load'}
-      actions={
-        <div className="flex items-center gap-2">
-          <CommitteesLink />
-        </div>
-      }
     >
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard value={stats.totalStudents} label={lang === 'he' ? 'סה"כ' : 'Total'} color={facultyColor} />
         <StatCard value={stats.activeStudents} label={lang === 'he' ? 'פעילים' : 'Active'} color="var(--success)" />
         <StatCard value={stats.overdueCount} label={lang === 'he' ? 'באיחור' : 'Overdue'} color="var(--danger)" />
         <StatCard value={stats.pendingCount} label={lang === 'he' ? 'ממתינים' : 'Pending'} color="var(--accent)" />
-      </div>
-
-      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-line">
-        {tabs.map(({ key, label, badge }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
-            }`}
-          >
-            {label}
-            {badge > 0 ? ` (${badge})` : ''}
-          </button>
-        ))}
       </div>
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
@@ -352,6 +331,14 @@ export default function ProgramHeadDashboardPage() {
         </div>
       )}
     </DashboardShell>
+  );
+}
+
+export default function ProgramHeadDashboardPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <ProgramHeadDashboardContent />
+    </Suspense>
   );
 }
 

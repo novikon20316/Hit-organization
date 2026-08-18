@@ -19,10 +19,31 @@ const NAV_SECTIONS: SidebarSection[] = [
     items: [
       {
         key: 'home',
-        icon: '🏠',
+        icon: '📁',
         href: '/supervisor/dashboard',
-        label: { he: 'בית', en: 'Home' },
-        isActive: (pathname) => pathname === '/supervisor/dashboard',
+        label: { he: 'הפרויקטים שלי', en: 'My Projects' },
+        isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && (!sp.get('tab') || sp.get('tab') === 'projects'),
+      },
+      {
+        key: 'applications',
+        icon: '📨',
+        href: '/supervisor/dashboard?tab=applications',
+        label: { he: 'מועמדויות', en: 'Applications' },
+        isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'applications',
+      },
+      {
+        key: 'recommendTab',
+        icon: '🧑‍⚖️',
+        href: '/supervisor/dashboard?tab=recommend',
+        label: { he: 'המלצת בוחנים', en: 'Recommend Examiners' },
+        isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'recommend',
+      },
+      {
+        key: 'signoffs',
+        icon: '✅',
+        href: '/supervisor/dashboard?tab=signoffs',
+        label: { he: 'ממתין לאישורך', en: 'Awaiting Your Sign-off' },
+        isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'signoffs',
       },
     ],
   },
@@ -34,7 +55,11 @@ const QUICK_ACTIONS: SidebarSection = {
     {
       key: 'recommend',
       icon: '📝',
-      href: '/supervisor/dashboard?modal=recommend',
+      // Preserves whatever ?tab= is already open on /supervisor/dashboard —
+      // opening "New Recommendation" from the Applications tab shouldn't
+      // bounce the supervisor back to Projects once they close it. Same
+      // pattern as admin/layout.tsx's QUICK_ACTIONS.
+      href: (sp: URLSearchParams) => `/supervisor/dashboard?${sp.get('tab') ? `tab=${sp.get('tab')}&` : ''}modal=recommend`,
       label: { he: 'המלצה חדשה', en: 'New Recommendation' },
       isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('modal') === 'recommend',
     },

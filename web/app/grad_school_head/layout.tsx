@@ -15,11 +15,46 @@ const NAV_SECTIONS: SidebarSection[] = [
     title: { he: 'ניווט', en: 'Navigation' },
     items: [
       {
-        key: 'home',
-        icon: '🏠',
+        key: 'approvals',
+        icon: '✅',
         href: '/grad_school_head/dashboard',
-        label: { he: 'בית', en: 'Home' },
-        isActive: (pathname) => pathname === '/grad_school_head/dashboard',
+        label: { he: 'ממתין לאישורי', en: 'Approvals' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && (!sp.get('tab') || sp.get('tab') === 'approvals'),
+      },
+      {
+        key: 'overview',
+        icon: '📊',
+        href: '/grad_school_head/dashboard?tab=overview',
+        label: { he: 'סקירה כללית', en: 'Overview' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'overview',
+      },
+      {
+        key: 'stuck',
+        icon: '🚧',
+        href: '/grad_school_head/dashboard?tab=stuck',
+        label: { he: 'תקועים', en: 'Stuck' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'stuck',
+      },
+      {
+        key: 'examiners',
+        icon: '🧑‍⚖️',
+        href: '/grad_school_head/dashboard?tab=examiners',
+        label: { he: 'עומס בוחנים', en: 'Examiners' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'examiners',
+      },
+      {
+        key: 'grades',
+        icon: '🎓',
+        href: '/grad_school_head/dashboard?tab=grades',
+        label: { he: 'ציונים מאושרים', en: 'Approved Grades' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'grades',
+      },
+      {
+        key: 'staff',
+        icon: '🧑‍💼',
+        href: '/grad_school_head/dashboard?tab=staff',
+        label: { he: 'סגל', en: 'Staff' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'staff',
       },
       {
         key: 'workflowTemplates',
@@ -59,7 +94,11 @@ const QUICK_ACTIONS: SidebarSection = {
     {
       key: 'newProject',
       icon: '📁',
-      href: '/grad_school_head/dashboard?modal=newProject',
+      // Preserves whatever ?tab= is already open on the dashboard — opening
+      // "Post New Project" from the Stuck tab shouldn't bounce the user
+      // back to Approvals once they close it. Same pattern as
+      // app/admin/layout.tsx's QUICK_ACTIONS.
+      href: (sp: URLSearchParams) => `/grad_school_head/dashboard?${sp.get('tab') ? `tab=${sp.get('tab')}&` : ''}modal=newProject`,
       label: { he: 'פרסום פרויקט חדש', en: 'Post New Project' },
       isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('modal') === 'newProject',
     },

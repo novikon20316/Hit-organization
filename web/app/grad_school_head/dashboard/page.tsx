@@ -32,6 +32,10 @@ import type { AdminUserRecord } from '@/app/admin/panel/types';
 
 const GRAD_SCHOOL_HEAD_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
 
+type GradSchoolHeadTab = 'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff';
+const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['approvals', 'overview', 'stuck', 'examiners', 'grades', 'staff'];
+const isGradSchoolHeadTab = (v: string | null): v is GradSchoolHeadTab => !!v && (GRAD_SCHOOL_HEAD_TABS as string[]).includes(v);
+
 type ApprovalType = 'supervisor' | 'proposal' | 'thesis' | 'examiners' | 'final_grade' | 'template';
 
 interface PendingApproval {
@@ -110,7 +114,11 @@ function GradSchoolHeadDashboardContent() {
     router.replace(query ? `/grad_school_head/dashboard?${query}` : '/grad_school_head/dashboard', { scroll: false });
   }, [router, searchParams]);
 
-  const [tab, setTab] = useState<'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff'>('approvals');
+  // The URL's `?tab=` is the single source of truth for which tab is open —
+  // no separate mirrored state — same pattern as app/admin/panel/page.tsx.
+  // Tab switching now happens via GradSchoolHeadLayout's sidebar links.
+  const paramTab = searchParams.get('tab');
+  const tab: GradSchoolHeadTab = isGradSchoolHeadTab(paramTab) ? paramTab : 'approvals';
   const [headName, setHeadName] = useState('');
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [processSummaries, setProcessSummaries] = useState<ProcessSummary[]>([]);
@@ -245,15 +253,6 @@ function GradSchoolHeadDashboardContent() {
     );
   }
 
-  const tabs = [
-    { key: 'approvals' as const, label: lang === 'he' ? 'ממתין לאישורי' : 'Pending', badge: approvals.length },
-    { key: 'overview' as const, label: lang === 'he' ? 'סקירה כללית' : 'Overview', badge: 0 },
-    { key: 'stuck' as const, label: lang === 'he' ? 'תקועים' : 'Stuck', badge: stuckStudents.length },
-    { key: 'examiners' as const, label: lang === 'he' ? 'עומס בוחנים' : 'Examiners', badge: 0 },
-    { key: 'grades' as const, label: lang === 'he' ? 'ציונים מאושרים' : 'Approved Grades', badge: 0 },
-    { key: 'staff' as const, label: lang === 'he' ? 'סגל' : 'Staff', badge: 0 },
-  ];
-
   return (
     <DashboardShell
       title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש בית הספר ללימודי מוסמכים' : 'Graduate School Head'}
@@ -267,22 +266,6 @@ function GradSchoolHeadDashboardContent() {
         <StatCard value={stats.pendingCount} label={t('gradSchoolPendingApprovals')} color="var(--accent)" />
         <StatCard value={stats.stuckCount} label={t('gradSchoolStuckStudents')} color="var(--danger)" />
         <StatCard value={stats.completedThisYear} label={lang === 'he' ? 'סיימו השנה' : 'Completed'} color="var(--success)" />
-      </div>
-
-      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-line">
-        {tabs.map(({ key, label, badge }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
-            }`}
-          >
-            {label}
-            {badge > 0 ? ` (${badge})` : ''}
-          </button>
-        ))}
       </div>
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}

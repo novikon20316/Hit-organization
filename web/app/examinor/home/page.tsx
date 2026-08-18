@@ -3,7 +3,8 @@
 // app/examinor/home/page.tsx
 // Ported from mobile/app/examinor/home.tsx.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,16 +19,24 @@ import type { AssignedMilestone } from './types';
 
 const EXAMINER_ROLES: AppRole[] = ['internal_examiner', 'system_admin'];
 
+type ExaminerTab = 'defenses' | 'schedule';
+const isExaminerTab = (v: string | null): v is ExaminerTab => v === 'defenses' || v === 'schedule';
+
 function daysUntil(date: Date): number {
   return Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
-export default function ExaminerHomePage() {
+function ExaminerHomeContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(EXAMINER_ROLES);
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
+  const searchParams = useSearchParams();
 
-  const [tab, setTab] = useState<'defenses' | 'schedule'>('defenses');
+  // The URL's `?tab=` is the single source of truth for which tab is open —
+  // no separate mirrored state — so the sidebar's Defenses/Schedule links
+  // actually switch tabs even when this page is already mounted. Mirrors
+  // app/admin/panel/page.tsx's identical pattern.
+  const tab: ExaminerTab = isExaminerTab(searchParams.get('tab')) ? (searchParams.get('tab') as ExaminerTab) : 'defenses';
   const [assignments, setAssignments] = useState<AssignedMilestone[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -66,27 +75,6 @@ export default function ExaminerHomePage() {
       title={lang === 'he' ? 'בוחן פנימי' : 'Internal Examiner'}
       subtitle={lang === 'he' ? 'הגנות לבחינה ולוח זמנים' : 'Defenses to examine and your schedule'}
     >
-      <div className="mb-5 flex gap-1 border-b border-line">
-        {(
-          [
-            { key: 'defenses' as const, label: lang === 'he' ? 'הגנות לבחינה' : 'Defenses', badge: assignments.length },
-            { key: 'schedule' as const, label: lang === 'he' ? 'לוח זמנים' : 'Schedule', badge: scheduled.length },
-          ] as const
-        ).map(({ key, label, badge }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
-            }`}
-          >
-            {label}
-            {badge > 0 ? ` (${badge})` : ''}
-          </button>
-        ))}
-      </div>
-
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 
       {loadingData ? (
@@ -183,5 +171,13 @@ export default function ExaminerHomePage() {
         />
       )}
     </DashboardShell>
+  );
+}
+
+export default function ExaminerHomePage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <ExaminerHomeContent />
+    </Suspense>
   );
 }

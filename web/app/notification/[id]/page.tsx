@@ -114,19 +114,16 @@ export default function NotificationDetailPage() {
   };
 
   return (
-    <DashboardShell
-      title={lang === 'he' ? 'התראה' : 'Notification'}
-      actions={
+    <DashboardShell title={lang === 'he' ? 'התראה' : 'Notification'}>
+      <div className="mx-auto grid max-w-2xl gap-4">
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink hover:bg-paper"
+          className="w-fit rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink hover:bg-paper"
         >
           {lang === 'he' ? '→ חזרה' : '← Back'}
         </button>
-      }
-    >
-      <div className="mx-auto grid max-w-2xl gap-4">
+
         <span
           className="flex h-14 w-14 items-center justify-center rounded-2xl text-2xl"
           style={{ backgroundColor: style.bg }}
