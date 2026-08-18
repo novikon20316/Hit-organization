@@ -3997,6 +3997,12 @@ export const TopBarStyles = StyleSheet.create({
   langText:  { fontSize: 12, fontWeight: '700', color: '#2E86FF' },
   iconBtn:   { padding: 4 },
   iconBtnText: { fontSize: 18 },
+  backBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: '#D0DEFF',
+  },
+  backBtnText: { fontSize: 16, fontWeight: '700', color: '#2E86FF' },
   signOutBtn: {
     backgroundColor: '#FFF0F0', borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 5,

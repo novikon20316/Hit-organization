@@ -76,17 +76,28 @@ export function DashboardShell({ title, subtitle, children, actions, onBeforeSig
       >
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
           <div className="flex items-center justify-between gap-4">
-            <Link
-              href={getHomeRoute(activeRole)}
-              title={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
-              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition-opacity hover:opacity-80 sm:flex-initial"
-            >
-              <Image src="/hit-logo.png" alt="HIT" width={32} height={19} className="h-6 w-auto shrink-0 object-contain" />
-              <div className="min-w-0">
-                <h1 className="truncate text-base font-semibold leading-tight text-ink">{title}</h1>
-                {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
-              </div>
-            </Link>
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                title={lang === 'he' ? 'חזרה' : 'Go back'}
+                aria-label={lang === 'he' ? 'חזרה' : 'Go back'}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line text-ink transition-colors hover:border-primary hover:text-primary"
+              >
+                <span className="text-lg leading-none">{lang === 'he' ? '→' : '←'}</span>
+              </button>
+              <Link
+                href={getHomeRoute(activeRole)}
+                title={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition-opacity hover:opacity-80 sm:flex-initial"
+              >
+                <Image src="/hit-logo.png" alt="HIT" width={32} height={19} className="h-6 w-auto shrink-0 object-contain" />
+                <div className="min-w-0">
+                  <h1 className="truncate text-base font-semibold leading-tight text-ink">{title}</h1>
+                  {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
+                </div>
+              </Link>
+            </div>
 
             <div className="flex shrink-0 items-center gap-3">
               <NotificationBell />

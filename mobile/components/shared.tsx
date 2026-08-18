@@ -378,9 +378,16 @@ export function TopBar({
   return (
     <>
       <View style={[tb.bar, isRtl && tb.rowReverse]}>
-        {/* Left: avatar + name — flexShrink so a long name/role list can never
-            push the hamburger button off-screen */}
+        {/* Left: back + avatar + name — flexShrink so a long name/role list
+            can never push the hamburger button off-screen */}
         <View style={[tb.left, isRtl && tb.rowReverse]}>
+          <Pressable
+            style={[tb.backBtn, { marginLeft: isRtl ? 10 : 0, marginRight: isRtl ? 0 : 10 }]}
+            onPress={() => (router.canGoBack() ? router.back() : undefined)}
+            accessibilityLabel={lang === 'he' ? 'חזרה' : 'Go back'}
+          >
+            <Text style={tb.backBtnText}>{isRtl ? '→' : '←'}</Text>
+          </Pressable>
           <View style={[tb.avatar, { backgroundColor: accent.text }]}>
             <Text style={tb.avatarText}>{name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
           </View>
