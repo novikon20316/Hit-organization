@@ -12,10 +12,12 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import { MilestoneTimeline, type MilestoneData } from '@/components/MilestoneTimeline';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
+import { academicYearToHebrew } from '@/lib/hebrewYear';
 import type { AppRole } from '@/lib/roles';
 import { majorCellText } from '../../StudentsReportTab';
 
@@ -42,6 +44,12 @@ const MILESTONE_STATUS_LABEL: Record<string, { he: string; en: string }> = {
 
 function statusLabel(status: string, lang: 'he' | 'en'): string {
   return MILESTONE_STATUS_LABEL[status]?.[lang] ?? status;
+}
+
+function academicYearLabel(academicYear: string | null): string {
+  if (!academicYear) return '—';
+  const hebrew = academicYearToHebrew(academicYear);
+  return hebrew ? `${hebrew} (${academicYear})` : academicYear;
 }
 
 function formatDate(iso: string | null, lang: 'he' | 'en'): string {
@@ -98,6 +106,7 @@ export default function StudentDetailPage() {
   const project = data?.project ?? null;
   const currentMilestone = data?.currentMilestone ?? null;
   const submittedMilestones = data?.milestones ?? [];
+  const milestoneRoadmap = data?.milestoneRoadmap ?? [];
 
   return (
     <DashboardShell
@@ -152,7 +161,9 @@ export default function StudentDetailPage() {
               <>
                 <p className="mt-1 text-sm text-ink">{lang === 'he' ? project.titleHe : project.titleEn}</p>
                 <p className="mt-1 text-xs text-muted">👨‍🏫 {project.supervisorName || (lang === 'he' ? 'ללא מנחה' : 'No supervisor')}</p>
-                <p className="mt-1 text-xs text-muted">📆 {lang === 'he' ? 'שנת לימודים (תחילת הפרויקט):' : 'Study year (project start):'} {project.academicYear || '—'}</p>
+                <p className="mt-1 text-xs text-muted">
+                  📆 {lang === 'he' ? 'שנת לימודים (תחילת הפרויקט):' : 'Study year (project start):'} {academicYearLabel(project.academicYear)}
+                </p>
               </>
             ) : (
               <p className="mt-1 text-sm text-muted">{lang === 'he' ? 'הסטודנט אינו רשום כרגע לפרויקט/תזה' : 'Student is not currently enrolled in a project/thesis'}</p>
@@ -175,6 +186,23 @@ export default function StudentDetailPage() {
               ) : (
                 <p className="mt-1 text-sm text-muted">{lang === 'he' ? 'אין אבן דרך פעילה' : 'No active milestone'}</p>
               )}
+            </div>
+          )}
+
+          {/* Visual roadmap — the whole track at a glance: what's done, what's
+              current, and what's still ahead. Read-only view of the same
+              component the student/supervisor dashboards use; viewerRole is
+              deliberately a string that matches none of MilestoneTimeline's
+              action-granting role lists, so no grade/date/schedule actions
+              render here. */}
+          {project && milestoneRoadmap.length > 0 && (
+            <div>
+              <p className="mb-2 text-sm font-semibold text-ink">🗺️ {lang === 'he' ? 'מסלול אבני הדרך' : 'Milestone Roadmap'}</p>
+              <MilestoneTimeline
+                milestones={milestoneRoadmap as unknown as MilestoneData[]}
+                viewerRole="coordinator_readonly"
+                projectId={project.id}
+              />
             </div>
           )}
 

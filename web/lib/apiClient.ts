@@ -1678,6 +1678,26 @@ export const apiClient = {
         finalGrade: number | null;
         gradeApproved: boolean;
       }>;
+      /** Every milestone on the track (pending ones included), shaped for
+       *  components/MilestoneTimeline's MilestoneData prop. */
+      milestoneRoadmap: Array<{
+        id: string;
+        type: string;
+        order?: number;
+        status: string;
+        dueDate: string | null;
+        submittedAt: string | null;
+        fileUrls: string[];
+        finalGrade: number | null;
+        supervisorScore: number | null;
+        defenseDate: string | null;
+        defenseRoom: string | null;
+        defenseBuilding: string | null;
+        defenseTime: string | null;
+        onlineDefenseLink: string | null;
+        examinerNames: string[];
+        examinerIds: string[];
+      }>;
     }>(`/api/project-coordinator/students/${studentId}/detail`, { method: 'GET' });
   },
 

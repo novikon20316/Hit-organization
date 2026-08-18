@@ -549,6 +549,27 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
           finalGrade: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? null,
           gradeApproved: m.gradeApproved ?? false,
         })),
+      // Every milestone on the track, pending ones included — powers the
+      // coordinator's visual progress roadmap (components/MilestoneTimeline)
+      // so she can see the whole path, not just what's been submitted so far.
+      milestoneRoadmap: milestoneRows.map((m: any) => ({
+        id: m.id,
+        type: m.type,
+        order: typeof m.order === 'number' ? m.order : undefined,
+        status: m.status,
+        dueDate: m.dueDate?.toDate?.()?.toISOString?.() ?? null,
+        submittedAt: m.submittedAt?.toDate?.()?.toISOString?.() ?? null,
+        fileUrls: m.fileUrls ?? [],
+        finalGrade: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? null,
+        supervisorScore: m.supervisorScore ?? null,
+        defenseDate: m.defenseDate?.toDate?.()?.toISOString?.() ?? null,
+        defenseRoom: m.defenseRoom ?? null,
+        defenseBuilding: m.defenseBuilding ?? null,
+        defenseTime: m.defenseTime ?? null,
+        onlineDefenseLink: m.onlineDefenseLink ?? null,
+        examinerNames: m.examinerNames ?? [],
+        examinerIds: m.examinerIds ?? [],
+      })),
     });
   } catch (error: any) {
     console.error('getStudentDetail error:', error);
