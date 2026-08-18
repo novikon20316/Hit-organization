@@ -8,7 +8,7 @@
 // (see projectCoordinatorController.ts's getStudentsReport).
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
@@ -86,6 +86,7 @@ export function majorCellText(row: Pick<StudentReportRow, 'facultyId' | 'major' 
 
 export function StudentsReportTab() {
   const { lang } = useLanguage();
+  const router = useRouter();
   const [rows, setRows] = useState<StudentReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -183,12 +184,12 @@ export function StudentsReportTab() {
                     ? (lang === 'he' ? `${r.days} ימים בחיפוש` : `${r.days}d searching`)
                     : `${r.days}`;
               return (
-                <tr key={r.id} className="border-b border-line last:border-b-0">
-                  <td className="px-3 py-2 font-medium">
-                    <Link href={`/administrative_coordinator/dashboard/students/${r.id}`} className="text-primary hover:underline">
-                      {r.name}
-                    </Link>
-                  </td>
+                <tr
+                  key={r.id}
+                  onClick={() => router.push(`/administrative_coordinator/dashboard/students/${r.id}`)}
+                  className="cursor-pointer border-b border-line last:border-b-0 hover:bg-paper"
+                >
+                  <td className="px-3 py-2 font-medium text-primary">{r.name}</td>
                   <td className="px-3 py-2 text-ink">{r.facultyId ? facultyLabel(r.facultyId as FacultyId, lang) : '—'}</td>
                   <td className="px-3 py-2 text-ink">{majorCellText(r, lang)}</td>
                   <td className="px-3 py-2">

@@ -678,6 +678,13 @@ export default function SupervisorHome() {
   // ── Edit project ──────────────────────────────────────────────────────────
   const handleEditProject = async (project: MyProject | null) => {
     if (!project) return;
+    if (!editTitleHe.trim() || !editTitleEn.trim()) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'כותרת הפרויקט (עברית ואנגלית) לא יכולה להיות ריקה' : 'Project title (Hebrew and English) cannot be empty'
+      );
+      return;
+    }
     setSaving(true);
     try {
       await apiClient.put(`/api/supervisor/projects/${project.id}`, {

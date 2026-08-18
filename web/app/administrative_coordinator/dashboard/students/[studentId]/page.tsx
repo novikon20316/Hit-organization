@@ -116,10 +116,32 @@ export default function StudentDetailPage() {
           {/* Student profile */}
           <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
             <p className="text-lg font-semibold text-ink">👤 {student.name}</p>
-            <div className="mt-2 grid gap-1 text-sm text-muted sm:grid-cols-3">
+            <div className="mt-2 grid gap-1 text-sm text-muted sm:grid-cols-2">
               <span>🏛️ {lang === 'he' ? 'פקולטה:' : 'Faculty:'} {student.facultyId ? facultyLabel(student.facultyId as FacultyId, lang) : '—'}</span>
               <span>🎓 {lang === 'he' ? 'תואר:' : 'Degree:'} {student.degreeType ? (student.degreeType === 'masters' ? (lang === 'he' ? 'תואר שני' : "Master's") : (lang === 'he' ? 'תואר ראשון' : "Bachelor's")) : '—'}</span>
               <span>📚 {lang === 'he' ? 'מגמה:' : 'Major:'} {majorCellText(student, lang)}</span>
+              <span>📆 {lang === 'he' ? 'שנת לימודים:' : 'Year of study:'} {student.yearOfStudy ?? '—'}</span>
+            </div>
+          </div>
+
+          {/* Communication */}
+          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
+            <p className="text-sm font-semibold text-ink">☎️ {lang === 'he' ? 'פרטי התקשרות' : 'Communication'}</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {student.email ? (
+                <a href={`mailto:${student.email}`} dir="ltr" className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink hover:border-primary hover:text-primary">
+                  ✉️ {student.email}
+                </a>
+              ) : (
+                <p className="text-sm italic text-muted">{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</p>
+              )}
+              {student.phoneNumber ? (
+                <a href={`tel:${student.phoneNumber}`} dir="ltr" className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink hover:border-primary hover:text-primary">
+                  📞 {student.phoneNumber}
+                </a>
+              ) : (
+                <p className="text-sm italic text-muted">{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</p>
+              )}
             </div>
           </div>
 
@@ -130,6 +152,7 @@ export default function StudentDetailPage() {
               <>
                 <p className="mt-1 text-sm text-ink">{lang === 'he' ? project.titleHe : project.titleEn}</p>
                 <p className="mt-1 text-xs text-muted">👨‍🏫 {project.supervisorName || (lang === 'he' ? 'ללא מנחה' : 'No supervisor')}</p>
+                <p className="mt-1 text-xs text-muted">📆 {lang === 'he' ? 'שנת לימודים (תחילת הפרויקט):' : 'Study year (project start):'} {project.academicYear || '—'}</p>
               </>
             ) : (
               <p className="mt-1 text-sm text-muted">{lang === 'he' ? 'הסטודנט אינו רשום כרגע לפרויקט/תזה' : 'Student is not currently enrolled in a project/thesis'}</p>

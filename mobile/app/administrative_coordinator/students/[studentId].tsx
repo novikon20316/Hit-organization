@@ -7,7 +7,7 @@
 // getStudentDetail) — mirrors web's students/[studentId]/page.tsx.
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
@@ -22,8 +22,11 @@ interface StudentDetail {
     facultyId: string | null;
     major: string | null;
     degreeType: 'bachelors' | 'masters' | null;
+    email: string;
+    phoneNumber: string | null;
+    yearOfStudy: number | null;
   };
-  project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null } | null;
+  project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null; academicYear: string | null } | null;
   currentMilestone: { id: string; type: string; nameHe: string; nameEn: string; status: string; dueDate: string | null } | null;
   milestones: Array<{
     id: string;
@@ -144,6 +147,28 @@ export default function StudentDetailScreen() {
               <Text style={styles.cardSub}>
                 📚 {lang === 'he' ? 'מגמה:' : 'Major:'} {majorLabel(student.facultyId, student.major, student.degreeType, lang)}
               </Text>
+              <Text style={styles.cardSub}>
+                📆 {lang === 'he' ? 'שנת לימודים:' : 'Year of study:'} {student.yearOfStudy ?? '—'}
+              </Text>
+            </View>
+
+            {/* Communication */}
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>☎️ {lang === 'he' ? 'פרטי התקשרות' : 'Communication'}</Text>
+              {student.email ? (
+                <Pressable onPress={() => Linking.openURL(`mailto:${student.email}`)}>
+                  <Text style={[styles.cardSub, { color: '#3E6C8C', fontWeight: '600' }]}>✉️ {student.email}</Text>
+                </Pressable>
+              ) : (
+                <Text style={[styles.cardSub, { fontStyle: 'italic' }]}>{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</Text>
+              )}
+              {student.phoneNumber ? (
+                <Pressable onPress={() => Linking.openURL(`tel:${student.phoneNumber}`)}>
+                  <Text style={[styles.cardSub, { color: '#3E6C8C', fontWeight: '600' }]}>📞 {student.phoneNumber}</Text>
+                </Pressable>
+              ) : (
+                <Text style={[styles.cardSub, { fontStyle: 'italic' }]}>{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</Text>
+              )}
             </View>
 
             {/* Project */}
@@ -153,6 +178,7 @@ export default function StudentDetailScreen() {
                 <>
                   <Text style={styles.cardSub}>{lang === 'he' ? project.titleHe : project.titleEn}</Text>
                   <Text style={styles.cardSub}>👨‍🏫 {project.supervisorName || (lang === 'he' ? 'ללא מנחה' : 'No supervisor')}</Text>
+                  <Text style={styles.cardSub}>📆 {lang === 'he' ? 'שנת לימודים (תחילת הפרויקט):' : 'Study year (project start):'} {project.academicYear || '—'}</Text>
                 </>
               ) : (
                 <Text style={styles.cardSub}>{lang === 'he' ? 'הסטודנט אינו רשום כרגע לפרויקט/תזה' : 'Student is not currently enrolled in a project/thesis'}</Text>

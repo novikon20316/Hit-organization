@@ -475,7 +475,7 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
     }
 
     const activeProjectId: string | null = studentData.hasActiveProject ? (studentData.activeProjectId ?? null) : null;
-    let project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null } | null = null;
+    let project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null; academicYear: string | null } | null = null;
     let milestoneRows: any[] = [];
     let currentMilestone: { id: string; type: string; nameHe: string; nameEn: string; status: string; dueDate: string | null } | null = null;
 
@@ -493,6 +493,9 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
           titleHe: projectData.titleHe || projectData.titleEn || '',
           titleEn: projectData.titleEn || projectData.titleHe || '',
           supervisorName,
+          // The academic year the project/enrollment started — "study year"
+          // as opposed to the student's own yearOfStudy below.
+          academicYear: projectData.academicYear ?? null,
         };
 
         const milestonesSnap = await db.collection('milestones')
@@ -525,6 +528,9 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         facultyId: studentData.facultyId ?? null,
         major: studentData.major ?? null,
         degreeType: studentData.degreeType ?? null,
+        email: studentData.email ?? '',
+        phoneNumber: studentData.phoneNumber ?? null,
+        yearOfStudy: studentData.yearOfStudy ?? null,
       },
       project,
       currentMilestone,

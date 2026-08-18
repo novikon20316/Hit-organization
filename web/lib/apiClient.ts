@@ -1661,8 +1661,11 @@ export const apiClient = {
         facultyId: string | null;
         major: string | null;
         degreeType: 'bachelors' | 'masters' | null;
+        email: string;
+        phoneNumber: string | null;
+        yearOfStudy: number | null;
       };
-      project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null } | null;
+      project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null; academicYear: string | null } | null;
       currentMilestone: { id: string; type: string; nameHe: string; nameEn: string; status: string; dueDate: string | null } | null;
       milestones: Array<{
         id: string;

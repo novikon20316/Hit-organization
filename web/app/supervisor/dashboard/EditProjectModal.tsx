@@ -34,6 +34,10 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
   const degreeOptions = useMemo(() => degreeLevelsForFaculty(project.facultyId), [project.facultyId]);
 
   const handleSave = async () => {
+    if (!titleHe.trim() || !titleEn.trim()) {
+      setError(lang === 'he' ? 'כותרת הפרויקט (עברית ואנגלית) לא יכולה להיות ריקה' : 'Project title (Hebrew and English) cannot be empty');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -123,7 +127,7 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !titleHe.trim() || !titleEn.trim()}
             className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
           >
             {saving ? '…' : t('save')}

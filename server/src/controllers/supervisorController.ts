@@ -655,6 +655,16 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
   if (!projectId || typeof projectId !== 'string')
     return res.status(400).json({ message: 'Invalid projectId.' });
 
+  // createSupervisorProject refuses an empty title outright; this endpoint
+  // had no equivalent guard, so submitting the edit form with a title field
+  // blank (e.g. while only touching description/skills) silently wiped an
+  // already-enrolled project's title — the exact "Project column shows
+  // blank" report from the Students Report tab.
+  if (updateData.titleHe !== undefined && !String(updateData.titleHe).trim())
+    return res.status(400).json({ message: 'Project title (Hebrew) cannot be empty.' });
+  if (updateData.titleEn !== undefined && !String(updateData.titleEn).trim())
+    return res.status(400).json({ message: 'Project title (English) cannot be empty.' });
+
   try {
     const projectRef  = db.collection('projects').doc(projectId);
     const projectSnap = await projectRef.get();
