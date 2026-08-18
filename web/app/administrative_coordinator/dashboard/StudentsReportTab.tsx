@@ -8,6 +8,7 @@
 // (see projectCoordinatorController.ts's getStudentsReport).
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
@@ -70,7 +71,7 @@ function statusText(row: StudentReportRow, lang: 'he' | 'en'): string {
 // major, look the student's exact program back up in the raw (undeduped)
 // HIT_FACULTIES data using both `major` and `degreeType`, which keeps the
 // degree prefix in the returned label and disambiguates the two.
-function majorCellText(row: StudentReportRow, lang: 'he' | 'en'): string {
+export function majorCellText(row: Pick<StudentReportRow, 'facultyId' | 'major' | 'degreeType'>, lang: 'he' | 'en'): string {
   if (!row.facultyId) return '—';
   const majors = majorsForFaculty(row.facultyId);
   if (majors.length <= 1) return '—';
@@ -183,7 +184,11 @@ export function StudentsReportTab() {
                     : `${r.days}`;
               return (
                 <tr key={r.id} className="border-b border-line last:border-b-0">
-                  <td className="px-3 py-2 font-medium text-ink">{r.name}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <Link href={`/administrative_coordinator/dashboard/students/${r.id}`} className="text-primary hover:underline">
+                      {r.name}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2 text-ink">{r.facultyId ? facultyLabel(r.facultyId as FacultyId, lang) : '—'}</td>
                   <td className="px-3 py-2 text-ink">{majorCellText(r, lang)}</td>
                   <td className="px-3 py-2">

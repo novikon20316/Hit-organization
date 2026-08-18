@@ -1649,6 +1649,35 @@ export const apiClient = {
     }>('/api/project-coordinator/students-report', { method: 'GET' });
   },
 
+  /** Single-student drill-down for a Students Report row — the student's
+   *  profile, active project (if any), current milestone, and the full list
+   *  of already-submitted milestones with their grades. See
+   *  projectCoordinatorController.ts's getStudentDetail. */
+  async getStudentDetail(studentId: string) {
+    return request<{
+      student: {
+        id: string;
+        name: string;
+        facultyId: string | null;
+        major: string | null;
+        degreeType: 'bachelors' | 'masters' | null;
+      };
+      project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null } | null;
+      currentMilestone: { id: string; type: string; nameHe: string; nameEn: string; status: string; dueDate: string | null } | null;
+      milestones: Array<{
+        id: string;
+        type: string;
+        nameHe: string;
+        nameEn: string;
+        status: string;
+        dueDate: string | null;
+        submittedAt: string | null;
+        finalGrade: number | null;
+        gradeApproved: boolean;
+      }>;
+    }>(`/api/project-coordinator/students/${studentId}/detail`, { method: 'GET' });
+  },
+
   /** Every defense milestone with a pending grade override (see
    *  supervisorController.ts's decideFinalGrade) in the coordinator's
    *  assigned degree(s) — see projectCoordinatorController.ts's

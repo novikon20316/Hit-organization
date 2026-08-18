@@ -5,8 +5,14 @@
 // Dropped: the "View" button that routed to /admin/panel?groupId=... — that
 // page is system_admin-gated (this role would just get redirected away) and
 // never reads a groupId param anyway, so it was a dead link on mobile too.
+//
+// useSearchParams() forces this static route into client-side rendering at
+// the Suspense boundary during prerendering (Next.js requirement) — wrapped
+// below so the rest of the app shell can still be prerendered (see the same
+// fix applied to coordinator/home, faculty_admin/dashboard, etc.).
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,12 +60,18 @@ function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
   return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
 }
 
-export default function AdministrativeCoordinatorDashboardPage() {
+function AdministrativeCoordinatorDashboardContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_COORDINATOR_ROLES);
   const { firebaseUser } = useAuth();
   const { lang, t } = useLanguage();
+  const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<'groups' | 'students' | 'overrides' | 'statistics'>('groups');
+  // Lets the student-detail page's back link (?tab=students) land back on
+  // the Students Report tab instead of always resetting to Groups.
+  const initialTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'groups' | 'students' | 'overrides' | 'statistics'>(
+    initialTab === 'students' || initialTab === 'overrides' || initialTab === 'statistics' ? initialTab : 'groups'
+  );
   const [facultyId, setFacultyId] = useState('');
   const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [stats, setStats] = useState({ totalGroups: 0, activeGroups: 0, scheduledDefenses: 0, overdueGroups: 0 });
@@ -446,6 +458,14 @@ export default function AdministrativeCoordinatorDashboardPage() {
       <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
       <StudentContactModal member={contactMember} onClose={() => setContactMember(null)} />
     </DashboardShell>
+  );
+}
+
+export default function AdministrativeCoordinatorDashboardPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+      <AdministrativeCoordinatorDashboardContent />
+    </Suspense>
   );
 }
 

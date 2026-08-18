@@ -2,6 +2,7 @@ import { Response } from 'express';
 import * as XLSX from 'xlsx';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 import {
   gatherScopedEngagements,
   milestoneDistributionStats,
@@ -438,6 +439,114 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
   } catch (error: any) {
     console.error('getStudentsReport error:', error);
     return res.status(500).json({ message: 'Failed to load students report.' });
+  }
+};
+
+/**
+ * GET /api/project-coordinator/students/:studentId/detail
+ * Single-student drill-down, reached by clicking a row in the Students
+ * Report tab above — the student's profile, their active project (if any),
+ * and the full milestone list (with grades) for that project. Access is
+ * scoped the same way as getStudentsReport, but checked against the
+ * student's own facultyId/major (not the project's — a student can be in
+ * scope even before enrolling in a project).
+ */
+export const getStudentDetail = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user?.role || !PROJECT_COORDINATOR_DASHBOARD_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'You do not have permission to view this student.' });
+  }
+
+  const { studentId } = req.params;
+  if (!studentId || typeof studentId !== 'string') {
+    return res.status(400).json({ message: 'Invalid studentId.' });
+  }
+
+  try {
+    const studentSnap = await db.collection('users').doc(studentId).get();
+    if (!studentSnap.exists || studentSnap.data()?.role !== 'student') {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+    const studentData = studentSnap.data()!;
+
+    if (!withinCoordinatorScope(req.user, { facultyId: studentData.facultyId ?? '', major: studentData.major || undefined })) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+
+    const activeProjectId: string | null = studentData.hasActiveProject ? (studentData.activeProjectId ?? null) : null;
+    let project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null } | null = null;
+    let milestoneRows: any[] = [];
+    let currentMilestone: { id: string; type: string; nameHe: string; nameEn: string; status: string; dueDate: string | null } | null = null;
+
+    if (activeProjectId) {
+      const projectSnap = await db.collection('projects').doc(activeProjectId).get();
+      if (projectSnap.exists) {
+        const projectData = projectSnap.data()!;
+        let supervisorName: string | null = null;
+        if (projectData.supervisorId) {
+          const supSnap = await db.collection('users').doc(projectData.supervisorId).get();
+          supervisorName = supSnap.data()?.displayName ?? null;
+        }
+        project = {
+          id: projectSnap.id,
+          titleHe: projectData.titleHe || projectData.titleEn || '',
+          titleEn: projectData.titleEn || projectData.titleHe || '',
+          supervisorName,
+        };
+
+        const milestonesSnap = await db.collection('milestones')
+          .where('projectId', '==', activeProjectId)
+          .where('studentIds', 'array-contains', studentId)
+          .get();
+
+        milestoneRows = milestonesSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a: any, b: any) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
+
+        const current = milestoneRows.find((m) => !DONE_MILESTONE_STATUSES.has(m.status)) ?? milestoneRows[milestoneRows.length - 1];
+        if (current) {
+          currentMilestone = {
+            id: current.id,
+            type: current.type,
+            nameHe: current.nameHe ?? current.type,
+            nameEn: current.nameEn ?? current.type,
+            status: current.status,
+            dueDate: current.dueDate?.toDate?.()?.toISOString?.() ?? null,
+          };
+        }
+      }
+    }
+
+    return res.status(200).json({
+      student: {
+        id: studentSnap.id,
+        name: studentData.displayName ?? '',
+        facultyId: studentData.facultyId ?? null,
+        major: studentData.major ?? null,
+        degreeType: studentData.degreeType ?? null,
+      },
+      project,
+      currentMilestone,
+      // Already-submitted milestones (anything past 'pending') — the
+      // student's history of what she handed in and what she got for it.
+      milestones: milestoneRows
+        .filter((m) => m.status !== 'pending')
+        .map((m) => ({
+          id: m.id,
+          type: m.type,
+          nameHe: m.nameHe ?? m.type,
+          nameEn: m.nameEn ?? m.type,
+          status: m.status,
+          dueDate: m.dueDate?.toDate?.()?.toISOString?.() ?? null,
+          submittedAt: m.submittedAt?.toDate?.()?.toISOString?.() ?? null,
+          finalGrade: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? null,
+          gradeApproved: m.gradeApproved ?? false,
+        })),
+    });
+  } catch (error: any) {
+    console.error('getStudentDetail error:', error);
+    return res.status(500).json({ message: 'Failed to load student detail.' });
   }
 };
 

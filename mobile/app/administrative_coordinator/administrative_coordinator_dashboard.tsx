@@ -1002,7 +1002,11 @@ export default function ProjectCoordinatorDashboard() {
                       ? (lang === 'he' ? `${row.days} ימים בחיפוש` : `${row.days}d searching`)
                       : `${row.days}`;
                 return (
-                  <View key={row.id} style={[s.card, { borderLeftColor: fc.primary }]}>
+                  <Pressable
+                    key={row.id}
+                    style={[s.card, { borderLeftColor: fc.primary }]}
+                    onPress={() => router.push(`/administrative_coordinator/students/${row.id}` as any)}
+                  >
                     <Text style={s.cardTitle}>{row.name}</Text>
                     <Text style={[s.cardSub, { color: STUDENT_STATUS_COLOR[row.status], fontWeight: '700' }]}>
                       {studentStatusText(row, lang)}
@@ -1013,7 +1017,7 @@ export default function ProjectCoordinatorDashboard() {
                     <Text style={[s.cardSub, { fontWeight: '700', color: row.days !== null && row.days < 0 ? '#EF4444' : undefined }]}>
                       ⏳ {daysLabel}
                     </Text>
-                  </View>
+                  </Pressable>
                 );
               })
             )}

@@ -37,6 +37,7 @@ export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: strin
   milestone_deadline_7d: { icon: '⏰', color: 'var(--accent)', bg: '#FBF3E3' },
   milestone_deadline_1d: { icon: '🚨', color: 'var(--danger)', bg: 'var(--danger-bg)' },
   milestone_overdue: { icon: '⏰', color: 'var(--danger)', bg: 'var(--danger-bg)' },
+  milestone_submitted: { icon: '📤', color: '#3E6C8C', bg: '#E9F0F5' },
   account_created: { icon: '🎓', color: '#3E6C8C', bg: '#E9F0F5' },
   broadcast: { icon: '📢', color: 'var(--danger)', bg: 'var(--danger-bg)' },
   new_message: { icon: '💬', color: '#3E6C8C', bg: '#E9F0F5' },
@@ -96,7 +97,9 @@ export function computeNotifTargetRoute(type: string, role: AppRole | undefined)
       return '/student/home';
     case 'application_received':
     case 'account_created':
-      // Recipient can be any role — route to whichever home matches theirs.
+    case 'milestone_submitted':
+      // Recipient can be any role (supervisor, coordinator, administrative
+      // coordinator) — route to whichever home matches theirs.
       return getHomeRoute(role);
     default:
       return '';

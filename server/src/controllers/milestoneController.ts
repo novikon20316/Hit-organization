@@ -6,7 +6,7 @@ import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
-import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
+import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope, resolveStaffForScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { isChainDriven } from '../services/milestoneRouting.js';
 import { sanitizeMilestoneForViewer } from '../services/milestoneVisibility.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
@@ -174,16 +174,16 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       await onEnterCommitteeStage(milestoneId, freshMilestone);
     }
 
-    // ── Notify supervisor ───────────────────────────────────────────────────
+    // ── Notify supervisor + coordinator/administrative-coordinator staff ───
     const supervisorId  = milestoneData.supervisorId ?? null;
     const projectId     = milestoneData.projectId    ?? null;
 
-    if (supervisorId) {
-      const supervisorSnap = await db.collection('users').doc(supervisorId).get();
-      const pushToken = supervisorSnap.data()?.expoPushToken ?? null;
+    const notifyMilestoneSubmitted = async (recipientId: string) => {
+      const recipientSnap = await db.collection('users').doc(recipientId).get();
+      const pushToken = recipientSnap.data()?.expoPushToken ?? null;
 
       await db.collection('notifications').add({
-        recipientId:        supervisorId,
+        recipientId,
         type:               'milestone_submitted',
         titleHe:            'הגשה חדשה ממתינה לבדיקה 📤',
         titleEn:            'New Milestone Submission 📤',
@@ -207,6 +207,24 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
           }),
         });
       }
+    };
+
+    if (supervisorId) {
+      await notifyMilestoneSubmitted(supervisorId);
+    }
+
+    // Coordinator and administrative-coordinator staff covering this
+    // project's faculty/major also want to know a milestone came in, not
+    // just the supervisor — same scope resolution notify.ts's callers use
+    // elsewhere (defenseScheduling.ts, examinerEscalation.ts, etc.).
+    const projectScope = await resolveProjectScope(projectId);
+    if (projectScope) {
+      const [coordinatorIds, adminCoordinatorIds] = await Promise.all([
+        resolveStaffForScope('coordinator', projectScope, supervisorId ? [supervisorId] : []),
+        resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : []),
+      ]);
+      const staffRecipientIds = [...new Set([...coordinatorIds, ...adminCoordinatorIds])].filter((id) => id !== supervisorId);
+      await Promise.all(staffRecipientIds.map((id) => notifyMilestoneSubmitted(id)));
     }
 
     return res.status(200).json({ success: true, message: 'Milestone submitted successfully.' });
