@@ -6,7 +6,7 @@
 // doc so role/profile changes (e.g. an admin flips isActive) reflect
 // immediately without a manual refresh.
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -29,6 +29,13 @@ interface AuthContextValue {
    *  flips false to avoid a flash of the wrong screen. */
   loading: boolean;
   logout: () => Promise<void>;
+  /** Lets a page register a callback to run right before the actual
+   *  sign-out (Firebase signOut) — e.g. calling a backend logout endpoint
+   *  or unsubscribing live Firestore listeners first. Sign-out itself now
+   *  lives in the sidebar (SidebarShell), outside any individual page, so
+   *  this is how a page-specific cleanup step still runs: register on
+   *  mount, pass `null` on unmount. Failures here don't block sign-out. */
+  registerBeforeSignOut: (fn: (() => void | Promise<void>) | null) => void;
   /** All distinct roles the signed-in user holds (primary `role` + `roles[]`,
    *  deduped) — see lib/roles.ts's getUserRoles. */
   roles: AppRole[];
@@ -103,7 +110,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [firebaseUser]);
 
+  const beforeSignOutRef = useRef<(() => void | Promise<void>) | null>(null);
+  const registerBeforeSignOut = (fn: (() => void | Promise<void>) | null) => {
+    beforeSignOutRef.current = fn;
+  };
+
   const logout = async () => {
+    try {
+      await beforeSignOutRef.current?.();
+    } catch (err) {
+      console.error('registerBeforeSignOut callback failed — continuing with sign-out anyway:', err);
+    }
     // Cleared eagerly, before the async signOut() below resolves — closes
     // the window where clicking "sign out" and immediately pressing back
     // would still find the cookie present and slip past proxy.ts.
@@ -139,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userData,
         loading: !authResolved || !profileResolved,
         logout,
+        registerBeforeSignOut,
         roles: getUserRoles(userData),
         activeRole,
       }}

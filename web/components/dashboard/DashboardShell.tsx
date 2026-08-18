@@ -13,7 +13,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { LanguageToggle } from '@/components/LanguageToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { getRoleAccent } from '@/lib/facultyColors';
@@ -24,17 +23,13 @@ interface DashboardShellProps {
   title: string;
   subtitle?: string;
   children: ReactNode;
-  /** Runs before the actual sign-out (Firebase signOut + redirect to
-   *  /login) — e.g. calling a backend logout endpoint or unsubscribing live
-   *  Firestore listeners first. Failures here don't block sign-out. */
-  onBeforeSignOut?: () => void | Promise<void>;
 }
 
 const TOTP_NUDGE_DISMISS_KEY = 'totpNudgeDismissedAt';
 
-export function DashboardShell({ title, subtitle, children, onBeforeSignOut }: DashboardShellProps) {
+export function DashboardShell({ title, subtitle, children }: DashboardShellProps) {
   const router = useRouter();
-  const { firebaseUser, userData, logout, activeRole } = useAuth();
+  const { firebaseUser, userData, activeRole } = useAuth();
   const { lang } = useLanguage();
   usePresenceHeartbeat(!!firebaseUser);
   const railColor = getRoleAccent(activeRole);
@@ -49,16 +44,6 @@ export function DashboardShell({ title, subtitle, children, onBeforeSignOut }: D
   };
 
   const showTotpNudge = !!userData && !userData.totp_enabled && !totpNudgeDismissed;
-
-  const handleLogout = async () => {
-    try {
-      await onBeforeSignOut?.();
-    } catch (err) {
-      console.error('onBeforeSignOut failed — continuing with sign-out anyway:', err);
-    }
-    await logout();
-    router.replace('/login');
-  };
 
   return (
     <div className="flex min-h-screen flex-col bg-paper">
@@ -97,7 +82,6 @@ export function DashboardShell({ title, subtitle, children, onBeforeSignOut }: D
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <LanguageToggle />
             {userData && (
               <div className="flex items-center gap-2">
                 <span
@@ -116,13 +100,6 @@ export function DashboardShell({ title, subtitle, children, onBeforeSignOut }: D
               className="rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-danger hover:text-danger"
             >
               🗑️
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink transition-colors hover:border-danger hover:text-danger"
-            >
-              {lang === 'he' ? 'יציאה' : 'Sign Out'}
             </button>
           </div>
         </div>

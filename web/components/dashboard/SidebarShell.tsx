@@ -26,7 +26,7 @@
 
 import { Suspense, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getRoleAccent } from '@/lib/facultyColors';
@@ -59,7 +59,7 @@ interface SidebarShellProps {
   children: ReactNode;
 }
 
-type ThemeClasses = Record<'nav' | 'brand' | 'subtitle' | 'avatar' | 'sectionLabel' | 'itemActive' | 'itemInactive', string>;
+type ThemeClasses = Record<'nav' | 'brand' | 'subtitle' | 'avatar' | 'sectionLabel' | 'itemActive' | 'itemInactive' | 'divider', string>;
 
 // Isolated in its own component (rather than called directly in
 // SidebarShell) because useSearchParams() forces whatever calls it into a
@@ -114,8 +114,14 @@ function SidebarNavSections({
 }
 
 export function SidebarShell({ brand, sections, quickActions, theme, children }: SidebarShellProps) {
-  const { lang } = useLanguage();
-  const { userData, activeRole } = useAuth();
+  const router = useRouter();
+  const { lang, t, toggleLang } = useLanguage();
+  const { userData, activeRole, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/login');
+  };
 
   const tones = theme.mode === 'accent' ? deriveSidebarTones(getRoleAccent(activeRole)) : null;
   const accentStyle: CSSProperties | undefined = tones
@@ -138,6 +144,7 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
           sectionLabel: 'text-admin-tertiary-fixed-dim/70',
           itemActive: 'border-admin-primary-fixed bg-admin-tertiary-container text-admin-primary-fixed',
           itemInactive: 'text-admin-tertiary-fixed-dim hover:bg-admin-tertiary-container/60 hover:text-admin-on-tertiary-container',
+          divider: 'border-admin-tertiary-fixed-dim/20',
         }
       : {
           nav: 'bg-[var(--sb-bg)] border-[var(--sb-fg-muted)]/20',
@@ -147,6 +154,7 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
           sectionLabel: 'text-[var(--sb-fg-muted)]/70',
           itemActive: 'border-[var(--sb-accent)] bg-[var(--sb-container)] text-[var(--sb-fg-active)]',
           itemInactive: 'text-[var(--sb-fg-muted)] hover:bg-[var(--sb-container)]/60 hover:text-[var(--sb-fg-active)]',
+          divider: 'border-[var(--sb-fg-muted)]/20',
         };
 
   const initial = (userData?.displayName || '?').charAt(0).toUpperCase();
@@ -174,6 +182,29 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
         <Suspense fallback={null}>
           <SidebarNavSections sections={sections} quickActions={quickActions} cls={cls} lang={lang} />
         </Suspense>
+
+        {/* Pinned to the very bottom via mt-auto, set apart from the nav
+         *  links above by its own border — language + sign-out are account-
+         *  level actions, not destinations, so they don't belong mixed in
+         *  with the rest of the menu. */}
+        <div className={`mt-auto border-t px-3 pt-3 ${cls.divider}`}>
+          <button
+            type="button"
+            onClick={toggleLang}
+            className={`flex w-full items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${cls.itemInactive}`}
+          >
+            <span className="text-base leading-none">🌐</span>
+            {lang === 'he' ? t('english') : t('hebrew')}
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={`flex w-full items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${cls.itemInactive} hover:!text-danger`}
+          >
+            <span className="text-base leading-none">🚪</span>
+            {lang === 'he' ? 'יציאה' : 'Sign Out'}
+          </button>
+        </div>
       </nav>
 
       <div className="min-w-0 flex-1">{children}</div>

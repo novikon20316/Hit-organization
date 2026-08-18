@@ -3,16 +3,18 @@
 // app/student/home/page.tsx
 // Ported from mobile/app/student/home.tsx — same state-machine routing
 // (ineligible / no_project / pending / active) delegating to the same four
-// sub-screens. The delete-account flow isn't built yet; sign-out, the
-// language toggle, and the notification bell all come from the shared
-// DashboardShell instead of a bespoke top bar. ChatbotFab is mounted here
-// specifically because mobile only shows it on this screen, not globally.
+// sub-screens. The delete-account flow isn't built yet; the notification
+// bell comes from the shared DashboardShell — sign-out and the language
+// toggle now live in the sidebar (SidebarShell) instead, shared across every
+// role. ChatbotFab is mounted here specifically because mobile only shows
+// it on this screen, not globally.
 
-import { Suspense } from 'react';
+import { Suspense, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ChatbotFab } from '@/components/ChatbotFab';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useStudentData } from '@/hooks/useStudentData';
 import { apiClient } from '@/lib/apiClient';
@@ -29,6 +31,7 @@ const isActiveTab = (v: string | null): v is ActiveTab => v === 'overview' || v 
 
 function StudentHomeContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(STUDENT_ROLES);
+  const { registerBeforeSignOut } = useAuth();
   const { t } = useLanguage();
   const searchParams = useSearchParams();
   // The URL's `?tab=` is the single source of truth for ActiveDashboard's
@@ -49,16 +52,22 @@ function StudentHomeContent() {
 
   // Mirrors mobile's handleSignOut: best-effort backend logout call, then
   // stop the live Firestore listeners before Firebase itself signs out —
-  // both run via DashboardShell's onBeforeSignOut hook, ahead of the actual
-  // signOut()+redirect it always performs.
-  const handleBeforeSignOut = async () => {
+  // both run via the sidebar's Sign Out button through the registered
+  // AuthContext hook below, ahead of the actual signOut()+redirect it
+  // always performs.
+  const handleBeforeSignOut = useCallback(async () => {
     try {
       await apiClient.logout();
     } catch {
       // non-fatal — sign-out proceeds regardless, same as mobile
     }
     cancelAllListeners();
-  };
+  }, [cancelAllListeners]);
+
+  useEffect(() => {
+    registerBeforeSignOut(handleBeforeSignOut);
+    return () => registerBeforeSignOut(null);
+  }, [registerBeforeSignOut, handleBeforeSignOut]);
 
   if (guardLoading || !isAllowed) {
     return (
@@ -70,7 +79,7 @@ function StudentHomeContent() {
 
   return (
     <>
-      <DashboardShell title={t('appName')} onBeforeSignOut={handleBeforeSignOut}>
+      <DashboardShell title={t('appName')}>
         {studentState === 'loading' && (
           <div className="flex justify-center py-16">
             <p className="text-sm text-muted">{t('loading')}</p>
