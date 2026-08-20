@@ -424,7 +424,7 @@ export function MilestoneTimeline({
           <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
         </div>
         <p className="mt-1.5 text-xs text-muted">
-          {completed} / {milestones.length} {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
+          <span dir="ltr">{completed} / {milestones.length}</span> {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
         </p>
       </div>
 

@@ -522,7 +522,7 @@ export default function MilestoneTimeline({
           <View style={[tl.progressFill, { width: `${progress}%` as any }]} />
         </View>
         <Text style={[tl.progressSub, isRtl && tl.textRight]}>
-          {completed} / {milestones.length}{' '}
+          <Text style={{ writingDirection: 'ltr' }}>{completed} / {milestones.length}</Text>{' '}
           {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
         </Text>
       </View>
