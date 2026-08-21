@@ -69,7 +69,13 @@ export type AuditAction =
   | 'final_grade_approved_by_supervisor'
   | 'final_grade_override_proposed'
   | 'grade_override_approved'
-  | 'grade_override_rejected';
+  | 'grade_override_rejected'
+  // Student thesis/project track assignment (see services/studentTrack.ts) —
+  // distinct from 'track_changed' above, which is trackChange.ts's
+  // already-enrolled-project switch.
+  | 'student_track_chosen'
+  | 'student_thesis_eligibility_set'
+  | 'student_track_overridden_by_admin';
 
 export interface AuditLogEntry {
   userId: string;

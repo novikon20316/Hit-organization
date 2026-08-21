@@ -21,7 +21,11 @@ import { academicYearToHebrew } from '@/lib/hebrewYear';
 import type { AppRole } from '@/lib/roles';
 import { majorCellText } from '../../StudentsReportTab';
 
-const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'system_admin'];
+// Widened to include 'coordinator' — the plain faculty coordinator role is
+// who actually grants thesis eligibility for a coordinator_gated student
+// (see the Track card below); everything else on this page stays read-only
+// for them same as for administrative_secretary.
+const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordinator', 'system_admin'];
 
 type StudentDetail = Awaited<ReturnType<typeof apiClient.getStudentDetail>>;
 
@@ -68,31 +72,41 @@ export default function StudentDetailPage() {
   const [data, setData] = useState<StudentDetail | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
+  const [eligibilityReason, setEligibilityReason] = useState('');
+  const [savingEligibility, setSavingEligibility] = useState(false);
+
+  const loadDetail = async () => {
+    if (!studentId) return;
+    setLoadingData(true);
+    setError('');
+    try {
+      const res = await apiClient.getStudentDetail(studentId);
+      setData(res);
+    } catch (err) {
+      console.error('Failed to load student detail:', err);
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת נתוני הסטודנט נכשלה' : 'Failed to load student data');
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   useEffect(() => {
-    if (!studentId) return;
-    let cancelled = false;
-
-    (async () => {
-      setLoadingData(true);
-      setError('');
-      try {
-        const res = await apiClient.getStudentDetail(studentId);
-        if (cancelled) return;
-        setData(res);
-      } catch (err) {
-        if (cancelled) return;
-        console.error('Failed to load student detail:', err);
-        setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת נתוני הסטודנט נכשלה' : 'Failed to load student data');
-      } finally {
-        if (!cancelled) setLoadingData(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    loadDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, lang]);
+
+  const handleSetEligibility = async (eligible: boolean) => {
+    setSavingEligibility(true);
+    try {
+      await apiClient.setStudentThesisEligibility(studentId, eligible, eligibilityReason.trim() || undefined);
+      setEligibilityReason('');
+      await loadDetail();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
+    } finally {
+      setSavingEligibility(false);
+    }
+  };
 
   if (guardLoading || !isAllowed) {
     return (
@@ -131,6 +145,59 @@ export default function StudentDetailPage() {
               <span>📚 {lang === 'he' ? 'מגמה:' : 'Major:'} {majorCellText(student, lang)}</span>
               <span>📆 {lang === 'he' ? 'שנת לימודים:' : 'Year of study:'} {student.yearOfStudy ?? '—'}</span>
             </div>
+          </div>
+
+          {/* Thesis/project track — see server/src/config/studentTrack.ts */}
+          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
+            <p className="text-sm font-semibold text-ink">🧭 {lang === 'he' ? 'מסלול (תזה/פרויקט)' : 'Track (Thesis/Project)'}</p>
+            {student.trackPolicy === 'coordinator_gated' ? (
+              <>
+                <p className="mt-1 text-sm text-muted">
+                  {lang === 'he' ? 'זכאות לתזה כרגע:' : 'Currently thesis-eligible:'}{' '}
+                  <span className={student.thesisEligibility?.eligible ? 'text-success' : 'text-danger'}>
+                    {student.thesisEligibility?.eligible ? (lang === 'he' ? 'כן' : 'Yes') : (lang === 'he' ? 'לא' : 'No')}
+                  </span>
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  {lang === 'he' ? 'מסלול שנבחר:' : 'Chosen track:'}{' '}
+                  {student.track
+                    ? `${student.track === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')}${student.trackLocked ? ' 🔒' : ''}`
+                    : (lang === 'he' ? 'טרם נבחר' : 'Not chosen yet')}
+                </p>
+                <input
+                  value={eligibilityReason}
+                  onChange={(e) => setEligibilityReason(e.target.value)}
+                  placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
+                  className="mt-2 w-full rounded-lg border border-line bg-paper px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none"
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={savingEligibility}
+                    onClick={() => handleSetEligibility(true)}
+                    className="rounded-lg bg-success px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {lang === 'he' ? 'סמן כזכאי/ת לתזה' : 'Mark thesis-eligible'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingEligibility}
+                    onClick={() => handleSetEligibility(false)}
+                    className="rounded-lg bg-danger px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {lang === 'he' ? 'סמן כלא זכאי/ת' : 'Mark not eligible'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-muted">
+                {student.trackPolicy === 'signup_choice'
+                  ? (lang === 'he'
+                    ? `מסלול: ${student.track === 'thesis' ? 'תזה' : 'פרויקט'} (נבחר בהרשמה, נעול)`
+                    : `Track: ${student.track === 'thesis' ? 'Thesis' : 'Project'} (chosen at signup, locked)`)
+                  : (lang === 'he' ? 'מסלול: פרויקט בלבד (אין אפשרות תזה בתוכנית זו)' : 'Track: Project only (no thesis option in this program)')}
+              </p>
+            )}
           </div>
 
           {/* Communication */}

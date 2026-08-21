@@ -11,6 +11,7 @@ import { listPendingLockouts, liftLockout } from '../services/loginSecurity.js';
 import { eraseProjectDirectly } from '../services/projectErasure.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
+import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { WEBSITE_URL, APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
 import {
   validateScopeRule, validateCoordinatorScope,
@@ -1506,6 +1507,10 @@ export const searchStudents = async (req: AuthenticatedRequest, res: Response) =
         academicYearHeld: !!u.academicYearHeld,
         academicYearHeldReason: u.academicYearHeldReason ?? null,
         completedCourses: normalizeCompletedCourses(u.completedCourses),
+        trackPolicy: resolveTrackPolicy(u.degreeType ?? null, u.major ?? null),
+        track: u.track ?? null,
+        trackLocked: !!u.trackLocked,
+        thesisEligibility: u.thesisEligibility ?? null,
       }));
 
     return res.status(200).json({ students });

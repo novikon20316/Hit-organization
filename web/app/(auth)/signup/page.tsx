@@ -12,6 +12,7 @@ import { auth } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { HIT_FACULTIES, PROGRAM_DEGREE_LENGTHS } from '@/lib/faculties';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
+import { resolveTrackPolicy, type StudentTrack } from '@/lib/studentTrack';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 
@@ -93,6 +94,7 @@ export default function SignupPage() {
   const [facultyId, setFacultyId] = useState('');
   const [programKey, setProgramKey] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
+  const [chosenTrack, setChosenTrack] = useState<StudentTrack | null>(null);
 
   const [stage, setStage] = useState<'form' | 'verify'>('form');
   const [saving, setSaving] = useState(false);
@@ -104,6 +106,7 @@ export default function SignupPage() {
   const facultyPrograms = selectedFaculty?.programs ?? [];
   const selectedProgram = facultyPrograms.find((p) => p.key === programKey);
   const degreeType = selectedProgram?.level ?? null;
+  const trackPolicy = selectedProgram ? resolveTrackPolicy(degreeType, selectedProgram.slug) : null;
 
   const yearOptions: number[] = (() => {
     if (!selectedProgram) return [];
@@ -122,7 +125,8 @@ export default function SignupPage() {
       passwordCheck.valid &&
       facultyId &&
       programKey &&
-      yearOfStudy
+      yearOfStudy &&
+      (trackPolicy !== 'signup_choice' || !!chosenTrack)
   );
 
   const finishRegistration = async (user: User) => {
@@ -137,6 +141,7 @@ export default function SignupPage() {
       yearOfStudy: yearOfStudy!,
       major: selectedProgram!.slug,
       studentId,
+      chosenTrack: trackPolicy === 'signup_choice' ? chosenTrack! : undefined,
     });
     if (!res.success) throw new Error(res.message ?? 'Sync failed');
 
@@ -398,6 +403,7 @@ export default function SignupPage() {
                   onChange={(e) => {
                     setProgramKey(e.target.value);
                     setYearOfStudy(null);
+                    setChosenTrack(null);
                   }}
                   className={inputCls}
                   disabled={!facultyId}
@@ -421,6 +427,30 @@ export default function SignupPage() {
                   ))}
                 </select>
               </Field>
+
+              {trackPolicy === 'signup_choice' && (
+                <Field label={lang === 'he' ? 'מסלול' : 'Track'}>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['thesis', 'project'] as const).map((track) => (
+                      <button
+                        key={track}
+                        type="button"
+                        onClick={() => setChosenTrack(track)}
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                          chosenTrack === track ? 'border-primary bg-primary/10 text-primary' : 'border-line bg-paper text-ink'
+                        }`}
+                      >
+                        {track === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted">
+                    {lang === 'he'
+                      ? 'בחירה זו סופית ולא ניתן לשנותה בעצמך לאחר ההרשמה.'
+                      : 'This choice is final — you will not be able to change it yourself after signing up.'}
+                  </p>
+                </Field>
+              )}
             </div>
 
             {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}

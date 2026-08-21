@@ -12,6 +12,7 @@ import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches } from 
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones } from '../services/workflowTemplates.js';
+import { resolveEffectiveTrack } from '../config/studentTrack.js';
 
 const db = admin.firestore();
 
@@ -866,10 +867,13 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
     // returned every degree level unfiltered). For a non-staff caller, their
     // own degreeType always wins here, ignoring whatever the query string
     // asked for.
+    let effectiveTrack: 'thesis' | 'project' | null = null;
     if (!canSeeAllStatuses) {
       const uid = req.user?.uid;
       const userSnap = uid ? await db.collection('users').doc(uid).get() : null;
-      degreeType = userSnap?.data()?.degreeType ?? degreeType;
+      const userData = userSnap?.data();
+      degreeType = userData?.degreeType ?? degreeType;
+      if (userData) effectiveTrack = resolveEffectiveTrack(userData);
     }
 
     // Start with a reference to the projects collection
@@ -895,10 +899,22 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
     const snapshot = await projectsQuery.get();
 
     // Map the documents into a clean array
-    const projects = snapshot.docs.map(doc => ({
+    let projects = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+
+    // A student's thesis/project track is fixed (see config/studentTrack.ts)
+    // — Firestore only allows one array-contains clause per query (already
+    // spent on degreeTypes above), so this is filtered in-memory rather than
+    // as a second where() clause, same as the major convenience-filter every
+    // client-side browse query already does.
+    if (effectiveTrack) {
+      projects = projects.filter((p: any) => {
+        const types: string[] = p.projectTypes ?? (p.projectType ? [p.projectType] : []);
+        return types.length === 0 || types.includes(effectiveTrack);
+      });
+    }
 
     // Return the data exactly how the frontend expects it: { projects: [...] }
     return res.status(200).json({ projects });

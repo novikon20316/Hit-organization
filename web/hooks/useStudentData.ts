@@ -14,6 +14,7 @@ import { normalizeCompletedCourses, type CompletedCourse } from '@/lib/prerequis
 import { useAuth } from '@/contexts/AuthContext';
 import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication } from '@/app/student/home/types';
 import { resolveMilestoneOrder } from '@/app/student/home/types';
+import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/lib/studentTrack';
 
 // TEMP-2-ACTIVE-PROJECTS: one entry per project the student is currently
 // enrolled in — normally just one, but the server-side bypass in
@@ -39,6 +40,10 @@ export function useStudentData() {
   const [studentMajor, setStudentMajor] = useState('');
   const [studentYearOfStudy, setStudentYearOfStudy] = useState<number | null>(null);
   const [studentCompletedCourses, setStudentCompletedCourses] = useState<CompletedCourse[]>([]);
+  const [studentTrack,          setStudentTrack]          = useState<StudentTrack | null>(null);
+  const [studentTrackPolicy,    setStudentTrackPolicy]    = useState<TrackPolicy | null>(null);
+  const [studentTrackLocked,    setStudentTrackLocked]    = useState(false);
+  const [studentThesisEligible, setStudentThesisEligible] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const unsubProposals = useRef<(() => void) | null>(null);
@@ -76,6 +81,10 @@ export function useStudentData() {
         activeProjectId?: string;
         activeProjectIds?: string[];
         isEligibleForProcess?: boolean;
+        track?: StudentTrack | null;
+        trackPolicy?: TrackPolicy | null;
+        trackLocked?: boolean;
+        thesisEligibility?: { eligible: boolean } | null;
       };
 
       const uid = userData.id || userData.uid || '';
@@ -87,6 +96,10 @@ export function useStudentData() {
       setStudentMajor(userData.major || '');
       setStudentYearOfStudy(userData.yearOfStudy ?? null);
       setStudentCompletedCourses(normalizeCompletedCourses(userData.completedCourses));
+      setStudentTrack(userData.track ?? null);
+      setStudentTrackPolicy(userData.trackPolicy ?? null);
+      setStudentTrackLocked(!!userData.trackLocked);
+      setStudentThesisEligible(userData.thesisEligibility?.eligible === true);
 
       // activeProjectIds is the TEMP-2-ACTIVE-PROJECTS field — falls back to
       // the single scalar activeProjectId for any student not currently
@@ -182,9 +195,15 @@ export function useStudentData() {
         // for real; a student could otherwise still reach a mismatched
         // project's data directly). No major on the project means open to
         // every major, unchanged from before this field existed.
+        const effectiveTrack = resolveEffectiveTrack({ degreeType: studentDegree, major: studentMajor, track: studentTrack });
         const rawProjects = snapshot.docs
           .map((d) => ({ id: d.id, ...d.data() }) as ProjectProposal)
-          .filter((p) => !p.major || p.major === studentMajor);
+          .filter((p) => {
+            if (p.major && p.major !== studentMajor) return false;
+            const types = (p as { projectTypes?: string[]; projectType?: string }).projectTypes
+              ?? ((p as { projectType?: string }).projectType ? [(p as { projectType?: string }).projectType as string] : []);
+            return types.length === 0 || types.includes(effectiveTrack);
+          });
 
         const supervisorIds = [...new Set(rawProjects.filter((p) => p.supervisorId && !p.supervisorName).map((p) => p.supervisorId))];
 
@@ -209,7 +228,7 @@ export function useStudentData() {
 
     unsubProposals.current = unsub;
     return () => cancel(unsubProposals);
-  }, [studentState, studentFaculty, studentDegree, studentMajor]);
+  }, [studentState, studentFaculty, studentDegree, studentMajor, studentTrack]);
 
   // ── EFFECT 3: user-doc listener (watches hasActiveProject flag) ───────────
   useEffect(() => {
@@ -313,6 +332,15 @@ export function useStudentData() {
 
   const activeProjectsWithDerived = activeProjects.map((ap) => ({ ...ap, ...withDerived(ap.milestones) }));
 
+  // Self-service track choice — used by a coordinator_gated student (e.g.
+  // M.Sc Computer Science) once their coordinator has marked them thesis-
+  // eligible. Refreshes the dashboard on success so the browse listener's
+  // effectiveTrack filter above picks up the new choice immediately.
+  const chooseTrack = useCallback(async (track: StudentTrack) => {
+    await apiClient.post('/api/student/track/choose', { track });
+    await fetchDashboardData();
+  }, [fetchDashboardData]);
+
   // Back-compat single-project view for any code not yet updated to the
   // activeProjects array — the first entry, same as the only entry when the
   // TEMP-2-ACTIVE-PROJECTS bypass isn't in effect.
@@ -335,6 +363,11 @@ export function useStudentData() {
     progress,
     pendingApplications,
     supervisorSelectionRequiresApproval,
+    studentTrack,
+    studentTrackPolicy,
+    studentTrackLocked,
+    studentThesisEligible,
+    chooseTrack,
     error,
     refresh: fetchDashboardData,
     cancelAllListeners,

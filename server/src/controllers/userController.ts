@@ -11,6 +11,7 @@ import { checkStudentEligibility, markRosterEntryUsed } from '../services/studen
 import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
 import { hashPassword, getTempPasswordHash, clearTempPasswordHash } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { resolveTrackPolicy } from '../config/studentTrack.js';
 
 // Exported — also used by adminController.ts's updateStudentAcademicYear to
 // recompute this whenever a student's yearOfStudy is corrected/advanced, so
@@ -129,7 +130,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 
     const {
       newUid, email, displayName, displayNameHe, displayNameEn,
-      role, facultyId, degreeType, yearOfStudy, major, studentId,
+      role, facultyId, degreeType, yearOfStudy, major, studentId, chosenTrack,
     } = req.body;
 
     if (!newUid || !email || !role) {
@@ -184,6 +185,18 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: `Invalid major: "${major}"` });
     }
 
+    // Student thesis/project track — see config/studentTrack.ts. Resolved
+    // server-side from degreeType/major, never trusted from the client;
+    // chosenTrack is only ever honored for a 'signup_choice' major, and only
+    // 'thesis'/'project' are valid values there.
+    const trackPolicy = role === 'student' ? resolveTrackPolicy(degreeType, major) : null;
+    if (trackPolicy === 'signup_choice' && chosenTrack !== 'thesis' && chosenTrack !== 'project') {
+      return res.status(400).json({ error: 'You must choose a track (thesis or project) to register for this program.' });
+    }
+    if (trackPolicy && trackPolicy !== 'signup_choice' && (chosenTrack === 'thesis' || chosenTrack === 'project')) {
+      return res.status(400).json({ error: 'This program does not allow choosing a track at signup.' });
+    }
+
     // Authoritative gate — the public verify-eligibility endpoint the client
     // calls before this is only a fail-fast UX check; this is what actually
     // decides whether the account gets created. See services/studentRoster.ts.
@@ -230,6 +243,26 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       ...(role === 'examiner' ? { dates: [] } : {}),
       isEligibleForProcess,
       updatedAt: new Date().toISOString(),
+      // Student thesis/project track — see config/studentTrack.ts. Bachelors
+      // students get no track fields at all (trackPolicy stays null above),
+      // since the thesis concept doesn't apply to them.
+      ...(trackPolicy === 'signup_choice' ? {
+        trackPolicy,
+        track: chosenTrack,
+        trackLocked: true,
+        trackLockedReason: 'signup_choice',
+        trackLockedAt: Timestamp.now(),
+      } : trackPolicy === 'coordinator_gated' ? {
+        trackPolicy,
+        track: null,
+        trackLocked: false,
+        thesisEligibility: null,
+      } : trackPolicy === 'project_only' ? {
+        trackPolicy,
+        track: 'project',
+        trackLocked: true,
+        trackLockedReason: 'project_only',
+      } : {}),
     };
 
     await userRef.set(firestoreUserDoc, { merge: true });

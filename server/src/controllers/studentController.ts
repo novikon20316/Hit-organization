@@ -9,6 +9,7 @@ import {
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
+import { resolveEffectiveTrack } from '../config/studentTrack.js';
 
 // Mirrors web/lib/roles.ts's PERMISSION_MAP: view_all_projects (cross-faculty,
 // no ownership needed) vs. view_faculty_projects (same-faculty only) vs.
@@ -183,11 +184,15 @@ export const getBrowseSupervisors = async (req: AuthenticatedRequest, res: Respo
       .where('degreeTypes', 'array-contains', degreeType)
       .get();
 
+    const effectiveTrack = resolveEffectiveTrack(studentData);
     const eligibleProjects = projectsSnap.docs
       .map((d) => ({ id: d.id, ...d.data() } as any))
       .filter((p) => {
         if (p.isArchived) return false; // see services/projectErasure.ts
         if (p.major && studentData.major !== p.major) return false;
+        // A student's thesis/project track is fixed (see config/studentTrack.ts).
+        const types: string[] = p.projectTypes ?? (p.projectType ? [p.projectType] : []);
+        if (types.length > 0 && !types.includes(effectiveTrack)) return false;
         const capacity = p.maxStudents ?? p.NumberOfStudents ?? 1;
         const enrolledCount = (p.enrolledStudentIds ?? []).length;
         return enrolledCount < capacity;

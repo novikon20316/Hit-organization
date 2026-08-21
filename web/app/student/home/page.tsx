@@ -9,7 +9,7 @@
 // role. ChatbotFab is mounted here specifically because mobile only shows
 // it on this screen, not globally.
 
-import { Suspense, useCallback, useEffect } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ChatbotFab } from '@/components/ChatbotFab';
@@ -32,7 +32,7 @@ const isActiveTab = (v: string | null): v is ActiveTab => v === 'overview' || v 
 function StudentHomeContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(STUDENT_ROLES);
   const { registerBeforeSignOut } = useAuth();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const searchParams = useSearchParams();
   // The URL's `?tab=` is the single source of truth for ActiveDashboard's
   // Overview/Milestones/Grades tab — see app/student/layout.tsx's sidebar
@@ -48,7 +48,24 @@ function StudentHomeContent() {
     studentCompletedCourses,
     refresh,
     cancelAllListeners,
+    studentTrackPolicy,
+    studentTrackLocked,
+    studentThesisEligible,
+    chooseTrack,
   } = useStudentData();
+  const [choosingTrack, setChoosingTrack] = useState(false);
+  const showTrackChoice = studentTrackPolicy === 'coordinator_gated' && studentThesisEligible && !studentTrackLocked;
+
+  const handleChooseTrack = async (track: 'thesis' | 'project') => {
+    setChoosingTrack(true);
+    try {
+      await chooseTrack(track);
+    } catch (e) {
+      console.error('Failed to set track:', e);
+    } finally {
+      setChoosingTrack(false);
+    }
+  };
 
   // Mirrors mobile's handleSignOut: best-effort backend logout call, then
   // stop the live Firestore listeners before Firebase itself signs out —
@@ -87,6 +104,35 @@ function StudentHomeContent() {
         )}
 
         {studentState === 'ineligible' && <InfoScreen studentDegree={studentDegree} />}
+
+        {showTrackChoice && (studentState === 'no_project' || studentState === 'choose_supervisor') && (
+          <div className="mb-4 rounded-[var(--radius)] border border-primary/30 bg-primary/5 p-4">
+            <p className="text-sm font-semibold text-ink">
+              {lang === 'he' ? 'הוכרת כזכאי/ת למסלול תזה 🎉' : "You're eligible for the thesis track 🎉"}
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              {lang === 'he' ? 'בחר/י את המסלול שברצונך להמשיך בו — בחירה זו סופית.' : 'Choose which track you want to continue on — this choice is final.'}
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                disabled={choosingTrack}
+                onClick={() => handleChooseTrack('thesis')}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              >
+                {lang === 'he' ? 'תזה' : 'Thesis'}
+              </button>
+              <button
+                type="button"
+                disabled={choosingTrack}
+                onClick={() => handleChooseTrack('project')}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              >
+                {lang === 'he' ? 'פרויקט' : 'Project'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {studentState === 'no_project' && (
           <BrowseProjects

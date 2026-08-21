@@ -159,6 +159,26 @@ export interface UserDocument {
   year?: string;
   major?: string;
   createdAt?: Timestamp | string;
+  // Student-only thesis/project track — see constants/studentTrack.ts.
+  // Absent entirely on bachelors students (the concept doesn't apply) and on
+  // any student doc written before this feature existed.
+  trackPolicy?: 'coordinator_gated' | 'signup_choice' | 'project_only';
+  /** null = policy-fixed-but-not-yet-chosen (coordinator_gated, pending) */
+  track?: ProjectType | null;
+  trackLocked?: boolean;
+  trackLockedReason?: 'signup_choice' | 'project_only' | 'coordinator_gated_default' | 'system_admin_override';
+  trackLockedAt?: Timestamp | string | null;
+  /** Only ever set/meaningful for trackPolicy === 'coordinator_gated'. */
+  thesisEligibility?: {
+    method: 'manual' | 'automatic';
+    eligible: boolean;
+    decidedBy: string | null;
+    decidedAt: Timestamp | string | null;
+    reason?: string | null;
+    // Forward-compat for a future automatic-threshold mode — unused today.
+    threshold?: number | null;
+    computedScore?: number | null;
+  } | null;
 }
 
 /**

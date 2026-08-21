@@ -151,6 +151,24 @@ service cloud.firestore {
         : [res.data.get('degreeType', '')];
     }
 
+    // A project's thesis/project type lives in `projectTypes` (a project can
+    // legitimately be open to both at once); pre-migration docs only ever had
+    // the single scalar `projectType` field, same fallback convention as
+    // projectDegreeTypes above.
+    function projectProjectTypes(res) {
+      return res.data.get('projectTypes', []).size() > 0
+        ? res.data.get('projectTypes', [])
+        : [res.data.get('projectType', '')];
+    }
+
+    // A student's thesis/project track (see server/src/config/studentTrack.ts)
+    // — a coordinator-gated student who hasn't chosen yet has `track` unset,
+    // which behaves as 'project' in the meantime ("fixed to projects until
+    // upgraded"), same default every server-side reader of this field uses.
+    function effectiveStudentTrack(u) {
+      return u.get('track', null) == 'thesis' ? 'thesis' : 'project';
+    }
+
     function studentCanReadProjectByMajor(res) {
       let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return u.role == 'student' && res.data.get('status', '') == 'active' &&
@@ -161,7 +179,9 @@ service cloud.firestore {
         // to always add a degreeTypes array-contains clause) could read
         // cross-degree projects; rules, not the client's own query, are the
         // real read-authorization boundary.
-        u.get('degreeType', '') in projectDegreeTypes(res);
+        u.get('degreeType', '') in projectDegreeTypes(res) &&
+        // Same reasoning for the student's fixed thesis/project track.
+        effectiveStudentTrack(u) in projectProjectTypes(res);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@
 // getStudentDetail) — mirrors web's students/[studentId]/page.tsx.
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
@@ -26,6 +26,10 @@ interface StudentDetail {
     email: string;
     phoneNumber: string | null;
     yearOfStudy: number | null;
+    trackPolicy: 'coordinator_gated' | 'signup_choice' | 'project_only';
+    track: 'thesis' | 'project' | null;
+    trackLocked: boolean;
+    thesisEligibility: { eligible: boolean; reason?: string | null; decidedAt?: string | null } | null;
   };
   project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null; academicYear: string | null } | null;
   currentMilestone: { id: string; type: string; nameHe: string; nameEn: string; status: string; dueDate: string | null } | null;
@@ -100,21 +104,45 @@ export default function StudentDetailScreen() {
   const [data, setData] = useState<StudentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [eligibilityReason, setEligibilityReason] = useState('');
+  const [savingEligibility, setSavingEligibility] = useState(false);
 
-  useEffect(() => {
+  const loadDetail = () => {
     if (!studentId) return;
-    let cancelled = false;
     setLoading(true);
     setError('');
-    apiClient.get(`/api/project-coordinator/students/${studentId}/detail`)
-      .then((res: any) => { if (!cancelled) setData(res.data); })
+    return apiClient.get(`/api/project-coordinator/students/${studentId}/detail`)
+      .then((res: any) => { setData(res.data); })
       .catch((err: any) => {
         console.error('Failed to load student detail:', err);
-        if (!cancelled) setError(lang === 'he' ? 'טעינת נתוני הסטודנט נכשלה' : 'Failed to load student data');
+        setError(lang === 'he' ? 'טעינת נתוני הסטודנט נכשלה' : 'Failed to load student data');
       })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .finally(() => { setLoading(false); });
+  };
+
+  useEffect(() => {
+    loadDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, lang]);
+
+  const handleSetEligibility = async (eligible: boolean) => {
+    setSavingEligibility(true);
+    try {
+      await apiClient.post(`/api/project-coordinator/students/${studentId}/thesis-eligibility`, {
+        eligible,
+        reason: eligibilityReason.trim() || undefined,
+      });
+      setEligibilityReason('');
+      await loadDetail();
+    } catch (err: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        err?.response?.data?.message || (lang === 'he' ? 'העדכון נכשל' : 'Update failed')
+      );
+    } finally {
+      setSavingEligibility(false);
+    }
+  };
 
   const student = data?.student ?? null;
   const project = data?.project ?? null;
@@ -158,6 +186,62 @@ export default function StudentDetailScreen() {
               <Text style={styles.cardSub}>
                 📆 {lang === 'he' ? 'שנת לימודים:' : 'Year of study:'} {student.yearOfStudy ?? '—'}
               </Text>
+            </View>
+
+            {/* Thesis/project track — see server/src/config/studentTrack.ts */}
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>🧭 {lang === 'he' ? 'מסלול (תזה/פרויקט)' : 'Track (Thesis/Project)'}</Text>
+              {student.trackPolicy === 'coordinator_gated' ? (
+                <>
+                  <Text style={styles.cardSub}>
+                    {lang === 'he' ? 'זכאות לתזה כרגע:' : 'Currently thesis-eligible:'}{' '}
+                    {student.thesisEligibility?.eligible
+                      ? (lang === 'he' ? 'כן ✅' : 'Yes ✅')
+                      : (lang === 'he' ? 'לא' : 'No')}
+                  </Text>
+                  <Text style={styles.cardSub}>
+                    {lang === 'he' ? 'מסלול שנבחר:' : 'Chosen track:'}{' '}
+                    {student.track
+                      ? (student.track === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project'))
+                      : (lang === 'he' ? 'טרם נבחר' : 'Not chosen yet')}
+                    {student.trackLocked ? ` 🔒` : ''}
+                  </Text>
+                  <TextInput
+                    value={eligibilityReason}
+                    onChangeText={setEligibilityReason}
+                    placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
+                    style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 8, marginTop: 8, fontSize: 13 }}
+                  />
+                  <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 8, marginTop: 8 }}>
+                    <Pressable
+                      disabled={savingEligibility}
+                      onPress={() => handleSetEligibility(true)}
+                      style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 8, paddingVertical: 10, alignItems: 'center', opacity: savingEligibility ? 0.6 : 1 }}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                        {lang === 'he' ? 'סמן כזכאי/ת לתזה' : 'Mark thesis-eligible'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={savingEligibility}
+                      onPress={() => handleSetEligibility(false)}
+                      style={{ flex: 1, backgroundColor: '#EF4444', borderRadius: 8, paddingVertical: 10, alignItems: 'center', opacity: savingEligibility ? 0.6 : 1 }}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                        {lang === 'he' ? 'סמן כלא זכאי/ת' : 'Mark not eligible'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.cardSub}>
+                  {student.trackPolicy === 'signup_choice'
+                    ? (lang === 'he'
+                      ? `מסלול: ${student.track === 'thesis' ? 'תזה' : 'פרויקט'} (נבחר בהרשמה, נעול)`
+                      : `Track: ${student.track === 'thesis' ? 'Thesis' : 'Project'} (chosen at signup, locked)`)
+                    : (lang === 'he' ? 'מסלול: פרויקט בלבד (אין אפשרות תזה בתוכנית זו)' : 'Track: Project only (no thesis option in this program)')}
+                </Text>
+              )}
             </View>
 
             {/* Communication */}

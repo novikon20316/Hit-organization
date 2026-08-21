@@ -18,6 +18,7 @@ import {
 } from '../services/coordinatorStatistics.js';
 import { FACULTY_NAMES } from '../services/studentProgress.js';
 import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
+import { resolveTrackPolicy } from '../config/studentTrack.js';
 
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
 
@@ -29,6 +30,13 @@ const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system
 // doesn't also gain access to this file's OTHER endpoints (the groups
 // dashboard/students-report/grade-overrides), which were never part of this request.
 const COORDINATOR_STATISTICS_ROLES = ['administrative_secretary', 'coordinator', 'system_admin'];
+
+// Same "own scoped constant instead of widening PROJECT_COORDINATOR_DASHBOARD_ROLES"
+// precedent as COORDINATOR_STATISTICS_ROLES above — getStudentDetail is also
+// where the student thesis/project track (config/studentTrack.ts) is shown
+// and, for a computer_science masters student, where the plain `coordinator`
+// role (who the business rule actually names) grants thesis eligibility.
+const STUDENT_DETAIL_ROLES = ['administrative_secretary', 'coordinator', 'system_admin'];
 
 interface DegreeScope { facultyId: string; major?: string }
 
@@ -454,7 +462,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
 export const getStudentDetail = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !PROJECT_COORDINATOR_DASHBOARD_ROLES.includes(req.user.role)) {
+  if (!req.user?.role || !STUDENT_DETAIL_ROLES.includes(req.user.role)) {
     return res.status(403).json({ message: 'You do not have permission to view this student.' });
   }
 
@@ -531,6 +539,14 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         email: studentData.email ?? '',
         phoneNumber: studentData.phoneNumber ?? null,
         yearOfStudy: studentData.yearOfStudy ?? null,
+        // Thesis/project track — see config/studentTrack.ts. trackPolicy is
+        // re-resolved live (not read off the student's own snapshotted copy)
+        // so this always reflects the current config even for a student doc
+        // written before this feature existed.
+        trackPolicy: resolveTrackPolicy(studentData.degreeType, studentData.major),
+        track: studentData.track ?? null,
+        trackLocked: studentData.trackLocked ?? false,
+        thesisEligibility: studentData.thesisEligibility ?? null,
       },
       project,
       currentMilestone,

@@ -30,6 +30,10 @@ interface StudentResult {
   academicYearHeld: boolean;
   academicYearHeldReason: string | null;
   completedCourses: { subject: string; grade?: number }[];
+  trackPolicy: 'coordinator_gated' | 'signup_choice' | 'project_only';
+  track: 'thesis' | 'project' | null;
+  trackLocked: boolean;
+  thesisEligibility: { eligible: boolean } | null;
 }
 
 export default function AcademicYearPage() {
@@ -129,6 +133,17 @@ export default function AcademicYearPage() {
       {selected && isSystemAdmin && (
         <EditCompletedCoursesForm
           key={`${selected.id}-courses`}
+          student={selected}
+          onSaved={(updated) => {
+            setResults((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setSelected(updated);
+          }}
+        />
+      )}
+
+      {selected && isSystemAdmin && (
+        <EditTrackForm
+          key={`${selected.id}-track`}
           student={selected}
           onSaved={(updated) => {
             setResults((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -338,6 +353,95 @@ function EditCompletedCoursesForm({
           </button>
         </div>
       </div>
+
+      {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+      >
+        {saving ? '…' : lang === 'he' ? 'שמור' : 'Save'}
+      </button>
+    </div>
+  );
+}
+
+// Rare escape hatch, system_admin only — see server/src/services/
+// studentTrack.ts's adminOverrideStudentTrack. Bypasses the normal signup/
+// coordinator-eligibility business rules entirely; use only to fix a stuck
+// or wrong track state (e.g. undoing a coordinator's reversal).
+function EditTrackForm({
+  student, onSaved,
+}: {
+  student: StudentResult;
+  onSaved: (updated: StudentResult) => void;
+}) {
+  const { lang } = useLanguage();
+  const [track, setTrack] = useState<'thesis' | 'project' | ''>(student.track ?? '');
+  const [trackLocked, setTrackLocked] = useState(student.trackLocked);
+  const [thesisEligible, setThesisEligible] = useState(student.thesisEligibility?.eligible ?? false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await apiClient.overrideStudentTrack(student.id, {
+        track: track || null,
+        trackLocked,
+        thesisEligible: student.trackPolicy === 'coordinator_gated' ? thesisEligible : undefined,
+      });
+      onSaved({
+        ...student,
+        track: track || null,
+        trackLocked,
+        thesisEligibility: student.trackPolicy === 'coordinator_gated' ? { eligible: thesisEligible } : student.thesisEligibility,
+      });
+    } catch (err) {
+      setError(err instanceof ApiError || err instanceof SoftError ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 max-w-md rounded-[var(--radius)] border border-line bg-surface p-5">
+      <p className="text-sm font-semibold text-ink">
+        🧭 {lang === 'he' ? 'עקיפת מסלול (תזה/פרויקט)' : 'Override Track (Thesis/Project)'} — {student.displayName}
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        {lang === 'he'
+          ? 'פתח חירום, מנהל מערכת בלבד — עוקף את כללי ההרשמה/אישור הרכז הרגילים.'
+          : 'Emergency escape hatch, system_admin only — bypasses the normal signup/coordinator-approval rules.'}
+      </p>
+
+      <label className="mt-3 block">
+        <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מסלול' : 'Track'}</span>
+        <select
+          value={track}
+          onChange={(e) => setTrack(e.target.value as 'thesis' | 'project' | '')}
+          className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+        >
+          <option value="">{lang === 'he' ? '(לא נבחר)' : '(not set)'}</option>
+          <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>
+          <option value="project">{lang === 'he' ? 'פרויקט' : 'Project'}</option>
+        </select>
+      </label>
+
+      <label className="mt-3 flex items-center gap-2 text-sm text-ink">
+        <input type="checkbox" checked={trackLocked} onChange={(e) => setTrackLocked(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
+        {lang === 'he' ? 'נעל מסלול (הסטודנט לא יוכל לשנות בעצמו)' : "Lock track (student can't change it themselves)"}
+      </label>
+
+      {student.trackPolicy === 'coordinator_gated' && (
+        <label className="mt-3 flex items-center gap-2 text-sm text-ink">
+          <input type="checkbox" checked={thesisEligible} onChange={(e) => setThesisEligible(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
+          {lang === 'he' ? 'זכאי/ת לתזה' : 'Thesis-eligible'}
+        </label>
+      )}
 
       {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
 

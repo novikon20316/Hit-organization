@@ -9,6 +9,7 @@ import {
   PendingApplication, AppNotification
 } from '@/types';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/components/Prerequisites';
+import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/constants/studentTrack';
 
 // TEMP-2-ACTIVE-PROJECTS: one entry per project the student is currently
 // enrolled in — normally just one, but the server-side bypass in
@@ -50,6 +51,10 @@ export function useStudentData() {
   const [error,              setError]              = useState<string | null>(null);
   const [studentYearOfStudy, setStudentYearOfStudy] = useState<number | null>(null);
   const [studentCompletedCourses, setStudentCompletedCourses] = useState<CompletedCourse[]>([]);
+  const [studentTrack,           setStudentTrack]           = useState<StudentTrack | null>(null);
+  const [studentTrackPolicy,     setStudentTrackPolicy]     = useState<TrackPolicy | null>(null);
+  const [studentTrackLocked,     setStudentTrackLocked]     = useState(false);
+  const [studentThesisEligible,  setStudentThesisEligible]  = useState(false);
 
   // ── Track all active unsubscribe functions in a ref so they survive re-renders
   const unsubProposals  = useRef<(() => void) | null>(null);
@@ -88,6 +93,10 @@ export function useStudentData() {
       setStudentMajor(userData.major || '');
       setStudentYearOfStudy(userData.yearOfStudy ?? null);
       setStudentCompletedCourses(normalizeCompletedCourses(userData.completedCourses));
+      setStudentTrack(userData.track ?? null);
+      setStudentTrackPolicy(userData.trackPolicy ?? null);
+      setStudentTrackLocked(!!userData.trackLocked);
+      setStudentThesisEligible(userData.thesisEligibility?.eligible === true);
       // The eligibility gate (based on current year-of-study) decides whether
       // a student may BROWSE/APPLY to new projects — it must never block a
       // student who already has an active project. isEligibleForProcess is
@@ -203,7 +212,12 @@ export function useStudentData() {
         // unchanged from today's default. This mirrors firestore.rules'
         // studentCanReadProjectByMajor (the real enforcement boundary); this
         // filter is just the client-side browse-list UX on top of it.
-        const rawProjects = allProjects.filter(p => !p.major || p.major === studentMajor);
+        const effectiveTrack = resolveEffectiveTrack({ degreeType: studentDegree, major: studentMajor, track: studentTrack });
+        const rawProjects = allProjects.filter(p => {
+          if (p.major && p.major !== studentMajor) return false;
+          const types = p.projectTypes ?? (p.projectType ? [p.projectType] : []);
+          return types.length === 0 || types.includes(effectiveTrack);
+        });
 
         const supervisorIds = [...new Set(
           rawProjects
@@ -239,7 +253,7 @@ export function useStudentData() {
     unsubProposals.current = unsub;
 
     return () => cancel(unsubProposals);
-  }, [studentState, studentFaculty, studentDegree, studentMajor]);
+  }, [studentState, studentFaculty, studentDegree, studentMajor, studentTrack]);
 
   // ── EFFECT 3: User doc listener (watches hasActiveProject flag) ───────────
   useEffect(() => {
@@ -346,6 +360,15 @@ export function useStudentData() {
 
   const activeProjectsWithDerived = activeProjects.map(ap => ({ ...ap, ...withDerived(ap.milestones) }));
 
+  // Self-service track choice — used by a coordinator_gated student (e.g.
+  // M.Sc Computer Science) once their coordinator has marked them thesis-
+  // eligible. Refreshes the dashboard on success so the browse listener's
+  // effectiveTrack filter above picks up the new choice immediately.
+  const chooseTrack = useCallback(async (track: StudentTrack) => {
+    await apiClient.post('/api/student/track/choose', { track });
+    await fetchDashboardData();
+  }, [fetchDashboardData]);
+
   // Back-compat single-project view for any code not yet updated to the
   // activeProjects array — the first entry, same as the only entry when the
   // TEMP-2-ACTIVE-PROJECTS bypass isn't in effect.
@@ -369,6 +392,11 @@ export function useStudentData() {
     supervisorSelectionRequiresApproval,
     notifications,
     studentDegree,
+    studentTrack,
+    studentTrackPolicy,
+    studentTrackLocked,
+    studentThesisEligible,
+    chooseTrack,
     error,
     refresh: fetchDashboardData,
     cancelAllListeners, // ← export so home.tsx can call it on logout

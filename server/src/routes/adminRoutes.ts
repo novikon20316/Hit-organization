@@ -52,6 +52,7 @@ import {
   updateStudentStatusOptions,
   setStudentStatus,
 } from '../controllers/studentStatusController.js';
+import { overrideStudentTrack } from '../controllers/studentTrackController.js';
 
 const router = Router();
 
@@ -108,6 +109,8 @@ router.put('/student-statuses', verifyToken, updateStudentStatusOptions);
 router.put('/users/:id/academic-year', verifyToken, updateStudentAcademicYear);
 // system_admin only — gated inside the controller.
 router.put('/users/:id/completed-courses', verifyToken, updateStudentCompletedCoursesAsAdmin);
+// system_admin only — rare escape hatch, gated inside the controller.
+router.put('/users/:id/track-override', verifyToken, overrideStudentTrack);
 
 // PATCH routes
 router.patch('/student-roster/:docId', verifyToken, updateStudentRosterAdmin);

@@ -32,8 +32,22 @@ export default function StudentHome() {
   const {
     studentState, studentName, studentYearOfStudy,
     proposals, activeProjects,
-    pendingApplications, supervisorSelectionRequiresApproval, studentDegree, studentCompletedCourses, cancelAllListeners, refresh
+    pendingApplications, supervisorSelectionRequiresApproval, studentDegree, studentCompletedCourses, cancelAllListeners, refresh,
+    studentTrackPolicy, studentTrackLocked, studentThesisEligible, chooseTrack,
   } = useStudentData();
+  const [choosingTrack, setChoosingTrack] = useState(false);
+  const showTrackChoice = studentTrackPolicy === 'coordinator_gated' && studentThesisEligible && !studentTrackLocked;
+
+  const handleChooseTrack = async (track: 'thesis' | 'project') => {
+    setChoosingTrack(true);
+    try {
+      await chooseTrack(track);
+    } catch (e) {
+      console.error('Failed to set track:', e);
+    } finally {
+      setChoosingTrack(false);
+    }
+  };
 
   // Passed as TopBar's onBeforeSignOut — runs (and is awaited) before it
   // signs out and redirects, for both the sign-out button and the
@@ -89,6 +103,35 @@ export default function StudentHome() {
       />
 
       {/* ── Main Content — smart routing ── */}
+      {showTrackChoice && (studentState === 'no_project' || studentState === 'choose_supervisor') && (
+        <View style={trackBannerStyles.banner}>
+          <Text style={trackBannerStyles.title}>
+            {lang === 'he' ? 'הוכרת כזכאי/ת למסלול תזה 🎉' : "You're eligible for the thesis track 🎉"}
+          </Text>
+          <Text style={trackBannerStyles.sub}>
+            {lang === 'he'
+              ? 'בחר/י את המסלול שברצונך להמשיך בו — בחירה זו סופית.'
+              : 'Choose which track you want to continue on — this choice is final.'}
+          </Text>
+          <View style={[trackBannerStyles.row, isRtl && { flexDirection: 'row-reverse' }]}>
+            <Pressable
+              style={trackBannerStyles.btn}
+              disabled={choosingTrack}
+              onPress={() => handleChooseTrack('thesis')}
+            >
+              <Text style={trackBannerStyles.btnText}>{lang === 'he' ? 'תזה' : 'Thesis'}</Text>
+            </Pressable>
+            <Pressable
+              style={trackBannerStyles.btn}
+              disabled={choosingTrack}
+              onPress={() => handleChooseTrack('project')}
+            >
+              <Text style={trackBannerStyles.btnText}>{lang === 'he' ? 'פרויקט' : 'Project'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {studentState === 'no_project' && (
         <BrowseProjects
         proposals={proposals}
@@ -159,6 +202,15 @@ export default function StudentHome() {
 }
 
 const styles = studentHomeStyles;
+
+const trackBannerStyles = StyleSheet.create({
+  banner: { margin: 16, padding: 16, borderRadius: 12, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' },
+  title: { fontSize: 15, fontWeight: '700', color: '#1E3A8A' },
+  sub: { fontSize: 13, color: '#3B4B6B', marginTop: 4 },
+  row: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  btn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#2E86FF', alignItems: 'center' },
+  btnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+});
 
 // TEMP-2-ACTIVE-PROJECTS: styles for the project switcher row above — delete
 // alongside the rest of this bypass once reverted.

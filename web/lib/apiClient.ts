@@ -194,6 +194,9 @@ export const apiClient = {
     yearOfStudy: number;
     major: string;
     studentId: string;
+    /** Required only for a 'signup_choice' major (see lib/studentTrack.ts) —
+     *  rejected by the server for any other program. */
+    chosenTrack?: 'thesis' | 'project';
   }) {
     return request<{ success: boolean; message?: string }>('/api/users/sync', { method: 'POST', body: profileData });
   },
@@ -1020,12 +1023,26 @@ export const apiClient = {
         degreeType: string | null; major: string | null; yearOfStudy: number | null;
         isEligibleForProcess: boolean; academicYearHeld: boolean; academicYearHeldReason: string | null;
         completedCourses: { subject: string; grade?: number }[];
+        trackPolicy: 'coordinator_gated' | 'signup_choice' | 'project_only';
+        track: 'thesis' | 'project' | null;
+        trackLocked: boolean;
+        thesisEligibility: { eligible: boolean } | null;
       }>;
     }>('/api/admin/students/search', { method: 'GET', params: { q } });
   },
 
   async updateStudentAcademicYear(studentId: string, payload: { yearOfStudy?: number; heldBack?: boolean; reason?: string }) {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${studentId}/academic-year`, { method: 'PUT', body: payload });
+  },
+
+  /** system_admin-only escape hatch — free-form override of a student's
+   *  thesis/project track/lock/eligibility, bypassing the normal business
+   *  rules (see server/src/services/studentTrack.ts's adminOverrideStudentTrack). */
+  async overrideStudentTrack(
+    studentId: string,
+    payload: { track?: 'thesis' | 'project' | null; trackLocked?: boolean; thesisEligible?: boolean | null }
+  ) {
+    return request<{ success: boolean }>(`/api/admin/users/${studentId}/track-override`, { method: 'PUT', body: payload });
   },
 
   /** PUT /api/admin/users/:id/completed-courses — system_admin only. Manual
@@ -1664,6 +1681,10 @@ export const apiClient = {
         email: string;
         phoneNumber: string | null;
         yearOfStudy: number | null;
+        trackPolicy: 'coordinator_gated' | 'signup_choice' | 'project_only';
+        track: 'thesis' | 'project' | null;
+        trackLocked: boolean;
+        thesisEligibility: { eligible: boolean; reason?: string | null; decidedAt?: string | null } | null;
       };
       project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null; academicYear: string | null } | null;
       currentMilestone: { id: string; type: string; nameHe: string; nameEn: string; status: string; dueDate: string | null } | null;
@@ -1699,6 +1720,16 @@ export const apiClient = {
         examinerIds: string[];
       }>;
     }>(`/api/project-coordinator/students/${studentId}/detail`, { method: 'GET' });
+  },
+
+  /** Grants/denies a coordinator_gated student (e.g. M.Sc Computer Science)
+   *  the ability to choose their own thesis/project track — see
+   *  server/src/services/studentTrack.ts's setThesisEligibility. */
+  async setStudentThesisEligibility(studentId: string, eligible: boolean, reason?: string) {
+    return request<{ success: boolean }>(`/api/project-coordinator/students/${studentId}/thesis-eligibility`, {
+      method: 'POST',
+      body: { eligible, reason },
+    });
   },
 
   /** Every defense milestone with a pending grade override (see

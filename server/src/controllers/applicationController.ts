@@ -7,6 +7,7 @@ import { extractCompletedCourses } from '../services/transcriptExtractionService
 import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js'
 import { notifyUser } from '../services/notify.js'
 import { enrollStudentInProject } from '../services/projectEnrollment.js'
+import { resolveEffectiveTrack } from '../config/studentTrack.js'
 
 const db = admin.firestore();
 
@@ -194,14 +195,28 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         return res.status(403).json({ success: false, message: 'This project is not open to your degree type.' });
         }
 
+        // A student's thesis/project track is fixed (see config/studentTrack.ts)
+        // — this is the real access-control boundary, reachable directly with
+        // any projectId, same reasoning as the major/degree checks above.
+        const effectiveTrack = resolveEffectiveTrack(studentData);
+        if (projectProjectTypes.length > 0 && !projectProjectTypes.includes(effectiveTrack)) {
+        return res.status(403).json({ success: false, message: 'This project is not open to your track.' });
+        }
+
         // Only a project open to more than one track actually requires the
         // student to pick — otherwise there's nothing ambiguous to choose.
+        // A student's own track is fixed, so any explicit selection must
+        // match it (the check above already guarantees effectiveTrack is one
+        // of projectProjectTypes when this project offers more than one).
         if (projectProjectTypes.length > 1) {
         if (!selectedProjectType) {
             return res.status(400).json({ success: false, message: 'This project offers more than one track — please choose one when applying.' });
         }
         if (!projectProjectTypes.includes(selectedProjectType)) {
             return res.status(400).json({ success: false, message: 'Invalid track selection for this project.' });
+        }
+        if (selectedProjectType !== effectiveTrack) {
+            return res.status(403).json({ success: false, message: 'You are not eligible to apply under this track.' });
         }
         }
 

@@ -25,6 +25,7 @@ import {
   PROGRAM_DEGREE_LENGTHS,
 } from '@/constants/faculties';
 import type { DegreeLevel, Program } from '@/types';
+import { resolveTrackPolicy, type StudentTrack } from '@/constants/studentTrack';
 import { SignupStyles } from '../../constants/styles';
 
 type FloatingInputProps = TextInputProps & {
@@ -140,6 +141,7 @@ export default function ProfileSetup() {
   // sent to the server is selectedProgram.slug, not this key — see handleSave.
   const [programKey, setProgramKey] = useState<string | null>(null);
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
+  const [chosenTrack, setChosenTrack] = useState<StudentTrack | null>(null);
   // Set once the user tries to save with the form incomplete — turns on the
   // red "required field" indicators below instead of just the blocking Alert.
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -155,6 +157,7 @@ export default function ProfileSetup() {
   // The degree type (bachelors/masters) is inherent to the chosen program —
   // no separate "degree type" step needed.
   const degreeType: DegreeLevel | null = selectedProgram?.level ?? null;
+  const trackPolicy = selectedProgram ? resolveTrackPolicy(degreeType, selectedProgram.slug) : null;
 
   const yearOptions: number[] = (() => {
     if (!selectedProgram) return [];
@@ -193,6 +196,7 @@ export default function ProfileSetup() {
         yearOfStudy: yearOfStudy,
         major: selectedProgram?.slug ?? null,
         studentId: studentId,
+        chosenTrack: trackPolicy === 'signup_choice' ? chosenTrack : undefined,
         hasActiveProject: false,
         expoPushToken: null,
         displayName,
@@ -364,7 +368,8 @@ export default function ProfileSetup() {
     passwordCheck.valid &&              // ← added
     faculty &&
     programKey &&
-    yearOfStudy;
+    yearOfStudy &&
+    (trackPolicy !== 'signup_choice' || !!chosenTrack);
 
   if (stage === 'verify') {
     return (
@@ -629,7 +634,7 @@ export default function ProfileSetup() {
                 <Pressable
                   key={p.key}
                   style={[s.majorOption, programKey === p.key && s.majorOptionActive]}
-                  onPress={() => { setProgramKey(p.key); setYearOfStudy(null); }}
+                  onPress={() => { setProgramKey(p.key); setYearOfStudy(null); setChosenTrack(null); }}
                 >
                   <Text style={[s.majorText, programKey === p.key && s.majorTextActive, isRtl && s.textRight]}>
                     {p.label[lang]}
@@ -684,6 +689,41 @@ export default function ProfileSetup() {
             </View>
             {attemptedSubmit && !yearOfStudy && (
               <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור שנת לימוד' : 'Please select a year of study'}</RequiredNote>
+            )}
+          </View>
+        )}
+
+        {/* --- Track (thesis vs. project) — only for programs where the
+             student picks at signup and it locks immediately; a
+             coordinator-gated program (e.g. M.Sc Computer Science) has no
+             choice here at all, and everything else is project-only. --- */}
+        {trackPolicy === 'signup_choice' && (
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
+              {lang === 'he' ? '3. מסלול' : '3. Track'}
+            </Text>
+            <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 10, textAlign: isRtl ? 'right' : 'left' }}>
+              {lang === 'he'
+                ? 'בחירה זו סופית ולא ניתן לשנותה בעצמך לאחר ההרשמה.'
+                : 'This choice is final — you will not be able to change it yourself after signing up.'}
+            </Text>
+            <View style={[s.yearRow, isRtl && s.rowReverse]}>
+              {(['thesis', 'project'] as const).map((track) => (
+                <Pressable
+                  key={track}
+                  style={[s.yearOption, chosenTrack === track && s.yearOptionActive]}
+                  onPress={() => setChosenTrack(track)}
+                >
+                  <Text style={[s.yearNum, chosenTrack === track && s.yearNumActive]}>
+                    {track === 'thesis'
+                      ? (lang === 'he' ? 'תזה' : 'Thesis')
+                      : (lang === 'he' ? 'פרויקט' : 'Project')}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {attemptedSubmit && !chosenTrack && (
+              <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור מסלול' : 'Please select a track'}</RequiredNote>
             )}
           </View>
         )}
