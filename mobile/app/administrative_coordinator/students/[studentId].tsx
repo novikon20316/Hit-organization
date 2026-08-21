@@ -14,6 +14,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { facultyLabel, type FacultyId } from '@/components/i18n';
 import { HIT_FACULTIES } from '@/constants/faculties';
 import { majorsForFaculty } from '@/constants/permissions';
+import { MilestoneRoadmap, type RoadmapMilestone } from '@/components/MilestoneRoadmap';
 
 interface StudentDetail {
   student: {
@@ -39,6 +40,12 @@ interface StudentDetail {
     finalGrade: number | null;
     gradeApproved: boolean;
   }>;
+  /** Every milestone on the track, pending ones included — the same field
+   *  web's students/[studentId]/page.tsx already renders via
+   *  components/MilestoneTimeline. Powers the visual roadmap below;
+   *  `milestones` above stays as the flat submitted/graded table it already
+   *  was. */
+  milestoneRoadmap?: RoadmapMilestone[];
 }
 
 const MILESTONE_STATUS_LABEL: Record<string, { he: string; en: string }> = {
@@ -113,6 +120,7 @@ export default function StudentDetailScreen() {
   const project = data?.project ?? null;
   const currentMilestone = data?.currentMilestone ?? null;
   const submittedMilestones = data?.milestones ?? [];
+  const milestoneRoadmap = data?.milestoneRoadmap ?? [];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
@@ -199,6 +207,19 @@ export default function StudentDetailScreen() {
                 ) : (
                   <Text style={styles.cardSub}>{lang === 'he' ? 'אין אבן דרך פעילה' : 'No active milestone'}</Text>
                 )}
+              </View>
+            )}
+
+            {/* Visual roadmap — the whole track at a glance: what's done, what's
+                current, and what's still ahead, including submitted files.
+                Read-only, same as web's equivalent MilestoneTimeline embed —
+                no grading/approval actions live on this drill-down. */}
+            {project && milestoneRoadmap.length > 0 && (
+              <View>
+                <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>
+                  🗺️ {lang === 'he' ? 'מסלול אבני הדרך' : 'Milestone Roadmap'}
+                </Text>
+                <MilestoneRoadmap milestones={milestoneRoadmap} lang={lang} isRtl={isRtl} />
               </View>
             )}
 

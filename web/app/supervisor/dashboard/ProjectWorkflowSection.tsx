@@ -91,6 +91,32 @@ function statusLabel(status: string, lang: 'he' | 'en'): string {
   return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
 }
 
+function isCompletedStatus(status: string): boolean {
+  return status === 'coordinator_approved' || status === 'completed';
+}
+
+// Derives a human-readable file name from a Cloudinary/Storage URL for the
+// "Submitted Files" chip list — same approach as components/MilestoneTimeline
+// .tsx's fileNameFromUrl, ported here since this section has its own status
+// row markup rather than reusing that shared component.
+function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string {
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    const last = path.split('/').filter(Boolean).pop();
+    if (last) return last;
+  } catch {
+    // fall through to generic label below
+  }
+  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
+}
+
+function formatShortDate(iso: string | null, lang: 'he' | 'en'): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: ProjectWorkflowSectionProps) {
   const { lang } = useLanguage();
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
@@ -171,12 +197,26 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                       </span>
                     )}
                   </div>
-                  <div className="grid gap-1">
-                    {s.milestones.map((m) => {
+                  <div className="grid gap-2.5">
+                    {(() => {
+                      const firstIncompleteIdx = s.milestones.findIndex((m) => !isCompletedStatus(m.status));
+                      return s.milestones.map((m, idx) => {
                       const spec = templateMilestones.find((t) => t.type === m.type);
+                      const color = statusColor(m.status);
+                      const isCompleted = isCompletedStatus(m.status);
+                      const isCurrent = !isCompleted && idx === firstIncompleteIdx;
+                      const isFuture = !isCompleted && !isCurrent;
+                      const dueLabel = formatShortDate(m.dueDate, lang);
+                      const submittedLabel = formatShortDate(m.submittedAt, lang);
                       return (
-                        <div key={m.type} className="border-t border-[#c5c5d3] py-1.5 first:border-t-0">
-                          <div className="flex items-center justify-between text-xs">
+                        <div
+                          key={m.type}
+                          className={`role-rail relative rounded-lg border bg-white p-2.5 transition-opacity ${
+                            isCurrent ? 'border-2' : 'border-[#c5c5d3]'
+                          } ${isFuture ? 'opacity-75 hover:opacity-100' : ''}`}
+                          style={{ '--rail-color': color, borderColor: isCurrent ? '#00236f' : undefined } as React.CSSProperties}
+                        >
+                          <div className="flex items-start justify-between gap-2 text-xs">
                             {m.fileUrls.length > 0 ? (
                               <button
                                 type="button"
@@ -188,17 +228,53 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                     fileUrls: m.fileUrls,
                                   })
                                 }
-                                className="font-medium text-[#00236f] hover:underline"
+                                className="min-w-0 truncate font-semibold text-[#00236f] hover:underline"
                               >
                                 {spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}
                               </button>
                             ) : (
-                              <span className="font-medium text-[#1a1b21]">{spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}</span>
+                              <span className="min-w-0 truncate font-semibold text-[#1a1b21]">{spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type}</span>
                             )}
-                            <span className="font-semibold" style={{ color: statusColor(m.status) }}>
+                            <span
+                              className="shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                              style={{ backgroundColor: `${color}1A`, color }}
+                            >
                               {statusLabel(m.status, lang)}
                             </span>
                           </div>
+
+                          {/* Due / submitted stat row — icon-labeled, matching
+                              components/MilestoneTimeline.tsx's card layout. */}
+                          {(dueLabel || submittedLabel) && (
+                            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 border-t border-[#c5c5d3]/60 pt-1.5 text-[11px] text-[#444651]">
+                              {dueLabel && <span>📅 {lang === 'he' ? 'תאריך יעד:' : 'Due:'} {dueLabel}</span>}
+                              {submittedLabel && <span>📤 {lang === 'he' ? 'הוגש:' : 'Submitted:'} {submittedLabel}</span>}
+                            </div>
+                          )}
+
+                          {/* Submitted files — chip list, click opens the same
+                              file-preview panel the title link already opens. */}
+                          {m.fileUrls.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {m.fileUrls.map((url, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() =>
+                                    setPreviewFor({
+                                      title: spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type,
+                                      subtitle: s.studentName,
+                                      submissionNote: m.submissionNote,
+                                      fileUrls: m.fileUrls,
+                                    })
+                                  }
+                                  className="flex items-center gap-1 rounded-md border border-[#c5c5d3] bg-[#f4f3fa] px-2 py-1 text-[11px] text-[#1a1b21] hover:border-[#00236f] hover:text-[#00236f]"
+                                >
+                                  📄 <span className="max-w-[10rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
 
                           {/* Grade action/display for ordinary milestones — the
                               three-rubric defense workflow below handles its own. */}
@@ -270,7 +346,8 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                           )}
                         </div>
                       );
-                    })}
+                    });
+                    })()}
                   </div>
                   <ProjectStageChain
                     createdAt={projectCreatedAt}

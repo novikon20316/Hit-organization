@@ -92,16 +92,31 @@ const apStyles = StyleSheet.create({
   emptyText: { fontSize: 13, color: '#444651' },
   trackerCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 8,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#c5c5d3',
+    borderLeftWidth: 4,
     padding: 14,
     marginBottom: 10,
   },
-  trackerTitle: { fontSize: 14, fontWeight: '700', color: '#1a1b21', marginBottom: 6 },
-  trackerBarTrack: { height: 8, borderRadius: 999, backgroundColor: '#eeedf4', overflow: 'hidden', marginBottom: 6 },
+  trackerTitle: { fontSize: 14, fontWeight: '700', color: '#1a1b21', flexShrink: 1, marginRight: 8 },
+  trackerPctBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  trackerPctBadgeText: { fontSize: 10, fontWeight: '700' },
+  trackerBarTrack: { height: 6, borderRadius: 999, backgroundColor: '#eeedf4', overflow: 'hidden', marginTop: 10, marginBottom: 8 },
   trackerBarFill: { height: '100%', borderRadius: 999, backgroundColor: '#00236f' },
   trackerMeta: { fontSize: 11, color: '#444651' },
+
+  // ── Pending-milestone card (Pending tab) — same visual language as
+  // components/MilestoneRoadmap.tsx's cards. Additive overrides layered on
+  // top of the shared coordinatorHomeStyles.card/cardHeader/etc (those stay
+  // untouched — they're also used by the Defense/Deadlines/Recommendations
+  // tabs, out of scope here).
+  pendingCardAccent: { borderRadius: 14, borderLeftWidth: 4, borderLeftColor: '#b8862e' },
+  pendingBadge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#fbf3e3', marginBottom: 6 },
+  pendingBadgeText: { fontSize: 10, fontWeight: '700', color: '#b8862e', textTransform: 'uppercase' },
+  statRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#e3e1e9' },
+  statLabel: { fontSize: 9, fontWeight: '700', color: '#444651', textTransform: 'uppercase', marginBottom: 2 },
+  statValue: { fontSize: 12, color: '#1a1b21' },
 });
 
 
@@ -937,17 +952,23 @@ export default function CoordinatorHome() {
                 const overallProgress = students.length > 0
                   ? Math.round(students.reduce((sum: number, s: any) => sum + (s.progress ?? 0), 0) / students.length)
                   : 0;
+                const accentColor = overallProgress >= 100 ? '#3f6b4c' : '#00236f';
                 return (
-                  <View key={p.id} style={apStyles.trackerCard}>
+                  <View key={p.id} style={[apStyles.trackerCard, { borderLeftColor: accentColor }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={apStyles.trackerTitle}>{lang === 'he' ? p.projectTitleHe : p.projectTitleEn}</Text>
-                      <FacultyBadge facultyId={p.facultyId} lang={lang} />
+                      <Text style={apStyles.trackerTitle} numberOfLines={2}>{lang === 'he' ? p.projectTitleHe : p.projectTitleEn}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <FacultyBadge facultyId={p.facultyId} lang={lang} />
+                        <View style={[apStyles.trackerPctBadge, { backgroundColor: overallProgress >= 100 ? '#eaf1ec' : '#e3e8f7' }]}>
+                          <Text style={[apStyles.trackerPctBadgeText, { color: accentColor }]}>{overallProgress}%</Text>
+                        </View>
+                      </View>
                     </View>
                     <View style={apStyles.trackerBarTrack}>
-                      <View style={[apStyles.trackerBarFill, { width: `${overallProgress}%` }]} />
+                      <View style={[apStyles.trackerBarFill, { width: `${overallProgress}%`, backgroundColor: accentColor }]} />
                     </View>
                     <Text style={apStyles.trackerMeta}>
-                      {overallProgress}% {lang === 'he' ? 'הושלם' : 'complete'} · {students.length} {lang === 'he' ? 'סטודנטים' : 'students'}
+                      👥 {students.length} {lang === 'he' ? 'סטודנטים' : 'students'}
                     </Text>
                   </View>
                 );
@@ -971,10 +992,16 @@ export default function CoordinatorHome() {
                   key={m.id}
                   style={[
                     styles.card,
+                    apStyles.pendingCardAccent,
                     expandedCards[m.id] && styles.cardExpanded,
                   ]}
                   onPress={() => toggleCardExpansion(m.id)}
                 >
+                  <View style={apStyles.pendingBadge}>
+                    <Text style={apStyles.pendingBadgeText}>
+                      📤 {lang === 'he' ? 'ממתין לאישור' : 'Awaiting Approval'}
+                    </Text>
+                  </View>
                   <View style={styles.cardHeader}>
                     <Text style={styles.milestoneType}>
                       {MILESTONE_LABEL[m.type]?.[lang]}
@@ -984,12 +1011,18 @@ export default function CoordinatorHome() {
                   <Text style={styles.cardTitle}>
                     {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
                   </Text>
-                  <Text style={styles.cardMeta}>👤 {m.studentNames.join(', ')}</Text>
-                  {m.supervisorScore !== null && (
-                    <Text style={styles.cardMeta}>
-                      ✏️ {lang === 'he' ? 'ציון מנחה:' : 'Supervisor score:'} {m.supervisorScore}
-                    </Text>
-                  )}
+                  <View style={apStyles.statRow}>
+                    <View>
+                      <Text style={apStyles.statLabel}>{lang === 'he' ? 'סטודנטים' : 'Students'}</Text>
+                      <Text style={apStyles.statValue}>👤 {m.studentNames.join(', ')}</Text>
+                    </View>
+                    {m.supervisorScore !== null && (
+                      <View>
+                        <Text style={apStyles.statLabel}>{lang === 'he' ? 'ציון מנחה' : 'Supervisor Score'}</Text>
+                        <Text style={[apStyles.statValue, { fontWeight: '700' }]}>🏆 {m.supervisorScore}</Text>
+                      </View>
+                    )}
+                  </View>
                   {expandedCards[m.id] && (
                     <View style={styles.expandedSection}>
 

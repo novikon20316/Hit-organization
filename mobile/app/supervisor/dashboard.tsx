@@ -18,6 +18,23 @@ import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
+import { milestonePalette } from '@/constants/milestoneTheme';
+
+// Derives a human-readable file name from a Cloudinary/Storage URL for the
+// grading-queue "Submitted Files" chips — same approach as web's
+// components/MilestoneTimeline.tsx fileNameFromUrl / mobile's own
+// components/MilestoneRoadmap.tsx, ported locally since this screen's
+// pending-grades list predates that shared component.
+function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string {
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    const last = path.split('/').filter(Boolean).pop();
+    if (last) return last;
+  } catch {
+    // fall through to generic label below
+  }
+  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
+}
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 // Adjust this import path to match your firebase config file location
@@ -1275,10 +1292,17 @@ export default function SupervisorHome() {
                   >
                     {/* Header Content Info */}
                     <View style={[styles.row, isRtl && styles.rowReverse, { justifyContent: 'space-between', alignItems: 'center' }]}>
-                      <Text style={[styles.gradeMilestoneType, { color: fc.primary, marginBottom: 0 }, isRtl && styles.textRight]}>
+                      <Text style={[styles.gradeMilestoneType, { color: fc.primary, marginBottom: 0, flexShrink: 1 }, isRtl && styles.textRight]}>
                         {label}
                       </Text>
-                      <Text style={{ fontSize: 16, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
+                      <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ backgroundColor: '#fbf3e3', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#b8862e', textTransform: 'uppercase' }}>
+                            📤 {lang === 'he' ? 'הוגש' : 'Submitted'}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 16, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
+                      </View>
                     </View>
 
                     <Text style={[styles.gradeProjectTitle, isRtl && styles.textRight, { marginTop: 6 }]}>
@@ -1316,23 +1340,30 @@ export default function SupervisorHome() {
                           </Text>
                         ) : null}
 
-                        {/* 2. Downloadable items files block */}
+                        {/* 2. Submitted Files — icon + real filename chips,
+                            matching the "Mobile Milestone Tracker with Files"
+                            card design (components/MilestoneRoadmap.tsx). */}
                         {m.fileUrls.length > 0 ? (
-                          <View style={[styles.docsRow, isRtl && styles.rowReverse, { marginBottom: 12, flexWrap: 'wrap' }]}>
-                            {m.fileUrls.map((url, uIdx) => (
-                              <Pressable
-                                key={uIdx}
-                                style={[styles.docChip, { backgroundColor: '#F0F4FF', borderColor: '#3B82F6', borderWidth: 1 }]}
-                                onPress={(e) => { 
-                                  e.stopPropagation(); 
-                                  handleOpenDocument(url); 
-                                }}
-                              >
-                                <Text style={[styles.docChipText, { color: '#3B82F6' }]}>
-                                  📥 {lang === 'he' ? `${tx('fileDownload', lang)} ${uIdx + 1}` : `${tx('fileDownload', lang)} ${uIdx + 1}`}
-                                </Text>
-                              </Pressable>
-                            ))}
+                          <View>
+                            <Text style={{ fontSize: 9, fontWeight: '700', color: milestonePalette.onSurfaceVariant, textTransform: 'uppercase', marginBottom: 6 }}>
+                              {lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}
+                            </Text>
+                            <View style={[styles.docsRow, isRtl && styles.rowReverse, { marginBottom: 12, flexWrap: 'wrap' }]}>
+                              {m.fileUrls.map((url, uIdx) => (
+                                <Pressable
+                                  key={uIdx}
+                                  style={[styles.docChip, { backgroundColor: milestonePalette.surfaceContainerLow, borderColor: milestonePalette.outlineVariant, borderWidth: 1, maxWidth: 220 }]}
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDocument(url);
+                                  }}
+                                >
+                                  <Text style={[styles.docChipText, { color: milestonePalette.onSurface }]} numberOfLines={1}>
+                                    📄 {fileNameFromUrl(url, uIdx, lang)}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                            </View>
                           </View>
                         ) : (
                           <Text style={[isRtl && styles.textRight, { fontStyle: 'italic', color: '#8899BB', marginBottom: 12, fontSize: 12 }]}>

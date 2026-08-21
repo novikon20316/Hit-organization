@@ -116,11 +116,26 @@ function formatDate(val: string | null, lang: 'he' | 'en', opts: Intl.DateTimeFo
   return d ? d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', opts) : '—';
 }
 
+// Derives a human-readable file name from a Cloudinary/Storage URL for the
+// "Submitted Files" chip list — these URLs carry no separate filename field
+// on MilestoneData, just the raw fileUrls string[].
+function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string {
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    const last = path.split('/').filter(Boolean).pop();
+    if (last) return last;
+  } catch {
+    // fall through to generic label below
+  }
+  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
+}
+
 // ─── Single milestone card ──────────────────────────────────────────────────
 
 function MilestoneCard({
   milestone,
   index,
+  isCurrent,
   viewerRole,
   onStudentSubmit,
   onSupervisorGrade,
@@ -131,6 +146,7 @@ function MilestoneCard({
 }: {
   milestone: MilestoneData;
   index: number;
+  isCurrent: boolean;
 } & Omit<MilestoneTimelineProps, 'milestones' | 'projectId'>) {
   const { lang, t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
@@ -195,75 +211,131 @@ function MilestoneCard({
     }
   };
 
+  const isFuture = !isCompleted && !isCurrent;
+  const dueLabel = formatDate(milestone.dueDate, lang, { day: 'numeric', month: 'short', year: 'numeric' });
+
   return (
-    <div className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': cfg.color } as React.CSSProperties}>
+    <div
+      className={`role-rail relative overflow-hidden rounded-[var(--radius)] border bg-surface p-4 transition-opacity ${
+        isCurrent ? 'border-2' : 'border border-line'
+      } ${isFuture ? 'opacity-75 hover:opacity-100' : ''}`}
+      style={
+        {
+          '--rail-color': cfg.color,
+          borderColor: isCurrent ? 'var(--primary)' : undefined,
+          backgroundColor: isCurrent ? 'color-mix(in srgb, var(--primary) 5%, var(--surface))' : undefined,
+        } as React.CSSProperties
+      }
+    >
+      {/* Header: step marker + title/caption on the start side, status badge pinned to the end */}
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-              style={{ backgroundColor: isCompleted ? 'var(--success)' : cfg.color }}
-            >
-              {isCompleted ? '✓' : index + 1}
-            </span>
-            <span className="truncate text-sm font-semibold text-ink">{label}</span>
-          </div>
-          <span className="mt-1.5 inline-block rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: cfg.bg, color: cfg.color }}>
-            {cfg.icon} {statusLabel}
+        <div className="flex min-w-0 items-start gap-2.5">
+          <span
+            className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+              isFuture ? 'border-2 bg-surface' : 'text-white'
+            }`}
+            style={
+              isFuture
+                ? { borderColor: cfg.color, color: cfg.color }
+                : { backgroundColor: isCompleted ? 'var(--success)' : cfg.color }
+            }
+          >
+            {isCompleted ? '✓' : index + 1}
           </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink">{label}</p>
+            {!isCompleted && days !== null && (
+              <p className={`mt-0.5 text-xs font-medium ${days < 0 ? 'text-danger' : days <= 7 ? 'text-accent' : 'text-muted'}`}>
+                {days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : `${days} ${lang === 'he' ? 'ימים' : 'days left'}`}
+              </p>
+            )}
+          </div>
         </div>
 
-        {!isCompleted && days !== null && (
-          <span className={`shrink-0 text-xs font-medium ${days < 0 ? 'text-danger' : days <= 7 ? 'text-accent' : 'text-muted'}`}>
-            {days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : `${days} ${lang === 'he' ? 'ימים' : 'days left'}`}
-          </span>
+        <span
+          className="shrink-0 whitespace-nowrap rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+          style={{ backgroundColor: cfg.bg, color: cfg.color }}
+        >
+          {cfg.icon} {statusLabel}
+        </span>
+      </div>
+
+      {/* Due / submitted / grade / defense — a compact stat grid, icon-labeled */}
+      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line/60 pt-3 sm:grid-cols-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{t('dueDate')}</p>
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-ink">
+            📅 {dueLabel}
+            {canAdjustDate && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAdjust((v) => !v);
+                  setAdjustError('');
+                }}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                ✏️ {lang === 'he' ? 'שנה' : 'Adjust'}
+              </button>
+            )}
+          </p>
+        </div>
+        {milestone.submittedAt && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'הוגש' : 'Submitted'}</p>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-ink">
+              📤 {formatDate(milestone.submittedAt, lang, { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          </div>
+        )}
+        {milestone.finalGrade !== null && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'ציון סופי' : 'Final grade'}</p>
+            <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-ink">🏆 {milestone.finalGrade}</p>
+          </div>
+        )}
+        {isDefense && milestone.defenseDate && (
+          <div className="col-span-2 sm:col-span-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'מועד הגנה' : 'Defense'}</p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink">
+              🎓 {formatDate(milestone.defenseDate, lang, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {milestone.defenseTime ? <>· 🕐 {milestone.defenseTime}</> : ''}
+              {milestone.defenseBuilding ? <>· 🏢 {milestone.defenseBuilding}</> : ''}
+              {milestone.defenseRoom ? <>· 🏛️ {milestone.defenseRoom}</> : ''}
+              {milestone.onlineDefenseLink ? (
+                <>
+                  {' · 💻 '}
+                  <a href={milestone.onlineDefenseLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    {lang === 'he' ? 'הצטרפות מקוונת' : 'Join online'}
+                  </a>
+                </>
+              ) : ''}
+            </p>
+          </div>
         )}
       </div>
 
-      {/* Due / submitted / defense info */}
-      <div className="mt-2.5 grid gap-1 text-xs text-muted">
-        <span className="flex items-center gap-1.5">
-          📅 {t('dueDate')} {formatDate(milestone.dueDate, lang, { day: 'numeric', month: 'short', year: 'numeric' })}
-          {canAdjustDate && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowAdjust((v) => !v);
-                setAdjustError('');
-              }}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              ✏️ {lang === 'he' ? 'שנה תאריך' : 'Adjust'}
-            </button>
-          )}
-        </span>
-        {milestone.submittedAt && (
-          <span>
-            📤 {lang === 'he' ? 'הוגש:' : 'Submitted:'} {formatDate(milestone.submittedAt, lang, { day: 'numeric', month: 'short', year: 'numeric' })}
-          </span>
-        )}
-        {isDefense && milestone.defenseDate && (
-          <span>
-            🎓 {lang === 'he' ? 'מועד הגנה:' : 'Defense:'} {formatDate(milestone.defenseDate, lang, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            {milestone.defenseTime ? ` · 🕐 ${milestone.defenseTime}` : ''}
-            {milestone.defenseBuilding ? ` · 🏢 ${milestone.defenseBuilding}` : ''}
-            {milestone.defenseRoom ? ` · 🏛️ ${milestone.defenseRoom}` : ''}
-            {milestone.onlineDefenseLink ? (
-              <>
-                {' · 💻 '}
-                <a href={milestone.onlineDefenseLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                  {lang === 'he' ? 'הצטרפות מקוונת' : 'Join online'}
-                </a>
-              </>
-            ) : ''}
-          </span>
-        )}
-        {milestone.finalGrade !== null && (
-          <span>
-            🏆 {lang === 'he' ? 'ציון סופי:' : 'Final grade:'} <strong className="text-ink">{milestone.finalGrade}</strong>
-          </span>
-        )}
-      </div>
+      {/* Submitted files — chip list, each opens the file in a new tab */}
+      {milestone.fileUrls && milestone.fileUrls.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+            {lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {milestone.fileUrls.map((url, i) => (
+              <a
+                key={i}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1.5 text-xs text-ink transition-colors hover:border-primary hover:text-primary"
+              >
+                📄 <span className="max-w-[14rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {pendingApprovalNotice && (
         <p className="mt-2 rounded-md border border-accent bg-[#FBF3E3] px-2.5 py-1.5 text-xs text-accent">
@@ -314,8 +386,8 @@ function MilestoneCard({
       )}
 
       {/* Expand toggle */}
-      <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2.5 text-xs font-medium text-muted hover:text-ink">
-        {expanded ? '▲' : '▼'} {lang === 'he' ? 'תהליך האישור' : 'Approval chain'}
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+        {expanded ? '▲' : '▼'} {lang === 'he' ? 'תהליך האישור' : 'Approval Process'}
       </button>
 
       {expanded && (
@@ -412,16 +484,20 @@ export function MilestoneTimeline({
 
   const completed = milestones.filter((m) => isCompletedStatus(m.status)).length;
   const progress = Math.round((completed / milestones.length) * 100);
+  // The first not-yet-completed milestone is "current" (highlighted, full
+  // detail); anything after it is future/locked (dimmed, minimal detail) —
+  // mirrors the Stitch "Project Milestone Tracker" active-vs-upcoming states.
+  const firstIncompleteIndex = milestones.findIndex((m) => !isCompletedStatus(m.status));
 
   return (
     <div className="grid gap-3">
       <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
-        <div className="flex items-center justify-between text-xs text-muted">
-          <span className="font-semibold text-ink">{lang === 'he' ? 'התקדמות הפרויקט' : 'Project Progress'}</span>
-          <span>{progress}%</span>
+        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted">
+          <span className="text-ink">{lang === 'he' ? 'התקדמות הפרויקט' : 'Project Progress'}</span>
+          <span className="normal-case">{progress}%</span>
         </div>
         <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-paper">
-          <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+          <div className="h-full rounded-full bg-primary transition-all duration-500 ease-out" style={{ width: `${progress}%` }} />
         </div>
         <p className="mt-1.5 text-xs text-muted">
           <span dir="ltr">{completed} / {milestones.length}</span> {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
@@ -431,6 +507,7 @@ export function MilestoneTimeline({
       {milestones.map((m, i) => (
         <MilestoneCard
           key={m.id}
+          isCurrent={i === firstIncompleteIndex}
           milestone={m}
           index={i}
           viewerRole={viewerRole}

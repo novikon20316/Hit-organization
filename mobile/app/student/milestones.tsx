@@ -3,11 +3,15 @@
 // Bottom-nav "Milestones" tab (see (tabs)/_layout.tsx's ROLE_TABS.student).
 // Mirrors student/home.tsx's session/routing pattern (same useStudentData()
 // hook, same TEMP-2-ACTIVE-PROJECTS multi-project switcher) but renders the
-// "Mobile Milestone Tracker" Stitch design instead of the full active-project
-// dashboard — a focused, scrollable list of the active project's milestones.
+// "Mobile Milestone Tracker with Files" Stitch design instead of the full
+// active-project dashboard — a focused, scrollable list of the active
+// project's milestones, each with its submitted files as tappable chips.
+// (Upgraded from the plain, no-files "Mobile Milestone Tracker" variant —
+// same card/requirements/submit logic throughout, just restyled plus a real
+// file-chip list where a "N files submitted" text line used to be.)
 
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '@/src/api/apiClient';
 import { useStudentData } from '../../hooks/useStudentData';
@@ -51,6 +55,20 @@ function daysUntil(val: any): number | null {
   const d = toDate(val);
   if (!d) return null;
   return Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+// Milestone file URLs carry no separate filename field — derive a
+// human-readable one from the URL itself, same approach as web's
+// components/MilestoneTimeline.tsx fileNameFromUrl.
+function fileNameFromUrl(url: string, index: number, lang: Lang): string {
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    const last = path.split('/').filter(Boolean).pop();
+    if (last) return last;
+  } catch {
+    // fall through to generic label below
+  }
+  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
 }
 
 const SUBMISSION_REQUIREMENT_LABEL: Record<string, { he: string; en: string }> = {
@@ -210,6 +228,7 @@ export default function StudentMilestones() {
                         key={m.id}
                         style={[
                           mt.card,
+                          { borderLeftWidth: 4, borderLeftColor: pillColor },
                           isCurrent && mt.cardCurrent,
                           !unlocked && mt.cardLocked,
                         ]}
@@ -322,9 +341,20 @@ export default function StudentMilestones() {
                         )}
 
                         {m.fileUrls?.length > 0 && (
-                          <Text style={[mt.filesText, isRtl && styles.textRight]}>
-                            📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים הוגשו' : 'files submitted'}
-                          </Text>
+                          <View style={mt.filesSection}>
+                            <Text style={[mt.filesLabel, isRtl && styles.textRight]}>
+                              {lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}
+                            </Text>
+                            <View style={[mt.filesRow, isRtl && styles.rowReverse]}>
+                              {m.fileUrls.map((url, idx) => (
+                                <Pressable key={idx} onPress={() => Linking.openURL(url)} style={mt.fileChip}>
+                                  <Text style={mt.fileChipText} numberOfLines={1}>
+                                    📄 {fileNameFromUrl(url, idx, lang)}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          </View>
                         )}
                       </View>
                     );
@@ -404,7 +434,22 @@ const mt = StyleSheet.create({
   dueHintLate: { color: studentPalette.error },
 
   lockedText: { fontSize: 12, color: studentPalette.onSurfaceVariant, marginTop: studentSpacing.xs },
-  filesText: { fontSize: 12, color: studentPalette.onSurfaceVariant, marginTop: studentSpacing.xs },
+
+  filesSection: { marginTop: studentSpacing.sm },
+  filesLabel: { fontSize: 9, fontWeight: '700', color: studentPalette.onSurfaceVariant, textTransform: 'uppercase', marginBottom: 4 },
+  filesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  fileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: studentPalette.outlineVariant,
+    borderRadius: studentRadius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: studentPalette.surfaceContainerLow,
+    maxWidth: 220,
+  },
+  fileChipText: { fontSize: 11, color: studentPalette.onSurface },
 
   submitBtn: { backgroundColor: studentPalette.primary, borderRadius: studentRadius.md, paddingVertical: 10, alignItems: 'center' },
   submitBtnText: { color: studentPalette.onPrimary, fontSize: 13, fontWeight: '700' },

@@ -540,54 +540,64 @@ export default function ExaminerHome() {
                           {lang === 'he' ? '📊 ציונים ומסמכים לפי אבן דרך' : '📊 Grades & Files by Milestone'}
                         </Text>
  
-                        {m.milestoneHistory.map((mg) => (
-                          <View key={mg.type} style={styles.milestoneBlock}>
-                            <Text style={styles.milestoneName}>
-                              {MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}
-                            </Text>
- 
-                            <View style={styles.scoreRow}>
-                              <Text style={styles.scoreLabel}>
-                                {lang === 'he' ? 'ציון מנחה:' : 'Supervisor score:'}
-                              </Text>
-                              <Text style={[styles.scoreValue,
-                                { color: mg.supervisorScore !== null ? '#10B981' : '#9CA3AF' }]}>
-                                {mg.supervisorScore !== null
-                                  ? `${mg.supervisorScore}/100`
-                                  : (lang === 'he' ? 'טרם ניתן' : 'Not yet')}
-                              </Text>
-                            </View>
- 
-                            {mg.supervisorComment ? (
-                              <Text style={styles.commentText}>💬 {mg.supervisorComment}</Text>
-                            ) : null}
- 
-                            {mg.fileUrls.length > 0 ? (
-                              <View style={{ marginTop: 6 }}>
-                                <Text style={styles.filesLabel}>
-                                  📎 {lang === 'he' ? 'קבצים:' : 'Files:'}
+                        {m.milestoneHistory.map((mg) => {
+                          const isGraded = mg.supervisorScore !== null;
+                          const railColor = isGraded ? '#3F6B4C' : fc.primary;
+                          return (
+                            <View key={mg.type} style={[styles.milestoneBlock, { borderLeftColor: railColor }]}>
+                              <View style={styles.milestoneHeaderRow}>
+                                <Text style={styles.milestoneName}>
+                                  {MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}
                                 </Text>
-                                {mg.fileUrls.map((url, idx) => (
-                                  <Pressable
-                                    key={idx}
-                                    style={styles.fileBtn}
-                                    onPress={() =>
-                                      router.push({ pathname: '/pdfViewer', params: { url } })
-                                    }
-                                  >
-                                    <Text style={styles.fileBtnText}>
-                                      📄 {lang === 'he' ? `קובץ ${idx + 1}` : `File ${idx + 1}`}
-                                    </Text>
-                                  </Pressable>
-                                ))}
+                                <View style={[styles.milestoneBadge, { backgroundColor: isGraded ? '#EAF1EC' : '#FBF3E3' }]}>
+                                  <Text style={[styles.milestoneBadgeText, { color: isGraded ? '#3F6B4C' : '#B8862E' }]}>
+                                    {isGraded ? (lang === 'he' ? '✅ נוקד' : '✅ Graded') : (lang === 'he' ? '⏳ טרם ניתן' : '⏳ Not yet')}
+                                  </Text>
+                                </View>
                               </View>
-                            ) : (
-                              <Text style={styles.noFiles}>
-                                {lang === 'he' ? 'לא הועלו קבצים' : 'No files uploaded'}
-                              </Text>
-                            )}
-                          </View>
-                        ))}
+
+                              <View style={styles.scoreRow}>
+                                <Text style={styles.scoreLabel}>
+                                  {lang === 'he' ? 'ציון מנחה' : 'Supervisor score'}
+                                </Text>
+                                <Text style={[styles.scoreValue, { color: isGraded ? '#3F6B4C' : '#9CA3AF' }]}>
+                                  🏆 {isGraded ? `${mg.supervisorScore}/100` : (lang === 'he' ? 'טרם ניתן' : 'Not yet')}
+                                </Text>
+                              </View>
+
+                              {mg.supervisorComment ? (
+                                <Text style={styles.commentText}>💬 {mg.supervisorComment}</Text>
+                              ) : null}
+
+                              {mg.fileUrls.length > 0 ? (
+                                <View style={{ marginTop: 6 }}>
+                                  <Text style={styles.filesLabel}>
+                                    {lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}
+                                  </Text>
+                                  <View style={styles.filesRow}>
+                                    {mg.fileUrls.map((url, idx) => (
+                                      <Pressable
+                                        key={idx}
+                                        style={styles.fileBtn}
+                                        onPress={() =>
+                                          router.push({ pathname: '/pdfViewer', params: { url } })
+                                        }
+                                      >
+                                        <Text style={styles.fileBtnText}>
+                                          📄 {lang === 'he' ? `קובץ ${idx + 1}` : `File ${idx + 1}`}
+                                        </Text>
+                                      </Pressable>
+                                    ))}
+                                  </View>
+                                </View>
+                              ) : (
+                                <Text style={styles.noFiles}>
+                                  {lang === 'he' ? 'לא הועלו קבצים' : 'No files uploaded'}
+                                </Text>
+                              )}
+                            </View>
+                          );
+                        })}
                       </View>
                     )}
  

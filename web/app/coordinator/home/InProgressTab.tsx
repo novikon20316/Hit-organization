@@ -61,14 +61,29 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
     );
   }
 
+  const isMilestoneDone = (status: string) => status === 'coordinator_approved' || status === 'completed';
+  const isMilestoneSubmitted = (status: string) => status === 'submitted' || status === 'supervisor_graded' || status === 'graded';
+
   const statusColor = (status: string) => {
-    if (status === 'coordinator_approved' || status === 'completed') return '#10B981';
-    if (status === 'submitted' || status === 'supervisor_graded' || status === 'graded') return '#F59E0B';
+    if (isMilestoneDone(status)) return '#10B981';
+    if (isMilestoneSubmitted(status)) return '#F59E0B';
     return '#8899BB';
   };
 
+  const statusBg = (status: string) => {
+    if (isMilestoneDone(status)) return '#ECFDF5';
+    if (isMilestoneSubmitted(status)) return '#FFFBEB';
+    return '#F1F0EC';
+  };
+
+  const statusIcon = (status: string) => {
+    if (isMilestoneDone(status)) return '✅';
+    if (isMilestoneSubmitted(status)) return '📤';
+    return '⏳';
+  };
+
   const statusLabel = (m: InProgressProject['students'][number]['milestones'][number]) => {
-    if (m.status === 'coordinator_approved' || m.status === 'completed') {
+    if (isMilestoneDone(m.status)) {
       return m.supervisorScore !== null
         ? lang === 'he'
           ? `אושר (${m.supervisorScore}/100)`
@@ -77,8 +92,14 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
           ? 'אושר'
           : 'Approved';
     }
-    if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') return lang === 'he' ? 'הוגש' : 'Submitted';
+    if (isMilestoneSubmitted(m.status)) return lang === 'he' ? 'הוגש' : 'Submitted';
     return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
+  };
+
+  const formatMilestoneDate = (iso: string | null | undefined) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   return (
@@ -154,17 +175,69 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
                           {(student.milestones ?? []).length === 0 ? (
                             <p className="text-xs text-muted">{lang === 'he' ? 'לא נוצרו אבני דרך לסטודנט זה' : 'No milestones created for this student'}</p>
                           ) : (
-                            student.milestones.map((m, mIdx) => (
-                              <div
-                                key={mIdx}
-                                className={`flex items-center justify-between py-1.5 text-xs ${mIdx < student.milestones.length - 1 ? 'border-b border-line' : ''}`}
-                              >
-                                <span className="font-medium text-ink">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</span>
-                                <span className="font-semibold" style={{ color: statusColor(m.status) }}>
-                                  {statusLabel(m)}
-                                </span>
-                              </div>
-                            ))
+                            <div className="grid gap-2">
+                              {(() => {
+                                const firstIncompleteIdx = student.milestones.findIndex((m) => !isMilestoneDone(m.status));
+                                return student.milestones.map((m, mIdx) => {
+                                  const done = isMilestoneDone(m.status);
+                                  const isCurrent = !done && mIdx === firstIncompleteIdx;
+                                  const isFuture = !done && !isCurrent;
+                                  const color = statusColor(m.status);
+                                  return (
+                                    <div
+                                      key={mIdx}
+                                      className={`role-rail rounded-lg border bg-surface p-2.5 transition-opacity ${
+                                        isCurrent ? 'border-2' : 'border-line'
+                                      } ${isFuture ? 'opacity-75 hover:opacity-100' : ''}`}
+                                      style={
+                                        {
+                                          '--rail-color': color,
+                                          borderColor: isCurrent ? 'var(--primary)' : undefined,
+                                        } as React.CSSProperties
+                                      }
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                          <span
+                                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                                              isFuture ? 'border-2 bg-surface' : 'text-white'
+                                            }`}
+                                            style={isFuture ? { borderColor: color, color } : { backgroundColor: done ? 'var(--success)' : color }}
+                                          >
+                                            {done ? '✓' : mIdx + 1}
+                                          </span>
+                                          <span className="truncate text-xs font-semibold text-ink">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</span>
+                                        </div>
+                                        <span
+                                          className="shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                          style={{ backgroundColor: statusBg(m.status), color }}
+                                        >
+                                          {statusIcon(m.status)} {statusLabel(m)}
+                                        </span>
+                                      </div>
+                                      <div className="mt-2 grid grid-cols-3 gap-2 border-t border-line/60 pt-2">
+                                        <div>
+                                          <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'תאריך יעד' : 'Due'}</p>
+                                          <p className="mt-0.5 text-[11px] text-ink">📅 {formatMilestoneDate(m.dueDate)}</p>
+                                        </div>
+                                        {m.submittedAt && (
+                                          <div>
+                                            <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'הוגש' : 'Submitted'}</p>
+                                            <p className="mt-0.5 text-[11px] text-ink">📤 {formatMilestoneDate(m.submittedAt)}</p>
+                                          </div>
+                                        )}
+                                        {m.supervisorScore !== null && (
+                                          <div>
+                                            <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'ציון' : 'Score'}</p>
+                                            <p className="mt-0.5 text-[11px] font-bold text-ink">🏆 {m.supervisorScore}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                });
+                              })()}
+                            </div>
                           )}
                           <ProjectStageChain
                             createdAt={p.createdAt}

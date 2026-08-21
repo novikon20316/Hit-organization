@@ -20,6 +20,20 @@ import {
   type Milestone,
 } from './types';
 
+// File URLs carry no separate filename field — derive a human-readable one
+// from the URL itself, same approach as components/MilestoneTimeline.tsx's
+// fileNameFromUrl (that helper isn't exported, so duplicated here).
+function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string {
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    const last = path.split('/').filter(Boolean).pop();
+    if (last) return last;
+  } catch {
+    // fall through to generic label below
+  }
+  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
+}
+
 interface ActiveDashboardProps {
   project: ActiveProject;
   milestones: Milestone[];
@@ -207,11 +221,14 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                       {index < milestones.length - 1 && <span className="mt-1 w-px flex-1 bg-student-outline-variant" />}
                     </div>
 
-                    <div className={`flex-1 pb-6 ${isCurrent ? 'rounded-student-lg border border-student-primary/20 bg-student-primary/5 p-3 -mt-1' : ''}`}>
-                      <div className="flex items-center justify-between gap-2">
+                    <div
+                      className={`role-rail flex-1 pb-6 ${isCurrent ? 'rounded-student-lg border border-student-primary/20 bg-student-primary/5 p-3 -mt-1' : 'ps-3'}`}
+                      style={!isCurrent ? ({ '--rail-color': isApprovedOrDone ? 'var(--success)' : cfg.color } as React.CSSProperties) : undefined}
+                    >
+                      <div className="flex items-start justify-between gap-2">
                         <span className="text-sm font-semibold text-student-on-surface">{label}</span>
                         <span
-                          className="rounded-student px-2 py-1 text-xs font-semibold uppercase tracking-wide"
+                          className="shrink-0 whitespace-nowrap rounded-student px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
                           style={{ backgroundColor: isApprovedOrDone ? 'var(--success-bg)' : cfg.bg, color: isApprovedOrDone ? 'var(--success)' : cfg.color }}
                         >
                           {isApprovedOrDone ? '✅' : cfg.icon} {STATUS_LABEL[m.status]?.[lang] ?? m.status}
@@ -241,6 +258,20 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                             </span>
                           )}
                         </p>
+                      )}
+
+                      {unlocked && (m.submittedAt || (isApprovedOrDone && m.finalGrade !== null)) && (
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-student-outline-variant/60 pt-2">
+                          {m.submittedAt && (
+                            <span className="text-xs text-student-on-surface-variant">
+                              📤 {lang === 'he' ? 'הוגש:' : 'Submitted:'}{' '}
+                              {toDate(m.submittedAt)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                          {isApprovedOrDone && m.finalGrade !== null && (
+                            <span className="text-xs font-bold text-student-on-surface">🏆 {t('grade')}: {m.finalGrade}</span>
+                          )}
+                        </div>
                       )}
 
                       {isDefense && m.defenseDate && (
@@ -291,9 +322,24 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                       )}
 
                       {m.fileUrls?.length > 0 && (
-                        <p className="mt-1.5 text-xs text-student-on-surface-variant">
-                          📎 {m.fileUrls.length} {lang === 'he' ? 'קבצים הוגשו' : 'files submitted'}
-                        </p>
+                        <div className="mt-2">
+                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-student-on-surface-variant">
+                            {lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {m.fileUrls.map((url, i) => (
+                              <a
+                                key={i}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 rounded-student border border-student-outline-variant bg-student-surface-container-low px-2.5 py-1.5 text-xs text-student-on-surface transition-colors hover:border-student-primary hover:text-student-primary"
+                              >
+                                📄 <span className="max-w-[12rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
                       )}
 
                       {m.revisionHistory && m.revisionHistory.length > 0 && (

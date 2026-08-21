@@ -992,16 +992,22 @@ export const coordinatorHomeStyles = StyleSheet.create({
     },
 
   fileBtn: {
-    backgroundColor: '#EDE9FE',
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f4f3fa',
+    borderWidth: 1,
+    borderColor: '#c5c5d3',
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     marginTop: 8,
+    alignSelf: 'flex-start',
     },
 
   fileBtnText: {
-    color: '#6D28D9',
-    fontWeight: '700',
+    color: '#00236f',
+    fontWeight: '600',
+    fontSize: 12,
     },
   gradeRow: {
     flexDirection: 'row',
@@ -2026,18 +2032,26 @@ export const examinerHomeStyles = StyleSheet.create({
   weightChipLabel: { fontSize: 10, color: '#6B7280' },
   weightChipValue: { fontSize: 13, fontWeight: '700', color: '#111827' },
  
-  // Expanded milestone history
+  // Expanded milestone history — "Mobile Milestone Tracker with Files" card
+  // language (see mobile/components/MilestoneRoadmap.tsx): rail-colored left
+  // border, title + status badge header row, a small stat grid, file chips.
+  // Dynamic colors (rail/badge, keyed off graded-vs-not) are applied inline
+  // in examinor/home.tsx — StyleSheet values here are shape-only.
   expandedSection: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#F0F4FF', paddingTop: 14 },
   sectionTitle:    { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 10 },
-  milestoneBlock:  { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 },
-  milestoneName:   { fontSize: 13, fontWeight: '700', color: '#1F2937', marginBottom: 6 },
-  scoreRow:        { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  scoreLabel:      { fontSize: 12, color: '#6B7280' },
-  scoreValue:      { fontSize: 13, fontWeight: '700' },
-  commentText:     { fontSize: 12, color: '#4B5563', fontStyle: 'italic', marginTop: 4 },
-  filesLabel:      { fontSize: 12, color: '#6B7280', marginBottom: 4 },
-  fileBtn:         { backgroundColor: '#ECFDF5', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 6 },
-  fileBtnText:     { fontSize: 13, color: '#059669', fontWeight: '600' },
+  milestoneBlock:  { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#E3E1E9', borderLeftWidth: 4, padding: 12, marginBottom: 10 },
+  milestoneHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  milestoneName:   { fontSize: 13, fontWeight: '700', color: '#1A1B21', flexShrink: 1 },
+  milestoneBadge:      { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  milestoneBadgeText:  { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+  scoreRow:        { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#EEEDF4' },
+  scoreLabel:      { fontSize: 9, fontWeight: '700', color: '#444651', textTransform: 'uppercase' },
+  scoreValue:      { fontSize: 13, fontWeight: '700', marginTop: 2 },
+  commentText:     { fontSize: 12, color: '#4B5563', fontStyle: 'italic', marginTop: 6 },
+  filesLabel:      { fontSize: 9, fontWeight: '700', color: '#444651', textTransform: 'uppercase', marginTop: 8, marginBottom: 4 },
+  filesRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  fileBtn:         { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F4F3FA', borderRadius: 8, borderWidth: 1, borderColor: '#E3E1E9', paddingVertical: 6, paddingHorizontal: 10 },
+  fileBtnText:     { fontSize: 12, color: '#1A1B21', fontWeight: '600' },
   noFiles:         { fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', marginTop: 4 },
  
   // Schedule cards

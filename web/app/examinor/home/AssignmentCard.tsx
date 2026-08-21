@@ -188,29 +188,59 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       {expanded && (
         <div className="mt-3 grid gap-2 border-t border-line pt-3">
           <p className="text-xs font-semibold text-ink">📊 {lang === 'he' ? 'ציונים ומסמכים לפי אבן דרך' : 'Grades & Files by Milestone'}</p>
-          {m.milestoneHistory.map((mg) => (
-            <div key={mg.type} className="rounded-lg bg-paper p-2.5">
-              <p className="text-xs font-semibold text-ink">{MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}</p>
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-xs text-muted">{lang === 'he' ? 'ציון מנחה:' : 'Supervisor score:'}</span>
-                <span className="text-xs font-medium" style={{ color: mg.supervisorScore !== null ? 'var(--success)' : 'var(--muted)' }}>
-                  {mg.supervisorScore !== null ? `${mg.supervisorScore}/100` : lang === 'he' ? 'טרם ניתן' : 'Not yet'}
-                </span>
-              </div>
-              {mg.supervisorComment && <p className="mt-1 text-xs text-ink">💬 {mg.supervisorComment}</p>}
-              {mg.fileUrls.length > 0 ? (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {mg.fileUrls.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-ink hover:border-primary">
-                      📄 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
-                    </a>
-                  ))}
+          {m.milestoneHistory.map((mg) => {
+            const isGraded = mg.supervisorScore !== null;
+            const railColor = isGraded ? 'var(--success)' : facultyColor;
+            return (
+              <div
+                key={mg.type}
+                className="role-rail rounded-lg border border-line bg-surface p-3"
+                style={{ '--rail-color': railColor } as React.CSSProperties}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-ink">{MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}</p>
+                  <span
+                    className="shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    style={{ backgroundColor: isGraded ? 'var(--success-bg)' : '#FBF3E3', color: isGraded ? 'var(--success)' : '#B8862E' }}
+                  >
+                    {isGraded ? `✅ ${lang === 'he' ? 'נוקד' : 'Graded'}` : `⏳ ${lang === 'he' ? 'טרם ניתן' : 'Not yet'}`}
+                  </span>
                 </div>
-              ) : (
-                <p className="mt-1 text-xs text-muted">{lang === 'he' ? 'לא הועלו קבצים' : 'No files uploaded'}</p>
-              )}
-            </div>
-          ))}
+
+                <div className="mt-2 flex items-center justify-between border-t border-line/60 pt-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'ציון מנחה' : 'Supervisor score'}</span>
+                  <span className="text-xs font-bold" style={{ color: isGraded ? 'var(--success)' : 'var(--muted)' }}>
+                    🏆 {isGraded ? `${mg.supervisorScore}/100` : lang === 'he' ? 'טרם ניתן' : 'Not yet'}
+                  </span>
+                </div>
+
+                {mg.supervisorComment && <p className="mt-2 text-xs text-ink">💬 {mg.supervisorComment}</p>}
+
+                {mg.fileUrls.length > 0 ? (
+                  <div className="mt-2">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                      {lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {mg.fileUrls.map((url, i) => (
+                        <a
+                          key={i}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1 text-xs text-ink hover:border-primary hover:text-primary"
+                        >
+                          📄 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-muted">{lang === 'he' ? 'לא הועלו קבצים' : 'No files uploaded'}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
