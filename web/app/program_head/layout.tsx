@@ -21,11 +21,16 @@ import { SidebarShell, type SidebarSection } from '@/components/dashboard/Sideba
 
 const DASHBOARD = '/program_head/dashboard';
 
-export default function ProgramHeadLayout({ children }: { children: React.ReactNode }) {
-  const { roles } = useAuth();
+// Exported so app/administrative_coordinator/layout.tsx can show a visiting
+// program_head THIS sidebar instead of its own hardcoded "Administrative
+// Coordinator" branding — see that file's comment for why that mattered
+// (a program_head reaches a student's detail page, which lives under
+// /administrative_coordinator/**, from their own dashboard's student
+// search).
+export function buildProgramHeadNavSections(roles: string[]): SidebarSection[] {
   const canCreateOwnProject = roles.includes('supervisor') || roles.includes('secondary_supervisor');
 
-  const navSections: SidebarSection[] = [
+  return [
     {
       title: { he: 'ניווט', en: 'Navigation' },
       items: [
@@ -78,11 +83,15 @@ export default function ProgramHeadLayout({ children }: { children: React.ReactN
       ],
     },
   ];
+}
+
+export default function ProgramHeadLayout({ children }: { children: React.ReactNode }) {
+  const { roles } = useAuth();
 
   return (
     <SidebarShell
       brand={{ name: 'HIT', subtitle: { he: 'פורטל ראש תוכנית', en: 'Program Head Portal' } }}
-      sections={navSections}
+      sections={buildProgramHeadNavSections(roles)}
       theme={{ mode: 'accent' }}
     >
       {children}
