@@ -126,7 +126,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                 <div className="h-full rounded-full bg-student-primary" style={{ width: `${progress}%` }} />
               </div>
               <p className="mt-1.5 text-xs text-student-on-surface-variant">
-                {milestones.filter((m) => m.status === 'coordinator_approved').length} / {milestones.length}{' '}
+                <span dir="ltr">{milestones.filter((m) => m.status === 'coordinator_approved').length} / {milestones.length}</span>{' '}
                 {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
               </p>
             </div>
