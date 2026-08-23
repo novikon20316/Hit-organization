@@ -31,7 +31,14 @@ import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/Prerequ
 interface NewProjectModalProps {
   facultyId: FacultyId;
   onClose: () => void;
-  onCreated: () => void;
+  /** Called with the freshly-created project's id/title (He/En) — lets the
+   *  caller immediately open the examiner-recommendation modal for it (see
+   *  supervisor/dashboard/page.tsx) without a second Firestore round trip.
+   *  Every other existing caller (CreateOwnProjectButton.tsx and the various
+   *  dashboards' "create own project" entry points) still compiles fine
+   *  with a plain `() => void` handler — TS's function-parameter
+   *  bivariance means the extra argument is simply ignored there. */
+  onCreated: (project: { id: string; titleHe: string; titleEn: string }) => void;
 }
 
 export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectModalProps) {
@@ -88,7 +95,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
     }
     setSaving(true);
     try {
-      await apiClient.createSupervisorProject({
+      const result = await apiClient.createSupervisorProject({
         titleHe,
         titleEn,
         descriptionHe: descHe,
@@ -103,7 +110,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         facultyId,
         ...(major ? { major } : {}),
       });
-      onCreated();
+      onCreated({ id: result.projectId, titleHe, titleEn });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'פרסום הפרויקט נכשל' : 'Failed to create the project');

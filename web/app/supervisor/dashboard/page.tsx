@@ -2,8 +2,10 @@
 
 // app/supervisor/dashboard/page.tsx
 // Ported from mobile/app/supervisor/dashboard.tsx — Applications, Projects,
-// Deadlines, and Recommend tabs. Grading lives inline on each milestone row
-// inside the Projects tab (see ProjectWorkflowSection.tsx), not its own tab.
+// and Deadlines tabs. Grading lives inline on each milestone row inside the
+// Projects tab (see ProjectWorkflowSection.tsx), not its own tab — and
+// examiner recommendation now happens right after project creation (or via
+// a project card's own button), not its own tab either.
 //
 // useSearchParams() forces this static route into client-side rendering at
 // the Suspense boundary during prerendering (Next.js requirement) — wrapped
@@ -11,7 +13,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -19,13 +21,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import type { FacultyId } from '@/lib/i18n';
-import type { ExaminerUser, ExaminerRecommendation } from '@/app/coordinator/home/types';
+import type { ExaminerUser } from '@/app/coordinator/home/types';
 import { ApplicationCard } from './ApplicationCard';
 import { GradeMilestoneModal } from './GradeMilestoneModal';
 import { ProjectCard } from './ProjectCard';
 import { EditProjectModal } from './EditProjectModal';
 import { NewProjectModal } from './NewProjectModal';
-import { RecommendExaminersModal } from './RecommendExaminersModal';
+import { RecommendExaminersModal, type RecommendExaminersTarget } from './RecommendExaminersModal';
 import { QuickTasksPanel } from './QuickTasksPanel';
 import type { MyProject, Application, SupervisorPendingMilestone } from './types';
 
@@ -33,9 +35,12 @@ const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
 // No standalone 'grading' tab — grading (and the file preview/download it
 // needs) lives inline on each milestone row inside the Projects tab now, see
-// ProjectWorkflowSection.tsx.
-type Tab = 'projects' | 'applications' | 'recommend' | 'signoffs';
-const SUPERVISOR_TABS: Tab[] = ['projects', 'applications', 'recommend', 'signoffs'];
+// ProjectWorkflowSection.tsx. Likewise, no standalone 'recommend' tab either
+// — examiner recommendation now happens right after project creation (or,
+// as a fallback, from a "Recommend Examiners" button on the project's own
+// card), never a separate surface. See RecommendExaminersModal.tsx.
+type Tab = 'projects' | 'applications' | 'signoffs';
+const SUPERVISOR_TABS: Tab[] = ['projects', 'applications', 'signoffs'];
 const isSupervisorTab = (v: string | null): v is Tab => !!v && (SUPERVISOR_TABS as string[]).includes(v);
 type ApplicationFilter = 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected';
 type ProjectFilter = 'all' | 'active' | 'offered';
@@ -63,25 +68,12 @@ const PROJECT_FILTERS: { key: ProjectFilter; he: string; en: string }[] = [
 function SupervisorDashboardContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
-  const router = useRouter();
   const searchParams = useSearchParams();
 
-  // "New Recommendation" used to be a DashboardShell hamburger action,
-  // shown only on the recommend tab — it now lives in the sidebar
-  // (app/supervisor/layout.tsx) and opens via this ?modal= param instead,
-  // same "URL is the source of truth" pattern as app/admin/panel/page.tsx.
-  const showRecommendModal = searchParams.get('modal') === 'recommend';
-  const closeRecommendModal = useCallback(() => {
-    const qs = new URLSearchParams(searchParams);
-    qs.delete('modal');
-    const query = qs.toString();
-    router.replace(query ? `/supervisor/dashboard?${query}` : '/supervisor/dashboard', { scroll: false });
-  }, [router, searchParams]);
-
-  // Same URL-as-source-of-truth pattern as `showRecommendModal` above (and
-  // as app/admin/panel/page.tsx's `tab`) — the sidebar (app/supervisor/
-  // layout.tsx) links to /supervisor/dashboard?tab=... for each top-level
-  // tab, so there's no local state to keep in sync.
+  // Same URL-as-source-of-truth pattern as app/admin/panel/page.tsx's `tab`
+  // — the sidebar (app/supervisor/layout.tsx) links to
+  // /supervisor/dashboard?tab=... for each top-level tab, so there's no
+  // local state to keep in sync.
   const paramTab = searchParams.get('tab');
   const tab: Tab = isSupervisorTab(paramTab) ? paramTab : 'projects';
   const [applicationFilter, setApplicationFilter] = useState<ApplicationFilter>('all');
@@ -89,7 +81,6 @@ function SupervisorDashboardContent() {
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [pendingGrades, setPendingGrades] = useState<SupervisorPendingMilestone[]>([]);
-  const [recommendations, setRecommendations] = useState<ExaminerRecommendation[]>([]);
   const [internalExaminers, setInternalExaminers] = useState<ExaminerUser[]>([]);
   const [facultyId, setFacultyId] = useState<FacultyId>('all');
   const [loadingData, setLoadingData] = useState(true);
@@ -98,6 +89,10 @@ function SupervisorDashboardContent() {
   const [gradingTarget, setGradingTarget] = useState<SupervisorPendingMilestone | null>(null);
   const [editingProject, setEditingProject] = useState<MyProject | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
+  // Opened either right after creating a project (NewProjectModal's
+  // onCreated) or via a project card's own "Recommend Examiners" button —
+  // never a standalone tab anymore, see RecommendExaminersModal.tsx.
+  const [recommendExaminersTarget, setRecommendExaminersTarget] = useState<RecommendExaminersTarget | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -114,13 +109,16 @@ function SupervisorDashboardContent() {
     }
   }, [lang]);
 
-  const fetchRecommendationsData = useCallback(async () => {
+  // Only the internal-examiner list is needed now — the RecommendExaminersModal
+  // picker uses it; the (now-removed) recommend tab used to also fetch the
+  // supervisor's own past recommendations to list them, which nothing
+  // renders anymore.
+  const fetchInternalExaminers = useCallback(async () => {
     try {
-      const [recs, examiners] = await Promise.all([apiClient.getSupervisorExaminerRecommendations(), apiClient.getInternalExaminerList()]);
-      setRecommendations((recs.recommendations ?? []) as unknown as ExaminerRecommendation[]);
+      const examiners = await apiClient.getInternalExaminerList();
       setInternalExaminers((examiners ?? []) as unknown as ExaminerUser[]);
     } catch {
-      // non-fatal — recommend tab just shows empty state
+      // non-fatal — the modal just shows an empty internal-examiner list
     }
   }, []);
 
@@ -128,9 +126,9 @@ function SupervisorDashboardContent() {
     if (isAllowed) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
       fetchDashboard();
-      fetchRecommendationsData();
+      fetchInternalExaminers();
     }
-  }, [isAllowed, fetchDashboard, fetchRecommendationsData]);
+  }, [isAllowed, fetchDashboard, fetchInternalExaminers]);
 
   if (guardLoading) {
     return (
@@ -267,6 +265,7 @@ function SupervisorDashboardContent() {
                     onChanged={fetchDashboard}
                     pendingGrades={pendingGrades}
                     onGrade={setGradingTarget}
+                    onRecommendExaminers={(project) => setRecommendExaminersTarget(project)}
                   />
                 ))}
                 {filteredProjects.length === 0 && (
@@ -283,22 +282,6 @@ function SupervisorDashboardContent() {
                 )}
               </div>
             </>
-          )}
-
-          {tab === 'recommend' && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {recommendations.map((rec) => (
-                <div key={rec.id} className="rounded-[8px] border border-[#c5c5d3] bg-white p-4">
-                  <p className="text-sm font-semibold text-[#1a1b21]">{lang === 'he' ? rec.projectTitleHe : rec.projectTitleEn}</p>
-                  <p className="mt-1 text-xs text-[#444651]">
-                    👥 {rec.recommendedExaminers?.length ?? 0} {lang === 'he' ? 'בוחנים הומלצו' : 'examiners recommended'}
-                  </p>
-                </div>
-              ))}
-              {recommendations.length === 0 && (
-                <p className="text-sm text-[#444651]">👥 {lang === 'he' ? 'לא נשלחו המלצות בוחנים' : 'No examiner recommendations sent yet'}</p>
-              )}
-            </div>
           )}
 
           {tab === 'signoffs' && <PendingSignoffsWidget showEmptyState />}
@@ -325,7 +308,14 @@ function SupervisorDashboardContent() {
       )}
 
       {showNewProject && (
-        <NewProjectModal facultyId={facultyId} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
+        <NewProjectModal
+          facultyId={facultyId}
+          onClose={() => setShowNewProject(false)}
+          onCreated={(project) => {
+            fetchDashboard();
+            setRecommendExaminersTarget(project);
+          }}
+        />
       )}
 
       {tab === 'projects' && (
@@ -342,12 +332,13 @@ function SupervisorDashboardContent() {
         </div>
       )}
 
-      {showRecommendModal && (
+      {recommendExaminersTarget && (
         <RecommendExaminersModal
-          myProjects={myProjects}
+          key={recommendExaminersTarget.id}
+          project={recommendExaminersTarget}
           internalExaminers={internalExaminers}
-          onClose={closeRecommendModal}
-          onSubmitted={fetchRecommendationsData}
+          onClose={() => setRecommendExaminersTarget(null)}
+          onSubmitted={() => setRecommendExaminersTarget(null)}
         />
       )}
     </DashboardShell>

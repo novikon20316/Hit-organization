@@ -4,12 +4,15 @@
 // A client component — see app/admin/layout.tsx's note (NAV_SECTIONS'
 // isActive functions can't cross the server/client boundary as props).
 //
-// Migrates supervisor/secondary_supervisor's one DashboardShell hamburger
-// action (New Recommendation) into the persistent collapsible sidebar.
-// Both roles share this route — SidebarShell's 'accent' theme reads the
-// signed-in user's own activeRole internally, so supervisor and
-// secondary_supervisor automatically get their own distinct accent color
-// here even though they share this one layout.
+// Both supervisor/secondary_supervisor share this route — SidebarShell's
+// 'accent' theme reads the signed-in user's own activeRole internally, so
+// each automatically gets their own distinct accent color here even though
+// they share this one layout.
+//
+// No "Recommend Examiners" nav item / quick action anymore — that flow now
+// happens right after project creation (or via a project card's own
+// button), never a standalone tab or sidebar entry. See
+// supervisor/dashboard/RecommendExaminersModal.tsx.
 
 import { SidebarShell, type SidebarSection } from '@/components/dashboard/SidebarShell';
 
@@ -32,13 +35,6 @@ const NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'applications',
       },
       {
-        key: 'recommendTab',
-        icon: '🧑‍⚖️',
-        href: '/supervisor/dashboard?tab=recommend',
-        label: { he: 'המלצת בוחנים', en: 'Recommend Examiners' },
-        isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'recommend',
-      },
-      {
         key: 'signoffs',
         icon: '✅',
         href: '/supervisor/dashboard?tab=signoffs',
@@ -49,29 +45,11 @@ const NAV_SECTIONS: SidebarSection[] = [
   },
 ];
 
-const QUICK_ACTIONS: SidebarSection = {
-  title: { he: 'פעולות מהירות', en: 'Quick Actions' },
-  items: [
-    {
-      key: 'recommend',
-      icon: '📝',
-      // Preserves whatever ?tab= is already open on /supervisor/dashboard —
-      // opening "New Recommendation" from the Applications tab shouldn't
-      // bounce the supervisor back to Projects once they close it. Same
-      // pattern as admin/layout.tsx's QUICK_ACTIONS.
-      href: (sp: URLSearchParams) => `/supervisor/dashboard?${sp.get('tab') ? `tab=${sp.get('tab')}&` : ''}modal=recommend`,
-      label: { he: 'המלצה חדשה', en: 'New Recommendation' },
-      isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('modal') === 'recommend',
-    },
-  ],
-};
-
 export default function SupervisorLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarShell
       brand={{ name: 'HIT', subtitle: { he: 'פורטל מנחה', en: 'Supervisor Portal' } }}
       sections={NAV_SECTIONS}
-      quickActions={QUICK_ACTIONS}
       theme={{ mode: 'accent' }}
     >
       {children}

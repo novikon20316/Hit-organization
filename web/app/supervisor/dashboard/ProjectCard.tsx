@@ -40,9 +40,15 @@ interface ProjectCardProps {
   onChanged: () => void;
   pendingGrades: SupervisorPendingMilestone[];
   onGrade: (milestone: SupervisorPendingMilestone) => void;
+  /** Opens the examiner-recommendation modal for this project — the
+   *  fallback path now that there's no standalone "Recommend Examiners" tab
+   *  (the primary path is right after project creation, see page.tsx).
+   *  Optional so other dashboards reusing this same card (e.g.
+   *  program_head/dashboard/page.tsx) aren't affected unless they wire it. */
+  onRecommendExaminers?: (project: MyProject) => void;
 }
 
-export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGrade }: ProjectCardProps) {
+export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGrade, onRecommendExaminers }: ProjectCardProps) {
   const { lang, t } = useLanguage();
   const router = useRouter();
   const facultyColor = getFacultyColor(p.facultyId);
@@ -156,6 +162,15 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         >
           {lang === 'he' ? 'עריכה' : 'Edit'}
         </button>
+        {onRecommendExaminers && (
+          <button
+            type="button"
+            onClick={() => onRecommendExaminers(p)}
+            className="flex-1 rounded-[4px] border border-[#c5c5d3] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[#505f76] hover:border-[#00236f] hover:text-[#00236f]"
+          >
+            🧑‍⚖️ {lang === 'he' ? 'המלצת בוחנים' : 'Recommend Examiners'}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setShowRequestErasure(true)}

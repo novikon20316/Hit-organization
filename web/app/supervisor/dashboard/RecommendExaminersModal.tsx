@@ -1,11 +1,20 @@
 'use client';
 
 // app/supervisor/dashboard/RecommendExaminersModal.tsx
+// Always scoped to one specific project now — opened either right after
+// project creation, or via a project card's own "Recommend Examiners"
+// button (see page.tsx) — never a generic "pick any of your projects"
+// picker anymore, so that step (and its state) is gone.
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { ExaminerUser } from '@/app/coordinator/home/types';
-import type { MyProject } from './types';
+
+export interface RecommendExaminersTarget {
+  id: string;
+  titleHe: string;
+  titleEn: string;
+}
 
 interface RecommendedExaminerDraft {
   type: 'internal' | 'external';
@@ -18,15 +27,14 @@ interface RecommendedExaminerDraft {
 }
 
 interface RecommendExaminersModalProps {
-  myProjects: MyProject[];
+  project: RecommendExaminersTarget;
   internalExaminers: ExaminerUser[];
   onClose: () => void;
   onSubmitted: () => void;
 }
 
-export function RecommendExaminersModal({ myProjects, internalExaminers, onClose, onSubmitted }: RecommendExaminersModalProps) {
+export function RecommendExaminersModal({ project, internalExaminers, onClose, onSubmitted }: RecommendExaminersModalProps) {
   const { lang } = useLanguage();
-  const [selectedProject, setSelectedProject] = useState<MyProject | null>(null);
   const [examiners, setExaminers] = useState<RecommendedExaminerDraft[]>([]);
   const [extName, setExtName] = useState('');
   const [extEmail, setExtEmail] = useState('');
@@ -62,10 +70,6 @@ export function RecommendExaminersModal({ myProjects, internalExaminers, onClose
   };
 
   const handleSubmit = async () => {
-    if (!selectedProject) {
-      setError(lang === 'he' ? 'יש לבחור פרויקט' : 'Please select a project');
-      return;
-    }
     if (examiners.length === 0) {
       setError(lang === 'he' ? 'יש להוסיף לפחות בוחן אחד' : 'Please add at least one examiner');
       return;
@@ -74,9 +78,9 @@ export function RecommendExaminersModal({ myProjects, internalExaminers, onClose
     setError('');
     try {
       await apiClient.createExaminerRecommendation({
-        projectId: selectedProject.id,
-        projectTitleHe: selectedProject.titleHe,
-        projectTitleEn: selectedProject.titleEn,
+        projectId: project.id,
+        projectTitleHe: project.titleHe,
+        projectTitleEn: project.titleEn,
         recommendedExaminers: examiners,
       });
       onSubmitted();
@@ -94,26 +98,13 @@ export function RecommendExaminersModal({ myProjects, internalExaminers, onClose
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'המלצת בוחנים' : 'Examiner Recommendation'}</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'המלצת בוחנים' : 'Examiner Recommendation'}</h2>
+            <p className="mt-0.5 text-sm text-muted">{lang === 'he' ? project.titleHe : project.titleEn}</p>
+          </div>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">
             ✕
           </button>
-        </div>
-
-        <p className="mb-1.5 mt-4 text-sm font-medium text-ink">{lang === 'he' ? 'בחר פרויקט' : 'Select Project'}</p>
-        <div className="grid gap-1.5">
-          {myProjects.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setSelectedProject(p)}
-              className={`rounded-lg border px-3 py-2 text-start text-sm ${
-                selectedProject?.id === p.id ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
-              }`}
-            >
-              {lang === 'he' ? p.titleHe : p.titleEn}
-            </button>
-          ))}
         </div>
 
         {examiners.length > 0 && (
