@@ -6,12 +6,19 @@
 import Link from 'next/link';
 import { useNotifications } from '@/contexts/NotificationsContext';
 
-export function NotificationBell() {
+interface NotificationBellProps {
+  /** Hover/background color classes — defaults to the light-header look;
+   *  callers on a dark surface (e.g. SidebarShell) pass their own token
+   *  classes instead. */
+  className?: string;
+}
+
+export function NotificationBell({ className = 'hover:bg-paper' }: NotificationBellProps) {
   const { unreadCount, unreadChats } = useNotifications();
   const total = unreadCount + unreadChats;
 
   return (
-    <Link href="/notifications" className="relative flex h-9 w-9 items-center justify-center rounded-full text-lg hover:bg-paper" aria-label="Notifications">
+    <Link href="/notifications" className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg ${className}`} aria-label="Notifications">
       🔔
       {total > 0 && (
         <span className="absolute -top-0.5 end-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">

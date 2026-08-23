@@ -31,6 +31,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { deriveSidebarTones } from '@/lib/colorTones';
+import { NotificationBell } from '@/components/NotificationBell';
 
 export interface SidebarNavItem {
   key: string;
@@ -180,6 +181,7 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
             <h2 className={`truncate text-lg font-bold ${cls.brand}`}>{brand.name}</h2>
             <p className={`truncate text-xs ${cls.subtitle}`}>{brand.subtitle[lang]}</p>
           </div>
+          <NotificationBell className={cls.itemInactive} />
         </div>
 
         <Suspense fallback={null}>

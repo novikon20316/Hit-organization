@@ -13,7 +13,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { NotificationBell } from '@/components/NotificationBell';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { roleLabel, type AppRole } from '@/lib/i18n';
@@ -79,10 +78,6 @@ export function DashboardShell({ title, subtitle, showBackButton = true, childre
                   {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
                 </div>
               </Link>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-3">
-              <NotificationBell />
             </div>
           </div>
 
