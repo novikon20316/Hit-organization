@@ -243,13 +243,26 @@ function ProposeVersionForm({
 
   const [rowModalOpen, setRowModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<MilestoneSpec | null>(null);
+  // MilestoneRowModal seeds every field from `editing` via useState
+  // initializers, which React only runs on a component's first mount — since
+  // the parent always renders <MilestoneRowModal> (just toggling `open`, never
+  // unmounting it), reopening it for a DIFFERENT milestone reused the same
+  // instance and kept showing whichever milestone's data it first mounted
+  // with. Incrementing this on every open and passing it as `key` forces a
+  // fresh instance (and fresh useState reads) each time, regardless of
+  // whether the modal is editing the same row again, a different row, or
+  // adding a new one — same pattern as ActiveDashboard.tsx's
+  // key={submitTarget.id} on SubmitMilestoneModal.
+  const [modalKey, setModalKey] = useState(0);
 
   const openAddRow = () => {
     setEditingRow(null);
+    setModalKey((k) => k + 1);
     setRowModalOpen(true);
   };
   const openEditRow = (ms: MilestoneSpec) => {
     setEditingRow(ms);
+    setModalKey((k) => k + 1);
     setRowModalOpen(true);
   };
 
@@ -587,7 +600,7 @@ function ProposeVersionForm({
         </button>
       </div>
 
-      <MilestoneRowModal open={rowModalOpen} editing={editingRow} onCancel={() => setRowModalOpen(false)} onSave={handleSaveRow} />
+      <MilestoneRowModal key={modalKey} open={rowModalOpen} editing={editingRow} onCancel={() => setRowModalOpen(false)} onSave={handleSaveRow} />
     </div>
   );
 }
