@@ -14,7 +14,11 @@ interface ChatbotFabProps {
   corner?: 'bottom-start' | 'bottom-end';
 }
 
-export function ChatbotFab({ corner = 'bottom-start' }: ChatbotFabProps) {
+// Defaults to the "end" corner — the sidebar (see SidebarShell.tsx) always
+// sits at the inline-start edge (right in Hebrew/RTL, left in English/LTR),
+// so anchoring this at "end" keeps it on the opposite corner from the menu
+// in both languages instead of overlapping it.
+export function ChatbotFab({ corner = 'bottom-end' }: ChatbotFabProps) {
   const { lang } = useLanguage();
   const [showMessage, setShowMessage] = useState(false);
 
