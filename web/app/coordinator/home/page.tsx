@@ -171,7 +171,19 @@ function CoordinatorHomeContent() {
 
   return (
     <DashboardShell
-      title={lang === 'he' ? 'לוח בקרה — רכז' : 'Coordinator Dashboard'}
+      // This route is shared by coordinator/administrative_secretary/
+      // system_admin (see COORDINATOR_ROLES above) — the title must reflect
+      // whoever's actually viewing it, not always claim "Coordinator"
+      // (that misled a system_admin into thinking their own role had
+      // changed — same class of bug fixed on the sidebar in
+      // app/coordinator/layout.tsx / app/administrative_coordinator/layout.tsx).
+      title={
+        activeRole === 'administrative_secretary'
+          ? (lang === 'he' ? 'לוח בקרה — רכזת אדמיניסטרטיבית' : 'Administrative Coordinator Dashboard')
+          : activeRole === 'system_admin'
+            ? (lang === 'he' ? 'לוח בקרה — תצוגת רכז (מנהל מערכת)' : "Coordinator View (System Admin)")
+            : (lang === 'he' ? 'לוח בקרה — רכז' : 'Coordinator Dashboard')
+      }
       subtitle={lang === 'he' ? 'אישור אבני דרך והמלצות בוחנים' : 'Milestone approvals and examiner recommendations'}
       showBackButton={tab !== 'overview'}
     >

@@ -67,7 +67,7 @@ interface SupervisorLoad {
 
 function ProgramHeadDashboardContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(PROGRAM_HEAD_ROLES);
-  const { firebaseUser, roles } = useAuth();
+  const { firebaseUser, roles, activeRole } = useAuth();
   const { lang, t } = useLanguage();
   const searchParams = useSearchParams();
 
@@ -204,7 +204,18 @@ function ProgramHeadDashboardContent() {
 
   return (
     <DashboardShell
-      title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש תוכנית תואר שני' : "Master's Program Head"}
+      // PROGRAM_HEAD_ROLES above is only program_head + system_admin — the
+      // fallback title must say which one is actually looking, not always
+      // claim "Program Head" (that misled a system_admin into thinking
+      // their own role had changed — same class of bug fixed on the
+      // sidebar in app/administrative_coordinator/layout.tsx).
+      title={
+        headName
+          ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}`
+          : activeRole === 'system_admin'
+            ? (lang === 'he' ? 'ראש תוכנית — תצוגת מנהל מערכת' : 'Program Head View (System Admin)')
+            : (lang === 'he' ? 'ראש תוכנית תואר שני' : "Master's Program Head")
+      }
       subtitle={lang === 'he' ? 'סטודנטים, אישורים ועומס הנחיה' : 'Students, approvals, and supervision load'}
       showBackButton={tab !== 'students'}
     >

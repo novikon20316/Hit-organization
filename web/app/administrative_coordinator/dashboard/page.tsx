@@ -60,7 +60,7 @@ function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
 
 function AdministrativeCoordinatorDashboardContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_COORDINATOR_ROLES);
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, activeRole } = useAuth();
   const { lang, t } = useLanguage();
   const searchParams = useSearchParams();
 
@@ -168,7 +168,16 @@ function AdministrativeCoordinatorDashboardContent() {
 
   return (
     <DashboardShell
-      title={lang === 'he' ? 'לוח בקרה — רכזת אדמיניסטרטיבית' : 'Administrative Coordinator Dashboard'}
+      // ADMIN_COORDINATOR_ROLES above is only administrative_secretary +
+      // system_admin — the title must say which one is actually looking,
+      // not always claim "Administrative Coordinator" (that misled a
+      // system_admin into thinking their own role had changed — same class
+      // of bug fixed on the sidebar in app/administrative_coordinator/layout.tsx).
+      title={
+        activeRole === 'system_admin'
+          ? (lang === 'he' ? 'לוח בקרה — תצוגת רכזת אדמיניסטרטיבית (מנהל מערכת)' : 'Administrative Coordinator View (System Admin)')
+          : (lang === 'he' ? 'לוח בקרה — רכזת אדמיניסטרטיבית' : 'Administrative Coordinator Dashboard')
+      }
       subtitle={lang === 'he' ? 'קבוצות פרויקט, הגנות ובוחנים חיצוניים' : 'Project groups, defenses, and external examiners'}
       showBackButton={activeTab !== 'groups'}
     >
