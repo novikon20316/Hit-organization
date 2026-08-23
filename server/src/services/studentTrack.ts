@@ -10,7 +10,7 @@
 
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { resolveTrackPolicy, type StudentTrack } from '../config/studentTrack.js';
+import { resolveTrackPolicy, THESIS_ELIGIBILITY_THRESHOLD, type StudentTrack } from '../config/studentTrack.js';
 import { logAuditEvent } from './auditLog.js';
 
 export class StudentTrackError extends Error {
@@ -127,6 +127,75 @@ export async function setThesisEligibility(
     oldValue: { eligible: student.thesisEligibility?.eligible ?? null },
     newValue: { eligible },
     explanation: reason,
+  });
+}
+
+/** Sets thesis eligibility FROM a grade average instead of a direct manual
+ *  boolean — same coordinator_gated-policy check and track-reset-when-
+ *  ineligible behavior as setThesisEligibility above, just derives `eligible`
+ *  from THESIS_ELIGIBILITY_THRESHOLD instead of trusting the caller's own
+ *  judgment. Entered manually today (see config/studentTrack.ts's doc
+ *  comment) — a manual "Mark eligible"/"Mark not eligible" call can still
+ *  override the result afterward, same as it could override any other
+ *  eligible value; both paths just write the same `thesisEligibility` field. */
+export async function setThesisEligibilityFromAverage(
+  studentId: string,
+  average: number,
+  coordinatorUid: string,
+  coordinatorRole: string,
+): Promise<void> {
+  if (typeof average !== 'number' || !Number.isFinite(average) || average < 0 || average > 100) {
+    throw new StudentTrackError('average must be a number between 0 and 100.', 'הממוצע חייב להיות מספר בין 0 ל-100.');
+  }
+
+  const studentRef = db.collection('users').doc(studentId);
+  const studentSnap = await studentRef.get();
+  if (!studentSnap.exists) throw new StudentTrackError('Student not found.', 'הסטודנט לא נמצא.');
+  const student = studentSnap.data()!;
+
+  const policy = resolveTrackPolicy(student.degreeType, student.major);
+  if (policy !== 'coordinator_gated') {
+    throw new StudentTrackError(
+      "This student's program does not use coordinator-gated thesis eligibility.",
+      'תוכנית הלימודים של סטודנט זה אינה משתמשת בזכאות לתזה המאושרת ע"י רכז.'
+    );
+  }
+
+  const eligible = average >= THESIS_ELIGIBILITY_THRESHOLD;
+
+  const thesisEligibility = {
+    method: 'average' as const,
+    eligible,
+    average,
+    threshold: THESIS_ELIGIBILITY_THRESHOLD,
+    computedScore: average,
+    decidedBy: coordinatorUid,
+    decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+    reason: null,
+  };
+
+  const update: Record<string, unknown> = { thesisEligibility };
+  // Same "not eligible resets any track choice already made" rule as the
+  // manual path — a lowered/corrected average that drops someone below the
+  // threshold must not leave them stuck on a thesis track they no longer
+  // qualify for.
+  if (!eligible) {
+    update.track = null;
+    update.trackLocked = false;
+    update.trackLockedReason = admin.firestore.FieldValue.delete();
+    update.trackLockedAt = admin.firestore.FieldValue.delete();
+  }
+
+  await studentRef.update(update);
+
+  await logAuditEvent({
+    userId: coordinatorUid,
+    userRole: coordinatorRole,
+    action: 'student_thesis_eligibility_set',
+    entityType: 'user',
+    entityId: studentId,
+    oldValue: { eligible: student.thesisEligibility?.eligible ?? null },
+    newValue: { eligible, average, threshold: THESIS_ELIGIBILITY_THRESHOLD },
   });
 }
 

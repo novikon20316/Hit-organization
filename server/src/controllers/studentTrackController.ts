@@ -11,6 +11,7 @@ import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 import {
   chooseStudentTrack,
   setThesisEligibility,
+  setThesisEligibilityFromAverage,
   adminOverrideStudentTrack,
   StudentTrackError,
 } from '../services/studentTrack.js';
@@ -73,6 +74,44 @@ export const setStudentThesisEligibility = async (req: AuthenticatedRequest, res
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
     const message = error instanceof Error ? error.message : 'Failed to set thesis eligibility.';
+    return res.status(400).json({ message });
+  }
+};
+
+// Same allowlist/scope model as setStudentThesisEligibility above — entering
+// an average is just another way to reach the same decision, not a
+// separately-authorized action.
+export const setStudentThesisAverage = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user.role || !THESIS_ELIGIBILITY_ROLES.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Forbidden.' });
+  }
+  const { studentId } = req.params;
+  const { average } = req.body;
+  if (typeof average !== 'number') {
+    return res.status(400).json({ message: 'average must be a number.' });
+  }
+  if (!studentId || typeof studentId !== 'string') {
+    return res.status(400).json({ message: 'Invalid studentId.' });
+  }
+
+  try {
+    const studentSnap = await db.collection('users').doc(studentId).get();
+    if (!studentSnap.exists || studentSnap.data()?.role !== 'student') {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+    const studentData = studentSnap.data()!;
+    if (!withinCoordinatorScope(req.user, { facultyId: studentData.facultyId ?? '', major: studentData.major || undefined })) {
+      return res.status(403).json({ message: 'This student is outside your assigned scope.' });
+    }
+
+    await setThesisEligibilityFromAverage(studentId, average, req.user.uid, req.user.role);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    if (error instanceof StudentTrackError) {
+      return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
+    }
+    const message = error instanceof Error ? error.message : 'Failed to set thesis average.';
     return res.status(400).json({ message });
   }
 };

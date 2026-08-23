@@ -36,7 +36,7 @@ const COORDINATOR_STATISTICS_ROLES = ['administrative_secretary', 'coordinator',
 // where the student thesis/project track (config/studentTrack.ts) is shown
 // and, for a computer_science masters student, where the plain `coordinator`
 // role (who the business rule actually names) grants thesis eligibility.
-const STUDENT_DETAIL_ROLES = ['administrative_secretary', 'coordinator', 'system_admin'];
+const STUDENT_DETAIL_ROLES = ['administrative_secretary', 'coordinator', 'program_head', 'system_admin'];
 
 interface DegreeScope { facultyId: string; major?: string }
 

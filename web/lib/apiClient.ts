@@ -1736,7 +1736,19 @@ export const apiClient = {
         trackPolicy: 'coordinator_gated' | 'signup_choice' | 'project_only';
         track: 'thesis' | 'project' | null;
         trackLocked: boolean;
-        thesisEligibility: { eligible: boolean; reason?: string | null; decidedAt?: string | null } | null;
+        thesisEligibility: {
+          eligible: boolean;
+          reason?: string | null;
+          decidedAt?: string | null;
+          /** 'manual' = a coordinator/program_head/administrative
+           *  coordinator directly flipped it; 'average' = derived from the
+           *  grade average below against THESIS_ELIGIBILITY_THRESHOLD. */
+          method?: 'manual' | 'average';
+          /** Only meaningful when method === 'average'. */
+          average?: number | null;
+          threshold?: number | null;
+          computedScore?: number | null;
+        } | null;
       };
       project: { id: string; titleHe: string; titleEn: string; supervisorName: string | null; academicYear: string | null } | null;
       currentMilestone: { id: string; type: string; nameHe: string; nameEn: string; status: string; dueDate: string | null } | null;
@@ -1781,6 +1793,19 @@ export const apiClient = {
     return request<{ success: boolean }>(`/api/project-coordinator/students/${studentId}/thesis-eligibility`, {
       method: 'POST',
       body: { eligible, reason },
+    });
+  },
+
+  /** Sets thesis eligibility FROM a grade average (currently entered
+   *  manually; see config/studentTrack.ts's doc comment for the planned
+   *  future Michlol auto-import) instead of a direct manual boolean — see
+   *  server/src/services/studentTrack.ts's setThesisEligibilityFromAverage.
+   *  A subsequent setStudentThesisEligibility call can still override the
+   *  result. */
+  async setStudentThesisAverage(studentId: string, average: number) {
+    return request<{ success: boolean }>(`/api/project-coordinator/students/${studentId}/thesis-average`, {
+      method: 'POST',
+      body: { average },
     });
   },
 

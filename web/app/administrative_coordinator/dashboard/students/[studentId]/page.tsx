@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { MilestoneTimeline, type MilestoneData } from '@/components/MilestoneTimeline';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
@@ -24,8 +25,16 @@ import { majorCellText } from '../../StudentsReportTab';
 // Widened to include 'coordinator' — the plain faculty coordinator role is
 // who actually grants thesis eligibility for a coordinator_gated student
 // (see the Track card below); everything else on this page stays read-only
-// for them same as for administrative_secretary.
-const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordinator', 'system_admin'];
+// for them same as for administrative_secretary. 'program_head' added so a
+// CS program head has somewhere to reach a specific student (see the new
+// search box on app/program_head/dashboard/page.tsx's students tab).
+const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordinator', 'program_head', 'system_admin'];
+// Grade-average entry is narrower than the page's own role guard — confirmed
+// with the user as exactly these three (the two who'll actually enter a CS
+// student's average, plus system_admin); plain 'coordinator' keeps the
+// existing manual eligible/not-eligible buttons only, same as before this
+// feature existed.
+const THESIS_AVERAGE_ROLES: AppRole[] = ['program_head', 'administrative_secretary', 'system_admin'];
 
 type StudentDetail = Awaited<ReturnType<typeof apiClient.getStudentDetail>>;
 
@@ -65,15 +74,20 @@ function formatDate(iso: string | null, lang: 'he' | 'en'): string {
 
 export default function StudentDetailPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_COORDINATOR_ROLES);
+  const { userData } = useAuth();
   const { lang } = useLanguage();
   const params = useParams<{ studentId: string }>();
   const studentId = params.studentId;
+  const role = userData?.role as AppRole | undefined;
+  const canSetAverage = !!role && THESIS_AVERAGE_ROLES.includes(role);
 
   const [data, setData] = useState<StudentDetail | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
   const [eligibilityReason, setEligibilityReason] = useState('');
   const [savingEligibility, setSavingEligibility] = useState(false);
+  const [averageInput, setAverageInput] = useState('');
+  const [savingAverage, setSavingAverage] = useState(false);
 
   const loadDetail = async () => {
     if (!studentId) return;
@@ -94,6 +108,28 @@ export default function StudentDetailPage() {
     loadDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, lang]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs the editable input to freshly-loaded server data (e.g. after loadDetail() re-fetches following a save) rather than leaving a stale value in place
+    setAverageInput(data?.student?.thesisEligibility?.average != null ? String(data.student.thesisEligibility.average) : '');
+  }, [data?.student?.thesisEligibility?.average]);
+
+  const handleSetAverage = async () => {
+    const parsed = Number(averageInput);
+    if (averageInput.trim() === '' || !Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      alert(lang === 'he' ? 'יש להזין ממוצע תקין בין 0 ל-100' : 'Enter a valid average between 0 and 100');
+      return;
+    }
+    setSavingAverage(true);
+    try {
+      await apiClient.setStudentThesisAverage(studentId, parsed);
+      await loadDetail();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
+    } finally {
+      setSavingAverage(false);
+    }
+  };
 
   const handleSetEligibility = async (eligible: boolean) => {
     setSavingEligibility(true);
@@ -157,8 +193,48 @@ export default function StudentDetailPage() {
                   <span className={student.thesisEligibility?.eligible ? 'text-success' : 'text-danger'}>
                     {student.thesisEligibility?.eligible ? (lang === 'he' ? 'כן' : 'Yes') : (lang === 'he' ? 'לא' : 'No')}
                   </span>
+                  {student.thesisEligibility?.method === 'average' && student.thesisEligibility.average != null && (
+                    <span className="text-muted">
+                      {' '}
+                      ({lang === 'he' ? 'ממוצע' : 'average'} {student.thesisEligibility.average} {student.thesisEligibility.eligible ? '≥' : '<'} {student.thesisEligibility.threshold ?? ''})
+                    </span>
+                  )}
                 </p>
-                <p className="mt-1 text-sm text-muted">
+
+                {canSetAverage && (
+                  <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+                    <p className="text-xs font-medium text-ink">
+                      {lang === 'he' ? '📊 ממוצע ציונים' : '📊 Grade average'}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted">
+                      {lang === 'he'
+                        ? 'מוזן ידנית כרגע — בעתיד יגיע אוטומטית מהמכלול. מעל הסף הסטודנט/ית זכאי/ת לבחור בין תזה לפרויקט; מתחתיו נשאר/ת קבוע/ה על פרויקט.'
+                        : "Entered manually for now — will come automatically from Michlol in the future. At or above the threshold the student may choose thesis or project; below it, they stay fixed on project."}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="any"
+                        value={averageInput}
+                        onChange={(e) => setAverageInput(e.target.value)}
+                        placeholder={lang === 'he' ? 'ממוצע (0-100)' : 'Average (0-100)'}
+                        className="w-32 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={savingAverage}
+                        onClick={handleSetAverage}
+                        className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                      >
+                        {savingAverage ? '…' : lang === 'he' ? 'שמור' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <p className="mt-3 text-sm text-muted">
                   {lang === 'he' ? 'מסלול שנבחר:' : 'Chosen track:'}{' '}
                   {student.track
                     ? `${student.track === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')}${student.trackLocked ? ' 🔒' : ''}`

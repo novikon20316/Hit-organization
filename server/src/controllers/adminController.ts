@@ -1379,6 +1379,11 @@ export const extendDefenseAccessGrant = async (req: AuthenticatedRequest, res: R
  * number — visible elsewhere as an academicYearHeld badge/audit trail.
  */
 const ACADEMIC_YEAR_ROLES = ['system_admin', 'administrative_secretary'];
+// searchStudents' own, narrower allowlist — program_head needs to find a
+// student to manage thesis-eligibility/average for (see
+// studentTrackController.ts), but must NOT gain the academic-year/completed-
+// courses editing endpoints above that ACADEMIC_YEAR_ROLES also gates.
+const STUDENT_SEARCH_ROLES = [...ACADEMIC_YEAR_ROLES, 'program_head'];
 
 export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: Response) => {
   const callerUid = req.user?.uid;
@@ -1468,7 +1473,7 @@ export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: 
  * (a university department's student roster, not millions of rows).
  */
 export const searchStudents = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user?.role || !ACADEMIC_YEAR_ROLES.includes(req.user.role)) {
+  if (!req.user?.role || !STUDENT_SEARCH_ROLES.includes(req.user.role)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
 
@@ -1489,8 +1494,10 @@ export const searchStudents = async (req: AuthenticatedRequest, res: Response) =
       // HIGH FIX: same administrative coordinator scoping gap as
       // updateStudentAcademicYear above — without this, her search returned
       // every student in the institution, not just her assigned degree(s).
+      // program_head is scoped the same way (their own coordinatorScopes, if
+      // assigned one — see scopeAuthorization.ts's withinCoordinatorScope).
       .filter((u: any) =>
-        req.user!.role !== 'administrative_secretary' ||
+        (req.user!.role !== 'administrative_secretary' && req.user!.role !== 'program_head') ||
         withinCoordinatorScope(req.user, { facultyId: u.facultyId ?? '', major: u.major || undefined })
       )
       .slice(0, 25)

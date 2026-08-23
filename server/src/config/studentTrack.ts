@@ -25,6 +25,14 @@ export const MASTERS_TRACK_POLICY: Record<string, TrackPolicy> = {
   // data_science all fall back to 'project_only' below — no thesis track for them.
 };
 
+// A coordinator_gated student's grade average, entered manually today (see
+// services/studentTrack.ts's setThesisEligibilityFromAverage) — planned to
+// eventually be pulled automatically from המכלול (Michlol) instead. At or
+// above this, the student is offered the thesis-vs-project choice; below it,
+// they stay fixed on project. A coordinator/program_head/administrative
+// coordinator can still manually override either outcome afterward.
+export const THESIS_ELIGIBILITY_THRESHOLD = 90;
+
 export function resolveTrackPolicy(degreeType: string | null | undefined, major: string | null | undefined): TrackPolicy {
   if (degreeType !== 'masters') return 'project_only';
   return MASTERS_TRACK_POLICY[major ?? ''] ?? 'project_only';
