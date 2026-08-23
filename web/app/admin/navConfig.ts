@@ -115,6 +115,13 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname) => pathname === '/academic-year',
       },
       {
+        key: 'studentsReport',
+        icon: '📊',
+        href: '/administrative_coordinator/dashboard?tab=students',
+        label: { he: 'דוח סטודנטים', en: 'Students Report' },
+        isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'students',
+      },
+      {
         key: 'bulkPermissions',
         icon: '🛡️',
         href: '/bulk-permissions',
