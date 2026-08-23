@@ -177,7 +177,13 @@ function SupervisorDashboardContent() {
             <span className="text-2xl">📨</span>
           </div>
         </Link>
-        <Link href="/supervisor/dashboard?tab=signoffs" className="rounded-[8px] border border-l-4 border-[#c5c5d3] border-l-[#00236f] bg-white p-4 transition-colors hover:border-[#00236f]">
+        {/* Pending grades render inline inside each project's card on the
+            Projects tab (see ProjectCard's pendingGrades/onGrade props
+            below) — there's no separate grading tab, so this must route
+            there, not to `signoffs` (an unrelated final-grade-signoff
+            widget) — that mismatch was why clicking this card never took a
+            supervisor anywhere they could actually grade something. */}
+        <Link href="/supervisor/dashboard?tab=projects" className="rounded-[8px] border border-l-4 border-[#c5c5d3] border-l-[#00236f] bg-white p-4 transition-colors hover:border-[#00236f]">
           <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#00236f]">
             {lang === 'he' ? 'ציונים לבדיקה' : 'Milestones to Review'}
           </h4>
