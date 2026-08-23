@@ -74,7 +74,7 @@ function ExaminerHomeContent() {
     <DashboardShell
       title={lang === 'he' ? 'בוחן פנימי' : 'Internal Examiner'}
       subtitle={lang === 'he' ? 'הגנות לבחינה ולוח זמנים' : 'Defenses to examine and your schedule'}
-      showBackButton={false}
+      showBackButton={tab !== 'defenses'}
     >
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 

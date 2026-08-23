@@ -154,7 +154,7 @@ function SupervisorDashboardContent() {
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — מנחה' : 'Supervisor Dashboard'}
       subtitle={lang === 'he' ? 'מועמדויות, ציונים ופרויקטים' : 'Applications, grading, and projects'}
-      showBackButton={false}
+      showBackButton={tab !== 'projects'}
     >
       {/* Academic Precision overview strip — real counts, no new fetches */}
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">

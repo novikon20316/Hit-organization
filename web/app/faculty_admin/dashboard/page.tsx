@@ -126,7 +126,7 @@ function FacultyAdminDashboardContent() {
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — ראש מנהל פקולטה' : 'Faculty Admin Dashboard'}
       subtitle={lang === 'he' ? 'ניהול משתמשים ופרויקטים בפקולטה' : 'Managing users and projects in your faculty'}
-      showBackButton={false}
+      showBackButton={tab !== 'overview'}
     >
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 

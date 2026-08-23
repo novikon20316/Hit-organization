@@ -173,7 +173,7 @@ function CoordinatorHomeContent() {
     <DashboardShell
       title={lang === 'he' ? 'לוח בקרה — רכז' : 'Coordinator Dashboard'}
       subtitle={lang === 'he' ? 'אישור אבני דרך והמלצות בוחנים' : 'Milestone approvals and examiner recommendations'}
-      showBackButton={false}
+      showBackButton={tab !== 'overview'}
     >
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 

@@ -111,21 +111,31 @@ export function useStudentData() {
           : [];
 
       if (activeIds.length > 0) {
-        try {
-          const loaded = await Promise.all(
-            activeIds.map(async (pid) => {
-              const project = (await apiClient.getStudentProject(pid)) as unknown as ActiveProject;
-              const milestonesRes = await apiClient.getMilestones({ studentId: uid, projectId: pid });
-              const sorted = (milestonesRes?.milestones || []).sort(
-                (a, b) => resolveMilestoneOrder(a as unknown as Milestone) - resolveMilestoneOrder(b as unknown as Milestone)
-              ) as unknown as Milestone[];
-              return { project, milestones: sorted };
-            })
-          );
+        // allSettled, not all — with several active projects (see
+        // TEMP-2-ACTIVE-PROJECTS above), one project failing to load (stale
+        // doc, transient error) used to reject the whole batch and drop
+        // studentState to 'no_project', silently hiding every other active
+        // project too and turning the sidebar's Milestones/Grades links into
+        // no-ops (they're only meaningful when studentState === 'active' —
+        // see app/student/layout.tsx). Now a single bad project is just
+        // dropped, same "never block the student from seeing anything at
+        // all" principle as getFirstStepMode's catch below.
+        const results = await Promise.allSettled(
+          activeIds.map(async (pid) => {
+            const project = (await apiClient.getStudentProject(pid)) as unknown as ActiveProject;
+            const milestonesRes = await apiClient.getMilestones({ studentId: uid, projectId: pid });
+            const sorted = (milestonesRes?.milestones || []).sort(
+              (a, b) => resolveMilestoneOrder(a as unknown as Milestone) - resolveMilestoneOrder(b as unknown as Milestone)
+            ) as unknown as Milestone[];
+            return { project, milestones: sorted };
+          })
+        );
+        results.filter((r) => r.status === 'rejected').forEach((r) => console.error('Failed to load an active project:', (r as PromiseRejectedResult).reason));
+        const loaded = results.filter((r): r is PromiseFulfilledResult<ActiveProjectEntry> => r.status === 'fulfilled').map((r) => r.value);
+        if (loaded.length > 0) {
           setActiveProjects(loaded);
           setStudentState('active');
-        } catch (e) {
-          console.error('Failed to load active project(s):', e);
+        } else {
           setStudentState('no_project');
         }
       } else if (!userData.isEligibleForProcess) {
