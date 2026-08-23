@@ -640,6 +640,46 @@ export async function proposeWorkflowTemplate(params: {
 }
 
 /**
+ * Updates a still-undecided proposal IN PLACE — same doc, same version,
+ * same status ('pending_approval') — instead of proposeWorkflowTemplate's
+ * always-create-a-new-version behavior. Lets staff fix a typo or reorder
+ * milestones on their own not-yet-approved proposal without leaving the
+ * original pending doc orphaned alongside a second one. Once a proposal has
+ * been approved/rejected/superseded it's archival — editing it must go
+ * through proposeWorkflowTemplate (a fresh version) instead, never this.
+ */
+export async function updatePendingWorkflowTemplate(id: string, params: {
+  milestones: WorkflowMilestoneSpec[];
+  note?: string | null;
+  applyMode: ApplyMode;
+  defaultRouting?: MilestoneRoutingSpec;
+  examinerSignoffRole?: ChainRole | 'none';
+  finalGradeSignoffRole?: ChainRole;
+  firstStepMode?: 'browse_projects' | 'choose_supervisor';
+  supervisorSelectionRequiresApproval?: boolean;
+}): Promise<void> {
+  const ref = db.collection(COLLECTION).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error('Template not found.');
+  if (snap.data()!.status !== 'pending_approval') {
+    throw new Error('Only a pending proposal can be edited in place — this one has already been decided.');
+  }
+
+  await ref.update({
+    milestones: params.milestones,
+    proposedNote: params.note ?? null,
+    applyMode: params.applyMode,
+    defaultRouting: params.defaultRouting ?? null,
+    examinerSignoffRole: params.examinerSignoffRole ?? null,
+    finalGradeSignoffRole: params.finalGradeSignoffRole ?? null,
+    firstStepMode: params.firstStepMode ?? null,
+    supervisorSelectionRequiresApproval: params.firstStepMode === 'choose_supervisor'
+      ? (params.supervisorSelectionRequiresApproval ?? true)
+      : null,
+  });
+}
+
+/**
  * Marks the template approved and supersedes whatever was previously approved
  * for the same facultyId+processType+major — only one template per subject
  * is ever "active" (consulted by getActiveMilestonesFor) at a time, but

@@ -20,6 +20,7 @@ import {
   SubmissionRequirement,
   listWorkflowTemplates,
   proposeWorkflowTemplate,
+  updatePendingWorkflowTemplate,
   approveWorkflowTemplate,
   rejectWorkflowTemplate,
   deleteWorkflowTemplate,
@@ -481,6 +482,108 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   } catch (error: any) {
     console.error('createWorkflowTemplateProposal error:', error);
     return res.status(500).json({ message: error.message || 'Failed to propose workflow template.' });
+  }
+};
+
+// ─── PUT /api/workflow-templates/:id ───────────────────────────────────────────
+// Edits a still-pending proposal IN PLACE — same doc, same version, stays
+// 'pending_approval' — instead of createWorkflowTemplateProposal's
+// always-create-a-new-version behavior. Uses the SAME permission tier as
+// createWorkflowTemplateProposal (PROPOSER_ROLES + the doc's own
+// facultyId/major), not canApprove — editing your own not-yet-decided
+// proposal is a maker action, same as creating one, not an approver action
+// (unlike delete/approve/reject on this same doc).
+export const updateWorkflowTemplateProposalController = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const role = req.user?.role;
+  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!PROPOSER_ROLES.includes(role)) {
+    return res.status(403).json({ message: 'You do not have permission to edit workflow template proposals.' });
+  }
+
+  const { id } = req.params;
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing template id.' });
+
+  try {
+    const snap = await db.collection('workflowTemplates').doc(id).get();
+    if (!snap.exists) return res.status(404).json({ message: 'Template not found.' });
+    const data = snap.data()!;
+
+    if (role === 'administrative_secretary') {
+      const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      if (!scope) return res.status(403).json({ message: 'You may only edit proposals for a subject assigned to you.' });
+    } else if (!CROSS_FACULTY_PROPOSER_ROLES.includes(role) && data.facultyId !== req.user?.facultyId) {
+      return res.status(403).json({ message: 'You may only edit proposals for your own faculty.' });
+    }
+
+    const { note, applyMode } = req.body;
+    if (applyMode !== 'now' && applyMode !== 'from_now_on') {
+      return res.status(400).json({ message: 'applyMode must be "now" or "from_now_on".' });
+    }
+
+    const milestones = validateMilestones(req.body.milestones);
+    if (!milestones) {
+      return res.status(400).json({ message: 'Invalid milestones — each needs type, nameHe, nameEn, order, and either dueDaysFromStart or (dateMode "fixed" + a valid fixedDate).' });
+    }
+
+    const defaultRouting = validateOptionalRouting(req.body.defaultRouting);
+    if (!defaultRouting.ok) {
+      return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"), and a rejectTo ("student" or another stage\'s id).' });
+    }
+    let examinerSignoffRole: ChainRole | 'none' | undefined;
+    if (req.body.examinerSignoffRole !== undefined) {
+      if (req.body.examinerSignoffRole !== 'none' && !SIGNOFF_ROLES.includes(req.body.examinerSignoffRole)) {
+        return res.status(400).json({ message: `Invalid examinerSignoffRole: ${req.body.examinerSignoffRole}` });
+      }
+      examinerSignoffRole = req.body.examinerSignoffRole;
+    }
+    let finalGradeSignoffRole: ChainRole | undefined;
+    if (req.body.finalGradeSignoffRole !== undefined) {
+      if (!SIGNOFF_ROLES.includes(req.body.finalGradeSignoffRole)) {
+        return res.status(400).json({ message: `Invalid finalGradeSignoffRole: ${req.body.finalGradeSignoffRole}` });
+      }
+      finalGradeSignoffRole = req.body.finalGradeSignoffRole;
+    }
+    let firstStepMode: 'browse_projects' | 'choose_supervisor' | undefined;
+    if (req.body.firstStepMode !== undefined) {
+      if (req.body.firstStepMode !== 'browse_projects' && req.body.firstStepMode !== 'choose_supervisor') {
+        return res.status(400).json({ message: `Invalid firstStepMode: ${req.body.firstStepMode}` });
+      }
+      firstStepMode = req.body.firstStepMode;
+    }
+    let supervisorSelectionRequiresApproval: boolean | undefined;
+    if (req.body.supervisorSelectionRequiresApproval !== undefined) {
+      if (typeof req.body.supervisorSelectionRequiresApproval !== 'boolean') {
+        return res.status(400).json({ message: 'supervisorSelectionRequiresApproval must be a boolean.' });
+      }
+      supervisorSelectionRequiresApproval = req.body.supervisorSelectionRequiresApproval;
+    }
+
+    const beforeMilestoneCount = Array.isArray(data.milestones) ? data.milestones.length : 0;
+
+    await updatePendingWorkflowTemplate(id, {
+      milestones, note: note ?? null, applyMode,
+      ...(defaultRouting.value ? { defaultRouting: defaultRouting.value } : {}),
+      ...(examinerSignoffRole !== undefined ? { examinerSignoffRole } : {}),
+      ...(finalGradeSignoffRole !== undefined ? { finalGradeSignoffRole } : {}),
+      ...(firstStepMode !== undefined ? { firstStepMode } : {}),
+      ...(supervisorSelectionRequiresApproval !== undefined ? { supervisorSelectionRequiresApproval } : {}),
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: role,
+      action: 'workflow_template_proposal_updated',
+      entityType: 'workflowTemplate',
+      entityId: id,
+      oldValue: { milestoneCount: beforeMilestoneCount },
+      newValue: { milestoneCount: milestones.length },
+    });
+
+    return res.status(200).json({ success: true, message: 'Proposal updated.' });
+  } catch (error: any) {
+    console.error('updateWorkflowTemplateProposalController error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to update the workflow template proposal.' });
   }
 };
 

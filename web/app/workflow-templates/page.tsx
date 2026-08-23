@@ -392,10 +392,12 @@ function WorkflowTemplatesContent() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => router.push(buildProposeHref(activeProcessType, facultyId, major, 'own'))}
+              onClick={() => router.push(approvedForActive ? buildEditHref(approvedForActive) : buildProposeHref(activeProcessType, facultyId, major, 'own'))}
               className="flex-1 rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
             >
-              ＋ {lang === 'he' ? 'הצע גרסה חדשה' : 'Propose New Version'}
+              {approvedForActive
+                ? (lang === 'he' ? '✏️ ערוך תבנית' : '✏️ Edit Template')
+                : (lang === 'he' ? '➕ הצע גרסה חדשה' : '➕ Propose New Version')}
             </button>
             {otherProcessType && approvedForOther && (
               <button
@@ -426,6 +428,13 @@ function WorkflowTemplatesContent() {
                   {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
                   {tpl.proposedNote ? ` · ${tpl.proposedNote}` : ''}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => router.push(buildEditHref(tpl))}
+                  className="mt-2 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+                >
+                  ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
+                </button>
                 {tpl.applyMode === 'now' && (
                   <p className="mt-1 text-xs font-medium text-danger">
                     ⚡ {lang === 'he' ? 'תחול מיידית על תהליכים בעיצומם' : 'Applies immediately to in-progress processes'}
@@ -515,33 +524,42 @@ function WorkflowTemplatesContent() {
                     {lang === 'he' ? `הוחל רטרואקטיבית על ${tpl.retroactiveAffectedCount} תהליכים` : `Retroactively applied to ${tpl.retroactiveAffectedCount} process(es)`}
                   </p>
                 )}
-                {canDelete && (
-                  confirmDeleteId === tpl.id ? (
-                    <div className="mt-3 grid gap-2">
-                      <p className="text-xs text-danger">{lang === 'he' ? 'למחוק לצמיתות?' : 'Permanently delete?'}</p>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(tpl.id)}
-                          disabled={busyId === tpl.id}
-                          className="flex-1 rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-                        >
-                          {lang === 'he' ? 'מחק' : 'Delete'}
-                        </button>
-                        <button type="button" onClick={() => setConfirmDeleteId(null)} className="flex-1 rounded-lg border border-line px-3 py-2 text-xs font-medium text-ink">
-                          {lang === 'he' ? 'ביטול' : 'Cancel'}
-                        </button>
-                      </div>
+                {confirmDeleteId === tpl.id ? (
+                  <div className="mt-3 grid gap-2">
+                    <p className="text-xs text-danger">{lang === 'he' ? 'למחוק לצמיתות?' : 'Permanently delete?'}</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(tpl.id)}
+                        disabled={busyId === tpl.id}
+                        className="flex-1 rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                      >
+                        {lang === 'he' ? 'מחק' : 'Delete'}
+                      </button>
+                      <button type="button" onClick={() => setConfirmDeleteId(null)} className="flex-1 rounded-lg border border-line px-3 py-2 text-xs font-medium text-ink">
+                        {lang === 'he' ? 'ביטול' : 'Cancel'}
+                      </button>
                     </div>
-                  ) : (
+                  </div>
+                ) : (
+                  <div className="mt-3 flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setConfirmDeleteId(tpl.id)}
-                      className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-danger hover:border-danger"
+                      onClick={() => router.push(buildEditHref(tpl))}
+                      className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
                     >
-                      🗑️ {lang === 'he' ? 'מחק' : 'Delete'}
+                      ✏️ {lang === 'he' ? 'ערוך ושלח שוב' : 'Edit & Resubmit'}
                     </button>
-                  )
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(tpl.id)}
+                        className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-danger hover:border-danger"
+                      >
+                        🗑️ {lang === 'he' ? 'מחק' : 'Delete'}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -595,6 +613,21 @@ function buildProposeHref(processType: ProcessType, facultyId: string | undefine
   if (facultyId) params.set('facultyId', facultyId);
   if (major) params.set('major', major);
   if (from === 'other') params.set('from', 'other');
+  return `/workflow-templates/new?${params.toString()}`;
+}
+
+// Edits a SPECIFIC existing template (current/pending/history, any status) —
+// carries its own facultyId/major/processType rather than the page's
+// currently-selected ones, so e.g. editing a history entry from a different
+// major than the one currently selected in the picker still opens correctly
+// pre-filled. new/page.tsx resolves `templateId` to that exact doc and, for
+// a still-pending one, saves in place instead of proposing a new version.
+function buildEditHref(tpl: WorkflowTemplateDoc): string {
+  const params = new URLSearchParams();
+  params.set('processType', tpl.processType);
+  params.set('templateId', tpl.id);
+  params.set('facultyId', tpl.facultyId);
+  if (tpl.major) params.set('major', tpl.major);
   return `/workflow-templates/new?${params.toString()}`;
 }
 

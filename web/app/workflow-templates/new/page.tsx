@@ -55,6 +55,13 @@ function ProposeVersionContent() {
   const facultyId = searchParams.get('facultyId') ?? undefined;
   const major = searchParams.get('major'); // absent -> null ("all majors"), same meaning the modal's `major` prop used
   const proposeFrom: 'own' | 'other' = searchParams.get('from') === 'other' ? 'other' : 'own';
+  // Set only when arriving via an "Edit"/"Edit & Resubmit" button on
+  // ../page.tsx (see buildEditHref there) — pins the source template to that
+  // SPECIFIC doc (any status), instead of always looking up "the currently
+  // approved one for this processType". A still-pending source is edited in
+  // place (see ProposeVersionForm's handleSubmit); an approved/rejected/
+  // superseded source still produces a new proposal, same as today.
+  const templateId = searchParams.get('templateId');
 
   const otherProcessType: ProcessType | null =
     processType === 'msc_thesis' ? 'msc_project' : processType === 'msc_project' ? 'msc_thesis' : null;
@@ -79,8 +86,16 @@ function ProposeVersionContent() {
         const data = await apiClient.getWorkflowTemplates(facultyId, major);
         if (cancelled) return;
         const templates = (data.templates ?? []) as unknown as WorkflowTemplateDoc[];
-        const wantType = proposeFrom === 'other' && otherProcessType ? otherProcessType : processType;
-        setSourceTpl(templates.find((tpl) => tpl.processType === wantType && tpl.status === 'approved') ?? null);
+        const byTemplateId = templateId ? templates.find((tpl) => tpl.id === templateId) : undefined;
+        if (byTemplateId) {
+          setSourceTpl(byTemplateId);
+        } else {
+          // Either no templateId was given (the ordinary "Propose New
+          // Version" flow), or it pointed at a doc that's gone (a stale
+          // link) — fall back to today's behavior.
+          const wantType = proposeFrom === 'other' && otherProcessType ? otherProcessType : processType;
+          setSourceTpl(templates.find((tpl) => tpl.processType === wantType && tpl.status === 'approved') ?? null);
+        }
       } catch (err) {
         if (!cancelled) {
           setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת התבנית נכשלה' : 'Failed to load the template');
@@ -93,7 +108,7 @@ function ProposeVersionContent() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch-on-mount keyed on the (stable, URL-derived) query values; lang is intentionally excluded so a language toggle mid-fetch doesn't re-trigger it
-  }, [isAllowed, processType, facultyId, major, proposeFrom, otherProcessType]);
+  }, [isAllowed, processType, facultyId, major, proposeFrom, otherProcessType, templateId]);
 
   if (guardLoading) {
     return (
@@ -113,9 +128,18 @@ function ProposeVersionContent() {
     );
   }
 
+  const isEditingPending = sourceTpl?.id === templateId && sourceTpl?.status === 'pending_approval';
+  const isEditingExisting = sourceTpl?.id === templateId && !!templateId;
+
   return (
     <DashboardShell
-      title={lang === 'he' ? '➕ הצעת גרסה חדשה' : '➕ Propose New Version'}
+      title={
+        isEditingPending
+          ? (lang === 'he' ? '✏️ עריכת הצעה' : '✏️ Edit Proposal')
+          : isEditingExisting
+            ? (lang === 'he' ? '✏️ ערוך תבנית' : '✏️ Edit Template')
+            : (lang === 'he' ? '➕ הצעת גרסה חדשה' : '➕ Propose New Version')
+      }
       subtitle={processTypeLabel(processType, lang)}
     >
       {loadingSource ? (
@@ -132,6 +156,8 @@ function ProposeVersionContent() {
           initialFirstStepMode={sourceTpl?.firstStepMode}
           initialSupervisorSelectionRequiresApproval={sourceTpl?.supervisorSelectionRequiresApproval}
           copiedFromLabel={proposeFrom === 'other' && otherProcessType ? processTypeLabel(otherProcessType, lang) : undefined}
+          editingTemplateId={sourceTpl?.id}
+          editingStatus={sourceTpl?.status}
           loadError={loadError}
           onDone={() => router.push('/workflow-templates?tab=pending')}
           onCancel={() => router.push('/workflow-templates')}
@@ -152,6 +178,11 @@ interface ProposeVersionFormProps {
   initialFirstStepMode?: 'browse_projects' | 'choose_supervisor';
   initialSupervisorSelectionRequiresApproval?: boolean;
   copiedFromLabel?: string;
+  /** Present only when editing a specific existing template (see
+   *  ../page.tsx's buildEditHref). Combined with editingStatus below to
+   *  decide whether "Save" edits that doc in place or proposes a new one. */
+  editingTemplateId?: string;
+  editingStatus?: 'pending_approval' | 'approved' | 'rejected' | 'superseded';
   loadError: string;
   onDone: () => void;
   onCancel: () => void;
@@ -164,8 +195,14 @@ interface ProposeVersionFormProps {
 function ProposeVersionForm({
   processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, initialFinalGradeSignoffRole,
   initialFirstStepMode, initialSupervisorSelectionRequiresApproval,
-  copiedFromLabel, loadError, onDone, onCancel,
+  copiedFromLabel, editingTemplateId, editingStatus, loadError, onDone, onCancel,
 }: ProposeVersionFormProps) {
+  // A still-undecided proposal is edited IN PLACE (same doc, same version) —
+  // anything else (the live approved template, or a rejected/superseded
+  // history entry) still needs to go through the ordinary
+  // create-a-new-pending-version flow, since those source docs are
+  // immutable/archival. See updateWorkflowTemplateProposal's doc comment.
+  const isEditingPending = !!editingTemplateId && editingStatus === 'pending_approval';
   const { lang, t } = useLanguage();
   const [milestones, setMilestones] = useState<MilestoneSpec[]>(initialMilestones.length > 0 ? initialMilestones.map((m) => ({ ...m })) : [emptyMilestone(1)]);
   const [defaultRouting, setDefaultRouting] = useState<MilestoneRoutingSpec>(
@@ -254,6 +291,26 @@ function ProposeVersionForm({
     setMilestones((prev) => prev.filter((m) => m !== ms).map((m, i) => ({ ...m, order: i + 1 })));
   };
 
+  // Swaps `ms` with its neighbor in display order — `order` values are
+  // always a clean 1..N sequence (emptyMilestone/handleSaveRow/removeRow all
+  // maintain that), so swapping the two neighbors' `order` is enough; no
+  // renumbering of the rest of the list is needed.
+  const moveRow = (ms: MilestoneSpec, direction: 'up' | 'down') => {
+    setMilestones((prev) => {
+      const sorted = [...prev].sort((a, b) => a.order - b.order);
+      const idx = sorted.findIndex((m) => m === ms);
+      const swapWith = direction === 'up' ? idx - 1 : idx + 1;
+      if (idx === -1 || swapWith < 0 || swapWith >= sorted.length) return prev;
+      const a = sorted[idx]!;
+      const b = sorted[swapWith]!;
+      return prev.map((m) => {
+        if (m === a) return { ...m, order: b.order };
+        if (m === b) return { ...m, order: a.order };
+        return m;
+      });
+    });
+  };
+
   const handleSubmit = async () => {
     if (milestones.length === 0) {
       setError(lang === 'he' ? 'יש להוסיף לפחות אבן דרך אחת' : 'Add at least one milestone');
@@ -269,19 +326,32 @@ function ProposeVersionForm({
     setSaving(true);
     setError('');
     try {
-      await apiClient.createWorkflowTemplateProposal({
-        processType,
-        milestones,
-        note: note.trim() || undefined,
-        facultyId,
-        major,
-        applyMode,
-        defaultRouting,
-        examinerSignoffRole,
-        finalGradeSignoffRole,
-        firstStepMode,
-        ...(firstStepMode === 'choose_supervisor' ? { supervisorSelectionRequiresApproval } : {}),
-      });
+      if (isEditingPending) {
+        await apiClient.updateWorkflowTemplateProposal(editingTemplateId!, {
+          milestones,
+          note: note.trim() || undefined,
+          applyMode,
+          defaultRouting,
+          examinerSignoffRole,
+          finalGradeSignoffRole,
+          firstStepMode,
+          ...(firstStepMode === 'choose_supervisor' ? { supervisorSelectionRequiresApproval } : {}),
+        });
+      } else {
+        await apiClient.createWorkflowTemplateProposal({
+          processType,
+          milestones,
+          note: note.trim() || undefined,
+          facultyId,
+          major,
+          applyMode,
+          defaultRouting,
+          examinerSignoffRole,
+          finalGradeSignoffRole,
+          firstStepMode,
+          ...(firstStepMode === 'choose_supervisor' ? { supervisorSelectionRequiresApproval } : {}),
+        });
+      }
       onDone();
     } catch (err) {
       setError(err instanceof ApiError || err instanceof SoftError ? err.message : lang === 'he' ? 'שליחת ההצעה נכשלה' : 'Failed to submit the proposal');
@@ -332,6 +402,24 @@ function ProposeVersionForm({
                 </p>
               </div>
               <div className="flex shrink-0 gap-1">
+                <button
+                  type="button"
+                  onClick={() => moveRow(ms, 'up')}
+                  disabled={idx === 0}
+                  className="rounded-md px-1.5 py-1 text-sm hover:bg-surface disabled:opacity-30"
+                  aria-label={lang === 'he' ? 'הזז מעלה' : 'move up'}
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveRow(ms, 'down')}
+                  disabled={idx === sorted.length - 1}
+                  className="rounded-md px-1.5 py-1 text-sm hover:bg-surface disabled:opacity-30"
+                  aria-label={lang === 'he' ? 'הזז מטה' : 'move down'}
+                >
+                  ▼
+                </button>
                 <button type="button" onClick={() => openEditRow(ms)} className="rounded-md px-1.5 py-1 text-sm hover:bg-surface" aria-label="edit">
                   ✏️
                 </button>
@@ -495,7 +583,7 @@ function ProposeVersionForm({
           disabled={saving}
           className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
         >
-          {saving ? '…' : lang === 'he' ? 'שלח לאישור' : 'Submit for Approval'}
+          {saving ? '…' : isEditingPending ? (lang === 'he' ? '💾 שמור שינויים' : '💾 Save Changes') : lang === 'he' ? 'שלח לאישור' : 'Submit for Approval'}
         </button>
       </div>
 

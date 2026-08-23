@@ -1547,6 +1547,38 @@ export const apiClient = {
     });
   },
 
+  /** Edits a still-pending proposal IN PLACE (same doc, same version, stays
+   *  'pending_approval') — unlike createWorkflowTemplateProposal, which
+   *  always creates a new version. Only valid while the target template's
+   *  status is still 'pending_approval'; the server rejects it otherwise. */
+  async updateWorkflowTemplateProposal(id: string, payload: {
+    milestones: Array<{
+      type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean;
+      dateMode?: 'offset' | 'fixed'; fixedDate?: string;
+      gradingComponents?: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>;
+      routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+      staffRecordMode?: 'none' | 'upload_or_form';
+      staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }> }>;
+      finalGradeComponents?: {
+        supervisorEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };
+        examinerProjectEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };
+        examinerDefenseEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };
+      };
+    }>;
+    note?: string;
+    applyMode: 'now' | 'from_now_on';
+    defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+    examinerSignoffRole?: string;
+    finalGradeSignoffRole?: string;
+    firstStepMode?: 'browse_projects' | 'choose_supervisor';
+    supervisorSelectionRequiresApproval?: boolean;
+  }) {
+    return request<{ success: boolean; message: string }>(`/api/workflow-templates/${id}`, {
+      method: 'PUT',
+      body: payload,
+    });
+  },
+
   async approveWorkflowTemplate(id: string) {
     return request<{ success: boolean; message: string; retroactiveAffectedCount?: number }>(`/api/workflow-templates/${id}/approve`, { method: 'POST' });
   },

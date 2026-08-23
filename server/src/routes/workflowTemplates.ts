@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getWorkflowTemplates,
   createWorkflowTemplateProposal,
+  updateWorkflowTemplateProposalController,
   approveWorkflowTemplateController,
   rejectWorkflowTemplateController,
   deleteWorkflowTemplateController,
@@ -16,6 +17,7 @@ router.get('/', verifyToken, getWorkflowTemplates);
 // mistaken for a template id.
 router.get('/retroactive-preview', verifyToken, getRetroactivePreviewController);
 router.post('/', verifyToken, createWorkflowTemplateProposal);
+router.put('/:id', verifyToken, updateWorkflowTemplateProposalController);
 router.post('/:id/approve', verifyToken, approveWorkflowTemplateController);
 router.post('/:id/reject', verifyToken, rejectWorkflowTemplateController);
 router.delete('/:id', verifyToken, deleteWorkflowTemplateController);
