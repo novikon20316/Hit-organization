@@ -28,14 +28,56 @@ const ALLOWED_MILESTONE_MIME_TYPES = new Set([
   'image/jpeg',
 ]);
 
+// Thrown from fileFilter below for an unsupported type — caught by
+// handleUploadError, not left to multer's default "silently drop the file"
+// behavior (cb(null, false)), which used to let a submission with a rejected
+// file go through as if it had no file at all: no error shown to the
+// student, and the supervisor never sees anything was ever attached.
+class UnsupportedFileTypeError extends Error {
+  code = 'UNSUPPORTED_FILE_TYPE';
+  constructor(public fileName: string) {
+    super(`Unsupported file type: ${fileName}`);
+  }
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    cb(null, ALLOWED_MILESTONE_MIME_TYPES.has(file.mimetype));
+    if (!ALLOWED_MILESTONE_MIME_TYPES.has(file.mimetype)) {
+      cb(new UnsupportedFileTypeError(file.originalname));
+      return;
+    }
+    cb(null, true);
   },
 });
 export const uploadMiddleware: RequestHandler = upload.array('files') as unknown as RequestHandler;
+
+// Express error-handling middleware (4 args — the arity is how Express tells
+// it apart from a regular middleware) mounted right after uploadMiddleware in
+// routes/milestones.ts — catches both the fileFilter rejection above and
+// multer's own errors (e.g. LIMIT_FILE_SIZE for the 20MB cap), and returns
+// the same bilingual { message, messageHe, messageEn } shape every other
+// submitMilestone validation error already uses, instead of falling through
+// to index.ts's generic, English-only, unlocalized 500 handler.
+export const handleUploadError: import('express').ErrorRequestHandler = (err, _req, res, next) => {
+  if (err instanceof UnsupportedFileTypeError) {
+    return res.status(400).json({
+      message: `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, ZIP, PNG, JPEG.`,
+      messageHe: `סוג קובץ לא נתמך: ${err.fileName}. סוגים מותרים: PDF, Word, ZIP, PNG, JPEG.`,
+      messageEn: `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, ZIP, PNG, JPEG.`,
+    });
+  }
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      message: 'File too large — the limit is 20MB.',
+      messageHe: 'הקובץ גדול מדי — המגבלה היא 20MB.',
+      messageEn: 'File too large — the limit is 20MB.',
+    });
+  }
+  return next(err);
+};
+
 
 // POST /api/milestones/:milestoneId/submit
 export const submitMilestone = async (req: AuthenticatedRequest, res: Response) => {

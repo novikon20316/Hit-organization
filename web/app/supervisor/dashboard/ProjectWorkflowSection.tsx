@@ -11,7 +11,7 @@
 // Data comes from GET /api/supervisor/projects/:id/detail — see
 // server/src/controllers/supervisorController.ts's getSupervisorProjectDetail.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { StaffRecordModal } from './StaffRecordModal';
@@ -95,6 +95,30 @@ function isCompletedStatus(status: string): boolean {
   return status === 'coordinator_approved' || status === 'completed';
 }
 
+// Fetches the file into a Blob and saves it via a throwaway object-URL
+// anchor — a plain <a download> is ignored by the browser for a
+// cross-origin href (Cloudinary is a different origin), so without this a
+// "download" link just opens the file in a new tab instead of actually
+// saving it. Falls back to that same open-in-new-tab behavior if the fetch
+// itself fails (e.g. a CORS-restricted resource) — still better than a dead
+// click.
+async function downloadFile(url: string, fileName: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
 // Derives a human-readable file name from a Cloudinary/Storage URL for the
 // "Submitted Files" chip list — same approach as components/MilestoneTimeline
 // .tsx's fileNameFromUrl, ported here since this section has its own status
@@ -129,6 +153,26 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: NonNullable<TemplateMilestone['finalGradeComponents']>['supervisorEvaluation']['components'] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [previewFor, setPreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
+
+  // Click-vs-double-click disambiguation for the per-file chips below — a
+  // single click opens the preview panel, a double click downloads that one
+  // file instead. One component-level ref (not per-chip state/hooks, since
+  // these chips are created inside nested .map()s) keyed by a per-file id.
+  const fileClickState = useRef<Record<string, { count: number; timer: ReturnType<typeof setTimeout> | null }>>({});
+  const handleFileClick = useCallback((key: string, onSingle: () => void, onDouble: () => void) => {
+    const state = fileClickState.current[key] ?? (fileClickState.current[key] = { count: 0, timer: null });
+    state.count += 1;
+    if (state.count === 1) {
+      state.timer = setTimeout(() => {
+        if (state.count === 1) onSingle();
+        state.count = 0;
+      }, 250);
+    } else {
+      if (state.timer) clearTimeout(state.timer);
+      state.count = 0;
+      onDouble();
+    }
+  }, []);
 
   const fetchDetail = useCallback(() => {
     setLoading(true);
@@ -252,27 +296,38 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                             </div>
                           )}
 
-                          {/* Submitted files — chip list, click opens the same
-                              file-preview panel the title link already opens. */}
+                          {/* Submitted files — chip list. Single click opens
+                              the same file-preview panel the title link
+                              already opens; double click downloads that one
+                              file straight to the supervisor's computer. */}
                           {m.fileUrls.length > 0 && (
                             <div className="mt-1.5 flex flex-wrap gap-1.5">
-                              {m.fileUrls.map((url, i) => (
-                                <button
-                                  key={i}
-                                  type="button"
-                                  onClick={() =>
-                                    setPreviewFor({
-                                      title: spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type,
-                                      subtitle: s.studentName,
-                                      submissionNote: m.submissionNote,
-                                      fileUrls: m.fileUrls,
-                                    })
-                                  }
-                                  className="flex items-center gap-1 rounded-md border border-[#c5c5d3] bg-[#f4f3fa] px-2 py-1 text-[11px] text-[#1a1b21] hover:border-[#00236f] hover:text-[#00236f]"
-                                >
-                                  📄 <span className="max-w-[10rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
-                                </button>
-                              ))}
+                              {m.fileUrls.map((url, i) => {
+                                const fileName = fileNameFromUrl(url, i, lang);
+                                return (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    title={lang === 'he' ? 'לחיצה: תצוגה מקדימה · לחיצה כפולה: הורדה' : 'Click: preview · Double-click: download'}
+                                    onClick={() =>
+                                      handleFileClick(
+                                        `${s.studentId}-${m.type}-${i}`,
+                                        () =>
+                                          setPreviewFor({
+                                            title: spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type,
+                                            subtitle: s.studentName,
+                                            submissionNote: m.submissionNote,
+                                            fileUrls: m.fileUrls,
+                                          }),
+                                        () => downloadFile(url, fileName)
+                                      )
+                                    }
+                                    className="flex items-center gap-1 rounded-md border border-[#c5c5d3] bg-[#f4f3fa] px-2 py-1 text-[11px] text-[#1a1b21] hover:border-[#00236f] hover:text-[#00236f]"
+                                  >
+                                    📄 <span className="max-w-[10rem] truncate">{fileName}</span>
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
 

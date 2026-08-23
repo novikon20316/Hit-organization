@@ -16,6 +16,39 @@ interface MilestoneFilePanelProps {
   onClose: () => void;
 }
 
+// A plain <a download> is ignored by the browser for a cross-origin href
+// (Cloudinary is a different origin), so without this the "Download" link
+// below just opened the file in a new tab instead of actually saving it —
+// misleading for the PDFs/images the iframe already renders inline. Same
+// helper as ProjectWorkflowSection.tsx's downloadFile.
+async function downloadFile(url: string, fileName: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string {
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    const last = path.split('/').filter(Boolean).pop();
+    if (last) return last;
+  } catch {
+    // fall through to generic label below
+  }
+  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
+}
+
 export function MilestoneFilePanel({ title, subtitle, submissionNote, fileUrls, onClose }: MilestoneFilePanelProps) {
   const { lang } = useLanguage();
 
@@ -44,14 +77,13 @@ export function MilestoneFilePanel({ title, subtitle, submissionNote, fileUrls, 
                 <span className="text-xs font-medium text-ink">
                   📄 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
                 </span>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => downloadFile(url, fileNameFromUrl(url, i, lang))}
                   className="text-xs font-medium text-primary hover:underline"
                 >
                   📥 {lang === 'he' ? 'הורדה' : 'Download'}
-                </a>
+                </button>
               </div>
               <iframe src={url} title={`file-${i}`} className="h-96 w-full bg-white" />
             </div>

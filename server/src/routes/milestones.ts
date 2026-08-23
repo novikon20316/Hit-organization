@@ -5,6 +5,7 @@ import {
   getMilestonesByQuery,
   submitMilestone,
   uploadMiddleware,
+  handleUploadError,
   updateMilestoneByCoordinator,
   bulkUpdateMilestoneDueDates,
 } from '../controllers/milestoneController.js'
@@ -17,7 +18,7 @@ router.get('/', verifyToken, getMilestonesByQuery);
 // GET /api/milestones/:projectId/milestones — fetch milestones for a project (admin view)
 router.get('/:projectId/milestones', verifyToken, getMilestonesByQuery);
 // POST /api/milestones/:milestoneId/submit — student submits a milestone
-router.post('/:milestoneId/submit', verifyToken, uploadMiddleware, submitMilestone)
+router.post('/:milestoneId/submit', verifyToken, uploadMiddleware, handleUploadError, submitMilestone)
 // PUT /api/milestones/bulk-due-date — coordinator/faculty_admin/administrative coordinator/system_admin
 // shifts a due date across every milestone matching a set of projects (+ optional type)
 router.put('/bulk-due-date', verifyToken, bulkUpdateMilestoneDueDates)
