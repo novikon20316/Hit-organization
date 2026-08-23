@@ -318,7 +318,7 @@ function AdminPanelContent() {
       )}
 
       {tab === 'users' && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-4 py-3">
+        <div className="fixed start-0 end-0 bottom-0 z-30 border-t border-line bg-surface px-4 py-3 lg:start-64">
           <div className="mx-auto max-w-6xl">
             <button
               type="button"
