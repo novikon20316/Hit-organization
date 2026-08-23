@@ -3,11 +3,13 @@
 // app/supervisor/dashboard/QuickTasksPanel.tsx
 // Read-only "what needs my attention" summary — Academic Precision's quick
 // tasks panel, built from data already on the page (no new API calls).
-// Surfaces the soonest project deadlines first, then the oldest pending
-// applications, capped at 3 items total.
+// Surfaces submissions awaiting grading first (they're blocking a student
+// right now), then the soonest project deadlines, then the oldest pending
+// applications — capped at 3 items total.
 
 import { useLanguage } from '@/contexts/LanguageContext';
-import type { MyProject, Application } from './types';
+import type { MyProject, Application, SupervisorPendingMilestone } from './types';
+import { MILESTONE_LABEL } from './types';
 
 const URGENCY_ICON: Record<'red' | 'orange', string> = { red: '🔴', orange: '🟠' };
 const URGENCY_TEXT: Record<'red' | 'orange', string> = { red: '#a8433a', orange: '#b8862e' };
@@ -20,10 +22,20 @@ function toMs(v: string | { seconds: number } | null): number {
 interface QuickTasksPanelProps {
   myProjects: MyProject[];
   applications: Application[];
+  /** Milestones a student already submitted and this supervisor hasn't
+   *  graded yet — the most actionable item there is (it's blocking the
+   *  student), so these are listed first, ahead of upcoming-deadline
+   *  projects and pending applications. */
+  pendingGrades: SupervisorPendingMilestone[];
 }
 
-export function QuickTasksPanel({ myProjects, applications }: QuickTasksPanelProps) {
+export function QuickTasksPanel({ myProjects, applications, pendingGrades }: QuickTasksPanelProps) {
   const { lang } = useLanguage();
+
+  // Oldest submission first — the longer it's sat waiting, the more urgent.
+  const gradesAwaitingReview = pendingGrades
+    .slice()
+    .sort((a, b) => toMs(a.submittedAt) - toMs(b.submittedAt));
 
   const urgentProjects = myProjects
     .filter((p) => p.currentMilestone?.urgency === 'red' || p.currentMilestone?.urgency === 'orange')
@@ -34,6 +46,14 @@ export function QuickTasksPanel({ myProjects, applications }: QuickTasksPanelPro
     .sort((a, b) => toMs(a.submittedAt) - toMs(b.submittedAt));
 
   const items = [
+    ...gradesAwaitingReview.map((m) => ({
+      key: `g-${m.id}`,
+      icon: URGENCY_ICON.red,
+      color: URGENCY_TEXT.red,
+      label: lang === 'he' ? 'ציון ממתין לבדיקה' : 'Grade pending review',
+      title: MILESTONE_LABEL[m.type] ? (lang === 'he' ? MILESTONE_LABEL[m.type].he : MILESTONE_LABEL[m.type].en) : m.type,
+      sub: lang === 'he' ? m.projectTitleHe : m.projectTitleEn,
+    })),
     ...urgentProjects.map((p) => {
       const urgency = p.currentMilestone!.urgency as 'red' | 'orange';
       const daysLeft = p.currentMilestone!.daysLeft;

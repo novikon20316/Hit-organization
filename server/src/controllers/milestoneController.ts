@@ -14,6 +14,7 @@ import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../service
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
 import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
+import { notifyUser } from '../services/notify.js';
 
 const db = admin.firestore();
 
@@ -35,7 +36,6 @@ const upload = multer({
   },
 });
 export const uploadMiddleware: RequestHandler = upload.array('files') as unknown as RequestHandler;
-
 
 // POST /api/milestones/:milestoneId/submit
 export const submitMilestone = async (req: AuthenticatedRequest, res: Response) => {
@@ -177,8 +177,36 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     // ── Notify supervisor + coordinator/administrative-coordinator staff ───
     const supervisorId  = milestoneData.supervisorId ?? null;
     const projectId     = milestoneData.projectId    ?? null;
+    const milestoneTitle = { he: milestoneData.nameHe ?? milestoneData.type, en: milestoneData.nameEn ?? milestoneData.type };
+    const projectTitle   = { he: milestoneData.projectTitleHe ?? '', en: milestoneData.projectTitleEn ?? '' };
 
-    const notifyMilestoneSubmitted = async (recipientId: string) => {
+    // The supervisor is the one actually blocked on this (they must grade it
+    // before the student can move on) — full multi-channel dispatch
+    // (in-app + email + push + SMS, via notify.ts) rather than just an
+    // in-app doc + push, so they see it even if they're not in the app.
+    if (supervisorId) {
+      await notifyUser({
+        recipientId: supervisorId,
+        type: 'milestone_submitted',
+        titleHe: 'הגשה חדשה ממתינה לבדיקה 📤',
+        titleEn: 'New Milestone Submission 📤',
+        bodyHe:  `סטודנט הגיש את "${milestoneTitle.he}".`,
+        bodyEn:  `A student submitted "${milestoneTitle.en}".`,
+        relatedProjectId: projectId,
+        relatedMilestoneId: milestoneId,
+        emailData: { milestoneTitle, projectTitle },
+      });
+    }
+
+    // Coordinator and administrative-coordinator staff covering this
+    // project's faculty/major also want to know a milestone came in, not
+    // just the supervisor — same scope resolution notify.ts's callers use
+    // elsewhere (defenseScheduling.ts, examinerEscalation.ts, etc.). Kept on
+    // the lighter in-app+push-only path (no email/SMS) — that upgrade was
+    // requested for the supervisor specifically, and fanning full multi-
+    // channel delivery out to every covering coordinator on every single
+    // submission would be noisy (and costs real money on the SMS leg).
+    const notifyStaffMilestoneSubmitted = async (recipientId: string) => {
       const recipientSnap = await db.collection('users').doc(recipientId).get();
       const pushToken = recipientSnap.data()?.expoPushToken ?? null;
 
@@ -187,8 +215,8 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         type:               'milestone_submitted',
         titleHe:            'הגשה חדשה ממתינה לבדיקה 📤',
         titleEn:            'New Milestone Submission 📤',
-        bodyHe:             `סטודנט הגיש את "${milestoneData.nameHe ?? milestoneData.type}".`,
-        bodyEn:             `A student submitted "${milestoneData.nameEn ?? milestoneData.type}".`,
+        bodyHe:             `סטודנט הגיש את "${milestoneTitle.he}".`,
+        bodyEn:             `A student submitted "${milestoneTitle.en}".`,
         isRead:             false,
         relatedProjectId:   projectId,
         relatedMilestoneId: milestoneId,
@@ -202,21 +230,13 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
           body: JSON.stringify({
             to:    pushToken,
             title: '📤 New Milestone Submission',
-            body:  `A student submitted "${milestoneData.nameEn ?? milestoneData.type}".`,
+            body:  `A student submitted "${milestoneTitle.en}".`,
             data:  { projectId, milestoneId },
           }),
         });
       }
     };
 
-    if (supervisorId) {
-      await notifyMilestoneSubmitted(supervisorId);
-    }
-
-    // Coordinator and administrative-coordinator staff covering this
-    // project's faculty/major also want to know a milestone came in, not
-    // just the supervisor — same scope resolution notify.ts's callers use
-    // elsewhere (defenseScheduling.ts, examinerEscalation.ts, etc.).
     const projectScope = await resolveProjectScope(projectId);
     if (projectScope) {
       const [coordinatorIds, adminCoordinatorIds] = await Promise.all([
@@ -224,7 +244,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : []),
       ]);
       const staffRecipientIds = [...new Set([...coordinatorIds, ...adminCoordinatorIds])].filter((id) => id !== supervisorId);
-      await Promise.all(staffRecipientIds.map((id) => notifyMilestoneSubmitted(id)));
+      await Promise.all(staffRecipientIds.map((id) => notifyStaffMilestoneSubmitted(id)));
     }
 
     return res.status(200).json({ success: true, message: 'Milestone submitted successfully.' });

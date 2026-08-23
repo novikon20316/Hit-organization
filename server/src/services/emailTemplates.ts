@@ -38,6 +38,7 @@ export type NotificationType =
   | 'application_rejected'
   | 'meeting_requested'
   | 'milestone_graded'
+  | 'milestone_submitted'
   | 'milestone_deadline_7d'
   | 'milestone_deadline_1d'
   | 'milestone_overdue'
@@ -216,6 +217,21 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>Hello ${d.name || ''},</p>
       <p>Your milestone <strong>${d.milestoneTitle || ''}</strong> is <strong>${d.daysLate || ''}</strong> day(s) overdue.</p>
       <p>Please submit as soon as possible to avoid further delay.</p>
+    `,
+  },
+
+  milestone_submitted: {
+    subjectHe: '📤 הגשה חדשה ממתינה לבדיקה',
+    subjectEn: '📤 New Milestone Submission',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>הוגשה אבן דרך חדשה: <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` בפרויקט <strong>${d.projectTitle}</strong>` : ''}.</p>
+      <p>היכנס למערכת לצפייה בהגשה ולמתן ציון.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>A new milestone submission is waiting for review: <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` (project <strong>${d.projectTitle}</strong>)` : ''}.</p>
+      <p>Log in to review the submission and enter a grade.</p>
     `,
   },
 
