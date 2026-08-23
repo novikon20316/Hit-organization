@@ -11,6 +11,7 @@
 // below so the rest of the app shell can still be prerendered.
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
@@ -361,10 +362,10 @@ function OverviewTab({
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <div className="flex flex-col gap-6 lg:col-span-9">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard icon="👥" value={stats.totalUsers} label={lang === 'he' ? 'סה"כ משתמשים' : 'Total Users'} />
-          <StatCard icon="✅" value={stats.activeUsers} label={lang === 'he' ? 'פעילים' : 'Active'} tone="success" />
-          <StatCard icon="💤" value={stats.inactiveUsers} label={lang === 'he' ? 'לא פעילים' : 'Inactive'} />
-          <StatCard icon="🔒" value={lockedUsers.length} label={lang === 'he' ? 'חשבונות נעולים' : 'Locked Accounts'} tone={lockedUsers.length > 0 ? 'danger' : undefined} />
+          <StatCard icon="👥" value={stats.totalUsers} label={lang === 'he' ? 'סה"כ משתמשים' : 'Total Users'} href="/admin/panel?tab=users" />
+          <StatCard icon="✅" value={stats.activeUsers} label={lang === 'he' ? 'פעילים' : 'Active'} tone="success" href="/admin/panel?tab=users" />
+          <StatCard icon="💤" value={stats.inactiveUsers} label={lang === 'he' ? 'לא פעילים' : 'Inactive'} href="/admin/panel?tab=users" />
+          <StatCard icon="🔒" value={lockedUsers.length} label={lang === 'he' ? 'חשבונות נעולים' : 'Locked Accounts'} tone={lockedUsers.length > 0 ? 'danger' : undefined} href="/admin/panel?tab=users" />
         </div>
 
         <div className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-5">
@@ -393,8 +394,8 @@ function OverviewTab({
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
-          <StatCard icon="📁" value={stats.totalProjects} label={lang === 'he' ? 'פרויקטים' : 'Projects'} />
-          <StatCard icon="🔥" value={stats.activeProjects} label={lang === 'he' ? 'פעילים' : 'In Progress'} />
+          <StatCard icon="📁" value={stats.totalProjects} label={lang === 'he' ? 'פרויקטים' : 'Projects'} href="/admin/panel?tab=projects" />
+          <StatCard icon="🔥" value={stats.activeProjects} label={lang === 'he' ? 'פעילים' : 'In Progress'} href="/admin/panel?tab=projects" />
         </div>
       </div>
 
@@ -405,13 +406,21 @@ function OverviewTab({
   );
 }
 
-function StatCard({ icon, value, label, tone }: { icon: string; value: number; label: string; tone?: 'success' | 'danger' }) {
+function StatCard({ icon, value, label, tone, href }: { icon: string; value: number; label: string; tone?: 'success' | 'danger'; href?: string }) {
   const valueCls = tone === 'success' ? 'text-[#059669]' : tone === 'danger' ? 'text-admin-error' : 'text-admin-on-surface';
-  return (
-    <div className="flex flex-col items-center justify-center rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 text-center transition-colors hover:border-admin-primary-container">
+  const content = (
+    <>
       <span className="mb-2 text-[28px] leading-none">{icon}</span>
       <span className={`text-3xl font-semibold leading-none ${valueCls}`}>{value}</span>
       <span className="mt-1 text-[11px] font-medium uppercase tracking-wider text-admin-on-surface-variant">{label}</span>
-    </div>
+    </>
+  );
+  const cls = 'flex flex-col items-center justify-center rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 text-center transition-colors hover:border-admin-primary-container';
+  return href ? (
+    <Link href={href} className={cls}>
+      {content}
+    </Link>
+  ) : (
+    <div className={cls}>{content}</div>
   );
 }

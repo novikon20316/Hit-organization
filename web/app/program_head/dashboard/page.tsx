@@ -9,6 +9,7 @@
 // relative to mobile, since mobile itself only ever displays this data.
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -179,10 +180,10 @@ function ProgramHeadDashboardContent() {
       showBackButton={tab !== 'students'}
     >
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard value={stats.totalStudents} label={lang === 'he' ? 'סה"כ' : 'Total'} color={facultyColor} />
-        <StatCard value={stats.activeStudents} label={lang === 'he' ? 'פעילים' : 'Active'} color="var(--success)" />
-        <StatCard value={stats.overdueCount} label={lang === 'he' ? 'באיחור' : 'Overdue'} color="var(--danger)" />
-        <StatCard value={stats.pendingCount} label={lang === 'he' ? 'ממתינים' : 'Pending'} color="var(--accent)" />
+        <StatCard value={stats.totalStudents} label={lang === 'he' ? 'סה"כ' : 'Total'} color={facultyColor} href="/program_head/dashboard?tab=students" />
+        <StatCard value={stats.activeStudents} label={lang === 'he' ? 'פעילים' : 'Active'} color="var(--success)" href="/program_head/dashboard?tab=students" />
+        <StatCard value={stats.overdueCount} label={lang === 'he' ? 'באיחור' : 'Overdue'} color="var(--danger)" href="/program_head/dashboard?tab=students" />
+        <StatCard value={stats.pendingCount} label={lang === 'he' ? 'ממתינים' : 'Pending'} color="var(--accent)" href="/program_head/dashboard?tab=approvals" />
       </div>
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
@@ -343,13 +344,20 @@ export default function ProgramHeadDashboardPage() {
   );
 }
 
-function StatCard({ value, label, color }: { value: number; label: string; color: string }) {
-  return (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
+function StatCard({ value, label, color, href }: { value: number; label: string; color: string; href?: string }) {
+  const content = (
+    <>
       <div className="text-2xl font-semibold" style={{ color }}>
         {value}
       </div>
       <div className="text-xs text-muted">{label}</div>
-    </div>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="rounded-[var(--radius)] border border-line bg-surface p-4 transition-colors hover:border-primary">
+      {content}
+    </Link>
+  ) : (
+    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">{content}</div>
   );
 }

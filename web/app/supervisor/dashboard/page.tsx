@@ -10,6 +10,7 @@
 // below so the rest of the app shell can still be prerendered.
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
@@ -158,7 +159,7 @@ function SupervisorDashboardContent() {
     >
       {/* Academic Precision overview strip — real counts, no new fetches */}
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-[8px] border border-[#c5c5d3] bg-white p-4">
+        <Link href="/supervisor/dashboard?tab=projects" className="rounded-[8px] border border-[#c5c5d3] bg-white p-4 transition-colors hover:border-[#00236f]">
           <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#505f76]">
             {lang === 'he' ? 'הפרויקטים שלי' : 'Active Projects'}
           </h4>
@@ -166,8 +167,8 @@ function SupervisorDashboardContent() {
             <span className="text-4xl font-bold leading-none text-[#1a1b21]">{myProjects.length}</span>
             <span className="text-2xl">📁</span>
           </div>
-        </div>
-        <div className="rounded-[8px] border border-[#c5c5d3] bg-white p-4">
+        </Link>
+        <Link href="/supervisor/dashboard?tab=applications" className="rounded-[8px] border border-[#c5c5d3] bg-white p-4 transition-colors hover:border-[#00236f]">
           <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#505f76]">
             {lang === 'he' ? 'מועמדויות ממתינות' : 'Pending Applications'}
           </h4>
@@ -175,8 +176,8 @@ function SupervisorDashboardContent() {
             <span className="text-4xl font-bold leading-none text-[#1a1b21]">{pendingApplicationsCount}</span>
             <span className="text-2xl">📨</span>
           </div>
-        </div>
-        <div className="rounded-[8px] border border-l-4 border-[#c5c5d3] border-l-[#00236f] bg-white p-4">
+        </Link>
+        <Link href="/supervisor/dashboard?tab=signoffs" className="rounded-[8px] border border-l-4 border-[#c5c5d3] border-l-[#00236f] bg-white p-4 transition-colors hover:border-[#00236f]">
           <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#00236f]">
             {lang === 'he' ? 'ציונים לבדיקה' : 'Milestones to Review'}
           </h4>
@@ -184,7 +185,7 @@ function SupervisorDashboardContent() {
             <span className="text-4xl font-bold leading-none text-[#1a1b21]">{pendingGrades.length}</span>
             <span className="text-2xl">⏰</span>
           </div>
-        </div>
+        </Link>
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row">

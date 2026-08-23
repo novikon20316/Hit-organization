@@ -18,6 +18,7 @@
 // below so the rest of the app shell can still be prerendered.
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -134,10 +135,10 @@ function FacultyAdminDashboardContent() {
         <p className="text-sm text-muted">{t('loading')}</p>
       ) : tab === 'overview' ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard emoji="👥" value={users.length} label={lang === 'he' ? 'משתמשים' : 'Users'} />
-          <StatCard emoji="📁" value={projects.length} label={lang === 'he' ? 'פרויקטים' : 'Projects'} />
-          <StatCard emoji="👨‍🏫" value={supervisorCount} label={lang === 'he' ? 'מנחים' : 'Supervisors'} />
-          <StatCard emoji="🎓" value={availableStudents.length} label={lang === 'he' ? 'סטודנטים ללא פרויקט' : 'Students w/o Project'} />
+          <StatCard emoji="👥" value={users.length} label={lang === 'he' ? 'משתמשים' : 'Users'} href="/faculty_admin/dashboard?tab=users" />
+          <StatCard emoji="📁" value={projects.length} label={lang === 'he' ? 'פרויקטים' : 'Projects'} href="/faculty_admin/dashboard?tab=projects" />
+          <StatCard emoji="👨‍🏫" value={supervisorCount} label={lang === 'he' ? 'מנחים' : 'Supervisors'} href="/faculty_admin/dashboard?tab=users" />
+          <StatCard emoji="🎓" value={availableStudents.length} label={lang === 'he' ? 'סטודנטים ללא פרויקט' : 'Students w/o Project'} href="/faculty_admin/dashboard?tab=users" />
         </div>
       ) : tab === 'users' ? (
         <ManagedStaffTab
@@ -193,12 +194,19 @@ export default function FacultyAdminDashboardPage() {
   );
 }
 
-function StatCard({ emoji, value, label }: { emoji: string; value: number; label: string }) {
-  return (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
+function StatCard({ emoji, value, label, href }: { emoji: string; value: number; label: string; href?: string }) {
+  const content = (
+    <>
       <div className="text-2xl">{emoji}</div>
       <div className="mt-1 text-2xl font-semibold text-ink">{value}</div>
       <div className="text-xs text-muted">{label}</div>
-    </div>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="rounded-[var(--radius)] border border-line bg-surface p-4 transition-colors hover:border-primary">
+      {content}
+    </Link>
+  ) : (
+    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">{content}</div>
   );
 }

@@ -182,30 +182,30 @@ function CoordinatorHomeContent() {
       ) : tab === 'overview' ? (
         <div className="grid gap-6">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <div className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4">
+            <Link href="/coordinator/home?tab=inProgress" className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4 transition-colors hover:border-coordinator-primary">
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-coordinator-secondary">
                 {lang === 'he' ? 'פרויקטים פעילים' : 'Active Projects'}
               </h4>
               <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{inProgressProjects.length}</span>
-            </div>
-            <div className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4">
+            </Link>
+            <Link href="/coordinator/home?tab=pending" className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4 transition-colors hover:border-coordinator-primary">
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-coordinator-secondary">
                 {lang === 'he' ? 'ממתינים לאישור' : 'Pending Approvals'}
               </h4>
               <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{pendingMilestones.length}</span>
-            </div>
-            <div className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4">
+            </Link>
+            <Link href="/coordinator/home?tab=defense" className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4 transition-colors hover:border-coordinator-primary">
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-coordinator-secondary">
                 {lang === 'he' ? 'הגנות' : 'Defenses'}
               </h4>
               <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{defenseCards.length}</span>
-            </div>
-            <div className="rounded-coordinator-lg border border-coordinator-error-container bg-coordinator-error-container/10 p-4">
+            </Link>
+            <Link href="/coordinator/home?tab=defense" className="rounded-coordinator-lg border border-coordinator-error-container bg-coordinator-error-container/10 p-4 transition-colors hover:border-coordinator-error">
               <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-coordinator-error">
                 {lang === 'he' ? 'התראות מערכת' : 'System Alerts'}
               </h4>
               <span className="text-4xl font-bold leading-none text-coordinator-error">{defenseAlertCards.length}</span>
-            </div>
+            </Link>
           </div>
 
           <div className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-5">

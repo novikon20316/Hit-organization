@@ -14,6 +14,7 @@
 // below so the rest of the app shell can still be prerendered.
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -263,10 +264,10 @@ function GradSchoolHeadDashboardContent() {
         <CreateOwnProjectButton onCreated={fetchDashboard} />
       </div>
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard value={stats.totalMasters} label={t('gradSchoolMastersOverview')} color="#6E5A99" />
-        <StatCard value={stats.pendingCount} label={t('gradSchoolPendingApprovals')} color="var(--accent)" />
-        <StatCard value={stats.stuckCount} label={t('gradSchoolStuckStudents')} color="var(--danger)" />
-        <StatCard value={stats.completedThisYear} label={lang === 'he' ? 'סיימו השנה' : 'Completed'} color="var(--success)" />
+        <StatCard value={stats.totalMasters} label={t('gradSchoolMastersOverview')} color="#6E5A99" href="/grad_school_head/dashboard?tab=overview" />
+        <StatCard value={stats.pendingCount} label={t('gradSchoolPendingApprovals')} color="var(--accent)" href="/grad_school_head/dashboard?tab=approvals" />
+        <StatCard value={stats.stuckCount} label={t('gradSchoolStuckStudents')} color="var(--danger)" href="/grad_school_head/dashboard?tab=stuck" />
+        <StatCard value={stats.completedThisYear} label={lang === 'he' ? 'סיימו השנה' : 'Completed'} color="var(--success)" href="/grad_school_head/dashboard?tab=grades" />
       </div>
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
@@ -493,14 +494,21 @@ export default function GradSchoolHeadDashboardPage() {
   );
 }
 
-function StatCard({ value, label, color }: { value: number; label: string; color: string }) {
-  return (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
+function StatCard({ value, label, color, href }: { value: number; label: string; color: string; href?: string }) {
+  const content = (
+    <>
       <div className="text-2xl font-semibold" style={{ color }}>
         {value}
       </div>
       <div className="text-xs text-muted">{label}</div>
-    </div>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="rounded-[var(--radius)] border border-line bg-surface p-4 transition-colors hover:border-primary">
+      {content}
+    </Link>
+  ) : (
+    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">{content}</div>
   );
 }
 

@@ -12,6 +12,7 @@
 // fix applied to coordinator/home, faculty_admin/dashboard, etc.).
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -172,10 +173,10 @@ function AdministrativeCoordinatorDashboardContent() {
       showBackButton={activeTab !== 'groups'}
     >
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard value={stats.totalGroups} label={lang === 'he' ? 'קבוצות' : 'Groups'} color={facultyColor} />
-        <StatCard value={stats.activeGroups} label={lang === 'he' ? 'פעילות' : 'Active'} color="var(--success)" />
-        <StatCard value={stats.scheduledDefenses} label={lang === 'he' ? 'הגנות מתוכננות' : 'Defenses'} color="#3E6C8C" />
-        <StatCard value={stats.overdueGroups} label={lang === 'he' ? 'באיחור' : 'Overdue'} color="var(--danger)" />
+        <StatCard value={stats.totalGroups} label={lang === 'he' ? 'קבוצות' : 'Groups'} color={facultyColor} href="/administrative_coordinator/dashboard?tab=groups" />
+        <StatCard value={stats.activeGroups} label={lang === 'he' ? 'פעילות' : 'Active'} color="var(--success)" href="/administrative_coordinator/dashboard?tab=groups" />
+        <StatCard value={stats.scheduledDefenses} label={lang === 'he' ? 'הגנות מתוכננות' : 'Defenses'} color="#3E6C8C" href="/administrative_coordinator/dashboard?tab=groups" />
+        <StatCard value={stats.overdueGroups} label={lang === 'he' ? 'באיחור' : 'Overdue'} color="var(--danger)" href="/administrative_coordinator/dashboard?tab=groups" />
       </div>
 
       <PendingSignoffsWidget />
@@ -443,13 +444,20 @@ export default function AdministrativeCoordinatorDashboardPage() {
   );
 }
 
-function StatCard({ value, label, color }: { value: number; label: string; color: string }) {
-  return (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
+function StatCard({ value, label, color, href }: { value: number; label: string; color: string; href?: string }) {
+  const content = (
+    <>
       <div className="text-2xl font-semibold" style={{ color }}>
         {value}
       </div>
       <div className="text-xs text-muted">{label}</div>
-    </div>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="rounded-[var(--radius)] border border-line bg-surface p-4 transition-colors hover:border-primary">
+      {content}
+    </Link>
+  ) : (
+    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">{content}</div>
   );
 }
