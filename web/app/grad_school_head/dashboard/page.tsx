@@ -257,6 +257,7 @@ function GradSchoolHeadDashboardContent() {
     <DashboardShell
       title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש בית הספר ללימודי מוסמכים' : 'Graduate School Head'}
       subtitle={lang === 'he' ? 'אישורים, תקועים ועומס בוחנים' : 'Approvals, stuck students, and examiner load'}
+      showBackButton={false}
     >
       <div className="mb-5">
         <CreateOwnProjectButton onCreated={fetchDashboard} />

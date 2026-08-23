@@ -96,7 +96,7 @@ function StudentHomeContent() {
 
   return (
     <>
-      <DashboardShell title={t('appName')}>
+      <DashboardShell title={t('appName')} showBackButton={false}>
         {studentState === 'loading' && (
           <div className="flex justify-center py-16">
             <p className="text-sm text-muted">{t('loading')}</p>

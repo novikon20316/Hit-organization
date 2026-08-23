@@ -196,6 +196,7 @@ function AdminPanelContent() {
     <DashboardShell
       title={lang === 'he' ? 'פאנל ניהול' : 'Admin Panel'}
       subtitle={lang === 'he' ? 'סטטיסטיקות מערכת וניהול משתמשים' : 'System stats and user management'}
+      showBackButton={false}
     >
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
 

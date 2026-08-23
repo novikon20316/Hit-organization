@@ -22,12 +22,15 @@ import { getHomeRoute } from '@/lib/roles';
 interface DashboardShellProps {
   title: string;
   subtitle?: string;
+  /** Hide the "go back" arrow — for each role's own home/overview page,
+   *  where there's nowhere further back to go within the app. */
+  showBackButton?: boolean;
   children: ReactNode;
 }
 
 const TOTP_NUDGE_DISMISS_KEY = 'totpNudgeDismissedAt';
 
-export function DashboardShell({ title, subtitle, children }: DashboardShellProps) {
+export function DashboardShell({ title, subtitle, showBackButton = true, children }: DashboardShellProps) {
   const router = useRouter();
   const { firebaseUser, userData, activeRole } = useAuth();
   const { lang } = useLanguage();
@@ -54,15 +57,17 @@ export function DashboardShell({ title, subtitle, children }: DashboardShellProp
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial">
-              <button
-                type="button"
-                onClick={() => router.back()}
-                title={lang === 'he' ? 'חזרה' : 'Go back'}
-                aria-label={lang === 'he' ? 'חזרה' : 'Go back'}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line text-ink transition-colors hover:border-primary hover:text-primary"
-              >
-                <span className="text-lg leading-none">{lang === 'he' ? '→' : '←'}</span>
-              </button>
+              {showBackButton && (
+                <button
+                  type="button"
+                  onClick={() => router.back()}
+                  title={lang === 'he' ? 'חזרה' : 'Go back'}
+                  aria-label={lang === 'he' ? 'חזרה' : 'Go back'}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line text-ink transition-colors hover:border-primary hover:text-primary"
+                >
+                  <span className="text-lg leading-none">{lang === 'he' ? '→' : '←'}</span>
+                </button>
+              )}
               <Link
                 href={getHomeRoute(activeRole)}
                 title={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
