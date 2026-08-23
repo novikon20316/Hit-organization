@@ -112,3 +112,30 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
     console.error(`logAuditEvent failed (action=${entry.action}, entityId=${entry.entityId}):`, err);
   }
 }
+
+// Matches the "Live Transportation" admin table's own limit(100) query
+// (web/app/admin/live-transportation/page.tsx) — the collection is capped at
+// this size so it behaves like a fixed-size ring buffer: new events always
+// write immediately (logAuditEvent above never checks the count, so nothing
+// ever blocks), and the oldest entries beyond this cap just get swept out on
+// the next prune run instead of the collection growing unbounded forever.
+export const AUDIT_LOG_MAX_ENTRIES = 100;
+
+/** Run hourly (see index.ts) — same in-process sweep pattern as
+ *  presenceHistory.ts's prunePresenceHistory. Deletes everything past the
+ *  most recent AUDIT_LOG_MAX_ENTRIES, oldest first. */
+export async function pruneAuditLog(): Promise<void> {
+  try {
+    const snap = await db.collection('auditLog')
+      .orderBy('timestamp', 'desc')
+      .offset(AUDIT_LOG_MAX_ENTRIES)
+      .limit(500)
+      .get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (err) {
+    console.error('pruneAuditLog failed:', err);
+  }
+}

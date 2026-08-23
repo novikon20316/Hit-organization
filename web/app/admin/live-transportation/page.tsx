@@ -53,6 +53,66 @@ interface AuditRow {
   timestampMs: number | null;
 }
 
+// "Important" isn't one action type flagged forever — it's a *pattern*: too
+// many of the same security-sensitive action from the same user within a
+// short window. One failed login or one blocked access attempt isn't itself
+// alarming; several in a row is. Extend this list as new patterns come up —
+// nothing else below needs to change.
+interface ImportanceRule {
+  key: string;
+  action: string;
+  threshold: number;
+  windowMs: number;
+  reason: { he: string; en: string };
+}
+
+const IMPORTANCE_RULES: ImportanceRule[] = [
+  {
+    key: 'repeated_permission_denied',
+    action: 'permission_denied',
+    threshold: 3,
+    windowMs: 15 * 60 * 1000,
+    reason: { he: 'ניסיונות גישה חסומים חוזרים מאותו משתמש', en: 'Repeated blocked access attempts from the same user' },
+  },
+  {
+    key: 'repeated_login_failed',
+    action: 'login_failed',
+    threshold: 3,
+    windowMs: 15 * 60 * 1000,
+    reason: { he: 'ניסיונות התחברות כושלים חוזרים מאותו משתמש', en: 'Repeated failed login attempts from the same user' },
+  },
+];
+
+// Row ids flagged by IMPORTANCE_RULES, mapped to whichever rule flagged them
+// (for the tooltip) — a row matching more than one rule just keeps the first.
+function computeImportantRows(rows: AuditRow[]): Map<string, ImportanceRule> {
+  const flagged = new Map<string, ImportanceRule>();
+  for (const rule of IMPORTANCE_RULES) {
+    const byUser = new Map<string, AuditRow[]>();
+    for (const row of rows) {
+      if (row.action !== rule.action || !row.userId || row.timestampMs == null) continue;
+      const bucket = byUser.get(row.userId);
+      if (bucket) bucket.push(row);
+      else byUser.set(row.userId, [row]);
+    }
+    for (const userRows of byUser.values()) {
+      const sorted = [...userRows].sort((a, b) => (a.timestampMs ?? 0) - (b.timestampMs ?? 0));
+      for (let i = 0; i < sorted.length; i++) {
+        let windowStart = i;
+        while (windowStart > 0 && sorted[i]!.timestampMs! - sorted[windowStart - 1]!.timestampMs! <= rule.windowMs) {
+          windowStart--;
+        }
+        if (i - windowStart + 1 >= rule.threshold) {
+          for (let k = windowStart; k <= i; k++) {
+            if (!flagged.has(sorted[k]!.id)) flagged.set(sorted[k]!.id, rule);
+          }
+        }
+      }
+    }
+  }
+  return flagged;
+}
+
 // Local (not UTC) yyyy-mm-dd, matching the value an <input type="date"> emits
 // — toISOString() would shift dates near midnight for non-UTC timezones.
 const toIsoDate = (d: Date) => {
@@ -353,6 +413,7 @@ export default function LiveTransportationPage() {
   };
 
   const failedLoginCount = useMemo(() => auditRows.filter((r) => r.action === 'login_failed').length, [auditRows]);
+  const importantRows = useMemo(() => computeImportantRows(auditRows), [auditRows]);
 
   if (guardLoading) {
     return (
@@ -555,8 +616,15 @@ export default function LiveTransportationPage() {
                 {pagedActionRows.map((row) => {
                   const d = row.timestampMs ? new Date(row.timestampMs) : null;
                   const isFailure = row.action === 'login_failed';
+                  const importantRule = importantRows.get(row.id);
                   return (
-                    <tr key={row.id} className={`border-b border-admin-outline-variant/50 transition-colors hover:bg-admin-surface-container-low ${isFailure ? 'bg-admin-error-container/10' : ''}`}>
+                    <tr
+                      key={row.id}
+                      title={importantRule ? importantRule.reason[lang] : undefined}
+                      className={`border-b border-admin-outline-variant/50 transition-colors hover:bg-admin-surface-container-low ${
+                        importantRule ? 'bg-yellow-200/50' : isFailure ? 'bg-admin-error-container/10' : ''
+                      }`}
+                    >
                       <td className="py-2 pl-3 pr-3">
                         <input
                           type="checkbox"

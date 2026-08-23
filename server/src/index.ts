@@ -47,6 +47,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
 import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders } from './services/notificationScheduler.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
+import { pruneAuditLog } from './services/auditLog.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { WEBSITE_URL } from './config/links.js';
 
@@ -232,6 +233,13 @@ setInterval(() => {
 setInterval(() => {
   prunePresenceHistory().catch((err) => console.error('prunePresenceHistory sweep failed:', err));
 }, ONE_DAY_MS);
+// Keeps the "Live Transportation" audit log capped at its own display limit
+// (100 rows) — see services/auditLog.ts's pruneAuditLog for why hourly is
+// fine even though writes happen continuously: new entries are never
+// blocked, only the oldest excess gets swept out periodically.
+setInterval(() => {
+  pruneAuditLog().catch((err) => console.error('pruneAuditLog sweep failed:', err));
+}, ONE_HOUR_MS);
 
 // ─── 0.0.0.0 lets physical devices reach the server on local network ──────────
 app.listen(PORT, '0.0.0.0', () => {
