@@ -1006,13 +1006,25 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
 
       const allProjectMilestones = milestonesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // B. Fetch all students assigned to this active project
-      const studentsSnap = await db.collection('users')
-        .where('activeProjectId', '==', project.id)
-        .get();
+      // B. Fetch every student enrolled in this project — via the project
+      // doc's own enrolledStudentIds, not a reverse query on the student's
+      // scalar activeProjectId. That field only ever points to ONE project
+      // even when the TEMP-multi-active-projects bypass
+      // (projectEnrollment.ts) has seated a student in several at once, so a
+      // student with more than one active project silently disappeared from
+      // every one of them except whichever their activeProjectId happened to
+      // currently point at — one project showing 1 student and its sibling
+      // showing none for the very same enrolled student. Every other
+      // dashboard endpoint here already reads enrolledStudentIds directly
+      // for this reason (see coordinatorController.ts,
+      // supervisorController.ts's getSupervisorProjectDetail).
+      const enrolledStudentIds: string[] = project.enrolledStudentIds ?? [];
+      const studentDocs = (await Promise.all(
+        enrolledStudentIds.map((sid: string) => db.collection('users').doc(sid).get())
+      )).filter((snap) => snap.exists);
 
       // C. Process milestones and progress per individual student
-      const studentsArray = studentsSnap.docs.map(studentDoc => {
+      const studentsArray = studentDocs.map(studentDoc => {
         const studentId = studentDoc.id;
         const studentData = studentDoc.data();
 
