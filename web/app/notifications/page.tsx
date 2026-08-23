@@ -11,7 +11,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { apiClient } from '@/lib/apiClient';
-import { getHomeRoute } from '@/lib/roles';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
@@ -188,14 +187,6 @@ export default function NotificationsPage() {
 
   return (
     <DashboardShell title={lang === 'he' ? 'התראות והודעות' : 'Notifications & Messages'}>
-      <button
-        type="button"
-        onClick={() => router.push(getHomeRoute(userData?.role))}
-        className="mb-4 w-fit rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-ink hover:bg-paper"
-      >
-        {lang === 'he' ? '→ ללוח הבקרה' : '← Dashboard'}
-      </button>
-
       {actionError && (
         <div className="mb-4 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
           <span>⚠️ {actionError}</span>
