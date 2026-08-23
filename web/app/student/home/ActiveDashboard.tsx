@@ -3,7 +3,7 @@
 // app/student/home/ActiveDashboard.tsx
 // Ported from mobile/app/(tabs)/Activedashboard.tsx.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { SubmitMilestoneModal } from './SubmitMilestoneModal';
@@ -44,11 +44,54 @@ interface ActiveDashboardProps {
   tab: 'overview' | 'milestones' | 'grades';
 }
 
+// Staff-attached, project-scoped Info Files (see app/info-files/page.tsx and
+// server/src/controllers/infoFilesController.ts) — the server already
+// filters getInfoFiles() to only what this student may currently see
+// (enrolled in the project, visible, and milestone-reached-or-later when
+// tagged); this component just groups the result by which milestone (if
+// any) each file was tagged for.
+interface ProjectInfoFile {
+  id: string;
+  titleHe: string;
+  titleEn: string;
+  fileUrl: string;
+  projectIds: string[];
+  milestoneType: string | null;
+}
+
 export function ActiveDashboard({ project, milestones, progress, onChanged, tab }: ActiveDashboardProps) {
   const { lang, t } = useLanguage();
   const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [expandedGradeIds, setExpandedGradeIds] = useState<Record<string, boolean>>({});
+  const [projectFiles, setProjectFiles] = useState<ProjectInfoFile[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient.getInfoFiles()
+      .then((res) => {
+        if (cancelled) return;
+        setProjectFiles((res.files ?? []).filter((f) => f.projectIds?.includes(project.id)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  const filesForMilestone = (type: string) => projectFiles.filter((f) => f.milestoneType === type);
+  const untaggedProjectFiles = projectFiles.filter((f) => !f.milestoneType);
+
+  const InfoFileChip = ({ f }: { f: ProjectInfoFile }) => (
+    <a
+      href={f.fileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1.5 rounded-student border border-student-outline-variant bg-student-surface-container-low px-2.5 py-1.5 text-xs text-student-on-surface transition-colors hover:border-student-primary hover:text-student-primary"
+    >
+      📎 <span className="max-w-[12rem] truncate">{lang === 'he' ? f.titleHe || f.titleEn : f.titleEn || f.titleHe}</span>
+    </a>
+  );
 
   const isMastersThesis = project.degreeType === 'masters' && project.projectType === 'thesis';
 
@@ -342,6 +385,19 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                         </div>
                       )}
 
+                      {filesForMilestone(m.type).length > 0 && (
+                        <div className="mt-2">
+                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-student-on-surface-variant">
+                            {lang === 'he' ? 'מסמכים לאבן דרך זו' : 'Files for this milestone'}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {filesForMilestone(m.type).map((f) => (
+                              <InfoFileChip key={f.id} f={f} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {m.revisionHistory && m.revisionHistory.length > 0 && (
                         <details className="mt-2">
                           <summary className="cursor-pointer text-xs font-medium text-student-on-surface-variant hover:text-student-on-surface">
@@ -374,6 +430,19 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
           </div>
 
           <div className="xl:col-span-4 flex flex-col gap-4">
+            {untaggedProjectFiles.length > 0 && (
+              <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-low p-5 shadow-sm">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-student-on-surface">
+                  📎 {lang === 'he' ? 'מסמכי הפרויקט' : 'Project Resources'}
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {untaggedProjectFiles.map((f) => (
+                    <InfoFileChip key={f.id} f={f} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-low p-5 shadow-sm">
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-student-on-surface">
                 💬 {lang === 'he' ? 'משוב אחרון' : 'Recent Feedback'}

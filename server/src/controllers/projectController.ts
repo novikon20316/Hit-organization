@@ -930,7 +930,7 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
   const role = req.user?.role;
 
   // Verify coordinator/admin roles
-  if (role !== 'coordinator' && role !== 'faculty_admin' && role !== 'admin') {
+  if (role !== 'coordinator' && role !== 'faculty_admin' && role !== 'admin' && role !== 'system_admin') {
     return res.status(403).json({ message: 'Unauthorized access' });
   }
 
@@ -938,11 +938,12 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
     // A coordinator/faculty_admin oversees one faculty (or a handful, via
     // coordinatorScopes) — this tab should default to every project in that
     // scope, not just ones they personally supervise, so they can see what
-    // other supervisors in their faculty are running too. 'admin' stays
-    // unrestricted (system-wide), matching its behavior everywhere else.
-    // facultyId 'all' (administrative-coordinator-style provisioning) is
-    // likewise unrestricted rather than an empty/no-match scope.
-    let unrestricted = role === 'admin';
+    // other supervisors in their faculty are running too. 'admin'/
+    // 'system_admin' stay unrestricted (system-wide), matching their
+    // behavior everywhere else. facultyId 'all' (administrative-coordinator-
+    // style provisioning) is likewise unrestricted rather than an empty/
+    // no-match scope.
+    let unrestricted = role === 'admin' || role === 'system_admin';
     let facultyIds: string[] = [];
     if (!unrestricted) {
       const coordinatorScopes = req.user?.coordinatorScopes ?? [];

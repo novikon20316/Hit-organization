@@ -808,9 +808,9 @@ export const apiClient = {
   },
 
   /** GET /api/projects/ActiveProjects (unusual casing — matches the server
-   *  route exactly). Server-side role check today only allows coordinator /
-   *  faculty_admin / admin — administrative coordinator and system_admin can
-   *  get a 403 here even though they're allowed onto this page; callers
+   *  route exactly). Server-side role check allows coordinator / faculty_admin /
+   *  admin / system_admin — administrative coordinator can still get a 403
+   *  here even though she's allowed onto some pages that call this; callers
    *  should treat that as a soft failure (empty state), not a crash. */
   async getActiveProjects() {
     return request<{ InProgress: Array<Record<string, unknown> & { id: string }> }>('/api/projects/ActiveProjects', {
@@ -975,16 +975,36 @@ export const apiClient = {
       files: Array<{
         id: string; titleHe: string; titleEn: string; fileUrl: string; fileName: string;
         facultyIds: string[]; majors: string[]; degreeTypes: string[];
+        /** Non-empty means this file targets specific project(s) instead of
+         *  (mutually exclusive with) the faculty/major/degree axes above. */
+        projectIds: string[];
+        /** Only meaningful when projectIds is non-empty — the milestone type
+         *  this file becomes visible from onward; null means visible as soon
+         *  as the student is enrolled in one of projectIds. */
+        milestoneType: string | null;
+        /** Manual staff on/off switch, independent of the milestone gate —
+         *  both must pass for a student to see the file. */
+        isVisible: boolean;
       }>;
     }>('/api/info-files', { method: 'GET' });
   },
 
-  /** system_admin or coordinator only (checked server-side) — a
+  /** system_admin, coordinator, or supervisor (checked server-side) — a
    *  coordinator-mounted /api/coordinator/info-files duplicate of this same
    *  handler used to exist too, but nothing ever called it; removed rather
-   *  than left as an unreachable second URL for the same feature. */
+   *  than left as an unreachable second URL for the same feature. A
+   *  supervisor must include projectIds (their own projects only, verified
+   *  server-side) — they have no faculty-wide scope. */
   async uploadInfoFile(formData: FormData) {
     return request<{ success: boolean; id: string; fileUrl: string }>('/api/admin/info-files', { method: 'POST', body: formData, raw: true });
+  },
+
+  /** PATCH /api/admin/info-files/:id — replace the file's content and/or
+   *  toggle its visibility in place (title/scope aren't editable here; that
+   *  means delete + re-upload). formData may include a `file` and/or
+   *  `isVisible` ('true'/'false'). Same role/ownership rules as delete. */
+  async updateInfoFile(id: string, formData: FormData) {
+    return request<{ success: boolean; message: string }>(`/api/admin/info-files/${id}`, { method: 'PATCH', body: formData, raw: true });
   },
 
   async deleteInfoFile(id: string) {

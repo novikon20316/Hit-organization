@@ -31,7 +31,7 @@ import {
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
 import { assignDefense } from '../controllers/coordinatorController.js';
-import { uploadInfoFile, uploadInfoFileMiddleware, deleteInfoFile } from '../controllers/infoFilesController.js';
+import { uploadInfoFile, uploadInfoFileMiddleware, updateInfoFile, deleteInfoFile } from '../controllers/infoFilesController.js';
 import { createFacultyContent, deleteFacultyContent } from '../controllers/facultyContentController.js';
 import {
   exportUsersAdmin,
@@ -114,6 +114,7 @@ router.put('/users/:id/track-override', verifyToken, overrideStudentTrack);
 
 // PATCH routes
 router.patch('/student-roster/:docId', verifyToken, updateStudentRosterAdmin);
+router.patch('/info-files/:id', verifyToken, uploadInfoFileMiddleware, updateInfoFile);
 
 // DELETE routes
 router.delete('/info-files/:id', verifyToken, deleteInfoFile);
