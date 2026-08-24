@@ -73,45 +73,111 @@ function isMilestoneDone(status: string): boolean {
 // Mirrors the circle-stepper styling in coordinator/home/InProgressTab.tsx
 // (done = filled green check, current = filled status color, future =
 // outlined).
-function MilestoneMiniProgress({ milestones, lang }: { milestones: MemberMilestoneGrade[]; lang: 'he' | 'en' }) {
+function MilestoneMiniProgress({
+  milestones,
+  memberName,
+  lang,
+  onOpenFile,
+}: {
+  milestones: MemberMilestoneGrade[];
+  memberName: string;
+  lang: 'he' | 'en';
+  onOpenFile: (payload: { title: string; subtitle: string; submissionNote: string; fileUrls: string[] }) => void;
+}) {
+  // Which step's file chips are currently unfolded underneath the stepper —
+  // one at a time, per member (this component is instantiated once per
+  // member row, so expanding one member's step never affects another's).
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
   if (milestones.length === 0) {
     return <p className="text-[11px] text-muted">{lang === 'he' ? 'לא נוצרו אבני דרך' : 'No milestones yet'}</p>;
   }
   const firstIncompleteIdx = milestones.findIndex((m) => !isMilestoneDone(m.status));
+  const expanded = expandedIdx !== null ? milestones[expandedIdx] : null;
   return (
-    <div className="flex flex-wrap items-start gap-y-2">
-      {milestones.map((m, idx) => {
-        const done = isMilestoneDone(m.status);
-        const isCurrent = !done && firstIncompleteIdx !== -1 && idx === firstIncompleteIdx;
-        const isFuture = !done && !isCurrent;
-        const color = done ? '#10B981' : gradeStatusColor(m);
-        return (
-          <div key={idx} className="flex items-start">
-            <div className="flex w-[78px] shrink-0 flex-col items-center text-center">
-              <span
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                  isFuture ? 'border-2 bg-surface' : 'text-white'
-                }`}
-                style={isFuture ? { borderColor: color, color } : { backgroundColor: color }}
+    <div>
+      <div className="flex flex-wrap items-start gap-y-2">
+        {milestones.map((m, idx) => {
+          const done = isMilestoneDone(m.status);
+          const isCurrent = !done && firstIncompleteIdx !== -1 && idx === firstIncompleteIdx;
+          const isFuture = !done && !isCurrent;
+          const color = done ? '#10B981' : gradeStatusColor(m);
+          return (
+            <div key={idx} className="flex items-start">
+              <button
+                type="button"
+                onClick={() => setExpandedIdx((prev) => (prev === idx ? null : idx))}
+                className="flex w-[78px] shrink-0 flex-col items-center text-center hover:opacity-80"
               >
-                {done ? '✓' : idx + 1}
-              </span>
-              <span className={`mt-1 text-[10px] leading-tight text-ink ${isCurrent ? 'font-bold' : 'font-medium'}`}>
-                {MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}
-              </span>
-              <span className="text-[9px] font-semibold leading-tight" style={{ color }}>
-                {gradeStatusLabel(m, lang)}
-              </span>
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    isFuture ? 'border-2 bg-surface' : 'text-white'
+                  } ${expandedIdx === idx ? 'ring-2 ring-offset-1 ring-primary' : ''}`}
+                  style={isFuture ? { borderColor: color, color } : { backgroundColor: color }}
+                >
+                  {done ? '✓' : idx + 1}
+                </span>
+                <span className={`mt-1 text-[10px] leading-tight text-ink ${isCurrent ? 'font-bold' : 'font-medium'}`}>
+                  {MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}
+                </span>
+                <span className="text-[9px] font-semibold leading-tight" style={{ color }}>
+                  {gradeStatusLabel(m, lang)}
+                </span>
+              </button>
+              {idx < milestones.length - 1 && (
+                <span
+                  className="mt-3 h-px w-3 shrink-0"
+                  style={{ backgroundColor: firstIncompleteIdx === -1 || idx < firstIncompleteIdx ? '#10B981' : '#D8DCE6' }}
+                />
+              )}
             </div>
-            {idx < milestones.length - 1 && (
-              <span
-                className="mt-3 h-px w-3 shrink-0"
-                style={{ backgroundColor: firstIncompleteIdx === -1 || idx < firstIncompleteIdx ? '#10B981' : '#D8DCE6' }}
-              />
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {expanded && (
+        <div className="mt-1.5 rounded-lg bg-paper p-2">
+          {expanded.fileUrls.length === 0 ? (
+            <p className="text-[11px] text-muted">{lang === 'he' ? 'לא הוגשו קבצים' : 'No files submitted'}</p>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {expanded.fileUrls.map((url, i) => {
+                const fileName = fileNameFromUrl(url, i, lang);
+                return (
+                  <span key={i} className="flex items-center overflow-hidden rounded-md border border-line bg-surface text-[10px] text-ink">
+                    {/* Same split as the Grades section's file chips below —
+                        clicking the name always previews, the separate ⬇
+                        button always downloads. */}
+                    <button
+                      type="button"
+                      title={lang === 'he' ? 'תצוגה מקדימה' : 'Preview'}
+                      onClick={() =>
+                        onOpenFile({
+                          title: MILESTONE_TYPE_LABEL[expanded.type]?.[lang] ?? expanded.type,
+                          subtitle: memberName,
+                          submissionNote: expanded.submissionNote,
+                          fileUrls: expanded.fileUrls,
+                        })
+                      }
+                      className="flex items-center gap-1 px-1.5 py-0.5 hover:text-primary"
+                    >
+                      📄 <span className="max-w-[8rem] truncate">{fileName}</span>
+                    </button>
+                    <button
+                      type="button"
+                      title={lang === 'he' ? 'הורדה' : 'Download'}
+                      onClick={() => downloadFile(url, fileName)}
+                      className="border-s border-line px-1.5 py-0.5 text-muted hover:text-primary"
+                    >
+                      ⬇
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -395,7 +461,7 @@ function AdministrativeCoordinatorDashboardContent() {
                       >
                         👤 {m.name}
                       </button>
-                      <MilestoneMiniProgress milestones={m.milestones} lang={lang} />
+                      <MilestoneMiniProgress milestones={m.milestones} memberName={m.name} lang={lang} onOpenFile={setFilePreviewFor} />
                     </div>
                   ))}
                 </div>
