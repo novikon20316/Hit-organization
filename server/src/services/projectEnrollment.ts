@@ -77,6 +77,7 @@ async function closeOtherPendingApplications(
         emailData: {
           message: `${studentName} was accepted into another project ("${enrolledProjectTitle.en}"), and their application to "${closedProjectTitleEn}" has been automatically closed.`,
         },
+        taskKind: 'applications',
       }).catch((notifyError) => {
         console.error(`auto-close notification failed for supervisor ${data.supervisorId}:`, notifyError);
       });

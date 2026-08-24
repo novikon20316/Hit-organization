@@ -8,7 +8,7 @@ import {
   ActivityIndicator, Alert, RefreshControl, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
@@ -115,9 +115,15 @@ export default function GradSchoolHeadDashboard() {
   const [loading, setLoading]      = useState(true);
   const [refreshing, setRefreshing]= useState(false);
   const [data, setData]            = useState<DashboardData | null>(null);
-  const [activeTab, setActiveTab]  = useState<
-    'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff'
-  >('approvals');
+  // Lets a notification's "Go to dashboard" deep-link land on a specific tab
+  // (?tab=...) instead of always opening on Approvals — same convention the
+  // web dashboard already supports.
+  type GradSchoolHeadTab = 'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff';
+  const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['approvals', 'overview', 'stuck', 'examiners', 'grades', 'staff'];
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab]  = useState<GradSchoolHeadTab>(
+    GRAD_SCHOOL_HEAD_TABS.includes(tabParam as GradSchoolHeadTab) ? (tabParam as GradSchoolHeadTab) : 'approvals'
+  );
   // Cross-faculty staff this role can now manage directly (see
   // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — this
   // role had zero user-management endpoints of any kind before this.

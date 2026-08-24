@@ -10,7 +10,7 @@ import {
   TextInput, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import { TopBar, getFacultyColor } from '../../components/shared';
@@ -76,7 +76,15 @@ export default function ProgramHeadDashboard() {
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData]             = useState<DashboardData | null>(null);
-  const [activeTab, setActiveTab]   = useState<'students' | 'approvals' | 'supervisors' | 'staff' | 'myProjects'>('students');
+  // Lets a notification's "Go to dashboard" deep-link land on a specific tab
+  // (?tab=...) instead of always opening on Students — same convention the
+  // web dashboard already supports.
+  type ProgramHeadTab = 'students' | 'approvals' | 'supervisors' | 'staff' | 'myProjects';
+  const PROGRAM_HEAD_TABS: ProgramHeadTab[] = ['students', 'approvals', 'supervisors', 'staff', 'myProjects'];
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab]   = useState<ProgramHeadTab>(
+    PROGRAM_HEAD_TABS.includes(tabParam as ProgramHeadTab) ? (tabParam as ProgramHeadTab) : 'students'
+  );
   // A program_head who's ALSO a supervisor/secondary_supervisor otherwise
   // has no way to reach the supervisor dashboard's own "New Project" button
   // — program_head always outranks supervisor, so that's never their

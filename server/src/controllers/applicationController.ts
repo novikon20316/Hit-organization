@@ -276,6 +276,7 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
                         studentName,
                         projectTitle: { he: projectData.titleHe ?? '', en: projectData.titleEn ?? '' },
                     },
+                    taskKind: 'applications',
                 });
             } catch (notifyError) {
                 console.error(`application_received notification failed for supervisor ${projectData.supervisorId}:`, notifyError);
@@ -454,6 +455,7 @@ export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Re
                         studentName: studentName ?? '',
                         projectTitle: { he: projectTitleHe ?? '', en: projectTitleEn ?? '' },
                     },
+                    taskKind: 'applications',
                 }).catch((notifyError) => {
                     console.error(`application_declined_by_student notification failed for supervisor ${supervisorId}:`, notifyError);
                 });

@@ -10,6 +10,7 @@ import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFi
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
+import { targetScreenFor } from '../services/notificationTargets.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones } from '../services/workflowTemplates.js';
@@ -915,6 +916,7 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         relatedProjectId: projectId,
         relatedMilestoneId: milestoneId,
         emailData: { milestoneTitle, projectTitle },
+        taskKind: 'milestone_action',
       });
     }
 
@@ -922,6 +924,7 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       const recipientData = (await db.collection('users').doc(recipientId).get()).data();
       const pushToken = recipientData?.expoPushToken ?? null;
       const lang: 'he' | 'en' = recipientData?.language === 'en' ? 'en' : 'he';
+      const targetScreen = targetScreenFor(recipientData?.role, 'milestone_action');
 
       await db.collection('notifications').add({
         recipientId,
@@ -933,6 +936,7 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         isRead:             false,
         relatedProjectId:   projectId,
         relatedMilestoneId: milestoneId,
+        ...(targetScreen ? { targetScreen } : {}),
         createdAt:          admin.firestore.FieldValue.serverTimestamp(),
       });
 

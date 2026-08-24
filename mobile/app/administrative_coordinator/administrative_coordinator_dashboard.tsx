@@ -10,7 +10,7 @@ import {
   TextInput, Modal, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
@@ -524,7 +524,15 @@ export default function ProjectCoordinatorDashboard() {
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
 
   // ── Students Report tab ───────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'groups' | 'students' | 'overrides'>('groups');
+  // Lets a notification's "Go to dashboard" deep-link land on a specific tab
+  // (?tab=...) instead of always opening on Groups — same convention the web
+  // dashboard already supports.
+  type AdminCoordinatorTab = 'groups' | 'students' | 'overrides';
+  const ADMIN_COORDINATOR_TABS: AdminCoordinatorTab[] = ['groups', 'students', 'overrides'];
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState<AdminCoordinatorTab>(
+    ADMIN_COORDINATOR_TABS.includes(tabParam as AdminCoordinatorTab) ? (tabParam as AdminCoordinatorTab) : 'groups'
+  );
   const [studentsReport, setStudentsReport] = useState<StudentReportRow[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsLoaded, setStudentsLoaded] = useState(false);

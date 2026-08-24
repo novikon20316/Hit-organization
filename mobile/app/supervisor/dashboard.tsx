@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sharedStyles } from '@/constants';
@@ -156,7 +156,16 @@ export default function SupervisorHome() {
   // 'projects' listed last — this tab bar's ScrollView doesn't mirror for
   // RTL (no isRtl row-reverse, unlike the rest of this file's rows), so the
   // last array item is what ends up rightmost/last-scrolled-to.
-  const [activeTab,      setActiveTab]      = useState<'applications' | 'grading' | 'recommend' | 'signoffs' | 'projects'>('projects');
+  //
+  // Lets a notification's "Go to dashboard" deep-link land on a specific tab
+  // (?tab=...) instead of always opening on Projects — same convention the
+  // web dashboard already supports.
+  type SupervisorTab = 'applications' | 'grading' | 'recommend' | 'signoffs' | 'projects';
+  const SUPERVISOR_TABS: SupervisorTab[] = ['applications', 'grading', 'recommend', 'signoffs', 'projects'];
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab,      setActiveTab]      = useState<SupervisorTab>(
+    SUPERVISOR_TABS.includes(tabParam as SupervisorTab) ? (tabParam as SupervisorTab) : 'projects'
+  );
   const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'offered'>('all');
   const [unreadCount,    setUnreadCount]    = useState(0);

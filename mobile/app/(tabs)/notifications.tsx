@@ -29,6 +29,11 @@ interface Notif {
   relatedMilestoneId: string | null;
   chatId?:            string | null;
   senderName?:        string | null;
+  /** Semantic screen key set server-side at creation time (see
+   *  server/src/services/notificationTargets.ts) — resolved via
+   *  TARGET_SCREEN_ROUTE above. Older notifications won't have it;
+   *  computeNotifTargetRoute falls back to its by-type switch for those. */
+  targetScreen?:      string | null;
 }
 
 interface ChatRow {
@@ -77,11 +82,43 @@ export function roleHomeRoute(role: string | null): string {
   }
 }
 
+// Resolves a semantic targetScreen key (see server/src/services/
+// notificationTargets.ts) to an actual mobile route. Kept separate from
+// web's own lookup table (web/app/notifications/types.ts) since the two
+// don't always spell the same tab the same way — e.g. the internal
+// examiner's default tab is 'projects' here but 'defenses' on web — and
+// mobile has no /committees screen at all, so that key is simply omitted
+// (falls through to no destination rather than a dead link).
+const TARGET_SCREEN_ROUTE: Record<string, string> = {
+  coordinator_pending: '/coordinator/home?tab=pending',
+  coordinator_signoffs: '/coordinator/home?tab=signoffs',
+  coordinator_deadlines: '/coordinator/home?tab=deadlines',
+  coordinator_defense: '/coordinator/home?tab=defense',
+  coordinator_archived: '/coordinator/home?tab=archived',
+  admin_coordinator_overrides: '/administrative_coordinator/administrative_coordinator_dashboard?tab=overrides',
+  supervisor_applications: '/supervisor/dashboard?tab=applications',
+  supervisor_signoffs: '/supervisor/dashboard?tab=signoffs',
+  supervisor_projects: '/supervisor/dashboard?tab=projects',
+  faculty_admin_projects: '/faculty_admin/dashboard?tab=projects',
+  faculty_admin_signoffs: '/faculty_admin/dashboard?tab=signoffs',
+  faculty_admin_deadlines: '/faculty_admin/dashboard?tab=deadlines',
+  program_head_approvals: '/program_head/program_head_dashboard?tab=approvals',
+  grad_school_head_approvals: '/grad_school_head/grad_school_head_dashboard?tab=approvals',
+  grad_school_head_examiners: '/grad_school_head/grad_school_head_dashboard?tab=examiners',
+  examiner_defenses: '/examinor/home?tab=projects',
+  examiner_schedule: '/examinor/home?tab=schedule',
+  admin_panel_milestones: '/admin/panel?tab=milestones',
+  admin_panel_signoffs: '/admin/panel?tab=signoffs',
+  admin_panel_feedback: '/admin/panel?tab=feedback',
+  login_security: '/login-security',
+};
+
 // Shared by handleTapNotif below and the [id] detail screen's own
 // next/previous navigation, so a sibling notification opened via those
 // buttons gets the exact same "Go to dashboard" target as one opened fresh
 // from this list.
-export function computeNotifTargetRoute(type: string, role: string | null): string {
+export function computeNotifTargetRoute(type: string, role: string | null, targetScreen?: string | null): string {
+  if (targetScreen && TARGET_SCREEN_ROUTE[targetScreen]) return TARGET_SCREEN_ROUTE[targetScreen];
   switch (type) {
     case 'project_published':
     case 'application_approved':
@@ -97,7 +134,8 @@ export function computeNotifTargetRoute(type: string, role: string | null): stri
     case 'account_created':
     case 'milestone_submitted':
       // Recipient can be any role (supervisor, coordinator, administrative
-      // coordinator) — route to whichever home matches theirs.
+      // coordinator) — route to whichever home matches theirs. Notifications
+      // of these types written before targetScreen existed fall back here.
       return roleHomeRoute(role);
     default:
       return '';
@@ -441,7 +479,7 @@ export default function NotificationsScreen() {
     // body) instead of silently jumping straight to a dashboard — that
     // dashboard never showed the notification's actual content anywhere, so
     // the redirect looked like it had no reason behind it.
-    const targetRoute = computeNotifTargetRoute(notif.type, userRole);
+    const targetRoute = computeNotifTargetRoute(notif.type, userRole, notif.targetScreen);
 
     router.push({
       pathname: '/notification/[id]',

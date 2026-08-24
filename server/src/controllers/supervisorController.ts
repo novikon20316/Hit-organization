@@ -5,6 +5,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
 import { resolveStaffForScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { targetScreenFor } from '../services/notificationTargets.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import {
   resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER,
@@ -979,22 +980,32 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       const signoffRole = await resolveFinalGradeSignoffRole(scope.facultyId, processType, project.major ?? null);
       const projectSupervisorIds = [project.supervisorId].filter(Boolean);
       const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
-      await Promise.all(uids.map((recipientId) => db.collection('notifications').add({
-        recipientId,
-        type: 'grade_override_pending',
-        titleHe: kind === 'override' ? '⚖️ שינוי ציון ממתין לאישור' : '✅ ציון סופי ממתין לאישור',
-        titleEn: kind === 'override' ? '⚖️ Grade Override Pending Approval' : '✅ Final Grade Pending Approval',
-        bodyHe: kind === 'override'
-          ? `המנחה הציע לשנות את הציון המחושב (${data.autoCalculatedFinalGrade}) ל-${proposedGrade}.`
-          : `המנחה אישר את הציון המחושב (${proposedGrade}) — ממתין לאישורך הסופי.`,
-        bodyEn: kind === 'override'
-          ? `The supervisor proposed changing the computed grade (${data.autoCalculatedFinalGrade}) to ${proposedGrade}.`
-          : `The supervisor confirmed the computed grade (${proposedGrade}) — awaiting your final sign-off.`,
-        isRead: false,
-        relatedProjectId: data.projectId ?? null,
-        relatedMilestoneId: milestoneId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      })));
+      // signoffRole can resolve to several different concrete roles at once
+      // (coordinator + administrative_secretary + system_admin, say), and
+      // unlike the fixed-role fan-outs elsewhere in this codebase, those
+      // don't all land on the same screen for a sign-off task — each
+      // recipient's own role has to be looked up to pick their destination.
+      const recipientSnaps = await Promise.all(uids.map((uid) => db.collection('users').doc(uid).get()));
+      await Promise.all(uids.map((recipientId, idx) => {
+        const targetScreen = targetScreenFor(recipientSnaps[idx]?.data()?.role, 'signoff');
+        return db.collection('notifications').add({
+          recipientId,
+          type: 'grade_override_pending',
+          titleHe: kind === 'override' ? '⚖️ שינוי ציון ממתין לאישור' : '✅ ציון סופי ממתין לאישור',
+          titleEn: kind === 'override' ? '⚖️ Grade Override Pending Approval' : '✅ Final Grade Pending Approval',
+          bodyHe: kind === 'override'
+            ? `המנחה הציע לשנות את הציון המחושב (${data.autoCalculatedFinalGrade}) ל-${proposedGrade}.`
+            : `המנחה אישר את הציון המחושב (${proposedGrade}) — ממתין לאישורך הסופי.`,
+          bodyEn: kind === 'override'
+            ? `The supervisor proposed changing the computed grade (${data.autoCalculatedFinalGrade}) to ${proposedGrade}.`
+            : `The supervisor confirmed the computed grade (${proposedGrade}) — awaiting your final sign-off.`,
+          isRead: false,
+          relatedProjectId: data.projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          ...(targetScreen ? { targetScreen } : {}),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }));
     } catch (notifyErr) {
       console.error('decideFinalGrade: failed to notify signoff role:', notifyErr);
     }

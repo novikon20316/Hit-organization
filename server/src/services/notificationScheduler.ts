@@ -146,6 +146,11 @@ async function escalateOverdueExaminerToCoordinators(
       relatedProjectId: t.projectId ?? null,
       relatedMilestoneId: t.milestoneId ?? null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      // resolveStaffForScope('coordinator', ...) only ever returns
+      // coordinator/administrative_secretary/system_admin — all three
+      // resolve to the same targetScreenFor(role, 'deadline_examiner')
+      // destination, so no per-recipient role lookup is needed here.
+      targetScreen: 'coordinator_deadlines',
     })
   ));
 

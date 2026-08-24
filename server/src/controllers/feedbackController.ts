@@ -66,6 +66,7 @@ export const submitFeedback = async (req: AuthenticatedRequest, res: Response) =
           bodyEn: `${userName} sent feedback: "${trimmed.slice(0, 80)}"`,
           isRead: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          targetScreen: 'admin_panel_feedback',
         })
       ));
     } catch (notifyError) {

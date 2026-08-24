@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, getFacultyColor } from '../../components/shared';
 import {type GradeWeights, type IdentityGradeWeights } from '../../components/Milestoneservice';
@@ -74,7 +74,16 @@ export default function ExaminerHome() {
  
   const [examinerName, setExaminerName] = useState('');
   const [loading,      setLoading]      = useState(true);
-  const [activeTab,    setActiveTab]    = useState<'projects' | 'schedule'>('projects');
+  // Lets a notification's "Go to dashboard" deep-link land on a specific tab
+  // (?tab=...) instead of always opening on Projects — same convention the
+  // web dashboard already supports (web's own tab key for this is
+  // 'defenses', not 'projects' — kept as-is here to avoid touching every
+  // other reference to 'projects' in this file).
+  const EXAMINER_TABS: Array<'projects' | 'schedule'> = ['projects', 'schedule'];
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab,    setActiveTab]    = useState<'projects' | 'schedule'>(
+    EXAMINER_TABS.includes(tabParam as 'projects' | 'schedule') ? (tabParam as 'projects' | 'schedule') : 'projects'
+  );
   const [assignments,  setAssignments]  = useState<AssignedMilestone[]>([]);
   const [expandedCards,setExpandedCards]= useState<Record<string, boolean>>({});
  

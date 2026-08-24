@@ -15,6 +15,12 @@ export interface Notif {
   relatedMilestoneId: string | null;
   chatId?: string | null;
   senderName?: string | null;
+  /** Semantic screen key set server-side at creation time (see
+   *  server/src/services/notificationTargets.ts) — resolved to an actual
+   *  URL via TARGET_SCREEN_ROUTE below. Older notifications written before
+   *  this existed won't have it; computeNotifTargetRoute falls back to its
+   *  by-type switch for those. */
+  targetScreen?: string | null;
 }
 
 export interface ChatRow {
@@ -79,11 +85,42 @@ export function relativeTime(ts: string | null | undefined, lang: 'he' | 'en'): 
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
+// Resolves a semantic targetScreen key (see server/src/services/
+// notificationTargets.ts) to an actual web route. Web's own tab-key
+// spelling for each dashboard — kept here rather than shared with mobile's
+// equivalent table since the two don't always agree (e.g. the internal
+// examiner's default tab is 'defenses' on web but 'projects' on mobile).
+const TARGET_SCREEN_ROUTE: Record<string, string> = {
+  coordinator_pending: '/coordinator/home?tab=pending',
+  coordinator_signoffs: '/coordinator/home?tab=signoffs',
+  coordinator_deadlines: '/coordinator/home?tab=deadlines',
+  coordinator_defense: '/coordinator/home?tab=defense',
+  coordinator_archived: '/coordinator/home?tab=archived',
+  admin_coordinator_overrides: '/administrative_coordinator/dashboard?tab=overrides',
+  supervisor_applications: '/supervisor/dashboard?tab=applications',
+  supervisor_signoffs: '/supervisor/dashboard?tab=signoffs',
+  supervisor_projects: '/supervisor/dashboard?tab=projects',
+  faculty_admin_projects: '/faculty_admin/dashboard?tab=projects',
+  faculty_admin_signoffs: '/faculty_admin/dashboard?tab=signoffs',
+  faculty_admin_deadlines: '/faculty_admin/dashboard?tab=deadlines',
+  program_head_approvals: '/program_head/dashboard?tab=approvals',
+  grad_school_head_approvals: '/grad_school_head/dashboard?tab=approvals',
+  grad_school_head_examiners: '/grad_school_head/dashboard?tab=examiners',
+  examiner_defenses: '/examinor/home?tab=defenses',
+  examiner_schedule: '/examinor/home?tab=schedule',
+  admin_panel_milestones: '/admin/panel?tab=milestones',
+  admin_panel_signoffs: '/admin/panel?tab=signoffs',
+  admin_panel_feedback: '/admin/panel?tab=feedback',
+  committees: '/committees',
+  login_security: '/login-security',
+};
+
 // Shared by app/notifications/page.tsx's tap handler and the [id] detail
 // page's own next/previous navigation, so a sibling notification opened via
 // those buttons gets the exact same "Go to dashboard" target as one opened
 // fresh from this list.
-export function computeNotifTargetRoute(type: string, role: AppRole | undefined): string {
+export function computeNotifTargetRoute(type: string, role: AppRole | undefined, targetScreen?: string | null): string {
+  if (targetScreen && TARGET_SCREEN_ROUTE[targetScreen]) return TARGET_SCREEN_ROUTE[targetScreen];
   switch (type) {
     case 'project_published':
     case 'application_approved':
@@ -99,7 +136,8 @@ export function computeNotifTargetRoute(type: string, role: AppRole | undefined)
     case 'account_created':
     case 'milestone_submitted':
       // Recipient can be any role (supervisor, coordinator, administrative
-      // coordinator) — route to whichever home matches theirs.
+      // coordinator) — route to whichever home matches theirs. Notifications
+      // of these types written before targetScreen existed fall back here.
       return getHomeRoute(role);
     default:
       return '';

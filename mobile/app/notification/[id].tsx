@@ -22,6 +22,7 @@ interface AlertItem {
   bodyEn:    string;
   createdAt: string;
   isRead:    boolean;
+  targetScreen?: string | null;
 }
 
 export default function NotificationDetailScreen() {
@@ -84,7 +85,7 @@ export default function NotificationDetailScreen() {
   const createdAt  = current?.createdAt  ?? params.createdAt  ?? '';
   // Only recomputed once the role is actually known — otherwise falls back
   // to whatever the list screen already computed for the tapped notification.
-  const targetRoute = listReady ? computeNotifTargetRoute(type, userRole) : (params.targetRoute ?? '');
+  const targetRoute = listReady ? computeNotifTargetRoute(type, userRole, current?.targetScreen) : (params.targetRoute ?? '');
 
   const style = TYPE_STYLE[type] ?? TYPE_STYLE.project_published;
   const title = lang === 'he' ? titleHe : titleEn;
@@ -123,7 +124,7 @@ export default function NotificationDetailScreen() {
         bodyHe:      target.bodyHe,
         bodyEn:      target.bodyEn,
         createdAt:   target.createdAt,
-        targetRoute: computeNotifTargetRoute(target.type, userRole),
+        targetRoute: computeNotifTargetRoute(target.type, userRole, target.targetScreen),
         lang,
       },
     });

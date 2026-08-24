@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { apiClient } from '@/src/api/apiClient';
 import { auth } from '../../src/firebase/firebase';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 
 import {
@@ -54,9 +54,15 @@ export default function PanelScreen() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones' | 'deadlines' | 'staff' | 'signoffs'
-  >('overview');
+  // Lets a notification's "Go to dashboard" deep-link land on a specific tab
+  // (?tab=...) instead of always opening on Overview — same convention the
+  // web dashboard already supports.
+  type FacultyAdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'deadlines' | 'staff' | 'signoffs';
+  const FACULTY_ADMIN_TABS: FacultyAdminTab[] = ['overview', 'users', 'projects', 'milestones', 'deadlines', 'staff', 'signoffs'];
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState<FacultyAdminTab>(
+    FACULTY_ADMIN_TABS.includes(tabParam as FacultyAdminTab) ? (tabParam as FacultyAdminTab) : 'overview'
+  );
 
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);

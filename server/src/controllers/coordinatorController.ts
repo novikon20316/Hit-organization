@@ -1023,6 +1023,7 @@ async function rejectChainMilestone(
             relatedProjectId: rejectedMilestone!.projectId ?? null,
             relatedMilestoneId: milestoneId,
             channels: { email: false, sms: false },
+            taskKind: 'milestone_action',
           });
         } catch (notifyError) {
           console.error(`rejectChainMilestone: reroute notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);

@@ -114,7 +114,7 @@ export default function NotificationsPage() {
     // body) instead of silently jumping straight to a dashboard — that
     // dashboard never showed the notification's actual content anywhere, so
     // the redirect looked like it had no reason behind it.
-    const targetRoute = computeNotifTargetRoute(notif.type, userData?.role);
+    const targetRoute = computeNotifTargetRoute(notif.type, userData?.role, notif.targetScreen);
 
     const params = new URLSearchParams({
       type: notif.type,

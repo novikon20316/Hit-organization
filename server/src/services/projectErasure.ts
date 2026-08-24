@@ -50,7 +50,15 @@ function serialize(id: string, data: FirebaseFirestore.DocumentData): ProjectEra
   };
 }
 
-async function notify(recipientId: string, titleHe: string, titleEn: string, bodyHe: string, bodyEn: string, relatedProjectId: string): Promise<void> {
+async function notify(
+  recipientId: string, titleHe: string, titleEn: string, bodyHe: string, bodyEn: string, relatedProjectId: string,
+  // Only the erasure-request-to-coordinator call site below sets this —
+  // recipientId is always a coordinator there (findCoordinatorIdsForFaculty),
+  // so no per-recipient role lookup is needed. Every other call site here
+  // notifies a supervisor whose destination is already their dashboard's
+  // default tab, so they're left unset.
+  targetScreen?: string,
+): Promise<void> {
   // In-app only, same convention as exceptionalActions.ts's notifyRequester —
   // no channel/template registration needed for an internal decision notice.
   try {
@@ -61,6 +69,7 @@ async function notify(recipientId: string, titleHe: string, titleEn: string, bod
       relatedProjectId,
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...(targetScreen ? { targetScreen } : {}),
     });
   } catch (err) {
     console.error('projectErasure notify failed:', err);
@@ -127,6 +136,7 @@ export async function requestProjectErasure(input: {
     `המנחה ביקש למחוק את הפרויקט "${project.titleHe ?? ''}".`,
     `The supervisor requested erasing the project "${project.titleEn ?? ''}".`,
     input.projectId,
+    'coordinator_archived',
   )));
 
   const snap = await ref.get();

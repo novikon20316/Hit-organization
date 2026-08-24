@@ -202,6 +202,11 @@ async function notifyRequester(
         : `Your exceptional deadline-override request was rejected. Reason: ${decisionReason ?? ''}`,
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      // EXCEPTIONAL_ACTION_GATED_ROLES (milestoneController.ts) only ever
+      // lets coordinator/administrative_secretary request one — both
+      // resolve to the same targetScreenFor(role, 'deadline_examiner')
+      // destination.
+      targetScreen: 'coordinator_deadlines',
     });
   } catch (err) {
     console.error('notifyRequester (exceptionalActions) failed:', err);

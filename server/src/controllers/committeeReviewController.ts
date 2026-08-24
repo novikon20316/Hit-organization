@@ -86,6 +86,8 @@ export async function onEnterCommitteeStage(
           relatedProjectId: projectId,
           relatedMilestoneId: milestoneId,
           channels: { email: false, sms: false },
+          // Committee setup itself lives at /committees, not admin/panel.
+          targetScreen: 'committees',
         });
       } catch (err) {
         console.error(`onEnterCommitteeStage: system_admin alert failed for ${doc.id}:`, err);
@@ -115,6 +117,7 @@ export async function onEnterCommitteeStage(
         bodyEn: `${studentNames.join(', ') || 'A student'} submitted "${milestoneData.nameEn ?? milestoneData.type}" for committee review.`,
         relatedProjectId: projectId,
         relatedMilestoneId: milestoneId,
+        targetScreen: 'committees',
       });
     } catch (err) {
       console.error(`onEnterCommitteeStage: member notify failed for ${memberId} on milestone ${milestoneId}:`, err);
@@ -225,6 +228,7 @@ export const submitCommitteeVote = async (req: AuthenticatedRequest, res: Respon
           relatedProjectId: resolved.milestone.projectId ?? null,
           relatedMilestoneId: milestoneId,
           channels: { email: false, sms: false },
+          targetScreen: 'committees',
         });
       } catch (err) {
         console.error(`submitCommitteeVote: chairman notify failed for ${committee.chairmanId}:`, err);

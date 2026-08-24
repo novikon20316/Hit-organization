@@ -71,7 +71,7 @@ export default function NotificationDetailPage() {
   const createdAt  = current?.createdAt  ?? paramCreatedAt;
   // Only recomputed once the list (and userData.role) is known — otherwise
   // falls back to whatever the list page already computed for this notification.
-  const targetRoute = listReady ? computeNotifTargetRoute(type, userData?.role) : paramTargetRoute;
+  const targetRoute = listReady ? computeNotifTargetRoute(type, userData?.role, current?.targetScreen) : paramTargetRoute;
 
   const style = TYPE_STYLE[type] ?? TYPE_STYLE.project_published;
   const title = lang === 'he' ? titleHe : titleEn;
@@ -108,7 +108,7 @@ export default function NotificationDetailPage() {
       bodyHe: target.bodyHe,
       bodyEn: target.bodyEn,
       createdAt: target.createdAt,
-      targetRoute: computeNotifTargetRoute(target.type, userData?.role),
+      targetRoute: computeNotifTargetRoute(target.type, userData?.role, target.targetScreen),
     });
     router.replace(`/notification/${target.id}?${nextParams.toString()}`);
   };

@@ -106,6 +106,12 @@ async function notifyCoordinators(
         relatedProjectId,
         relatedMilestoneId,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        // resolveStaffForScope('coordinator', ...) only ever returns
+        // coordinator/administrative_secretary/system_admin — all three
+        // resolve to the same targetScreenFor(role, 'deadline_examiner')
+        // destination (where ExaminerEscalationPanel lives), so no
+        // per-recipient role lookup is needed here.
+        targetScreen: 'coordinator_deadlines',
       })
     ));
   } catch (err) {
@@ -188,6 +194,10 @@ export async function promoteNextExaminer(
         relatedProjectId: token.projectId,
         relatedMilestoneId: token.milestoneId,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        // Always an internal_examiner (findNextExaminerCandidate only ever
+        // returns one) — sends them to the Defenses tab where the newly
+        // assigned thesis now shows.
+        targetScreen: 'examiner_defenses',
       });
     } catch (err) {
       console.error(`promoteNextExaminer: failed to notify candidate ${candidate.uid}:`, err);

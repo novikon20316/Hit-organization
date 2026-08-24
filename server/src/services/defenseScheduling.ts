@@ -435,6 +435,9 @@ function finalizeMatchedDate(
       relatedProjectId: projectRef.id,
       relatedMilestoneId: milestoneRef.id,
       chatId: null,
+      // Internal panel members only — sends them straight to their Schedule
+      // tab, where the newly-set date now shows.
+      targetScreen: 'examiner_schedule',
     });
   });
 }
@@ -483,6 +486,11 @@ async function flagConflict(
       relatedProjectId: projectId,
       relatedMilestoneId: milestoneRef.id,
       chatId: null,
+      // resolveStaffForScope('coordinator', ...) only ever returns
+      // coordinator/administrative_secretary/system_admin — all three
+      // resolve to the same targetScreenFor(role, 'defense') destination
+      // (the Defense tab), so no per-recipient role lookup is needed here.
+      targetScreen: 'coordinator_defense',
     });
   });
 }

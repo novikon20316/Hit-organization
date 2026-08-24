@@ -3,6 +3,7 @@ import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 import { toE164IL, sendSms } from './smsService.js';
 import type { NotificationType } from './emailTemplates.js';
+import { targetScreenFor, type NotificationTaskKind } from './notificationTargets.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -28,6 +29,21 @@ export interface NotifyParams {
   bodyEn:  string;
   relatedProjectId?:   string | null;
   relatedMilestoneId?: string | null;
+  /** What kind of task this is, so notifyUser can resolve it to a
+   *  role-specific dashboard screen (see notificationTargets.ts) using the
+   *  recipient's own role — already fetched below regardless. Lets a
+   *  notification's "Go to dashboard" link on the client land on the exact
+   *  tab where the task lives, instead of always landing on that
+   *  dashboard's default tab. Omit for notifications where that's not
+   *  applicable (student-directed ones, informational-only ones). */
+  taskKind?: NotificationTaskKind;
+  /** Direct override for the resolved target screen — for destinations
+   *  that don't depend on the recipient's role at all (e.g. a dedicated
+   *  page like /committees, reachable the same way by whichever role
+   *  happens to be a committee member). Takes precedence over `taskKind`
+   *  when both are given; prefer `taskKind` whenever the destination
+   *  actually is role-dependent. */
+  targetScreen?: string;
   /** Extra placeholders for the email template body, beyond the
    *  auto-injected `name`. A value can be a plain (language-agnostic)
    *  string, or a `{he, en}` pair for content that's already stored
@@ -49,7 +65,8 @@ export interface NotifyParams {
 export async function notifyUser(params: NotifyParams): Promise<void> {
   const {
     recipientId, type, inAppType, titleHe, titleEn, bodyHe, bodyEn,
-    relatedProjectId = null, relatedMilestoneId = null, emailData, channels,
+    relatedProjectId = null, relatedMilestoneId = null, emailData, channels, taskKind,
+    targetScreen: targetScreenOverride,
   } = params;
 
   const wantInApp = channels?.inApp !== false;
@@ -71,6 +88,8 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
     fullEmailData[key] = typeof value === 'string' ? value : (lang === 'he' ? value.he : value.en);
   }
 
+  const targetScreen = targetScreenOverride ?? (taskKind ? targetScreenFor(user.role, taskKind) : null);
+
   let notifRef: FirebaseFirestore.DocumentReference | null = null;
   if (wantInApp) {
     notifRef = db.collection('notifications').doc();
@@ -82,6 +101,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       relatedProjectId,
       relatedMilestoneId,
+      ...(targetScreen ? { targetScreen } : {}),
       emailDelivery: 'pending' satisfies DeliveryStatus,
       pushDelivery:  'pending' satisfies DeliveryStatus,
       smsDelivery:   'pending' satisfies DeliveryStatus,

@@ -50,7 +50,7 @@ export default function PanelScreen() {
   const [projectName, setProjectName] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projectId, tab: tabParam } = useLocalSearchParams<{ projectId: string; tab?: string }>();
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState('');
   const [showNewUser, setShowNewUser] = useState(false);
@@ -67,9 +67,14 @@ export default function PanelScreen() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
 
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs' | 'archived'
-  >('overview');
+  // Lets a notification's "Go to dashboard" deep-link land on a specific tab
+  // (?tab=...) instead of always opening on Overview — same convention the
+  // web dashboard already supports.
+  type AdminPanelTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs' | 'archived';
+  const ADMIN_PANEL_TABS: AdminPanelTab[] = ['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster', 'signoffs', 'archived'];
+  const [activeTab, setActiveTab] = useState<AdminPanelTab>(
+    ADMIN_PANEL_TABS.includes(tabParam as AdminPanelTab) ? (tabParam as AdminPanelTab) : 'overview'
+  );
 
   // ── Real feedback awaiting review — one-way (see feedbackController.ts);
   //    system_admin reviews/resolves here instead of replying in-thread ──────

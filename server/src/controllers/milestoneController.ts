@@ -15,6 +15,7 @@ import { requestExceptionalAction } from '../services/exceptionalActions.js';
 import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser } from '../services/notify.js';
+import { targetScreenFor } from '../services/notificationTargets.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 
 const db = admin.firestore();
@@ -297,6 +298,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         relatedProjectId: projectId,
         relatedMilestoneId: milestoneId,
         emailData: { milestoneTitle, projectTitle },
+        taskKind: 'milestone_action',
       });
     }
 
@@ -316,6 +318,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       // matches the language the recipient actually reads the app in,
       // instead of always sending the English copy.
       const lang: 'he' | 'en' = recipientData?.language === 'en' ? 'en' : 'he';
+      const targetScreen = targetScreenFor(recipientData?.role, 'milestone_action');
 
       await db.collection('notifications').add({
         recipientId,
@@ -327,6 +330,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         isRead:             false,
         relatedProjectId:   projectId,
         relatedMilestoneId: milestoneId,
+        ...(targetScreen ? { targetScreen } : {}),
         createdAt:          admin.firestore.FieldValue.serverTimestamp(),
       });
 

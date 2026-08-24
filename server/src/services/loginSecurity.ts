@@ -475,6 +475,7 @@ async function notifySystemAdmins(incident: {
       relatedProjectId: null,
       relatedMilestoneId: null,
       createdAt: FieldValue.serverTimestamp(),
+      targetScreen: 'login_security',
     }).catch((err) => console.error('Failed to create admin notification:', err));
 
     if (adminData?.email) {

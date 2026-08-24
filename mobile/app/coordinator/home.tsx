@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { auth } from '../../src/firebase/firebase';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, FacultyBadge, getFacultyColor } from '../../components/shared';
 import {type GradeWeights } from '../../components/Milestoneservice';
@@ -129,7 +129,16 @@ export default function CoordinatorHome() {
   const [loading, setLoading]     = useState(true);
   
   const { activeRole } = useActiveRole();
-  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'defense' | 'inProgress' | 'milestones' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived'>('overview');
+  // Lets a notification's "Go to dashboard" deep-link land on the specific
+  // tab where the task actually is (e.g. ?tab=pending), instead of always
+  // opening on Overview and making the coordinator search for it — same
+  // ?tab= convention the web dashboard already supports.
+  type CoordinatorTab = 'overview' | 'pending' | 'defense' | 'inProgress' | 'milestones' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived';
+  const COORDINATOR_TABS: CoordinatorTab[] = ['overview', 'pending', 'defense', 'inProgress', 'milestones', 'deadlines', 'recommendations', 'signoffs', 'archived'];
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState<CoordinatorTab>(
+    COORDINATOR_TABS.includes(tabParam as CoordinatorTab) ? (tabParam as CoordinatorTab) : 'overview'
+  );
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
