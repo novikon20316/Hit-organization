@@ -241,7 +241,16 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                   <div className="grid gap-2.5">
                     {(() => {
                       const firstIncompleteIdx = s.milestones.findIndex((m) => !isCompletedStatus(m.status));
-                      return s.milestones.map((m, idx) => {
+                      // Only what the student has finished, plus the one
+                      // they're currently on — not the rest of the roadmap,
+                      // which they haven't reached yet and so has no real
+                      // data to show. firstIncompleteIdx === -1 means every
+                      // milestone is done (project finished), so nothing to
+                      // trim. Slicing from the start keeps each row's
+                      // original index intact, so isCurrent below still
+                      // lines up correctly.
+                      const visibleMilestones = firstIncompleteIdx === -1 ? s.milestones : s.milestones.slice(0, firstIncompleteIdx + 1);
+                      return visibleMilestones.map((m, idx) => {
                       const spec = templateMilestones.find((t) => t.type === m.type);
                       const color = statusColor(m.status);
                       const isCompleted = isCompletedStatus(m.status);
