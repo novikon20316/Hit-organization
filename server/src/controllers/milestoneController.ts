@@ -165,9 +165,20 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         const base64 = file.buffer.toString('base64');
         const dataUri = `data:${file.mimetype};base64,${base64}`;
 
+        // resource_type: 'raw' leaves the delivery URL without a file
+        // extension unless told otherwise (Cloudinary generates a bare
+        // hash public_id) — with no extension, the browser has no way to
+        // know it's a PDF/etc. and Cloudinary can't return a useful
+        // Content-Type, so any attempt to preview the file (e.g. the
+        // milestone file panel's iframe) gets treated as an opaque
+        // download instead of rendering inline. Passing the original
+        // extension as `format` makes Cloudinary append it to the URL.
+        const ext = file.originalname.includes('.') ? file.originalname.split('.').pop() : undefined;
+
         const result = await cloudinary.uploader.upload(dataUri, {
           resource_type: 'raw',
           folder: 'milestones',
+          ...(ext ? { format: ext } : {}),
         });
 
         fileUrls.push(result.secure_url);

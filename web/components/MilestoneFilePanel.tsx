@@ -9,6 +9,7 @@
 // administrative_coordinator dashboard needed the same panel — it never had
 // any supervisor-specific dependency.
 
+import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 
@@ -18,6 +19,72 @@ interface MilestoneFilePanelProps {
   submissionNote: string;
   fileUrls: string[];
   onClose: () => void;
+}
+
+// Cloudinary's 'raw' resource type historically left the delivery URL
+// without a file extension (fixed going forward in milestoneController.ts's
+// upload call, but already-submitted files predate that fix) — with no
+// extension, Cloudinary can't return a useful Content-Type, so pointing an
+// <iframe> straight at the URL makes the browser treat it as an opaque
+// download instead of rendering it. Guessing from the URL's own extension
+// (when it has one) lets already-uploaded files still preview correctly.
+function guessMimeFromUrl(url: string): string | null {
+  const path = url.split('?')[0].toLowerCase();
+  if (path.endsWith('.pdf')) return 'application/pdf';
+  if (path.endsWith('.png')) return 'image/png';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  if (path.endsWith('.gif')) return 'image/gif';
+  return null;
+}
+
+// Fetches the file into a Blob (same approach as downloadFile — Cloudinary
+// is cross-origin, and a plain <iframe src> hitting a URL with no/unhelpful
+// Content-Type triggers the browser's download handling instead of an
+// inline render) and renders it from a local object URL instead, re-tagging
+// the blob's type from the URL when the server's own type isn't a
+// renderable one. A local object URL never carries a Content-Disposition,
+// so at worst an unrenderable type just shows blank — it can no longer
+// force a download the way navigating to the real URL did.
+function FilePreviewFrame({ url, index }: { url: string; index: number }) {
+  const { lang } = useLanguage();
+  const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; objectUrl?: string }>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | undefined;
+    fetch(url)
+      .then((res) => res.blob())
+      .then((blob) => {
+        if (cancelled) return;
+        const type = /^(application\/pdf|image\/)/.test(blob.type) ? blob.type : (guessMimeFromUrl(url) ?? blob.type);
+        const typedBlob = type === blob.type ? blob : new Blob([blob], { type });
+        objectUrl = URL.createObjectURL(typedBlob);
+        setState({ status: 'ready', objectUrl });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ status: 'error' });
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url]);
+
+  if (state.status === 'loading') {
+    return (
+      <div className="flex h-96 w-full items-center justify-center bg-white text-xs text-muted">
+        {lang === 'he' ? 'טוען תצוגה מקדימה…' : 'Loading preview…'}
+      </div>
+    );
+  }
+  if (state.status === 'error' || !state.objectUrl) {
+    return (
+      <div className="flex h-40 w-full items-center justify-center bg-white text-xs text-muted">
+        {lang === 'he' ? 'לא ניתן לטעון תצוגה מקדימה — נסו להוריד את הקובץ' : 'Could not load a preview — try downloading the file'}
+      </div>
+    );
+  }
+  return <iframe src={state.objectUrl} title={`file-${index}`} className="h-96 w-full bg-white" />;
 }
 
 export function MilestoneFilePanel({ title, subtitle, submissionNote, fileUrls, onClose }: MilestoneFilePanelProps) {
@@ -56,7 +123,7 @@ export function MilestoneFilePanel({ title, subtitle, submissionNote, fileUrls, 
                   📥 {lang === 'he' ? 'הורדה' : 'Download'}
                 </button>
               </div>
-              <iframe src={url} title={`file-${i}`} className="h-96 w-full bg-white" />
+              <FilePreviewFrame key={url} url={url} index={i} />
             </div>
           ))}
           {fileUrls.length === 0 && (
