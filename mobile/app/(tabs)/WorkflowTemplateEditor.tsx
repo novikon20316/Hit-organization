@@ -22,7 +22,7 @@
 // list screen refetches on focus (see its useFocusEffect) so the new pending
 // proposal shows up there.
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert, Switch,
@@ -37,7 +37,7 @@ import {
   CHAIN_ROLES, SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, SUBMISSION_REQUIREMENTS,
   type ProcessType, type ChainRole, type ChainStage, type MilestoneRoutingSpec,
   type GradingComponentSpec, type FormFieldSpec, type FinalGradeComponents,
-  type MilestoneSpec, type ApplyMode, type SubmissionRequirement,
+  type MilestoneSpec, type ApplyMode, type SubmissionRequirement, type CommitteeOption,
 } from './WorkflowTemplateManager';
 
 // ─── Payload passed across the route boundary from WorkflowTemplateManager ──
@@ -86,7 +86,28 @@ function emptyStage(): ChainStage {
 // Ordered stage list — reuses the same chip-row Pressable idiom this screen
 // already uses elsewhere. Reordering (▲/▼, swap-adjacent-elements) ports
 // web/app/workflow-templates/ChainEditor.tsx's own logic verbatim.
-function ChainEditor({ stages, onChange, lang }: { stages: ChainStage[]; onChange: (s: ChainStage[]) => void; lang: Lang }) {
+function ChainEditor({
+  stages, onChange, lang, committees = [],
+}: {
+  stages: ChainStage[];
+  onChange: (s: ChainStage[]) => void;
+  lang: Lang;
+  /** Committees eligible for this template's own faculty/major — populates
+   *  the picker shown on a 'committee'-role stage (see ChainStage.committeeId's
+   *  doc comment). Omitted/empty just shows the "no committee configured" hint. */
+  committees?: CommitteeOption[];
+}) {
+  // A single candidate committee is the only possible choice — pin it
+  // automatically rather than making staff tap a one-option picker.
+  useEffect(() => {
+    if (committees.length !== 1) return;
+    const onlyId = committees[0]!.id;
+    const needsFill = stages.some((s) => s.role === 'committee' && !s.committeeId);
+    if (!needsFill) return;
+    onChange(stages.map((s) => (s.role === 'committee' && !s.committeeId ? { ...s, committeeId: onlyId } : s)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- guarding on needsFill (not in the dep list) is what prevents a loop, same as web's ChainEditor.tsx
+  }, [stages, committees]);
+
   const updateStage = (idx: number, patch: Partial<ChainStage>) => {
     onChange(stages.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   };
@@ -177,6 +198,26 @@ function ChainEditor({ stages, onChange, lang }: { stages: ChainStage[]; onChang
               <Text style={{ fontSize: 10, color: '#F59E0B', marginTop: 4 }}>
                 ⚠️ {lang === 'he' ? 'הדחייה קופצת קדימה בשרשרת' : 'This rejection jumps forward in the chain'}
               </Text>
+            )}
+            {stage.role === 'committee' && (
+              committees.length === 0 ? (
+                <Text style={{ fontSize: 10, color: '#DC2626', marginTop: 6 }}>
+                  ⚠️ {lang === 'he' ? 'לא נמצאה ועדה מוגדרת עבור פקולטה/מגמה זו' : 'No committee is configured for this faculty/major yet'}
+                </Text>
+              ) : (
+                <View style={{ marginTop: 6 }}>
+                  <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 4 }}>
+                    {lang === 'he' ? 'איזו ועדה:' : 'Which committee:'}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {committees.map((c) => (
+                      <Pressable key={c.id} onPress={() => updateStage(idx, { committeeId: c.id })} style={chip(stage.committeeId === c.id)}>
+                        <Text style={chipText(stage.committeeId === c.id)}>{c.major}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )
             )}
           </View>
         );
@@ -355,6 +396,28 @@ export default function WorkflowTemplateEditor() {
   );
   const editorCopiedFromLabel = payload.copiedFromLabel ?? null;
 
+  // Committees eligible for this template's own faculty/major — populates
+  // the committee picker on any 'committee'-role chain stage (see web's
+  // ChainEditor.tsx's committees prop / ChainStage.committeeId's doc
+  // comment). Filtered client-side since GET /api/committees only filters
+  // by facultyId; activeMajor===null ("all majors") legitimately means
+  // "every major's committee is a candidate", which is exactly why staff
+  // must pick one.
+  const [committees, setCommittees] = useState<CommitteeOption[]>([]);
+  useEffect(() => {
+    if (!payload.facultyId) return;
+    let cancelled = false;
+    const committeeType = payload.processType === 'msc_thesis' ? 'thesis' : 'final_project';
+    apiClient.get('/api/committees', { params: { facultyId: payload.facultyId } })
+      .then((res) => {
+        if (cancelled) return;
+        const list: CommitteeOption[] = res.data.committees ?? [];
+        setCommittees(list.filter((c) => c.type === committeeType && (payload.activeMajor == null || c.major === payload.activeMajor)));
+      })
+      .catch(() => { if (!cancelled) setCommittees([]); });
+    return () => { cancelled = true; };
+  }, [payload.facultyId, payload.activeMajor, payload.processType]);
+
   // Milestone row editor (inside this screen) — stays a small in-screen
   // Modal, it's a focused sub-form, not the thing that needed to become a
   // full screen.
@@ -478,6 +541,10 @@ export default function WorkflowTemplateEditor() {
         return;
       }
     }
+    if (msOverrideChain && committees.length > 1 && msRouting.some((s) => s.role === 'committee' && !s.committeeId)) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור ועדה עבור שלב הוועדה בשרשרת' : 'Choose a committee for the committee stage in the chain');
+      return;
+    }
 
     let finalGradeComponents: FinalGradeComponents | undefined;
     if (msIsDefense && msUseFinalGradeComponents) {
@@ -573,6 +640,14 @@ export default function WorkflowTemplateEditor() {
           : `The final-grade percentages across all milestones must sum to 100 (currently ${totalPercent})`
       );
       return;
+    }
+    if (committees.length > 1) {
+      const missesCommittee = (routing: MilestoneRoutingSpec | undefined) =>
+        (routing ?? editorDefaultRouting).some((s) => s.role === 'committee' && !s.committeeId);
+      if (missesCommittee(editorDefaultRouting) || editorMilestones.some((m) => m.routing && missesCommittee(m.routing))) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור ועדה עבור כל שלב ועדה בשרשרת' : 'Choose a committee for every committee stage in the chain');
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -683,7 +758,7 @@ export default function WorkflowTemplateEditor() {
             ? 'חלה על כל אבן דרך שאין לה שרשרת משלה.'
             : "Applies to every milestone without its own override."}
         </Text>
-        <ChainEditor stages={editorDefaultRouting} onChange={setEditorDefaultRouting} lang={lang} />
+        <ChainEditor stages={editorDefaultRouting} onChange={setEditorDefaultRouting} lang={lang} committees={committees} />
 
         <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 20 }}>
           {lang === 'he' ? 'אישור נוסף להזמנת בוחנים' : 'Second sign-off before examiner invitations go out'}
@@ -1092,7 +1167,7 @@ export default function WorkflowTemplateEditor() {
             </View>
             {msOverrideChain ? (
               <View style={{ marginTop: 10 }}>
-                <ChainEditor stages={msRouting} onChange={setMsRouting} lang={lang} />
+                <ChainEditor stages={msRouting} onChange={setMsRouting} lang={lang} committees={committees} />
               </View>
             ) : (
               <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 6 }}>

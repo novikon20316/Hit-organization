@@ -38,7 +38,7 @@ export type TemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'sup
 // — but the two department-specific extensions below (staff record +
 // defense's three-rubric final grade) are ported, since Data Science needs
 // them configurable from mobile too.
-export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head';
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head' | 'committee';
 export type RejectionTarget = 'student' | string;
 
 export interface ChainStage {
@@ -46,6 +46,25 @@ export interface ChainStage {
   role: ChainRole;
   action: 'grade' | 'approve';
   rejectTo: RejectionTarget;
+  /** Only meaningful when role === 'committee'. The specific committee this
+   *  stage always routes to, chosen explicitly at template-authoring time —
+   *  overrides the per-student-major dynamic lookup entirely when set.
+   *  Omitted keeps the dynamic resolution (still correct when the
+   *  template's own major is a specific slug, since there's only ever one
+   *  candidate committee for that faculty+major+type anyway). Mirrors
+   *  web/app/workflow-templates/types.ts's ChainStage. */
+  committeeId?: string;
+}
+
+// Mirrors CommitteeDoc in server/src/controllers/committeeController.ts —
+// only the fields the template editor's committee picker needs.
+export interface CommitteeOption {
+  id: string;
+  facultyId: string;
+  major: string;
+  type: 'thesis' | 'final_project';
+  chairmanId: string | null;
+  memberIds: string[];
 }
 
 export type MilestoneRoutingSpec = ChainStage[];
@@ -104,11 +123,16 @@ export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
   { key: 'administrative_secretary', he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' },
   { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
   { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
+  // Routes to the department's thesis/final_project committee (see
+  // server/src/controllers/committeeController.ts) — every committee member
+  // votes independently and only the chairman can advance/reject the stage.
+  { key: 'committee', he: 'ועדה', en: 'Committee' },
 ];
 
 // examinerSignoffRole/finalGradeSignoffRole are a single overall approver —
-// 'examiner' is deliberately excluded (matches server-side SIGNOFF_ROLES).
-export const SIGNOFF_ROLES = CHAIN_ROLES.filter((r) => r.key !== 'examiner');
+// 'examiner' and 'committee' are deliberately excluded (matches server-side
+// SIGNOFF_ROLES).
+export const SIGNOFF_ROLES = CHAIN_ROLES.filter((r) => r.key !== 'examiner' && r.key !== 'committee');
 
 // Exported so WorkflowTemplateEditor.tsx (the propose-version full screen)
 // can share this single source of truth instead of duplicating the lookup.

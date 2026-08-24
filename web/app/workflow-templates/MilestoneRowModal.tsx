@@ -12,6 +12,7 @@
 
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import type { CommitteeRecord } from '@/lib/apiClient';
 import { ChainEditor, emptyStage } from './ChainEditor';
 import { SUBMISSION_REQUIREMENTS } from './types';
 import type { FormFieldSpec, GradingComponentSpec, MilestoneRoutingSpec, MilestoneSpec, SubmissionRequirement } from './types';
@@ -134,6 +135,9 @@ function RubricEditor({ title, components, setComponents, weight, setWeight }: R
 interface MilestoneRowModalProps {
   open: boolean;
   editing: MilestoneSpec | null;
+  /** Committees eligible for this template's own faculty/major — forwarded
+   *  to this row's own chain-override editor. See ChainEditor's committees prop. */
+  committees: CommitteeRecord[];
   onCancel: () => void;
   onSave: (values: {
     nameHe: string;
@@ -153,7 +157,7 @@ interface MilestoneRowModalProps {
   }) => void;
 }
 
-export function MilestoneRowModal({ open, editing, onCancel, onSave }: MilestoneRowModalProps) {
+export function MilestoneRowModal({ open, editing, committees, onCancel, onSave }: MilestoneRowModalProps) {
   const { lang, t } = useLanguage();
   const [nameHe, setNameHe] = useState(editing?.nameHe ?? '');
   const [nameEn, setNameEn] = useState(editing?.nameEn ?? '');
@@ -244,6 +248,10 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
     }
     if (overrideChain && routing.length === 0) {
       setError(lang === 'he' ? 'שרשרת מותאמת אישית חייבת לכלול לפחות שלב אחד' : 'A custom chain needs at least one stage');
+      return;
+    }
+    if (overrideChain && committees.length > 1 && routing.some((s) => s.role === 'committee' && !s.committeeId)) {
+      setError(lang === 'he' ? 'יש לבחור ועדה עבור שלב הוועדה בשרשרת' : 'Choose a committee for the committee stage in the chain');
       return;
     }
     if (isProposalOrMidterm && staffRecordMode === 'upload_or_form') {
@@ -666,7 +674,7 @@ export function MilestoneRowModal({ open, editing, onCancel, onSave }: Milestone
             </label>
             {overrideChain ? (
               <div className="mt-2">
-                <ChainEditor stages={routing} onChange={setRouting} />
+                <ChainEditor stages={routing} onChange={setRouting} committees={committees} />
               </div>
             ) : (
               <p className="mt-1.5 text-xs text-muted">

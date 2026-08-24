@@ -42,13 +42,35 @@ function isSystemAdmin(req: AuthenticatedRequest): boolean {
   return req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
 }
 
-/** GET /api/committees?facultyId=... — system_admin only (the full admin
- *  list view; a non-admin's own committees come from GET /api/committees/mine
- *  instead, which doesn't require this broad a view). */
+// Same roles that can already author workflow templates (PROPOSER_ROLES in
+// workflowTemplateController.ts) — they need to browse committees for their
+// own faculty to populate the template editor's committee picker (see
+// workflowTemplates.ts's ChainStage.committeeId).
+const TEMPLATE_AUTHOR_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head'];
+
+/** GET /api/committees?facultyId=... — system_admin gets the full admin list
+ *  view (any faculty, or all committees when facultyId is omitted). A
+ *  template author may also list committees, but only for a facultyId within
+ *  her own scope (single facultyId for most roles; any of her assigned
+ *  coordinatorScopes for a coordinator) — never anyone else's faculty. A
+ *  non-admin's own committees also come from GET /api/committees/mine, which
+ *  doesn't need this broad a view. */
 export const listCommittees = async (req: AuthenticatedRequest, res: Response) => {
-  if (!isSystemAdmin(req)) return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  const { facultyId } = req.query;
+  if (!isSystemAdmin(req)) {
+    const role = req.user?.role;
+    if (!role || !TEMPLATE_AUTHOR_ROLES.includes(role)) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+    if (typeof facultyId !== 'string' || !facultyId) {
+      return res.status(400).json({ message: 'facultyId is required.' });
+    }
+    const ownsFaculty = role === 'coordinator'
+      ? (req.user?.coordinatorScopes ?? []).some((s) => s.facultyId === facultyId)
+      : req.user?.facultyId === facultyId;
+    if (!ownsFaculty) return res.status(403).json({ message: 'Access denied for this faculty.' });
+  }
   try {
-    const { facultyId } = req.query;
     let query: FirebaseFirestore.Query = db.collection('committees');
     if (typeof facultyId === 'string' && facultyId) query = query.where('facultyId', '==', facultyId);
     const snap = await query.get();

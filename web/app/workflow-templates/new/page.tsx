@@ -24,7 +24,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
+import { apiClient, ApiError, SoftError, type CommitteeRecord } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { MilestoneRowModal } from '../MilestoneRowModal';
 import { ChainEditor } from '../ChainEditor';
@@ -222,6 +222,26 @@ function ProposeVersionForm({
   );
   const [note, setNote] = useState('');
   const [applyMode, setApplyMode] = useState<'now' | 'from_now_on'>('from_now_on');
+
+  // Committees eligible for this template's own faculty/major — populates
+  // the committee picker on any 'committee'-role chain stage (see
+  // ChainEditor's committees prop / ChainStage.committeeId's doc comment).
+  // Filtered client-side since GET /api/committees only filters by
+  // facultyId; major===null ("all majors") legitimately means "every major's
+  // committee is a candidate", which is exactly why staff must pick one.
+  const [committees, setCommittees] = useState<CommitteeRecord[]>([]);
+  useEffect(() => {
+    if (!facultyId) return;
+    let cancelled = false;
+    const committeeType = processType === 'msc_thesis' ? 'thesis' : 'final_project';
+    apiClient.listCommittees(facultyId)
+      .then((res) => {
+        if (cancelled) return;
+        setCommittees((res.committees ?? []).filter((c) => c.type === committeeType && (major == null || c.major === major)));
+      })
+      .catch(() => { if (!cancelled) setCommittees([]); });
+    return () => { cancelled = true; };
+  }, [facultyId, major, processType]);
   const [preview, setPreview] = useState<{ count: number } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -335,6 +355,14 @@ function ProposeVersionForm({
         ? `סכום האחוזים מהציון הסופי של כל אבני הדרך חייב להיות 100 (כרגע ${totalPercent})`
         : `The final-grade percentages across all milestones must sum to 100 (currently ${totalPercent})`);
       return;
+    }
+    if (committees.length > 1) {
+      const missesCommittee = (routing: MilestoneRoutingSpec | undefined) =>
+        (routing ?? defaultRouting).some((s) => s.role === 'committee' && !s.committeeId);
+      if (missesCommittee(defaultRouting) || milestones.some((m) => m.routing && missesCommittee(m.routing))) {
+        setError(lang === 'he' ? 'יש לבחור ועדה עבור כל שלב ועדה בשרשרת' : 'Choose a committee for every committee stage in the chain');
+        return;
+      }
     }
     setSaving(true);
     setError('');
@@ -454,7 +482,7 @@ function ProposeVersionForm({
             ? 'חלה על כל אבן דרך שאין לה שרשרת משלה (ניתן לשנות לפי אבן דרך בעריכה שלה).'
             : 'Applies to every milestone without its own override (set per-milestone via its own edit screen).'}
         </p>
-        <ChainEditor stages={defaultRouting} onChange={setDefaultRouting} />
+        <ChainEditor stages={defaultRouting} onChange={setDefaultRouting} committees={committees} />
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -600,7 +628,7 @@ function ProposeVersionForm({
         </button>
       </div>
 
-      <MilestoneRowModal key={modalKey} open={rowModalOpen} editing={editingRow} onCancel={() => setRowModalOpen(false)} onSave={handleSaveRow} />
+      <MilestoneRowModal key={modalKey} open={rowModalOpen} editing={editingRow} committees={committees} onCancel={() => setRowModalOpen(false)} onSave={handleSaveRow} />
     </div>
   );
 }

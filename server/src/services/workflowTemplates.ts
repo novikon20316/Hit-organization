@@ -105,6 +105,15 @@ export interface ChainStage {
   /** 'grade' submits a numeric score against the milestone's rubric; 'approve' is a pure sign-off. */
   action: 'grade' | 'approve';
   rejectTo: RejectionTarget;
+  /** Only meaningful when role === 'committee'. The specific committee this
+   *  stage always routes to, chosen explicitly by whoever authored the
+   *  template — overrides the per-student-major dynamic lookup
+   *  (committeeController.ts's resolveCommitteeForProject) entirely when
+   *  set. Omitted keeps the dynamic resolution (the only option before this
+   *  field existed, still correct for a template pinned to one specific
+   *  major, where there's only ever one candidate committee anyway). See
+   *  committeeReviewController.ts's onEnterCommitteeStage. */
+  committeeId?: string;
 }
 
 export type MilestoneRoutingSpec = ChainStage[];

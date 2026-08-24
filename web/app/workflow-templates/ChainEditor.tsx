@@ -8,7 +8,9 @@
 // approve, and where a rejection at that stage routes (back to the student,
 // or to another stage in this same chain — self-loop allowed).
 
+import { useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import type { CommitteeRecord } from '@/lib/apiClient';
 import { CHAIN_ROLES, chainRoleLabel, type ChainStage } from './types';
 
 function makeStageId(): string {
@@ -22,10 +24,28 @@ export function emptyStage(): ChainStage {
 interface ChainEditorProps {
   stages: ChainStage[];
   onChange: (stages: ChainStage[]) => void;
+  /** Committees eligible for this template's own faculty/major — used only
+   *  to populate the picker shown on a 'committee'-role stage (see
+   *  ChainStage.committeeId's doc comment). Omitted/empty just shows the
+   *  "no committee configured" hint on every committee stage. */
+  committees?: CommitteeRecord[];
 }
 
-export function ChainEditor({ stages, onChange }: ChainEditorProps) {
+export function ChainEditor({ stages, onChange, committees = [] }: ChainEditorProps) {
   const { lang, t } = useLanguage();
+
+  // A single candidate committee is the only possible choice — pin it
+  // automatically rather than making staff click a one-option dropdown.
+  // Only fires when it would actually change something, so it's safe as a
+  // plain effect (no infinite loop from onChange producing a new array).
+  useEffect(() => {
+    if (committees.length !== 1) return;
+    const onlyId = committees[0]!.id;
+    const needsFill = stages.some((s) => s.role === 'committee' && !s.committeeId);
+    if (!needsFill) return;
+    onChange(stages.map((s) => (s.role === 'committee' && !s.committeeId ? { ...s, committeeId: onlyId } : s)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange is a fresh closure each render; guarding on needsFill above (not in the dep list) is what actually prevents the loop
+  }, [stages, committees]);
 
   const updateStage = (idx: number, patch: Partial<ChainStage>) => {
     onChange(stages.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
@@ -101,6 +121,29 @@ export function ChainEditor({ stages, onChange }: ChainEditorProps) {
               <p className="mt-1 text-[11px] text-accent">
                 ⚠️ {lang === 'he' ? 'הדחייה קופצת קדימה בשרשרת — ודא שזה מכוון' : 'This rejection jumps forward in the chain — double-check this is intentional'}
               </p>
+            )}
+            {stage.role === 'committee' && (
+              committees.length === 0 ? (
+                <p className="mt-1.5 text-[11px] text-danger">
+                  ⚠️ {lang === 'he' ? 'לא נמצאה ועדה מוגדרת עבור פקולטה/מגמה זו' : 'No committee is configured for this faculty/major yet'}
+                </p>
+              ) : (
+                <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
+                  {lang === 'he' ? 'איזו ועדה' : 'Which committee'}
+                  <select
+                    value={stage.committeeId ?? ''}
+                    onChange={(e) => updateStage(idx, { committeeId: e.target.value || undefined })}
+                    className="min-w-0 flex-1 rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                  >
+                    <option value="" disabled={committees.length > 1}>
+                      {lang === 'he' ? '— בחר ועדה —' : '— Choose a committee —'}
+                    </option>
+                    {committees.map((c) => (
+                      <option key={c.id} value={c.id}>{c.major}</option>
+                    ))}
+                  </select>
+                </label>
+              )
             )}
           </div>
         );

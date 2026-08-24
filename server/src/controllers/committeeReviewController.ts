@@ -55,7 +55,19 @@ export async function onEnterCommitteeStage(
   if (!projectSnap.exists) return;
   const projectData = projectSnap.data()!;
 
-  const committee = await resolveCommitteeForProject(projectData);
+  // A stage authored with an explicit committeeId (see workflowTemplates.ts's
+  // ChainStage) always wins over the per-student-major dynamic lookup below —
+  // that's the whole point of pinning one at template-authoring time.
+  const routing: ChainStage[] = milestoneData.routing ?? [];
+  const currentStageIndex: number = milestoneData.currentStageIndex ?? 0;
+  const stage = routing[currentStageIndex];
+  let committee: CommitteeDoc | null = null;
+  if (stage?.role === 'committee' && stage.committeeId) {
+    const pinnedSnap = await db.collection('committees').doc(stage.committeeId).get();
+    committee = pinnedSnap.exists ? ({ id: pinnedSnap.id, ...pinnedSnap.data() } as CommitteeDoc) : null;
+  } else {
+    committee = await resolveCommitteeForProject(projectData);
+  }
   const milestoneRef = db.collection('milestones').doc(milestoneId);
 
   if (!committee) {

@@ -39,6 +39,13 @@ export interface ChainStage {
   role: ChainRole;
   action: 'grade' | 'approve';
   rejectTo: RejectionTarget;
+  /** Only meaningful when role === 'committee'. The specific committee this
+   *  stage always routes to, chosen explicitly at template-authoring time —
+   *  overrides the per-student-major dynamic lookup entirely when set.
+   *  Omitted keeps the dynamic resolution (still correct when the
+   *  template's own major is a specific slug, since there's only ever one
+   *  candidate committee for that faculty+major+type anyway). */
+  committeeId?: string;
 }
 
 export type MilestoneRoutingSpec = ChainStage[];
