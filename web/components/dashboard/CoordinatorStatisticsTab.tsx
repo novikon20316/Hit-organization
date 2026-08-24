@@ -3,8 +3,9 @@
 // components/dashboard/CoordinatorStatisticsTab.tsx
 // Shared "Statistics" tab for both coordinator-like dashboards
 // (app/administrative_coordinator/dashboard and app/coordinator/home) — the
-// six job-relevant statistics: milestone distribution, milestone completion
-// rates, final grades, applications per faculty, on-time completion, and
+// job-relevant statistics: applications per faculty (kept first/top of the
+// screen — the most frequently checked one), milestone distribution,
+// milestone completion rates, final grades, on-time completion, and
 // year-of-study distribution — each viewable aggregated across every faculty
 // in the caller's scope (the default) or narrowed to one via the faculty
 // filter below, and downloadable as a multi-sheet .xlsx. Data comes from
@@ -163,7 +164,22 @@ export function CoordinatorStatisticsTab() {
         </div>
       </div>
 
-      {/* 1. Students per milestone */}
+      {/* 1. Applications submitted per faculty — moved to the top of the screen per request */}
+      <Section title={lang === 'he' ? '📥 בקשות שהוגשו לפי פקולטה' : '📥 Applications submitted per faculty'}>
+        {data.applicationsByFaculty.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין נתונים' : 'No data'}</p>}
+        <div className="grid gap-1.5">
+          {data.applicationsByFaculty.map((row) => (
+            <div key={row.facultyId} className="flex items-center justify-between rounded-lg bg-paper px-2.5 py-1.5 text-sm">
+              <span className="text-ink">{facultyLabel(row.facultyId as FacultyId, lang)}</span>
+              <span className="text-xs text-muted">
+                <span className="font-semibold text-ink">{row.count}</span> ({row.percent}%)
+              </span>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* 2. Students per milestone */}
       <Section title={lang === 'he' ? '📚 סטודנטים לפי אבן דרך נוכחית' : '📚 Students per current milestone'}>
         {data.milestoneDistribution.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין נתונים' : 'No data'}</p>}
         <div className="grid gap-2">
@@ -207,7 +223,7 @@ export function CoordinatorStatisticsTab() {
         </div>
       </Section>
 
-      {/* 2. Milestone completion rates */}
+      {/* 3. Milestone completion rates */}
       <Section title={lang === 'he' ? '✅ שיעור השלמת אבני דרך' : '✅ Milestone completion rate'}>
         {data.milestoneCompletion.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין נתונים' : 'No data'}</p>}
         <div className="grid gap-1.5">
@@ -222,7 +238,7 @@ export function CoordinatorStatisticsTab() {
         </div>
       </Section>
 
-      {/* 3. Final grades */}
+      {/* 4. Final grades */}
       <Section title={lang === 'he' ? '🎓 ציונים סופיים' : '🎓 Final grades'}>
         <p className="mb-2 text-xs text-muted">
           {lang === 'he'
@@ -265,21 +281,6 @@ export function CoordinatorStatisticsTab() {
               : "⚠️ Some projects' workflow templates haven't configured percentOfFinalGrade yet — their overall grade will show as 0 until that's set."}
           </p>
         )}
-      </Section>
-
-      {/* 4. Applications submitted per faculty */}
-      <Section title={lang === 'he' ? '📥 בקשות שהוגשו לפי פקולטה' : '📥 Applications submitted per faculty'}>
-        {data.applicationsByFaculty.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין נתונים' : 'No data'}</p>}
-        <div className="grid gap-1.5">
-          {data.applicationsByFaculty.map((row) => (
-            <div key={row.facultyId} className="flex items-center justify-between rounded-lg bg-paper px-2.5 py-1.5 text-sm">
-              <span className="text-ink">{facultyLabel(row.facultyId as FacultyId, lang)}</span>
-              <span className="text-xs text-muted">
-                <span className="font-semibold text-ink">{row.count}</span> ({row.percent}%)
-              </span>
-            </div>
-          ))}
-        </div>
       </Section>
 
       {/* 5. On-time completion */}
