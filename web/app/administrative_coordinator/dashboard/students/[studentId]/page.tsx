@@ -186,7 +186,15 @@ export default function StudentDetailPage() {
               <span>🏛️ {lang === 'he' ? 'פקולטה:' : 'Faculty:'} {student.facultyId ? facultyLabel(student.facultyId as FacultyId, lang) : '—'}</span>
               <span>🎓 {lang === 'he' ? 'תואר:' : 'Degree:'} {student.degreeType ? (student.degreeType === 'masters' ? (lang === 'he' ? 'תואר שני' : "Master's") : (lang === 'he' ? 'תואר ראשון' : "Bachelor's")) : '—'}</span>
               <span>📚 {lang === 'he' ? 'מגמה:' : 'Major:'} {majorCellText(student, lang)}</span>
-              <span>📆 {lang === 'he' ? 'שנת לימודים:' : 'Year of study:'} {student.yearOfStudy ?? '—'}</span>
+              {/* Renamed from the old "שנת לימודים:" label — that phrasing
+                  reads in Hebrew as "academic year" (e.g. תשפ״ו), so a
+                  coordinator seeing this ordinal 1/2/3 program-year number
+                  under it assumed the Hebrew year was broken. It's a
+                  different field entirely (yearOfStudy, edited via the
+                  Academic Year Manager) — disambiguated here, with the
+                  actual current Hebrew year surfaced right next to it. */}
+              <span>📆 {lang === 'he' ? 'שנה בתואר:' : 'Year in program:'} {student.yearOfStudy ?? '—'}</span>
+              <span>🗓️ {lang === 'he' ? 'שנת הלימודים הנוכחית:' : 'Current academic year:'} {currentHebrewYear() ?? '—'}</span>
             </div>
           </div>
 

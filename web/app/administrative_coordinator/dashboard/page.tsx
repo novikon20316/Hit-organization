@@ -62,40 +62,52 @@ function isMilestoneDone(status: string): boolean {
   return status === 'coordinator_approved' || status === 'completed';
 }
 
-// Compact per-student stepper shown right next to the student's name on the
-// project card, so a group with several students each gets its own at-a-
-// glance progress readout without opening the "Grades" section below.
+// Per-student stepper shown under the student's name on the project card, so
+// a group with several students each gets its own at-a-glance progress
+// readout without opening the "Grades" section below or hovering anything —
+// a first cut of this used a hover-only tooltip on a row of plain dots, but
+// that wasn't legible enough for the coordinator using it, so every step now
+// prints its milestone name and status directly underneath the circle.
 // Mirrors the circle-stepper styling in coordinator/home/InProgressTab.tsx
 // (done = filled green check, current = filled status color, future =
-// outlined) just shrunk down and without the per-milestone cards.
+// outlined).
 function MilestoneMiniProgress({ milestones, lang }: { milestones: MemberMilestoneGrade[]; lang: 'he' | 'en' }) {
   if (milestones.length === 0) {
-    return <span className="shrink-0 text-[10px] text-muted">{lang === 'he' ? 'אין אבני דרך' : 'No milestones'}</span>;
+    return <p className="text-[11px] text-muted">{lang === 'he' ? 'לא נוצרו אבני דרך' : 'No milestones yet'}</p>;
   }
   const firstIncompleteIdx = milestones.findIndex((m) => !isMilestoneDone(m.status));
-  const tooltip = milestones.map((m) => `${MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}: ${gradeStatusLabel(m, lang)}`).join(' | ');
   return (
-    <div className="flex shrink-0 items-center" title={tooltip}>
+    <div className="flex flex-wrap items-start gap-y-2">
       {milestones.map((m, idx) => {
         const done = isMilestoneDone(m.status);
         const isCurrent = !done && firstIncompleteIdx !== -1 && idx === firstIncompleteIdx;
         const isFuture = !done && !isCurrent;
         const color = done ? '#10B981' : gradeStatusColor(m);
         return (
-          <span key={idx} className="flex items-center">
-            <span
-              className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold ${isFuture ? 'border-2 bg-surface' : 'text-white'}`}
-              style={isFuture ? { borderColor: color, color } : { backgroundColor: color }}
-            >
-              {done ? '✓' : ''}
-            </span>
+          <div key={idx} className="flex items-start">
+            <div className="flex w-[78px] shrink-0 flex-col items-center text-center">
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                  isFuture ? 'border-2 bg-surface' : 'text-white'
+                }`}
+                style={isFuture ? { borderColor: color, color } : { backgroundColor: color }}
+              >
+                {done ? '✓' : idx + 1}
+              </span>
+              <span className={`mt-1 text-[10px] leading-tight text-ink ${isCurrent ? 'font-bold' : 'font-medium'}`}>
+                {MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}
+              </span>
+              <span className="text-[9px] font-semibold leading-tight" style={{ color }}>
+                {gradeStatusLabel(m, lang)}
+              </span>
+            </div>
             {idx < milestones.length - 1 && (
               <span
-                className="h-px w-2"
+                className="mt-3 h-px w-3 shrink-0"
                 style={{ backgroundColor: firstIncompleteIdx === -1 || idx < firstIncompleteIdx ? '#10B981' : '#D8DCE6' }}
               />
             )}
-          </span>
+          </div>
         );
       })}
     </div>
@@ -369,14 +381,14 @@ function AdministrativeCoordinatorDashboardContent() {
                 <p className="mt-1 text-xs text-muted">👨‍🏫 {group.supervisorName}</p>
                 <div className="mt-1 grid gap-1">
                   {group.members.map((m) => (
-                    <div key={m.uid} className="flex items-center justify-between gap-2">
+                    <div key={m.uid} className="grid gap-1.5 rounded-lg bg-paper p-2">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setContactMember({ name: m.name, email: m.email, phoneNumber: m.phoneNumber });
                         }}
-                        className="truncate text-xs text-muted underline hover:text-primary"
+                        className="w-fit truncate text-xs font-semibold text-ink underline hover:text-primary"
                       >
                         👤 {m.name}
                       </button>
