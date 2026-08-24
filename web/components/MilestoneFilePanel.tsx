@@ -1,12 +1,16 @@
 'use client';
 
-// app/supervisor/dashboard/MilestoneFilePanel.tsx
-// Side panel opened by clicking a milestone name in ProjectWorkflowSection —
-// shows the student's submission note plus an inline preview (iframe; the
-// browser renders PDFs/images natively, other types just show blank until
-// downloaded) and a download link for each submitted file.
+// components/MilestoneFilePanel.tsx
+// Side panel opened by clicking a milestone/file chip — shows the student's
+// submission note plus an inline preview (iframe; the browser renders
+// PDFs/images natively, other types just show blank until downloaded) and a
+// download link for each submitted file. Originally lived under
+// app/supervisor/dashboard/ (its first caller); moved here once the
+// administrative_coordinator dashboard needed the same panel — it never had
+// any supervisor-specific dependency.
 
 import { useLanguage } from '@/contexts/LanguageContext';
+import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 
 interface MilestoneFilePanelProps {
   title: string;
@@ -14,39 +18,6 @@ interface MilestoneFilePanelProps {
   submissionNote: string;
   fileUrls: string[];
   onClose: () => void;
-}
-
-// A plain <a download> is ignored by the browser for a cross-origin href
-// (Cloudinary is a different origin), so without this the "Download" link
-// below just opened the file in a new tab instead of actually saving it —
-// misleading for the PDFs/images the iframe already renders inline. Same
-// helper as ProjectWorkflowSection.tsx's downloadFile.
-async function downloadFile(url: string, fileName: string) {
-  try {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = objectUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(objectUrl);
-  } catch {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
-}
-
-function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string {
-  try {
-    const path = decodeURIComponent(new URL(url).pathname);
-    const last = path.split('/').filter(Boolean).pop();
-    if (last) return last;
-  } catch {
-    // fall through to generic label below
-  }
-  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
 }
 
 export function MilestoneFilePanel({ title, subtitle, submissionNote, fileUrls, onClose }: MilestoneFilePanelProps) {

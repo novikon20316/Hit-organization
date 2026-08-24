@@ -186,6 +186,8 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
             status: m.status,
             finalGrade: m.finalGradeByStudent?.[sid] ?? m.finalGrade ?? null,
             gradeApproved: m.gradeApproved ?? false,
+            fileUrls: m.fileUrls ?? [],
+            submissionNote: m.submissionNote ?? '',
           }));
         return {
           uid: sid,
@@ -576,6 +578,7 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         dueDate: m.dueDate?.toDate?.()?.toISOString?.() ?? null,
         submittedAt: m.submittedAt?.toDate?.()?.toISOString?.() ?? null,
         fileUrls: m.fileUrls ?? [],
+        submissionNote: m.submissionNote ?? '',
         finalGrade: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? null,
         supervisorScore: m.supervisorScore ?? null,
         defenseDate: m.defenseDate?.toDate?.()?.toISOString?.() ?? null,

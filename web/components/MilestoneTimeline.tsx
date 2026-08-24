@@ -22,6 +22,8 @@ import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { RevisionDecisionPanel } from '@/components/RevisionDecisionPanel';
+import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
+import { downloadFile, fileNameFromUrl, useFileClickHandler } from '@/lib/fileClickPreview';
 import {
   MILESTONE_LABEL,
   STATUS_LABEL,
@@ -45,6 +47,7 @@ export interface MilestoneData {
   dueDate: string | null;
   submittedAt: string | null;
   fileUrls?: string[];
+  submissionNote?: string;
   finalGrade: number | null;
   supervisorScore?: number | null;
   defenseDate: string | null;
@@ -73,6 +76,13 @@ interface MilestoneTimelineProps {
    *  component owns the PUT /api/milestones/:id call itself) — use this to
    *  refetch/refresh the parent's own milestone list. */
   onAdjustDate?: (milestone: MilestoneData, newDate: Date) => void;
+  /** Opt-in: file chips become click-to-preview (inline panel)/double-click-
+   *  to-download instead of a plain new-tab link — the same interaction
+   *  already shipped on the supervisor dashboard (see
+   *  app/supervisor/dashboard/ProjectWorkflowSection.tsx). Off by default so
+   *  every existing caller of this shared component (student/supervisor/
+   *  examiner/admin screens) keeps its current behavior unchanged. */
+  enableFilePreview?: boolean;
 }
 
 const COORDINATOR_ADJUST_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'system_admin'];
@@ -116,20 +126,6 @@ function formatDate(val: string | null, lang: 'he' | 'en', opts: Intl.DateTimeFo
   return d ? d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', opts) : '—';
 }
 
-// Derives a human-readable file name from a Cloudinary/Storage URL for the
-// "Submitted Files" chip list — these URLs carry no separate filename field
-// on MilestoneData, just the raw fileUrls string[].
-function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string {
-  try {
-    const path = decodeURIComponent(new URL(url).pathname);
-    const last = path.split('/').filter(Boolean).pop();
-    if (last) return last;
-  } catch {
-    // fall through to generic label below
-  }
-  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
-}
-
 // ─── Single milestone card ──────────────────────────────────────────────────
 
 function MilestoneCard({
@@ -143,6 +139,7 @@ function MilestoneCard({
   onExaminerGrade,
   onScheduleDefense,
   onAdjustDate,
+  enableFilePreview,
 }: {
   milestone: MilestoneData;
   index: number;
@@ -154,6 +151,8 @@ function MilestoneCard({
   const [newDateText, setNewDateText] = useState('');
   const [reasonText, setReasonText] = useState('');
   const [savingDate, setSavingDate] = useState(false);
+  const [filePreview, setFilePreview] = useState(false);
+  const handleFileClick = useFileClickHandler();
   const [adjustError, setAdjustError] = useState('');
   const [pendingApprovalNotice, setPendingApprovalNotice] = useState(false);
 
@@ -215,6 +214,7 @@ function MilestoneCard({
   const dueLabel = formatDate(milestone.dueDate, lang, { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
+    <>
     <div
       className={`role-rail relative overflow-hidden rounded-[var(--radius)] border bg-surface p-4 transition-opacity ${
         isCurrent ? 'border-2' : 'border border-line'
@@ -315,24 +315,44 @@ function MilestoneCard({
         )}
       </div>
 
-      {/* Submitted files — chip list, each opens the file in a new tab */}
+      {/* Submitted files — chip list. enableFilePreview callers (see prop
+          comment above) get click=preview/double-click=download; everyone
+          else keeps the original plain new-tab link. */}
       {milestone.fileUrls && milestone.fileUrls.length > 0 && (
         <div className="mt-3">
           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
             {lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}
           </p>
           <div className="flex flex-wrap gap-2">
-            {milestone.fileUrls.map((url, i) => (
-              <a
-                key={i}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1.5 text-xs text-ink transition-colors hover:border-primary hover:text-primary"
-              >
-                📄 <span className="max-w-[14rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
-              </a>
-            ))}
+            {milestone.fileUrls.map((url, i) =>
+              enableFilePreview ? (
+                <button
+                  key={i}
+                  type="button"
+                  title={lang === 'he' ? 'לחיצה: תצוגה מקדימה · לחיצה כפולה: הורדה' : 'Click: preview · Double-click: download'}
+                  onClick={() =>
+                    handleFileClick(
+                      `${milestone.id}-${i}`,
+                      () => setFilePreview(true),
+                      () => downloadFile(url, fileNameFromUrl(url, i, lang))
+                    )
+                  }
+                  className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1.5 text-xs text-ink transition-colors hover:border-primary hover:text-primary"
+                >
+                  📄 <span className="max-w-[14rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
+                </button>
+              ) : (
+                <a
+                  key={i}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1.5 text-xs text-ink transition-colors hover:border-primary hover:text-primary"
+                >
+                  📄 <span className="max-w-[14rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
+                </a>
+              )
+            )}
           </div>
         </div>
       )}
@@ -454,6 +474,16 @@ function MilestoneCard({
         </div>
       )}
     </div>
+    {enableFilePreview && filePreview && (
+      <MilestoneFilePanel
+        title={label}
+        subtitle=""
+        submissionNote={milestone.submissionNote ?? ''}
+        fileUrls={milestone.fileUrls ?? []}
+        onClose={() => setFilePreview(false)}
+      />
+    )}
+    </>
   );
 }
 
@@ -468,6 +498,7 @@ export function MilestoneTimeline({
   onExaminerGrade,
   onScheduleDefense,
   onAdjustDate,
+  enableFilePreview,
 }: MilestoneTimelineProps) {
   const { lang } = useLanguage();
 
@@ -517,6 +548,7 @@ export function MilestoneTimeline({
           onExaminerGrade={onExaminerGrade}
           onScheduleDefense={onScheduleDefense}
           onAdjustDate={onAdjustDate}
+          enableFilePreview={enableFilePreview}
         />
       ))}
     </div>

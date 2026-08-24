@@ -1671,7 +1671,7 @@ export const apiClient = {
         members: Array<{
           uid: string;
           name: string;
-          milestones: Array<{ type: string; status: string; finalGrade: number | null; gradeApproved: boolean }>;
+          milestones: Array<{ type: string; status: string; finalGrade: number | null; gradeApproved: boolean; fileUrls: string[]; submissionNote: string }>;
         }>;
         currentMilestone: string;
         currentMilestoneId: string | null;
@@ -1773,6 +1773,7 @@ export const apiClient = {
         dueDate: string | null;
         submittedAt: string | null;
         fileUrls: string[];
+        submissionNote: string;
         finalGrade: number | null;
         supervisorScore: number | null;
         defenseDate: string | null;

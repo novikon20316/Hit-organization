@@ -17,7 +17,7 @@ import { apiClient } from '@/lib/apiClient';
 import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
-import { MilestoneFilePanel } from './MilestoneFilePanel';
+import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import { ProjectStageChain } from '@/components/ProjectStageChain';
 import type { MyProject, SupervisorPendingMilestone } from './types';
 

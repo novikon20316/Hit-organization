@@ -5,6 +5,8 @@ export interface MemberMilestoneGrade {
   status: string;
   finalGrade: number | null;
   gradeApproved: boolean;
+  fileUrls: string[];
+  submissionNote: string;
 }
 
 export interface ProjectGroup {

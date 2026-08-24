@@ -33,6 +33,8 @@ import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { StudentContactModal, type ContactMember } from './StudentContactModal';
+import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
+import { downloadFile, fileNameFromUrl, useFileClickHandler } from '@/lib/fileClickPreview';
 import type { ProjectGroup, MemberMilestoneGrade } from './types';
 import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
 
@@ -154,6 +156,8 @@ function AdministrativeCoordinatorDashboardContent() {
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [contactMember, setContactMember] = useState<ContactMember | null>(null);
+  const [filePreviewFor, setFilePreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
+  const handleFileClick = useFileClickHandler();
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -436,12 +440,44 @@ function AdministrativeCoordinatorDashboardContent() {
                           member.milestones.map((m, mIdx) => (
                             <div
                               key={mIdx}
-                              className={`flex items-center justify-between py-1 text-xs ${mIdx < member.milestones.length - 1 ? 'border-b border-line' : ''}`}
+                              className={`py-1 text-xs ${mIdx < member.milestones.length - 1 ? 'border-b border-line' : ''}`}
                             >
-                              <span className="text-muted">{MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}</span>
-                              <span className="font-semibold" style={{ color: gradeStatusColor(m) }}>
-                                {gradeStatusLabel(m, lang)}
-                              </span>
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted">{MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}</span>
+                                <span className="font-semibold" style={{ color: gradeStatusColor(m) }}>
+                                  {gradeStatusLabel(m, lang)}
+                                </span>
+                              </div>
+                              {m.fileUrls.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {m.fileUrls.map((url, i) => {
+                                    const fileName = fileNameFromUrl(url, i, lang);
+                                    return (
+                                      <button
+                                        key={i}
+                                        type="button"
+                                        title={lang === 'he' ? 'לחיצה: תצוגה מקדימה · לחיצה כפולה: הורדה' : 'Click: preview · Double-click: download'}
+                                        onClick={() =>
+                                          handleFileClick(
+                                            `${member.uid}-${m.type}-${i}`,
+                                            () =>
+                                              setFilePreviewFor({
+                                                title: MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type,
+                                                subtitle: member.name,
+                                                submissionNote: m.submissionNote,
+                                                fileUrls: m.fileUrls,
+                                              }),
+                                            () => downloadFile(url, fileName)
+                                          )
+                                        }
+                                        className="flex items-center gap-1 rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] text-ink hover:border-primary hover:text-primary"
+                                      >
+                                        📄 <span className="max-w-[8rem] truncate">{fileName}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           ))
                         )}
@@ -496,6 +532,15 @@ function AdministrativeCoordinatorDashboardContent() {
       )}
       <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} onCreated={fetchDashboard} />
       <StudentContactModal member={contactMember} onClose={() => setContactMember(null)} />
+      {filePreviewFor && (
+        <MilestoneFilePanel
+          title={filePreviewFor.title}
+          subtitle={filePreviewFor.subtitle}
+          submissionNote={filePreviewFor.submissionNote}
+          fileUrls={filePreviewFor.fileUrls}
+          onClose={() => setFilePreviewFor(null)}
+        />
+      )}
     </DashboardShell>
   );
 }

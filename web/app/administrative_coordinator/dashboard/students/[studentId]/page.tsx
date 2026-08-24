@@ -360,6 +360,7 @@ export default function StudentDetailPage() {
                 milestones={milestoneRoadmap as unknown as MilestoneData[]}
                 viewerRole="coordinator_readonly"
                 projectId={project.id}
+                enableFilePreview
               />
             </div>
           )}
