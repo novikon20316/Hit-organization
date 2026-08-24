@@ -23,7 +23,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { RevisionDecisionPanel } from '@/components/RevisionDecisionPanel';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
-import { downloadFile, fileNameFromUrl, useFileClickHandler } from '@/lib/fileClickPreview';
+import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import {
   MILESTONE_LABEL,
   STATUS_LABEL,
@@ -152,7 +152,6 @@ function MilestoneCard({
   const [reasonText, setReasonText] = useState('');
   const [savingDate, setSavingDate] = useState(false);
   const [filePreview, setFilePreview] = useState(false);
-  const handleFileClick = useFileClickHandler();
   const [adjustError, setAdjustError] = useState('');
   const [pendingApprovalNotice, setPendingApprovalNotice] = useState(false);
 
@@ -326,21 +325,29 @@ function MilestoneCard({
           <div className="flex flex-wrap gap-2">
             {milestone.fileUrls.map((url, i) =>
               enableFilePreview ? (
-                <button
+                <span
                   key={i}
-                  type="button"
-                  title={lang === 'he' ? 'לחיצה: תצוגה מקדימה · לחיצה כפולה: הורדה' : 'Click: preview · Double-click: download'}
-                  onClick={() =>
-                    handleFileClick(
-                      `${milestone.id}-${i}`,
-                      () => setFilePreview(true),
-                      () => downloadFile(url, fileNameFromUrl(url, i, lang))
-                    )
-                  }
-                  className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1.5 text-xs text-ink transition-colors hover:border-primary hover:text-primary"
+                  className="flex items-center overflow-hidden rounded-lg border border-line bg-paper text-xs text-ink"
                 >
-                  📄 <span className="max-w-[14rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
-                </button>
+                  {/* A single click always previews — no double-click ambiguity;
+                      download only ever happens from the separate ⬇ button. */}
+                  <button
+                    type="button"
+                    title={lang === 'he' ? 'תצוגה מקדימה' : 'Preview'}
+                    onClick={() => setFilePreview(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 transition-colors hover:text-primary"
+                  >
+                    📄 <span className="max-w-[14rem] truncate">{fileNameFromUrl(url, i, lang)}</span>
+                  </button>
+                  <button
+                    type="button"
+                    title={lang === 'he' ? 'הורדה' : 'Download'}
+                    onClick={() => downloadFile(url, fileNameFromUrl(url, i, lang))}
+                    className="border-s border-line px-2.5 py-1.5 text-muted transition-colors hover:text-primary"
+                  >
+                    ⬇
+                  </button>
+                </span>
               ) : (
                 <a
                   key={i}

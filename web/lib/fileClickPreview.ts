@@ -1,12 +1,10 @@
 // lib/fileClickPreview.ts
-// Shared click-to-preview / double-click-to-download helpers for milestone
-// submitted-file chips. Ported out of app/supervisor/dashboard/
-// ProjectWorkflowSection.tsx (which keeps its own copy, since it already
-// shipped and worked — not worth the regression risk of switching a live
-// feature over) so the same interaction can be reused elsewhere (e.g. the
-// administrative_coordinator dashboard) without a third hand-rolled copy.
-
-import { useCallback, useRef } from 'react';
+// Shared file-chip helpers for milestone submitted files: preview a file
+// inline and download it, as two distinct, explicit actions (see
+// components/MilestoneFilePanel.tsx and its callers) rather than a
+// click-vs-double-click gesture — a coordinator's actual need is to look at
+// the file, and a slow/misfired double-click could otherwise download it by
+// accident when all she wanted was to preview it.
 
 // Fetches the file into a Blob and saves it via a throwaway object-URL
 // anchor — a plain <a download> is ignored by the browser for a
@@ -43,29 +41,4 @@ export function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): 
     // fall through to generic label below
   }
   return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
-}
-
-/**
- * Click-vs-double-click disambiguation for a list of file chips: a single
- * click fires `onSingle` (open a preview), a double click fires `onDouble`
- * (download) instead of both. One component-level ref keyed by a per-file
- * id, rather than per-chip state/hooks, since chips are usually created
- * inside nested .map()s where hooks-per-item isn't an option.
- */
-export function useFileClickHandler() {
-  const state = useRef<Record<string, { count: number; timer: ReturnType<typeof setTimeout> | null }>>({});
-  return useCallback((key: string, onSingle: () => void, onDouble: () => void) => {
-    const entry = state.current[key] ?? (state.current[key] = { count: 0, timer: null });
-    entry.count += 1;
-    if (entry.count === 1) {
-      entry.timer = setTimeout(() => {
-        if (entry.count === 1) onSingle();
-        entry.count = 0;
-      }, 250);
-    } else {
-      if (entry.timer) clearTimeout(entry.timer);
-      entry.count = 0;
-      onDouble();
-    }
-  }, []);
 }

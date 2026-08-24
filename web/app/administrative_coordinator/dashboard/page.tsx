@@ -34,7 +34,7 @@ import { GradeOverridesTab } from './GradeOverridesTab';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { StudentContactModal, type ContactMember } from './StudentContactModal';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
-import { downloadFile, fileNameFromUrl, useFileClickHandler } from '@/lib/fileClickPreview';
+import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import type { ProjectGroup, MemberMilestoneGrade } from './types';
 import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
 
@@ -157,7 +157,6 @@ function AdministrativeCoordinatorDashboardContent() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [contactMember, setContactMember] = useState<ContactMember | null>(null);
   const [filePreviewFor, setFilePreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
-  const handleFileClick = useFileClickHandler();
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -453,27 +452,38 @@ function AdministrativeCoordinatorDashboardContent() {
                                   {m.fileUrls.map((url, i) => {
                                     const fileName = fileNameFromUrl(url, i, lang);
                                     return (
-                                      <button
+                                      <span
                                         key={i}
-                                        type="button"
-                                        title={lang === 'he' ? 'לחיצה: תצוגה מקדימה · לחיצה כפולה: הורדה' : 'Click: preview · Double-click: download'}
-                                        onClick={() =>
-                                          handleFileClick(
-                                            `${member.uid}-${m.type}-${i}`,
-                                            () =>
-                                              setFilePreviewFor({
-                                                title: MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type,
-                                                subtitle: member.name,
-                                                submissionNote: m.submissionNote,
-                                                fileUrls: m.fileUrls,
-                                              }),
-                                            () => downloadFile(url, fileName)
-                                          )
-                                        }
-                                        className="flex items-center gap-1 rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] text-ink hover:border-primary hover:text-primary"
+                                        className="flex items-center overflow-hidden rounded-md border border-line bg-surface text-[10px] text-ink"
                                       >
-                                        📄 <span className="max-w-[8rem] truncate">{fileName}</span>
-                                      </button>
+                                        {/* A single click always previews — no double-click
+                                            ambiguity, since download only ever happens from the
+                                            separate ⬇ button next to it (a coordinator's main
+                                            need here is to look at the file, not save it). */}
+                                        <button
+                                          type="button"
+                                          title={lang === 'he' ? 'תצוגה מקדימה' : 'Preview'}
+                                          onClick={() =>
+                                            setFilePreviewFor({
+                                              title: MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type,
+                                              subtitle: member.name,
+                                              submissionNote: m.submissionNote,
+                                              fileUrls: m.fileUrls,
+                                            })
+                                          }
+                                          className="flex items-center gap-1 px-1.5 py-0.5 hover:text-primary"
+                                        >
+                                          📄 <span className="max-w-[8rem] truncate">{fileName}</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title={lang === 'he' ? 'הורדה' : 'Download'}
+                                          onClick={() => downloadFile(url, fileName)}
+                                          className="border-s border-line px-1.5 py-0.5 text-muted hover:text-primary"
+                                        >
+                                          ⬇
+                                        </button>
+                                      </span>
                                     );
                                   })}
                                 </div>
