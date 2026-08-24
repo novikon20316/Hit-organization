@@ -222,6 +222,54 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     const milestoneTitle = { he: milestoneData.nameHe ?? milestoneData.type, en: milestoneData.nameEn ?? milestoneData.type };
     const projectTitle   = { he: milestoneData.projectTitleHe ?? '', en: milestoneData.projectTitleEn ?? '' };
 
+    // Coordinators/administrative-coordinators oversee many students at once,
+    // so their notification (unlike the supervisor's, who already knows who
+    // their own student is) needs to be self-contained: who submitted, which
+    // project/supervisor it's under, how the timing compares to the due
+    // date, and what was actually attached — so staff can triage without
+    // opening the project first.
+    const [studentSnapForNotify, supervisorSnapForNotify] = await Promise.all([
+      db.collection('users').doc(studentId).get(),
+      supervisorId ? db.collection('users').doc(supervisorId).get() : Promise.resolve(null),
+    ]);
+    const studentName    = studentSnapForNotify.data()?.displayName || 'Unknown student';
+    const supervisorName = supervisorSnapForNotify?.data()?.displayName || null;
+    const submittedFileNames = files.map((f) => f.originalname);
+
+    const dueDateForNotify: Date | null = milestoneData.dueDate?.toDate?.() ?? null;
+    const timingText = { he: '', en: '' };
+    if (dueDateForNotify) {
+      const diffDays = Math.round((dueDateForNotify.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        timingText.he = `הוגש ${diffDays} ${diffDays === 1 ? 'יום' : 'ימים'} לפני המועד האחרון.`;
+        timingText.en = `Submitted ${diffDays} day${diffDays === 1 ? '' : 's'} before the due date.`;
+      } else if (diffDays < 0) {
+        const lateDays = Math.abs(diffDays);
+        timingText.he = `הוגש באיחור של ${lateDays} ${lateDays === 1 ? 'יום' : 'ימים'}.`;
+        timingText.en = `Submitted ${lateDays} day${lateDays === 1 ? '' : 's'} late.`;
+      } else {
+        timingText.he = 'הוגש ביום המועד האחרון.';
+        timingText.en = 'Submitted on the due date.';
+      }
+    }
+
+    const staffBody = {
+      he: [
+        `${studentName} הגיש/ה את "${milestoneTitle.he}".`,
+        projectTitle.he ? `פרויקט: ${projectTitle.he}` : null,
+        supervisorName ? `מנחה: ${supervisorName}` : null,
+        timingText.he || null,
+        `קבצים: ${submittedFileNames.length ? submittedFileNames.join(', ') : 'לא צורפו קבצים'}`,
+      ].filter(Boolean).join('\n'),
+      en: [
+        `${studentName} submitted "${milestoneTitle.en}".`,
+        projectTitle.en ? `Project: ${projectTitle.en}` : null,
+        supervisorName ? `Supervisor: ${supervisorName}` : null,
+        timingText.en || null,
+        `Files: ${submittedFileNames.length ? submittedFileNames.join(', ') : 'No files attached'}`,
+      ].filter(Boolean).join('\n'),
+    };
+
     // The supervisor is the one actually blocked on this (they must grade it
     // before the student can move on) — full multi-channel dispatch
     // (in-app + email + push + SMS, via notify.ts) rather than just an
@@ -249,16 +297,21 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     // channel delivery out to every covering coordinator on every single
     // submission would be noisy (and costs real money on the SMS leg).
     const notifyStaffMilestoneSubmitted = async (recipientId: string) => {
-      const recipientSnap = await db.collection('users').doc(recipientId).get();
-      const pushToken = recipientSnap.data()?.expoPushToken ?? null;
+      const recipientData = (await db.collection('users').doc(recipientId).get()).data();
+      const pushToken = recipientData?.expoPushToken ?? null;
+      // Same convention as notifyUser (services/notify.ts) — a user doc with
+      // no 'en' language flag defaults to Hebrew — so the push notification
+      // matches the language the recipient actually reads the app in,
+      // instead of always sending the English copy.
+      const lang: 'he' | 'en' = recipientData?.language === 'en' ? 'en' : 'he';
 
       await db.collection('notifications').add({
         recipientId,
         type:               'milestone_submitted',
         titleHe:            'הגשה חדשה ממתינה לבדיקה 📤',
         titleEn:            'New Milestone Submission 📤',
-        bodyHe:             `סטודנט הגיש את "${milestoneTitle.he}".`,
-        bodyEn:             `A student submitted "${milestoneTitle.en}".`,
+        bodyHe:             staffBody.he,
+        bodyEn:             staffBody.en,
         isRead:             false,
         relatedProjectId:   projectId,
         relatedMilestoneId: milestoneId,
@@ -271,8 +324,8 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to:    pushToken,
-            title: '📤 New Milestone Submission',
-            body:  `A student submitted "${milestoneTitle.en}".`,
+            title: lang === 'he' ? 'הגשה חדשה ממתינה לבדיקה 📤' : '📤 New Milestone Submission',
+            body:  lang === 'he' ? staffBody.he : staffBody.en,
             data:  { projectId, milestoneId },
           }),
         });
