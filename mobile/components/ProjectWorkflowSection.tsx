@@ -18,7 +18,6 @@ import type { Lang } from './i18n';
 import StaffRecordModal from './modals/StaffRecordModal';
 import SupervisorEvaluationModal from './modals/SupervisorEvaluationModal';
 import FinalGradeDecisionModal from './modals/FinalGradeDecisionModal';
-import ProjectStageChain from './ProjectStageChain';
 
 interface StaffFormField {
   key: string;
@@ -96,7 +95,6 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
   const [error, setError] = useState('');
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
-  const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null);
 
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: StaffFormField[] } | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
@@ -108,7 +106,6 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
       .then((res) => {
         setTemplateMilestones([...(res.data.templateMilestones ?? [])].sort((a: TemplateMilestone, b: TemplateMilestone) => a.order - b.order));
         setStudents(res.data.students ?? []);
-        setProjectCreatedAt(res.data.createdAt ?? null);
         setError('');
       })
       .catch((e: any) => {
@@ -239,23 +236,6 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
                   </View>
                 );
               })}
-              <ProjectStageChain
-                lang={lang}
-                createdAt={projectCreatedAt}
-                milestones={s.milestones.map((m) => {
-                  const spec = templateMilestones.find((t) => t.type === m.type);
-                  return {
-                    type: m.type,
-                    status: m.status,
-                    nameHe: spec?.nameHe,
-                    nameEn: spec?.nameEn,
-                    percentOfFinalGrade: spec?.percentOfFinalGrade,
-                    grade: m.finalGrade,
-                    dueDate: m.dueDate,
-                    submittedAt: m.submittedAt,
-                  };
-                })}
-              />
             </View>
           ))}
         </>

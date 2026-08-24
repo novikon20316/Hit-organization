@@ -18,7 +18,6 @@ import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
-import { ProjectStageChain } from '@/components/ProjectStageChain';
 import type { MyProject, SupervisorPendingMilestone } from './types';
 
 interface ProjectWorkflowSectionProps {
@@ -145,7 +144,6 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   const { lang } = useLanguage();
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
-  const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -181,7 +179,6 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
       .then((res) => {
         setTemplateMilestones([...res.templateMilestones].sort((a, b) => a.order - b.order));
         setStudents(res.students);
-        setProjectCreatedAt(res.createdAt);
         setError('');
       })
       .catch((err) => {
@@ -404,22 +401,6 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                     });
                     })()}
                   </div>
-                  <ProjectStageChain
-                    createdAt={projectCreatedAt}
-                    milestones={s.milestones.map((m) => {
-                      const spec = templateMilestones.find((t) => t.type === m.type);
-                      return {
-                        type: m.type,
-                        status: m.status,
-                        nameHe: spec?.nameHe,
-                        nameEn: spec?.nameEn,
-                        percentOfFinalGrade: spec?.percentOfFinalGrade,
-                        grade: m.finalGrade,
-                        dueDate: m.dueDate,
-                        submittedAt: m.submittedAt,
-                      };
-                    })}
-                  />
                 </div>
               ))}
             </div>
