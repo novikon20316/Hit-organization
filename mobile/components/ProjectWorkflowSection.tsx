@@ -90,6 +90,10 @@ function statusLabel(status: string, lang: Lang): string {
   return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
 }
 
+function isCompletedStatus(status: string): boolean {
+  return status === 'coordinator_approved' || status === 'completed';
+}
+
 export default function ProjectWorkflowSection({ lang, projectId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -176,7 +180,13 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
                   </View>
                 )}
               </View>
-              {s.milestones.map((m, i) => {
+              {(() => {
+                const firstIncompleteIdx = s.milestones.findIndex((m) => !isCompletedStatus(m.status));
+                // Only what the student has finished, plus the one they're
+                // currently on — matches the web port
+                // (app/supervisor/dashboard/ProjectWorkflowSection.tsx).
+                const visibleMilestones = firstIncompleteIdx === -1 ? s.milestones : s.milestones.slice(0, firstIncompleteIdx + 1);
+                return visibleMilestones.map((m, i) => {
                 const spec = templateMilestones.find((t) => t.type === m.type);
                 return (
                   <View
@@ -235,7 +245,8 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
                     )}
                   </View>
                 );
-              })}
+              });
+              })()}
             </View>
           ))}
         </>
