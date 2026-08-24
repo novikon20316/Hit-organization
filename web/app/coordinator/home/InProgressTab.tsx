@@ -102,6 +102,29 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
     return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
+  // Client-computed (no server field for this tab's per-student milestones)
+  // — same thresholds as the supervisor dashboard's project-card urgency
+  // color, so a milestone reads the same way everywhere a coordinator sees
+  // it (this tab, or DeadlinesTab.tsx's flat list).
+  const daysUntilDue = (iso: string | null | undefined) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  };
+
+  const urgencyColorFor = (daysLeft: number | null) => {
+    if (daysLeft === null) return '#8899BB';
+    if (daysLeft > 7) return '#10B981';
+    if (daysLeft >= 1) return '#F59E0B';
+    return '#EF4444';
+  };
+
+  const daysUntilDueLabel = (daysLeft: number) =>
+    lang === 'he'
+      ? `${daysLeft} ${Math.abs(daysLeft) === 1 ? 'יום' : 'ימים'} עד תאריך היעד`
+      : `${daysLeft} day${Math.abs(daysLeft) === 1 ? '' : 's'} until due date`;
+
   return (
     <div>
       {scopeToggle}
@@ -219,6 +242,11 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
                                         <div>
                                           <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'תאריך יעד' : 'Due'}</p>
                                           <p className="mt-0.5 text-[11px] text-ink">📅 {formatMilestoneDate(m.dueDate)}</p>
+                                          {!done && daysUntilDue(m.dueDate) !== null && (
+                                            <p className="mt-0.5 text-[11px] font-bold" style={{ color: urgencyColorFor(daysUntilDue(m.dueDate)) }}>
+                                              {daysUntilDueLabel(daysUntilDue(m.dueDate)!)}
+                                            </p>
+                                          )}
                                         </div>
                                         {m.submittedAt && (
                                           <div>

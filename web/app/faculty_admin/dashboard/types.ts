@@ -79,5 +79,6 @@ export interface FacultyAdminDeadline {
   projectTitle?: string;
   milestoneName?: string;
   daysLeft?: number | null;
+  dueDate?: string | null;
   class?: string;
 }

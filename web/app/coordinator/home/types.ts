@@ -102,6 +102,7 @@ export interface CoordinatorDeadline {
   projectTitle?: string;
   milestoneName?: string;
   daysLeft?: number | null;
+  dueDate?: string | null;
   class?: string;
 }
 

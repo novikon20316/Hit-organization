@@ -50,11 +50,26 @@ export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => 
                 .where("status", "==", "pending")
                 .get();
         }
-        const deadlines = deadlinesSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            deadline: doc.data().deadline ? doc.data().deadline.toDate().toISOString() : null,
-        }));
+        // daysLeft/urgency were never actually computed here — every caller
+        // (DeadlinesTab.tsx) reading d.daysLeft off this response got
+        // `undefined` and showed "N/A" for every single deadline. Same
+        // thresholds/rounding as supervisorController.ts's per-project
+        // currentMilestone so a milestone shows the same countdown and
+        // color everywhere it appears.
+        const now = Date.now();
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        const deadlines = deadlinesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            const dueDate = data.dueDate?.toDate?.() ?? null;
+            const daysLeft = dueDate ? Math.ceil((dueDate.getTime() - now) / DAY_MS) : null;
+            return {
+                id: doc.id,
+                ...data,
+                deadline: data.deadline ? data.deadline.toDate().toISOString() : null,
+                dueDate: dueDate ? dueDate.toISOString() : null,
+                daysLeft,
+            };
+        });
         return res.status(200).json({ deadlines });
     } catch (error: any) {
         console.error('Error fetching deadlines:', error);

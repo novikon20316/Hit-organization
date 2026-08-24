@@ -22,6 +22,24 @@ import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import type { FacultyAdminDeadline, FacultyAdminProjectRecord, FacultyAdminUserRecord } from './types';
 
+// Same thresholds as the supervisor dashboard's per-project urgency color
+// (green: more than a week left · orange: 1-7 days left · red: due today or
+// already past due) — daysLeft is already negative once overdue, so red
+// covers that range too without a separate "overdue" branch.
+function urgencyColorFor(daysLeft: number | null | undefined): string {
+  if (daysLeft === null || daysLeft === undefined) return '#8899BB';
+  if (daysLeft > 7) return '#10B981';
+  if (daysLeft >= 1) return '#F59E0B';
+  return '#EF4444';
+}
+
+function formatDueDate(iso: string | null | undefined, lang: 'he' | 'en'): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 interface DeadlinesTabProps {
   deadlines: FacultyAdminDeadline[];
   projects: FacultyAdminProjectRecord[];
@@ -70,10 +88,15 @@ export function DeadlinesTab({ deadlines, projects, users, onSaved }: DeadlinesT
                 </p>
                 <div className="flex items-center justify-between border-t border-line pt-1.5">
                   <span className="text-muted">{lang === 'he' ? 'ימים לסיום:' : 'Days Left:'}</span>
-                  <span className="font-bold" style={{ color: d.daysLeft !== null && d.daysLeft !== undefined && d.daysLeft < 0 ? '#EF4444' : '#10B981' }}>
+                  <span className="font-bold" style={{ color: urgencyColorFor(d.daysLeft) }}>
                     {d.daysLeft !== null && d.daysLeft !== undefined ? `${d.daysLeft} ${lang === 'he' ? 'ימים' : 'days'}` : 'N/A'}
                   </span>
                 </div>
+                {formatDueDate(d.dueDate, lang) && (
+                  <p className="text-muted">
+                    {lang === 'he' ? 'תאריך יעד:' : 'Due date:'} <span className="font-medium text-ink">{formatDueDate(d.dueDate, lang)}</span>
+                  </p>
+                )}
                 {d.class && (
                   <p className="border-t border-line pt-1.5 text-muted">
                     {lang === 'he' ? 'קבוצה:' : 'Class:'} <span className="font-medium text-ink">{d.class}</span>

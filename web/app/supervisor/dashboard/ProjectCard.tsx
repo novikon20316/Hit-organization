@@ -21,6 +21,16 @@ const URGENCY_COLOR: Record<'green' | 'orange' | 'red', string> = {
   red: '#A8433A',
 };
 
+// Same "d MMM yyyy" convention as ProjectWorkflowSection.tsx's
+// formatShortDate — kept local since this is the only literal-date spot on
+// the collapsed card (the rest of the card only ever showed a countdown).
+function formatDueDate(iso: string | null | undefined, lang: 'he' | 'en'): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 const PROJECT_STATUS_LABEL: Record<string, { he: string; en: string }> = {
   active: { he: 'פעיל', en: 'Active' },
   in_progress: { he: 'בתהליך', en: 'In Progress' },
@@ -75,6 +85,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
 
   const urgency = p.currentMilestone?.urgency ?? null;
   const urgencyColor = urgency ? URGENCY_COLOR[urgency] : 'transparent';
+  const dueDateLabel = formatDueDate(p.currentMilestone?.dueDate, lang);
 
   return (
     <div className="rounded-[12px] p-1" style={{ border: `2px solid ${urgencyColor}` }}>
@@ -135,16 +146,22 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
       {p.currentMilestone && (
         <p className="mt-1.5 text-xs font-medium" style={{ color: urgencyColor }}>
           🗓 {lang === 'he' ? p.currentMilestone.nameHe : p.currentMilestone.nameEn}
-          {p.currentMilestone.daysLeft !== null &&
-            ` — ${
-              p.currentMilestone.daysLeft < 0
-                ? lang === 'he'
-                  ? `באיחור של ${Math.abs(p.currentMilestone.daysLeft)} ימים`
-                  : `${Math.abs(p.currentMilestone.daysLeft)}d overdue`
-                : lang === 'he'
-                  ? `${p.currentMilestone.daysLeft} ימים נותרו`
-                  : `${p.currentMilestone.daysLeft}d left`
-            }`}
+          {p.currentMilestone.daysLeft !== null && (
+            <>
+              {' — '}
+              {/* Bolded per request — the countdown is the number staff act
+                  on; the literal date alongside it is secondary context.
+                  daysLeft is already negative once overdue (see
+                  supervisorController.ts), so it prints its own minus sign
+                  instead of needing a separate "overdue" phrasing. */}
+              <span className="font-bold">
+                {lang === 'he'
+                  ? `${p.currentMilestone.daysLeft} ${Math.abs(p.currentMilestone.daysLeft) === 1 ? 'יום' : 'ימים'} עד תאריך היעד`
+                  : `${p.currentMilestone.daysLeft} day${Math.abs(p.currentMilestone.daysLeft) === 1 ? '' : 's'} until due date`}
+              </span>
+            </>
+          )}
+          {dueDateLabel && ` (📅 ${dueDateLabel})`}
         </p>
       )}
 
