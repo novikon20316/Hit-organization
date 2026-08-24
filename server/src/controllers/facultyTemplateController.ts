@@ -17,6 +17,7 @@ import admin from 'firebase-admin';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { effectiveFacultyIds } from '../services/scopeAuthorization.js';
 
 const db = admin.firestore();
 
@@ -317,11 +318,14 @@ export const approveTemplateProposal = async (req: AuthenticatedRequest, res: Re
   }
 
   try {
-    // Only faculty admins and system admins may approve proposals
+    // Faculty admins, system admins, and program_head (scoped to their own
+    // faculty below — see program_head/dashboard/page.tsx's Approvals tab)
+    // may approve proposals.
     const userSnap = await db.collection('users').doc(uid).get();
-    const callerRole: string = userSnap.data()?.role ?? '';
+    const userData = userSnap.data() ?? {};
+    const callerRole: string = userData.role ?? '';
 
-    if (!['faculty_admin', 'system_admin'].includes(callerRole)) {
+    if (!['faculty_admin', 'system_admin', 'program_head'].includes(callerRole)) {
       return res.status(403).json({ message: 'Forbidden: only faculty admins can approve proposals.' });
     }
 
@@ -333,6 +337,17 @@ export const approveTemplateProposal = async (req: AuthenticatedRequest, res: Re
     }
 
     const templateData = templateSnap.data()!;
+
+    // program_head's authority is scoped to their own faculty/program — the
+    // same effectiveFacultyIds set programHeadController.ts's dashboard
+    // already filters its pendingApprovals by. faculty_admin/system_admin
+    // keep this endpoint's existing behavior (not scoped by facultyId here).
+    if (callerRole === 'program_head') {
+      const facultyIds = effectiveFacultyIds(userData, 'programHeadFacultyIds');
+      if (facultyIds !== 'all' && !facultyIds.includes(templateData.facultyId)) {
+        return res.status(403).json({ message: 'This template is outside your assigned faculty.' });
+      }
+    }
 
     if (templateData.status !== 'pending') {
       return res.status(400).json({ message: `Proposal is already "${templateData.status}".` });
@@ -413,9 +428,10 @@ export const rejectTemplateProposal = async (req: AuthenticatedRequest, res: Res
 
   try {
     const userSnap = await db.collection('users').doc(uid).get();
-    const callerRole: string = userSnap.data()?.role ?? '';
+    const userData = userSnap.data() ?? {};
+    const callerRole: string = userData.role ?? '';
 
-    if (!['faculty_admin', 'system_admin'].includes(callerRole)) {
+    if (!['faculty_admin', 'system_admin', 'program_head'].includes(callerRole)) {
       return res.status(403).json({ message: 'Forbidden: only faculty admins can reject proposals.' });
     }
 
@@ -427,6 +443,14 @@ export const rejectTemplateProposal = async (req: AuthenticatedRequest, res: Res
     }
 
     const templateData = templateSnap.data()!;
+
+    // Same program_head faculty scoping as approveTemplateProposal above.
+    if (callerRole === 'program_head') {
+      const facultyIds = effectiveFacultyIds(userData, 'programHeadFacultyIds');
+      if (facultyIds !== 'all' && !facultyIds.includes(templateData.facultyId)) {
+        return res.status(403).json({ message: 'This template is outside your assigned faculty.' });
+      }
+    }
 
     if (templateData.status !== 'pending') {
       return res.status(400).json({ message: `Proposal is already "${templateData.status}".` });

@@ -95,6 +95,19 @@ export default function ProgramHeadDashboard() {
   const [filterOverdue, setFilterOverdue]   = useState(false);
   const [filterTrack, setFilterTrack]       = useState<'all' | 'thesis' | 'masters_project'>('all');
 
+  // Approvals tab — same approve/reject pattern as grad_school_head's own
+  // dashboard. Server-side, program_head is now allowed onto the same
+  // first-tier examiner-recommendation/template-proposal approval endpoints
+  // coordinator/faculty_admin already use — this dashboard's own
+  // pendingApprovals only ever contains 'examiners' and 'template' items
+  // (programHeadController.ts), so those are the only two types handled.
+  // Examiner rejection needs no reason (same endpoint web/coordinator use
+  // with none); template rejection does (rejectTemplateProposal 400s
+  // without one).
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [templateRejectTargetId, setTemplateRejectTargetId] = useState<string | null>(null);
+  const [templateRejectReason, setTemplateRejectReason] = useState('');
+
   const uid = auth.currentUser?.uid;
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -139,6 +152,73 @@ export default function ProgramHeadDashboard() {
     if (canCreateOwnProject) fetchMyProjects();
   }, [fetchData, fetchStaff, canCreateOwnProject, fetchMyProjects]);
   const onRefresh = () => { setRefreshing(true); fetchData(); fetchStaff(); if (canCreateOwnProject) fetchMyProjects(); };
+
+  // See server/src/controllers/coordinatorController.ts's
+  // approveExaminerRecommendation/rejectExaminerRecommendation.
+  const handleApproveExaminers = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/coordinator/examiner-recommendations/${item.id}/approve`);
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'אישור רשימת הבוחנים נכשל' : 'Failed to approve the examiner list'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectExaminers = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/coordinator/examiner-recommendations/${item.id}/reject`);
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'דחיית רשימת הבוחנים נכשלה' : 'Failed to reject the examiner list'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  // See server/src/controllers/facultyTemplateController.ts's
+  // approveTemplateProposal/rejectTemplateProposal.
+  const handleApproveTemplate = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/faculty-templates/proposals/${item.id}/approve`);
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'אישור התבנית נכשל' : 'Failed to approve the template'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectTemplate = async (item: PendingApproval) => {
+    if (!templateRejectReason.trim()) return;
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/faculty-templates/proposals/${item.id}/reject`, { reason: templateRejectReason.trim() });
+      setTemplateRejectTargetId(null);
+      setTemplateRejectReason('');
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'דחיית התבנית נכשלה' : 'Failed to reject the template'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   // ── Filter students ────────────────────────────────────────────────────────
   const filteredStudents = (data?.students ?? []).filter(s => {
@@ -320,17 +400,83 @@ export default function ProgramHeadDashboard() {
               data!.pendingApprovals.map(item => (
                 <View key={item.id} style={[s.card, { borderLeftColor: '#F59E0B' }]}>
                   <Text style={s.cardTitle}>{item.studentName}</Text>
-                  <Text style={[s.cardSub, { fontWeight: '600', color: '#92400E' }]}>{item.type}</Text>
+                  <Text style={[s.cardSub, { fontWeight: '600', color: '#92400E' }]}>
+                    {item.type === 'examiners'
+                      ? (lang === 'he' ? 'אישור בוחנים' : 'Examiner Approval')
+                      : item.type === 'template'
+                        ? (lang === 'he' ? 'אישור תבנית פקולטית' : 'Faculty Template')
+                        : item.type}
+                  </Text>
                   <Text style={s.cardSub}>{item.description}</Text>
                   <Text style={s.cardDate}>{item.submittedAt}</Text>
-                  <View style={s.actionRow}>
-                    <Pressable style={s.btnApprove}>
-                      <Text style={s.btnApproveText}>✅ {tx('approve', lang)}</Text>
-                    </Pressable>
-                    <Pressable style={s.btnReturn}>
-                      <Text style={s.btnReturnText}>↩ {tx('returnForRevision', lang)}</Text>
-                    </Pressable>
-                  </View>
+                  {item.type === 'examiners' ? (
+                    <View style={s.actionRow}>
+                      <Pressable
+                        style={s.btnReturn}
+                        onPress={() => handleRejectExaminers(item)}
+                        disabled={approvingId === item.id}
+                      >
+                        <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
+                        onPress={() => handleApproveExaminers(item)}
+                        disabled={approvingId === item.id}
+                      >
+                        <Text style={s.btnApproveText}>
+                          {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : item.type === 'template' ? (
+                    templateRejectTargetId === item.id ? (
+                      <View style={{ marginTop: 10 }}>
+                        <TextInput
+                          value={templateRejectReason}
+                          onChangeText={setTemplateRejectReason}
+                          placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
+                          multiline
+                          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                          <Pressable
+                            style={[s.btnReturn, { flex: 1, backgroundColor: templateRejectReason.trim() ? '#EF4444' : '#FCA5A5' }]}
+                            onPress={() => handleRejectTemplate(item)}
+                            disabled={!templateRejectReason.trim() || approvingId === item.id}
+                          >
+                            <Text style={[s.btnReturnText, { color: '#fff' }]}>
+                              {lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[s.btnReturn, { flex: 1 }]}
+                            onPress={() => { setTemplateRejectTargetId(null); setTemplateRejectReason(''); }}
+                          >
+                            <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={s.actionRow}>
+                        <Pressable
+                          style={s.btnReturn}
+                          onPress={() => setTemplateRejectTargetId(item.id)}
+                          disabled={approvingId === item.id}
+                        >
+                          <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
+                          onPress={() => handleApproveTemplate(item)}
+                          disabled={approvingId === item.id}
+                        >
+                          <Text style={s.btnApproveText}>
+                            {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )
+                  ) : null}
                 </View>
               ))
             )}

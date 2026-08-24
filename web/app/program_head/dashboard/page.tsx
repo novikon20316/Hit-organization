@@ -1,12 +1,14 @@
 'use client';
 
 // app/program_head/dashboard/page.tsx
-// Ported from mobile/app/program_head/program_head_dashboard.tsx. The whole
-// screen is backed by a single read-only endpoint (GET /api/program-head/:uid/dashboard) —
-// there's no approve/return/write endpoint anywhere in programHeadController.ts,
-// and mobile's own Approve/Return buttons on the Approvals tab have no
-// onPress at all. So this is a faithful, complete port: nothing is missing
-// relative to mobile, since mobile itself only ever displays this data.
+// Ported from mobile/app/program_head/program_head_dashboard.tsx. The
+// dashboard data itself still comes from one read-only endpoint (GET
+// /api/program-head/:uid/dashboard), but the Approvals tab's two real item
+// types ('examiners', 'template') now actually act — program_head was added
+// to the same first-tier approveExaminerRecommendation/approveTemplateProposal
+// endpoints coordinator/faculty_admin already use (coordinatorController.ts,
+// facultyTemplateController.ts) instead of staying a read-only display with
+// no onPress at all, as it was on mobile.
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -59,6 +61,14 @@ interface PendingApproval {
   submittedAt: string;
 }
 
+// The only two types getProgramHeadDashboard's pendingApprovals ever
+// contains (programHeadController.ts) — mirrors grad_school_head/
+// dashboard/page.tsx's own APPROVAL_TYPE_LABEL, restricted to these two.
+const APPROVAL_TYPE_LABEL: Record<string, { he: string; en: string }> = {
+  examiners: { he: 'אישור בוחנים', en: 'Examiner Approval' },
+  template: { he: 'אישור תבנית פקולטית', en: 'Faculty Template' },
+};
+
 interface SupervisorLoad {
   supervisorName: string;
   supervisorEmail: string;
@@ -97,6 +107,22 @@ function ProgramHeadDashboardContent() {
   const [staff, setStaff] = useState<AdminUserRecord[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
+
+  // Approvals tab. Server-side, program_head is now allowed onto the same
+  // first-tier approveExaminerRecommendation/approveTemplateProposal
+  // endpoints coordinator/faculty_admin already use (see
+  // coordinatorController.ts and facultyTemplateController.ts) — this
+  // dashboard's own pendingApprovals only ever surfaces 'examiners' and
+  // 'template' items (programHeadController.ts), so those are the only two
+  // types handled below. Examiner rejection needs no reason — same
+  // no-reason convention coordinator/home/RecommendationCard.tsx's own
+  // reject button already uses for this exact endpoint; template rejection
+  // does require one (rejectTemplateProposal 400s without it), so that one
+  // gets the reason-input step grad_school_head/dashboard/page.tsx already
+  // established for its own reject-with-reason flows.
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [templateRejectTargetId, setTemplateRejectTargetId] = useState<string | null>(null);
+  const [templateRejectReason, setTemplateRejectReason] = useState('');
 
   const [search, setSearch] = useState('');
   const [filterOverdue, setFilterOverdue] = useState(false);
@@ -148,6 +174,57 @@ function ProgramHeadDashboardContent() {
       setLoadingData(false);
     }
   }, [firebaseUser, lang]);
+
+  const handleApproveExaminers = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.approveExaminerRecommendation(item.id);
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'אישור רשימת הבוחנים נכשל' : 'Failed to approve the examiner list');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectExaminers = async (id: string) => {
+    setApprovingId(id);
+    try {
+      await apiClient.rejectExaminerRecommendation(id);
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'דחיית רשימת הבוחנים נכשלה' : 'Failed to reject the examiner list');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleApproveTemplate = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.approveTemplateProposal(item.id);
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'אישור התבנית נכשל' : 'Failed to approve the template');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectTemplate = async (id: string) => {
+    if (!templateRejectReason.trim()) return;
+    setApprovingId(id);
+    try {
+      await apiClient.rejectTemplateProposal(id, templateRejectReason.trim());
+      setTemplateRejectTargetId(null);
+      setTemplateRejectReason('');
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'דחיית התבנית נכשלה' : 'Failed to reject the template');
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   // Own-faculty staff this role can now manage directly (see
   // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — a
@@ -352,11 +429,61 @@ function ProgramHeadDashboardContent() {
           {approvals.map((item) => (
             <div key={item.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
               <p className="text-sm font-semibold text-ink">{item.studentName}</p>
-              <p className="mt-0.5 text-xs font-semibold text-accent">{item.type}</p>
+              <p className="mt-0.5 text-xs font-semibold text-accent">{APPROVAL_TYPE_LABEL[item.type]?.[lang] ?? item.type}</p>
               <p className="mt-0.5 text-xs text-muted">{item.description}</p>
               {item.submittedAt && (
                 <p className="mt-1 text-xs text-muted">{new Date(item.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>
               )}
+
+              {item.type === 'examiners' ? (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleRejectExaminers(item.id)}
+                    disabled={approvingId === item.id}
+                    className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger disabled:opacity-60"
+                  >
+                    {lang === 'he' ? 'דחה' : 'Reject'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApproveExaminers(item)}
+                    disabled={approvingId === item.id}
+                    className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                  </button>
+                </div>
+              ) : item.type === 'template' ? (
+                <>
+                  {templateRejectTargetId === item.id && (
+                    <input
+                      value={templateRejectReason}
+                      onChange={(e) => setTemplateRejectReason(e.target.value)}
+                      placeholder={lang === 'he' ? 'סיבת הדחייה' : 'Rejection reason'}
+                      className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                    />
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => (templateRejectTargetId === item.id ? handleRejectTemplate(item.id) : setTemplateRejectTargetId(item.id))}
+                      disabled={approvingId === item.id}
+                      className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger disabled:opacity-60"
+                    >
+                      {templateRejectTargetId === item.id ? (lang === 'he' ? 'שלח דחייה' : 'Submit rejection') : (lang === 'he' ? 'דחה' : 'Reject')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApproveTemplate(item)}
+                      disabled={approvingId === item.id}
+                      className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                    >
+                      {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                    </button>
+                  </div>
+                </>
+              ) : null}
             </div>
           ))}
           {approvals.length === 0 && <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין פריטים ממתינים' : 'Nothing pending'}</p>}

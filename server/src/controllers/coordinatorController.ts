@@ -50,6 +50,15 @@ interface ProjectDocument {
 // reach them with just a valid login token.
 const COORDINATOR_ROLES = ['coordinator', 'administrative_secretary', 'system_admin'];
 
+// approveExaminerRecommendation/rejectExaminerRecommendation only — a
+// program_head's own dashboard (program_head/dashboard/page.tsx's
+// Approvals tab) surfaces the exact same pending examinerRecommendations
+// its own masters students generate, but had no endpoint that could act on
+// them (it was display-only). Scoped to just these two functions rather
+// than widened into COORDINATOR_ROLES itself, which gates several other
+// coordinator-only actions a program_head has no business reaching.
+const EXAMINER_RECOMMENDATION_APPROVAL_ROLES = [...COORDINATOR_ROLES, 'program_head'];
+
 /**
  * POST /api/coordinator/projects/:projectId/assign-examiners
  * Body: { examiners: ExaminerAssignmentInput[], milestoneId?: string, studentIds?: string[] }
@@ -273,7 +282,7 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
   const { id } = req.params;
   const coordinatorId = req.user?.uid;
   if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user?.role || !EXAMINER_RECOMMENDATION_APPROVAL_ROLES.includes(req.user.role)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
@@ -383,7 +392,7 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
   const { id } = req.params;
   const coordinatorId = req.user?.uid;
   if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user?.role || !EXAMINER_RECOMMENDATION_APPROVAL_ROLES.includes(req.user.role)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
