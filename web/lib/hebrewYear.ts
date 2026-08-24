@@ -81,3 +81,30 @@ export function academicYearToHebrew(academicYear: string | null | undefined): s
 
   return withPunctuation(letters);
 }
+
+/**
+ * The Hebrew-calendar year letters (e.g. "תשפ״ו") current as of
+ * `referenceDate` (defaults to now) — for use as a fallback wherever a
+ * record has no explicit academicYear at all.
+ *
+ * Unlike academicYearToHebrew above (a fixed +3761 offset on an already-known
+ * start year, which is exact), "what Hebrew year is it right now" genuinely
+ * depends on whether Rosh Hashanah has occurred yet — and Rosh Hashanah's
+ * Gregorian date moves around within Sept/Oct each year (it's set by the
+ * molad of Tishrei plus the four dechiyot postponement rules), so a fixed
+ * "September = new year" cutoff would be wrong in the ~2-3 week stretch each
+ * year where the real Rosh Hashanah hasn't happened yet. Delegating to the
+ * platform's ICU Hebrew calendar (via Intl's 'hebrew' calendar extension —
+ * supported in every evergreen browser and in Node) gets that transition
+ * exactly right without reimplementing molad/dechiyot arithmetic by hand.
+ */
+export function currentHebrewYear(referenceDate: Date = new Date()): string | null {
+  const yearPart = new Intl.DateTimeFormat('en-u-ca-hebrew', { year: 'numeric' })
+    .formatToParts(referenceDate)
+    .find((p) => p.type === 'year')?.value;
+  const hebrewYear = yearPart ? parseInt(yearPart, 10) : NaN;
+  if (!Number.isFinite(hebrewYear)) return null;
+
+  const letters = numberToHebrewLetters(hebrewYear % 1000);
+  return letters ? withPunctuation(letters) : null;
+}

@@ -58,6 +58,50 @@ function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
   return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
 }
 
+function isMilestoneDone(status: string): boolean {
+  return status === 'coordinator_approved' || status === 'completed';
+}
+
+// Compact per-student stepper shown right next to the student's name on the
+// project card, so a group with several students each gets its own at-a-
+// glance progress readout without opening the "Grades" section below.
+// Mirrors the circle-stepper styling in coordinator/home/InProgressTab.tsx
+// (done = filled green check, current = filled status color, future =
+// outlined) just shrunk down and without the per-milestone cards.
+function MilestoneMiniProgress({ milestones, lang }: { milestones: MemberMilestoneGrade[]; lang: 'he' | 'en' }) {
+  if (milestones.length === 0) {
+    return <span className="shrink-0 text-[10px] text-muted">{lang === 'he' ? 'אין אבני דרך' : 'No milestones'}</span>;
+  }
+  const firstIncompleteIdx = milestones.findIndex((m) => !isMilestoneDone(m.status));
+  const tooltip = milestones.map((m) => `${MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}: ${gradeStatusLabel(m, lang)}`).join(' | ');
+  return (
+    <div className="flex shrink-0 items-center" title={tooltip}>
+      {milestones.map((m, idx) => {
+        const done = isMilestoneDone(m.status);
+        const isCurrent = !done && firstIncompleteIdx !== -1 && idx === firstIncompleteIdx;
+        const isFuture = !done && !isCurrent;
+        const color = done ? '#10B981' : gradeStatusColor(m);
+        return (
+          <span key={idx} className="flex items-center">
+            <span
+              className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold ${isFuture ? 'border-2 bg-surface' : 'text-white'}`}
+              style={isFuture ? { borderColor: color, color } : { backgroundColor: color }}
+            >
+              {done ? '✓' : ''}
+            </span>
+            {idx < milestones.length - 1 && (
+              <span
+                className="h-px w-2"
+                style={{ backgroundColor: firstIncompleteIdx === -1 || idx < firstIncompleteIdx ? '#10B981' : '#D8DCE6' }}
+              />
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function AdministrativeCoordinatorDashboardContent() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_COORDINATOR_ROLES);
   const { firebaseUser, activeRole } = useAuth();
@@ -323,24 +367,23 @@ function AdministrativeCoordinatorDashboardContent() {
                   {group.isOverdue && <span className="shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-medium text-danger">⚠️ {t('overdue')}</span>}
                 </div>
                 <p className="mt-1 text-xs text-muted">👨‍🏫 {group.supervisorName}</p>
-                <p className="mt-0.5 text-xs text-muted">
-                  👥{' '}
-                  {group.members.map((m, i) => (
-                    <span key={m.uid}>
-                      {i > 0 && ' · '}
+                <div className="mt-1 grid gap-1">
+                  {group.members.map((m) => (
+                    <div key={m.uid} className="flex items-center justify-between gap-2">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setContactMember({ name: m.name, email: m.email, phoneNumber: m.phoneNumber });
                         }}
-                        className="underline hover:text-primary"
+                        className="truncate text-xs text-muted underline hover:text-primary"
                       >
-                        {m.name}
+                        👤 {m.name}
                       </button>
-                    </span>
+                      <MilestoneMiniProgress milestones={m.milestones} lang={lang} />
+                    </div>
                   ))}
-                </p>
+                </div>
 
                 <div className="mt-2 flex items-center justify-between">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${group.trackType === 'bachelor_project' ? 'bg-[#E9F0F5] text-[#3E6C8C]' : 'bg-[#EFEBF6] text-[#6E5A99]'}`}>

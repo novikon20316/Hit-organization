@@ -18,7 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
-import { academicYearToHebrew } from '@/lib/hebrewYear';
+import { academicYearToHebrew, currentHebrewYear } from '@/lib/hebrewYear';
 import type { AppRole } from '@/lib/roles';
 import { majorCellText } from '../../StudentsReportTab';
 
@@ -59,8 +59,15 @@ function statusLabel(status: string, lang: 'he' | 'en'): string {
   return MILESTONE_STATUS_LABEL[status]?.[lang] ?? status;
 }
 
-function academicYearLabel(academicYear: string | null): string {
-  if (!academicYear) return '—';
+// Falls back to today's real current Hebrew year (Rosh-Hashanah-accurate,
+// not a rough "September" guess — see currentHebrewYear's comment) when the
+// project has no academicYear recorded at all, which happens often since
+// most project-creation paths don't reliably set that field.
+function academicYearLabel(academicYear: string | null, lang: 'he' | 'en'): string {
+  if (!academicYear) {
+    const current = currentHebrewYear();
+    return current ? `${current} (${lang === 'he' ? 'משוער לפי השנה הנוכחית' : 'estimated from the current year'})` : '—';
+  }
   const hebrew = academicYearToHebrew(academicYear);
   return hebrew ? `${hebrew} (${academicYear})` : academicYear;
 }
@@ -305,7 +312,7 @@ export default function StudentDetailPage() {
                 <p className="mt-1 text-sm text-ink">{lang === 'he' ? project.titleHe : project.titleEn}</p>
                 <p className="mt-1 text-xs text-muted">👨‍🏫 {project.supervisorName || (lang === 'he' ? 'ללא מנחה' : 'No supervisor')}</p>
                 <p className="mt-1 text-xs text-muted">
-                  📆 {lang === 'he' ? 'שנת לימודים (תחילת הפרויקט):' : 'Study year (project start):'} {academicYearLabel(project.academicYear)}
+                  📆 {lang === 'he' ? 'שנת לימודים (תחילת הפרויקט):' : 'Study year (project start):'} {academicYearLabel(project.academicYear, lang)}
                 </p>
               </>
             ) : (
