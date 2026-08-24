@@ -168,6 +168,25 @@ export async function resolveProjectScope(projectId: string | undefined | null):
   };
 }
 
+// Some accounts only ever got the singular `role` field set — created
+// before `roles` existed, or never re-saved through the Edit User modal
+// (the only place that backfills `roles`, and only on save — see
+// adminController.ts's updateUserRoleAdmin). Querying `roles` alone
+// silently drops them from every fan-out this file drives: milestone
+// notifications, signoffs, defense scheduling, examiner escalation, etc.
+// Same role/roles combination staffController.ts's getDeadLines already
+// does defensively — just as two queries here since Firestore can't OR
+// across two different fields in one query.
+async function usersWithRole(role: string): Promise<FirebaseFirestore.QueryDocumentSnapshot[]> {
+  const [byRoles, byRole] = await Promise.all([
+    db.collection('users').where('roles', 'array-contains', role).get(),
+    db.collection('users').where('role', '==', role).get(),
+  ]);
+  const byId = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  [...byRoles.docs, ...byRole.docs].forEach((doc) => byId.set(doc.id, doc));
+  return [...byId.values()];
+}
+
 /** Resolves an abstract chain role (see workflowTemplates.ts's ChainRole) to
  *  concrete candidate uids for a resource scope — "any one suffices"
  *  semantics, matching the existing convention of fanning out to every match
@@ -191,8 +210,8 @@ export async function resolveStaffForScope(
 
   const uids = new Set<string>();
 
-  const roleSnap = await db.collection('users').where('roles', 'array-contains', role).get();
-  roleSnap.docs.forEach((doc) => {
+  const roleDocs = await usersWithRole(role);
+  roleDocs.forEach((doc) => {
     const data = doc.data();
     const descriptor: ScopeDescriptor = { facultyId: data.facultyId ?? '' };
     const coordinatorScopes: ScopeDescriptor[] = data.coordinatorScopes ?? [];
@@ -203,8 +222,8 @@ export async function resolveStaffForScope(
 
   // system_admin always included, matching the isSystemAdmin() bypass
   // convention used by every other function in this file.
-  const adminSnap = await db.collection('users').where('roles', 'array-contains', 'system_admin').get();
-  adminSnap.docs.forEach((doc) => uids.add(doc.id));
+  const adminDocs = await usersWithRole('system_admin');
+  adminDocs.forEach((doc) => uids.add(doc.id));
 
   return [...uids];
 }
