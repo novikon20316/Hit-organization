@@ -2,12 +2,14 @@
 
 // app/grad_school_head/dashboard/page.tsx
 // Ported from mobile/app/grad_school_head/grad_school_head_dashboard.tsx.
-// Only the final_grade approval type has a real endpoint
-// (POST /api/grad-school-head/milestones/:id/approve-grade); the other five
-// approval types (supervisor/proposal/thesis/examiners/template) route to
-// /admin/panel on mobile with params that screen never reads, and that page
-// is system_admin-gated anyway — so those Approve/Return buttons are shown
-// as informational only here rather than as dead links.
+// final_grade, examiners, and template all have real endpoints now
+// (POST /api/grad-school-head/milestones/:id/approve-grade,
+// .../examiner-recommendations/:id/approve, and facultyTemplateController.ts's
+// approveTemplateProposal, which grad_school_head was added to). The
+// remaining three types — supervisor/proposal/thesis — have no schema or
+// status of their own anywhere in the backend (getGradSchoolHeadDashboard
+// never actually produces one), so those Approve/Return buttons stay
+// informational only rather than as dead links, same as before.
 //
 // useSearchParams() forces this static route into client-side rendering at
 // the Suspense boundary during prerendering (Next.js requirement) — wrapped
@@ -138,6 +140,8 @@ function GradSchoolHeadDashboardContent() {
   const [examinerRejectReason, setExaminerRejectReason] = useState('');
   const [finalGradeRejectTargetId, setFinalGradeRejectTargetId] = useState<string | null>(null);
   const [finalGradeRejectReason, setFinalGradeRejectReason] = useState('');
+  const [templateRejectTargetId, setTemplateRejectTargetId] = useState<string | null>(null);
+  const [templateRejectReason, setTemplateRejectReason] = useState('');
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -226,6 +230,38 @@ function GradSchoolHeadDashboardContent() {
       await fetchDashboard();
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'דחיית רשימת הבוחנים נכשלה' : 'Failed to reject the examiner list');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  // 'template' has real backing data (facultyTemplates docs, pending
+  // status) and a real endpoint (facultyTemplateController.ts's
+  // approveTemplateProposal/rejectTemplateProposal, which grad_school_head
+  // was just added to) — unlike supervisor/proposal/thesis, which have no
+  // schema of their own and stay informational-only below.
+  const handleApproveTemplate = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.approveTemplateProposal(item.id);
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'אישור התבנית נכשל' : 'Failed to approve the template');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectTemplate = async (id: string) => {
+    if (!templateRejectReason.trim()) return;
+    setApprovingId(id);
+    try {
+      await apiClient.rejectTemplateProposal(id, templateRejectReason.trim());
+      setTemplateRejectTargetId(null);
+      setTemplateRejectReason('');
+      await fetchDashboard();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'דחיית התבנית נכשלה' : 'Failed to reject the template');
     } finally {
       setApprovingId(null);
     }
@@ -348,6 +384,35 @@ function GradSchoolHeadDashboardContent() {
                     <button
                       type="button"
                       onClick={() => handleApproveExaminers(item)}
+                      disabled={approvingId === item.id}
+                      className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                    >
+                      {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                    </button>
+                  </div>
+                </>
+              ) : item.type === 'template' ? (
+                <>
+                  {templateRejectTargetId === item.id && (
+                    <input
+                      value={templateRejectReason}
+                      onChange={(e) => setTemplateRejectReason(e.target.value)}
+                      placeholder={lang === 'he' ? 'סיבת הדחייה' : 'Rejection reason'}
+                      className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                    />
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => (templateRejectTargetId === item.id ? handleRejectTemplate(item.id) : setTemplateRejectTargetId(item.id))}
+                      disabled={approvingId === item.id}
+                      className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger disabled:opacity-60"
+                    >
+                      {templateRejectTargetId === item.id ? (lang === 'he' ? 'שלח דחייה' : 'Submit rejection') : (lang === 'he' ? 'דחה' : 'Reject')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApproveTemplate(item)}
                       disabled={approvingId === item.id}
                       className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
                     >

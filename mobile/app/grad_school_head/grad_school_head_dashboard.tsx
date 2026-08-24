@@ -129,6 +129,8 @@ export default function GradSchoolHeadDashboard() {
   const [examinerRejectReason, setExaminerRejectReason] = useState('');
   const [finalGradeRejectTargetId, setFinalGradeRejectTargetId] = useState<string | null>(null);
   const [finalGradeRejectReason, setFinalGradeRejectReason] = useState('');
+  const [templateRejectTargetId, setTemplateRejectTargetId] = useState<string | null>(null);
+  const [templateRejectReason, setTemplateRejectReason] = useState('');
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
   // ── Add Project modal state ─────────────────────────────────────────────
@@ -337,6 +339,44 @@ export default function GradSchoolHeadDashboard() {
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         e.response?.data?.message || (lang === 'he' ? 'דחיית רשימת הבוחנים נכשלה' : 'Failed to reject the examiner list'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  // 'template' has real backing data and a real endpoint
+  // (facultyTemplateController.ts's approveTemplateProposal/
+  // rejectTemplateProposal, which grad_school_head was just added to) —
+  // unlike supervisor/proposal/thesis, which have no schema of their own
+  // and stay routed to /admin/panel below.
+  const handleApproveTemplate = async (item: PendingApproval) => {
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/faculty-templates/proposals/${item.id}/approve`);
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'אישור התבנית נכשל' : 'Failed to approve the template'),
+      );
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectTemplate = async (item: PendingApproval) => {
+    if (!templateRejectReason.trim()) return;
+    setApprovingId(item.id);
+    try {
+      await apiClient.post(`/api/faculty-templates/proposals/${item.id}/reject`, { reason: templateRejectReason.trim() });
+      setTemplateRejectTargetId(null);
+      setTemplateRejectReason('');
+      await fetchData();
+    } catch (e: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        e.response?.data?.message || (lang === 'he' ? 'דחיית התבנית נכשלה' : 'Failed to reject the template'),
       );
     } finally {
       setApprovingId(null);
@@ -571,6 +611,54 @@ export default function GradSchoolHeadDashboard() {
                         <Pressable
                           style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
                           onPress={() => handleApproveExaminers(item)}
+                          disabled={approvingId === item.id}
+                        >
+                          <Text style={s.btnApproveText}>
+                            {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )
+                  ) : item.type === 'template' ? (
+                    templateRejectTargetId === item.id ? (
+                      <View style={{ marginTop: 10 }}>
+                        <TextInput
+                          value={templateRejectReason}
+                          onChangeText={setTemplateRejectReason}
+                          placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
+                          multiline
+                          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                          <Pressable
+                            style={[s.btnReturn, { flex: 1, backgroundColor: templateRejectReason.trim() ? '#EF4444' : '#FCA5A5' }]}
+                            onPress={() => handleRejectTemplate(item)}
+                            disabled={!templateRejectReason.trim() || approvingId === item.id}
+                          >
+                            <Text style={[s.btnReturnText, { color: '#fff' }]}>
+                              {lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[s.btnReturn, { flex: 1 }]}
+                            onPress={() => { setTemplateRejectTargetId(null); setTemplateRejectReason(''); }}
+                          >
+                            <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={s.actionRow}>
+                        <Pressable
+                          style={s.btnReturn}
+                          onPress={() => setTemplateRejectTargetId(item.id)}
+                          disabled={approvingId === item.id}
+                        >
+                          <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
+                          onPress={() => handleApproveTemplate(item)}
                           disabled={approvingId === item.id}
                         >
                           <Text style={s.btnApproveText}>
