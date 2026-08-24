@@ -122,6 +122,13 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'students',
       },
       {
+        key: 'programHead',
+        icon: '🧑‍🏫',
+        href: '/program_head/dashboard',
+        label: { he: 'לוח ראש תוכנית', en: 'Program Head Dashboard' },
+        isActive: (pathname) => pathname === '/program_head/dashboard',
+      },
+      {
         key: 'bulkPermissions',
         icon: '🛡️',
         href: '/bulk-permissions',
