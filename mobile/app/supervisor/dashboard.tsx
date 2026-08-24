@@ -1355,7 +1355,16 @@ export default function SupervisorHome() {
                                   style={[styles.docChip, { backgroundColor: milestonePalette.surfaceContainerLow, borderColor: milestonePalette.outlineVariant, borderWidth: 1, maxWidth: 220 }]}
                                   onPress={(e) => {
                                     e.stopPropagation();
-                                    handleOpenDocument(url);
+                                    // Submitted milestone files' Cloudinary URLs carry no
+                                    // file extension, so handing the raw URL to the OS via
+                                    // Linking.openURL (like handleOpenDocument does for CVs/
+                                    // transcripts below) can't be viewed reliably — same web
+                                    // bug just fixed for the supervisor/coordinator dashboards.
+                                    // coordinator/home.tsx and examinor/home.tsx already route
+                                    // milestone files through /pdfViewer instead, which
+                                    // downloads the file locally and re-tags it as a .pdf
+                                    // before opening it — do the same here.
+                                    router.push({ pathname: '/pdfViewer', params: { url } });
                                   }}
                                 >
                                   <Text style={[styles.docChipText, { color: milestonePalette.onSurface }]} numberOfLines={1}>
