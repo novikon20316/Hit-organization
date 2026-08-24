@@ -7,6 +7,7 @@ import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { VALID_MAJORS } from '../config/majors.js';
 import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
+import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 
 const db = admin.firestore();
 
@@ -169,7 +170,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       titleHe:     titleHe ?? '',
       titleEn:     titleEn ?? '',
       fileUrl:     result.secure_url,
-      fileName:    file.originalname,
+      fileName:    fixMulterFilenameEncoding(file.originalname),
       mimeType:    file.mimetype,
       uploadedBy:  uploaderId,
       facultyIds,
@@ -220,7 +221,7 @@ export const updateInfoFile = async (req: AuthenticatedRequest, res: Response) =
       const dataUri = `data:${file.mimetype};base64,${base64}`;
       const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'info-files' });
       update.fileUrl  = result.secure_url;
-      update.fileName = file.originalname;
+      update.fileName = fixMulterFilenameEncoding(file.originalname);
       update.mimeType = file.mimetype;
     }
 

@@ -15,6 +15,7 @@ import { requestExceptionalAction } from '../services/exceptionalActions.js';
 import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser } from '../services/notify.js';
+import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 
 const db = admin.firestore();
 
@@ -45,7 +46,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_MILESTONE_MIME_TYPES.has(file.mimetype)) {
-      cb(new UnsupportedFileTypeError(file.originalname));
+      cb(new UnsupportedFileTypeError(fixMulterFilenameEncoding(file.originalname)));
       return;
     }
     cb(null, true);
@@ -245,7 +246,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     ]);
     const studentName    = studentSnapForNotify.data()?.displayName || 'Unknown student';
     const supervisorName = supervisorSnapForNotify?.data()?.displayName || null;
-    const submittedFileNames = files.map((f) => f.originalname);
+    const submittedFileNames = files.map((f) => fixMulterFilenameEncoding(f.originalname));
 
     const dueDateForNotify: Date | null = milestoneData.dueDate?.toDate?.() ?? null;
     const timingText = { he: '', en: '' };
