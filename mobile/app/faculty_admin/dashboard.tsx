@@ -390,7 +390,7 @@ export default function PanelScreen() {
         <Text style={localStyles.tabLabel}>{lang === 'he' ? 'סגל' : 'Staff'}</Text>
       </Pressable>
       <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('signoffs')}>
-        <Text style={localStyles.tabLabel}>{lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off'}</Text>
+        <Text style={localStyles.tabLabel}>{lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}</Text>
       </Pressable>
       <Pressable
         style={localStyles.tabBar}

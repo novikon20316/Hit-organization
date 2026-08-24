@@ -852,7 +852,7 @@ export default function CoordinatorHome() {
           { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: sortedDefenseCards.length },
           { key: 'milestones', heLabel: 'אבני דרך', enLabel: 'Milestones', badge: 0 },
           { key: 'recommendations', heLabel: 'המלצות בוחנים', enLabel: 'Examiner Recs', badge: examinerRecs.length },
-          { key: 'signoffs', heLabel: 'ממתין לאישורך', enLabel: 'Awaiting Your Sign-off', badge: 0 },
+          { key: 'signoffs', heLabel: 'ממתין לאישור ציונים ובוחנים', enLabel: 'Awaiting Grade/Examiner Approval', badge: 0 },
         ] as const).map((tab) => (
           <Pressable
             key={tab.key}
@@ -897,7 +897,7 @@ export default function CoordinatorHome() {
                   <Text style={apStyles.metricValue}>{inProgressProjects.length}</Text>
                 </View>
                 <View style={apStyles.metricCard}>
-                  <Text style={apStyles.metricLabel}>{lang === 'he' ? 'ממתינים לאישור' : 'Pending Approvals'}</Text>
+                  <Text style={apStyles.metricLabel}>{lang === 'he' ? 'הגשות ממתינות לבדיקה' : 'Submissions Pending Review'}</Text>
                   <Text style={apStyles.metricValue}>{pendingMilestones.length}</Text>
                 </View>
                 <View style={apStyles.metricCard}>

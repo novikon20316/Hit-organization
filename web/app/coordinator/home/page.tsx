@@ -202,7 +202,7 @@ function CoordinatorHomeContent() {
             </Link>
             <Link href="/coordinator/home?tab=pending" className="rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest p-4 transition-colors hover:border-coordinator-primary">
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-coordinator-secondary">
-                {lang === 'he' ? 'ממתינים לאישור' : 'Pending Approvals'}
+                {lang === 'he' ? 'הגשות ממתינות לבדיקה' : 'Submissions Pending Review'}
               </h4>
               <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{pendingMilestones.length}</span>
             </Link>

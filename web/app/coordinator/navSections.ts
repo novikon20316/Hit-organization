@@ -47,7 +47,7 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
           key: 'pending',
           icon: '⏳',
           href: '/coordinator/home?tab=pending',
-          label: { he: 'ממתינים לאישור', en: 'Pending Approval' },
+          label: { he: 'הגשות ממתינות לבדיקה', en: 'Submissions Pending Review' },
           isActive: (pathname, sp) => pathname === '/coordinator/home' && sp.get('tab') === 'pending',
         },
         {
@@ -75,7 +75,7 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
           key: 'signoffs',
           icon: '✅',
           href: '/coordinator/home?tab=signoffs',
-          label: { he: 'ממתין לאישורך', en: 'Awaiting Your Sign-off' },
+          label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' },
           isActive: (pathname, sp) => pathname === '/coordinator/home' && sp.get('tab') === 'signoffs',
         },
         {

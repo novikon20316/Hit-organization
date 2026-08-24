@@ -48,7 +48,7 @@ const NAV_SECTIONS: SidebarSection[] = [
         key: 'signoffs',
         icon: '✅',
         href: '/faculty_admin/dashboard?tab=signoffs',
-        label: { he: 'ממתין לאישורך', en: 'Awaiting Your Sign-off' },
+        label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'signoffs',
       },
       {

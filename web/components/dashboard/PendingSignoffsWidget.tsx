@@ -113,7 +113,7 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
   return (
     <div className="mb-4">
       <h3 className="mb-2 text-sm font-semibold text-ink">
-        ✍️ {lang === 'he' ? 'ממתין לאישורך' : 'Awaiting your sign-off'}
+        ✍️ {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting grade/examiner approval'}
       </h3>
       {error && <p className="mb-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
       <div className="grid gap-3 sm:grid-cols-2">

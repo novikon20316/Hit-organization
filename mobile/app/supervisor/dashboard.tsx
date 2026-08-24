@@ -894,7 +894,7 @@ export default function SupervisorHome() {
           onPress={() => setActiveTab('signoffs')}
         >
           <Text style={[styles.tabText, activeTab === 'signoffs' && styles.tabTextActive]} numberOfLines={1}>
-            {lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off'}
+            {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}
           </Text>
         </Pressable>
         <Pressable

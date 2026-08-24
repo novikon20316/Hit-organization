@@ -1251,7 +1251,7 @@ export default function PanelScreen() {
           },
           {
             key: 'signoffs',
-            label: lang === 'he' ? 'ממתין לאישורך' : 'Awaiting Your Sign-off',
+            label: lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval',
           },
           {
             key: 'archived',

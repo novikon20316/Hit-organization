@@ -106,7 +106,7 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
   return (
     <View style={{ marginBottom: 14 }}>
       <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F1235', marginBottom: 8 }}>
-        ✍️ {lang === 'he' ? 'ממתין לאישורך' : 'Awaiting your sign-off'}
+        ✍️ {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting grade/examiner approval'}
       </Text>
       {!!error && (
         <View style={{ backgroundColor: '#FEE2E2', borderRadius: 8, padding: 10, marginBottom: 8 }}>
