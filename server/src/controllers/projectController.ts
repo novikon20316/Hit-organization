@@ -8,7 +8,8 @@ import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
 import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
-import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches } from '../services/scopeAuthorization.js';
+import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
+import { notifyUser } from '../services/notify.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones } from '../services/workflowTemplates.js';
@@ -840,6 +841,125 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
     });
+
+    // ── Notify supervisor + coordinator/administrative-coordinator staff ───
+    // This mobile-facing route used to send no staff notification at all —
+    // see the web equivalent (controllers/milestoneController.ts's
+    // submitMilestone) for the same enrichment applied there.
+    const supervisorId   = milestoneData.supervisorId ?? null;
+    const projectId      = milestoneData.projectId    ?? null;
+    const milestoneTitle = { he: milestoneData.nameHe ?? milestoneData.type, en: milestoneData.nameEn ?? milestoneData.type };
+    const projectTitle   = { he: milestoneData.projectTitleHe ?? '', en: milestoneData.projectTitleEn ?? '' };
+    const submittedFileCount = Array.isArray(fileUrls) ? fileUrls.length : 0;
+
+    const [studentSnapForNotify, supervisorSnapForNotify] = await Promise.all([
+      db.collection('users').doc(studentId).get(),
+      supervisorId ? db.collection('users').doc(supervisorId).get() : Promise.resolve(null),
+    ]);
+    const studentName    = studentSnapForNotify.data()?.displayName || 'Unknown student';
+    const supervisorName = supervisorSnapForNotify?.data()?.displayName || null;
+
+    const dueDateForNotify: Date | null = milestoneData.dueDate?.toDate?.() ?? null;
+    const timingText = { he: '', en: '' };
+    if (dueDateForNotify) {
+      const diffDays = Math.round((dueDateForNotify.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        timingText.he = `הוגש ${diffDays} ${diffDays === 1 ? 'יום' : 'ימים'} לפני המועד האחרון.`;
+        timingText.en = `Submitted ${diffDays} day${diffDays === 1 ? '' : 's'} before the due date.`;
+      } else if (diffDays < 0) {
+        const lateDays = Math.abs(diffDays);
+        timingText.he = `הוגש באיחור של ${lateDays} ${lateDays === 1 ? 'יום' : 'ימים'}.`;
+        timingText.en = `Submitted ${lateDays} day${lateDays === 1 ? '' : 's'} late.`;
+      } else {
+        timingText.he = 'הוגש ביום המועד האחרון.';
+        timingText.en = 'Submitted on the due date.';
+      }
+    }
+
+    // Unlike the web submit route (multer), files here are already uploaded
+    // by the mobile client before this call — only their URLs arrive in the
+    // body, with no original filename attached, so the file line can only
+    // report how many were attached, not their names.
+    const filesLineHe = submittedFileCount > 0
+      ? `קבצים: ${submittedFileCount} ${submittedFileCount === 1 ? 'קובץ צורף' : 'קבצים צורפו'}`
+      : 'קבצים: לא צורפו קבצים';
+    const filesLineEn = submittedFileCount > 0
+      ? `Files: ${submittedFileCount} file${submittedFileCount === 1 ? '' : 's'} attached`
+      : 'Files: No files attached';
+
+    const staffBody = {
+      he: [
+        `${studentName} הגיש/ה את "${milestoneTitle.he}".`,
+        projectTitle.he ? `פרויקט: ${projectTitle.he}` : null,
+        supervisorName ? `מנחה: ${supervisorName}` : null,
+        timingText.he || null,
+        filesLineHe,
+      ].filter(Boolean).join('\n'),
+      en: [
+        `${studentName} submitted "${milestoneTitle.en}".`,
+        projectTitle.en ? `Project: ${projectTitle.en}` : null,
+        supervisorName ? `Supervisor: ${supervisorName}` : null,
+        timingText.en || null,
+        filesLineEn,
+      ].filter(Boolean).join('\n'),
+    };
+
+    if (supervisorId) {
+      await notifyUser({
+        recipientId: supervisorId,
+        type: 'milestone_submitted',
+        titleHe: 'הגשה חדשה ממתינה לבדיקה 📤',
+        titleEn: 'New Milestone Submission 📤',
+        bodyHe:  `סטודנט הגיש את "${milestoneTitle.he}".`,
+        bodyEn:  `A student submitted "${milestoneTitle.en}".`,
+        relatedProjectId: projectId,
+        relatedMilestoneId: milestoneId,
+        emailData: { milestoneTitle, projectTitle },
+      });
+    }
+
+    const notifyStaffMilestoneSubmitted = async (recipientId: string) => {
+      const recipientData = (await db.collection('users').doc(recipientId).get()).data();
+      const pushToken = recipientData?.expoPushToken ?? null;
+      const lang: 'he' | 'en' = recipientData?.language === 'en' ? 'en' : 'he';
+
+      await db.collection('notifications').add({
+        recipientId,
+        type:               'milestone_submitted',
+        titleHe:            'הגשה חדשה ממתינה לבדיקה 📤',
+        titleEn:            'New Milestone Submission 📤',
+        bodyHe:             staffBody.he,
+        bodyEn:             staffBody.en,
+        isRead:             false,
+        relatedProjectId:   projectId,
+        relatedMilestoneId: milestoneId,
+        createdAt:          admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      if (pushToken) {
+        await fetch('https://exp.host/--/api/v2/push/send', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to:    pushToken,
+            title: lang === 'he' ? 'הגשה חדשה ממתינה לבדיקה 📤' : '📤 New Milestone Submission',
+            body:  lang === 'he' ? staffBody.he : staffBody.en,
+            data:  { projectId, milestoneId },
+          }),
+        });
+      }
+    };
+
+    const projectScope = await resolveProjectScope(projectId);
+    if (projectScope) {
+      const [coordinatorIds, adminCoordinatorIds] = await Promise.all([
+        resolveStaffForScope('coordinator', projectScope, supervisorId ? [supervisorId] : []),
+        resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : []),
+      ]);
+      const staffRecipientIds = [...new Set([...coordinatorIds, ...adminCoordinatorIds])].filter((id) => id !== supervisorId);
+      await Promise.all(staffRecipientIds.map((id) => notifyStaffMilestoneSubmitted(id)));
+    }
+
     return res.status(200).json({ success: true });
   } catch (error) {
     return res.status(500).json({ message: 'Milestone submission failed' });
