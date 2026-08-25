@@ -27,6 +27,7 @@ import { majorsForFaculty, degreeLevelsForFaculty } from '@/lib/permissions';
 import type { FacultyId } from '@/lib/i18n';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
+import { TeamSizeField } from '@/components/TeamSizeField';
 
 interface NewProjectModalProps {
   facultyId: FacultyId;
@@ -179,23 +180,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
             )}
           </label>
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מספר סטודנטים' : 'Number of Students'}</span>
-            <div className="flex gap-1.5">
-              {[1, 2, 3, 4].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => setNumberOfStudents(num)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
-                    numberOfStudents === num ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-          </label>
+          <TeamSizeField value={numberOfStudents} onChange={setNumberOfStudents} lang={lang} />
 
           <div className="grid grid-cols-2 gap-3">
             <div>

@@ -112,6 +112,19 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     if (!studentIds.includes(studentId))
       return res.status(403).json({ message: 'Forbidden.' });
 
+    // Team milestone (more than one owner — see projectEnrollment.ts) — once
+    // any teammate has submitted, lock the rest out until it's rejected
+    // (student-facing revision, reopening for anyone on the team) or fully
+    // approved and the next milestone opens. A solo milestone keeps today's
+    // behavior (a student may resubmit anytime before grading).
+    if (studentIds.length > 1 && milestoneData.status !== 'pending' && milestoneData.status !== 'rejected') {
+      return res.status(409).json({
+        message: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
+        messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+      });
+    }
+
     // Checked before touching Cloudinary at all — no point uploading a file
     // for a submission that's about to be rejected anyway (or, worse,
     // silently accepting a comment-only submission on a milestone that

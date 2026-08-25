@@ -817,6 +817,17 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       return res.status(403).json({ message: 'Forbidden.' });
     }
 
+    // Team milestone — same lock as the web submit route
+    // (milestoneController.ts's submitMilestone): once any teammate has
+    // submitted, block the rest until it's rejected or fully approved.
+    if (studentIds.length > 1 && milestoneData.status !== 'pending' && milestoneData.status !== 'rejected') {
+      return res.status(409).json({
+        message: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
+        messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+      });
+    }
+
     const hasFile = Array.isArray(fileUrls) && fileUrls.length > 0;
     const hasComment = typeof submissionNote === 'string' && submissionNote.trim().length > 0;
     if (!submissionRequirementMet(milestoneData.submissionRequirement, hasFile, hasComment)) {

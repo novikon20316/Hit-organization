@@ -220,6 +220,27 @@ export async function enrollStudentInProject(
     // supervisorId already is.
     const secondarySupervisorId: string | undefined = projectDataForTemplate.secondarySupervisorId;
 
+    // Team projects (maxStudents/NumberOfStudents > 1 — see
+    // config/studentTrack.ts-adjacent web/components/TeamSizeField.tsx) share
+    // ONE milestone doc per type across the whole team instead of each
+    // teammate getting their own separate set — `studentIds` on a milestone
+    // doc has always been an array for exactly this reason (see
+    // milestoneController.ts's submitMilestone ownership check). A student
+    // enrolling into a project that already has milestone docs (i.e. a
+    // teammate got there first) just joins those docs' `studentIds` instead
+    // of creating a duplicate set; only the very first team member to enroll
+    // takes the "create from the template" path below.
+    const existingMilestonesSnap = await transaction.get(
+      db.collection('milestones').where('projectId', '==', projectId)
+    );
+
+    if (!existingMilestonesSnap.empty) {
+      for (const doc of existingMilestonesSnap.docs) {
+        transaction.update(doc.ref, { studentIds: admin.firestore.FieldValue.arrayUnion(studentId) });
+      }
+      return;
+    }
+
     const baseDate = new Date();
     for (const t of milestoneTemplates) {
       const dueDate = resolveMilestoneDueDate(t, baseDate);

@@ -22,6 +22,10 @@ import FacultyCheckboxes from '../FacultyCheckboxes';
 import WorkflowTemplatePreview from '../WorkflowTemplatePreview';
 import type { PrerequisiteSpec } from '../Prerequisites';
 
+// Mirrors web's TeamSizeField.tsx — options offered once "Team Project" is
+// toggled on.
+const TEAM_SIZE_OPTIONS = [2, 3, 4];
+
 // Returns true if the user holds a given role (checks both roles[] and the
 // legacy single role field so old data keeps working)
 function userHasRole(user: AppUser | undefined, role: UserRole): boolean {
@@ -314,23 +318,48 @@ export default function NewProjectModal({
           </>
         )}
 
-        {/* ── Max students ─────────────────────────────────────────────────────── */}
+        {/* ── Team project / number of students ────────────────────────────────── */}
+        {/* Every project defaults to a single student — a team-sized project
+            (more common for bachelor's, uncommon for masters) is an explicit
+            opt-in via this toggle, which reveals the group-size picker below.
+            isTeam is derived from maxStudents itself (no separate state), so
+            it stays correct if the parent resets its form after submit. */}
         <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
-          {lang === "he" ? "מספר סטודנטים" : "Max Students"}
+          {lang === "he" ? "פרויקט קבוצתי" : "Team Project"}
         </Text>
         <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
-          {[1, 2, 3, 4].map((num) => (
-            <Pressable
-              key={num}
-              style={[styles.toggleBtn, maxStudents === num && styles.toggleBtnActive]}
-              onPress={() => setMaxStudents(num)}
-            >
-              <Text style={[styles.toggleText, maxStudents === num && styles.toggleTextActive]}>
-                {num}
-              </Text>
-            </Pressable>
-          ))}
+          <Pressable
+            style={[styles.toggleBtn, maxStudents > 1 && styles.toggleBtnActive]}
+            onPress={() => setMaxStudents(maxStudents > 1 ? 1 : TEAM_SIZE_OPTIONS[0])}
+          >
+            <Text style={[styles.toggleText, maxStudents > 1 && styles.toggleTextActive]}>
+              {maxStudents > 1
+                ? (lang === "he" ? "כן — פרויקט קבוצתי" : "Yes — team project")
+                : (lang === "he" ? "לא — סטודנט אחד" : "No — single student")}
+            </Text>
+          </Pressable>
         </View>
+
+        {maxStudents > 1 && (
+          <>
+            <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
+              {lang === "he" ? "מספר הסטודנטים בקבוצה" : "Students per group"}
+            </Text>
+            <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
+              {TEAM_SIZE_OPTIONS.map((num) => (
+                <Pressable
+                  key={num}
+                  style={[styles.toggleBtn, maxStudents === num && styles.toggleBtnActive]}
+                  onPress={() => setMaxStudents(num)}
+                >
+                  <Text style={[styles.toggleText, maxStudents === num && styles.toggleTextActive]}>
+                    {num}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* ── Degree ───────────────────────────────────────────────────────────── */}
         <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>

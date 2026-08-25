@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { degreeLevelsForFaculty } from '@/lib/permissions';
+import { TeamSizeField } from '@/components/TeamSizeField';
 import type { InProgressProject } from './types';
 
 interface EditProjectModalProps {
@@ -30,7 +31,7 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
   const [descEn, setDescEn] = useState(project.descriptionEn ?? '');
   const [degreeType, setDegreeType] = useState(project.degreeType ?? 'bachelors');
   const [projectType, setProjectType] = useState(project.projectType ?? 'project');
-  const [maxStudents, setMaxStudents] = useState(String(project.maxStudents ?? 1));
+  const [maxStudents, setMaxStudents] = useState(project.maxStudents ?? 1);
   const [skills, setSkills] = useState((project.requiredSkills ?? []).join(', '));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -40,11 +41,6 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
   const handleSave = async () => {
     if (!titleHe.trim() || !titleEn.trim()) {
       setError(lang === 'he' ? 'כותרת הפרויקט (עברית ואנגלית) לא יכולה להיות ריקה' : 'Project title (Hebrew and English) cannot be empty');
-      return;
-    }
-    const parsedMaxStudents = parseInt(maxStudents, 10);
-    if (!Number.isFinite(parsedMaxStudents) || parsedMaxStudents < 1) {
-      setError(lang === 'he' ? 'מספר הסטודנטים חייב להיות מספר חיובי' : 'Student count must be a positive number');
       return;
     }
     setSaving(true);
@@ -61,7 +57,7 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean),
-        maxStudents: parsedMaxStudents,
+        maxStudents,
       });
       onSaved();
       onClose();
@@ -101,7 +97,7 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור באנגלית' : 'English Description'}</span>
             <textarea dir="ltr" rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} className={inputCls} />
           </label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
               <select value={degreeType} onChange={(e) => setDegreeType(e.target.value)} className={inputCls} disabled={degreeOptions.length === 1}>
@@ -116,17 +112,9 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
                 <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>
               </select>
             </label>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מספר סטודנטים' : 'Student Count'}</span>
-              <input
-                type="number"
-                min={1}
-                value={maxStudents}
-                onChange={(e) => setMaxStudents(e.target.value)}
-                className={inputCls}
-              />
-            </label>
           </div>
+
+          <TeamSizeField value={maxStudents} onChange={setMaxStudents} lang={lang} />
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כישורים נדרשים (מופרדים בפסיק)' : 'Required Skills (comma-separated)'}</span>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder="React, Python, ..." />

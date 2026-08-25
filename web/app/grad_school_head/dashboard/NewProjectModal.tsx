@@ -20,6 +20,7 @@ import { FacultyCheckboxes } from '@/components/FacultyCheckboxes';
 import { SupervisorCheckboxes, type SupervisorOption } from '@/components/SupervisorCheckboxes';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
+import { TeamSizeField } from '@/components/TeamSizeField';
 
 interface NewProjectModalProps {
   open: boolean;
@@ -261,22 +262,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
 
           <WorkflowTemplatePreview facultyIds={facultyIds} degreeTypes={degreeTypes} projectTypes={projectTypes} major={major || undefined} />
 
-          <Field label={lang === 'he' ? 'מספר סטודנטים מקסימלי' : 'Max Students'}>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setMaxStudents(n)}
-                  className={`h-9 w-9 rounded-lg border text-sm font-medium ${
-                    maxStudents === n ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </Field>
+          <TeamSizeField value={maxStudents} onChange={setMaxStudents} lang={lang} />
 
           <Field label={lang === 'he' ? 'כישורים נדרשים (מופרד בפסיקים)' : 'Required Skills (comma-separated)'}>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder={lang === 'he' ? 'לדוגמה: Python, React' : 'e.g. Python, React'} />
