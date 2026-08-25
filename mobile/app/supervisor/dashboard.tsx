@@ -130,6 +130,16 @@ function activeGradingFields(m: PendingMilestone | null): ActiveGradingField[] {
   return DEFAULT_GRADING_FIELDS;
 }
 
+// Clamps to [0, max] on every keystroke — mirrors web's identical
+// GradeMilestoneModal.tsx helper — so a supervisor can never type/leave a
+// criterion above its configured max.
+function clampScoreInput(raw: string, max: number): string {
+  if (raw === '') return raw;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  return String(Math.min(Math.max(n, 0), max));
+}
+
 export default function SupervisorHome() {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>('he');
@@ -1563,7 +1573,7 @@ export default function SupervisorHome() {
                   style={styles.input}
                   keyboardType="numeric"
                   value={criteria[field.key]}
-                  onChangeText={(v) => setCriteria({ ...criteria, [field.key]: v })}
+                  onChangeText={(v) => setCriteria({ ...criteria, [field.key]: clampScoreInput(v, field.max) })}
                 />
               </View>
             ))}
@@ -1586,7 +1596,7 @@ export default function SupervisorHome() {
                       placeholder={lang === 'he' ? 'ציון אישי 0–100 (אופציונלי)' : 'Individual score 0–100 (optional)'}
                       placeholderTextColor="#9BA8C0"
                       value={individualScores[sid] ?? ''}
-                      onChangeText={(v) => setIndividualScores({ ...individualScores, [sid]: v })}
+                      onChangeText={(v) => setIndividualScores({ ...individualScores, [sid]: clampScoreInput(v, 100) })}
                     />
                   </View>
                 ))}

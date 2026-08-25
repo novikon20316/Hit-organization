@@ -37,6 +37,11 @@ interface TemplateMilestone {
   dateMode?: 'offset' | 'fixed';
   dueDaysFromStart: number;
   fixedDate?: string;
+  /** The real computed due date for this project (from the actual milestone
+   *  doc, set once at enrollment — see supervisorController.ts's
+   *  getSupervisorProjectDetail) — null only if enrollment hasn't happened
+   *  yet, in which case the day-offset below is the best available info. */
+  dueDate?: string | null;
   requiresExaminers: boolean;
   percentOfFinalGrade?: number;
   staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean }>;
@@ -141,6 +146,16 @@ function formatShortDate(iso: string | null, lang: 'he' | 'en'): string | null {
 }
 
 export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: ProjectWorkflowSectionProps) {
+  // The "Grade" button for an ordinary milestone opens GradeMilestoneModal at
+  // the dashboard-page level (see page.tsx's gradingTarget), not inside this
+  // component — after it submits, the page only refetches its own
+  // dashboard-wide state (myProjects/pendingGrades), which never reaches this
+  // component's own `students` state on its own. `pendingGrades` gets a new
+  // array reference on every such page-level refetch (grading included), so
+  // reusing it as a dependency below — instead of plumbing a dedicated
+  // "refresh me" signal through ProjectCard.tsx — is what makes a just-
+  // submitted grade actually appear here without navigating away and back.
+  const isFirstLoadRef = useRef(true);
   const { lang } = useLanguage();
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -172,8 +187,12 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
     }
   }, []);
 
-  const fetchDetail = useCallback(() => {
-    setLoading(true);
+  // `silent` skips the loading flag — used after a grade/evaluation submit
+  // so the just-graded milestone updates on screen as soon as the response
+  // comes back, instead of the whole section blanking out to "…" and back.
+  // Only the very first load (mount) shows that loading state.
+  const fetchDetail = useCallback((opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     return apiClient
       .getSupervisorProjectDetail(project.id)
       .then((res) => {
@@ -184,12 +203,16 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
       .catch((err) => {
         setError(err instanceof Error ? err.message : (lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load'));
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!opts?.silent) setLoading(false); });
   }, [project.id, lang]);
 
+  const refreshDetailSilently = useCallback(() => fetchDetail({ silent: true }), [fetchDetail]);
+
   useEffect(() => {
-    fetchDetail();
-  }, [fetchDetail]);
+    fetchDetail({ silent: !isFirstLoadRef.current });
+    isFirstLoadRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchDetail, pendingGrades]);
 
   return (
     <div className="mt-3 border-t border-[#c5c5d3] pt-3">
@@ -211,7 +234,9 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                   <span className="shrink-0 whitespace-nowrap text-[#444651]">
                     📅 {m.dateMode === 'fixed'
                       ? (lang === 'he' ? `תאריך קבוע: ${m.fixedDate ?? '—'}` : `Fixed: ${m.fixedDate ?? '—'}`)
-                      : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
+                      : m.dueDate
+                        ? (lang === 'he' ? `תאריך יעד: ${formatShortDate(m.dueDate, lang)}` : `Due: ${formatShortDate(m.dueDate, lang)}`)
+                        : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
                     {m.requiresExaminers ? ` · 👥` : ''}
                   </span>
                 </div>
@@ -422,7 +447,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
           milestoneId={staffRecordFor.milestoneId}
           fields={staffRecordFor.fields ?? []}
           onClose={() => setStaffRecordFor(null)}
-          onSubmitted={fetchDetail}
+          onSubmitted={refreshDetailSilently}
         />
       )}
       {supervisorEvalFor && (
@@ -430,7 +455,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
           milestoneId={supervisorEvalFor.milestoneId}
           components={supervisorEvalFor.components}
           onClose={() => setSupervisorEvalFor(null)}
-          onSubmitted={fetchDetail}
+          onSubmitted={refreshDetailSilently}
         />
       )}
       {finalGradeDecisionFor && (
@@ -438,7 +463,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
           milestoneId={finalGradeDecisionFor.milestoneId}
           autoCalculatedFinalGrade={finalGradeDecisionFor.autoGrade}
           onClose={() => setFinalGradeDecisionFor(null)}
-          onDecided={fetchDetail}
+          onDecided={refreshDetailSilently}
         />
       )}
       {previewFor && (

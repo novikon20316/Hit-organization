@@ -37,6 +37,11 @@ interface TemplateMilestone {
   dateMode?: 'offset' | 'fixed';
   dueDaysFromStart: number;
   fixedDate?: string;
+  /** The real computed due date for this project (from the actual milestone
+   *  doc, set once at enrollment — see supervisorController.ts's
+   *  getSupervisorProjectDetail) — null only if enrollment hasn't happened
+   *  yet, in which case the day-offset below is the best available info. */
+  dueDate?: string | null;
   requiresExaminers: boolean;
   percentOfFinalGrade?: number;
   staffFormFields?: StaffFormField[];
@@ -94,6 +99,14 @@ function isCompletedStatus(status: string): boolean {
   return status === 'coordinator_approved' || status === 'completed';
 }
 
+// Mirrors web's ProjectWorkflowSection.tsx's formatShortDate.
+function formatShortDate(iso: string | null | undefined, lang: Lang): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default function ProjectWorkflowSection({ lang, projectId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -104,8 +117,12 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
 
-  const fetchDetail = useCallback(() => {
-    setLoading(true);
+  // `silent` skips the loading flag — used after an evaluation/decision
+  // submits, so the update lands on screen without the whole section
+  // blanking to a spinner and back. Mirrors web's identical
+  // ProjectWorkflowSection.tsx split.
+  const fetchDetail = useCallback((opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     return apiClient.get(`/api/supervisor/projects/${projectId}/detail`)
       .then((res) => {
         setTemplateMilestones([...(res.data.templateMilestones ?? [])].sort((a: TemplateMilestone, b: TemplateMilestone) => a.order - b.order));
@@ -115,9 +132,11 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
       .catch((e: any) => {
         setError(e.response?.data?.message || (lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load'));
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!opts?.silent) setLoading(false); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, lang]);
+
+  const refreshDetailSilently = useCallback(() => fetchDetail({ silent: true }), [fetchDetail]);
 
   useEffect(() => {
     fetchDetail();
@@ -154,7 +173,9 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
                   <Text style={{ fontSize: 11, color: '#64748B' }}>
                     📅 {m.dateMode === 'fixed'
                       ? (lang === 'he' ? `תאריך קבוע: ${m.fixedDate ?? '—'}` : `Fixed: ${m.fixedDate ?? '—'}`)
-                      : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
+                      : m.dueDate
+                        ? (lang === 'he' ? `תאריך יעד: ${formatShortDate(m.dueDate, lang)}` : `Due: ${formatShortDate(m.dueDate, lang)}`)
+                        : (lang === 'he' ? `יום ${m.dueDaysFromStart}` : `Day ${m.dueDaysFromStart}`)}
                     {m.requiresExaminers ? '  ·  👥' : ''}
                   </Text>
                 </View>
@@ -259,7 +280,7 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
           milestoneId={staffRecordFor.milestoneId}
           fields={staffRecordFor.fields}
           onClose={() => setStaffRecordFor(null)}
-          onSubmitted={fetchDetail}
+          onSubmitted={refreshDetailSilently}
         />
       )}
       {supervisorEvalFor && (
@@ -269,7 +290,7 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
           milestoneId={supervisorEvalFor.milestoneId}
           components={supervisorEvalFor.components}
           onClose={() => setSupervisorEvalFor(null)}
-          onSubmitted={fetchDetail}
+          onSubmitted={refreshDetailSilently}
         />
       )}
       {finalGradeDecisionFor && (
@@ -279,7 +300,7 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
           milestoneId={finalGradeDecisionFor.milestoneId}
           autoCalculatedFinalGrade={finalGradeDecisionFor.autoGrade}
           onClose={() => setFinalGradeDecisionFor(null)}
-          onDecided={fetchDetail}
+          onDecided={refreshDetailSilently}
         />
       )}
     </View>

@@ -26,6 +26,16 @@ interface ActiveGradingField {
   en: string;
 }
 
+// Clamps to [0, max] on every keystroke rather than only at submit time —
+// typing e.g. 20 into a 15-point field lands on 15, so a supervisor can
+// never end up with (or move on with) an out-of-range criterion score.
+function clampScoreInput(raw: string, max: number): string {
+  if (raw === '') return raw;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  return String(Math.min(Math.max(n, 0), max));
+}
+
 export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMilestoneModalProps) {
   const { lang, t } = useLanguage();
 
@@ -125,7 +135,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
                 min={0}
                 max={field.max}
                 value={criteria[field.key]}
-                onChange={(e) => setCriteria({ ...criteria, [field.key]: e.target.value })}
+                onChange={(e) => setCriteria({ ...criteria, [field.key]: clampScoreInput(e.target.value, field.max) })}
                 className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
               />
             </label>
@@ -150,7 +160,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
                     max={100}
                     placeholder={lang === 'he' ? 'ציון אישי 0–100 (אופציונלי)' : 'Individual score 0–100 (optional)'}
                     value={individualScores[studentId] ?? ''}
-                    onChange={(e) => setIndividualScores({ ...individualScores, [studentId]: e.target.value })}
+                    onChange={(e) => setIndividualScores({ ...individualScores, [studentId]: clampScoreInput(e.target.value, 100) })}
                     className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
                   />
                 </label>

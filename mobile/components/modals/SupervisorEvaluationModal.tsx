@@ -15,6 +15,16 @@ import type { Lang } from '../i18n';
 
 type PickedFile = { uri: string; name: string; mimeType?: string };
 
+// Clamps to [0, max] on every keystroke — mirrors web's identical
+// SupervisorEvaluationModal.tsx helper — so a supervisor can never type/leave
+// a criterion above its configured maxScore.
+function clampScoreInput(raw: string, max: number): string {
+  if (raw === '') return raw;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  return String(Math.min(Math.max(n, 0), max));
+}
+
 interface RubricComponent { key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }
 
 interface Props {
@@ -102,7 +112,7 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
               <TextInput
                 style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff' }}
                 value={scores[c.key] ?? ''}
-                onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: v }))}
+                onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: clampScoreInput(v, c.maxScore) }))}
                 keyboardType="numeric"
                 placeholder="0"
                 placeholderTextColor="#9CA3AF"

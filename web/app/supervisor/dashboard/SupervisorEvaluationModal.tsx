@@ -22,6 +22,16 @@ interface SupervisorEvaluationModalProps {
   onSubmitted: () => void;
 }
 
+// Clamps to [0, max] on every keystroke — mirrors GradeMilestoneModal.tsx's
+// identical helper — so a supervisor can never type/leave a criterion above
+// its configured maxScore.
+function clampScoreInput(raw: string, max: number): string {
+  if (raw === '') return raw;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  return String(Math.min(Math.max(n, 0), max));
+}
+
 export function SupervisorEvaluationModal({ milestoneId, components, onClose, onSubmitted }: SupervisorEvaluationModalProps) {
   const { lang, t } = useLanguage();
   const [scores, setScores] = useState<Record<string, string>>(() => Object.fromEntries(components.map((c) => [c.key, ''])));
@@ -68,7 +78,7 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
                 min={0}
                 max={c.maxScore}
                 value={scores[c.key]}
-                onChange={(e) => setScores({ ...scores, [c.key]: e.target.value })}
+                onChange={(e) => setScores({ ...scores, [c.key]: clampScoreInput(e.target.value, c.maxScore) })}
                 className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
               />
             </label>

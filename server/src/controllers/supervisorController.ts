@@ -306,6 +306,24 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
       Promise.all(enrolledStudentIds.map((sid) => db.collection('users').doc(sid).get())),
     ]);
     const allMilestones = milestonesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, any>));
+
+    // A milestone's real due date is computed once at enrollment (see
+    // projectEnrollment.ts's resolveMilestoneDueDate) from the actual
+    // approval/enrollment date, not from the template's own dueDaysFromStart
+    // — and since a team project now shares one milestone doc per type
+    // across every teammate, there's exactly one real due date per type for
+    // the whole project, not one per student. Attached to templateMilestones
+    // below so the supervisor's "this template's milestones" overview can
+    // show it instead of a relative day-offset (that overview is the only
+    // place a supervisor sees the FULL roadmap — the per-student list below
+    // it only ever renders up to the student's current milestone).
+    const dueDateByType: Record<string, string | null> = {};
+    allMilestones.forEach((m) => {
+      if (m.type && !(m.type in dueDateByType)) {
+        dueDateByType[m.type] = m.dueDate?.toDate?.()?.toISOString() ?? null;
+      }
+    });
+
     const studentNameById: Record<string, string> = {};
     studentSnaps.forEach((s) => { if (s.exists) studentNameById[s.id] = s.data()?.displayName ?? s.id; });
 
@@ -361,7 +379,7 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
     });
 
     return res.status(200).json({
-      templateMilestones,
+      templateMilestones: templateMilestones.map((spec) => ({ ...spec, dueDate: dueDateByType[spec.type] ?? null })),
       students,
       createdAt: project.createdAt?.toDate?.()?.toISOString() ?? null,
     });
