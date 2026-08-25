@@ -12,7 +12,9 @@
 // checked with no extra wiring, and a parent that resets its form state
 // back to 1 after submit stays in sync automatically.
 
-const TEAM_SIZE_OPTIONS = [2, 3, 4];
+// Capped at 9 — realistically never reached, but the college wanted room
+// above the old hard cap of 4 rather than a number tuned to "what's typical."
+const TEAM_SIZE_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 interface TeamSizeFieldProps {
   value: number;
@@ -40,13 +42,13 @@ export function TeamSizeField({ value, onChange, lang }: TeamSizeFieldProps) {
           <span className="mb-1.5 block text-sm font-medium text-ink">
             {lang === 'he' ? 'מספר הסטודנטים בקבוצה' : 'Students per group'}
           </span>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {TEAM_SIZE_OPTIONS.map((num) => (
               <button
                 key={num}
                 type="button"
                 onClick={() => onChange(num)}
-                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                className={`h-9 w-9 rounded-lg border text-sm font-medium ${
                   value === num ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
                 }`}
               >

@@ -23,8 +23,9 @@ import WorkflowTemplatePreview from '../WorkflowTemplatePreview';
 import type { PrerequisiteSpec } from '../Prerequisites';
 
 // Mirrors web's TeamSizeField.tsx — options offered once "Team Project" is
-// toggled on.
-const TEAM_SIZE_OPTIONS = [2, 3, 4];
+// toggled on. Capped at 9 — realistically never reached, but there's room
+// above the old hard cap of 4 rather than a number tuned to "what's typical."
+const TEAM_SIZE_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 // Returns true if the user holds a given role (checks both roles[] and the
 // legacy single role field so old data keeps working)
@@ -345,11 +346,15 @@ export default function NewProjectModal({
             <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
               {lang === "he" ? "מספר הסטודנטים בקבוצה" : "Students per group"}
             </Text>
-            <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
+            {/* flexWrap + a fixed (not flex:1) button width — styles.toggleRow/
+                toggleBtn are shared with every other 2-option toggle in this
+                file, which fit fine in one flex:1 row; 8 team-size options
+                need to wrap instead of squeezing into one row. */}
+            <View style={[styles.toggleRow, { flexWrap: 'wrap' }, !isRtl && styles.rowReverse]}>
               {TEAM_SIZE_OPTIONS.map((num) => (
                 <Pressable
                   key={num}
-                  style={[styles.toggleBtn, maxStudents === num && styles.toggleBtnActive]}
+                  style={[styles.toggleBtn, { flex: 0, width: 40 }, maxStudents === num && styles.toggleBtnActive]}
                   onPress={() => setMaxStudents(num)}
                 >
                   <Text style={[styles.toggleText, maxStudents === num && styles.toggleTextActive]}>
