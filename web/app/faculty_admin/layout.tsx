@@ -9,10 +9,14 @@
 // Post New Project) into the persistent collapsible sidebar. Also covers
 // /faculty_admin/templates (no layout of its own needed — it's nested
 // under this route).
+//
+// NAV_SECTIONS/QUICK_ACTIONS are exported so app/program_head/layout.tsx can
+// show a faculty_admin who also holds 'program_head' as an additional role
+// THIS sidebar instead of the program_head one — see that file's comment.
 
 import { SidebarShell, type SidebarSection } from '@/components/dashboard/SidebarShell';
 
-const NAV_SECTIONS: SidebarSection[] = [
+export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
   {
     title: { he: 'ניווט', en: 'Navigation' },
     items: [
@@ -90,7 +94,7 @@ const NAV_SECTIONS: SidebarSection[] = [
   },
 ];
 
-const QUICK_ACTIONS: SidebarSection = {
+export const FACULTY_ADMIN_QUICK_ACTIONS: SidebarSection = {
   title: { he: 'פעולות מהירות', en: 'Quick Actions' },
   items: [
     {
@@ -107,8 +111,8 @@ export default function FacultyAdminLayout({ children }: { children: React.React
   return (
     <SidebarShell
       brand={{ name: 'HIT', subtitle: { he: 'פורטל ראש מנהל פקולטה', en: 'Faculty Admin Portal' } }}
-      sections={NAV_SECTIONS}
-      quickActions={QUICK_ACTIONS}
+      sections={FACULTY_ADMIN_NAV_SECTIONS}
+      quickActions={FACULTY_ADMIN_QUICK_ACTIONS}
       theme={{ mode: 'accent' }}
     >
       {children}

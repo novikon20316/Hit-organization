@@ -19,6 +19,8 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { SidebarShell, type SidebarSection } from '@/components/dashboard/SidebarShell';
 import { ADMIN_NAV_SECTIONS, ADMIN_QUICK_ACTIONS } from '@/app/admin/navConfig';
+import { GRAD_SCHOOL_HEAD_NAV_SECTIONS, GRAD_SCHOOL_HEAD_QUICK_ACTIONS } from '@/app/grad_school_head/layout';
+import { FACULTY_ADMIN_NAV_SECTIONS, FACULTY_ADMIN_QUICK_ACTIONS } from '@/app/faculty_admin/layout';
 
 const DASHBOARD = '/program_head/dashboard';
 
@@ -101,6 +103,37 @@ export default function ProgramHeadLayout({ children }: { children: React.ReactN
         sections={ADMIN_NAV_SECTIONS}
         quickActions={ADMIN_QUICK_ACTIONS}
         theme={{ mode: 'tokens', tokenPrefix: 'admin' }}
+      >
+        {children}
+      </SidebarShell>
+    );
+  }
+
+  // Same issue, same fix, for a grad_school_head/faculty_admin who ALSO
+  // holds 'program_head' as an additional role (assignable via
+  // EditUserModal's "Additional Roles" picker) — resolveActiveRole ranks
+  // both above program_head, so this is who they really are even while
+  // they're on this page (e.g. via a hand-typed URL or a shared link).
+  if (activeRole === 'grad_school_head') {
+    return (
+      <SidebarShell
+        brand={{ name: 'HIT', subtitle: { he: 'פורטל ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head Portal' } }}
+        sections={GRAD_SCHOOL_HEAD_NAV_SECTIONS}
+        quickActions={GRAD_SCHOOL_HEAD_QUICK_ACTIONS}
+        theme={{ mode: 'accent' }}
+      >
+        {children}
+      </SidebarShell>
+    );
+  }
+
+  if (activeRole === 'faculty_admin') {
+    return (
+      <SidebarShell
+        brand={{ name: 'HIT', subtitle: { he: 'פורטל ראש מנהל פקולטה', en: 'Faculty Admin Portal' } }}
+        sections={FACULTY_ADMIN_NAV_SECTIONS}
+        quickActions={FACULTY_ADMIN_QUICK_ACTIONS}
+        theme={{ mode: 'accent' }}
       >
         {children}
       </SidebarShell>

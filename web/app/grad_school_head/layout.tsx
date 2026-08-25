@@ -7,10 +7,15 @@
 // Migrates grad_school_head's DashboardShell hamburger-menu actions
 // (Process Templates, Committees, Bulk Permissions, Reports, Post New
 // Project) into the persistent collapsible sidebar.
+//
+// NAV_SECTIONS/QUICK_ACTIONS are exported so app/program_head/layout.tsx can
+// show a grad_school_head who also holds 'program_head' as an additional
+// role THIS sidebar instead of the program_head one — see that file's
+// comment.
 
 import { SidebarShell, type SidebarSection } from '@/components/dashboard/SidebarShell';
 
-const NAV_SECTIONS: SidebarSection[] = [
+export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
   {
     title: { he: 'ניווט', en: 'Navigation' },
     items: [
@@ -88,7 +93,7 @@ const NAV_SECTIONS: SidebarSection[] = [
   },
 ];
 
-const QUICK_ACTIONS: SidebarSection = {
+export const GRAD_SCHOOL_HEAD_QUICK_ACTIONS: SidebarSection = {
   title: { he: 'פעולות מהירות', en: 'Quick Actions' },
   items: [
     {
@@ -109,8 +114,8 @@ export default function GradSchoolHeadLayout({ children }: { children: React.Rea
   return (
     <SidebarShell
       brand={{ name: 'HIT', subtitle: { he: 'פורטל ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head Portal' } }}
-      sections={NAV_SECTIONS}
-      quickActions={QUICK_ACTIONS}
+      sections={GRAD_SCHOOL_HEAD_NAV_SECTIONS}
+      quickActions={GRAD_SCHOOL_HEAD_QUICK_ACTIONS}
       theme={{ mode: 'accent' }}
     >
       {children}
