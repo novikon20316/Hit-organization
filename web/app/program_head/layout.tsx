@@ -18,6 +18,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { SidebarShell, type SidebarSection } from '@/components/dashboard/SidebarShell';
+import { ADMIN_NAV_SECTIONS, ADMIN_QUICK_ACTIONS } from '@/app/admin/navConfig';
 
 const DASHBOARD = '/program_head/dashboard';
 
@@ -86,7 +87,25 @@ export function buildProgramHeadNavSections(roles: string[]): SidebarSection[] {
 }
 
 export default function ProgramHeadLayout({ children }: { children: React.ReactNode }) {
-  const { roles } = useAuth();
+  const { activeRole, roles } = useAuth();
+
+  // A system_admin has standing oversight access to this dashboard (see
+  // navConfig.ts's "programHead" link) — before this fix they'd see the
+  // program_head's own sidebar here, making it look like their role had
+  // changed. Same fix/pattern as app/workflow-templates/layout.tsx and
+  // app/administrative_coordinator/layout.tsx's system_admin branches.
+  if (activeRole === 'system_admin') {
+    return (
+      <SidebarShell
+        brand={{ name: 'HIT', subtitle: { he: 'פורטל מנהל מערכת', en: 'System Admin Portal' } }}
+        sections={ADMIN_NAV_SECTIONS}
+        quickActions={ADMIN_QUICK_ACTIONS}
+        theme={{ mode: 'tokens', tokenPrefix: 'admin' }}
+      >
+        {children}
+      </SidebarShell>
+    );
+  }
 
   return (
     <SidebarShell
