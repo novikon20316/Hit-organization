@@ -44,6 +44,7 @@ export function useStudentData() {
   const [studentTrackPolicy,    setStudentTrackPolicy]    = useState<TrackPolicy | null>(null);
   const [studentTrackLocked,    setStudentTrackLocked]    = useState(false);
   const [studentThesisEligible, setStudentThesisEligible] = useState(false);
+  const [studentHasGradeRecord, setStudentHasGradeRecord] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const unsubProposals = useRef<(() => void) | null>(null);
@@ -100,6 +101,7 @@ export function useStudentData() {
       setStudentTrackPolicy(userData.trackPolicy ?? null);
       setStudentTrackLocked(!!userData.trackLocked);
       setStudentThesisEligible(userData.thesisEligibility?.eligible === true);
+      setStudentHasGradeRecord(!!userData.thesisEligibility);
 
       // activeProjectIds is the TEMP-2-ACTIVE-PROJECTS field — falls back to
       // the single scalar activeProjectId for any student not currently
@@ -140,6 +142,14 @@ export function useStudentData() {
         }
       } else if (!userData.isEligibleForProcess) {
         setStudentState('ineligible');
+      } else if (userData.trackPolicy === 'coordinator_gated' && !userData.thesisEligibility) {
+        // computer_science masters student, no grade average entered yet —
+        // nothing to browse until a coordinator/program_head/administrative
+        // coordinator enters one (see config/studentTrack.ts's
+        // coordinator_gated policy). Distinct from "average entered but
+        // below the thesis threshold", which falls through to the normal
+        // browse UI below on the project track.
+        setStudentState('awaiting_grade');
       } else {
         // A student can now hold several open applications at once — Browse
         // stays visible regardless of how many are pending; BrowseProjects
@@ -377,6 +387,7 @@ export function useStudentData() {
     studentTrackPolicy,
     studentTrackLocked,
     studentThesisEligible,
+    studentHasGradeRecord,
     chooseTrack,
     error,
     refresh: fetchDashboardData,

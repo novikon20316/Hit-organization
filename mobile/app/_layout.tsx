@@ -102,6 +102,10 @@ const authRoutes = new Set<string>([
   '/(auth)/setup2fa',
   '/changePassword',
   '/(auth)/changePassword',
+  '/student/chooseTrack',   // ← same reasoning as changePassword above: lets the
+                            //   fallback below redirect a student home once
+                            //   trackLocked flips true, instead of stranding
+                            //   them here after the decision no longer applies
   '/completeProfile',       // ← Google sign-in, no Firestore doc yet (see login.tsx)
   '/(auth)/completeProfile',
   '/examiner-access',       // ← external examiner token link (no Auth required)
@@ -137,7 +141,14 @@ function RootLayoutInner() {
   // Last /api/users/me response seen by the auth-state effect below — read
   // by the navigation re-check effect further down so it doesn't need its
   // own network round-trip on every route change.
-  const lastUserDataRef         = useRef<{ mustChangePassword?: boolean } | null>(null);
+  const lastUserDataRef         = useRef<{
+    mustChangePassword?: boolean;
+    role?: string;
+    trackPolicy?: string | null;
+    trackLocked?: boolean;
+    thesisEligibility?: { eligible?: boolean } | null;
+    hasActiveProject?: boolean;
+  } | null>(null);
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
 
@@ -293,6 +304,28 @@ function RootLayoutInner() {
           return;
         }
 
+        // ── Mandatory thesis-vs-project decision ─────────────────────────────
+        // A computer_science masters student whose grade average qualified
+        // them for the thesis track (see server's config/studentTrack.ts,
+        // coordinator_gated policy) must decide before doing anything else —
+        // unconditional redirect like the password-change gate above (placed
+        // after the 2FA gate so it never fights verify2fa/setup2fa), so it
+        // can't be dodged by navigating away and reappears on every reopen
+        // until trackLocked flips true.
+        const alreadyChoosingTrack = latestPathname === '/student/chooseTrack';
+        const pendingTrackChoice =
+          role === 'student' &&
+          userData.trackPolicy === 'coordinator_gated' &&
+          userData.thesisEligibility?.eligible === true &&
+          !userData.trackLocked &&
+          !userData.hasActiveProject;
+
+        if (pendingTrackChoice && !alreadyChoosingTrack) {
+          redirect('/student/chooseTrack' as any);
+          setLoading(false);
+          return;
+        }
+
         // ── Only redirect if the user is currently on an auth/public route ──
         // This prevents overwriting deep-links (e.g. a coordinator navigating
         // to a student's process file directly).
@@ -358,6 +391,25 @@ function RootLayoutInner() {
     const onChangePasswordScreen = pathname === '/changePassword' || pathname === '/(auth)/changePassword';
     if (!onChangePasswordScreen) {
       router.replace('/(auth)/changePassword' as any);
+    }
+  }, [pathname, router]);
+
+  // ── Re-check the mandatory thesis-vs-project decision on every navigation ──
+  // Same belt-and-suspenders reasoning as the password-change re-check above
+  // — stops the Android hardware back button (or any other in-app nav) from
+  // escaping /student/chooseTrack before a decision is actually made.
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const last = lastUserDataRef.current;
+    const pendingTrackChoice =
+      last?.role === 'student' &&
+      last?.trackPolicy === 'coordinator_gated' &&
+      last?.thesisEligibility?.eligible === true &&
+      !last?.trackLocked &&
+      !last?.hasActiveProject;
+    if (!pendingTrackChoice) return;
+    if (pathname !== '/student/chooseTrack') {
+      router.replace('/student/chooseTrack' as any);
     }
   }, [pathname, router]);
 

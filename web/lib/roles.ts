@@ -287,6 +287,12 @@ export interface UserDoc {
   yearOfStudy: number | null;
   studentId: string | null;
   major: string | null;
+  /** Student-only — see lib/studentTrack.ts's resolveTrackPolicy /
+   *  resolveEffectiveTrack, the actual source of truth this mirrors. */
+  track?: 'project' | 'thesis' | null;
+  trackPolicy?: 'coordinator_gated' | 'signup_choice' | 'project_only' | null;
+  trackLocked?: boolean;
+  thesisEligibility?: { eligible: boolean } | null;
   supervisorId?: string | null;
   activeProjectId?: string | null;
   isActive: boolean;

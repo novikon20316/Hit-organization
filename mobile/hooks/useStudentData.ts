@@ -55,6 +55,7 @@ export function useStudentData() {
   const [studentTrackPolicy,     setStudentTrackPolicy]     = useState<TrackPolicy | null>(null);
   const [studentTrackLocked,     setStudentTrackLocked]     = useState(false);
   const [studentThesisEligible,  setStudentThesisEligible]  = useState(false);
+  const [studentHasGradeRecord,  setStudentHasGradeRecord]  = useState(false);
 
   // ── Track all active unsubscribe functions in a ref so they survive re-renders
   const unsubProposals  = useRef<(() => void) | null>(null);
@@ -97,6 +98,7 @@ export function useStudentData() {
       setStudentTrackPolicy(userData.trackPolicy ?? null);
       setStudentTrackLocked(!!userData.trackLocked);
       setStudentThesisEligible(userData.thesisEligibility?.eligible === true);
+      setStudentHasGradeRecord(!!userData.thesisEligibility);
       // The eligibility gate (based on current year-of-study) decides whether
       // a student may BROWSE/APPLY to new projects — it must never block a
       // student who already has an active project. isEligibleForProcess is
@@ -145,6 +147,14 @@ export function useStudentData() {
         // No active project, and not yet in the eligible year — show the
         // "not eligible yet" info screen rather than an empty browse list.
         setStudentState('ineligible');
+      } else if (userData.trackPolicy === 'coordinator_gated' && !userData.thesisEligibility) {
+        // computer_science masters student, no grade average entered yet —
+        // nothing to browse until a coordinator/program_head/administrative
+        // coordinator enters one (see server's config/studentTrack.ts's
+        // coordinator_gated policy). Distinct from "average entered but
+        // below the thesis threshold", which falls through to the normal
+        // browse UI below on the project track.
+        setStudentState('awaiting_grade');
       } else {
         // --- CASE B: Browsing Proposals (triggers the snapshot effect below) ---
         // A student can now hold several open applications at once — Browse
@@ -403,6 +413,7 @@ export function useStudentData() {
     studentTrackPolicy,
     studentTrackLocked,
     studentThesisEligible,
+    studentHasGradeRecord,
     chooseTrack,
     error,
     refresh: fetchDashboardData,

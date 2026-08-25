@@ -1,6 +1,6 @@
 // app/student/home/types.ts
 
-export type StudentState = 'loading' | 'ineligible' | 'no_project' | 'choose_supervisor' | 'active';
+export type StudentState = 'loading' | 'ineligible' | 'awaiting_grade' | 'no_project' | 'choose_supervisor' | 'active';
 export type DegreeType = 'bachelors' | 'masters';
 export type ProjectType = 'project' | 'thesis';
 export type MilestoneType = 'research_proposal' | 'progress_report' | 'final_report' | 'defense' | 'poster';

@@ -14,6 +14,7 @@ import { getHomeRoute, resolveActiveRole, type AppRole } from '@/lib/roles';
 
 const ACCOUNT_DELETION_PENDING_PATH = '/account-deletion-pending';
 const CHANGE_PASSWORD_PATH = '/change-password';
+const CHOOSE_TRACK_PATH = '/choose-track';
 
 export function useRequireRole(allowedRoles: AppRole[]) {
   const router = useRouter();
@@ -36,6 +37,23 @@ export function useRequireRole(allowedRoles: AppRole[]) {
   // this redirect fires regardless of whether the current page's
   // allowedRoles would otherwise have permitted this user in.
   const pendingDeletion = !!userData?.pendingDeletion;
+  // A computer_science masters student whose average qualified them for the
+  // thesis track (see config/studentTrack.ts's coordinator_gated policy)
+  // must decide thesis-vs-project before doing anything else — same
+  // "re-checks the live Firestore snapshot on every navigation" belt-and-
+  // suspenders reasoning as mustChangePassword above, so the decision can't
+  // be dodged by navigating away from /choose-track and it reappears on
+  // every reopen until trackLocked flips true. Excludes a student who
+  // already has an active project — enrollment never sets trackLocked (see
+  // services/projectEnrollment.ts), so a coordinator entering/correcting an
+  // average AFTER enrollment must not yank an already-enrolled student into
+  // this screen; the track question only matters before they have one.
+  const pendingTrackChoice =
+    userData?.role === 'student' &&
+    userData?.trackPolicy === 'coordinator_gated' &&
+    userData?.thesisEligibility?.eligible === true &&
+    !userData?.trackLocked &&
+    !userData?.hasActiveProject;
 
   useEffect(() => {
     if (loading) return;
@@ -51,10 +69,14 @@ export function useRequireRole(allowedRoles: AppRole[]) {
       router.replace(ACCOUNT_DELETION_PENDING_PATH);
       return;
     }
+    if (pendingTrackChoice && pathname !== CHOOSE_TRACK_PATH) {
+      router.replace(CHOOSE_TRACK_PATH);
+      return;
+    }
     if (!isAllowed) {
       router.replace(getHomeRoute(resolveActiveRole(userData)));
     }
-  }, [loading, firebaseUser, userData, isAllowed, mustChangePassword, pendingDeletion, pathname, router, allowedRoles]);
+  }, [loading, firebaseUser, userData, isAllowed, mustChangePassword, pendingDeletion, pendingTrackChoice, pathname, router, allowedRoles]);
 
   const showAsLoading =
     loading ||
@@ -62,6 +84,7 @@ export function useRequireRole(allowedRoles: AppRole[]) {
       !!userData &&
       ((mustChangePassword && pathname !== CHANGE_PASSWORD_PATH) ||
         (pendingDeletion && pathname !== ACCOUNT_DELETION_PENDING_PATH) ||
+        (pendingTrackChoice && pathname !== CHOOSE_TRACK_PATH) ||
         !isAllowed));
   return { firebaseUser, userData, loading: showAsLoading, isAllowed };
 }

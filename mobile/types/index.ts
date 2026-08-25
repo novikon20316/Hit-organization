@@ -704,7 +704,7 @@ export interface ExaminerUser {
   facultyId: string;
 }
 
-export type StudentState = 'ineligible' | 'loading' | 'no_project' | 'choose_supervisor' | 'active';
+export type StudentState = 'ineligible' | 'loading' | 'awaiting_grade' | 'no_project' | 'choose_supervisor' | 'active';
 
 export type DegreeType  = 'bachelors' | 'masters' ;
 
