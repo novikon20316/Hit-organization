@@ -17,6 +17,7 @@ import { apiClient } from '@/lib/apiClient';
 import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
+import { UpdateGradeModal } from './UpdateGradeModal';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import type { MyProject, SupervisorPendingMilestone } from './types';
 
@@ -64,6 +65,10 @@ interface StudentMilestoneRow {
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
   finalGrade: number | null;
+  /** The supervisor's own last-submitted score for this milestone (distinct
+   *  from finalGrade, which may blend in examiner scores) — used to prefill
+   *  the "Update grade" modal. */
+  supervisorScore: number | null;
   gradeApproved: boolean;
   gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
 }
@@ -166,6 +171,15 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: NonNullable<TemplateMilestone['finalGradeComponents']>['supervisorEvaluation']['components'] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [previewFor, setPreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
+  const [updateGradeFor, setUpdateGradeFor] = useState<{ milestoneId: string; type: string; score: number | null } | null>(null);
+
+  // A grade can only be revised while the project is still in progress —
+  // once every milestone is done there's nothing left to reopen. Mirrors
+  // ProjectCard.tsx/QuickTasksPanel.tsx's own use of currentMilestone as the
+  // "project finished" signal (null once nothing's left to do, but also
+  // when no student is enrolled yet — excluded here since that can't have a
+  // graded milestone in the first place).
+  const projectFinished = project.enrolledStudentIds.length > 0 && project.currentMilestone == null;
 
   // Click-vs-double-click disambiguation for the per-file chips below — a
   // single click opens the preview panel, a double click downloads that one
@@ -368,9 +382,20 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                             const pending = pendingGrades.find((pg) => pg.id === m.id);
                             if (m.finalGrade != null) {
                               return (
-                                <p className="mt-1 text-xs font-semibold text-success">
-                                  🎓 {lang === 'he' ? `ציון: ${m.finalGrade}` : `Grade: ${m.finalGrade}`}
-                                </p>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                  <p className="text-xs font-semibold text-success">
+                                    🎓 {lang === 'he' ? `ציון: ${m.finalGrade}` : `Grade: ${m.finalGrade}`}
+                                  </p>
+                                  {!m.gradeApproved && !projectFinished && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setUpdateGradeFor({ milestoneId: m.id!, type: m.type, score: m.supervisorScore })}
+                                      className="text-xs font-medium text-[#00236f] hover:underline"
+                                    >
+                                      ✏️ {lang === 'he' ? 'עדכן ציון' : 'Update grade'}
+                                    </button>
+                                  )}
+                                </div>
                               );
                             }
                             if (pending) {
@@ -473,6 +498,16 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
           submissionNote={previewFor.submissionNote}
           fileUrls={previewFor.fileUrls}
           onClose={() => setPreviewFor(null)}
+        />
+      )}
+      {updateGradeFor && (
+        <UpdateGradeModal
+          milestoneId={updateGradeFor.milestoneId}
+          projectId={project.id}
+          milestoneType={updateGradeFor.type}
+          currentScore={updateGradeFor.score}
+          onClose={() => setUpdateGradeFor(null)}
+          onUpdated={refreshDetailSilently}
         />
       )}
     </div>

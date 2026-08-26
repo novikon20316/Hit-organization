@@ -371,6 +371,10 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             supervisorEvaluationSubmitted: !!m?.supervisorEvaluation,
             autoCalculatedFinalGrade: m?.autoCalculatedFinalGrade ?? null,
             finalGrade: m?.finalGrade ?? null,
+            // The supervisor's own last-submitted score — distinct from
+            // finalGrade (which may blend in examiner scores) — so the
+            // "Update grade" modal can prefill and PATCH the right value.
+            supervisorScore: m?.supervisorScore ?? null,
             gradeApproved: !!m?.gradeApproved,
             gradeOverrideStatus: m?.gradeOverride?.status ?? null,
           };

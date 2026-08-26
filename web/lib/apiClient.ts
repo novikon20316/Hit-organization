@@ -1235,6 +1235,9 @@ export const apiClient = {
           supervisorEvaluationSubmitted: boolean;
           autoCalculatedFinalGrade: number | null;
           finalGrade: number | null;
+          /** The supervisor's own last-submitted score — distinct from
+           *  finalGrade (which may blend in examiner scores). */
+          supervisorScore: number | null;
           gradeApproved: boolean;
           gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
         }>;
@@ -1247,7 +1250,7 @@ export const apiClient = {
     milestoneId: string,
     payload: {
       givenScore: number;
-      comments: string;
+      comments?: string;
       projectId: string;
       /** Optional — keyed by GradingComponentSpec.key when the milestone has
        *  a configured rubric (server recomputes givenScore from this rather
@@ -1255,6 +1258,10 @@ export const apiClient = {
        *  omitted entirely for a milestone with no configured rubric, which
        *  falls back to trusting the plain givenScore number. */
       criteria?: Record<string, number>;
+      /** Required by the server when a supervisor overwrites a score they
+       *  already submitted (see UpdateGradeModal.tsx) — omit on first-time
+       *  grading. */
+      reason?: string;
     }
   ) {
     return request<{ success?: boolean; message?: string }>(`/api/projects/milestones/${milestoneId}/grade`, { method: 'POST', body: payload });

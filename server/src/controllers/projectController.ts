@@ -93,7 +93,10 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   const uid         = (req as any).user?.uid;
   const { milestoneId } = req.params;
   // Destructure the detailed grading criteria and grade from your mobile client payload
-  const { givenScore, comments, projectId, criteria } = req.body;
+  // reason is optional on first submission; required when a supervisor is
+  // overwriting a score they already submitted (enforced further down, once
+  // we know whether this is an edit) — see the "update grade" flow.
+  const { givenScore, comments, projectId, criteria, reason } = req.body;
 
   // criteria is optional — an examiner grading via their own rubric sends
   // only givenScore, with no criteria breakdown at all.
@@ -110,6 +113,9 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   }
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid milestoneId' });
+  }
+  if (Number.isNaN(Number(finalScore)) || Number(finalScore) < 0 || Number(finalScore) > 100) {
+    return res.status(400).json({ message: 'Grade must be a number between 0 and 100.' });
   }
 
   try {
@@ -252,6 +258,13 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         return res.status(403).json({ message: 'Not authorized to grade this milestone' });
       }
 
+      // A supervisor overwriting a grade they already submitted must say why
+      // — the reason is what the "update grade" UI surfaces to the student
+      // and what the (separately built) project record will show later.
+      if (isSupervisor && data.supervisorScore != null && !reason?.trim()) {
+        return res.status(400).json({ message: 'A reason is required when updating an existing grade.' });
+      }
+
       // Same server-side rubric computation as the chain-driven branch above
       // — see its comment for why this doesn't just trust the client's
       // givenScore once a rubric is configured.
@@ -295,7 +308,11 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         if (isSupervisor) {
           previousScore = fresh.supervisorScore ?? null;
           update.supervisorScore   = scoreValue;
-          update.supervisorComment = comments?.trim() ?? '';
+          // Only overwrite the comment shown to the student when the caller
+          // actually sent one — the "update grade" flow only sends a score
+          // and a change reason, and must not silently blank out the
+          // supervisor's original feedback text.
+          if (comments !== undefined) update.supervisorComment = comments.trim();
           update.status            = 'supervisor_graded';
           if (criteriaBreakdown) update.supervisorCriteria = criteriaBreakdown;
           nextSupervisorScore = scoreValue;
@@ -345,6 +362,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           isFinalized: allDone,
           submittedAt: admin.firestore.FieldValue.serverTimestamp(),
           grading: { total: Math.round(scoreValue), ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}) },
+          ...(reason?.trim() ? { changeReason: reason.trim() } : {}),
         });
       });
 
@@ -355,8 +373,29 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         entityType: 'milestone',
         entityId: milestoneId,
         oldValue: { score: previousScore },
-        newValue: { score: scoreValue },
+        newValue: { score: scoreValue, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
       });
+
+      // A supervisor editing a grade they'd already submitted — tell the
+      // student(s) it changed and why. First-time grading isn't announced
+      // here (matches today's behavior); only genuine edits are.
+      if (isSupervisor && previousScore !== null) {
+        const studentIds: string[] = data.studentIds ?? [];
+        const milestoneTitle = { he: data.nameHe ?? data.type ?? '', en: data.nameEn ?? data.type ?? '' };
+        await Promise.all(studentIds.map((studentId) =>
+          notifyUser({
+            recipientId: studentId,
+            type: 'milestone_graded',
+            titleHe: 'המנחה עדכן את הציון שלך',
+            titleEn: 'Your supervisor updated your grade',
+            bodyHe: `המנחה עדכן את הציון עבור "${milestoneTitle.he}" ל-${scoreValue}. סיבה: ${reason!.trim()}`,
+            bodyEn: `Your supervisor updated the grade for "${milestoneTitle.en}" to ${scoreValue}. Reason: ${reason!.trim()}`,
+            relatedProjectId: projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            emailData: { milestoneTitle, grade: String(scoreValue) },
+          }).catch((err) => console.error(`submitMilestoneGrade: student notify failed for ${studentId} on ${milestoneId}:`, err))
+        ));
+      }
 
       return res.status(200).json({ success: true, status: responseStatus, isFinalized });
     }
@@ -369,10 +408,17 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     let scoreField = '';
 
     if (uid === supervisorId) {
+      // Same "reason required to overwrite" guard as the identity-keyed
+      // defense branch above — see its comment.
+      if (data.supervisorScore != null && !reason?.trim()) {
+        return res.status(400).json({ message: 'A reason is required when updating an existing grade.' });
+      }
       graderRole = 'supervisor';
       scoreField = 'supervisorScore';
       updatePayload.supervisorScore   = Number(givenScore);
-      updatePayload.supervisorComment = comments?.trim() ?? '';
+      // Only overwrite the comment shown to the student when the caller
+      // actually sent one — see the identical guard above.
+      if (comments !== undefined) updatePayload.supervisorComment = comments.trim();
       updatePayload.status            = 'supervisor_graded';
     } else if (examinerIds[0] === uid) {
       graderRole = 'examiner1';
@@ -438,7 +484,8 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         methodology: Math.round(Number(criteria?.methodology ?? finalScore)),
         writing: Math.round(Number(criteria?.writing ?? finalScore)),
         total: Math.round(Number(finalScore))
-      }
+      },
+      ...(reason?.trim() ? { changeReason: reason.trim() } : {}),
     };
     // Execute updates using a batch to guarantee consistency across collections
     const batch = db.batch();
@@ -459,8 +506,29 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       entityType: 'milestone',
       entityId: milestoneId,
       oldValue: { [scoreField]: previousScore },
-      newValue: { [scoreField]: Number(givenScore) },
+      newValue: { [scoreField]: Number(givenScore), ...(reason?.trim() ? { reason: reason.trim() } : {}) },
     });
+
+    // Supervisor editing a grade they'd already submitted — notify the
+    // student(s). Same "only announce genuine edits" rule as the
+    // identity-keyed branch above.
+    if (uid === supervisorId && previousScore !== null) {
+      const studentIds: string[] = data.studentIds ?? [];
+      const milestoneTitle = { he: data.nameHe ?? data.type ?? '', en: data.nameEn ?? data.type ?? '' };
+      await Promise.all(studentIds.map((studentId) =>
+        notifyUser({
+          recipientId: studentId,
+          type: 'milestone_graded',
+          titleHe: 'המנחה עדכן את הציון שלך',
+          titleEn: 'Your supervisor updated your grade',
+          bodyHe: `המנחה עדכן את הציון עבור "${milestoneTitle.he}" ל-${Number(givenScore)}. סיבה: ${reason!.trim()}`,
+          bodyEn: `Your supervisor updated the grade for "${milestoneTitle.en}" to ${Number(givenScore)}. Reason: ${reason!.trim()}`,
+          relatedProjectId: projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          emailData: { milestoneTitle, grade: String(Number(givenScore)) },
+        }).catch((err) => console.error(`submitMilestoneGrade: student notify failed for ${studentId} on ${milestoneId}:`, err))
+      ));
+    }
 
     return res.status(200).json({
       success: true,
