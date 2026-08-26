@@ -17,7 +17,13 @@ import { MAJORS_BY_FACULTY } from '../config/majors.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
-const COORDINATOR_TIER_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'grad_school_head'];
+// Every staff role with read access to this feature, including system_admin
+// — callerFacultyScope/supervisorInScope already special-case system_admin's
+// 'all' scope, so it's safe to fold in here rather than re-deriving an
+// explicit system_admin bypass at every call site (a bug the admin drill-down
+// screen actually hit: getScopedSupervisors/getSupervisorProjectRecords used
+// to gate on the narrower list below, 403ing system_admin on its own feature).
+const STAFF_RECORD_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'];
 
 function serializeTimestamp(value: any): string | null {
   return value?.toDate?.().toISOString?.() ?? null;
@@ -75,7 +81,7 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
       (project.enrolledStudentIds ?? []).includes(requester.uid);
     const hasStaffScopeAccess =
       requester.role === 'system_admin' ||
-      (COORDINATOR_TIER_ROLES.includes(requester.role) &&
+      (STAFF_RECORD_ROLES.includes(requester.role) &&
         facultyWithinScope(callerFacultyScope(requester), project.facultyId ?? ''));
 
     if (!isOwnProject && !hasStaffScopeAccess) {
@@ -186,7 +192,7 @@ function supervisorInScope(user: Record<string, unknown>, scope: string[] | 'all
 export const getScopedSupervisors = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!COORDINATOR_TIER_ROLES.includes(requester.role)) {
+  if (!STAFF_RECORD_ROLES.includes(requester.role)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
 
@@ -224,7 +230,7 @@ export const getSupervisorProjectRecords = async (req: AuthenticatedRequest, res
   const requester = req.user;
   const { supervisorId } = req.params;
   if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!COORDINATOR_TIER_ROLES.includes(requester.role)) {
+  if (!STAFF_RECORD_ROLES.includes(requester.role)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
   if (!supervisorId || typeof supervisorId !== 'string') {
