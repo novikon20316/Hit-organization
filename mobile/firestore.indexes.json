@@ -7,6 +7,14 @@
         { "fieldPath": "pendingDeletion", "order": "ASCENDING" },
         { "fieldPath": "deletionScheduledFor", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "projectRecordEntries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "projectId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
