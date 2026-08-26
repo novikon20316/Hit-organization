@@ -14,6 +14,7 @@ import {
   type WorkflowMilestoneSpec, type MilestoneRoutingSpec, type WorkflowTemplateRef,
 } from './workflowTemplates.js';
 import { notifyUser } from './notify.js';
+import { logProjectRecordEntry } from './projectRecords.js';
 
 // Students may now have several open applications at once — this closes out
 // every OTHER one the instant any of the three enrollment surfaces below
@@ -303,6 +304,21 @@ export async function enrollStudentInProject(
             }),
       });
     }
+  });
+
+  // Marks the point a project's permanent record begins — the list
+  // endpoints backing that feature (GET /api/project-records/my-projects
+  // etc.) filter on enrolledStudentIds.length > 0, so simply logging every
+  // enrollment (including a second/third teammate joining an already
+  // non-empty project) is sufficient; no separate "first student" detection
+  // is needed here.
+  await logProjectRecordEntry({
+    projectId,
+    type: 'student_joined_project',
+    actorId: studentId,
+    actorRole: 'student',
+    actorDisplayName: studentSnapForMajor.data()?.displayName ?? undefined,
+    data: { supervisorId },
   });
 
   // TEMP-MULTI-ACTIVE-PROJECTS: under the bypass above, a student's

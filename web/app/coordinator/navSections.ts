@@ -126,6 +126,13 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
           label: { he: 'דוחות', en: 'Reports' },
           isActive: (pathname) => pathname === '/reports',
         },
+        {
+          key: 'records',
+          icon: '📜',
+          href: '/coordinator/records',
+          label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+          isActive: (pathname) => pathname.startsWith('/coordinator/records'),
+        },
       ],
     },
   ];

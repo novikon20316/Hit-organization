@@ -4,6 +4,7 @@ import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { assignExaminersAndNotify, ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { logProjectRecordEntry } from '../services/projectRecords.js';
 import {
   resolveKeepExaminers,
   resolveReplaceExaminer,
@@ -221,6 +222,30 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
     }
 
     await openDefenseSchedulingIfPanelReady(projectId, result);
+
+    // Examiner assignment was never written to any audit trail before this —
+    // logAuditEvent had no matching action, so this is a new gap-fill as
+    // well as the project-record entry itself.
+    await logAuditEvent({
+      userId: req.user!.uid,
+      userRole: req.user!.role,
+      action: 'examiner_assigned',
+      entityType: 'project',
+      entityId: projectId,
+      newValue: { internalUids: result.internalUids, externalNotified: result.externalNotified.map((e) => e.email) },
+    });
+    await logProjectRecordEntry({
+      projectId,
+      type: 'examiner_assigned',
+      actorId: req.user!.uid,
+      actorRole: req.user!.role,
+      data: {
+        milestoneId: typeof milestoneId === 'string' ? milestoneId : null,
+        internalUids: result.internalUids,
+        externalNotified: result.externalNotified.map((e) => ({ name: e.name, email: e.email })),
+        externalFailed: result.externalFailed.map((e) => ({ name: e.name, email: e.email })),
+      },
+    });
 
     res.status(200).json({
       message: 'Examiners assigned',
@@ -727,6 +752,13 @@ async function approveChainMilestone(
       oldValue: { status: previousStatus ?? null },
       newValue: { stageId: stage.id, finalized },
     });
+    await logProjectRecordEntry({
+      projectId: milestone.projectId,
+      type: 'milestone_approved',
+      actorId,
+      actorRole: req.user?.role ?? stage.role,
+      data: { milestoneId, stageId: stage.id, finalized },
+    });
 
     if (finalized && finalizedMilestone) {
       await notifyMilestoneApprovalComplete(finalizedMilestone, milestoneId);
@@ -825,6 +857,15 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
       oldValue: { status: previousStatus ?? null },
       newValue: { status: 'coordinator_approved', ...(comment ? { comment } : {}) },
     });
+    if (approvedMilestone) {
+      await logProjectRecordEntry({
+        projectId: approvedMilestone.projectId,
+        type: 'milestone_approved',
+        actorId: coordinatorId,
+        actorRole: req.user?.role ?? 'coordinator',
+        data: { milestoneId, ...(comment ? { comment } : {}) },
+      });
+    }
 
     // Notify students (grade is already final by the time a coordinator
     // approves — see projectController.ts's submitMilestoneGrade) + the
@@ -995,6 +1036,15 @@ async function rejectChainMilestone(
       newValue: { stageId: stage.id, rejectTo: stage.rejectTo },
       explanation: reason,
     });
+    if (rejectedMilestone) {
+      await logProjectRecordEntry({
+        projectId: rejectedMilestone.projectId,
+        type: 'milestone_rejected',
+        actorId,
+        actorRole: req.user?.role ?? stage.role,
+        data: { milestoneId, stageId: stage.id, reason },
+      });
+    }
 
     // Silent reroute's notification needs an async role→uid resolution, so
     // it happens after the transaction commits — same "external I/O never
@@ -1083,6 +1133,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   }
 
   let previousStatus: string | undefined;
+  let rejectedProjectId: string | undefined;
   try {
     await db.runTransaction(async (transaction) => {
       const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -1096,6 +1147,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
       const { projectId, supervisorId } = milestone;
       const studentIds: string[] = milestone.studentIds ?? [];
       previousStatus = milestone.status;
+      rejectedProjectId = projectId;
 
       // 1. Revert milestone to pending so it can be resubmitted
       transaction.update(milestoneRef, {
@@ -1152,6 +1204,15 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
       newValue: { status: 'rejected' },
       explanation: reason,
     });
+    if (rejectedProjectId) {
+      await logProjectRecordEntry({
+        projectId: rejectedProjectId,
+        type: 'milestone_rejected',
+        actorId: coordinatorId,
+        actorRole: req.user?.role ?? 'coordinator',
+        data: { milestoneId, reason },
+      });
+    }
 
     return res.status(200).json({ success: true, message: 'Milestone rejected.' });
   } catch (error: any) {

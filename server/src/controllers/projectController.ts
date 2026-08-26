@@ -6,6 +6,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
+import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
@@ -242,6 +243,13 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         entityId: milestoneId,
         newValue: { stageId: stage.id, score: scoreValue },
       });
+      await logProjectRecordEntry({
+        projectId,
+        type: 'grade_submitted',
+        actorId: uid,
+        actorRole: req.user?.role ?? stage.role,
+        data: { milestoneId, stageId: stage.id, score: scoreValue },
+      });
 
       return res.status(200).json({ success: true, status: responseStatus });
     }
@@ -375,6 +383,13 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         oldValue: { score: previousScore },
         newValue: { score: scoreValue, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
       });
+      await logProjectRecordEntry({
+        projectId,
+        type: previousScore !== null ? 'grade_changed' : 'grade_submitted',
+        actorId: uid,
+        actorRole: req.user?.role ?? (isSupervisor ? 'supervisor' : 'examiner'),
+        data: { milestoneId, score: scoreValue, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+      });
 
       // A supervisor editing a grade they'd already submitted — tell the
       // student(s) it changed and why. First-time grading isn't announced
@@ -507,6 +522,13 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       entityId: milestoneId,
       oldValue: { [scoreField]: previousScore },
       newValue: { [scoreField]: Number(givenScore), ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+    });
+    await logProjectRecordEntry({
+      projectId,
+      type: previousScore !== null ? 'grade_changed' : 'grade_submitted',
+      actorId: uid,
+      actorRole: req.user?.role ?? graderRole,
+      data: { milestoneId, score: Number(givenScore), ...(reason?.trim() ? { reason: reason.trim() } : {}) },
     });
 
     // Supervisor editing a grade they'd already submitted — notify the
@@ -855,6 +877,13 @@ export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Resp
       oldValue: { [`individualScores.${studentId}`]: data.individualScores?.[studentId] ?? null },
       newValue: { [`individualScores.${studentId}`]: numericScore },
     });
+    await logProjectRecordEntry({
+      projectId: data.projectId,
+      type: data.individualScores?.[studentId] != null ? 'grade_changed' : 'grade_submitted',
+      actorId: uid,
+      actorRole: req.user?.role ?? '',
+      data: { milestoneId, studentId, score: numericScore },
+    });
 
     return res.status(200).json({ success: true });
   } catch (error) {
@@ -920,6 +949,20 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       ...(isChainDriven(milestoneData)
         ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
+    });
+
+    await logProjectRecordEntry({
+      projectId: milestoneData.projectId,
+      type: archiveUpdate ? 'milestone_resubmitted' : 'milestone_submitted',
+      actorId: studentId,
+      actorRole: 'student',
+      data: {
+        milestoneId,
+        milestoneType: milestoneData.type,
+        milestoneName: { he: milestoneData.nameHe ?? milestoneData.type, en: milestoneData.nameEn ?? milestoneData.type },
+        note: submissionNote ?? '',
+        fileCount: Array.isArray(fileUrls) ? fileUrls.length : 0,
+      },
     });
 
     // ── Notify supervisor + coordinator/administrative-coordinator staff ───

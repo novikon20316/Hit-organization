@@ -15,6 +15,7 @@
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
+import { logProjectRecordEntry } from './projectRecords.js';
 
 export interface ProjectErasureRequest {
   id: string;
@@ -221,6 +222,13 @@ export async function decideErasureRequest(
     entityId: requestId,
     explanation: decisionReason,
   });
+  await logProjectRecordEntry({
+    projectId: data.projectId,
+    type: 'project_status_changed',
+    actorId: decidedBy,
+    actorRole: decidedByRole,
+    data: { newStatus: 'archived', reason: decisionReason ?? null },
+  });
   await notify(
     data.requestedBy,
     '✅ בקשת מחיקת פרויקט אושרה',
@@ -262,6 +270,13 @@ export async function eraseProjectDirectly(input: {
     entityType: 'project',
     entityId: input.projectId,
     explanation: input.reason,
+  });
+  await logProjectRecordEntry({
+    projectId: input.projectId,
+    type: 'project_status_changed',
+    actorId: input.erasedBy,
+    actorRole: input.erasedByRole,
+    data: { newStatus: 'archived', reason: input.reason ?? null },
   });
 
   const enrolledStudentIds: string[] = project.enrolledStudentIds ?? [];
@@ -309,6 +324,13 @@ export async function restoreProject(input: {
     action: 'project_restored',
     entityType: 'project',
     entityId: input.projectId,
+  });
+  await logProjectRecordEntry({
+    projectId: input.projectId,
+    type: 'project_status_changed',
+    actorId: input.restoredBy,
+    actorRole: input.restoredByRole,
+    data: { newStatus: 'restored' },
   });
 
   if (project.supervisorId) {

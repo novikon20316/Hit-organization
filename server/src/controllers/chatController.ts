@@ -4,6 +4,42 @@ import { Request, Response } from "express";
 import { db } from "../config/firebase.js";
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from "../middleware/auth.js";
+import { logProjectRecordEntry } from "../services/projectRecords.js";
+
+// Chat has no projectId of its own (see this file's own header context) —
+// resolves one for the project record feature by finding whichever of the
+// two participants is a student, then checking their active project(s) for
+// a supervisor/secondarySupervisor match with the other participant. Returns
+// null (never tagged/logged) when neither side is a student or no active
+// project links them — e.g. an examiner<->coordinator chat, or a chat that
+// outlived the project it started under.
+async function resolveChatProjectId(participants: string[]): Promise<string | null> {
+  if (participants.length !== 2) return null;
+  const [uidA, uidB] = participants as [string, string];
+  try {
+    const [aSnap, bSnap] = await Promise.all([db.collection('users').doc(uidA).get(), db.collection('users').doc(uidB).get()]);
+    const pairs: Array<[admin.firestore.DocumentSnapshot, string]> = [[aSnap, uidB], [bSnap, uidA]];
+
+    for (const [studentSnap, otherUid] of pairs) {
+      const studentData = studentSnap.data();
+      if (!studentData || studentData.role !== 'student') continue;
+      const activeProjectIds: string[] = studentData.activeProjectIds
+        ?? (studentData.activeProjectId ? [studentData.activeProjectId] : []);
+      if (activeProjectIds.length === 0) continue;
+
+      const projectSnaps = await Promise.all(activeProjectIds.map((pid) => db.collection('projects').doc(pid).get()));
+      const match = projectSnaps.find((snap) => {
+        const p = snap.data();
+        return p && (p.supervisorId === otherUid || p.secondarySupervisorId === otherUid);
+      });
+      if (match) return match.id;
+    }
+    return null;
+  } catch (err) {
+    console.error('resolveChatProjectId failed:', err);
+    return null;
+  }
+}
 
 // Helper to normalize user data matching the frontend's expected UserRow signature
 const parseUserRow = (doc: admin.firestore.DocumentSnapshot) => {
@@ -159,6 +195,11 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
       return res.status(403).json({ message: 'Forbidden.' });
     }
 
+    // Resolved before the batch (a plain read, can't happen inside a
+    // batch.set) — see resolveChatProjectId's own comment for when this
+    // comes back null and the message is simply left untagged.
+    const projectId = await resolveChatProjectId(participants);
+
     const batch = db.batch(); // Process operations atomically
 
     // 1. Create and stage the new message document
@@ -168,6 +209,7 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
       text: type === 'image' ? (text ?? '') : text,
       ...(type === 'image' ? { imageUrl } : {}),
       senderId: uid,
+      ...(projectId ? { projectId } : {}),
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -206,6 +248,17 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
 
     // Commit all three collection writes at the exact same moment
     await batch.commit();
+
+    if (projectId) {
+      await logProjectRecordEntry({
+        projectId,
+        type: 'message_sent',
+        actorId: uid,
+        actorRole: req.user?.role ?? '',
+        data: { preview: previewText.length > 60 ? previewText.slice(0, 60) + '…' : previewText, messageType: type },
+      });
+    }
+
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Failed to process message notification cascade:', error);

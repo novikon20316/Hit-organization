@@ -1797,6 +1797,7 @@ export default function CoordinatorHome() {
           { key: 'import', icon: '📥', label: lang === 'he' ? 'ייבוא סגל' : 'Import Staff', onPress: handleImportStaff, loading: importingStaff },
           { key: 'importRoster', icon: '🎓', label: lang === 'he' ? 'ייבוא רשימת סטודנטים' : 'Import Student Roster', onPress: handleImportStudentRoster, loading: importingRoster },
           { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Roster', onPress: handleExportUsers, loading: exportingUsers },
+          { key: 'projectRecords', icon: '📜', label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records', onPress: () => router.push({ pathname: '/coordinator/records', params: { lang } } as any) },
         ]}
       />
 

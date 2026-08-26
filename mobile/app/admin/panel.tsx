@@ -1190,6 +1190,11 @@ export default function PanelScreen() {
             label: lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role',
             onPress: () => router.push('/BulkPermissionsManager' as any),
           },
+          {
+            key: 'project-records', icon: '📜',
+            label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
+            onPress: () => router.push({ pathname: '/admin/records', params: { lang } } as any),
+          },
         ]}
         onBeforeSignOut={() => {
           unsubUsersRef.current?.();

@@ -17,6 +17,7 @@ import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
+import { logProjectRecordEntry } from '../services/projectRecords.js';
 
 const db = admin.firestore();
 
@@ -231,6 +232,20 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       ...(isChainDriven(milestoneData)
         ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
+    });
+
+    await logProjectRecordEntry({
+      projectId: milestoneData.projectId,
+      type: archiveUpdate ? 'milestone_resubmitted' : 'milestone_submitted',
+      actorId: studentId,
+      actorRole: 'student',
+      data: {
+        milestoneId,
+        milestoneType: milestoneData.type,
+        milestoneName: { he: milestoneData.nameHe ?? milestoneData.type, en: milestoneData.nameEn ?? milestoneData.type },
+        note,
+        fileCount: fileUrls.length,
+      },
     });
 
     // A fresh (or resubmitted) chain-driven milestone always restarts at

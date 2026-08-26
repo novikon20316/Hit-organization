@@ -83,6 +83,13 @@ export function buildProgramHeadNavSections(roles: string[]): SidebarSection[] {
           label: { he: 'ועדות', en: 'Committees' },
           isActive: (pathname) => pathname === '/committees',
         },
+        {
+          key: 'records',
+          icon: '📜',
+          href: '/program_head/records',
+          label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+          isActive: (pathname: string) => pathname.startsWith('/program_head/records'),
+        },
       ],
     },
   ];

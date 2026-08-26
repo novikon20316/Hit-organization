@@ -90,6 +90,13 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         label: { he: 'דוחות', en: 'Reports' },
         isActive: (pathname) => pathname === '/reports',
       },
+      {
+        key: 'records',
+        icon: '📜',
+        href: '/faculty_admin/records',
+        label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        isActive: (pathname) => pathname.startsWith('/faculty_admin/records'),
+      },
     ],
   },
 ];

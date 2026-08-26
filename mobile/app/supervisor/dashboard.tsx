@@ -872,6 +872,13 @@ export default function SupervisorHome() {
         lang={lang}
         isRtl={isRtl}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
+        extraMenuItems={[
+          {
+            key: 'project-records', icon: '📜',
+            label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
+            onPress: () => router.push({ pathname: '/supervisor/records', params: { lang } } as any),
+          },
+        ]}
       />
 
       {/* Stats row */}

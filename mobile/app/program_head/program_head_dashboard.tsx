@@ -269,6 +269,13 @@ export default function ProgramHeadDashboard() {
         lang={lang}
         isRtl={lang === 'he'}
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
+        extraMenuItems={[
+          {
+            key: 'project-records', icon: '📜',
+            label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
+            onPress: () => router.push({ pathname: '/program_head/records', params: { lang } } as any),
+          },
+        ]}
       />
 
       {/* Stats strip */}

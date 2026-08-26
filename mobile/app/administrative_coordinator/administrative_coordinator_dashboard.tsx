@@ -816,6 +816,11 @@ export default function ProjectCoordinatorDashboard() {
             label: lang === 'he' ? 'תבניות תהליך' : 'Process Templates',
             onPress: () => router.push('/WorkflowTemplateManager' as any),
           },
+          {
+            key: 'project-records', icon: '📜',
+            label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
+            onPress: () => router.push({ pathname: '/administrative_coordinator/records', params: { lang } } as any),
+          },
         ]}
       />
 

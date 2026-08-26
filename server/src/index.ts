@@ -29,6 +29,7 @@ import loginSecurityRoutes from './routes/loginSecurity.js';
 import legalRoutes from './routes/legal.js';
 import feedbackRoutes from './routes/feedback.js';
 import gradeHistoryRoutes from './routes/gradeHistory.js';
+import projectRecordsRoutes from './routes/projectRecords.js';
 import clockPauseRoutes from './routes/clockPause.js';
 import exceptionalActionRoutes from './routes/exceptionalActions.js';
 import examinerEscalationRoutes from './routes/examinerEscalation.js';
@@ -174,6 +175,7 @@ app.use('/api/program-head', programHeadRoutes);
 // identity comes from the token/grant code itself. See routes/examinerAccess.ts.
 app.use('/api/examiner-access', examinerAccessRoutes);
 app.use('/api/grades',        gradeHistoryRoutes);
+app.use('/api/project-records', projectRecordsRoutes);
 app.use('/api/projects',      clockPauseRoutes);
 app.use('/api/projects',      trackChangeRoutes);
 app.use('/api/projects',      projectErasureRoutes);

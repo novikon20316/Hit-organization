@@ -41,6 +41,13 @@ const NAV_SECTIONS: SidebarSection[] = [
         label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' },
         isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'signoffs',
       },
+      {
+        key: 'records',
+        icon: '📜',
+        href: '/supervisor/records',
+        label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        isActive: (pathname) => pathname.startsWith('/supervisor/records'),
+      },
     ],
   },
 ];

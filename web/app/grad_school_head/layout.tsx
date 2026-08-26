@@ -89,6 +89,13 @@ export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
         label: { he: 'דוחות', en: 'Reports' },
         isActive: (pathname) => pathname === '/reports',
       },
+      {
+        key: 'records',
+        icon: '📜',
+        href: '/grad_school_head/records',
+        label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        isActive: (pathname) => pathname.startsWith('/grad_school_head/records'),
+      },
     ],
   },
 ];

@@ -149,6 +149,13 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         label: { he: 'ועדות', en: 'Committees' },
         isActive: (pathname) => pathname === '/committees',
       },
+      {
+        key: 'records',
+        icon: '📜',
+        href: '/admin/records',
+        label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        isActive: (pathname) => pathname.startsWith('/admin/records'),
+      },
     ],
   },
 ];

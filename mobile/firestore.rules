@@ -477,6 +477,29 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Permanent per-project record (see server/src/services/projectRecords.ts)
+    // — deliberately NOT nested under projects/{projectId} so the coarse
+    // read rule below can stay a flat role/ownership check identical in
+    // shape to milestones/grades above, without extra get() calls. Precise
+    // faculty-scoping for the coordinator-tier roles is enforced by the API
+    // endpoint (GET /api/project-records/:projectId), not by these rules —
+    // same tradeoff already accepted for milestones/grades.
+    match /projectRecordEntries/{entryId} {
+      allow read: if isSignedIn() && (
+        role(userDoc()) in [
+          'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary',
+          'grad_school_head', 'system_admin'
+        ] ||
+        get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.get('supervisorId', '') == request.auth.uid ||
+        get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.get('secondarySupervisorId', '') == request.auth.uid ||
+        request.auth.uid in get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.get('enrolledStudentIds', [])
+      );
+      // Immutable by design — not even system_admin may edit or delete an
+      // entry once written. The only writer is the Admin SDK (which bypasses
+      // rules entirely) via logProjectRecordEntry's own .add() call.
+      allow write: if false;
+    }
+
     // Failed-login security incidents — server-mediated only. Every step
     // (checking status, confirming/denying) goes through the Express API
     // (services/loginSecurity.ts) via the Admin SDK, which bypasses rules

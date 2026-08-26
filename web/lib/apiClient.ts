@@ -2104,6 +2104,56 @@ export const apiClient = {
     }>(`/api/grades/history/${projectId}`, { method: 'GET' });
   },
 
+  // ─── 17b. PROJECT RECORDS — permanent, read-only per-project timeline
+  // (milestones + grades + examiners + messages + lifecycle events); see
+  // server/src/services/projectRecords.ts. Access matches getStudentProject
+  // (own project as student/supervisor) plus a faculty-scoped staff tier —
+  // see projectRecordsController.ts's callerFacultyScope ────────────────────
+  async getProjectRecord(projectId: string) {
+    return request<{
+      project: { id: string; titleHe: string; titleEn: string; supervisorId: string | null; status: string | null };
+      entries: Array<{
+        id: string;
+        type: string;
+        actorId: string;
+        actorRole: string;
+        actorDisplayName: string | null;
+        data: Record<string, unknown> | null;
+        timestamp: string | null;
+      }>;
+    }>(`/api/project-records/${projectId}`, { method: 'GET' });
+  },
+
+  async getMyProjectRecords() {
+    return request<{
+      projects: Array<{
+        id: string; titleHe: string; titleEn: string; status: string | null;
+        supervisorId: string | null; enrolledStudentCount: number;
+      }>;
+    }>('/api/project-records/my-projects', { method: 'GET' });
+  },
+
+  async getScopedSupervisorsForRecords() {
+    return request<{
+      supervisors: Array<{ id: string; displayName: string; email: string; facultyId: string }>;
+    }>('/api/project-records/supervisors', { method: 'GET' });
+  },
+
+  async getSupervisorProjectRecords(supervisorId: string) {
+    return request<{
+      projects: Array<{
+        id: string; titleHe: string; titleEn: string; status: string | null;
+        supervisorId: string | null; enrolledStudentCount: number;
+      }>;
+    }>(`/api/project-records/supervisors/${supervisorId}/projects`, { method: 'GET' });
+  },
+
+  async getFacultyTaxonomyForRecords() {
+    return request<{ faculties: Array<{ facultyId: string; majors: string[] }> }>(
+      '/api/project-records/faculties', { method: 'GET' }
+    );
+  },
+
   // ─── 18. DEADLINE-CLOCK PAUSE — leave / reserve duty / maternity / illness;
   // coordinator, faculty_admin, program_head, administrative coordinator,
   // system_admin (matches CLOCK_PAUSE_ROLES in clockPauseController.ts) ──────

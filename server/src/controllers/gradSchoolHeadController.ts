@@ -24,6 +24,7 @@ import {
 import { transferGradeToMichlol, examinerScoreFor } from '../services/gradeEngine.js';
 import { isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { hasActionGrant, resolveStaffForScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { openDefenseSchedulingIfPanelReady } from '../services/defenseScheduling.js';
@@ -497,6 +498,13 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
       entityId: milestoneId,
       oldValue: { gradeApproved: false },
       newValue: { gradeApproved: true, finalGrade: milestone.finalGrade },
+    });
+    await logProjectRecordEntry({
+      projectId: milestone.projectId,
+      type: 'final_grade_approved',
+      actorId: uid,
+      actorRole: req.user?.role ?? 'grad_school_head',
+      data: { milestoneId, finalGrade: milestone.finalGrade },
     });
 
     const studentIds: string[] = milestone.studentIds ?? [];

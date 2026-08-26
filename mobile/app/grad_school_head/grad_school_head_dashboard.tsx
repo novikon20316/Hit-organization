@@ -454,6 +454,11 @@ export default function GradSchoolHeadDashboard() {
             label: lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role',
             onPress: () => router.push('/BulkPermissionsManager' as any),
           },
+          {
+            key: 'project-records', icon: '📜',
+            label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
+            onPress: () => router.push({ pathname: '/grad_school_head/records', params: { lang } } as any),
+          },
         ]}
       />
       {/* Manage Milestone Templates / Reports / Bulk Permissions by Role

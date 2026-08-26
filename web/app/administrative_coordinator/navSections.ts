@@ -60,6 +60,13 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         label: { he: 'שנת לימודים', en: 'Academic Year' },
         isActive: (pathname) => pathname === '/academic-year',
       },
+      {
+        key: 'records',
+        icon: '📜',
+        href: '/administrative_coordinator/records',
+        label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        isActive: (pathname) => pathname.startsWith('/administrative_coordinator/records'),
+      },
     ],
   },
 ];

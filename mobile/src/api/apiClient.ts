@@ -244,6 +244,46 @@ class ApiClient {
     return response.data;
   }
 
+  // ─── 5b. PROJECT RECORDS — permanent, read-only per-project timeline
+  // (milestones + grades + examiners + messages + lifecycle events); see
+  // server/src/services/projectRecords.ts ──────────────────────────────────
+  async getProjectRecord(projectId: string) {
+    const response = await this.api.get(`/api/project-records/${projectId}`);
+    return response.data as {
+      project: { id: string; titleHe: string; titleEn: string; supervisorId: string | null; status: string | null };
+      entries: Array<{
+        id: string; type: string; actorId: string; actorRole: string;
+        actorDisplayName: string | null; data: Record<string, unknown> | null; timestamp: string | null;
+      }>;
+    };
+  }
+
+  async getMyProjectRecords() {
+    const response = await this.api.get('/api/project-records/my-projects');
+    return response.data as { projects: Array<{
+      id: string; titleHe: string; titleEn: string; status: string | null;
+      supervisorId: string | null; enrolledStudentCount: number;
+    }> };
+  }
+
+  async getScopedSupervisorsForRecords() {
+    const response = await this.api.get('/api/project-records/supervisors');
+    return response.data as { supervisors: Array<{ id: string; displayName: string; email: string; facultyId: string }> };
+  }
+
+  async getSupervisorProjectRecords(supervisorId: string) {
+    const response = await this.api.get(`/api/project-records/supervisors/${supervisorId}/projects`);
+    return response.data as { projects: Array<{
+      id: string; titleHe: string; titleEn: string; status: string | null;
+      supervisorId: string | null; enrolledStudentCount: number;
+    }> };
+  }
+
+  async getFacultyTaxonomyForRecords() {
+    const response = await this.api.get('/api/project-records/faculties');
+    return response.data as { faculties: Array<{ facultyId: string; majors: string[] }> };
+  }
+
   // ─── 6. PROJECT ERASURE/ARCHIVE PROTOCOL ─────────────────────────────────
   // See server/src/services/projectErasure.ts. Supervisors request; only
   // coordinator/system_admin may decide, erase directly, restore, or view

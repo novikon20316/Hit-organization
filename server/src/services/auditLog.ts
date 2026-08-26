@@ -33,6 +33,8 @@ export type AuditAction =
   | 'workflow_template_deleted'
   | 'workflow_template_proposal_updated'
   | 'workflow_template_retroactively_applied'
+  | 'examiner_assigned'
+  | 'examiner_removed'
   | 'examiner_access_granted'
   | 'examiner_document_viewed'
   | 'examiner_dates_submitted'
