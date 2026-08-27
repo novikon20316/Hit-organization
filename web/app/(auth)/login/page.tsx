@@ -27,7 +27,7 @@ import { auth, db, googleProvider, appleProvider } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { getHomeRoute, resolveActiveRole, type UserDoc } from '@/lib/roles';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, setSessionCookie } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 
@@ -174,6 +174,14 @@ export default function LoginPage() {
       // Forced password change (accounts created via Excel import) takes
       // priority over 2FA — a temp password must be replaced first. Same
       // decision tree the "already signed in" effect above uses.
+      //
+      // Set explicitly here rather than relying only on AuthContext's
+      // onAuthStateChanged listener — that listener can still be pending
+      // (gated behind an async persistence write) when this redirect fires,
+      // and proxy.ts's cookie check has no tolerance for that race: losing
+      // it bounces this navigation straight back to /login with no visible
+      // error at all.
+      await setSessionCookie();
       await redirectAfterAuth(data);
     } catch (err) {
       const code = (err as AuthError)?.code;
@@ -223,6 +231,7 @@ export default function LoginPage() {
       const userSnap = await getDoc(doc(db, 'users', cred.user.uid));
       const data = userSnap.exists() ? (userSnap.data() as UserDoc) : null;
 
+      setSessionCookie();
       if (!data) {
         // Brand-new Google identity, no matching Firestore doc — this is a
         // genuinely new account, not an existing one. Route to the same
@@ -271,6 +280,7 @@ export default function LoginPage() {
       const userSnap = await getDoc(doc(db, 'users', cred.user.uid));
       const data = userSnap.exists() ? (userSnap.data() as UserDoc) : null;
 
+      setSessionCookie();
       if (!data) {
         // Brand-new Apple identity, no matching Firestore doc — same
         // "genuinely new account" path Google sign-in uses.
@@ -319,6 +329,7 @@ export default function LoginPage() {
         setLinkingError(t('loginError'));
         return;
       }
+      setSessionCookie();
       setLinkingPrompt(null);
       await redirectAfterAuth(data);
     } catch (err) {

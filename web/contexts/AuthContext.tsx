@@ -53,7 +53,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const SESSION_COOKIE = 'session_active';
 const SESSION_COOKIE_MAX_AGE_S = 30 * 24 * 60 * 60; // matches the "stay signed in" intent of browserLocalPersistence below
 
-function setSessionCookie() {
+// Exported so a fresh sign-in can set this cookie itself immediately,
+// instead of only ever relying on the onAuthStateChanged listener below —
+// that listener runs on its own schedule (gated behind an async
+// browserLocalPersistence/IndexedDB write), and a caller's own
+// router.replace() to a protected route can fire before it, losing the race
+// against proxy.ts's cookie check and bouncing straight back to /login.
+export function setSessionCookie() {
   if (typeof document === 'undefined') return;
   const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
   document.cookie = `${SESSION_COOKIE}=1; path=/; max-age=${SESSION_COOKIE_MAX_AGE_S}; SameSite=Lax${secure}`;
