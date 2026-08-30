@@ -22,14 +22,14 @@
 // list screen refetches on focus (see its useFocusEffect) so the new pending
 // proposal shows up there.
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import type { Lang } from '../../components/i18n';
+import { tx, type Lang } from '../../components/i18n';
 import { TopBar } from '../../components/shared';
 import { ResponsiveScreen } from '../../components/ResponsiveScreen';
 import { apiClient } from '../../src/api/apiClient';
@@ -44,6 +44,7 @@ import {
 
 export interface WorkflowTemplateEditorPayload {
   lang: Lang;
+  mode?: 'view' | 'edit';
   userName: string;
   userRole: string;
   processType: ProcessType;
@@ -363,7 +364,7 @@ export default function WorkflowTemplateEditor() {
 
   const [lang, setLang] = useState<Lang>(payload.lang ?? 'he');
   const isRtl = lang === 'he';
-
+  const [isReadOnly, setIsReadOnly] = useState((payload.mode ?? 'view') === 'view');
   const [saving, setSaving] = useState(false);
 
   // Propose editor — seeded from the payload instead of an openEditor() call.
@@ -395,6 +396,56 @@ export default function WorkflowTemplateEditor() {
     payload.supervisorSelectionRequiresApproval ?? true
   );
   const editorCopiedFromLabel = payload.copiedFromLabel ?? null;
+
+  const initialFormSnapshotRef = useRef<string>(JSON.stringify({
+    milestones: editorMilestones.map((m) => ({ ...m, routing: m.routing ? m.routing.map((s) => ({ ...s })) : undefined })),
+    note: editorNote,
+    applyMode: editorApplyMode,
+    defaultRouting: editorDefaultRouting.map((s) => ({ ...s })),
+    examinerSignoffRole: editorExaminerSignoffRole,
+    finalGradeSignoffRole: editorFinalGradeSignoffRole,
+    firstStepMode: editorFirstStepMode,
+    supervisorSelectionRequiresApproval: editorSupervisorSelectionRequiresApproval,
+  }));
+
+  const currentFormSnapshot = JSON.stringify({
+    milestones: editorMilestones.map((m) => ({ ...m, routing: m.routing ? m.routing.map((s) => ({ ...s })) : undefined })),
+    note: editorNote,
+    applyMode: editorApplyMode,
+    defaultRouting: editorDefaultRouting.map((s) => ({ ...s })),
+    examinerSignoffRole: editorExaminerSignoffRole,
+    finalGradeSignoffRole: editorFinalGradeSignoffRole,
+    firstStepMode: editorFirstStepMode,
+    supervisorSelectionRequiresApproval: editorSupervisorSelectionRequiresApproval,
+  });
+  const hasUnsavedChanges = currentFormSnapshot !== initialFormSnapshotRef.current;
+
+  const confirmExit = (onYes: () => void) => {
+    Alert.alert(tx('exitUnsavedTitle', lang), tx('exitUnsavedMessage', lang), [
+      { text: tx('no', lang), style: 'cancel' },
+      { text: tx('yes', lang), onPress: onYes },
+    ]);
+  };
+
+  const handleClose = () => {
+    if (isReadOnly || !hasUnsavedChanges) {
+      router.back();
+      return;
+    }
+    confirmExit(() => router.back());
+  };
+
+  const handleModeToggle = () => {
+    if (isReadOnly) {
+      setIsReadOnly(false);
+      return;
+    }
+    if (!hasUnsavedChanges) {
+      setIsReadOnly(true);
+      return;
+    }
+    confirmExit(() => setIsReadOnly(true));
+  };
 
   // Committees eligible for this template's own faculty/major — populates
   // the committee picker on any 'committee'-role chain stage (see web's
@@ -694,13 +745,21 @@ export default function WorkflowTemplateEditor() {
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F1235' }}>
           {lang === 'he' ? '➕ הצעת גרסה חדשה' : '➕ Propose New Version'}
         </Text>
-        <Pressable onPress={() => router.back()}>
-          <Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Pressable onPress={handleModeToggle} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EDE9FE' }}>
+            <Text style={{ color: '#5B21B6', fontSize: 12, fontWeight: '700' }}>
+              {isReadOnly ? tx('editTemplate', lang) : tx('viewTemplate', lang)}
+            </Text>
+          </Pressable>
+          <Pressable onPress={handleClose}>
+            <Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ResponsiveScreen>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <View pointerEvents={isReadOnly ? 'none' : 'auto'}>
         <View style={{ backgroundColor: '#EDE9FE', borderRadius: 10, padding: 12, marginBottom: 16 }}>
           <Text style={{ fontSize: 13, color: '#5B21B6', fontWeight: '600' }}>
             🎓 {lang === 'he' ? PROCESS_TYPES.find((p) => p.key === payload.processType)?.he : PROCESS_TYPES.find((p) => p.key === payload.processType)?.en}
@@ -896,16 +955,19 @@ export default function WorkflowTemplateEditor() {
           multiline
         />
 
-        <Pressable
-          style={[{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 }, saving && { opacity: 0.6 }]}
-          onPress={handleSaveProposal}
-          disabled={saving}
-        >
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{lang === 'he' ? 'שלח לאישור' : 'Submit for Approval'}</Text>}
-        </Pressable>
-        <Pressable style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 }} onPress={() => router.back()}>
+        {!isReadOnly && (
+          <Pressable
+            style={[{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 }, saving && { opacity: 0.6 }]}
+            onPress={handleSaveProposal}
+            disabled={saving}
+          >
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{lang === 'he' ? 'שלח לאישור' : 'Submit for Approval'}</Text>}
+          </Pressable>
+        )}
+        <Pressable style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 }} onPress={handleClose}>
           <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
         </Pressable>
+        </View>
       </ScrollView>
       </ResponsiveScreen>
 

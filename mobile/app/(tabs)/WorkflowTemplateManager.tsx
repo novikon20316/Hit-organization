@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { auth } from '../../src/firebase/firebase';
-import type { Lang } from '../../components/i18n';
+import { tx, type Lang } from '../../components/i18n';
 import { TopBar, FACULTY_COLORS } from '../../components/shared';
 import { ResponsiveScreen } from '../../components/ResponsiveScreen';
 import { PERMISSION_FACULTY_IDS, hasActionGrant, type ScopeRule } from '../../constants/permissions';
@@ -452,11 +452,12 @@ export default function WorkflowTemplateManager() {
   // This just builds the payload the editor screen needs (mirrors what the
   // old openEditor() used to compute inline) and navigates to it; no extra
   // API call is needed since `templates` is already loaded here.
-  const openEditorScreen = (source?: WorkflowTemplateDoc) => {
+  const openEditorScreen = (source?: WorkflowTemplateDoc, mode: 'view' | 'edit' = 'view') => {
     const from = source ?? approvedForActive;
     const otherLabel = otherProcessType ? PROCESS_TYPES.find((p) => p.key === otherProcessType) : undefined;
     const payload = {
       lang,
+      mode,
       userName,
       userRole: userRole ?? 'faculty_admin',
       processType: activeProcessType,
@@ -781,10 +782,10 @@ export default function WorkflowTemplateManager() {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Pressable
                 style={{ flex: 1, backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
-                onPress={() => openEditorScreen()}
+                onPress={() => openEditorScreen(approvedForActive ?? undefined, approvedForActive ? 'view' : 'edit')}
               >
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
-                  ＋ {lang === 'he' ? 'הצע גרסה חדשה' : 'Propose New Version'}
+                  {approvedForActive ? tx('viewOrEditTemplate', lang) : (lang === 'he' ? '＋ הצע גרסה חדשה' : '＋ Propose New Version')}
                 </Text>
               </Pressable>
               {approvedForOther && (
