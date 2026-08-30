@@ -31,6 +31,7 @@ export interface FacultyTemplate {
   type: TemplateType;
   supervisorId: string;
   createdBy: string;
+  createdByMajor?: string | null;
   status: TemplateStatus;
   rejectionReason?: string;
   createdAt: any;

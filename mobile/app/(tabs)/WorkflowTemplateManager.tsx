@@ -218,6 +218,7 @@ export interface WorkflowTemplateDoc {
   status: TemplateStatus;
   milestones: MilestoneSpec[];
   createdBy: string;
+  createdByMajor?: string | null;
   createdAt: string;
   proposedNote: string | null;
   applyMode: ApplyMode;
@@ -826,6 +827,11 @@ export default function WorkflowTemplateManager() {
                       {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
                       {tpl.proposedNote ? ` · ${tpl.proposedNote}` : ''}
                     </Text>
+                    {tpl.createdByMajor && (
+                      <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8 }}>
+                        📚 {lang === 'he' ? 'התמחות: ' : 'Creator Major: '}{tpl.createdByMajor}
+                      </Text>
+                    )}
                     {tpl.applyMode === 'now' && (
                       <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '600', marginBottom: 6 }}>
                         ⚡ {lang === 'he' ? 'תחול מיידית על תהליכים בעיצומם' : 'Applies immediately to in-progress processes'}
@@ -916,6 +922,11 @@ export default function WorkflowTemplateManager() {
                       {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
                       {tpl.rejectionReason ? ` · ${tpl.rejectionReason}` : ''}
                     </Text>
+                    {tpl.createdByMajor && (
+                      <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8 }}>
+                        📚 {lang === 'he' ? 'התמחות: ' : 'Creator Major: '}{tpl.createdByMajor}
+                      </Text>
+                    )}
                     {tpl.retroactiveAffectedCount !== undefined && (
                       <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8 }}>
                         {lang === 'he' ? `הוחל רטרואקטיבית על ${tpl.retroactiveAffectedCount} תהליכים` : `Retroactively applied to ${tpl.retroactiveAffectedCount} process(es)`}
