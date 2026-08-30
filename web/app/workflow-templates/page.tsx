@@ -392,12 +392,10 @@ function WorkflowTemplatesContent() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => router.push(approvedForActive ? buildEditHref(approvedForActive) : buildProposeHref(activeProcessType, facultyId, major, 'own'))}
+              onClick={() => router.push(approvedForActive ? buildEditHref(approvedForActive, true) : buildProposeHref(activeProcessType, facultyId, major, 'own'))}
               className="flex-1 rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
             >
-              {approvedForActive
-                ? (lang === 'he' ? '✏️ ערוך תבנית' : '✏️ Edit Template')
-                : (lang === 'he' ? '➕ הצע גרסה חדשה' : '➕ Propose New Version')}
+              {lang === 'he' ? '👁️ צפה או ערוך תבנית' : '👁️ View or Edit Template'}
             </button>
             {otherProcessType && approvedForOther && (
               <button
@@ -622,12 +620,13 @@ function buildProposeHref(processType: ProcessType, facultyId: string | undefine
 // major than the one currently selected in the picker still opens correctly
 // pre-filled. new/page.tsx resolves `templateId` to that exact doc and, for
 // a still-pending one, saves in place instead of proposing a new version.
-function buildEditHref(tpl: WorkflowTemplateDoc): string {
+function buildEditHref(tpl: WorkflowTemplateDoc, viewOnly = true): string {
   const params = new URLSearchParams();
   params.set('processType', tpl.processType);
   params.set('templateId', tpl.id);
   params.set('facultyId', tpl.facultyId);
   if (tpl.major) params.set('major', tpl.major);
+  params.set('mode', viewOnly ? 'view' : 'edit');
   return `/workflow-templates/new?${params.toString()}`;
 }
 

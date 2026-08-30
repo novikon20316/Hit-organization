@@ -25,6 +25,7 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError, type CommitteeRecord } from '@/lib/apiClient';
+import { tx } from '@/lib/i18n';
 import type { AppRole } from '@/lib/roles';
 import { MilestoneRowModal } from '../MilestoneRowModal';
 import { ChainEditor } from '../ChainEditor';
@@ -55,6 +56,7 @@ function ProposeVersionContent() {
   const facultyId = searchParams.get('facultyId') ?? undefined;
   const major = searchParams.get('major'); // absent -> null ("all majors"), same meaning the modal's `major` prop used
   const proposeFrom: 'own' | 'other' = searchParams.get('from') === 'other' ? 'other' : 'own';
+  const modeParam = searchParams.get('mode');
   // Set only when arriving via an "Edit"/"Edit & Resubmit" button on
   // ../page.tsx (see buildEditHref there) — pins the source template to that
   // SPECIFIC doc (any status), instead of always looking up "the currently
@@ -158,6 +160,7 @@ function ProposeVersionContent() {
           copiedFromLabel={proposeFrom === 'other' && otherProcessType ? processTypeLabel(otherProcessType, lang) : undefined}
           editingTemplateId={sourceTpl?.id}
           editingStatus={sourceTpl?.status}
+          initialMode={modeParam === 'edit' ? 'edit' : 'view'}
           loadError={loadError}
           onDone={() => router.push('/workflow-templates?tab=pending')}
           onCancel={() => router.push('/workflow-templates')}
@@ -183,6 +186,7 @@ interface ProposeVersionFormProps {
    *  decide whether "Save" edits that doc in place or proposes a new one. */
   editingTemplateId?: string;
   editingStatus?: 'pending_approval' | 'approved' | 'rejected' | 'superseded';
+  initialMode?: 'view' | 'edit';
   loadError: string;
   onDone: () => void;
   onCancel: () => void;
@@ -195,7 +199,7 @@ interface ProposeVersionFormProps {
 function ProposeVersionForm({
   processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, initialFinalGradeSignoffRole,
   initialFirstStepMode, initialSupervisorSelectionRequiresApproval,
-  copiedFromLabel, editingTemplateId, editingStatus, loadError, onDone, onCancel,
+  copiedFromLabel, editingTemplateId, editingStatus, initialMode = 'view', loadError, onDone, onCancel,
 }: ProposeVersionFormProps) {
   // A still-undecided proposal is edited IN PLACE (same doc, same version) —
   // anything else (the live approved template, or a rejected/superseded
@@ -246,6 +250,22 @@ function ProposeVersionForm({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [isReadOnly, setIsReadOnly] = useState(initialMode === 'view');
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  const markDirty = () => {
+    setHasUnsavedChanges(true);
+    if (isReadOnly) setIsReadOnly(false);
+  };
+
+  const confirmExit = () => {
+    if (!hasUnsavedChanges) {
+      onCancel();
+      return;
+    }
+    setShowExitConfirm(true);
+  };
 
   const handleApplyModeChange = async (mode: 'now' | 'from_now_on') => {
     setApplyMode(mode);
@@ -299,6 +319,7 @@ function ProposeVersionForm({
     // milestone being edited when absent (turning either override off must
     // actually clear it, not leave the stale config behind).
     const { routing, finalGradeComponents, ...rest } = values;
+    markDirty();
     if (editingRow) {
       setMilestones((prev) => prev.map((m) => {
         if (m !== editingRow) return m;
@@ -321,6 +342,8 @@ function ProposeVersionForm({
   };
 
   const removeRow = (ms: MilestoneSpec) => {
+    if (isReadOnly) return;
+    markDirty();
     setMilestones((prev) => prev.filter((m) => m !== ms).map((m, i) => ({ ...m, order: i + 1 })));
   };
 
@@ -329,6 +352,8 @@ function ProposeVersionForm({
   // maintain that), so swapping the two neighbors' `order` is enough; no
   // renumbering of the rest of the list is needed.
   const moveRow = (ms: MilestoneSpec, direction: 'up' | 'down') => {
+    if (isReadOnly) return;
+    markDirty();
     setMilestones((prev) => {
       const sorted = [...prev].sort((a, b) => a.order - b.order);
       const idx = sorted.findIndex((m) => m === ms);
@@ -405,6 +430,15 @@ function ProposeVersionForm({
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
+      <div className="mb-4 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setIsReadOnly((prev) => !prev)}
+          className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+        >
+          {isReadOnly ? (lang === 'he' ? '✏️ עריכה' : '✏️ Edit') : (lang === 'he' ? '👁️ תצוגה' : '👁️ View')}
+        </button>
+      </div>
       {copiedFromLabel && (
         <p className="mb-4 rounded-md bg-[#E9F0F5] px-2.5 py-1.5 text-xs text-[#3E6C8C]">
           📋 {lang === 'he' ? `הועתק מתבנית ${copiedFromLabel} — ניתן לערוך הכל לפני השליחה.` : `Copied from the ${copiedFromLabel} template — everything below is still editable before you submit.`}
@@ -418,7 +452,7 @@ function ProposeVersionForm({
           <span className="text-sm font-semibold text-ink">
             {lang === 'he' ? 'אבני דרך' : 'Milestones'} ({milestones.length})
           </span>
-          <button type="button" onClick={openAddRow} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
+          <button type="button" onClick={openAddRow} disabled={isReadOnly} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-50">
             ＋ {t('add')}
           </button>
         </div>
@@ -446,7 +480,7 @@ function ProposeVersionForm({
                 <button
                   type="button"
                   onClick={() => moveRow(ms, 'up')}
-                  disabled={idx === 0}
+                  disabled={isReadOnly || idx === 0}
                   className="rounded-md px-1.5 py-1 text-sm hover:bg-surface disabled:opacity-30"
                   aria-label={lang === 'he' ? 'הזז מעלה' : 'move up'}
                 >
@@ -455,16 +489,16 @@ function ProposeVersionForm({
                 <button
                   type="button"
                   onClick={() => moveRow(ms, 'down')}
-                  disabled={idx === sorted.length - 1}
+                  disabled={isReadOnly || idx === sorted.length - 1}
                   className="rounded-md px-1.5 py-1 text-sm hover:bg-surface disabled:opacity-30"
                   aria-label={lang === 'he' ? 'הזז מטה' : 'move down'}
                 >
                   ▼
                 </button>
-                <button type="button" onClick={() => openEditRow(ms)} className="rounded-md px-1.5 py-1 text-sm hover:bg-surface" aria-label="edit">
+                <button type="button" onClick={() => openEditRow(ms)} disabled={isReadOnly} className="rounded-md px-1.5 py-1 text-sm hover:bg-surface disabled:opacity-30" aria-label="edit">
                   ✏️
                 </button>
-                <button type="button" onClick={() => removeRow(ms)} className="rounded-md px-1.5 py-1 text-sm hover:bg-surface" aria-label="remove">
+                <button type="button" onClick={() => removeRow(ms)} disabled={isReadOnly} className="rounded-md px-1.5 py-1 text-sm hover:bg-surface disabled:opacity-30" aria-label="remove">
                   🗑️
                 </button>
               </div>
@@ -482,7 +516,7 @@ function ProposeVersionForm({
             ? 'חלה על כל אבן דרך שאין לה שרשרת משלה (ניתן לשנות לפי אבן דרך בעריכה שלה).'
             : 'Applies to every milestone without its own override (set per-milestone via its own edit screen).'}
         </p>
-        <ChainEditor stages={defaultRouting} onChange={setDefaultRouting} committees={committees} />
+        <ChainEditor stages={defaultRouting} onChange={(next) => { markDirty(); setDefaultRouting(next); }} committees={committees} isReadOnly={isReadOnly} />
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -497,8 +531,9 @@ function ProposeVersionForm({
           </p>
           <select
             value={examinerSignoffRole}
-            onChange={(e) => setExaminerSignoffRole(e.target.value as ChainRole | 'none')}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            onChange={(e) => { markDirty(); setExaminerSignoffRole(e.target.value as ChainRole | 'none'); }}
+            disabled={isReadOnly}
+            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="none">{lang === 'he' ? 'ללא אישור נוסף' : 'No second sign-off'}</option>
             {SIGNOFF_ROLES.map((r) => (
@@ -518,8 +553,9 @@ function ProposeVersionForm({
           </p>
           <select
             value={finalGradeSignoffRole}
-            onChange={(e) => setFinalGradeSignoffRole(e.target.value as ChainRole)}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            onChange={(e) => { markDirty(); setFinalGradeSignoffRole(e.target.value as ChainRole); }}
+            disabled={isReadOnly}
+            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
             {SIGNOFF_ROLES.map((r) => (
               <option key={r.key} value={r.key}>{chainRoleLabel(r.key, lang)}</option>
@@ -538,8 +574,9 @@ function ProposeVersionForm({
           </p>
           <select
             value={firstStepMode}
-            onChange={(e) => setFirstStepMode(e.target.value as 'browse_projects' | 'choose_supervisor')}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            onChange={(e) => { markDirty(); setFirstStepMode(e.target.value as 'browse_projects' | 'choose_supervisor'); }}
+            disabled={isReadOnly}
+            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="browse_projects">{lang === 'he' ? 'עיון בפרויקטים' : 'Browse projects'}</option>
             <option value="choose_supervisor">{lang === 'he' ? 'בחירת מנחה' : 'Choose a supervisor'}</option>
@@ -561,8 +598,9 @@ function ProposeVersionForm({
             <input
               type="checkbox"
               checked={supervisorSelectionRequiresApproval}
-              onChange={(e) => setSupervisorSelectionRequiresApproval(e.target.checked)}
-              className="mt-1 h-4 w-4 shrink-0 accent-[var(--primary)]"
+              onChange={(e) => { markDirty(); setSupervisorSelectionRequiresApproval(e.target.checked); }}
+              disabled={isReadOnly}
+              className="mt-1 h-4 w-4 shrink-0 accent-[var(--primary)] disabled:cursor-not-allowed"
             />
           </label>
         )}
@@ -574,13 +612,13 @@ function ProposeVersionForm({
         </span>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
-            <input type="radio" checked={applyMode === 'from_now_on'} onChange={() => handleApplyModeChange('from_now_on')} className="accent-[var(--primary)]" />
+            <input type="radio" checked={applyMode === 'from_now_on'} onChange={() => handleApplyModeChange('from_now_on')} disabled={isReadOnly} className="accent-[var(--primary)] disabled:cursor-not-allowed" />
             <span className="text-sm text-ink">
               {lang === 'he' ? 'מכאן ואילך (רק תהליכים חדשים)' : 'From now on (new processes only)'}
             </span>
           </label>
           <label className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
-            <input type="radio" checked={applyMode === 'now'} onChange={() => handleApplyModeChange('now')} className="accent-[var(--primary)]" />
+            <input type="radio" checked={applyMode === 'now'} onChange={() => handleApplyModeChange('now')} disabled={isReadOnly} className="accent-[var(--primary)] disabled:cursor-not-allowed" />
             <span className="text-sm text-ink">
               {lang === 'he' ? 'עכשיו (גם תהליכים בעיצומם)' : 'Now (also in-progress processes)'}
             </span>
@@ -605,28 +643,55 @@ function ProposeVersionForm({
         <span className="mb-1.5 block text-sm font-medium text-ink">{`${lang === 'he' ? 'הערה להצעה' : 'Note for this proposal'} (${t('optional')})`}</span>
         <textarea
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={(e) => { markDirty(); setNote(e.target.value); }}
+          disabled={isReadOnly}
           rows={3}
           placeholder={lang === 'he' ? 'למה מוצע השינוי...' : 'Why this change is proposed...'}
-          className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+          className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
       </label>
 
       {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
 
       <div className="mt-4 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} disabled={saving} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+        <button type="button" onClick={() => confirmExit()} disabled={saving} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
           {t('cancel')}
         </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={saving}
-          className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
-        >
-          {saving ? '…' : isEditingPending ? (lang === 'he' ? '💾 שמור שינויים' : '💾 Save Changes') : lang === 'he' ? 'שלח לאישור' : 'Submit for Approval'}
-        </button>
+        {!isReadOnly && (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          >
+            {saving ? '…' : isEditingPending ? (lang === 'he' ? '💾 שמור שינויים' : '💾 Save Changes') : lang === 'he' ? 'שלח לאישור' : 'Submit for Approval'}
+          </button>
+        )}
       </div>
+
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+            <h2 className="text-base font-semibold text-ink">{tx('exitUnsavedTitle', lang)}</h2>
+            <p className="mt-2 text-sm text-ink">{tx('exitUnsavedMessage', lang)}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowExitConfirm(false)} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+                {tx('no', lang)}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitConfirm(false);
+                  onCancel();
+                }}
+                className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+              >
+                {tx('yes', lang)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <MilestoneRowModal key={modalKey} open={rowModalOpen} editing={editingRow} committees={committees} onCancel={() => setRowModalOpen(false)} onSave={handleSaveRow} />
     </div>

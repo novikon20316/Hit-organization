@@ -23,7 +23,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const SESSION_COOKIE = 'session_active';
+// `__session` is the only cookie Firebase Hosting forwards to Cloud Run.
+const SESSION_COOKIE = '__session';
 
 // Paths reachable without being signed in. Everything else is protected by
 // default, so a newly added page is safe even if nobody remembers to list

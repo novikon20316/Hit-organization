@@ -29,9 +29,10 @@ interface ChainEditorProps {
    *  ChainStage.committeeId's doc comment). Omitted/empty just shows the
    *  "no committee configured" hint on every committee stage. */
   committees?: CommitteeRecord[];
+  isReadOnly?: boolean;
 }
 
-export function ChainEditor({ stages, onChange, committees = [] }: ChainEditorProps) {
+export function ChainEditor({ stages, onChange, committees = [], isReadOnly = false }: ChainEditorProps) {
   const { lang, t } = useLanguage();
 
   // A single candidate committee is the only possible choice — pin it
@@ -80,7 +81,8 @@ export function ChainEditor({ stages, onChange, committees = [] }: ChainEditorPr
               <select
                 value={stage.role}
                 onChange={(e) => updateStage(idx, { role: e.target.value as ChainStage['role'] })}
-                className="min-w-0 flex-1 rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                disabled={isReadOnly}
+                className="min-w-0 flex-1 rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {CHAIN_ROLES.map((r) => (
                   <option key={r.key} value={r.key}>{lang === 'he' ? r.he : r.en}</option>
@@ -89,15 +91,16 @@ export function ChainEditor({ stages, onChange, committees = [] }: ChainEditorPr
               <select
                 value={stage.action}
                 onChange={(e) => updateStage(idx, { action: e.target.value as ChainStage['action'] })}
-                className="shrink-0 rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                disabled={isReadOnly}
+                className="shrink-0 rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="grade">{lang === 'he' ? 'מדרג' : 'Grades'}</option>
                 <option value="approve">{lang === 'he' ? 'מאשר' : 'Approves'}</option>
               </select>
               <div className="flex shrink-0 gap-0.5">
-                <button type="button" onClick={() => moveStage(idx, -1)} disabled={idx === 0} className="rounded px-1 text-xs text-muted hover:bg-paper disabled:opacity-30" aria-label="up">▲</button>
-                <button type="button" onClick={() => moveStage(idx, 1)} disabled={idx === stages.length - 1} className="rounded px-1 text-xs text-muted hover:bg-paper disabled:opacity-30" aria-label="down">▼</button>
-                <button type="button" onClick={() => removeStage(idx)} className="rounded px-1 text-xs hover:bg-paper" aria-label="remove">🗑️</button>
+                <button type="button" onClick={() => moveStage(idx, -1)} disabled={isReadOnly || idx === 0} className="rounded px-1 text-xs text-muted hover:bg-paper disabled:opacity-30" aria-label="up">▲</button>
+                <button type="button" onClick={() => moveStage(idx, 1)} disabled={isReadOnly || idx === stages.length - 1} className="rounded px-1 text-xs text-muted hover:bg-paper disabled:opacity-30" aria-label="down">▼</button>
+                <button type="button" onClick={() => removeStage(idx)} disabled={isReadOnly} className="rounded px-1 text-xs hover:bg-paper disabled:opacity-30" aria-label="remove">🗑️</button>
               </div>
             </div>
             <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
@@ -105,7 +108,8 @@ export function ChainEditor({ stages, onChange, committees = [] }: ChainEditorPr
               <select
                 value={stage.rejectTo}
                 onChange={(e) => updateStage(idx, { rejectTo: e.target.value })}
-                className="rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                disabled={isReadOnly}
+                className="rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="student">{lang === 'he' ? 'הסטודנט' : 'Student'}</option>
                 {stages.map((s, i) => (
@@ -133,7 +137,8 @@ export function ChainEditor({ stages, onChange, committees = [] }: ChainEditorPr
                   <select
                     value={stage.committeeId ?? ''}
                     onChange={(e) => updateStage(idx, { committeeId: e.target.value || undefined })}
-                    className="min-w-0 flex-1 rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                    disabled={isReadOnly}
+                    className="min-w-0 flex-1 rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <option value="" disabled={committees.length > 1}>
                       {lang === 'he' ? '— בחר ועדה —' : '— Choose a committee —'}
@@ -148,7 +153,7 @@ export function ChainEditor({ stages, onChange, committees = [] }: ChainEditorPr
           </div>
         );
       })}
-      <button type="button" onClick={addStage} className="rounded-md border border-dashed border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-paper">
+      <button type="button" onClick={addStage} disabled={isReadOnly} className="rounded-md border border-dashed border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-paper disabled:opacity-30">
         ＋ {t('add')}
       </button>
     </div>

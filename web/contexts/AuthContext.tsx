@@ -50,7 +50,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // Plain presence flag read by proxy.ts (Next's Proxy runs before this
 // component ever mounts, so it can't ask AuthContext directly) — never the
 // actual Firebase ID token. See proxy.ts for why that split matters.
-const SESSION_COOKIE = 'session_active';
+//
+// MUST be named `__session`: Firebase Hosting strips every other cookie
+// when rewriting to Cloud Run, so `session_active` never reached proxy.ts
+// and login bounced back to /login with no error. See
+// https://firebase.google.com/docs/hosting/manage-cache#using_cookies
+const SESSION_COOKIE = '__session';
+const LEGACY_SESSION_COOKIE = 'session_active';
 const SESSION_COOKIE_MAX_AGE_S = 30 * 24 * 60 * 60; // matches the "stay signed in" intent of browserLocalPersistence below
 
 // Exported so a fresh sign-in can set this cookie itself immediately,
@@ -68,6 +74,7 @@ export function setSessionCookie() {
 function clearSessionCookie() {
   if (typeof document === 'undefined') return;
   document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${LEGACY_SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
