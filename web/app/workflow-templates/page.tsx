@@ -102,7 +102,7 @@ function WorkflowTemplatesContent() {
   }, [isFreeChoiceCrossFaculty, selectedFacultyId]);
 
   const majorOptions = role === 'system_admin' && facultyId ? majorOptionsFor(facultyId, activeProcessType, lang) : [];
-
+  
   const fetchTemplates = useCallback(async () => {
     if (!facultyId) {
       setLoading(false);
@@ -402,7 +402,10 @@ function WorkflowTemplatesContent() {
               onClick={() => router.push(approvedForActive ? buildEditHref(approvedForActive, true) : buildProposeHref(activeProcessType, facultyId, major, 'own'))}
               className="flex-1 rounded-lg bg-primary py-3 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
             >
-              {lang === 'he' ? '👁️ צפה או ערוך תבנית' : '👁️ View or Edit Template'}
+              {approvedForActive
+                ? (lang === 'he' ? '👁️ צפה או ערוך תבנית' : '👁️ View or Edit Template')
+                : (lang === 'he' ? '➕ הצע תבנית חדשה' : '➕ Propose New Template')
+              }
             </button>
             {otherProcessType && approvedForOther && (
               <button
