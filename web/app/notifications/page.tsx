@@ -128,6 +128,21 @@ export default function NotificationsPage() {
     router.push(`/notification/${notif.id}?${params.toString()}`);
   };
 
+  const handleGoToTarget = async (notif: Notif, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!notif.isRead) {
+      try {
+        await apiClient.markNotificationRead(notif.id);
+        setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n)));
+        refreshBadges();
+      } catch (err) {
+        console.error('Failed to mark notification as read:', err);
+      }
+    }
+    const targetRoute = computeNotifTargetRoute(notif.type, userData?.role, notif.targetScreen);
+    if (targetRoute) router.push(targetRoute);
+  };
+
   const handleTapChat = (chat: ChatRow) => {
     router.push(`/message/${chat.chatId}?otherName=${encodeURIComponent(chat.otherName)}&otherRole=${encodeURIComponent(chat.otherRole)}`);
   };
@@ -253,25 +268,40 @@ export default function NotificationsPage() {
                   <div className="grid gap-2">
                     {notifs.map((n) => {
                       const style = TYPE_STYLE[n.type] ?? TYPE_STYLE.project_published;
+                      const targetRoute = computeNotifTargetRoute(n.type, userData?.role, n.targetScreen);
                       return (
-                        <button
+                        <div
                           key={n.id}
-                          type="button"
-                          onClick={() => handleTapNotif(n)}
-                          className="role-rail flex items-start gap-3 rounded-[var(--radius)] border border-line bg-surface p-3 text-start"
+                          className="role-rail flex items-start gap-3 rounded-[var(--radius)] border border-line bg-surface p-3"
                           style={{ '--rail-color': n.isRead ? 'var(--line)' : style.color } as React.CSSProperties}
                         >
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base" style={{ backgroundColor: style.bg }}>
-                            {style.icon}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex items-center justify-between gap-2">
-                              <span className={`truncate text-sm ${n.isRead ? 'text-ink' : 'font-semibold text-ink'}`}>{lang === 'he' ? n.titleHe : n.titleEn}</span>
-                              <span className="shrink-0 text-xs text-muted">{rowTimestamp(n.createdAt, lang)}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleTapNotif(n)}
+                            className="flex flex-1 items-start gap-3 text-start"
+                          >
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base" style={{ backgroundColor: style.bg }}>
+                              {style.icon}
                             </span>
-                            <span className="mt-0.5 block truncate text-xs text-muted">{lang === 'he' ? n.bodyHe : n.bodyEn}</span>
-                          </span>
-                        </button>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center justify-between gap-2">
+                                <span className={`truncate text-sm ${n.isRead ? 'text-ink' : 'font-semibold text-ink'}`}>{lang === 'he' ? n.titleHe : n.titleEn}</span>
+                                <span className="shrink-0 text-xs text-muted">{rowTimestamp(n.createdAt, lang)}</span>
+                              </span>
+                              <span className="mt-0.5 block truncate text-xs text-muted">{lang === 'he' ? n.bodyHe : n.bodyEn}</span>
+                            </span>
+                          </button>
+                          {targetRoute && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleGoToTarget(n, e)}
+                              title={lang === 'he' ? 'עבור למסך הרלוונטי' : 'Go to relevant screen'}
+                              className="shrink-0 self-center rounded-full border border-line px-2.5 py-1.5 text-xs font-medium text-primary hover:border-primary hover:bg-[#EDE9FE]"
+                            >
+                              {lang === 'he' ? 'עבור ←' : 'Go →'}
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
