@@ -37,6 +37,7 @@ export const t = {
   viewOrEditTemplate: { he: 'צפה או ערוך תבנית',                     en: 'View or Edit Template' },
   viewTemplate:       { he: 'צפה בתבנית',                            en: 'View Template' },
   editTemplate:       { he: 'ערוך תבנית',                            en: 'Edit Template' },
+  creatorMajor:       { he: 'התמחות של יוצר התבנית',                en: 'Template Creator Major' },
   exitUnsavedTitle:   { he: 'האם לצאת?',                             en: 'Are you sure you want to exit?' },
   exitUnsavedMessage: { he: 'השינויים לא יישמרו.',                  en: 'The changes will not be saved.' },
   download:           { he: 'הורד',                                    en: 'Download' },

@@ -325,6 +325,13 @@ function WorkflowTemplatesContent() {
               <p className="mb-2 text-xs text-muted">
                 {lang === 'he' ? `גרסה ${approvedForActive.version} · מאושר` : `Version ${approvedForActive.version} · Approved`}
               </p>
+              {approvedForActive.createdByMajor && (
+                <p className="mb-2 text-xs text-muted">
+                  {lang === 'he' ? '📚 ' : '📚 '}
+                  {lang === 'he' ? 'התמחות של יוצר התבנית: ' : 'Template Creator Major: '}
+                  {approvedForActive.createdByMajor}
+                </p>
+              )}
               <p className="mb-2 rounded-md bg-paper px-2.5 py-1.5 text-xs text-ink">
                 🔀 {lang === 'he' ? 'שרשרת ברירת מחדל: ' : 'Default chain: '}
                 {chainSummary(approvedForActive.defaultRouting && approvedForActive.defaultRouting.length > 0 ? approvedForActive.defaultRouting : DEFAULT_ROUTING, lang)}
@@ -426,6 +433,13 @@ function WorkflowTemplatesContent() {
                   {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
                   {tpl.proposedNote ? ` · ${tpl.proposedNote}` : ''}
                 </p>
+                {tpl.createdByMajor && (
+                  <p className="mt-1 text-xs text-muted">
+                    {lang === 'he' ? '📚 ' : '📚 '}
+                    {lang === 'he' ? 'התמחות: ' : 'Creator Major: '}
+                    {tpl.createdByMajor}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => router.push(buildEditHref(tpl))}
@@ -517,6 +531,13 @@ function WorkflowTemplatesContent() {
                   {tpl.milestones.length} {lang === 'he' ? 'אבני דרך' : 'milestones'}
                   {tpl.rejectionReason ? ` · ${tpl.rejectionReason}` : ''}
                 </p>
+                {tpl.createdByMajor && (
+                  <p className="mt-1 text-xs text-muted">
+                    {lang === 'he' ? '📚 ' : '📚 '}
+                    {lang === 'he' ? 'התמחות: ' : 'Creator Major: '}
+                    {tpl.createdByMajor}
+                  </p>
+                )}
                 {tpl.retroactiveAffectedCount !== undefined && (
                   <p className="mt-1 text-xs text-muted">
                     {lang === 'he' ? `הוחל רטרואקטיבית על ${tpl.retroactiveAffectedCount} תהליכים` : `Retroactively applied to ${tpl.retroactiveAffectedCount} process(es)`}

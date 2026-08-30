@@ -1509,6 +1509,7 @@ export const apiClient = {
           routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
         }>;
         createdBy: string;
+        createdByMajor?: string | null;
         createdAt: string;
         proposedNote: string | null;
         applyMode: 'now' | 'from_now_on';

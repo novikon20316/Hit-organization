@@ -188,6 +188,7 @@ export interface WorkflowTemplateDoc {
   status: TemplateStatus;
   milestones: MilestoneSpec[];
   createdBy: string;
+  createdByMajor?: string | null;
   createdAt: string;
   proposedNote: string | null;
   applyMode: ApplyMode;

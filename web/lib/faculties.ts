@@ -31,6 +31,7 @@ export const HIT_FACULTIES: Faculty[] = [
       { key: 'bsc_cs', slug: 'computer_science', label: { he: 'B.Sc במדעי המחשב', en: 'B.Sc. in Computer Science' }, level: 'bachelors' },
       { key: 'bsc_math', slug: 'applied_mathematics', label: { he: 'B.Sc במתמטיקה שימושית', en: 'B.Sc. in Applied Mathematics' }, level: 'bachelors' },
       { key: 'msc_cs', slug: 'computer_science', label: { he: 'M.Sc במדעי המחשב', en: 'M.Sc. in Computer Science' }, level: 'masters' },
+      { key: 'msc_math', slug: 'applied_mathematics', label: { he: 'M.Sc במתמטיקה שימושית', en: 'M.Sc. in Applied Mathematics' }, level: 'masters' },
     ],
   },
   {
