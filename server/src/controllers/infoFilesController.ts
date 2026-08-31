@@ -1,7 +1,7 @@
 // backend/controllers/infoFilesController.ts
 import admin from 'firebase-admin';
 import { Response } from 'express';
-import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole, matchedRole } from '../middleware/auth.js';
 import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
@@ -99,9 +99,9 @@ export const uploadInfoFileMiddleware: RequestHandler = upload.single('file') as
 // Admin/coordinator uploads a file + title; stored on Cloudinary, metadata in Firestore.
 export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uploaderId = req.user?.uid;
-  const role = req.user?.role;
-  if (!uploaderId || !role) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!INFO_FILE_ROLES.includes(role)) {
+  if (!uploaderId || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  const role = matchedRole(req.user, INFO_FILE_ROLES);
+  if (!role) {
     return res.status(403).json({ message: 'Access denied.' });
   }
 
@@ -195,9 +195,9 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
 // scope aren't editable here; retargeting means delete + re-upload.
 export const updateInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  const role = req.user?.role;
-  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!INFO_FILE_ROLES.includes(role)) {
+  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  const role = matchedRole(req.user, INFO_FILE_ROLES);
+  if (!role) {
     return res.status(403).json({ message: 'Access denied.' });
   }
   const { id } = req.params;
@@ -333,10 +333,10 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
 // ─── DELETE /api/admin/info-files/:id ─────────────────────────────────────────
 export const deleteInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uploaderId = req.user?.uid;
-  const role = req.user?.role;
   const { id } = req.params;
-  if (!uploaderId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!role || !INFO_FILE_ROLES.includes(role)) {
+  if (!uploaderId || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  const role = matchedRole(req.user, INFO_FILE_ROLES);
+  if (!role) {
     return res.status(403).json({ message: 'Access denied.' });
   }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid file id.' });

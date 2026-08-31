@@ -14,7 +14,7 @@ import { Response } from 'express';
 import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, matchedRole } from '../middleware/auth.js';
 import { VALID_ROLES } from '../services/userImportExport.js';
 import { validateScopeDescriptor, VIEW_TYPES, ACTION_TYPES, DELEGATE_RESTRICTED_ACTIONS, type ViewType, type ActionType, type ScopeRule } from '../config/permissionScopes.js';
 import { logAuditEvent } from '../services/auditLog.js';
@@ -42,8 +42,8 @@ async function findUsersByRole(role: string): Promise<Map<string, FirebaseFirest
  * before committing.
  */
 export const getUsersByRole = async (req: AuthenticatedRequest, res: Response) => {
-  const callerRole = req.user?.role;
-  if (!callerRole || !BULK_PERMISSION_ROLES.includes(callerRole)) {
+  const callerRole = matchedRole(req.user, BULK_PERMISSION_ROLES);
+  if (!callerRole) {
     return res.status(403).json({ message: 'You do not have permission to view this.' });
   }
   const role = req.query.role as string | undefined;
@@ -71,10 +71,10 @@ export const getUsersByRole = async (req: AuthenticatedRequest, res: Response) =
  * Body: { targetRole: string, facultyId?, major?, degreeLevel?, processType?, view: ViewType[], actions: ActionType[] }
  */
 export const applyPermissionsToRole = async (req: AuthenticatedRequest, res: Response) => {
-  const callerRole = req.user?.role;
   const callerUid = req.user?.uid;
   if (!callerUid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!callerRole || !BULK_PERMISSION_ROLES.includes(callerRole)) {
+  const callerRole = matchedRole(req.user, BULK_PERMISSION_ROLES);
+  if (!callerRole) {
     return res.status(403).json({ message: 'You do not have permission to bulk-apply permissions.' });
   }
 

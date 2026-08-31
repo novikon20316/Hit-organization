@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import {
   resolvePlatform,
   readMaintenanceStatus,
@@ -41,7 +41,7 @@ export const updateMaintenanceStatus = async (req: AuthenticatedRequest, res: Re
       const uid = req.user?.uid;
 
       if(!uid) return res.status(401).json({ message: 'Unauthorized' });
-      if (req.user?.role !== 'system_admin') {
+      if (!hasAnyRole(req.user, ['system_admin'])) {
         return res.status(403).json({ message: 'Access denied: system_admin only.' });
       }
 
@@ -78,7 +78,7 @@ export const updateMaintenanceStatus = async (req: AuthenticatedRequest, res: Re
 // Requires system_admin. Immediately ends maintenance for one platform
 // (body.platform, same default as above).
 export const deleteMaintenanceStatus = async (req: AuthenticatedRequest, res: Response) => {
-    if (req.user?.role !== 'system_admin') {
+    if (!hasAnyRole(req.user, ['system_admin'])) {
       return res.status(403).json({ message: 'Access denied: system_admin only.' });
     }
     try {

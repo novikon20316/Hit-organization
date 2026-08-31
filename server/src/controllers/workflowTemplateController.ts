@@ -8,7 +8,7 @@
 
 import { Response } from 'express';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole, matchedRole } from '../middleware/auth.js';
 import {
   ProcessType,
   WorkflowMilestoneSpec,
@@ -51,10 +51,10 @@ function isMastersProcess(processType: ProcessType): boolean {
   return processType === 'msc_thesis' || processType === 'msc_project';
 }
 
-function canApprove(processType: ProcessType, role: string): boolean {
+function canApprove(processType: ProcessType, user: AuthenticatedRequest['user']): boolean {
   return isMastersProcess(processType)
-    ? GRAD_SCHOOL_APPROVER_ROLES.includes(role)
-    : FACULTY_APPROVER_ROLES.includes(role);
+    ? hasAnyRole(user, GRAD_SCHOOL_APPROVER_ROLES)
+    : hasAnyRole(user, FACULTY_APPROVER_ROLES);
 }
 
 /** Maps a template doc's own facultyId/major/processType to the ResourceScope
@@ -377,9 +377,9 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
 // coordinatorScopes server-side, same as getWorkflowTemplates above.
 export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  const role = req.user?.role;
-  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!PROPOSER_ROLES.includes(role)) {
+  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  const role = matchedRole(req.user, PROPOSER_ROLES);
+  if (!role) {
     return res.status(403).json({ message: 'You do not have permission to propose workflow templates.' });
   }
 
@@ -495,9 +495,9 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
 // (unlike delete/approve/reject on this same doc).
 export const updateWorkflowTemplateProposalController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  const role = req.user?.role;
-  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!PROPOSER_ROLES.includes(role)) {
+  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  const role = matchedRole(req.user, PROPOSER_ROLES);
+  if (!role) {
     return res.status(403).json({ message: 'You do not have permission to edit workflow template proposals.' });
   }
 
@@ -590,8 +590,7 @@ export const updateWorkflowTemplateProposalController = async (req: Authenticate
 // ─── POST /api/workflow-templates/:id/approve ─────────────────────────────────
 export const approveWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  const role = req.user?.role;
-  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
 
   const { id } = req.params;
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing template id.' });
@@ -602,7 +601,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
-    if (!canApprove(processType, role) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
+    if (!canApprove(processType, req.user) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
           ? 'Only the grad school head can approve this process type.'
@@ -612,7 +611,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     // administrative_secretary may only act within her own assigned
     // subject(s) — "keep a separation between degrees" applies to
     // approve/reject/delete, not just proposing/viewing.
-    if (role === 'administrative_secretary') {
+    if (hasAnyRole(req.user, ['administrative_secretary'])) {
       const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only approve templates for a subject assigned to you.' });
     }
@@ -621,7 +620,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
 
     await logAuditEvent({
       userId: uid,
-      userRole: role,
+      userRole: req.user.role,
       action: 'workflow_template_approved',
       entityType: 'workflowTemplate',
       entityId: id,
@@ -637,7 +636,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     let retroactive: { affectedCount: number } | undefined;
     if (data.applyMode === 'now') {
       retroactive = await applyTemplateRetroactively(
-        data.facultyId, processType, data.major ?? null, updated.milestones, uid, role, updated.defaultRouting,
+        data.facultyId, processType, data.major ?? null, updated.milestones, uid, req.user.role, updated.defaultRouting,
       );
       await db.collection('workflowTemplates').doc(id).update({
         retroactiveAppliedAt: new Date().toISOString(),
@@ -732,9 +731,9 @@ export const getRetroactivePreviewController = async (req: AuthenticatedRequest,
 // the target's in-progress projects isn't implied by "reuse this template").
 export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  const role = req.user?.role;
-  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!PROPOSER_ROLES.includes(role)) {
+  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  const role = matchedRole(req.user, PROPOSER_ROLES);
+  if (!role) {
     return res.status(403).json({ message: 'You do not have permission to duplicate workflow templates.' });
   }
 
@@ -849,8 +848,7 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
 // template.
 export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  const role = req.user?.role;
-  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
 
   const { id } = req.params;
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing template id.' });
@@ -861,14 +859,14 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
-    if (!canApprove(processType, role) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
+    if (!canApprove(processType, req.user) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
           ? 'Only the grad school head can delete this process type\'s templates.'
           : 'Only the faculty admin/coordinator can delete this process type\'s templates.',
       });
     }
-    if (role === 'administrative_secretary') {
+    if (hasAnyRole(req.user, ['administrative_secretary'])) {
       const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only delete templates for a subject assigned to you.' });
     }
@@ -877,7 +875,7 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
 
     await logAuditEvent({
       userId: uid,
-      userRole: role,
+      userRole: req.user.role,
       action: 'workflow_template_deleted',
       entityType: 'workflowTemplate',
       entityId: id,
@@ -895,8 +893,7 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
 // Body: { reason: string }
 export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  const role = req.user?.role;
-  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
 
   const { id } = req.params;
   const { reason } = req.body;
@@ -911,14 +908,14 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
-    if (!canApprove(processType, role) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
+    if (!canApprove(processType, req.user) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
           ? 'Only the grad school head can reject this process type.'
           : 'Only the faculty admin/coordinator can reject this process type.',
       });
     }
-    if (role === 'administrative_secretary') {
+    if (hasAnyRole(req.user, ['administrative_secretary'])) {
       const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only reject templates for a subject assigned to you.' });
     }
@@ -927,7 +924,7 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
 
     await logAuditEvent({
       userId: uid,
-      userRole: role,
+      userRole: req.user.role,
       action: 'workflow_template_rejected',
       entityType: 'workflowTemplate',
       entityId: id,

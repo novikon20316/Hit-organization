@@ -7,7 +7,7 @@
 
 import { Response } from 'express';
 import * as XLSX from 'xlsx';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, matchedRole } from '../middleware/auth.js';
 import {
   ReportFilters,
   fullStatusReport,
@@ -74,8 +74,8 @@ async function runReport(type: ReportType, filters: ReportFilters) {
 
 /** Resolves the effective facultyId scope, or a 403/400 if the request is out of bounds. */
 function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | undefined; error?: { status: number; message: string } | undefined } {
-  const role = req.user?.role;
-  if (!role || !REPORT_ROLES.includes(role)) {
+  const role = matchedRole(req.user, REPORT_ROLES);
+  if (!role) {
     return { error: { status: 403, message: 'You do not have permission to view reports.' } };
   }
   const requested = (req.query.facultyId as string | undefined) ?? undefined;
