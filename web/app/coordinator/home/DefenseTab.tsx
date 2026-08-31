@@ -62,9 +62,19 @@ export function buildDefenseCards(allMilestones: CoordinatorPendingMilestone[], 
 
   const defenseSetups = allMilestones.filter((m) => m.type === 'final_report' && (m.status === 'graded' || m.status === 'coordinator_approved'));
 
+  // 'defense' milestones for workflow chains with no 'final_report' gate
+  // (e.g. data_science's own template — see seedDataScienceWorkflowTemplate.ts)
+  // start life directly at 'pending' with no examiners yet, and 'pending'
+  // isn't a status any other bucket looks for — without this bucket they're
+  // permanently invisible on this tab (and on Pending, since the server's
+  // pendingMilestones array only includes submitted/supervisor_graded/
+  // graded/coordinator_approved). This also still catches the case where
+  // examiners were already assigned but the panel never opened (e.g.
+  // openDefenseSchedulingIfPanelReady threw) — the render branch below
+  // distinguishes the two with different copy.
   const stuckPendingItems = projects.flatMap((p) =>
     (p.milestones ?? [])
-      .filter((m) => m.type === 'defense' && m.status === 'pending' && (p.examinerIds ?? []).length > 0)
+      .filter((m) => m.type === 'defense' && m.status === 'pending')
       .map((m) => ({ project: p, milestone: m }))
   );
 
@@ -398,19 +408,24 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
             );
 
             if (card.kind === 'stuckPending') {
+              const hasExaminersAlready = (project.examinerIds ?? []).length > 0;
               return (
                 <div key={card.key} className="rounded-[var(--radius)] border-s-4 border border-line bg-surface p-4" style={{ borderInlineStartColor: accent }}>
                   {Header}
                   <p className="mt-1 text-xs text-muted">👤 {milestone.studentNames.join(', ')}</p>
                   <p className="mt-1 text-xs font-semibold" style={{ color: accent }}>
-                    ⚠️ {lang === 'he' ? 'בוחנים משובצים בפרויקט אך לא נפתח מסלול ההגנה' : 'Examiners assigned but the defense pipeline never opened'}
+                    ⚠️ {hasExaminersAlready
+                      ? (lang === 'he' ? 'בוחנים משובצים בפרויקט אך לא נפתח מסלול ההגנה' : 'Examiners assigned but the defense pipeline never opened')
+                      : (lang === 'he' ? 'טרם שובצו בוחנים להגנה' : 'No examiners assigned yet for this defense')}
                   </p>
                   <button
                     type="button"
                     onClick={() => handleReopenScheduling(project, milestone)}
                     className="mt-3 w-full rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
                   >
-                    🔄 {lang === 'he' ? 'פתח מסלול הגנה' : 'Re-open defense scheduling'}
+                    {hasExaminersAlready
+                      ? `🔄 ${lang === 'he' ? 'פתח מסלול הגנה' : 'Re-open defense scheduling'}`
+                      : `👥 ${lang === 'he' ? 'שבץ בוחנים' : 'Assign examiners'}`}
                   </button>
                 </div>
               );
