@@ -129,7 +129,7 @@ function FacultyAdminDashboardContent() {
       subtitle={lang === 'he' ? 'ניהול משתמשים ופרויקטים בפקולטה' : 'Managing users and projects in your faculty'}
       showBackButton={tab !== 'overview'}
     >
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>

@@ -103,7 +103,7 @@ export function AddStudentToProjectModal({ project, users, onClose, onEnrolled }
           {filteredStudents.length === 0 && <p className="py-6 text-center text-sm text-muted">🔍 {lang === 'he' ? 'לא נמצאו סטודנטים' : 'No students found'}</p>}
         </div>
 
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
       </div>
 
       <ConfirmDialog

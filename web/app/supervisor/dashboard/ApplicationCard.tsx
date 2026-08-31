@@ -209,7 +209,7 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
             </div>
           )}
 
-          {error && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{error}</p>}
+          {error && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{error}</p>}
 
           {(app.status === 'applied' || app.status === 'meeting_requested') && (
             <div className="flex gap-1.5">

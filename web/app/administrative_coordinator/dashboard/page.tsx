@@ -323,7 +323,7 @@ function AdministrativeCoordinatorDashboardContent() {
         <CoordinatorStatisticsTab />
       ) : (
         <>
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {!loadingData && noScopeAssigned && (
         <p className="mb-4 rounded-md bg-[#FBF3E3] px-3 py-2 text-sm text-accent">

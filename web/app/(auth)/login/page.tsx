@@ -379,6 +379,8 @@ export default function LoginPage() {
                   setEmail(e.target.value);
                   setError('');
                 }}
+                aria-invalid={!!error}
+                aria-describedby={error ? 'login-error' : undefined}
                 className="w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm text-ink placeholder:text-muted focus:border-primary focus:bg-surface focus:outline-none"
                 placeholder="you@hit.ac.il"
                 required
@@ -400,6 +402,8 @@ export default function LoginPage() {
                     setPassword(e.target.value);
                     setError('');
                   }}
+                  aria-invalid={!!error}
+                  aria-describedby={error ? 'login-error' : undefined}
                   className="w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 pr-11 text-sm text-ink placeholder:text-muted focus:border-primary focus:bg-surface focus:outline-none"
                   placeholder="••••••••"
                   required
@@ -421,7 +425,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-center text-sm text-danger" role="alert">
+              <p id="login-error" className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-center text-sm text-danger" role="alert">
                 {error}
               </p>
             )}
@@ -499,7 +503,11 @@ export default function LoginPage() {
                 placeholder={lang === 'he' ? 'סיסמה' : 'Password'}
                 required
               />
-              {linkingError && <p className="mt-2 text-sm text-danger">{linkingError}</p>}
+              {linkingError && (
+                <p className="mt-2 text-sm text-danger" role="alert">
+                  {linkingError}
+                </p>
+              )}
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"

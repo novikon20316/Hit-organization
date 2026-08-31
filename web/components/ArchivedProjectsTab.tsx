@@ -96,7 +96,7 @@ export function ArchivedProjectsTab() {
 
   return (
     <div>
-      {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       <div className="mb-5">
         <h3 className="mb-2 text-sm font-semibold text-ink">{t('pendingErasureRequests')} {requests.length > 0 ? `(${requests.length})` : ''}</h3>

@@ -64,7 +64,7 @@ export default function ChooseTrackPage() {
             </p>
           </div>
 
-          {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+          {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
           <div className="flex gap-3">
             <button

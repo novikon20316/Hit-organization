@@ -141,7 +141,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         </div>
       )}
 
-      {messageError && <p className="mt-1.5 rounded-md bg-danger-bg px-2 py-1 text-xs text-danger">{messageError}</p>}
+      {messageError && <p className="mt-1.5 rounded-md bg-danger-bg px-2 py-1 text-xs text-danger" role="alert">{messageError}</p>}
 
       {p.currentMilestone && (
         <p className="mt-1.5 text-xs font-medium" style={{ color: urgencyColor }}>

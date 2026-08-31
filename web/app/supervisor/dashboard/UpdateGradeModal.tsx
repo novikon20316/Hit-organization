@@ -109,7 +109,7 @@ export function UpdateGradeModal({ milestoneId, projectId, milestoneType, curren
             : 'The student will be notified that their grade changed and why.'}
         </p>
 
-        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <button
           type="button"

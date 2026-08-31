@@ -96,7 +96,7 @@ export function ClockPauseControl({ projectId }: { projectId: string }) {
         </button>
       )}
 
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+      {error && <p className="mt-1 text-xs text-danger" role="alert">{error}</p>}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowModal(false)}>

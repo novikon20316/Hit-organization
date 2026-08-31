@@ -103,7 +103,7 @@ export function OtpGate({ token, onVerified }: OtpGateProps) {
         </div>
       )}
 
-      {!!errorMsg && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{errorMsg}</p>}
+      {!!errorMsg && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{errorMsg}</p>}
     </div>
   );
 }

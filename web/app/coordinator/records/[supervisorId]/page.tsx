@@ -50,7 +50,7 @@ export default function CoordinatorSupervisorRecordsPage() {
             : 'A permanent, read-only record for every project of this supervisor that already has students.'}
         </p>
 
-        {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
         {!error && projects === null && <p className="text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
         {!error && projects !== null && projects.length === 0 && (
           <p className="text-sm text-muted">

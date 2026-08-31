@@ -104,7 +104,7 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
           <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink" />
         </label>
 
-        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <button
           type="button"

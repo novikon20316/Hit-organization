@@ -86,7 +86,7 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
         </div>
       )}
 
-      {error && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{error}</p>}
+      {error && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{error}</p>}
     </div>
   );
 }

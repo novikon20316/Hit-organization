@@ -230,8 +230,8 @@ export default function BulkPermissionsPage() {
           </div>
         </div>
 
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
-        {success && <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success">{success}</p>}
+        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+        {success && <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success" role="status">{success}</p>}
 
         <button
           type="button"

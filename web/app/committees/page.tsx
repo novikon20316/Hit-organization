@@ -75,7 +75,7 @@ export default function CommitteesPage() {
       title={lang === 'he' ? 'ועדות' : 'Committees'}
       subtitle={lang === 'he' ? 'ועדות תזה ופרויקט גמר' : 'Thesis and final-project review committees'}
     >
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
         <p className="text-sm text-muted">…</p>

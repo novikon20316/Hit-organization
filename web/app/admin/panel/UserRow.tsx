@@ -232,7 +232,7 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
         </div>
       )}
 
-      {rowError && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{rowError}</p>}
+      {rowError && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{rowError}</p>}
 
       <ConfirmDialog
         open={confirmDisable2fa}

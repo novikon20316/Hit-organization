@@ -71,7 +71,7 @@ export function FeedbackTab() {
         ))}
       </div>
 
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loading ? (
         <p className="text-sm text-muted">…</p>

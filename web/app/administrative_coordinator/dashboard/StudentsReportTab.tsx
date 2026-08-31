@@ -125,7 +125,7 @@ export function StudentsReportTab() {
   }, [rows, search, filterStatus]);
 
   if (loading) return <p className="text-sm text-muted">…</p>;
-  if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>;
+  if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>;
   if (noScopeAssigned) {
     return (
       <p className="rounded-md bg-[#FBF3E3] px-3 py-2 text-sm text-accent">

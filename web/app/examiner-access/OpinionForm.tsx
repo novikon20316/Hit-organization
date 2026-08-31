@@ -152,7 +152,7 @@ export function OpinionForm({ token, examinerName, gradingComponents, onSubmitte
         />
       </div>
 
-      {!!formError && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{formError}</p>}
+      {!!formError && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{formError}</p>}
 
       <button
         type="button"

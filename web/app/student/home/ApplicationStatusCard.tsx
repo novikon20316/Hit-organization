@@ -98,7 +98,7 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
               ? 'המנחה אישר את בקשתך! האם ברצונך להתחיל בפרויקט זה? אישור יסגור אוטומטית את שאר הבקשות הממתינות שלך.'
               : "The supervisor approved your application! Do you want to start this project? Confirming will automatically close your other pending applications."}
           </p>
-          {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+          {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
           <div className="mt-3 flex gap-2">
             <button
               type="button"

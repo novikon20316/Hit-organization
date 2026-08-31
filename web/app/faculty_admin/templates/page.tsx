@@ -132,8 +132,8 @@ export default function FacultyTemplatesPage() {
         ))}
       </div>
 
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
-      {actionError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{actionError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
+      {actionError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{actionError}</p>}
 
       {loading ? (
         <p className="text-sm text-muted">{t('loading')}</p>

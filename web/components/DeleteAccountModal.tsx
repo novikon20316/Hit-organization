@@ -101,7 +101,7 @@ export function DeleteAccountModal({ onClose, onRequested }: DeleteAccountModalP
           />
         </label>
 
-        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <button
           type="button"

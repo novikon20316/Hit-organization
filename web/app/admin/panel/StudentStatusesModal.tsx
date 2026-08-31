@@ -178,9 +178,9 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
             {renderList(lang === 'he' ? 'סטטוס ראשי' : 'Primary Status', primary, setPrimary)}
             {renderList(lang === 'he' ? 'סטטוס משני' : 'Secondary Status', secondary, setSecondary)}
 
-            {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+            {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
             {saved && (
-              <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success">
+              <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success" role="status">
                 ✅ {lang === 'he' ? 'הרשימות עודכנו' : 'Status lists updated'}
               </p>
             )}

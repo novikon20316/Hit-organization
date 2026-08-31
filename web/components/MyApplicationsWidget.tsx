@@ -125,7 +125,7 @@ export function MyApplicationsWidget() {
             {loading ? (
               <p className="text-sm text-muted">…</p>
             ) : error ? (
-              <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger sm:col-span-2">{error}</p>
+              <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger sm:col-span-2" role="alert">{error}</p>
             ) : filtered.length === 0 ? (
               <p className="text-sm text-muted">
                 {filter === 'pending'

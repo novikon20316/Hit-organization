@@ -116,7 +116,7 @@ function MaintenanceContent() {
 
       {isFinished && (
         <div className="mt-5 rounded-[var(--radius)] border border-success bg-success-bg p-4">
-          <p className="text-sm font-semibold text-success">✅ {lang === 'he' ? 'התחזוקה אמורה להסתיים בקרוב...' : 'Maintenance should be wrapping up…'}</p>
+          <p className="text-sm font-semibold text-success" role="status">✅ {lang === 'he' ? 'התחזוקה אמורה להסתיים בקרוב...' : 'Maintenance should be wrapping up…'}</p>
         </div>
       )}
 

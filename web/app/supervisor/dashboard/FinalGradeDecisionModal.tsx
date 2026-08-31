@@ -148,7 +148,7 @@ export function FinalGradeDecisionModal({ milestoneId, autoCalculatedFinalGrade,
           </div>
         )}
 
-        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
       </div>
     </div>
   );

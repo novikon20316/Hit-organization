@@ -203,7 +203,7 @@ export default function NotificationsPage() {
   return (
     <DashboardShell title={lang === 'he' ? 'התראות והודעות' : 'Notifications & Messages'}>
       {actionError && (
-        <div className="mb-4 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+        <div className="mb-4 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
           <span>⚠️ {actionError}</span>
           <button type="button" onClick={() => setActionError('')} className="font-medium">
             ✕
@@ -248,7 +248,7 @@ export default function NotificationsPage() {
           </div>
 
           {notifsError && (
-            <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+            <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
               <span>⚠️ {notifsError}</span>
               <button type="button" onClick={fetchNotifications} className="font-medium underline">
                 {lang === 'he' ? 'נסה שוב' : 'Retry'}
@@ -315,7 +315,7 @@ export default function NotificationsPage() {
       {tab === 'chats' && (
         <div>
           {chatsError && (
-            <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+            <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
               <span>⚠️ {chatsError}</span>
               <button type="button" onClick={fetchChats} className="font-medium underline">
                 {lang === 'he' ? 'נסה שוב' : 'Retry'}

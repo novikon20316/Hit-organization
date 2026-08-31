@@ -241,7 +241,7 @@ function ExaminerAccessContent() {
       <div className="w-full max-w-md">
         <TokenHeader tokenDoc={tokenDoc} lang={lang} t={t} />
 
-        {!!actionError && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{actionError}</p>}
+        {!!actionError && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{actionError}</p>}
 
         {!showDeclineForm ? (
           <div className="mt-5 grid gap-2.5">
@@ -299,7 +299,7 @@ function ExaminerAccessContent() {
     <div className="w-full max-w-md">
       <TokenHeader tokenDoc={tokenDoc} lang={lang} t={t} />
 
-      <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-center text-sm font-medium text-success">
+      <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-center text-sm font-medium text-success" role="status">
         ✅ {t('examinerAccepted')}
       </p>
 
@@ -314,7 +314,7 @@ function ExaminerAccessContent() {
         </button>
       </div>
 
-      {!!actionError && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{actionError}</p>}
+      {!!actionError && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{actionError}</p>}
 
       {token && <DefenseDateSection token={token} />}
 

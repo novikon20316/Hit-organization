@@ -60,7 +60,7 @@ export default function Setup2FAPage() {
   if (done) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper px-4">
-        <p className="rounded-lg bg-success-bg px-4 py-3 text-sm font-semibold text-success">
+        <p className="rounded-lg bg-success-bg px-4 py-3 text-sm font-semibold text-success" role="status">
           ✅ {lang === 'he' ? 'אימות דו-שלבי הופעל! מעביר אותך...' : '2FA activated! Redirecting...'}
         </p>
       </div>
@@ -111,7 +111,7 @@ export default function Setup2FAPage() {
               className="mt-4 w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-center text-lg tracking-[0.3em] text-ink placeholder:tracking-normal focus:border-primary focus:bg-surface focus:outline-none"
             />
 
-            {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+            {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
             <button
               type="button"

@@ -266,7 +266,7 @@ export default function SignupPage() {
               {lang === 'he' ? `שלחנו קישור אימות אל ${email}. לחץ עליו ואז חזור לכאן.` : `We sent a verification link to ${email}. Click it, then come back here.`}
             </p>
 
-            {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+            {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
             <button
               type="button"
@@ -453,7 +453,7 @@ export default function SignupPage() {
               )}
             </div>
 
-            {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+            {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
             <p className="mt-4 text-center text-xs text-muted">
               {lang === 'he' ? 'בהרשמה הנך מאשר/ת שקראת את ' : 'By signing up you agree to our '}

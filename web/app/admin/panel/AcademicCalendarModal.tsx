@@ -102,8 +102,8 @@ export function AcademicCalendarModal({ onClose }: AcademicCalendarModalProps) {
               <input type="number" min={1} max={31} value={springDay} onChange={(e) => setSpringDay(e.target.value)} placeholder={lang === 'he' ? 'יום' : 'Day'} className={inputCls} />
             </div>
 
-            {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
-            {saved && <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success">✅ {lang === 'he' ? 'לוח השנה עודכן' : 'Academic calendar updated'}</p>}
+            {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+            {saved && <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success" role="status">✅ {lang === 'he' ? 'לוח השנה עודכן' : 'Academic calendar updated'}</p>}
 
             <button
               type="button"

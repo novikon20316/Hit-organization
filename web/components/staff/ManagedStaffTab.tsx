@@ -95,7 +95,7 @@ export function ManagedStaffTab({ staff, onRefresh, scope }: ManagedStaffTabProp
         </button>
       </div>
 
-      {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {filtered.map((u) => (

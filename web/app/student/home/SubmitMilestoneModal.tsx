@@ -165,7 +165,10 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
         )}
 
         {message && (
-          <p className={`mt-4 rounded-md px-3 py-2 text-sm ${message.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}>{message.text}</p>
+          <p
+            className={`mt-4 rounded-md px-3 py-2 text-sm ${message.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}
+            role={message.ok ? 'status' : 'alert'}
+          >{message.text}</p>
         )}
 
         <button

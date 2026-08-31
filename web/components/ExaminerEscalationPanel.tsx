@@ -66,8 +66,8 @@ export function ExaminerEscalationPanel() {
       <p className="mb-2 text-sm font-semibold text-ink">
         ⚠️ {lang === 'he' ? 'בוחנים חיצוניים הדורשים טיפול' : 'External examiners needing attention'}
       </p>
-      {message && <p className="mb-2 rounded-md bg-success-bg px-2.5 py-1.5 text-xs text-success">{message}</p>}
-      {error && <p className="mb-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{error}</p>}
+      {message && <p className="mb-2 rounded-md bg-success-bg px-2.5 py-1.5 text-xs text-success" role="status">{message}</p>}
+      {error && <p className="mb-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{error}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {escalations.map((e) => (
           <div key={e.tokenId} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--danger)' } as React.CSSProperties}>

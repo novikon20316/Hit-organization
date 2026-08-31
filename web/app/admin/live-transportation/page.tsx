@@ -484,8 +484,8 @@ export default function LiveTransportationPage() {
             <p className="mt-1 text-xs text-admin-on-surface-variant">
               {lang === 'he' ? `אתר: ${byPlatform.web} · אפליקציה: ${byPlatform.mobile}` : `Web: ${byPlatform.web} · Mobile: ${byPlatform.mobile}`}
             </p>
-            {presenceError && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{presenceError}</p>}
-            {historyError && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{historyError}</p>}
+            {presenceError && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">{presenceError}</p>}
+            {historyError && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">{historyError}</p>}
             <div className="mt-3 h-48 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={history}>
@@ -525,8 +525,8 @@ export default function LiveTransportationPage() {
             <h2 className="text-sm font-bold text-admin-primary">{lang === 'he' ? 'פעולות אחרונות (100 אחרונות)' : 'Recent actions (last 100)'}</h2>
           </div>
           <div className="p-4">
-          {auditError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{auditError}</p>}
-          {deleteError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger">{deleteError}</p>}
+          {auditError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">{auditError}</p>}
+          {deleteError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">{deleteError}</p>}
 
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <button

@@ -335,7 +335,7 @@ function GradSchoolHeadDashboardContent() {
         <StatCard value={stats.completedThisYear} label={lang === 'he' ? 'סיימו השנה' : 'Completed'} color="var(--success)" href="/grad_school_head/dashboard?tab=grades" />
       </div>
 
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>
@@ -486,7 +486,7 @@ function GradSchoolHeadDashboardContent() {
                 {eligibilitySearching ? '…' : lang === 'he' ? 'חפש' : 'Search'}
               </button>
             </div>
-            {eligibilityError && <p className="mt-2 text-xs text-danger">{eligibilityError}</p>}
+            {eligibilityError && <p className="mt-2 text-xs text-danger" role="alert">{eligibilityError}</p>}
             {eligibilityResults.length > 0 && (
               <div className="mt-3 grid gap-1.5">
                 {eligibilityResults.map((s) => (

@@ -131,7 +131,7 @@ export function CoordinatorStatisticsTab() {
   };
 
   if (loading && !data) return <p className="text-sm text-muted">…</p>;
-  if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>;
+  if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>;
   if (noScopeAssigned) {
     return (
       <p className="rounded-md bg-[#FBF3E3] px-3 py-2 text-sm text-accent">
@@ -159,7 +159,7 @@ export function CoordinatorStatisticsTab() {
           ))}
         </select>
         <div className="flex items-center gap-2">
-          {downloadError && <span className="text-xs text-danger">{downloadError}</span>}
+          {downloadError && <span className="text-xs text-danger" role="alert">{downloadError}</span>}
           <DownloadButton onClick={handleDownload} busy={downloading} lang={lang} />
         </div>
       </div>
@@ -373,7 +373,7 @@ export function CoordinatorStatisticsTab() {
           >
             {savingRates ? '…' : lang === 'he' ? 'שמירת המפתח' : 'Save key'}
           </button>
-          {rateSaveError && <span className="text-xs text-danger">{rateSaveError}</span>}
+          {rateSaveError && <span className="text-xs text-danger" role="alert">{rateSaveError}</span>}
         </div>
 
         {data.supervisorCreditPoints.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין נתונים' : 'No data'}</p>}

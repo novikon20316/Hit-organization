@@ -92,7 +92,7 @@ export function RecoveryModal({ onClose, onActivated }: RecoveryModalProps) {
                 ? 'איבדת גישה לאפליקציית האימות שלך? נשלח קוד שחזור לכתובת המייל הרשומה בחשבון שלך. הזן אותו כאן כדי להגדיר אפליקציית אימות חדשה.'
                 : "Lost access to your authenticator app? We'll email a recovery code to the address on your account. Enter it here to set up a new authenticator."}
             </p>
-            {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+            {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
             <button
               type="button"
               onClick={handleSendCode}
@@ -118,7 +118,7 @@ export function RecoveryModal({ onClose, onActivated }: RecoveryModalProps) {
               placeholder="000000"
               className="mt-3 w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-center text-lg tracking-[0.3em] text-ink focus:border-primary focus:bg-surface focus:outline-none"
             />
-            {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+            {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
             <button
               type="button"
               onClick={handleConfirmEmailCode}
@@ -153,7 +153,7 @@ export function RecoveryModal({ onClose, onActivated }: RecoveryModalProps) {
               placeholder="000000"
               className="mt-3 w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-center text-lg tracking-[0.3em] text-ink focus:border-primary focus:bg-surface focus:outline-none"
             />
-            {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+            {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
             <button
               type="button"
               onClick={handleActivateNewAuthenticator}

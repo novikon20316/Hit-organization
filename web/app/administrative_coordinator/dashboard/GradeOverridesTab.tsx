@@ -83,7 +83,7 @@ export function GradeOverridesTab() {
   };
 
   if (loading) return <p className="text-sm text-muted">…</p>;
-  if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>;
+  if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>;
   if (rows.length === 0) {
     return <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין ציונים סופיים ממתינים לאישור' : 'No final grades pending approval'}</p>;
   }

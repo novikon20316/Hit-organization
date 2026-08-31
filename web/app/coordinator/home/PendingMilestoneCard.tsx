@@ -181,7 +181,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
         </div>
       )}
 
-      {rowError && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{rowError}</p>}
+      {rowError && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{rowError}</p>}
 
       <div className="mt-3 flex gap-2">
         <button

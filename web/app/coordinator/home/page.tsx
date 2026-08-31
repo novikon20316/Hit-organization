@@ -187,7 +187,7 @@ function CoordinatorHomeContent() {
       subtitle={lang === 'he' ? 'אישור אבני דרך והמלצות בוחנים' : 'Milestone approvals and examiner recommendations'}
       showBackButton={tab !== 'overview'}
     >
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>

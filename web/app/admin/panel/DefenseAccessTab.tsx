@@ -86,7 +86,7 @@ export function DefenseAccessTab() {
         ))}
       </div>
 
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loading ? (
         <p className="text-sm text-muted">…</p>
@@ -126,7 +126,7 @@ export function DefenseAccessTab() {
                     placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
                     className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
                   />
-                  {submitError && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{submitError}</p>}
+                  {submitError && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{submitError}</p>}
                   <button
                     type="button"
                     onClick={() => handleExtend(g.code)}

@@ -303,7 +303,7 @@ function ProgramHeadDashboardContent() {
         <StatCard value={stats.pendingCount} label={lang === 'he' ? 'ממתינים' : 'Pending'} color="var(--accent)" href="/program_head/dashboard?tab=approvals" />
       </div>
 
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>
@@ -335,7 +335,7 @@ function ProgramHeadDashboardContent() {
                 {eligibilitySearching ? '…' : lang === 'he' ? 'חפש' : 'Search'}
               </button>
             </div>
-            {eligibilityError && <p className="mt-2 text-xs text-danger">{eligibilityError}</p>}
+            {eligibilityError && <p className="mt-2 text-xs text-danger" role="alert">{eligibilityError}</p>}
             {eligibilityResults.length > 0 && (
               <div className="mt-3 grid gap-1.5">
                 {eligibilityResults.map((s) => (

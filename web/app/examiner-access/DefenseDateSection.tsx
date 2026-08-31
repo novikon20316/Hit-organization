@@ -96,7 +96,7 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
             placeholder="YYYY-MM-DD, YYYY-MM-DD"
             className="mt-3 w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
           />
-          {!!error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+          {!!error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
           <button
             type="button"
             onClick={handleSubmit}
@@ -111,12 +111,12 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
       {status === 'awaiting_other_examiners' && <p className="mt-2 text-sm text-muted">{t('examinerDefenseDateWaiting')}</p>}
 
       {status === 'matched' && (
-        <p className="mt-2 text-sm font-semibold text-success">
+        <p className="mt-2 text-sm font-semibold text-success" role="status">
           ✅ {t('examinerDefenseDateMatched')} {matchedDate}
         </p>
       )}
 
-      {status === 'conflict' && <p className="mt-2 text-sm font-semibold text-danger">⚠️ {t('examinerDefenseDateConflict')}</p>}
+      {status === 'conflict' && <p className="mt-2 text-sm font-semibold text-danger" role="alert">⚠️ {t('examinerDefenseDateConflict')}</p>}
     </div>
   );
 }

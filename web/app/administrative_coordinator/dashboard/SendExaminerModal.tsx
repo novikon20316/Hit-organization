@@ -121,12 +121,12 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
         </div>
 
         {sent && (
-          <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success">
+          <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success" role="status">
             {lang === 'he' ? '✅ הבקשה נשלחה — קישור הגישה נשלח לבוחן במייל.' : '✅ Sent — the access link was emailed directly to the examiner.'}
           </p>
         )}
 
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <button
           type="button"

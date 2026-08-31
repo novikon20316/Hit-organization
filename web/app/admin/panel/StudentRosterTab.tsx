@@ -146,7 +146,7 @@ export function StudentRosterTab() {
         </select>
       </div>
 
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loading ? (
         <p className="text-sm text-muted">…</p>
@@ -192,7 +192,7 @@ export function StudentRosterTab() {
                     placeholder={lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}
                     className={`${inputCls} w-full`}
                   />
-                  {rowError && <p className="text-xs text-danger">{rowError}</p>}
+                  {rowError && <p className="text-xs text-danger" role="alert">{rowError}</p>}
                   <div className="flex gap-2">
                     <button
                       type="button"
@@ -216,7 +216,7 @@ export function StudentRosterTab() {
                   <p className="text-xs text-danger">
                     {lang === 'he' ? 'למחוק את הרשומה הזו לצמיתות?' : 'Permanently delete this entry?'}
                   </p>
-                  {rowError && <p className="text-xs text-danger">{rowError}</p>}
+                  {rowError && <p className="text-xs text-danger" role="alert">{rowError}</p>}
                   <div className="flex gap-2">
                     <button
                       type="button"

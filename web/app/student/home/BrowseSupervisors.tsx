@@ -215,7 +215,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
       {loading ? (
         <p className="mt-4 text-sm text-muted">{t('loading')}</p>
       ) : loadError ? (
-        <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>
+        <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>
       ) : (
         <>
           <p className="mt-3 text-xs text-muted">
@@ -350,7 +350,10 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
             />
 
             {applyMessage && (
-              <p className={`mt-4 rounded-md px-3 py-2 text-sm ${applyMessage.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}>
+              <p
+                className={`mt-4 rounded-md px-3 py-2 text-sm ${applyMessage.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}
+                role={applyMessage.ok ? 'status' : 'alert'}
+              >
                 {applyMessage.text}
               </p>
             )}
@@ -376,7 +379,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
                 ? `האם להצטרף ל"${joinTarget.titleHe}"? הצטרפות זו מיידית וללא צורך באישור.`
                 : `Join "${joinTarget.titleEn}"? This enrolls you immediately, no approval needed.`}
             </p>
-            {joinError && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{joinError}</p>}
+            {joinError && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{joinError}</p>}
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
@@ -466,7 +469,7 @@ function FileField({
         </div>
       )}
       {error && (
-        <p className="mt-1 text-xs text-danger">{lang === 'he' ? 'ניתן להעלות קובצי PDF בלבד' : 'Only PDF files can be uploaded'}</p>
+        <p className="mt-1 text-xs text-danger" role="alert">{lang === 'he' ? 'ניתן להעלות קובצי PDF בלבד' : 'Only PDF files can be uploaded'}</p>
       )}
     </label>
   );

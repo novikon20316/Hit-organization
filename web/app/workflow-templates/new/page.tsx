@@ -123,7 +123,7 @@ function ProposeVersionContent() {
   if (!processType) {
     return (
       <DashboardShell title={lang === 'he' ? 'הצעת גרסה חדשה' : 'Propose New Version'}>
-        <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+        <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
           {lang === 'he' ? 'קישור לא תקין — חסר סוג תהליך.' : 'Invalid link — missing process type.'}
         </p>
       </DashboardShell>
@@ -445,7 +445,7 @@ function ProposeVersionForm({
         </p>
       )}
 
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
         <div className="flex items-center justify-between">
@@ -651,7 +651,7 @@ function ProposeVersionForm({
         />
       </label>
 
-      {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" onClick={() => confirmExit()} disabled={saving} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">

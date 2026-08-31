@@ -301,7 +301,7 @@ export default function ReportsPage() {
         <p className="mb-3 text-xs text-muted">{lang === 'he' ? `סף "תקוע": ${meta.threshold} ימים` : `"Stuck" threshold: ${meta.threshold} days`}</p>
       )}
 
-      {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       {loading ? (
         <p className="text-sm text-muted">{t('loading')}</p>

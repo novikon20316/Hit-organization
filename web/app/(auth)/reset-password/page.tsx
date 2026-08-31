@@ -102,7 +102,7 @@ export default function ResetPasswordPage() {
                   required
                 />
                 {showError && <p className="mt-1.5 text-xs text-danger">{lang === 'he' ? 'כתובת אימייל אינה תקינה' : 'Please enter a valid email address'}</p>}
-                {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+                {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
                 <button
                   type="submit"
                   disabled={!isValidEmail || loading}

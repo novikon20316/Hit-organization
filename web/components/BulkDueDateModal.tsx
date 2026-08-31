@@ -192,8 +192,8 @@ export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModa
           />
         </label>
 
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
-        {result && <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success">{result}</p>}
+        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+        {result && <p className="mt-4 rounded-md bg-success-bg px-3 py-2 text-sm text-success" role="status">{result}</p>}
 
         <button
           type="button"

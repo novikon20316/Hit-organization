@@ -156,7 +156,7 @@ export function BulkImportModal({ scope, onClose, onImported }: BulkImportModalP
           </button>
         </div>
 
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         {summary && (
           <div className="mt-4 rounded-lg bg-paper p-3.5">

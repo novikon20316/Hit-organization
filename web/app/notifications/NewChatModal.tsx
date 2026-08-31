@@ -168,8 +168,8 @@ export function NewChatModal({ existingChatIds, onClose, onChatCreated }: NewCha
                   className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
                 />
               </label>
-              {broadcastResult && <p className="rounded-md bg-success-bg px-3 py-2 text-sm text-success">{broadcastResult}</p>}
-              {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+              {broadcastResult && <p className="rounded-md bg-success-bg px-3 py-2 text-sm text-success" role="status">{broadcastResult}</p>}
+              {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
               <button
                 type="button"
                 onClick={handleBroadcast}
@@ -187,9 +187,9 @@ export function NewChatModal({ existingChatIds, onClose, onChatCreated }: NewCha
                 placeholder={lang === 'he' ? 'חפש לפי שם או אימייל...' : 'Search by name or email…'}
                 className="mb-3 w-full rounded-lg border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
               />
-              {error && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+              {error && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
               {loadError && (
-                <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+                <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
                   <span>⚠️ {loadError}</span>
                   <button type="button" onClick={loadCandidates} className="font-medium underline">
                     {lang === 'he' ? 'נסה שוב' : 'Retry'}

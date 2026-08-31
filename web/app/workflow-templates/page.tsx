@@ -356,8 +356,8 @@ function WorkflowTemplatesContent() {
         ))}
       </div>
 
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
-      {actionError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{actionError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
+      {actionError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{actionError}</p>}
 
       {loading ? (
         <p className="text-sm text-muted">{t('loading')}</p>
@@ -690,7 +690,7 @@ function WorkflowTemplatesContent() {
             </p>
             {duplicateSuccess ? (
               <>
-                <p className="mt-3 rounded-md bg-success-bg px-2.5 py-1.5 text-sm text-success">{duplicateSuccess}</p>
+                <p className="mt-3 rounded-md bg-success-bg px-2.5 py-1.5 text-sm text-success" role="status">{duplicateSuccess}</p>
                 <div className="mt-4 flex justify-end">
                   <button
                     type="button"
@@ -733,7 +733,7 @@ function WorkflowTemplatesContent() {
                     </select>
                   </label>
                 )}
-                {duplicateError && <p className="mt-3 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{duplicateError}</p>}
+                {duplicateError && <p className="mt-3 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{duplicateError}</p>}
                 <div className="mt-4 flex justify-end gap-2">
                   <button
                     type="button"

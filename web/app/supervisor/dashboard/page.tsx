@@ -194,7 +194,7 @@ function SupervisorDashboardContent() {
 
       <div className="flex flex-col gap-6 lg:flex-row">
       <div className="flex-1">
-      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>

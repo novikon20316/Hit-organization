@@ -235,7 +235,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
       {loading ? (
         <p className="text-sm text-[#444651]">…</p>
       ) : error ? (
-        <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>
+        <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>
       ) : (
         <>
           <div className="rounded-lg border border-[#c5c5d3] bg-[#eeedf4] p-3">

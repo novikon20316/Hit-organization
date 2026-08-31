@@ -68,7 +68,7 @@ export function ExceptionalActionQueue() {
   if (loading) return null;
   if (loadError) {
     return (
-      <div className="mb-4 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+      <div className="mb-4 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
         <span>⚠️ {loadError}</span>
         <button type="button" onClick={load} className="font-medium underline">
           {lang === 'he' ? 'נסה שוב' : 'Retry'}
@@ -98,7 +98,7 @@ export function ExceptionalActionQueue() {
             className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
           />
 
-          {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+          {error && <p className="mt-1 text-xs text-danger" role="alert">{error}</p>}
 
           <div className="mt-2 flex justify-end gap-2">
             <button

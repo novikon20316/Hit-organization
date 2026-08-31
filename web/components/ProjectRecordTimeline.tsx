@@ -115,7 +115,7 @@ export function ProjectRecordTimeline({ projectId }: { projectId: string }) {
       </p>
 
       {loading && <p className="mt-2 text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
-      {error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       {!loading && !error && (entries?.length ?? 0) === 0 && (
         <p className="mt-2 text-sm text-muted">

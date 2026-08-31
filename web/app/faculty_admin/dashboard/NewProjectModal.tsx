@@ -224,7 +224,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
                 </p>
               )}
               {degreeOptions.length === 0 && (
-                <p className="mt-1 text-xs text-danger">
+                <p className="mt-1 text-xs text-danger" role="alert">
                   {lang === 'he' ? 'לפקולטות שנבחרו אין תואר משותף' : 'The selected faculties share no common degree level'}
                 </p>
               )}
@@ -254,7 +254,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
           <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
         </div>
 
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">

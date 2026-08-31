@@ -57,7 +57,7 @@ export default function AdminMajorRecordsPage() {
             : 'Choose a supervisor to see their projects with a permanent, read-only record.'}
         </p>
 
-        {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
         {!error && supervisors === null && <p className="text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
         {!error && supervisors !== null && supervisors.length === 0 && (
           <p className="text-sm text-muted">{lang === 'he' ? 'אין מנחים להצגה.' : 'No supervisors to show.'}</p>

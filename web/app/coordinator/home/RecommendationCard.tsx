@@ -70,7 +70,7 @@ export function RecommendationCard({ recommendation: rec, onChanged }: Recommend
             </div>
           ))}
 
-          {error && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{error}</p>}
+          {error && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{error}</p>}
 
           <div className="flex gap-2">
             <button

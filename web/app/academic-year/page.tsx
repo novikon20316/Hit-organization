@@ -97,7 +97,7 @@ export default function AcademicYearPage() {
         </button>
       </div>
 
-      {searchError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{searchError}</p>}
+      {searchError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{searchError}</p>}
 
       <div className="grid gap-2 sm:grid-cols-2">
         {results.map((s) => (
@@ -237,7 +237,7 @@ function EditAcademicYearForm({
         </label>
       )}
 
-      {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       <button
         type="button"
@@ -354,7 +354,7 @@ function EditCompletedCoursesForm({
         </div>
       </div>
 
-      {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       <button
         type="button"
@@ -443,7 +443,7 @@ function EditTrackForm({
         </label>
       )}
 
-      {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       <button
         type="button"

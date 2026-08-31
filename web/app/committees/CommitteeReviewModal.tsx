@@ -100,7 +100,7 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
         {loading ? (
           <p className="mt-4 text-sm text-muted">…</p>
         ) : !detail ? (
-          <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>
+          <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>
         ) : (
           <>
             <div className="mt-4 rounded-lg border border-line bg-paper p-3">
@@ -214,7 +214,7 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
           </>
         )}
 
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
       </div>
     </div>
   );

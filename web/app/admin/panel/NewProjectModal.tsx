@@ -304,7 +304,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
           <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
         </div>
 
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
           <button
