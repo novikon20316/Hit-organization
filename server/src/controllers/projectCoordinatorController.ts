@@ -736,7 +736,7 @@ function resolveStatisticsScope(req: AuthenticatedRequest): {
   allowedFacultyIds: string[];
   requestedFacultyId?: string;
 } {
-  const isSystemAdmin = req.user!.role === 'system_admin';
+  const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
   const coordinatorScopes: DegreeScope[] = (req.user!.coordinatorScopes ?? []).map(
     (s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId })
   );
@@ -744,7 +744,7 @@ function resolveStatisticsScope(req: AuthenticatedRequest): {
     ? []
     : coordinatorScopes.length > 0
       ? coordinatorScopes
-      : (req.user!.role === 'coordinator' && req.user!.facultyId)
+      : (hasAnyRole(req.user, ['coordinator']) && req.user!.facultyId)
         ? [{ facultyId: req.user!.facultyId }]
         : [];
   // system_admin has no coordinatorScopes/facultyId of its own to derive this

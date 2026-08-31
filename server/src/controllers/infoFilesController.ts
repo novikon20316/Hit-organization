@@ -1,7 +1,7 @@
 // backend/controllers/infoFilesController.ts
 import admin from 'firebase-admin';
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
@@ -268,7 +268,7 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
       };
     });
 
-    if (req.user?.role === 'student') {
+    if (req.user && hasAnyRole(req.user, ['student'])) {
       const studentSnap = await db.collection('users').doc(req.user.uid).get();
       const student = studentSnap.data() ?? {};
       // Legacy single-project field kept as a fallback — activeProjectIds is

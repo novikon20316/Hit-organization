@@ -3,7 +3,7 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import crypto from 'crypto';
-import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole, getUserRoles } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount, getEffectiveRoles } from '../services/accountDeletion.js';
 import { VALID_ROLES, generateTempPassword, setTempPasswordHash } from '../services/userImportExport.js';
@@ -192,6 +192,31 @@ const PROJECT_CREATOR_ROLES = ['faculty_admin', 'system_admin', 'grad_school_hea
  * administrative coordinator), which silently rendered as an empty dropdown
  * since the client swallows the error.
  */
+// Every real facultyId (never 'all') the caller may request supervisors for
+// — system_admin and administrative_secretary stay unrestricted (the latter
+// is provisioned facultyId==='all' for this endpoint's purposes); faculty_admin
+// and grad_school_head are capped to their own effective faculty set, same as
+// everywhere else in this file, so they can't enumerate another faculty's
+// staff just by guessing a facultyId from the (small, well-known) taxonomy.
+function callerAllowedFacultyIds(user: AuthenticatedRequest['user']): string[] | 'all' {
+  if (!user) return [];
+  const roles = getUserRoles(user);
+  if (roles.includes('system_admin') || roles.includes('administrative_secretary')) return 'all';
+  const sets: string[][] = [];
+  if (roles.includes('faculty_admin')) {
+    const eff = effectiveFacultyIds(user, 'facultyAdminFacultyIds');
+    if (eff === 'all') return 'all';
+    sets.push(eff);
+  }
+  if (roles.includes('grad_school_head')) {
+    const eff = effectiveFacultyIds(user, 'gradSchoolHeadFacultyIds');
+    if (eff === 'all') return 'all';
+    sets.push(eff);
+  }
+  if (sets.length > 0) return [...new Set(sets.flat())];
+  return user.facultyId === 'all' ? 'all' : [user.facultyId];
+}
+
 export const getSupervisorsList = async (req: AuthenticatedRequest, res: Response) => {
   const role  = req.user?.role;
   const roles = req.user?.roles ?? [];
@@ -201,11 +226,15 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
   }
 
   const rawFacultyIds = req.query.facultyIds;
-  const facultyIds: string[] = Array.isArray(rawFacultyIds)
+  const requestedFacultyIds: string[] = Array.isArray(rawFacultyIds)
     ? rawFacultyIds.filter((id): id is string => typeof id === 'string')
     : typeof rawFacultyIds === 'string' && rawFacultyIds
     ? [rawFacultyIds]
     : [];
+  const allowedFacultyIds = callerAllowedFacultyIds(req.user);
+  const facultyIds = allowedFacultyIds === 'all'
+    ? requestedFacultyIds
+    : requestedFacultyIds.filter((id) => allowedFacultyIds.includes(id));
   // A supervisor list is only meaningful once at least one faculty is
   // selected — matches every caller's own client-side gating.
   if (facultyIds.length === 0) {
@@ -1496,8 +1525,13 @@ export const searchStudents = async (req: AuthenticatedRequest, res: Response) =
       // every student in the institution, not just her assigned degree(s).
       // program_head is scoped the same way (their own coordinatorScopes, if
       // assigned one — see scopeAuthorization.ts's withinCoordinatorScope).
+      // Checked against the full role set (not just the primary role) — a
+      // multi-role account holding administrative_secretary/program_head only
+      // as a secondary role must still be scoped, not treated as unrestricted
+      // just because their primary role isn't one of these two.
       .filter((u: any) =>
-        (req.user!.role !== 'administrative_secretary' && req.user!.role !== 'program_head') ||
+        !hasAnyRole(req.user, ['administrative_secretary', 'program_head']) ||
+        hasAnyRole(req.user, ['system_admin']) ||
         withinCoordinatorScope(req.user, { facultyId: u.facultyId ?? '', major: u.major || undefined })
       )
       .slice(0, 25)

@@ -2,7 +2,7 @@
 // Removed broken: import { Message } from 'protobufjs'
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
@@ -62,14 +62,14 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
       project.supervisorId === requester.uid ||
       project.secondarySupervisorId === requester.uid ||
       (project.enrolledStudentIds ?? []).includes(requester.uid);
-    const hasFullAccess = FULL_ACCESS_ROLES.includes(requester.role);
+    const hasFullAccess = hasAnyRole(requester, FULL_ACCESS_ROLES);
     // Own faculty, an explicit 'all', or any extra faculty granted via
     // internalExaminerFacultyIds (see facultyIdMatches).
     const hasFacultyAccess =
-      FACULTY_SCOPED_ROLES.includes(requester.role) &&
+      hasAnyRole(requester, FACULTY_SCOPED_ROLES) &&
       facultyIdMatches(requester, project.facultyId ?? '', 'internalExaminerFacultyIds');
     const hasCoordinatorScopeAccess =
-      requester.role === 'administrative_secretary' &&
+      hasAnyRole(requester, ['administrative_secretary']) &&
       withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });
     if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasCoordinatorScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
@@ -1171,12 +1171,14 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+const ACTIVE_PROJECTS_ROLES = ['coordinator', 'faculty_admin', 'admin', 'system_admin'];
+const ACTIVE_PROJECTS_UNRESTRICTED_ROLES = ['admin', 'system_admin'];
+
 export const getActiveProjects = async(req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  const role = req.user?.role;
 
   // Verify coordinator/admin roles
-  if (role !== 'coordinator' && role !== 'faculty_admin' && role !== 'admin' && role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ACTIVE_PROJECTS_ROLES)) {
     return res.status(403).json({ message: 'Unauthorized access' });
   }
 
@@ -1189,7 +1191,7 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
     // behavior everywhere else. facultyId 'all' (administrative-coordinator-
     // style provisioning) is likewise unrestricted rather than an empty/
     // no-match scope.
-    let unrestricted = role === 'admin' || role === 'system_admin';
+    let unrestricted = hasAnyRole(req.user, ACTIVE_PROJECTS_UNRESTRICTED_ROLES);
     let facultyIds: string[] = [];
     if (!unrestricted) {
       const coordinatorScopes = req.user?.coordinatorScopes ?? [];

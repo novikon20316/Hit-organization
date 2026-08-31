@@ -91,7 +91,7 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
 
   if (myRoles.has('system_admin')) return 'all';
 
-  if (myRole === 'student') {
+  if (myRoles.has('student')) {
     const ids = new Set<string>();
     if (activeProjectId) {
       const projSnap = await db.collection('projects').doc(activeProjectId).get();
@@ -310,19 +310,20 @@ export const sendBroadcastNotification = async (req: Request, res: Response) => 
 
   try {
     const meSnap = await db.collection('users').doc(uid).get();
-    const myRole = meSnap.data()?.role;
-    const myFaculty = meSnap.data()?.facultyId;
+    const meData = meSnap.data() ?? {};
+    const myRoles = new Set<string>([meData.role, ...((meData.roles as string[] | undefined) ?? [])].filter(Boolean));
+    const myFaculty = meData.facultyId;
 
-    if (myRole !== 'system_admin' && myRole !== 'faculty_admin') {
+    if (!myRoles.has('system_admin') && !myRoles.has('faculty_admin')) {
       return res.status(403).json({ message: 'Action restricted to authorized administrative users only' });
     }
 
     let recipientIds: string[] = [];
 
-    if (myRole === 'system_admin') {
+    if (myRoles.has('system_admin')) {
       const snap = await db.collection('users').get();
       recipientIds = snap.docs.map((d) => d.id).filter((id) => id !== uid);
-    } else if (myRole === 'faculty_admin') {
+    } else if (myRoles.has('faculty_admin')) {
       const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
       recipientIds = snap.docs.map((d) => d.id).filter((id) => id !== uid);
     }
@@ -447,12 +448,12 @@ export const getChatCandidates = async (req: Request, res: Response) => {
     };
 
     // --- System Admins see everyone ---
-    if (myRole === 'system_admin') {
+    if (myRoles.has('system_admin')) {
       const snap = await db.collection('users').get();
       snap.forEach(addDoc);
     }
     // --- Students find assigned or target supervisors ---
-    else if (myRole === 'student') {
+    else if (myRoles.has('student')) {
       if (activeProjectId) {
         const projSnap = await db.collection('projects').doc(activeProjectId).get();
         const supId = projSnap.data()?.supervisorId;

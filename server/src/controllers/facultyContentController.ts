@@ -116,7 +116,7 @@ export const getFacultyContent = async (req: AuthenticatedRequest, res: Response
       };
     });
 
-    if (req.user?.role === 'student') {
+    if (req.user && hasAnyRole(req.user, ['student'])) {
       const studentSnap = await db.collection('users').doc(req.user.uid).get();
       const student = studentSnap.data() ?? {};
       items = items.filter((f) =>

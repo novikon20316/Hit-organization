@@ -8,7 +8,7 @@
 
 import { Response } from 'express';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import {
   ProcessType,
   WorkflowMilestoneSpec,
@@ -330,13 +330,12 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
 // (facultyId+major) tuples, never anything outside them ("keep a
 // separation between degrees").
 export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Response) => {
-  const role = req.user?.role;
-  if (!role) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
 
   const requestedFacultyId = (req.query.facultyId as string | undefined) ?? undefined;
   const requestedMajor = req.query.major === 'all' ? null : (req.query.major as string | undefined) ?? undefined;
 
-  if (role === 'administrative_secretary') {
+  if (hasAnyRole(req.user, ['administrative_secretary'])) {
     const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: requestedFacultyId, major: requestedMajor });
     if (!scope) {
       // No scope assigned yet, or the requested one isn't hers — either
@@ -352,7 +351,7 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
     }
   }
 
-  const isCrossFaculty = GRAD_SCHOOL_APPROVER_ROLES.includes(role);
+  const isCrossFaculty = hasAnyRole(req.user, GRAD_SCHOOL_APPROVER_ROLES);
   const facultyId = isCrossFaculty ? (requestedFacultyId ?? req.user?.facultyId) : req.user?.facultyId;
 
   if (!facultyId) return res.status(400).json({ message: 'facultyId could not be resolved.' });
@@ -661,25 +660,35 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
 // Read-only — no mutation. Used both when the proposer picks "now"
 // (informational) and again right before the approver confirms.
 export const getRetroactivePreviewController = async (req: AuthenticatedRequest, res: Response) => {
-  const role = req.user?.role;
-  if (!role) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
 
   const processType = req.query.processType as ProcessType;
   if (!PROCESS_TYPES.includes(processType)) {
     return res.status(400).json({ message: `Invalid processType: ${processType}` });
   }
   const requestedMajor = req.query.major === 'all' ? null : (req.query.major as string | undefined) ?? null;
+  const requestedFacultyId = req.query.facultyId as string | undefined;
 
   let facultyId: string | undefined;
   let major = requestedMajor;
+  const isCrossFaculty = hasAnyRole(req.user, CROSS_FACULTY_PROPOSER_ROLES);
 
-  if (role === 'administrative_secretary') {
-    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: req.query.facultyId as string | undefined, major: requestedMajor });
+  if (hasAnyRole(req.user, ['administrative_secretary'])) {
+    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: requestedFacultyId, major: requestedMajor });
     if (!scope) return res.status(403).json({ message: 'You may only preview a subject assigned to you.' });
     facultyId = scope.facultyId;
     major = scope.major;
+  } else if (isCrossFaculty) {
+    facultyId = requestedFacultyId ?? req.user?.facultyId;
   } else {
-    facultyId = (req.query.facultyId as string | undefined) ?? (CROSS_FACULTY_PROPOSER_ROLES.includes(role) ? undefined : req.user?.facultyId);
+    // Non-cross-faculty roles (coordinator/faculty_admin/program_head) may
+    // only preview their own faculty — a client-supplied facultyId for
+    // another faculty must never be trusted, same fix as
+    // createWorkflowTemplateProposal/getWorkflowTemplates already enforce.
+    if (requestedFacultyId && requestedFacultyId !== req.user?.facultyId) {
+      return res.status(403).json({ message: 'You may only preview a subject for your own faculty.' });
+    }
+    facultyId = req.user?.facultyId;
   }
   if (!facultyId || facultyId === 'all') {
     return res.status(400).json({ message: 'A specific facultyId is required.' });

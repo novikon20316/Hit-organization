@@ -9,7 +9,7 @@
 
 import { Response } from 'express';
 import admin from 'firebase-admin';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { classifyFeedback } from '../services/feedbackService.js';
 
 const db = admin.firestore();
@@ -116,7 +116,7 @@ export const getMyFeedback = async (req: AuthenticatedRequest, res: Response) =>
 
 // GET /api/feedback/admin?status=open|resolved — system_admin only
 export const getAdminFeedback = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied.' });
   }
 
@@ -156,7 +156,7 @@ export const getAdminFeedback = async (req: AuthenticatedRequest, res: Response)
 
 // PATCH /api/feedback/admin/:id/resolve — system_admin only
 export const resolveFeedback = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied.' });
   }
   const { id } = req.params;

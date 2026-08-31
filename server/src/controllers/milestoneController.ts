@@ -18,6 +18,7 @@ import { notifyUser } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
+import { getUserRoles, matchedRole } from '../middleware/auth.js';
 
 const db = admin.firestore();
 
@@ -624,11 +625,19 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
   // and get every milestone — and every grade — in the system. Every role
   // below is forced onto its own scope; client-supplied values for that
   // role's own filter are ignored rather than trusted.
-  if (requester.role === 'student') {
+  // Scope by the requester's full role set (roles[] plus primary role), not
+  // just the primary role — a multi-role user (e.g. a coordinator who also
+  // holds 'supervisor' as a secondary role) otherwise falls into the wrong
+  // branch below, or none at all, and never sees milestones scoped to a role
+  // they legitimately hold. Same pattern as auth.ts's getUserRoles/matchedRole
+  // doc comment and the fix already applied in supervisorController.ts's
+  // createSupervisorProject.
+  const requesterRoles = getUserRoles(requester);
+  if (requesterRoles.includes('student')) {
     studentId = requester.uid;
-  } else if (requester.role === 'supervisor' || requester.role === 'secondary_supervisor') {
+  } else if (requesterRoles.includes('supervisor') || requesterRoles.includes('secondary_supervisor')) {
     supervisorId = requester.uid;
-  } else if (requester.role === 'administrative_secretary') {
+  } else if (requesterRoles.includes('administrative_secretary')) {
     // Her facultyId field is always the literal string 'all' (see
     // CROSS_FACULTY_ROLES in userController.ts) — filtering on it directly,
     // like the other faculty-manager roles below, would silently match
@@ -645,28 +654,30 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
       return res.status(200).json({ milestones: [] });
     }
     facultyIdIn = scopeFacultyIds;
-  } else if (requester.role === 'coordinator') {
+  } else if (requesterRoles.includes('coordinator')) {
     // No independent *FacultyIds extras field of its own — unchanged from
     // before (see facultyAdminController.ts's DELEGATE_ADMIN_ROLES, which
     // doesn't include coordinator).
     facultyId = requester.facultyId;
-  } else if (requester.role === 'faculty_admin' || requester.role === 'program_head') {
+  } else if (requesterRoles.includes('faculty_admin') || requesterRoles.includes('program_head')) {
     // Own faculty plus any extras granted for that specific role (see
     // effectiveFacultyIds) — 'all' would only happen if a system_admin
     // explicitly set one of these roles' facultyId to 'all'.
-    const field = requester.role === 'faculty_admin' ? 'facultyAdminFacultyIds' : 'programHeadFacultyIds';
+    const role = matchedRole(requester, ['faculty_admin', 'program_head'])!;
+    const field = role === 'faculty_admin' ? 'facultyAdminFacultyIds' : 'programHeadFacultyIds';
     const eff = effectiveFacultyIds(requester, field);
     if (eff === 'all') { /* unscoped, same as a cross-faculty role below */ }
     else facultyIdIn = eff;
-  } else if (requester.role === 'grad_school_head' || requester.role === 'internal_examiner') {
+  } else if (requesterRoles.includes('grad_school_head') || requesterRoles.includes('internal_examiner')) {
     // Used to be unconditionally cross-faculty by role alone; now scoped by
     // its own effective faculty set, same as faculty_admin/program_head —
     // 'all' (explicit, or a grandfathered legacy account) stays unscoped,
     // matching this role's original firestore.rules-aligned access level.
-    const field = requester.role === 'grad_school_head' ? 'gradSchoolHeadFacultyIds' : 'internalExaminerFacultyIds';
+    const role = matchedRole(requester, ['grad_school_head', 'internal_examiner'])!;
+    const field = role === 'grad_school_head' ? 'gradSchoolHeadFacultyIds' : 'internalExaminerFacultyIds';
     const eff = effectiveFacultyIds(requester, field);
     if (eff !== 'all') facultyIdIn = eff;
-  } else if (requester.role !== 'system_admin') {
+  } else if (!requesterRoles.includes('system_admin')) {
     return res.status(403).json({ error: 'Access denied.' });
   }
   // system_admin may query broadly/unscoped by design.

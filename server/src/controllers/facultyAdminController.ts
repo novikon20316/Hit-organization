@@ -30,7 +30,8 @@ export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Resp
   try {
     const adminSnap = await db.collection('users').doc(uid).get();
     const adminData = adminSnap.data();
-    if (!adminSnap.exists || adminData?.role !== 'faculty_admin') {
+    const isFacultyAdmin = adminData?.role === 'faculty_admin' || (adminData?.roles ?? []).includes('faculty_admin');
+    if (!adminSnap.exists || !isFacultyAdmin) {
       return res.status(403).json({ message: 'Access denied: Administration rights required' });
     }
 

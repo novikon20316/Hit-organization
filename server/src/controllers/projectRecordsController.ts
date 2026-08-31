@@ -10,7 +10,7 @@
 // Nothing here writes anything — see projectRecords.ts's own writer.
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, getUserRoles, hasAnyRole } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
 import { effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { MAJORS_BY_FACULTY } from '../config/majors.js';
@@ -36,11 +36,12 @@ function serializeTimestamp(value: any): string | null {
  *  yet), matching withinCoordinatorScope's own "deny rather than silently
  *  grant" fallback. */
 function callerFacultyScope(user: AuthUser): string[] | 'all' {
-  if (user.role === 'system_admin') return 'all';
-  if (user.role === 'faculty_admin') return effectiveFacultyIds(user, 'facultyAdminFacultyIds');
-  if (user.role === 'program_head') return effectiveFacultyIds(user, 'programHeadFacultyIds');
-  if (user.role === 'grad_school_head') return effectiveFacultyIds(user, 'gradSchoolHeadFacultyIds');
-  if (user.role === 'coordinator' || user.role === 'administrative_secretary') {
+  const roles = getUserRoles(user);
+  if (roles.includes('system_admin')) return 'all';
+  if (roles.includes('faculty_admin')) return effectiveFacultyIds(user, 'facultyAdminFacultyIds');
+  if (roles.includes('program_head')) return effectiveFacultyIds(user, 'programHeadFacultyIds');
+  if (roles.includes('grad_school_head')) return effectiveFacultyIds(user, 'gradSchoolHeadFacultyIds');
+  if (roles.includes('coordinator') || roles.includes('administrative_secretary')) {
     if (user.coordinatorScopes.length > 0) {
       const ids = new Set<string>();
       for (const scope of user.coordinatorScopes) {
@@ -80,8 +81,8 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
       project.secondarySupervisorId === requester.uid ||
       (project.enrolledStudentIds ?? []).includes(requester.uid);
     const hasStaffScopeAccess =
-      requester.role === 'system_admin' ||
-      (STAFF_RECORD_ROLES.includes(requester.role) &&
+      hasAnyRole(requester, ['system_admin']) ||
+      (hasAnyRole(requester, STAFF_RECORD_ROLES) &&
         facultyWithinScope(callerFacultyScope(requester), project.facultyId ?? ''));
 
     if (!isOwnProject && !hasStaffScopeAccess) {
@@ -192,7 +193,7 @@ function supervisorInScope(user: Record<string, unknown>, scope: string[] | 'all
 export const getScopedSupervisors = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!STAFF_RECORD_ROLES.includes(requester.role)) {
+  if (!hasAnyRole(requester, STAFF_RECORD_ROLES)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
 
@@ -230,7 +231,7 @@ export const getSupervisorProjectRecords = async (req: AuthenticatedRequest, res
   const requester = req.user;
   const { supervisorId } = req.params;
   if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!STAFF_RECORD_ROLES.includes(requester.role)) {
+  if (!hasAnyRole(requester, STAFF_RECORD_ROLES)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
   if (!supervisorId || typeof supervisorId !== 'string') {
@@ -273,7 +274,7 @@ export const getSupervisorProjectRecords = async (req: AuthenticatedRequest, res
 export const getFacultyTaxonomyForRecords = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
-  if (requester.role !== 'system_admin') {
+  if (!hasAnyRole(requester, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 

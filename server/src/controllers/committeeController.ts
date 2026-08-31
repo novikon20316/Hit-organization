@@ -19,7 +19,7 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, getUserRoles, hasAnyRole } from '../middleware/auth.js';
 
 export type CommitteeType = 'thesis' | 'final_project';
 
@@ -58,16 +58,16 @@ const TEMPLATE_AUTHOR_ROLES = ['coordinator', 'faculty_admin', 'program_head', '
 export const listCommittees = async (req: AuthenticatedRequest, res: Response) => {
   const { facultyId } = req.query;
   if (!isSystemAdmin(req)) {
-    const role = req.user?.role;
-    if (!role || !TEMPLATE_AUTHOR_ROLES.includes(role)) {
+    if (!hasAnyRole(req.user, TEMPLATE_AUTHOR_ROLES)) {
       return res.status(403).json({ message: 'Access denied.' });
     }
     if (typeof facultyId !== 'string' || !facultyId) {
       return res.status(400).json({ message: 'facultyId is required.' });
     }
-    const ownsFaculty = role === 'coordinator'
-      ? (req.user?.coordinatorScopes ?? []).some((s) => s.facultyId === facultyId)
-      : req.user?.facultyId === facultyId;
+    const roles = getUserRoles(req.user);
+    const ownsFaculty =
+      (roles.includes('coordinator') && (req.user?.coordinatorScopes ?? []).some((s) => s.facultyId === facultyId)) ||
+      req.user?.facultyId === facultyId;
     if (!ownsFaculty) return res.status(403).json({ message: 'Access denied for this faculty.' });
   }
   try {

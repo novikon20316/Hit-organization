@@ -13,7 +13,7 @@
 // array today, so there's nothing more to scope by.
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import {
   requestProjectErasure,
   listPendingErasureRequests,
@@ -24,11 +24,11 @@ import {
 } from '../services/projectErasure.js';
 
 function isApprover(req: AuthenticatedRequest): boolean {
-  return req.user?.role === 'coordinator' || req.user?.role === 'system_admin';
+  return hasAnyRole(req.user, ['coordinator', 'system_admin']);
 }
 
 function callerEffectiveFacultyIds(req: AuthenticatedRequest): string[] | 'all' {
-  if (req.user?.role === 'system_admin') return 'all';
+  if (hasAnyRole(req.user, ['system_admin'])) return 'all';
   return [req.user?.facultyId ?? ''];
 }
 

@@ -7,7 +7,7 @@
 // here; this just surfaces what's already tracked.
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
 import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 
@@ -55,9 +55,9 @@ export const getProjectGradeHistory = async (req: AuthenticatedRequest, res: Res
       project.secondarySupervisorId === requester.uid ||
       (project.enrolledStudentIds ?? []).includes(requester.uid);
     const hasCoordinatorScopeAccess =
-      requester.role === 'administrative_secretary' &&
+      hasAnyRole(requester, ['administrative_secretary']) &&
       withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });
-    if (!isOwnProject && !FULL_ACCESS_ROLES.includes(requester.role) && !hasCoordinatorScopeAccess) {
+    if (!isOwnProject && !hasAnyRole(requester, FULL_ACCESS_ROLES) && !hasCoordinatorScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 

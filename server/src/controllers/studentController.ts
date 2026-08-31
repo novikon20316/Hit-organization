@@ -1,6 +1,6 @@
 import admin from 'firebase-admin'
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
 import { withinCoordinatorScope, facultyIdMatches } from '../services/scopeAuthorization.js';
 import {
@@ -61,14 +61,14 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
       data?.supervisorId === requester.uid ||
       data?.secondarySupervisorId === requester.uid ||
       (data?.enrolledStudentIds ?? []).includes(requester.uid);
-    const hasFullAccess = FULL_ACCESS_ROLES.includes(requester.role);
+    const hasFullAccess = hasAnyRole(requester, FULL_ACCESS_ROLES);
     // Own faculty, an explicit 'all', or any extra faculty granted via
     // internalExaminerFacultyIds (see facultyIdMatches).
     const hasFacultyAccess =
-      FACULTY_SCOPED_ROLES.includes(requester.role) &&
+      hasAnyRole(requester, FACULTY_SCOPED_ROLES) &&
       facultyIdMatches(requester, data?.facultyId ?? '', 'internalExaminerFacultyIds');
     const hasCoordinatorScopeAccess =
-      requester.role === 'administrative_secretary' &&
+      hasAnyRole(requester, ['administrative_secretary']) &&
       withinCoordinatorScope(requester, { facultyId: data?.facultyId ?? '', major: data?.major || undefined });
     if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasCoordinatorScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
