@@ -97,6 +97,7 @@ function AdminPanelContent() {
   // Accounts currently disabled by the 3-strikes failed-login flow.
   const [lockedUsers, setLockedUsers] = useState<Array<{ code: string; uid: string; email: string; displayName: string; ip: string; location: string; createdAt: string }>>([]);
   const [loadingLocked, setLoadingLocked] = useState(false);
+  const [lockedUsersError, setLockedUsersError] = useState('');
   const [liftingCode, setLiftingCode] = useState<string | null>(null);
   // Bumped after a roster import so StudentRosterTab (which fetches its own
   // data independently of fetchDashboard) remounts and refetches — otherwise
@@ -132,12 +133,20 @@ function AdminPanelContent() {
       setLoadingLocked(true);
       const res = await apiClient.getLockedUsers();
       setLockedUsers(res.lockouts ?? []);
+      setLockedUsersError('');
     } catch (err) {
+      // Previously silent (console.error only) — the "Locked Accounts" stat
+      // card would just show 0 on failure, indistinguishable from "actually
+      // zero locked accounts." Confirmed live: a missing Firestore composite
+      // index on loginSecurityIncidents made this fail on every load, so the
+      // count was permanently stuck at 0 no matter how many accounts were
+      // really locked.
       console.error('Failed to load locked accounts:', err);
+      setLockedUsersError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת חשבונות נעולים נכשלה' : 'Failed to load locked accounts');
     } finally {
       setLoadingLocked(false);
     }
-  }, []);
+  }, [lang]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls all happen after its awaited network call resolves, not synchronously in this effect
@@ -200,6 +209,13 @@ function AdminPanelContent() {
       showBackButton={tab !== 'overview'}
     >
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
+      {lockedUsersError && (
+        <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
+          🔒 {lang === 'he'
+            ? `לא ניתן היה לטעון את רשימת החשבונות הנעולים (${lockedUsersError}) — ספירת "חשבונות נעולים" למטה אינה אמינה עד שהבעיה תיפתר.`
+            : `Couldn't load locked accounts (${lockedUsersError}) — the "Locked Accounts" count below is not reliable until this is fixed.`}
+        </p>
+      )}
 
       {loadingData ? (
         <p className="text-sm text-muted">{t('loading')}</p>

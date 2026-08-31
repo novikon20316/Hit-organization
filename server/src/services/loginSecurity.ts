@@ -443,6 +443,35 @@ export async function liftLockout(code: string): Promise<{ ok: true } | { ok: fa
   return resolveIncident(code, 'owner');
 }
 
+/**
+ * CRITICAL FIX: resetUserPasswordAdmin (adminController.ts) and any other
+ * "just re-enable this account" path already clear the Auth-level `disabled`
+ * flag directly instead of going through liftLockout — confirmed live on a
+ * real account: an admin used "reset password" on a 3-strikes-locked user,
+ * which cleared `disabled` but left `pendingIncidentCode` set on their
+ * security doc and the incident stuck at status 'pending' forever. Every
+ * later failed-login report for that user then silently no-ops (see the
+ * `if (data.pendingIncidentCode) return false` guard in reportFailedLogin
+ * above) — no new incident, no alert email, no lockout — and the stale
+ * 'pending' incident permanently pollutes the system_admin "locked accounts"
+ * list. Call this from any path that re-enables a user's Auth account
+ * outside the normal lift/resolve flow, so the incident bookkeeping never
+ * outlives the actual lock.
+ */
+export async function clearStalePendingIncident(uid: string): Promise<void> {
+  const securityRef = securityDocRef(uid);
+  const snap = await securityRef.get();
+  const pendingCode = snap.data()?.pendingIncidentCode as string | undefined;
+  if (!pendingCode) return;
+
+  await db.collection('loginSecurityIncidents').doc(pendingCode).update({
+    status: 'confirmed_owner',
+    resolvedAt: new Date().toISOString(),
+  }).catch((err) => console.error(`Failed to resolve stale incident ${pendingCode} for ${uid}:`, err));
+
+  await securityRef.set({ pendingIncidentCode: FieldValue.delete(), failedLoginCount: 0 }, { merge: true });
+}
+
 async function notifySystemAdmins(incident: {
   email: string;
   ip: string;

@@ -1,0 +1,25 @@
+{
+  "hosting": {
+    "public": "web/public",
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "web",
+          "region": "us-central1"
+        }
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "mobile/firestore.rules",
+    "indexes": "mobile/firestore.indexes.json"
+  }
+}

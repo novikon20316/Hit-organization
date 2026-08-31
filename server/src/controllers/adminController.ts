@@ -7,7 +7,7 @@ import { AuthenticatedRequest, hasAnyRole, getUserRoles } from '../middleware/au
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount, getEffectiveRoles } from '../services/accountDeletion.js';
 import { VALID_ROLES, generateTempPassword, setTempPasswordHash } from '../services/userImportExport.js';
-import { listPendingLockouts, liftLockout } from '../services/loginSecurity.js';
+import { listPendingLockouts, liftLockout, clearStalePendingIncident } from '../services/loginSecurity.js';
 import { eraseProjectDirectly } from '../services/projectErasure.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
@@ -979,6 +979,9 @@ export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Resp
       await admin.auth().updateUser(userId, { disabled: false }).catch((err) => {
         console.error(`Failed to clear Auth-level disabled flag for ${userId}:`, err);
       });
+      // Same stale-incident bug as resetUserPasswordAdmin — see
+      // clearStalePendingIncident's comment.
+      await clearStalePendingIncident(userId);
     }
 
     return res.status(200).json({ success: true, message: `User status updated to ${isActive ? 'Active' : 'Suspended'}.` });
@@ -1024,6 +1027,11 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
       updatedAt: new Date().toISOString(),
     });
     await setTempPasswordHash(userId, tempPassword);
+    // Re-enabling here bypasses the normal lift-lockout flow — if this user
+    // had a 3-strikes incident outstanding, resolve it too so it doesn't
+    // stay stuck at 'pending' forever. See clearStalePendingIncident's own
+    // comment for the real incident this fixes.
+    await clearStalePendingIncident(userId);
 
     try {
       await sendNotificationEmail({
