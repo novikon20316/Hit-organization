@@ -6,9 +6,10 @@
 // majeure, etc.) rather than editing one milestone at a time. Calls
 // PUT /api/milestones/bulk-due-date.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 const MILESTONE_TYPE_OPTIONS: Array<{ value: string; he: string; en: string }> = [
   { value: '', he: 'כל אבני הדרך', en: 'All milestone types' },
@@ -35,6 +36,8 @@ interface BulkDueDateModalProps {
 
 export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModalProps) {
   const { lang } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [milestoneType, setMilestoneType] = useState('');
@@ -99,7 +102,13 @@ export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Due-Date Update'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

@@ -9,9 +9,10 @@
 // (this milestone's overall grade is an aggregate of three graders' rubrics,
 // not just this one).
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface RubricComponent { key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }
 
@@ -34,6 +35,8 @@ function clampScoreInput(raw: string, max: number): string {
 
 export function SupervisorEvaluationModal({ milestoneId, components, onClose, onSubmitted }: SupervisorEvaluationModalProps) {
   const { lang, t } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [scores, setScores] = useState<Record<string, string>>(() => Object.fromEntries(components.map((c) => [c.key, ''])));
   const [comment, setComment] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -61,7 +64,13 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הערכת מנחה' : 'Supervisor Evaluation'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">✕</button>

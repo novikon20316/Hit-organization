@@ -5,11 +5,12 @@
 // handleAddStudentToProject — search students not already enrolled, confirm,
 // then POST /api/admin/projects/:id/enroll-student.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { AdminProjectRecord, AdminUserRecord } from './types';
 
 interface AddStudentToProjectModalProps {
@@ -25,6 +26,8 @@ export function AddStudentToProjectModal({ project, users, onClose, onEnrolled }
   const [confirmStudent, setConfirmStudent] = useState<AdminUserRecord | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -57,7 +60,13 @@ export function AddStudentToProjectModal({ project, users, onClose, onEnrolled }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-ink">👤 {lang === 'he' ? 'הוסף סטודנט לפרויקט' : 'Add Student to Project'}</h2>

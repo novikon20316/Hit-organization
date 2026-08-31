@@ -22,11 +22,12 @@
 // reason. `ownFacultyId` still seeds the initial selection and the
 // supervisor list, matching this screen's original single-faculty default.
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { FacultyId } from '@/lib/i18n';
 import { degreeLevelsForFaculty } from '@/lib/permissions';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { SupervisorOption } from './types';
 import { FacultyCheckboxes } from '@/components/FacultyCheckboxes';
 import { SupervisorCheckboxes } from '@/components/SupervisorCheckboxes';
@@ -64,6 +65,8 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
   const [prerequisites, setPrerequisites] = useState<PrerequisiteSpec[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   useEffect(() => {
     if (facultyIds.length === 0) {
@@ -155,7 +158,14 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form onSubmit={handleSubmit} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <form
+        ref={dialogRef}
+        onSubmit={handleSubmit}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

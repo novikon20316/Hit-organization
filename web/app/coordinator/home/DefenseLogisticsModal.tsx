@@ -7,10 +7,11 @@
 // already built for administrative coordinator/admin, just under the
 // 'coordinator' base path (see apiClient.assignDefenseLogistics).
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { DefenseBuildingPicker } from '@/components/DefenseBuildingPicker';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { AssignedMilestone, Project } from './types';
 
 interface DefenseLogisticsModalProps {
@@ -28,6 +29,8 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
   const [onlineDefenseLink, setOnlineDefenseLink] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   const handleSave = async () => {
     if (!time.trim() || !room.trim() || !building) {
@@ -56,7 +59,13 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📍 {lang === 'he' ? 'פרטי ההגנה' : 'Defense Logistics'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

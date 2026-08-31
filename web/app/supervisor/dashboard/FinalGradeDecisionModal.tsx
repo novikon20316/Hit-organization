@@ -10,9 +10,10 @@
 // supervisorController.ts's decideFinalGrade / gradSchoolHeadController.ts's
 // decideGradeOverride.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface FinalGradeDecisionModalProps {
   milestoneId: string;
@@ -23,6 +24,8 @@ interface FinalGradeDecisionModalProps {
 
 export function FinalGradeDecisionModal({ milestoneId, autoCalculatedFinalGrade, onClose, onDecided }: FinalGradeDecisionModalProps) {
   const { lang } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [mode, setMode] = useState<'choose' | 'override'>('choose');
   const [overrideGrade, setOverrideGrade] = useState(String(autoCalculatedFinalGrade));
   const [reason, setReason] = useState('');
@@ -69,7 +72,13 @@ export function FinalGradeDecisionModal({ milestoneId, autoCalculatedFinalGrade,
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'ציון סופי מחושב' : 'Computed Final Grade'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">✕</button>

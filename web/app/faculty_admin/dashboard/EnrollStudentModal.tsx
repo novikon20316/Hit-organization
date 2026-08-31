@@ -1,9 +1,10 @@
 'use client';
 
 // app/faculty_admin/dashboard/EnrollStudentModal.tsx
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { FacultyAdminProjectRecord, FacultyAdminUserRecord } from './types';
 
 interface EnrollStudentModalProps {
@@ -18,6 +19,8 @@ export function EnrollStudentModal({ project, availableStudents, onClose, onEnro
   const [studentId, setStudentId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   const handleEnroll = async () => {
     if (!studentId) {
@@ -39,7 +42,13 @@ export function EnrollStudentModal({ project, availableStudents, onClose, onEnro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'שיוך סטודנט לפרויקט' : 'Enroll Student in Project'}</h2>
         <p className="mt-1 text-sm text-muted">{lang === 'he' ? project.titleHe : project.titleEn}</p>
 

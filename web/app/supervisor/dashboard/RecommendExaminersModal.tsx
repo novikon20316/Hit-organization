@@ -5,9 +5,10 @@
 // project creation, or via a project card's own "Recommend Examiners"
 // button (see page.tsx) — never a generic "pick any of your projects"
 // picker anymore, so that step (and its state) is gone.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { ExaminerUser } from '@/app/coordinator/home/types';
 
 export interface RecommendExaminersTarget {
@@ -35,6 +36,8 @@ interface RecommendExaminersModalProps {
 
 export function RecommendExaminersModal({ project, internalExaminers, onClose, onSubmitted }: RecommendExaminersModalProps) {
   const { lang } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [examiners, setExaminers] = useState<RecommendedExaminerDraft[]>([]);
   const [extName, setExtName] = useState('');
   const [extEmail, setExtEmail] = useState('');
@@ -96,7 +99,13 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'המלצת בוחנים' : 'Examiner Recommendation'}</h2>

@@ -5,7 +5,9 @@
 // can actually reach them — email/phone straight from their own user doc,
 // via clickable mailto:/tel: links.
 
+import { useRef } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 export interface ContactMember {
   name: string;
@@ -20,11 +22,21 @@ interface StudentContactModalProps {
 
 export function StudentContactModal({ member, onClose }: StudentContactModalProps) {
   const { lang } = useLanguage();
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, !!member, onClose);
+
   if (!member) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-base font-semibold text-ink">👤 {member.name}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

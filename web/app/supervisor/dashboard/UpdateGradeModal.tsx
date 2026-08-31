@@ -9,9 +9,10 @@
 // with `reason` set, which the server requires whenever a supervisor score
 // already exists and logs alongside the change (grades doc + auditLog) for
 // the project's activity record.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { MILESTONE_LABEL } from './types';
 
 interface UpdateGradeModalProps {
@@ -32,6 +33,8 @@ function clampScore(raw: string): string {
 
 export function UpdateGradeModal({ milestoneId, projectId, milestoneType, currentScore, onClose, onUpdated }: UpdateGradeModalProps) {
   const { lang } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [score, setScore] = useState(currentScore != null ? String(currentScore) : '');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -68,7 +71,13 @@ export function UpdateGradeModal({ milestoneId, projectId, milestoneType, curren
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'עדכון ציון' : 'Update Grade'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

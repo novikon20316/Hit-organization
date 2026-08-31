@@ -6,12 +6,13 @@
 // grad_school_head, ...), not nested under any one role, mirroring
 // /reports and /info-files.
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { FACULTY_LABELS, facultyLabel, type FacultyId } from '@/lib/i18n';
@@ -78,6 +79,8 @@ function WorkflowTemplatesContent() {
   const [duplicateBusy, setDuplicateBusy] = useState(false);
   const [duplicateError, setDuplicateError] = useState('');
   const [duplicateSuccess, setDuplicateSuccess] = useState('');
+  const approvePreviewRef = useRef<HTMLDivElement>(null);
+  const duplicatingRef = useRef<HTMLDivElement>(null);
 
   const role = userData?.role as AppRole | undefined;
   const isCoordinator = role === 'administrative_secretary';
@@ -242,6 +245,9 @@ function WorkflowTemplatesContent() {
       setBusyId(null);
     }
   };
+
+  useModalA11y(approvePreviewRef, !!approvePreview, () => setApprovePreview(null));
+  useModalA11y(duplicatingRef, duplicatingOpen, () => setDuplicatingOpen(false));
 
   if (guardLoading) {
     return (
@@ -648,7 +654,13 @@ function WorkflowTemplatesContent() {
 
       {approvePreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+          <div
+            ref={approvePreviewRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+          >
             <h2 className="text-base font-semibold text-ink">⚡ {lang === 'he' ? 'החלה רטרואקטיבית' : 'Retroactive application'}</h2>
             <p className="mt-2 text-sm text-ink">
               {lang === 'he'
@@ -679,7 +691,13 @@ function WorkflowTemplatesContent() {
 
       {duplicatingOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+          <div
+            ref={duplicatingRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+          >
             <h2 className="text-base font-semibold text-ink">
               🌐 {lang === 'he' ? 'ייבוא תבנית מפקולטה אחרת' : 'Import a template from another faculty'}
             </h2>

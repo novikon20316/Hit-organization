@@ -9,7 +9,7 @@
 // — it fires on every dashboard page for as long as totp_enabled is false,
 // rather than only once right after this page redirects away.
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -30,6 +30,7 @@ import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { useAuth, setSessionCookie } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 // Deliberately excludes `'` and `"` too (on top of the usual whitespace/@
 // exclusion) — a real email address never contains either, so rejecting
@@ -64,6 +65,12 @@ export default function LoginPage() {
   const [linkingPassword, setLinkingPassword] = useState('');
   const [linkingSubmitting, setLinkingSubmitting] = useState(false);
   const [linkingError, setLinkingError] = useState('');
+  const linkingModalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(linkingModalRef, !!linkingPrompt, () => {
+    setLinkingPrompt(null);
+    setLinkingPassword('');
+    setLinkingError('');
+  });
 
   // Apple only requires "Sign in with Apple" parity on iOS (App Store
   // Guideline 4.8, triggered by offering Google sign-in) — Play has no such
@@ -480,7 +487,13 @@ export default function LoginPage() {
 
       {linkingPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-[var(--radius)] border border-line bg-surface p-6 shadow-lg">
+          <div
+            ref={linkingModalRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-[var(--radius)] border border-line bg-surface p-6 shadow-lg outline-none"
+          >
             <h2 className="text-base font-semibold text-ink">
               {lang === 'he' ? 'חשבון עם דוא"ל זה כבר קיים' : 'An account with this email already exists'}
             </h2>

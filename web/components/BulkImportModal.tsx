@@ -5,9 +5,10 @@
 // (export users, import staff, import student roster), scoped to that
 // role's own faculty when scope is 'coordinator'.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, downloadAuthenticatedFile } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 type Scope = 'admin' | 'coordinator';
 
@@ -26,6 +27,8 @@ interface ImportResultRow {
 
 export function BulkImportModal({ scope, onClose, onImported }: BulkImportModalProps) {
   const { lang } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [exporting, setExporting] = useState(false);
   const [importingStaff, setImportingStaff] = useState(false);
   const [importingRoster, setImportingRoster] = useState(false);
@@ -114,7 +117,13 @@ export function BulkImportModal({ scope, onClose, onImported }: BulkImportModalP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'ייבוא וייצוא נתונים' : 'Bulk Import / Export'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

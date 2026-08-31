@@ -17,9 +17,10 @@
 // Every selected combination must resolve to an approved workflow template
 // — see WorkflowTemplatePreview.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { apiClient } from '@/lib/apiClient';
@@ -45,6 +46,8 @@ interface NewProjectModalProps {
 export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectModalProps) {
   const { lang, t } = useLanguage();
   const { userData } = useAuth();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [titleHe, setTitleHe] = useState('');
   const [titleEn, setTitleEn] = useState('');
   const [descHe, setDescHe] = useState('');
@@ -125,7 +128,13 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

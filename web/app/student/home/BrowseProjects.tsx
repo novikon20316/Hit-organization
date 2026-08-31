@@ -3,12 +3,13 @@
 // app/student/home/BrowseProjects.tsx
 // Ported from mobile/app/(tabs)/Browseprojects.tsx.
 
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { normalizePrerequisites, formatPrerequisite, meetsPrerequisite, type CompletedCourse } from '@/lib/prerequisites';
 import { CompletedCoursesList } from './CompletedCoursesList';
 import { ApplicationStatusCard } from './ApplicationStatusCard';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { ProjectProposal, DegreeType, PendingApplication } from './types';
 
 interface BrowseProjectsProps {
@@ -59,6 +60,8 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
   // type (project vs. thesis) — auto-filled with no UI step when the
   // project only offers one, same as today's single-select projects.
   const [selectedProjectType, setSelectedProjectType] = useState<'project' | 'thesis' | ''>('');
+
+  const applyDialogRef = useRef<HTMLDivElement>(null);
 
   // completedCourses carries a grade per course, entered by a system_admin
   // or AI-extracted from a transcript during application review — never
@@ -126,6 +129,8 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
     setApplyMessage(null);
     setSelectedProjectType('');
   };
+
+  useModalA11y(applyDialogRef, showApply && !!selected, closeApply);
 
   const handleApply = async () => {
     if (!selected || (!transcriptFile && !lastTranscriptUrl) || (!cvFile && !lastCvUrl)) {
@@ -384,7 +389,13 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
 
       {showApply && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-6 shadow-lg">
+          <div
+            ref={applyDialogRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-6 shadow-lg outline-none"
+          >
             <div className="flex items-start justify-between">
               <h2 className="text-lg font-semibold text-student-on-surface">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
               <button type="button" onClick={closeApply} className="text-student-on-surface-variant hover:text-student-on-surface">

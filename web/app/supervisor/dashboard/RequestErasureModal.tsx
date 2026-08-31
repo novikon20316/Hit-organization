@@ -4,9 +4,10 @@
 // Replaces the old direct-delete flow — a supervisor can only ask the
 // coordinator to erase a project now; see server's services/projectErasure.ts.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { MyProject } from './types';
 
 interface RequestErasureModalProps {
@@ -17,6 +18,8 @@ interface RequestErasureModalProps {
 
 export function RequestErasureModal({ project, onClose, onSubmitted }: RequestErasureModalProps) {
   const { lang, t } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -40,8 +43,14 @@ export function RequestErasureModal({ project, onClose, onSubmitted }: RequestEr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+      >
         <h2 className="text-base font-semibold text-ink">{t('requestErasureTitle')}</h2>
         <p className="mt-1 text-sm font-medium text-ink">{lang === 'he' ? project.titleHe : project.titleEn}</p>
         <p className="mt-2 text-sm text-muted">{t('requestErasureMessage')}</p>

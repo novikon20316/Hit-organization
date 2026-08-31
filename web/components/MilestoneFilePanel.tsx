@@ -9,9 +9,10 @@
 // administrative_coordinator dashboard needed the same panel — it never had
 // any supervisor-specific dependency.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface MilestoneFilePanelProps {
   title: string;
@@ -89,16 +90,23 @@ function FilePreviewFrame({ url, index }: { url: string; index: number }) {
 
 export function MilestoneFilePanel({ title, subtitle, submissionNote, fileUrls, onClose }: MilestoneFilePanelProps) {
   const { lang } = useLanguage();
+  const panelRef = useRef<HTMLDivElement>(null);
+  useModalA11y(panelRef, true, onClose);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
       <div
-        className="flex h-full w-full max-w-lg flex-col overflow-y-auto bg-surface p-5 shadow-lg"
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="milestone-file-panel-title"
+        className="flex h-full w-full max-w-lg flex-col overflow-y-auto bg-surface p-5 shadow-lg outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold text-ink">{title}</h2>
+            <h2 id="milestone-file-panel-title" className="truncate text-base font-semibold text-ink">{title}</h2>
             <p className="mt-0.5 truncate text-xs text-muted">{subtitle}</p>
           </div>
           <button type="button" onClick={onClose} className="shrink-0 text-muted hover:text-ink">

@@ -12,9 +12,10 @@
 // which physical examiner becomes "#1"), so the weight UI is just two
 // fields (supervisor % + each-examiner %) regardless of how many slots exist.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { CoordinatorPendingMilestone, ExaminerUser } from './types';
 
 interface ExternalExaminerInput {
@@ -41,6 +42,8 @@ const emptySlot = (): ExaminerSlotState => ({ type: 'internal', internalId: '', 
 
 export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned }: AssignExaminersModalProps) {
   const { lang } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   // milestone.examinerCount is an optional hint from the faculty's workflow
   // template (see workflowTemplates.ts) — used only as the starting slot
@@ -121,7 +124,13 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'שיבוץ בוחנים' : 'Assign Examiners'}</h2>
         <p className="mt-1 text-sm text-muted">{lang === 'he' ? milestone.projectTitleHe : milestone.projectTitleEn}</p>
 

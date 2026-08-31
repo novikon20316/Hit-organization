@@ -21,11 +21,12 @@
 // separate view/action grants — a coordinator already has full standard
 // actions within whatever scope they're assigned.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { ScopeDescriptorFields } from './ScopeDescriptorFields';
 import { scopeLabel, newScopeId, type CoordinatorScope, type ScopeDescriptor } from '@/lib/permissions';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface CoordinatorScopesModalProps {
   open: boolean;
@@ -42,6 +43,8 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
   const { lang } = useLanguage();
   // null = list screen; a draft = the add/edit form screen.
   const [draft, setDraft] = useState<CoordinatorScope | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, open, onClose);
 
   if (!open) return null;
 
@@ -62,7 +65,13 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         {!draft ? (
           <>
             {/* ── List screen ── */}

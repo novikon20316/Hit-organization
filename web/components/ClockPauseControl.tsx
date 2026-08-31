@@ -6,9 +6,10 @@
 // fetches its own state via apiClient.getClockPauseState, independent of
 // whatever dashboard payload the parent card came from.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type ClockPause, type ClockPauseReason } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 const REASON_LABEL: Record<ClockPauseReason, { he: string; en: string }> = {
   reserve_duty: { he: 'מילואים', en: 'Reserve duty' },
@@ -26,6 +27,8 @@ export function ClockPauseControl({ projectId }: { projectId: string }) {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, showModal, () => setShowModal(false));
 
   const load = () => {
     setLoading(true);
@@ -101,7 +104,11 @@ export function ClockPauseControl({ projectId }: { projectId: string }) {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowModal(false)}>
           <div
-            className="w-full max-w-sm rounded-[var(--radius)] border border-line bg-surface p-5"
+            ref={dialogRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-[var(--radius)] border border-line bg-surface p-5 outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm font-semibold text-ink">

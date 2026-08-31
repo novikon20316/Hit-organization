@@ -15,9 +15,10 @@
 // endpoint the coordinator's own AssignExaminersModal uses, which already
 // enforces withinCoordinatorScope server-side and emails the access link via
 // services/examinerAccess.ts.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { ProjectGroup } from './types';
 
 interface SendExaminerModalProps {
@@ -34,6 +35,8 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   const handleSend = async () => {
     if (!examinerName.trim() || !examinerEmail.trim()) {
@@ -74,7 +77,13 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📧 {lang === 'he' ? 'שלח בוחן חיצוני' : 'Send External Examiner'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

@@ -4,9 +4,10 @@
 // Ported from mobile's EditUserModal + panel.tsx's handleSaveUser. Same
 // endpoint, same payload: { role, roles, facultyId } via role-update.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel, type FacultyId } from '@/lib/i18n';
 import { PermissionsEditorModal } from './PermissionsEditorModal';
@@ -59,6 +60,8 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   // Student status — options come from the shared admin-manageable lists
   // (see StudentStatusesModal.tsx); fetched once when this modal opens.
@@ -176,7 +179,13 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'עריכת משתמש' : 'Edit User'}</h2>
         <p className="mt-1 text-sm text-muted">{user.displayName} — {user.email}</p>
 

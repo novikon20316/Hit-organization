@@ -4,7 +4,7 @@
 // Ported from mobile's NewUserModal + panel.tsx's handleCreateUser — same
 // validation, same POST /api/admin/users/create payload shape.
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { CROSS_FACULTY_ROLES, VALID_ROLES, type AppRole } from '@/lib/roles';
@@ -12,6 +12,7 @@ import { roleLabel, facultyLabel, tx } from '@/lib/i18n';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { HIT_FACULTIES } from '@/lib/faculties';
 import { majorsForFaculty } from '@/lib/permissions';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface NewUserModalProps {
   open: boolean;
@@ -65,6 +66,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
   // it before dismissing. Matters most when they left the field blank.
   const [created, setCreated] = useState<{ email: string; tempPassword: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const modalRef = useRef<HTMLElement>(null);
 
   const isStudent = role === 'student';
   const isCrossFaculty = CROSS_FACULTY_ROLES.includes(role);
@@ -165,6 +167,8 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
     onClose();
   };
 
+  useModalA11y(modalRef, open, handleDismissSuccess);
+
   const handleCopyPassword = async () => {
     if (!created) return;
     try {
@@ -182,7 +186,13 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
   if (created) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        <div className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+        <div
+          ref={modalRef as React.RefObject<HTMLDivElement>}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        >
           <h2 className="text-lg font-semibold text-ink">✅ {tx('adminUserCreatedTitle', lang)}</h2>
 
           <div className="mt-4 grid gap-3 rounded-lg border border-line bg-paper p-4">
@@ -230,8 +240,12 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <form
+        ref={modalRef as React.RefObject<HTMLFormElement>}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
         onSubmit={handleSubmit}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
       >
         <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'משתמש חדש' : 'New User'}</h2>
 

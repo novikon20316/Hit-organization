@@ -9,11 +9,12 @@
 // into the grace-period flow (the other trigger, automatic graduation
 // flagging, is a server cron with no UI).
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface DeleteAccountModalProps {
   onClose: () => void;
@@ -27,6 +28,8 @@ interface DeleteAccountModalProps {
 export function DeleteAccountModal({ onClose, onRequested }: DeleteAccountModalProps) {
   const { lang } = useLanguage();
   const isRtl = lang === 'he';
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -68,8 +71,14 @@ export function DeleteAccountModal({ onClose, onRequested }: DeleteAccountModalP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? '🗑️ מחיקת חשבון' : '🗑️ Delete Account'}</h2>
           <button type="button" onClick={onClose} disabled={busy} className="text-muted hover:text-ink">

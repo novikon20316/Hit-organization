@@ -10,11 +10,12 @@
 // (coordinator/home/types.ts) rather than MyProject (supervisor dashboard's
 // own type), and additionally exposes maxStudents.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { degreeLevelsForFaculty } from '@/lib/permissions';
 import { TeamSizeField } from '@/components/TeamSizeField';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { InProgressProject } from './types';
 
 interface EditProjectModalProps {
@@ -35,6 +36,8 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
   const [skills, setSkills] = useState((project.requiredSkills ?? []).join(', '));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   const degreeOptions = useMemo(() => degreeLevelsForFaculty(project.facultyId), [project.facultyId]);
 
@@ -72,7 +75,13 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'עריכת פרויקט' : 'Edit Project'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

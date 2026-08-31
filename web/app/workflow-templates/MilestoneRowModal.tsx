@@ -10,9 +10,10 @@
 //   (supervisor / examiner-on-the-project / examiner-on-the-defense) instead
 //   of the single shared gradingComponents rubric below.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { CommitteeRecord } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { ChainEditor, emptyStage } from './ChainEditor';
 import { SUBMISSION_REQUIREMENTS } from './types';
 import type { FormFieldSpec, GradingComponentSpec, MilestoneRoutingSpec, MilestoneSpec, SubmissionRequirement } from './types';
@@ -159,6 +160,8 @@ interface MilestoneRowModalProps {
 
 export function MilestoneRowModal({ open, editing, committees, onCancel, onSave }: MilestoneRowModalProps) {
   const { lang, t } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, open, onCancel);
   const [nameHe, setNameHe] = useState(editing?.nameHe ?? '');
   const [nameEn, setNameEn] = useState(editing?.nameEn ?? '');
   const [dateMode, setDateMode] = useState<'offset' | 'fixed'>(editing?.dateMode === 'fixed' ? 'fixed' : 'offset');
@@ -313,7 +316,13 @@ export function MilestoneRowModal({ open, editing, committees, onCancel, onSave 
   const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-paper">
+    <div
+      ref={dialogRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[60] overflow-y-auto bg-paper outline-none"
+    >
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface px-4 py-3 sm:px-6">
         <h2 className="text-base font-semibold text-ink">
           {editing ? `✏️ ${lang === 'he' ? 'עריכת אבן דרך' : 'Edit Milestone'}` : `➕ ${lang === 'he' ? 'אבן דרך חדשה' : 'New Milestone'}`}

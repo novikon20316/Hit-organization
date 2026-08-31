@@ -5,6 +5,8 @@
 // 2FA, etc.) — a real dialog instead of the browser's native confirm(),
 // so it matches the rest of the UI and can carry a "why this matters"
 // message instead of a bare yes/no.
+import { useRef } from 'react';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -29,13 +31,24 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, open, onCancel);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
-        <h2 className="text-base font-semibold text-ink">{title}</h2>
-        <p className="mt-2 text-sm text-muted">{message}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        aria-describedby="confirm-dialog-message"
+        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+      >
+        <h2 id="confirm-dialog-title" className="text-base font-semibold text-ink">{title}</h2>
+        <p id="confirm-dialog-message" className="mt-2 text-sm text-muted">{message}</p>
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"

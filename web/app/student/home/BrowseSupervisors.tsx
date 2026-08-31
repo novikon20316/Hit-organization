@@ -9,10 +9,11 @@
 // being enrolled in) one of the supervisor's existing projects, just
 // discovered this way instead.
 
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { ApplicationStatusCard } from './ApplicationStatusCard';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { PendingApplication } from './types';
 
 interface BrowseSupervisorProject {
@@ -77,6 +78,9 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
 
+  const applyDialogRef = useRef<HTMLDivElement>(null);
+  const joinDialogRef = useRef<HTMLDivElement>(null);
+
   const fetchSupervisors = () => {
     setLoading(true);
     setLoadError('');
@@ -131,6 +135,9 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
     setApplyTarget(null);
     setApplyMessage(null);
   };
+
+  useModalA11y(applyDialogRef, !!applyTarget, closeApply);
+  useModalA11y(joinDialogRef, !!joinTarget, () => setJoinTarget(null));
 
   const handleApply = async () => {
     if (!applyTarget || (!transcriptFile && !lastTranscriptUrl) || (!cvFile && !lastCvUrl)) {
@@ -293,7 +300,13 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
 
       {applyTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+          <div
+            ref={applyDialogRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+          >
             <div className="flex items-start justify-between">
               <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
               <button type="button" onClick={closeApply} className="text-muted hover:text-ink">
@@ -372,7 +385,13 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
 
       {joinTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+          <div
+            ref={joinDialogRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+          >
             <h2 className="text-base font-semibold text-ink">{lang === 'he' ? 'הצטרפות לפרויקט' : 'Join Project'}</h2>
             <p className="mt-2 text-sm text-muted">
               {lang === 'he'

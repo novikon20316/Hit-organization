@@ -19,7 +19,7 @@
 // and a form screen for the rule currently being added or edited, toggled by
 // whether `draft` is set.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { ScopeDescriptorFields } from './ScopeDescriptorFields';
@@ -27,6 +27,7 @@ import {
   VIEW_TYPES, ACTION_TYPES, scopeLabel, newScopeId,
   type ScopeRule, type ScopeDescriptor, type ViewType, type ActionType,
 } from '@/lib/permissions';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface PermissionsEditorModalProps {
   open: boolean;
@@ -50,6 +51,8 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange, restric
   const availableActions = restrictedActions?.length ? ACTION_TYPES.filter((a) => !restrictedActions.includes(a.key)) : ACTION_TYPES;
   // null = list screen; a draft = the add/edit form screen.
   const [draft, setDraft] = useState<ScopeRule | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, open, onClose);
 
   if (!open) return null;
 
@@ -75,7 +78,13 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange, restric
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         {!draft ? (
           <>
             {/* ── List screen ── */}

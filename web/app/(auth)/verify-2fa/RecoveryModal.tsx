@@ -3,8 +3,9 @@
 // app/(auth)/verify-2fa/RecoveryModal.tsx
 // Ported from the RecoveryModal in mobile/app/(auth)/verify2fa.tsx.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 type RecoveryStep = 'request' | 'emailCode' | 'qr';
 
@@ -21,6 +22,8 @@ export function RecoveryModal({ onClose, onActivated }: RecoveryModalProps) {
   const [newToken, setNewToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   const handleSendCode = async () => {
     setBusy(true);
@@ -72,7 +75,13 @@ export function RecoveryModal({ onClose, onActivated }: RecoveryModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="mb-3 flex justify-end">
           <button
             type="button"

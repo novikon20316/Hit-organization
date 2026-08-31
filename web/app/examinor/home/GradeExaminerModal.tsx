@@ -1,9 +1,10 @@
 'use client';
 
 // app/examinor/home/GradeExaminerModal.tsx
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { EXAMINER_GRADING_CRITERIA, MILESTONE_LABEL, type AssignedMilestone } from './types';
 
 interface GradeExaminerModalProps {
@@ -35,6 +36,8 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
   const [comments, setComments] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   const totalScore = Math.round(
     activeFields.reduce((sum, f) => sum + ((parseFloat(scores[f.key]) || 0) / f.max) * f.weight, 0)
@@ -69,7 +72,13 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <h2 className="text-lg font-semibold text-ink">✏️ {lang === 'he' ? 'טופס ציון בוחן' : 'Examiner Grading Form'}</h2>
 
         <div className="mt-3 rounded-lg bg-paper p-3">

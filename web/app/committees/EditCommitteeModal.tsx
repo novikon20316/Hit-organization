@@ -7,12 +7,13 @@
 // three plus initial members/chairman; editing an EXISTING committee (by
 // its own chairman, or by system_admin) only touches memberIds/chairmanId.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type CommitteeRecord } from '@/lib/apiClient';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface EligibleMember {
   id: string;
@@ -52,6 +53,8 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
   const [loadingCandidates, setLoadingCandidates] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   const majorOptions = useMemo(() => majorsForFaculty(facultyId), [facultyId]);
   const conflictingCommittee = isCreate
@@ -114,7 +117,13 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">
             {isCreate ? (lang === 'he' ? 'הקמת ועדה' : 'Create Committee') : (lang === 'he' ? 'עריכת חברי ועדה' : 'Edit Committee Members')}

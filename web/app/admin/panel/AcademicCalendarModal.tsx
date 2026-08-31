@@ -7,9 +7,10 @@
 // server/src/services/accountDeletion.ts). Summer semester is fixed
 // (July-September) and isn't editable here, matching the mobile UI.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface AcademicCalendarModalProps {
   onClose: () => void;
@@ -21,6 +22,8 @@ export function AcademicCalendarModal({ onClose }: AcademicCalendarModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   const [fallMonth, setFallMonth] = useState('11');
   const [fallDay, setFallDay] = useState('1');
@@ -72,7 +75,13 @@ export function AcademicCalendarModal({ onClose }: AcademicCalendarModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📅 {lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

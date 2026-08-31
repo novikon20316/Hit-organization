@@ -8,9 +8,10 @@
 // advances/rejects the milestone (see committeeReviewController.ts's
 // submitCommitteeDecision). A member's vote never does that by itself.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type CommitteeReviewDetail } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface CommitteeReviewModalProps {
   milestoneId: string;
@@ -32,6 +33,8 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
   const [decision, setDecision] = useState<'approve' | 'reject' | ''>('');
   const [decisionComment, setDecisionComment] = useState('');
   const [decisionSaving, setDecisionSaving] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   const load = () => {
     setLoading(true);
@@ -91,7 +94,13 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'בדיקת ועדה' : 'Committee Review'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">✕</button>

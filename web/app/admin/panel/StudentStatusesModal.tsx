@@ -9,9 +9,10 @@
 // modal's spec describes the interaction (add appends a blank row directly,
 // no separate row-editor popup like MilestoneRowModal's).
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { StudentStatusOption } from './types';
 
 interface StudentStatusesModalProps {
@@ -44,6 +45,8 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
 
   const [primary, setPrimary] = useState<EditableRow[]>([]);
   const [secondary, setSecondary] = useState<EditableRow[]>([]);
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,7 +160,13 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">🏷️ {lang === 'he' ? 'סטטוסים של סטודנטים' : 'Student Statuses'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

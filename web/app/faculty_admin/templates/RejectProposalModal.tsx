@@ -4,8 +4,9 @@
 // Reason textarea for rejecting a supervisor's template proposal — same
 // pattern as app/coordinator/home/RejectMilestoneModal.tsx.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface RejectProposalModalProps {
   open: boolean;
@@ -17,12 +18,20 @@ interface RejectProposalModalProps {
 export function RejectProposalModal({ open, busy, onCancel, onConfirm }: RejectProposalModalProps) {
   const { lang } = useLanguage();
   const [reason, setReason] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, open, onCancel);
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+      >
         <h2 className="text-base font-semibold text-ink">{lang === 'he' ? 'דחיית הצעת תבנית' : 'Reject Template Proposal'}</h2>
         <p className="mt-1 text-sm text-muted">
           {lang === 'he' ? 'יש לציין סיבה — היא תישלח למנחה שהגיש את ההצעה.' : 'A reason is required — it will be sent to the supervisor who submitted the proposal.'}

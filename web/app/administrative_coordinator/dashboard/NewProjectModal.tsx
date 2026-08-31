@@ -12,7 +12,7 @@
 // holds (see FacultyCheckboxes / scopeAuthorization.ts's
 // grantedFacultyIdsFor) rather than every faculty in the institution.
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { majorsForFaculty, degreeLevelsForFaculty } from '@/lib/permissions';
@@ -21,6 +21,7 @@ import { SupervisorCheckboxes, type SupervisorOption } from '@/components/Superv
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
 import { TeamSizeField } from '@/components/TeamSizeField';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface NewProjectModalProps {
   open: boolean;
@@ -47,6 +48,11 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   const [major, setMajor] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const modalRef = useRef<HTMLFormElement>(null);
+  useModalA11y(modalRef, open, () => {
+    reset();
+    onClose();
+  });
 
   useEffect(() => {
     if (!open || facultyIds.length === 0) {
@@ -165,7 +171,14 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form onSubmit={handleSubmit} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <form
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        onSubmit={handleSubmit}
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <h2 className="text-lg font-semibold text-ink">📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
 
         <div className="mt-4 grid gap-4">

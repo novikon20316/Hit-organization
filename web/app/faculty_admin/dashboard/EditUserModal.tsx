@@ -1,11 +1,12 @@
 'use client';
 
 // app/faculty_admin/dashboard/EditUserModal.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel } from '@/lib/i18n';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { FacultyAdminUserRecord, StudentStatusConfig } from './types';
 
 interface EditUserModalProps {
@@ -32,6 +33,8 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
   const [primaryStatus, setPrimaryStatus] = useState<string>(user.primaryStatus ?? '');
   const [secondaryStatus, setSecondaryStatus] = useState<string>(user.secondaryStatus ?? '');
   const isStudent = role === 'student';
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +81,13 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'עריכת משתמש' : 'Edit User'}</h2>
         <p className="mt-1 text-sm text-muted">
           {user.displayName} — {user.email}

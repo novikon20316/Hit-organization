@@ -14,9 +14,10 @@
 // platform selector, shows each platform's current live status, and lets
 // you end one early instead of only ever waiting out its timer.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface MaintenanceModalProps {
   onClose: () => void;
@@ -86,6 +87,8 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
   const [broadcastEnabled, setBroadcastEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, true, onClose);
 
   const refreshStatuses = async () => {
     setStatusLoading(true);
@@ -175,7 +178,13 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">🛠️ {isHe ? 'מצב תחזוקה' : 'Maintenance mode'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

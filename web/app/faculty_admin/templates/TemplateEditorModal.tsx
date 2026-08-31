@@ -6,9 +6,10 @@
 // this modal presents it as tag chips for a nicer editing experience, then
 // joins them back to a comma-separated string on save.
 
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { DEGREES, TYPES, type FacultyTemplate, type TemplateDegree, type TemplateType } from './types';
 
 interface TemplateEditorModalProps {
@@ -37,15 +38,8 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
   const [type, setType] = useState<TemplateType>(template?.type ?? 'project');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  // Escape closes the modal, matching other modals in this app.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   const addSkillFromInput = () => {
     const value = skillInput.trim();
@@ -94,7 +88,13 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-ink">
             {template ? `✏️ ${lang === 'he' ? 'עריכת תבנית' : 'Edit Template'}` : `➕ ${lang === 'he' ? 'תבנית חדשה' : 'New Template'}`}

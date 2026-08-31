@@ -7,9 +7,10 @@
 // date (25-40 days out), or replaces one examiner and restarts date
 // selection for just them. See apiClient.resolveDefenseDateConflict.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import type { AssignedMilestone, ExaminerUser } from './types';
 
 interface ExternalExaminerInput {
@@ -30,6 +31,8 @@ interface DateConflictModalProps {
 export function DateConflictModal({ milestone, examiners, onClose, onResolved }: DateConflictModalProps) {
   const { lang } = useLanguage();
   const panel = milestone.defensePanel ?? [];
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   const [replacedKey, setReplacedKey] = useState(panel[0] ? `${panel[0].type}:${panel[0].ref}` : '');
   const [replacementType, setReplacementType] = useState<'internal' | 'external'>('internal');
@@ -86,7 +89,13 @@ export function DateConflictModal({ milestone, examiners, onClose, onResolved }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <h2 className="text-lg font-semibold text-ink">⚠️ {lang === 'he' ? 'לא נמצא תאריך משותף' : 'No common date found'}</h2>
         <p className="mt-2 text-sm text-muted">
           {lang === 'he'

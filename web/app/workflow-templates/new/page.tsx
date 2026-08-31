@@ -19,11 +19,12 @@
 // the Suspense boundary during prerendering (Next.js requirement) — same
 // pattern as app/maintenance/page.tsx and app/defense-access/page.tsx.
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { apiClient, ApiError, SoftError, type CommitteeRecord } from '@/lib/apiClient';
 import { tx } from '@/lib/i18n';
 import type { AppRole } from '@/lib/roles';
@@ -253,6 +254,8 @@ function ProposeVersionForm({
   const [isReadOnly, setIsReadOnly] = useState(initialMode === 'view');
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const exitConfirmRef = useRef<HTMLDivElement>(null);
+  useModalA11y(exitConfirmRef, showExitConfirm, () => setShowExitConfirm(false));
 
   const markDirty = () => {
     setHasUnsavedChanges(true);
@@ -671,7 +674,13 @@ function ProposeVersionForm({
 
       {showExitConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+          <div
+            ref={exitConfirmRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+          >
             <h2 className="text-base font-semibold text-ink">{tx('exitUnsavedTitle', lang)}</h2>
             <p className="mt-2 text-sm text-ink">{tx('exitUnsavedMessage', lang)}</p>
             <div className="mt-4 flex justify-end gap-2">

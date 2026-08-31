@@ -6,9 +6,10 @@
 // workflowTemplates.ts's staffRecordMode. Either upload a completed file or
 // fill the configured staffFormFields online; never both in one submission.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface StaffFormField {
   key: string;
@@ -33,6 +34,8 @@ interface StaffRecordModalProps {
 
 export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: StaffRecordModalProps) {
   const { lang, t } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
   const [mode, setMode] = useState<'upload' | 'form'>(fields.length > 0 ? 'form' : 'upload');
   const [file, setFile] = useState<File | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -103,7 +106,13 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'רשומת מנחה' : 'Staff Record'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">✕</button>

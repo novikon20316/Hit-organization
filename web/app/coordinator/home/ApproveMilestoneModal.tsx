@@ -7,8 +7,9 @@
 // the milestone approval flow itself stays binary. See
 // coordinatorController.ts's coordinatorApproveMilestone.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface ApproveMilestoneModalProps {
   open: boolean;
@@ -20,12 +21,23 @@ interface ApproveMilestoneModalProps {
 export function ApproveMilestoneModal({ open, busy, onCancel, onConfirm }: ApproveMilestoneModalProps) {
   const { lang } = useLanguage();
   const [comment, setComment] = useState('');
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(modalRef, open, () => {
+    setComment('');
+    onCancel();
+  });
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+      >
         <h2 className="text-base font-semibold text-ink">{lang === 'he' ? 'אישור אבן דרך' : 'Approve Milestone'}</h2>
         <p className="mt-1 text-sm text-muted">
           {lang === 'he'

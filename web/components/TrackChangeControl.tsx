@@ -7,9 +7,10 @@
 // grade/audit history) and creates a fresh project + milestone set on the
 // new track — see services/trackChange.ts.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 export function TrackChangeControl({ projectId, onChanged }: { projectId: string; onChanged?: (newProjectId: string) => void }) {
   const { lang } = useLanguage();
@@ -19,6 +20,8 @@ export function TrackChangeControl({ projectId, onChanged }: { projectId: string
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, showModal, () => !saving && setShowModal(false));
 
   const handleConfirm = async () => {
     setSaving(true);
@@ -52,7 +55,14 @@ export function TrackChangeControl({ projectId, onChanged }: { projectId: string
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !saving && setShowModal(false)}>
-          <div className="w-full max-w-sm rounded-[var(--radius)] border border-line bg-surface p-5" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={dialogRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-[var(--radius)] border border-line bg-surface p-5 outline-none"
+            onClick={(e) => e.stopPropagation()}
+          >
             {done ? (
               <>
                 <p className="text-sm font-semibold text-ink">

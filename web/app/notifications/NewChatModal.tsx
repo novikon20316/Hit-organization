@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getRoleAccent, withAlpha } from '@/lib/facultyColors';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface CandidateUser {
   id: string;
@@ -47,6 +48,8 @@ export function NewChatModal({ existingChatIds, onClose, onChatCreated }: NewCha
   // a real network/server error.
   const [loadError, setLoadError] = useState('');
   const mountedRef = useRef(true);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   const loadCandidates = () => {
     setLoading(true);
@@ -118,7 +121,13 @@ export function NewChatModal({ existingChatIds, onClose, onChatCreated }: NewCha
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-[var(--radius)] bg-surface shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-[var(--radius)] bg-surface shadow-lg outline-none"
+      >
         <div className="flex items-center justify-between border-b border-line p-4">
           <h2 className="text-base font-semibold text-ink">{lang === 'he' ? 'הודעה חדשה' : 'New Message'}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-ink">

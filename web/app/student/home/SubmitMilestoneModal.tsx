@@ -1,9 +1,10 @@
 'use client';
 
 // app/student/home/SubmitMilestoneModal.tsx
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { MILESTONE_LABEL, type Milestone } from './types';
 
 interface SubmitMilestoneModalProps {
@@ -19,6 +20,8 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, true, onClose);
 
   // Absent (a milestone from before this feature existed) keeps today's
   // actual behavior — both fields shown, both optional — rather than being
@@ -110,7 +113,13 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+      >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">
             {lang === 'he' ? 'הגשת' : 'Submit'} {MILESTONE_LABEL[milestone.type]?.[lang]}
