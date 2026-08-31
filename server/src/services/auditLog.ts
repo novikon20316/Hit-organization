@@ -31,6 +31,7 @@ export type AuditAction =
   | 'workflow_template_approved'
   | 'workflow_template_rejected'
   | 'workflow_template_deleted'
+  | 'workflow_template_duplicated'
   | 'workflow_template_proposal_updated'
   | 'workflow_template_retroactively_applied'
   | 'examiner_assigned'

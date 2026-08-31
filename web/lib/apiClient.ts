@@ -1619,6 +1619,30 @@ export const apiClient = {
     return request<{ success: boolean; message: string }>(`/api/workflow-templates/${id}`, { method: 'DELETE' });
   },
 
+  /** Pulls in ANOTHER faculty's currently-approved template (resolved by
+   *  facultyId+processType+major, not a doc id — the caller may have no
+   *  view access to that faculty at all) as a fresh pending_approval
+   *  proposal for the caller's own target subject. See
+   *  server/src/controllers/workflowTemplateController.ts's
+   *  duplicateWorkflowTemplateController — for coordinator/faculty_admin/
+   *  program_head, targetFacultyId/targetMajor are ignored server-side and
+   *  forced to their own faculty regardless of what's passed here; only
+   *  grad_school_head/system_admin (and administrative_secretary, within
+   *  her own scope) can actually choose the target. `sourceMajor`/
+   *  `targetMajor` null means "all majors in that faculty". */
+  async duplicateWorkflowTemplate(params: {
+    sourceFacultyId: string;
+    sourceMajor: string | null;
+    processType: 'msc_thesis' | 'msc_project' | 'bsc_project';
+    targetFacultyId?: string;
+    targetMajor?: string | null;
+  }) {
+    return request<{ success: boolean; id: string; status: string; facultyId: string; major: string | null }>(
+      '/api/workflow-templates/duplicate',
+      { method: 'POST', body: params }
+    );
+  },
+
   /** Read-only — how many in-progress projects/theses a "now" (retroactive)
    *  template choice would touch, shown before the proposer/approver
    *  confirms. See workflowTemplateRetroactiveApply.ts. */

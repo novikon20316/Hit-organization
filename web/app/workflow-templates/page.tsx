@@ -67,6 +67,18 @@ function WorkflowTemplatesContent() {
   // handleApprove below.
   const [approvePreview, setApprovePreview] = useState<{ tpl: WorkflowTemplateDoc; count: number } | null>(null);
 
+  // Import-from-another-faculty modal state — pulls in ANOTHER faculty's
+  // approved template as the starting point for a proposal in the
+  // currently-viewed faculty/major/processType (the implicit target — see
+  // handleDuplicate below and apiClient.duplicateWorkflowTemplate). The
+  // source faculty doesn't have to be one the caller can otherwise view.
+  const [duplicatingOpen, setDuplicatingOpen] = useState(false);
+  const [duplicateSourceFaculty, setDuplicateSourceFaculty] = useState('');
+  const [duplicateSourceMajor, setDuplicateSourceMajor] = useState('');
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const [duplicateError, setDuplicateError] = useState('');
+  const [duplicateSuccess, setDuplicateSuccess] = useState('');
+
   const role = userData?.role as AppRole | undefined;
   const isCoordinator = role === 'administrative_secretary';
   const isFreeChoiceCrossFaculty = !!role && FREE_CHOICE_CROSS_FACULTY_ROLES.includes(role);
@@ -183,6 +195,37 @@ function WorkflowTemplatesContent() {
       setActionError(err instanceof ApiError || err instanceof SoftError ? err.message : lang === 'he' ? 'הדחייה נכשלה' : 'Rejection failed');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const openDuplicate = () => {
+    setDuplicatingOpen(true);
+    setDuplicateSourceFaculty('');
+    setDuplicateSourceMajor('');
+    setDuplicateError('');
+    setDuplicateSuccess('');
+  };
+
+  const handleDuplicate = async () => {
+    if (!duplicateSourceFaculty || !facultyId) return;
+    setDuplicateBusy(true);
+    setDuplicateError('');
+    try {
+      await apiClient.duplicateWorkflowTemplate({
+        sourceFacultyId: duplicateSourceFaculty,
+        sourceMajor: duplicateSourceMajor || null,
+        processType: activeProcessType,
+        targetFacultyId: facultyId,
+        targetMajor: major,
+      });
+      setDuplicateSuccess(
+        lang === 'he' ? 'יובא כהצעה חדשה הממתינה לאישור' : 'Imported as a new proposal awaiting approval'
+      );
+      await fetchTemplates();
+    } catch (err) {
+      setDuplicateError(err instanceof ApiError || err instanceof SoftError ? err.message : lang === 'he' ? 'הייבוא נכשל' : 'Import failed');
+    } finally {
+      setDuplicateBusy(false);
     }
   };
 
@@ -419,6 +462,18 @@ function WorkflowTemplatesContent() {
                 📋 {lang === 'he' ? `העתק מ${processTypeLabel(otherProcessType, lang)}` : `Copy from ${processTypeLabel(otherProcessType, lang)}`}
               </button>
             )}
+            {facultyId && (
+              <button
+                type="button"
+                onClick={() => openDuplicate()}
+                title={lang === 'he'
+                  ? 'ייבא תבנית מאושרת מפקולטה אחרת כנקודת פתיחה להצעה כאן, גם אם אינך מרכז/ת שם'
+                  : "Import another faculty's approved template as a starting point for a proposal here, even if you're not a coordinator there"}
+                className="flex-1 rounded-lg border border-line py-3 text-sm font-semibold text-ink hover:border-primary hover:text-primary"
+              >
+                🌐 {lang === 'he' ? 'ייבוא מפקולטה אחרת' : 'Import from another faculty'}
+              </button>
+            )}
           </div>
         </div>
       ) : tab === 'pending' && !isCoordinator ? pendingForActive.length === 0 ? (
@@ -618,6 +673,87 @@ function WorkflowTemplatesContent() {
                 {busyId === approvePreview.tpl.id ? '…' : lang === 'he' ? 'אשר בכל זאת' : 'Confirm & Approve'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {duplicatingOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+            <h2 className="text-base font-semibold text-ink">
+              🌐 {lang === 'he' ? 'ייבוא תבנית מפקולטה אחרת' : 'Import a template from another faculty'}
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              {lang === 'he'
+                ? `יובאו כל אבני הדרך של התבנית המאושרת של הפקולטה שתבחר/י, כהצעה חדשה עבור ${processTypeLabel(activeProcessType, lang)} כאן — גם אם אינך בעל/ת תפקיד באותה פקולטה.`
+                : `Copies every milestone from the faculty you pick's approved template, as a new ${processTypeLabel(activeProcessType, lang)} proposal here — even if you hold no role in that faculty.`}
+            </p>
+            {duplicateSuccess ? (
+              <>
+                <p className="mt-3 rounded-md bg-success-bg px-2.5 py-1.5 text-sm text-success">{duplicateSuccess}</p>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setDuplicatingOpen(false)}
+                    className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+                  >
+                    {lang === 'he' ? 'סגור' : 'Close'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label className="mt-4 block">
+                  <span className="mb-1.5 block text-xs font-medium text-muted">{lang === 'he' ? 'פקולטת מקור' : 'Source faculty'}</span>
+                  <select
+                    value={duplicateSourceFaculty}
+                    onChange={(e) => { setDuplicateSourceFaculty(e.target.value); setDuplicateSourceMajor(''); }}
+                    disabled={duplicateBusy}
+                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+                  >
+                    <option value="">{lang === 'he' ? 'בחר פקולטה' : 'Select a faculty'}</option>
+                    {SELECTABLE_FACULTY_IDS.map((id) => (
+                      <option key={id} value={id}>{FACULTY_LABELS[id][lang]}</option>
+                    ))}
+                  </select>
+                </label>
+                {duplicateSourceFaculty && (
+                  <label className="mt-3 block">
+                    <span className="mb-1.5 block text-xs font-medium text-muted">{lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}</span>
+                    <select
+                      value={duplicateSourceMajor}
+                      onChange={(e) => setDuplicateSourceMajor(e.target.value)}
+                      disabled={duplicateBusy}
+                      className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+                    >
+                      <option value="">{lang === 'he' ? 'כל המגמות בפקולטה' : 'All majors in this faculty'}</option>
+                      {majorOptionsFor(duplicateSourceFaculty, activeProcessType, lang).map((m) => (
+                        <option key={m.slug} value={m.slug}>{m.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {duplicateError && <p className="mt-3 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger">{duplicateError}</p>}
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDuplicatingOpen(false)}
+                    disabled={duplicateBusy}
+                    className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+                  >
+                    {lang === 'he' ? 'ביטול' : 'Cancel'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDuplicate}
+                    disabled={duplicateBusy || !duplicateSourceFaculty}
+                    className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                  >
+                    {duplicateBusy ? '…' : lang === 'he' ? 'ייבא' : 'Import'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

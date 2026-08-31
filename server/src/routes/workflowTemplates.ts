@@ -6,6 +6,7 @@ import {
   approveWorkflowTemplateController,
   rejectWorkflowTemplateController,
   deleteWorkflowTemplateController,
+  duplicateWorkflowTemplateController,
   getRetroactivePreviewController,
 } from '../controllers/workflowTemplateController.js';
 import { verifyToken } from '../middleware/auth.js';
@@ -20,6 +21,10 @@ router.post('/', verifyToken, createWorkflowTemplateProposal);
 router.put('/:id', verifyToken, updateWorkflowTemplateProposalController);
 router.post('/:id/approve', verifyToken, approveWorkflowTemplateController);
 router.post('/:id/reject', verifyToken, rejectWorkflowTemplateController);
+// A fixed path, mounted alongside retroactive-preview above — resolved by
+// facultyId+processType+major (findApprovedTemplateId), not a doc id, so it
+// must never be shadowed by the generic '/:id/...' shapes below.
+router.post('/duplicate', verifyToken, duplicateWorkflowTemplateController);
 router.delete('/:id', verifyToken, deleteWorkflowTemplateController);
 
 export default router;

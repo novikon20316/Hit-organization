@@ -19,6 +19,7 @@ import {
   MilestoneRoutingSpec,
   SubmissionRequirement,
   listWorkflowTemplates,
+  findApprovedTemplateId,
   proposeWorkflowTemplate,
   updatePendingWorkflowTemplate,
   approveWorkflowTemplate,
@@ -690,6 +691,145 @@ export const getRetroactivePreviewController = async (req: AuthenticatedRequest,
   } catch (error: any) {
     console.error('getRetroactivePreviewController error:', error);
     return res.status(500).json({ message: 'Failed to compute the retroactive-impact preview.' });
+  }
+};
+
+// ─── POST /api/workflow-templates/duplicate ────────────────────────────────────
+// Body: { sourceFacultyId, sourceMajor?, processType, targetFacultyId?, targetMajor? }
+// Lets a coordinator (or any PROPOSER_ROLE) reuse ANOTHER faculty's currently
+// APPROVED template as the starting point for a proposal in their own
+// faculty — e.g. a coordinator who only holds that role in the engineering
+// faculty (not data_science) can still pull in data_science's approved
+// msc_thesis template instead of building one from scratch. Resolved by
+// facultyId+processType+major (findApprovedTemplateId), not by a specific
+// doc id — the caller has no way to know a foreign faculty's internal
+// template ids, and doesn't need to.
+//
+// Read side: any PROPOSER_ROLE may read ANY faculty's currently-approved
+// template for this purpose — an approved template is published process
+// configuration, not sensitive data (unlike a pending/rejected draft, which
+// stays outside this endpoint's reach entirely since findApprovedTemplateId
+// only ever resolves 'approved' docs).
+//
+// Write side stays exactly as scoped as an ordinary proposal
+// (createWorkflowTemplateProposal): coordinator/faculty_admin/program_head
+// can only ever target their OWN faculty — any client-supplied
+// targetFacultyId is ignored for them; administrative_secretary is limited
+// to her own coordinatorScopes; only grad_school_head/system_admin may name
+// an arbitrary target faculty. The copy is created as a fresh version-1
+// pending_approval proposal for the target subject and goes through the
+// target faculty's normal approval chain like any other proposal — never
+// auto-approved, and always applyMode 'from_now_on' (retroactively touching
+// the target's in-progress projects isn't implied by "reuse this template").
+export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const role = req.user?.role;
+  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!PROPOSER_ROLES.includes(role)) {
+    return res.status(403).json({ message: 'You do not have permission to duplicate workflow templates.' });
+  }
+
+  const processType = req.body.processType;
+  if (!PROCESS_TYPES.includes(processType)) {
+    return res.status(400).json({ message: `Invalid processType: ${processType}` });
+  }
+  const sourceFacultyId = req.body.sourceFacultyId;
+  if (typeof sourceFacultyId !== 'string' || majorsForFaculty(sourceFacultyId).length === 0) {
+    return res.status(400).json({ message: 'A valid sourceFacultyId is required.' });
+  }
+  const sourceMajor: string | null = req.body.sourceMajor ? req.body.sourceMajor : null;
+
+  let targetFacultyId: string;
+  let targetMajor: string | null;
+  if (role === 'administrative_secretary') {
+    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: req.body.targetFacultyId, major: req.body.targetMajor });
+    if (!scope) {
+      return res.status(403).json({
+        message: (req.user?.coordinatorScopes ?? []).length === 0
+          ? 'No subject has been assigned to your account yet — ask your system_admin to assign one.'
+          : 'You may only duplicate into a subject assigned to you.',
+      });
+    }
+    targetFacultyId = scope.facultyId;
+    targetMajor = scope.major;
+  } else if (GRAD_SCHOOL_APPROVER_ROLES.includes(role)) {
+    targetFacultyId = req.body.targetFacultyId ?? req.user?.facultyId;
+    if (!targetFacultyId || majorsForFaculty(targetFacultyId).length === 0) {
+      return res.status(400).json({ message: 'A valid targetFacultyId is required.' });
+    }
+    targetMajor = req.body.targetMajor ? req.body.targetMajor : null;
+  } else {
+    // coordinator / faculty_admin / program_head — always their own faculty;
+    // any client-supplied targetFacultyId is ignored, matching
+    // createWorkflowTemplateProposal's own-faculty enforcement for these
+    // roles. They can pull FROM anywhere (see the read-side note above) but
+    // only ever write INTO the one faculty they actually manage.
+    targetFacultyId = req.user?.facultyId!;
+    if (!targetFacultyId || targetFacultyId === 'all') {
+      return res.status(400).json({ message: 'facultyId could not be resolved.' });
+    }
+    targetMajor = req.body.targetMajor ? req.body.targetMajor : null;
+  }
+  if (targetMajor && !majorsForFaculty(targetFacultyId).includes(targetMajor)) {
+    return res.status(400).json({ message: `Invalid major "${targetMajor}" for faculty "${targetFacultyId}".` });
+  }
+  if (targetFacultyId === sourceFacultyId && targetMajor === sourceMajor) {
+    return res.status(400).json({ message: 'Choose a different faculty or major to duplicate into — this is the same subject the template already belongs to.' });
+  }
+
+  try {
+    const source = await findApprovedTemplateId(sourceFacultyId, processType, sourceMajor);
+    if (!source) {
+      return res.status(404).json({ message: 'No approved template found for that faculty/major/process type.' });
+    }
+
+    // A 'committee' routing stage's committeeId (if set) names a SPECIFIC
+    // committee record belonging to the source faculty/major — meaningless
+    // (and a cross-faculty data leak) once copied elsewhere, so it's
+    // stripped here; target staff pick their own committee when they edit
+    // the proposal, same as any committee-role stage on a brand-new template.
+    const stripCommitteeIds = (chain: MilestoneRoutingSpec): MilestoneRoutingSpec =>
+      chain.map((stage) => {
+        if (stage.role !== 'committee' || !stage.committeeId) return stage;
+        const { committeeId, ...rest } = stage;
+        return rest as ChainStage;
+      });
+    const duplicatedMilestones = source.milestones.map((m) => ({
+      ...m,
+      ...(m.routing ? { routing: stripCommitteeIds(m.routing) } : {}),
+    }));
+    const duplicatedDefaultRouting = source.defaultRouting ? stripCommitteeIds(source.defaultRouting) : undefined;
+
+    const sourceLabel = `${sourceFacultyId}${sourceMajor ? '/' + sourceMajor : ''}`;
+    const result = await proposeWorkflowTemplate({
+      facultyId: targetFacultyId,
+      processType,
+      major: targetMajor,
+      milestones: duplicatedMilestones,
+      createdBy: uid,
+      note: `Duplicated from ${sourceLabel}`,
+      applyMode: 'from_now_on',
+      ...(duplicatedDefaultRouting ? { defaultRouting: duplicatedDefaultRouting } : {}),
+      ...(source.examinerSignoffRole ? { examinerSignoffRole: source.examinerSignoffRole } : {}),
+      ...(source.finalGradeSignoffRole ? { finalGradeSignoffRole: source.finalGradeSignoffRole } : {}),
+      ...(source.firstStepMode ? { firstStepMode: source.firstStepMode } : {}),
+      ...(source.supervisorSelectionRequiresApproval !== undefined ? { supervisorSelectionRequiresApproval: source.supervisorSelectionRequiresApproval } : {}),
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: role,
+      action: 'workflow_template_duplicated',
+      entityType: 'workflowTemplate',
+      entityId: result.id,
+      oldValue: { sourceTemplateId: source.id, sourceFacultyId, sourceMajor },
+      newValue: { facultyId: targetFacultyId, major: targetMajor, processType },
+    });
+
+    return res.status(201).json({ success: true, id: result.id, status: 'pending_approval', facultyId: targetFacultyId, major: targetMajor });
+  } catch (error: any) {
+    console.error('duplicateWorkflowTemplateController error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to duplicate workflow template.' });
   }
 };
 
