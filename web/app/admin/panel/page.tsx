@@ -17,7 +17,7 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { facultyLabel, roleLabel, type FacultyId } from '@/lib/i18n';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { VALID_FACULTY_IDS, VALID_ROLES, isStaff, type AppRole } from '@/lib/roles';
@@ -165,6 +165,19 @@ function AdminPanelContent() {
       setLockedUsers((prev) => prev.filter((l) => l.code !== code));
     } catch (err) {
       console.error('Failed to lift lockout:', err);
+      // Previously silent — clicking "Lift lockout" on an incident the
+      // server had already resolved/expired (stale data, or a race with
+      // another admin) looked like the button just didn't do anything: no
+      // error shown, and the row stayed in the list forever since it's only
+      // ever removed on the success path. A 404/409 here means the server
+      // already knows this isn't a real pending lockout anymore, so drop it
+      // from the list too instead of leaving a dead row an admin can retry
+      // forever with the same non-result.
+      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) {
+        setLockedUsers((prev) => prev.filter((l) => l.code !== code));
+      } else {
+        alert(err instanceof Error ? err.message : lang === 'he' ? 'הסרת הנעילה נכשלה' : 'Failed to lift the lockout');
+      }
     } finally {
       setLiftingCode(null);
     }

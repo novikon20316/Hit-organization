@@ -359,14 +359,27 @@ export async function resolveIncident(
 
   const incident = snap.data()!;
   if (incident.status !== 'pending') return { ok: false, reason: 'already_resolved' };
-  if (new Date(incident.expiresAt).getTime() < Date.now()) {
-    await ref.update({ status: 'expired' });
-    return { ok: false, reason: 'expired' };
-  }
 
   const uid = incident.uid as string;
   const securityRef = securityDocRef(uid);
   const resolvedAt = new Date().toISOString();
+
+  if (new Date(incident.expiresAt).getTime() < Date.now()) {
+    await ref.update({ status: 'expired' });
+    // CRITICAL FIX: this branch used to leave `pendingIncidentCode` set on
+    // the security doc after flipping the incident to 'expired' — confirmed
+    // live (two ~6-week-old incidents, including the system_admin's own
+    // account, sitting as 'pending' the whole time because nothing ever
+    // visited their email link to trigger the lazy-expiry in
+    // getIncidentSummary). With the field left in place, reportFailedLogin's
+    // `if (data.pendingIncidentCode) return false` guard silently drops every
+    // future failed-login report for that user forever — the exact same
+    // stuck-tracking bug the 'owner'/'attacker' branches below already guard
+    // against. Clear it here too so an expired incident actually stops
+    // blocking future tracking instead of just changing its own label.
+    await securityRef.set({ pendingIncidentCode: FieldValue.delete() }, { merge: true });
+    return { ok: false, reason: 'expired' };
+  }
 
   if (decision === 'owner') {
     const tempPassword = generateTempPassword();
@@ -421,7 +434,27 @@ export async function listPendingLockouts(): Promise<PendingLockout[]> {
   const snap = await db.collection('loginSecurityIncidents').where('status', '==', 'pending').orderBy('createdAt', 'desc').get();
   if (snap.empty) return [];
 
-  const incidents = snap.docs.map((d) => ({ code: d.id, ...d.data() } as any));
+  const allIncidents = snap.docs.map((d) => ({ code: d.id, ...d.data() } as any));
+
+  // Self-healing, same as getIncidentSummary's lazy expiry: a 'pending'
+  // incident whose 7-day TTL already passed isn't a real lockout anymore —
+  // it's just never been visited (owner's email link, or this admin view)
+  // to trigger the flip. Confirmed live: two incidents from ~6 weeks ago,
+  // including the system_admin's own account (obviously not actually
+  // locked — it was in active use), sat as 'pending' the whole time and
+  // showed up here as if currently locked the moment the index that powers
+  // this query started working. Expire them here too, so this view only
+  // ever reports genuinely outstanding lockouts.
+  const now = Date.now();
+  const stale = allIncidents.filter((inc) => new Date(inc.expiresAt).getTime() < now);
+  await Promise.all(stale.map(async (inc) => {
+    await db.collection('loginSecurityIncidents').doc(inc.code).update({ status: 'expired' });
+    await securityDocRef(inc.uid).set({ pendingIncidentCode: FieldValue.delete() }, { merge: true });
+  }));
+
+  const incidents = allIncidents.filter((inc) => !stale.includes(inc));
+  if (incidents.length === 0) return [];
+
   const userSnaps = await Promise.all(incidents.map((inc) => db.collection('users').doc(inc.uid).get()));
 
   return incidents.map((inc, i) => ({
