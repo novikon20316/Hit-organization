@@ -5,7 +5,7 @@
 // close-old/spin-up-new logic.
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { changeProjectTrack, TrackChangeError, type ProjectTrack } from '../services/trackChange.js';
 
 // Matches CLOCK_PAUSE_ROLES in clockPauseController.ts — this backlog item
@@ -21,7 +21,7 @@ export const changeTrack = async (req: AuthenticatedRequest, res: Response) => {
   const { newTrack, reason } = req.body;
 
   if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user.role || !TRACK_CHANGE_ROLES.includes(req.user.role)) {
+  if (!hasAnyRole(req.user, TRACK_CHANGE_ROLES)) {
     return res.status(403).json({ message: 'Forbidden.' });
   }
   if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: 'Missing projectId.' });

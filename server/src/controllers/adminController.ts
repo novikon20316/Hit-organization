@@ -3,7 +3,7 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import crypto from 'crypto';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount, getEffectiveRoles } from '../services/accountDeletion.js';
 import { VALID_ROLES, generateTempPassword, setTempPasswordHash } from '../services/userImportExport.js';
@@ -1388,7 +1388,7 @@ const STUDENT_SEARCH_ROLES = [...ACADEMIC_YEAR_ROLES, 'program_head'];
 export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: Response) => {
   const callerUid = req.user?.uid;
   if (!callerUid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !ACADEMIC_YEAR_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, ACADEMIC_YEAR_ROLES)) {
     return res.status(403).json({ message: "Only system_admin or administrative_secretary may change a student's academic year." });
   }
 
@@ -1473,7 +1473,7 @@ export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: 
  * (a university department's student roster, not millions of rows).
  */
 export const searchStudents = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user?.role || !STUDENT_SEARCH_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, STUDENT_SEARCH_ROLES)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
 

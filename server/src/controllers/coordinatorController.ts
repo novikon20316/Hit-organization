@@ -1,7 +1,7 @@
 import admin from 'firebase-admin';
 import { Request, Response } from 'express';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { assignExaminersAndNotify, ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
@@ -71,7 +71,7 @@ const EXAMINER_RECOMMENDATION_APPROVAL_ROLES = [...COORDINATOR_ROLES, 'program_h
  * link emailed to them instead — see services/examinerAccess.ts.
  */
 export const assignExaminers = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
 
@@ -268,7 +268,7 @@ export const getCoordinatorExaminerRecommendations = async (req: AuthenticatedRe
   // Previously missing entirely — any authenticated user with a facultyId
   // (including a student) could reach this. Bring it in line with its
   // sibling coordinator endpoints.
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
   const facultyId = req.user?.facultyId;
@@ -307,7 +307,7 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
   const { id } = req.params;
   const coordinatorId = req.user?.uid;
   if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !EXAMINER_RECOMMENDATION_APPROVAL_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, EXAMINER_RECOMMENDATION_APPROVAL_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
@@ -417,7 +417,7 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
   const { id } = req.params;
   const coordinatorId = req.user?.uid;
   if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !EXAMINER_RECOMMENDATION_APPROVAL_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, EXAMINER_RECOMMENDATION_APPROVAL_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
@@ -459,7 +459,7 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
 export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const coordinatorId = req.user?.uid;
   if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
 
@@ -810,7 +810,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
     return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment);
   }
 
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
 
@@ -1120,7 +1120,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
     return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason);
   }
 
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
 
@@ -1247,7 +1247,7 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
   if (!coordinatorId) {
     return res.status(401).json({ message: 'Unauthorized.' });
   }
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to set defense logistics.' });
   }
   const defenseScope = await resolveProjectScope(projectId);
@@ -1411,7 +1411,7 @@ export const resolveDefenseDateConflict = async (req: AuthenticatedRequest, res:
   if (!coordinatorId) {
     return res.status(401).json({ message: 'Unauthorized.' });
   }
-  if (!req.user?.role || !COORDINATOR_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
   const conflictScope = await resolveMilestoneScope(milestoneId);

@@ -1,7 +1,7 @@
 // src/controllers/notificationController.ts
 import { Response } from 'express';
 import admin from 'firebase-admin';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { softError } from '../middleware/auth.js';
 
 const db = admin.firestore();
@@ -41,7 +41,7 @@ const NOTIFICATION_DISPATCH_ROLES = [
  */
 export const triggerNotificationDispatch = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (!req.user?.role || !NOTIFICATION_DISPATCH_ROLES.includes(req.user.role)) {
+    if (!req.user || !hasAnyRole(req.user, NOTIFICATION_DISPATCH_ROLES)) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 

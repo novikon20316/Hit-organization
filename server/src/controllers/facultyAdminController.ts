@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { VALID_ROLES } from '../services/userImportExport.js';
 import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, type RoleFacultyField } from '../services/scopeAuthorization.js';
@@ -95,7 +95,7 @@ export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Resp
 };
 
 export const updateUserPermissions = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user?.role || !FACULTY_ADMIN_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, FACULTY_ADMIN_ROLES)) {
     return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
   }
 
@@ -109,7 +109,7 @@ export const updateUserPermissions = async (req: AuthenticatedRequest, res: Resp
     return res.status(400).json({ message: `Invalid role: ${role}` });
   }
 
-  const isSystemAdmin = req.user.role === 'system_admin';
+  const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
   if (!isSystemAdmin && ADMIN_TIER_ROLES.includes(role)) {
     return res.status(403).json({ message: 'faculty_admin cannot grant an admin-tier role.' });
   }
@@ -150,7 +150,7 @@ export const updateUserPermissions = async (req: AuthenticatedRequest, res: Resp
 };
 
 export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user?.role || !FACULTY_ADMIN_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, FACULTY_ADMIN_ROLES)) {
     return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
   }
 

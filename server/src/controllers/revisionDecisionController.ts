@@ -5,7 +5,7 @@
 
 import { Response } from 'express';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { recordRevisionDecision, isValidRevisionDecision } from '../services/revisionDecisions.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
 
@@ -28,7 +28,7 @@ export const getExaminerOpinions = async (req: AuthenticatedRequest, res: Respon
     const milestone = milestoneSnap.data()!;
 
     const isOwnAdvisee = milestone.supervisorId === req.user.uid;
-    if (!isOwnAdvisee && !COORDINATOR_TIER_ROLES.includes(req.user.role)) {
+    if (!isOwnAdvisee && !hasAnyRole(req.user, COORDINATOR_TIER_ROLES)) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 
@@ -76,7 +76,7 @@ export const submitRevisionDecision = async (req: AuthenticatedRequest, res: Res
     const milestone = milestoneSnap.data()!;
 
     const isOwnAdvisee = milestone.supervisorId === req.user.uid;
-    const isCoordinatorTier = COORDINATOR_TIER_ROLES.includes(req.user.role);
+    const isCoordinatorTier = hasAnyRole(req.user, COORDINATOR_TIER_ROLES);
 
     if (!isOwnAdvisee) {
       if (!isCoordinatorTier) {

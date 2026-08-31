@@ -10,7 +10,7 @@
 
 import { Response } from 'express';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { computeMilestoneProgress, trackTypeOf, urgencyFromAge, MilestoneDoc } from '../services/studentProgress.js';
 import { effectiveFacultyIds } from '../services/scopeAuthorization.js';
 
@@ -19,7 +19,7 @@ const PROGRAM_HEAD_ROLES = ['program_head', 'system_admin'];
 export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !PROGRAM_HEAD_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, PROGRAM_HEAD_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to view this dashboard.' });
   }
 
@@ -34,7 +34,7 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
     // Own faculty plus any extras granted via programHeadFacultyIds (see
     // effectiveFacultyIds) — 'all' for the rare system_admin viewer of this
     // dashboard (PROGRAM_HEAD_ROLES above), unrestricted by design.
-    const isSystemAdmin = req.user.role === 'system_admin' || (req.user.roles ?? []).includes('system_admin');
+    const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
     const facultyIds = isSystemAdmin ? 'all' as const : effectiveFacultyIds(userData, 'programHeadFacultyIds');
     const facultyFilter = (q: FirebaseFirestore.Query): FirebaseFirestore.Query =>
       facultyIds === 'all' ? q : q.where('facultyId', 'in', facultyIds);

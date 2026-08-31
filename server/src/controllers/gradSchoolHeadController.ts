@@ -13,7 +13,7 @@
 import admin from 'firebase-admin';
 import { Response } from 'express';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import {
   computeMilestoneProgress,
   facultyName,
@@ -48,7 +48,7 @@ const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
 export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !GRAD_SCHOOL_HEAD_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, GRAD_SCHOOL_HEAD_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to view this dashboard.' });
   }
 

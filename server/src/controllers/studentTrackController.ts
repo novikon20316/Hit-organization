@@ -5,7 +5,7 @@
 // switches an already-enrolled project's track.
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
 import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 import {
@@ -45,7 +45,7 @@ export const chooseTrack = async (req: AuthenticatedRequest, res: Response) => {
 
 export const setStudentThesisEligibility = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user.role || !THESIS_ELIGIBILITY_ROLES.includes(req.user.role)) {
+  if (!hasAnyRole(req.user, THESIS_ELIGIBILITY_ROLES)) {
     return res.status(403).json({ message: 'Forbidden.' });
   }
   const { studentId } = req.params;
@@ -83,7 +83,7 @@ export const setStudentThesisEligibility = async (req: AuthenticatedRequest, res
 // separately-authorized action.
 export const setStudentThesisAverage = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user.role || !THESIS_ELIGIBILITY_ROLES.includes(req.user.role)) {
+  if (!hasAnyRole(req.user, THESIS_ELIGIBILITY_ROLES)) {
     return res.status(403).json({ message: 'Forbidden.' });
   }
   const { studentId } = req.params;

@@ -5,7 +5,7 @@
 // for the actual read/write logic.
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { pauseProjectClock, resumeProjectClock, getProjectClockPauseState, isValidClockPauseReason } from '../services/clockPause.js';
 import type { ClockPause } from '../services/studentProgress.js';
 
@@ -23,7 +23,7 @@ function serializePause(p: ClockPause) {
 const CLOCK_PAUSE_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'];
 
 function hasClockPauseAccess(req: AuthenticatedRequest): boolean {
-  return !!req.user?.role && CLOCK_PAUSE_ROLES.includes(req.user.role);
+  return hasAnyRole(req.user, CLOCK_PAUSE_ROLES);
 }
 
 export const getClockPauseState = async (req: AuthenticatedRequest, res: Response) => {

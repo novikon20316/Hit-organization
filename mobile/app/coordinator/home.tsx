@@ -18,6 +18,7 @@ import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userIm
 import { pickAndImportStudentRoster } from '@/src/api/studentRoster';
 import {PendingMilestone, Project, InProgressProject, ExaminerUser, AssignedMilestone, DefensePanelMember} from '@/types'
 import FloatingActionMenu from '@/components/FloatingActionMenu';
+import ChatbotFab from '@/components/ChatbotFab';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { BulkDueDateModal } from '@/components/modals';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
@@ -901,22 +902,22 @@ export default function CoordinatorHome() {
           return (
             <>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                <View style={apStyles.metricCard}>
+                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('inProgress')}>
                   <Text style={apStyles.metricLabel}>{lang === 'he' ? 'פרויקטים פעילים' : 'Active Projects'}</Text>
                   <Text style={apStyles.metricValue}>{inProgressProjects.length}</Text>
-                </View>
-                <View style={apStyles.metricCard}>
+                </Pressable>
+                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('pending')}>
                   <Text style={apStyles.metricLabel}>{lang === 'he' ? 'הגשות ממתינות לבדיקה' : 'Submissions Pending Review'}</Text>
                   <Text style={apStyles.metricValue}>{pendingMilestones.length}</Text>
-                </View>
-                <View style={apStyles.metricCard}>
+                </Pressable>
+                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('defense')}>
                   <Text style={apStyles.metricLabel}>{lang === 'he' ? 'הגנות' : 'Defenses'}</Text>
                   <Text style={apStyles.metricValue}>{sortedDefenseCards.length}</Text>
-                </View>
-                <View style={[apStyles.metricCard, apStyles.metricCardAlert]}>
+                </Pressable>
+                <Pressable style={[apStyles.metricCard, apStyles.metricCardAlert]} onPress={() => setActiveTab('defense')}>
                   <Text style={[apStyles.metricLabel, apStyles.metricLabelAlert]}>{lang === 'he' ? 'התראות מערכת' : 'System Alerts'}</Text>
                   <Text style={[apStyles.metricValue, apStyles.metricValueAlert]}>{alertCards.length}</Text>
-                </View>
+                </Pressable>
               </View>
 
               <View style={apStyles.sectionCard}>
@@ -1800,6 +1801,8 @@ export default function CoordinatorHome() {
           { key: 'projectRecords', icon: '📜', label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records', onPress: () => router.push({ pathname: '/coordinator/records', params: { lang } } as any) },
         ]}
       />
+
+      <ChatbotFab lang={lang} corner="bottom-left" />
 
       {/* ── Approve modal (simple confirm for milestone 1 & 2) ── */}
       <Modal visible={approveModal} animationType="fade" transparent>

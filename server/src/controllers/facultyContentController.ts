@@ -10,7 +10,7 @@
 
 import admin from 'firebase-admin';
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { VALID_MAJORS } from '../config/majors.js';
 
 const db = admin.firestore();
@@ -46,7 +46,7 @@ function parseScopeArray(raw: unknown, validValues: Set<string>, label: string):
 export const createFacultyContent = async (req: AuthenticatedRequest, res: Response) => {
   const posterId = req.user?.uid;
   if (!posterId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !FACULTY_CONTENT_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, FACULTY_CONTENT_ROLES)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
 
@@ -138,7 +138,7 @@ export const deleteFacultyContent = async (req: AuthenticatedRequest, res: Respo
   const uid = req.user?.uid;
   const { id } = req.params;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !FACULTY_CONTENT_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, FACULTY_CONTENT_ROLES)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid content id.' });

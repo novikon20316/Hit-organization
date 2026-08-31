@@ -6,7 +6,7 @@
 // of letting them apply directly. See services/exceptionalActions.ts.
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole, matchedRole } from '../middleware/auth.js';
 import { listPendingExceptionalActions, decideExceptionalAction } from '../services/exceptionalActions.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
 
@@ -19,7 +19,7 @@ const APPROVER_FACULTY_FIELD: Record<string, RoleFacultyField> = {
 };
 
 function hasApproverAccess(req: AuthenticatedRequest): boolean {
-  return !!req.user?.role && APPROVER_ROLES.includes(req.user.role);
+  return hasAnyRole(req.user, APPROVER_ROLES);
 }
 
 /** This approver's own faculty plus any extras granted for their specific
@@ -28,7 +28,7 @@ function hasApproverAccess(req: AuthenticatedRequest): boolean {
  *  to be unconditionally cross-faculty by role alone; it's now scoped the
  *  same way as the other two delegate roles. */
 function approverEffectiveFacultyIds(req: AuthenticatedRequest): string[] | 'all' {
-  const role = req.user?.role ?? '';
+  const role = matchedRole(req.user, APPROVER_ROLES) ?? '';
   if (role === 'system_admin') return 'all';
   const field = APPROVER_FACULTY_FIELD[role];
   // Every role admitted by hasApproverAccess has an entry above (or is

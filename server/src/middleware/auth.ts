@@ -182,6 +182,36 @@ export const verifyToken = async (
 // during migration — remove once all routes use verifyToken
 export const authenticateUser = verifyToken;
 
+/** All roles this user holds — primary `role` plus `roles[]`, deduped.
+ *  Mirrors web/lib/roles.ts's getUserRoles: a multi-role account (e.g. a
+ *  supervisor in one faculty who's also a coordinator in another) has a
+ *  single primary `role` field plus any additional roles in `roles[]`, and
+ *  controllers must recognize both — not just the primary one. */
+export function getUserRoles(user: AuthenticatedRequest['user']): string[] {
+  if (!user) return [];
+  const set = new Set<string>();
+  if (user.role) set.add(user.role);
+  (user.roles ?? []).forEach((r) => set.add(r));
+  return Array.from(set);
+}
+
+/** Does this user hold any of the given roles, checking both their primary
+ *  `role` and their `roles[]` array? Use this (not `req.user.role ===` /
+ *  `.includes(req.user.role)` alone) for every role-gate — a check against
+ *  `req.user.role` alone silently 403s a legitimate multi-role user whose
+ *  primary role isn't the one being checked for. */
+export function hasAnyRole(user: AuthenticatedRequest['user'], allowedRoles: string[]): boolean {
+  return getUserRoles(user).some((r) => allowedRoles.includes(r));
+}
+
+/** First of `allowedRoles` this user holds (primary `role` checked first,
+ *  then `roles[]` in order) — for role-keyed lookups (e.g. a per-role
+ *  facultyIds extras field) where the caller needs to know *which* matched
+ *  role to use, not just whether one matched. */
+export function matchedRole(user: AuthenticatedRequest['user'], allowedRoles: string[]): string | undefined {
+  return getUserRoles(user).find((r) => allowedRoles.includes(r));
+}
+
 export const verifyTokenOnly = async (
   req: AuthenticatedRequest,
   res: Response,

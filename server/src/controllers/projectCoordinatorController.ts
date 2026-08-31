@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import * as XLSX from 'xlsx';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 import {
   gatherScopedEngagements,
@@ -62,7 +62,7 @@ interface DegreeScope { facultyId: string; major?: string }
 export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !PROJECT_COORDINATOR_DASHBOARD_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, PROJECT_COORDINATOR_DASHBOARD_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to view this dashboard.' });
   }
 
@@ -76,7 +76,7 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
     // none assigned yet, she has nothing to see (not "the whole
     // institution", which the old facultyId==='all' behavior risked once
     // fixed naively — see withinCoordinatorScope's fallback for the write side).
-    const isSystemAdmin = req.user.role === 'system_admin';
+    const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
     const scopes: DegreeScope[] = isSystemAdmin
       ? []
       : (req.user.coordinatorScopes ?? []).map((s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId }));
@@ -291,12 +291,12 @@ export type StudentReportStatus = 'not_in_project' | 'applied' | 'in_project' | 
 export const getStudentsReport = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !PROJECT_COORDINATOR_DASHBOARD_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, PROJECT_COORDINATOR_DASHBOARD_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to view this report.' });
   }
 
   try {
-    const isSystemAdmin = req.user.role === 'system_admin';
+    const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
     const scopes: DegreeScope[] = isSystemAdmin
       ? []
       : (req.user.coordinatorScopes ?? []).map((s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId }));
@@ -464,7 +464,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
 export const getStudentDetail = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !STUDENT_DETAIL_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, STUDENT_DETAIL_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to view this student.' });
   }
 
@@ -609,12 +609,12 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
 export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !PROJECT_COORDINATOR_DASHBOARD_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, PROJECT_COORDINATOR_DASHBOARD_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to view this queue.' });
   }
 
   try {
-    const isSystemAdmin = req.user.role === 'system_admin';
+    const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
     const scopes: DegreeScope[] = isSystemAdmin
       ? []
       : (req.user.coordinatorScopes ?? []).map((s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId }));
@@ -783,7 +783,7 @@ function resolveStatisticsScope(req: AuthenticatedRequest): {
 export const getCoordinatorStatistics = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !COORDINATOR_STATISTICS_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_STATISTICS_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to view these statistics.' });
   }
 
@@ -839,7 +839,7 @@ export const getCoordinatorStatistics = async (req: AuthenticatedRequest, res: R
 export const updateSupervisorPaymentRates = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !COORDINATOR_STATISTICS_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_STATISTICS_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to edit these rates.' });
   }
 
@@ -898,7 +898,7 @@ function addStatsSheet(workbook: XLSX.WorkBook, name: string, rows: Record<strin
 export const exportCoordinatorStatistics = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user?.role || !COORDINATOR_STATISTICS_ROLES.includes(req.user.role)) {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_STATISTICS_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to export these statistics.' });
   }
 

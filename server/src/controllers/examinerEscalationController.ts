@@ -6,7 +6,7 @@
 
 import { Response } from 'express';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole, matchedRole } from '../middleware/auth.js';
 import { promoteNextExaminer, sendManualExaminerReminder } from '../services/examinerEscalation.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
 
@@ -21,7 +21,7 @@ const ESCALATION_FACULTY_FIELD: Record<string, RoleFacultyField> = {
 };
 
 function hasAccess(req: AuthenticatedRequest): boolean {
-  return !!req.user?.role && COORDINATOR_ROLES.includes(req.user.role);
+  return hasAnyRole(req.user, COORDINATOR_ROLES);
 }
 
 /**
@@ -44,7 +44,7 @@ export const getExaminerEscalations = async (req: AuthenticatedRequest, res: Res
     // to be unconditionally cross-faculty via the plain facultyId==='all'
     // check alone; coordinator/administrative_secretary/system_admin keep
     // that original comparison unchanged (no extras field of their own here).
-    const escalationField = ESCALATION_FACULTY_FIELD[req.user.role];
+    const escalationField = ESCALATION_FACULTY_FIELD[matchedRole(req.user, COORDINATOR_ROLES) ?? req.user.role];
     const escalationScope = escalationField ? effectiveFacultyIds(req.user, escalationField) : req.user.facultyId;
 
     const now = Date.now();
