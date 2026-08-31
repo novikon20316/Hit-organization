@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
 import { resolveStaffForScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
@@ -697,8 +697,7 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
     // Co-supervisors were previously locked out of editing their own
     // jointly-owned project — this check only ever recognized supervisorId.
     const isOwner = projectData.supervisorId === requesterId || projectData.secondarySupervisorId === requesterId;
-    const role = req.user?.role;
-    const inCoordinatorScope = !!role && PROJECT_EDIT_COORDINATOR_ROLES.includes(role) && withinCoordinatorScope(req.user, {
+    const inCoordinatorScope = hasAnyRole(req.user, PROJECT_EDIT_COORDINATOR_ROLES) && withinCoordinatorScope(req.user, {
       facultyId: projectData.facultyId ?? '',
       major: projectData.major || undefined,
       degreeLevel: projectData.degreeType || undefined,

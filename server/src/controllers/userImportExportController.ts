@@ -6,7 +6,7 @@
 import { Response, RequestHandler } from 'express';
 import multer from 'multer';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { importStaffFromBuffer, buildUsersExportBuffer } from '../services/userImportExport.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -20,7 +20,7 @@ function excelResponse(res: Response, buffer: Buffer, filename: string) {
 
 // ─── GET /api/admin/users/export ──────────────────────────────────────────────
 export const exportUsersAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
@@ -62,7 +62,7 @@ export const exportUsersCoordinator = async (req: AuthenticatedRequest, res: Res
 // Imports the college's HR "סגל" export — a different column layout than the
 // generic users import above. See services/userImportExport.ts for the mapping.
 export const importStaffAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 

@@ -5,7 +5,7 @@
 // before a new student account can be created.
 
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import {
   importApprovedStudentsFromBuffer,
   listApprovedStudents,
@@ -16,7 +16,7 @@ import {
 
 // ─── POST /api/admin/student-roster/import ────────────────────────────────────
 export const importStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
 
@@ -37,7 +37,7 @@ export const importStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
 // system_admin can actually see what's been uploaded, instead of it only
 // ever being written to (import) and read internally at signup time.
 export const listStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
   try {
@@ -60,7 +60,7 @@ export const listStudentRosterAdmin = async (req: AuthenticatedRequest, res: Res
 
 // ─── PATCH /api/admin/student-roster/:docId ────────────────────────────────────
 export const updateStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
   const { docId } = req.params;
@@ -78,7 +78,7 @@ export const updateStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
 
 // ─── DELETE /api/admin/student-roster/:docId ───────────────────────────────────
 export const deleteStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
   const { docId } = req.params;
