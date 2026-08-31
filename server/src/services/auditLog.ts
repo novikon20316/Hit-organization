@@ -79,7 +79,11 @@ export type AuditAction =
   // already-enrolled-project switch.
   | 'student_track_chosen'
   | 'student_thesis_eligibility_set'
-  | 'student_track_overridden_by_admin';
+  | 'student_track_overridden_by_admin'
+  // Temporary debug tooling (see config/featureFlags.ts's
+  // IMPERSONATION_ENABLED) — a system_admin signing in as another user from
+  // the web Users tab.
+  | 'impersonation_started';
 
 export interface AuditLogEntry {
   userId: string;

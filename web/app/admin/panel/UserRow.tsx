@@ -4,11 +4,15 @@
 // Ported from the `activeTab === 'users'` card in mobile's panel.tsx.
 
 import { useState } from 'react';
+import { signInWithCustomToken } from 'firebase/auth';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
+import { auth } from '@/lib/firebase';
 import { getFacultyColor, getRoleAccent, withAlpha } from '@/lib/facultyColors';
 import { roleLabel, type AppRole } from '@/lib/i18n';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { setActiveImpersonation, clearActiveImpersonation } from '@/lib/impersonation';
 import type { AdminUserRecord, StudentStatusConfig } from './types';
 
 interface UserRowProps {
@@ -16,12 +20,19 @@ interface UserRowProps {
   statusConfig: StudentStatusConfig;
   onChanged: () => void;
   onEdit: (user: AdminUserRecord) => void;
+  /** Temporary debug tool — see server/src/config/featureFlags.ts's
+   *  IMPERSONATION_ENABLED. Hides the Impersonate button entirely when off. */
+  impersonationEnabled?: boolean;
 }
 
-export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps) {
+export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEnabled }: UserRowProps) {
   const { lang } = useLanguage();
+  const { firebaseUser } = useAuth();
   const facultyColor = getFacultyColor(user.facultyId);
   const roleColor = getRoleAccent(user.role);
+  const isSelf = user.id === firebaseUser?.uid;
+  const isOtherAdmin = user.role === 'system_admin' || (user.roles ?? []).includes('system_admin');
+  const canImpersonate = !!impersonationEnabled && !isSelf && !isOtherAdmin;
 
   // Status badges are student-only, and only shown once actually set —
   // omit entirely rather than showing an empty/placeholder badge.
@@ -39,6 +50,7 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
   const [resettingPassword, setResettingPassword] = useState(false);
   const [resetTempPassword, setResetTempPassword] = useState<string | null>(null);
   const [copiedResetPassword, setCopiedResetPassword] = useState(false);
+  const [impersonating, setImpersonating] = useState(false);
 
   const handleToggleActive = async () => {
     setTogglingActive(true);
@@ -92,6 +104,32 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
       setConfirmResetPassword(false);
     } finally {
       setResettingPassword(false);
+    }
+  };
+
+  const handleImpersonate = async () => {
+    if (!firebaseUser) return;
+    setImpersonating(true);
+    setRowError('');
+    try {
+      const result = await apiClient.impersonateUser(user.id);
+      setActiveImpersonation({
+        adminReturnToken: result.adminReturnToken,
+        adminUid: firebaseUser.uid,
+        adminDisplayName: firebaseUser.displayName ?? '',
+        targetUid: user.id,
+        targetDisplayName: result.targetDisplayName || user.displayName,
+        targetEmail: result.targetEmail || user.email,
+        startedAt: new Date().toISOString(),
+      });
+      await signInWithCustomToken(auth, result.targetToken);
+      // From here the app re-renders as the target user — AuthContext's own
+      // onAuthStateChanged/onSnapshot listeners pick up the new identity, so
+      // there's nothing further to do in this component.
+    } catch (err) {
+      clearActiveImpersonation();
+      setRowError(err instanceof Error ? err.message : 'Failed to impersonate user');
+      setImpersonating(false);
     }
   };
 
@@ -157,6 +195,16 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
         </span>
 
         <div className="ms-auto flex gap-1.5">
+          {canImpersonate && (
+            <button
+              type="button"
+              onClick={handleImpersonate}
+              disabled={impersonating}
+              className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-accent hover:text-accent disabled:opacity-60"
+            >
+              🕵️ {impersonating ? (lang === 'he' ? 'מתחבר...' : 'Switching...') : lang === 'he' ? 'התחזה' : 'Impersonate'}
+            </button>
+          )}
           {user.totp_enabled && (
             <button
               type="button"

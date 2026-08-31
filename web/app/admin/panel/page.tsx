@@ -104,6 +104,10 @@ function AdminPanelContent() {
   // an import while already on that tab wouldn't show up until the next
   // filter change.
   const [rosterRefreshKey, setRosterRefreshKey] = useState(0);
+  // Temporary debug tool — see server/src/config/featureFlags.ts's
+  // IMPERSONATION_ENABLED. Sourced from dashboard-summary so the Users tab
+  // can hide the button with no extra request.
+  const [impersonationEnabled, setImpersonationEnabled] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -111,6 +115,7 @@ function AdminPanelContent() {
       setUsers((data.users ?? []) as unknown as AdminUserRecord[]);
       setProjects((data.projects ?? []) as unknown as AdminProjectRecord[]);
       setMilestones((data.milestones ?? []) as unknown as AdminMilestoneRecord[]);
+      setImpersonationEnabled(!!data.impersonationEnabled);
       setLoadError('');
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת לוח הבקרה נכשלה' : 'Failed to load the dashboard');
@@ -300,7 +305,7 @@ function AdminPanelContent() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             {filteredUsers.map((u) => (
-              <UserRow key={u.id} user={u} statusConfig={statusConfig} onChanged={fetchDashboard} onEdit={setEditingUser} />
+              <UserRow key={u.id} user={u} statusConfig={statusConfig} onChanged={fetchDashboard} onEdit={setEditingUser} impersonationEnabled={impersonationEnabled} />
             ))}
           </div>
           {filteredUsers.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}

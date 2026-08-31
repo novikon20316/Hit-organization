@@ -27,9 +27,11 @@ import {
   deleteAuditLogEntries,
   getLockedUsers,
   liftLoginLockout,
+  impersonateUser,
 } from '../controllers/adminController.js'
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
+import { impersonationLimiter } from '../middleware/rateLimit.js';
 import { assignDefense } from '../controllers/coordinatorController.js';
 import { uploadInfoFile, uploadInfoFileMiddleware, updateInfoFile, deleteInfoFile } from '../controllers/infoFilesController.js';
 import { createFacultyContent, deleteFacultyContent } from '../controllers/facultyContentController.js';
@@ -97,6 +99,8 @@ router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, im
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
 router.post('/login-security/:code/lift', verifyToken, liftLoginLockout);
 router.post('/users/:id/reset-password', verifyToken, resetUserPasswordAdmin);
+// Temporary debug tool — see config/featureFlags.ts's IMPERSONATION_ENABLED.
+router.post('/users/:id/impersonate', verifyToken, impersonationLimiter, impersonateUser);
 router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);
 // system_admin (any student) or faculty_admin (own faculty only) — gated
 // inside the controller, not here, matching createAdminProject's pattern.

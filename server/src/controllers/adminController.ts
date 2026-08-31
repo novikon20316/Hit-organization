@@ -13,6 +13,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { WEBSITE_URL, APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
+import { IMPERSONATION_ENABLED } from '../config/featureFlags.js';
 import {
   validateScopeRule, validateCoordinatorScope,
   ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES, DELEGATE_RESTRICTED_ACTIONS,
@@ -132,10 +133,78 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
       projects,
       milestones,
       unreadCount: notifSnap.size,
+      impersonationEnabled: IMPERSONATION_ENABLED,
     });
   } catch (error: any) {
     console.error('getAdminDashboardSummary error:', error);
     return res.status(500).json({ message: 'Failed to load admin dashboard data.' });
+  }
+};
+
+/**
+ * POST /api/admin/users/:id/impersonate
+ * Temporary debugging tool (config/featureFlags.ts's IMPERSONATION_ENABLED)
+ * — lets a system_admin sign in as another user from the web Users tab,
+ * without asking the real accountholder to reproduce a bug themselves.
+ *
+ * Mints two Firebase custom tokens: one to sign in as the target user, and
+ * one (for the admin's own uid) so the client can switch back later with no
+ * further server round-trip — by the time the admin is signed in as the
+ * target, they no longer hold a system_admin-authenticated session to make
+ * one with.
+ */
+export const impersonateUser = async (req: AuthenticatedRequest, res: Response) => {
+  const adminUid = req.user?.uid;
+  const targetUid = req.params.id;
+
+  if (!hasAnyRole(req.user, ['system_admin'])) {
+    await logPermissionDenied(req, 'user_impersonation', targetUid);
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  if (!IMPERSONATION_ENABLED) {
+    return res.status(403).json({ message: 'Impersonation is currently disabled.' });
+  }
+
+  if (targetUid === adminUid) {
+    return res.status(400).json({ message: 'Cannot impersonate yourself.' });
+  }
+
+  try {
+    const targetDoc = await db.collection('users').doc(targetUid).get();
+    if (!targetDoc.exists) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+    const targetData = targetDoc.data()!;
+    const targetRoles = new Set<string>([targetData.role, ...(targetData.roles ?? [])].filter(Boolean));
+    if (targetRoles.has('system_admin')) {
+      return res.status(400).json({ message: 'Cannot impersonate another system_admin account.' });
+    }
+
+    const [targetToken, adminReturnToken] = await Promise.all([
+      admin.auth().createCustomToken(targetUid, { impersonatedBy: adminUid }),
+      admin.auth().createCustomToken(adminUid!),
+    ]);
+
+    await logAuditEvent({
+      userId: adminUid!,
+      userRole: req.user?.role ?? 'system_admin',
+      action: 'impersonation_started',
+      entityType: 'user',
+      entityId: targetUid,
+      explanation: `system_admin started impersonating ${targetData.displayName ?? targetUid} (${targetData.email ?? 'no email'}).`,
+      userDisplayName: req.user?.displayName,
+    });
+
+    return res.status(200).json({
+      targetToken,
+      adminReturnToken,
+      targetDisplayName: targetData.displayName ?? '',
+      targetEmail: targetData.email ?? '',
+    });
+  } catch (error: any) {
+    console.error('impersonateUser error:', error);
+    return res.status(500).json({ message: 'Failed to start impersonation.' });
   }
 };
 

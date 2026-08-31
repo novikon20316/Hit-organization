@@ -393,7 +393,18 @@ export const apiClient = {
       projects: Array<Record<string, unknown> & { id: string }>;
       milestones: Array<Record<string, unknown> & { id: string }>;
       unreadCount: number;
+      impersonationEnabled?: boolean;
     }>('/api/admin/dashboard-summary', { method: 'GET' });
+  },
+
+  /** system_admin only, temporary debug tool — mints a Firebase custom token
+   *  to sign in as `uid`, plus a return token for the admin's own uid so the
+   *  client can switch back later. See adminController.ts's impersonateUser. */
+  async impersonateUser(uid: string) {
+    return request<{ targetToken: string; adminReturnToken: string; targetDisplayName: string; targetEmail: string }>(
+      `/api/admin/users/${encodeURIComponent(uid)}/impersonate`,
+      { method: 'POST' }
+    );
   },
 
   /** GET /api/admin/staff — faculty_admin/program_head (own faculty) or

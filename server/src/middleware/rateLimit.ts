@@ -53,6 +53,18 @@ export const examinerAccessLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
+// Impersonation (see config/featureFlags.ts) mints live Firebase sign-in
+// tokens — throttle it per-admin-account like totpLimiter above, rather than
+// leaning solely on the blanket apiLimiter.
+export const impersonationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: keyByUserOrIp,
+  message: { error: 'Too many impersonation attempts. Please wait before trying again.' },
+});
+
 // Login-security endpoints are unauthenticated by necessity — a failed login
 // has no token to key on, and the confirm/deny link is only ever clicked by
 // someone who isn't signed in. Also protects the report endpoint's live call
