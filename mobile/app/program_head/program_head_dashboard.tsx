@@ -22,6 +22,7 @@ import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/Manag
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
+import ChatbotFab from '@/components/ChatbotFab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -559,6 +560,8 @@ export default function ProgramHeadDashboard() {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+
+      <ChatbotFab lang={lang} corner="bottom-left" />
     </SafeAreaView>
   );
 }

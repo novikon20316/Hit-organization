@@ -23,6 +23,7 @@ import { AdministrativeCoordinatorDashboardStyles, AdministrativeCoordinatorModa
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import type { AppUser } from '@/types';
+import ChatbotFab from '@/components/ChatbotFab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1281,6 +1282,8 @@ export default function ProjectCoordinatorDashboard() {
         facultyColors={FACULTY_COLORS}
         styles={adminPanelStyles}
       />
+
+      <ChatbotFab lang={lang} corner="bottom-left" />
     </SafeAreaView>
   );
 }

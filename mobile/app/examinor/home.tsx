@@ -11,6 +11,7 @@ import { TopBar, getFacultyColor } from '../../components/shared';
 import {type GradeWeights, type IdentityGradeWeights } from '../../components/Milestoneservice';
 import { examinerHomeStyles } from '../../constants/styles';
 import { apiClient } from '@/src/api/apiClient';
+import ChatbotFab from '@/components/ChatbotFab';
 import {AssignedMilestone, GradingComponentSpec} from '@/types'
  
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -952,6 +953,8 @@ export default function ExaminerHome() {
           </Pressable>
         </ScrollView>
       </Modal>
+
+      <ChatbotFab lang={lang} corner="bottom-left" />
     </SafeAreaView>
   );
 }

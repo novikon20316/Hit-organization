@@ -19,6 +19,7 @@ import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { milestonePalette } from '@/constants/milestoneTheme';
+import ChatbotFab from '@/components/ChatbotFab';
 
 // Derives a human-readable file name from a Cloudinary/Storage URL for the
 // grading-queue "Submitted Files" chips — same approach as web's
@@ -1754,6 +1755,8 @@ export default function SupervisorHome() {
           </View>
         </View>
       </Modal>
+
+      <ChatbotFab lang={lang} corner="bottom-left" bottomOffset={activeTab === 'projects' ? 100 : 24} />
     </SafeAreaView>
   );
 }

@@ -22,6 +22,7 @@ import { NewProjectModal } from '@/components/modals';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import type { AppUser } from '@/types';
+import ChatbotFab from '@/components/ChatbotFab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -880,6 +881,8 @@ export default function GradSchoolHeadDashboard() {
         facultyColors={FACULTY_COLORS}
         styles={adminPanelStyles}
       />
+
+      <ChatbotFab lang={lang} corner="bottom-left" />
     </SafeAreaView>
   );
 }

@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
+import { ChatbotFab } from '@/components/ChatbotFab';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { roleLabel, type AppRole } from '@/lib/i18n';
 import { getHomeRoute } from '@/lib/roles';
@@ -144,6 +145,8 @@ export function DashboardShell({ title, subtitle, showBackButton = true, childre
           }}
         />
       )}
+
+      {activeRole !== 'system_admin' && <ChatbotFab />}
     </div>
   );
 }

@@ -38,6 +38,7 @@ import ManagedStaffSection from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
+import ChatbotFab from '@/components/ChatbotFab';
 
 const { width } = Dimensions.get('window');
 
@@ -617,6 +618,8 @@ export default function PanelScreen() {
         facultyColors={FACULTY_COLORS}
         styles={{}}
       />
+
+      <ChatbotFab lang={lang} corner="bottom-left" />
     </SafeAreaView>
   );
 }

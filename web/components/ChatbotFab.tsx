@@ -3,9 +3,8 @@
 // components/ChatbotFab.tsx
 // Ported from mobile/components/ChatbotFab.tsx — genuinely just a "coming
 // soon" placeholder on mobile too (no chatbot logic exists on either
-// client or server yet). Mobile only mounts this on student/home.tsx, not
-// on every screen, so it's mounted the same way here rather than added
-// globally to DashboardShell.
+// client or server yet). Mounted once, globally, by DashboardShell for
+// every role except system_admin.
 
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';

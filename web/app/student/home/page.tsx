@@ -6,13 +6,12 @@
 // sub-screens. The delete-account flow isn't built yet; the notification
 // bell comes from the shared DashboardShell — sign-out and the language
 // toggle now live in the sidebar (SidebarShell) instead, shared across every
-// role. ChatbotFab is mounted here specifically because mobile only shows
-// it on this screen, not globally.
+// role. ChatbotFab is mounted globally by DashboardShell (for every role but
+// system_admin), not here.
 
 import { Suspense, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
-import { ChatbotFab } from '@/components/ChatbotFab';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -79,8 +78,7 @@ function StudentHomeContent() {
   }
 
   return (
-    <>
-      <DashboardShell title={t('appName')} showBackButton={activeTab !== 'overview'}>
+    <DashboardShell title={t('appName')} showBackButton={activeTab !== 'overview'}>
         {studentState === 'loading' && (
           <div className="flex justify-center py-16">
             <p className="text-sm text-muted">{t('loading')}</p>
@@ -119,9 +117,7 @@ function StudentHomeContent() {
               <ActiveDashboard project={ap.project} milestones={ap.milestones} progress={ap.progress} onChanged={refresh} tab={activeTab} />
             </div>
           ))}
-      </DashboardShell>
-      <ChatbotFab />
-    </>
+    </DashboardShell>
   );
 }
 
