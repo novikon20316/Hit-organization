@@ -844,12 +844,12 @@ export default function PanelScreen() {
     // server/src/services/projectErasure.ts) — restorable from the
     // Archived tab, never gone for good.
     Alert.alert(
-      lang === 'he' ? 'מחיקת פרויקט' : 'Erase Project',
+      lang === 'he' ? 'העברת פרויקט לארכיון' : 'Archive Project',
       lang === 'he' ? 'הפרויקט יועבר לארכיון וניתן יהיה לשחזרו בכל עת.' : 'The project will be moved to the archive and can be restored at any time.',
       [
         { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
         {
-          text: lang === 'he' ? 'מחק' : 'Erase',
+          text: lang === 'he' ? 'העבר לארכיון' : 'Archive',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -1038,8 +1038,8 @@ export default function PanelScreen() {
     Alert.alert(
       lang === 'he' ? 'מחיקת משתמש לצמיתות' : 'Permanently erase user',
       lang === 'he'
-        ? `פעולה זו תמחק את ${userName} ואת כל הנתונים שלו לצמיתות. לא ניתן לבטל. להמשיך?`
-        : `This will permanently delete ${userName} and all their data. This cannot be undone. Continue?`,
+        ? `הפעולה תמחק לצמיתות את החשבון, הכניסה למערכת והפרופיל האישי של ${userName}, וכן את ההתראות והבקשות שלו. רשומות שבהן הוא מוזכר במקומות אחרים (הודעות, אבני דרך, פרויקטים, יומן ביקורת) יישארו במקומן אך יוצגו כ"לא ידוע" במקום שמו. לא ניתן לבטל פעולה זו. להמשיך?`
+        : `This will permanently delete ${userName}'s account, login, and personal profile, along with their notifications and applications. Records they're referenced in elsewhere (messages, milestones, projects, audit history) stay in place but will show as "Unknown" instead of their name. This cannot be undone. Continue?`,
       [
         { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
         {

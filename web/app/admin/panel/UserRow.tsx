@@ -317,8 +317,8 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
         title={lang === 'he' ? 'מחיקת משתמש לצמיתות' : 'Permanently Erase User'}
         message={
           lang === 'he'
-            ? `פעולה זו תמחק את ${user.displayName} ואת כל הנתונים שלו לצמיתות. לא ניתן לבטל.`
-            : `This will permanently delete ${user.displayName} and all their data. This cannot be undone.`
+            ? `הפעולה תמחק לצמיתות את החשבון, הכניסה למערכת והפרופיל האישי של ${user.displayName}, וכן את ההתראות והבקשות שלו. רשומות שבהן הוא מוזכר במקומות אחרים (הודעות, אבני דרך, פרויקטים, יומן ביקורת) יישארו במקומן אך יוצגו כ"לא ידוע" במקום שמו. לא ניתן לבטל פעולה זו.`
+            : `This will permanently delete ${user.displayName}'s account, login, and personal profile, along with their notifications and applications. Records they're referenced in elsewhere (messages, milestones, projects, audit history) stay in place but will show as "Unknown" instead of their name. This cannot be undone.`
         }
         confirmLabel={lang === 'he' ? 'מחק לצמיתות' : 'Erase permanently'}
         cancelLabel={lang === 'he' ? 'ביטול' : 'Cancel'}

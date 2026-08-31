@@ -58,7 +58,7 @@ const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: str
         'אנו משתמשים בספקים הבאים לעיבוד נתונים מטעמנו — הם אינם רשאים להשתמש בנתונים שלך למטרות משלהם:\n' +
         '• Google Firebase (Authentication, Firestore, Cloud Messaging) — אחסון חשבונות, בסיס הנתונים והתראות הדחיפה.\n' +
         '• Expo — העברת התראות הדחיפה למכשיר שלך.\n' +
-        '• ספק דוא"ל (SMTP) — שליחת מיילים תפעוליים (אימות הרשמה, התראות אבטחה, עדכונים).\n' +
+        '• Brevo — שליחת מיילים תפעוליים (אימות הרשמה, התראות אבטחה, עדכונים).\n' +
         '• Cloudinary — אחסון קבצים שהעלית (הגשות אבני דרך, קבצים מצורפים בצ׳אט, קורות חיים ומסמכים נוספים).\n' +
         '• Anthropic — עיבוד מבוסס בינה מלאכותית של קורות חיים וגיליונות ציונים שהעלית, לצורך בדיקת דרישות קדם וזכאות.\n' +
         '• ipinfo.io — זיהוי מיקום גס לפי כתובת IP, לצורך התראות אבטחה בלבד.\n' +
@@ -67,7 +67,7 @@ const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: str
         'We use the following processors to handle data on our behalf — they are not permitted to use your data for their own purposes:\n' +
         '• Google Firebase (Authentication, Firestore, Cloud Messaging) — account storage, the app database, and push notifications.\n' +
         '• Expo — delivering push notifications to your device.\n' +
-        '• Our SMTP email provider — sending operational emails (signup verification, security alerts, updates).\n' +
+        '• Brevo — sending operational emails (signup verification, security alerts, updates).\n' +
         '• Cloudinary — storage for files you upload (milestone submissions, chat attachments, CVs, and other documents).\n' +
         '• Anthropic — AI-assisted processing of uploaded CVs and academic transcripts, for prerequisite/eligibility screening.\n' +
         '• ipinfo.io — coarse IP-based location lookup, used only for login security alerts.\n' +

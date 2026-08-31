@@ -13,13 +13,13 @@ Use the checkboxes to track fixes. Re-run this audit (or at least the relevant s
 | Severity | Security | Privacy | Accessibility |
 |---|---|---|---|
 | Critical | 0 | 0 | 0 |
-| High | 0 | 2 | 3 |
-| Medium | 0 | 1 | 6 |
-| Low | 0 | 1 | 4 |
+| High | 0 | 0 | 3 |
+| Medium | 0 | 0 | 6 |
+| Low | 0 | 0 | 4 |
 
-Security's Medium/Low findings (S2, S4, S5, S6) are all fixed as of 2026-09-01 — see the Security section for details.
+All Security findings (S2, S4, S5, S6) and all Privacy findings (P5, P6, P8, P9) are fixed as of 2026-09-01 — see those sections for details. Only Accessibility remains open.
 
-**If you only fix a few things first:** accessibility A1 (mobile app is nearly unusable with a screen reader) is the standout — everything else remaining is medium/low severity.
+**If you only fix a few things first:** accessibility A1 (mobile app is nearly unusable with a screen reader) is the standout — it's the only High-or-above item left in the whole audit.
 
 ---
 
@@ -49,18 +49,16 @@ CORS is origin-allowlisted, `helmet()` is applied, `trust proxy` correctly set f
 
 ## 2. Privacy
 
-### High
+All four findings existed in both clients (or in shared/server code) — checked and fixed on both sides.
 
-- [ ] **P5 — Audit log is a 100-entry ring buffer, pruned hourly.** `server/src/services/auditLog.ts:130-149`. Every sensitive event type (role changes, grade changes, lockout lifts, password resets) shares one small ring buffer, so on an active day a record can be gone within hours.
-- [ ] **P6 — "Erase user" dialog overstates what actually happens.** `web/app/admin/panel/UserRow.tsx:315-321` tells the admin the action "will permanently delete ... and all their data. This cannot be undone" — but `server/src/services/accountDeletion.ts:158-164` deliberately leaves chat messages, milestone/project references, and audit `oldValue`/`newValue` with that person's data intact. That's a defensible design choice, but the copy shown to the admin (and by extension what the org may represent to the deleted person) is inaccurate.
+### Fixed 2026-09-01
 
-### Medium
+- [x] **P5 — Audit log was a 100-entry ring buffer, pruned hourly.** `server/src/services/auditLog.ts`. Raised `AUDIT_LOG_MAX_ENTRIES` from 100 to 10,000 — confirmed nothing else depended on the low cap (the "Live Transportation" admin table does its own independent `limit(100)` display query, unaffected).
+- [x] **P6 — "Erase user" dialog overstated what actually happens**, on both platforms. `web/app/admin/panel/UserRow.tsx`, `mobile/app/admin/panel.tsx`. Rewrote the copy (EN + HE) on both to accurately describe what `purgeAccount` (`server/src/services/accountDeletion.ts`) actually does: deletes the account, login, profile, notifications, and applications; leaves the person's references in past messages/milestones/projects/audit history in place, shown as "Unknown."
+- [x] **P8 — Privacy policy named the email vendor generically ("our SMTP email provider" / `ספק דוא"ל (SMTP)`)**, on both platforms. `web/app/privacy-policy/page.tsx`, `mobile/app/privacy-policy.tsx`. Now names it as "Brevo," consistent with how Firebase/Expo/Cloudinary/Anthropic/ipinfo.io are already named. Also fixed the same stale "SMTP" wording in `mobile/docs/PLAY_STORE_DATA_SAFETY_AND_CONTENT_RATING.md` (an internal submission-prep doc, not user-facing, but referenced the same third-party list).
+- [x] **P9 — "Erase project" naming implied destructive deletion** when it only archives (restorable), on both platforms. `web/app/admin/panel/ProjectsTab.tsx`, `web/lib/i18n.ts`, `mobile/app/admin/panel.tsx`, `mobile/components/i18n.ts`. Retitled the dialog/button from "Erase Project"/"Erase" to "Archive Project"/"Archive" (the body text was already accurate, only the title and CTA were misleading); also fixed the archived-list label "Erased on" → "Archived on" in both i18n files, which had the same problem.
 
-- [ ] **P8 — Email vendor named generically ("our SMTP email provider") in the privacy policy** rather than by name, unlike every other processor listed. Should say "Brevo" for consistency with how the rest of the policy names its vendors.
-
-### Low
-
-- [ ] **P9 — "Erase project" only archives (soft-deletes, restorable).** `server/src/controllers/projectErasureController.ts:103`. Reasonable behavior, but the "Erase" naming implies destructive deletion — same category of issue as P6, smaller stakes.
+Verified with `npx tsc --noEmit` in `server/`, `web/`, and `mobile/` — all three clean (server's 3 pre-existing errors are in the out-of-scope impersonation code, unrelated to these changes).
 
 ### Looked fine, no action needed
 Account deletion pipeline (`accountDeletion.ts`) is genuinely well-designed — 14-day grace period, 7-year post-graduation retention hold, eligibility re-checks, real `auth.deleteUser` + Firestore purge. No analytics/tracking scripts in `web/app` (no cookie-consent gap). Student-list endpoints spot-checked in `projectController.ts` return minimal fields, not full user documents.
@@ -103,10 +101,8 @@ Exhaustive mobile touch-target sizing beyond the two sampled components; whether
 
 ## Suggested order of work
 
-1. **A1** (mobile accessibility labels) — largest gap in the whole audit, blocks a whole user population on a whole platform.
-2. **P5, P6, P9** (audit log retention, erase-copy accuracy) — cheap, no code risk, closes a "we said X but do Y" gap before an employer or user notices it themselves.
-3. Everything else, roughly in the severity order listed above.
+Only Accessibility findings remain. Start with **A1** (mobile accessibility labels) — largest gap in the whole audit, blocks a whole user population on a whole platform — then work down the severity order in that section.
 
-All Security Medium/Low findings (S2, S4, S5, S6) are fixed — see the Security section.
+All Security findings (S2, S4, S5, S6) and all Privacy findings (P5, P6, P8, P9) are fixed — see those sections.
 
 Note: findings related to the admin "impersonate user" feature were removed from this audit (2026-09-01) — that feature is a temporary debugging aid and won't ship in the final product. If it ever does become a permanent feature, it should get its own dedicated security/privacy review before shipping, since impersonation-style features carry accountability and disclosure risks that don't show up anywhere else in this app.

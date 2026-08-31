@@ -121,13 +121,18 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
   }
 }
 
-// Matches the "Live Transportation" admin table's own limit(100) query
-// (web/app/admin/live-transportation/page.tsx) — the collection is capped at
-// this size so it behaves like a fixed-size ring buffer: new events always
-// write immediately (logAuditEvent above never checks the count, so nothing
-// ever blocks), and the oldest entries beyond this cap just get swept out on
-// the next prune run instead of the collection growing unbounded forever.
-export const AUDIT_LOG_MAX_ENTRIES = 100;
+// The "Live Transportation" admin table (web/app/admin/live-transportation/
+// page.tsx) does its own separate limit(100) query for display purposes —
+// that's just how many rows it shows at once, unrelated to how many this
+// collection actually retains. This cap only exists so the collection
+// doesn't grow completely unbounded forever: new events always write
+// immediately (logAuditEvent above never checks the count, so nothing ever
+// blocks), and the oldest entries beyond this cap get swept out on the next
+// prune run. Kept generous (not the old 100) because this collection is the
+// system's only audit trail for privilege-sensitive actions — role changes,
+// grade changes, lockout lifts, password resets — and a record disappearing
+// within hours of an active day defeats the point of having a trail at all.
+export const AUDIT_LOG_MAX_ENTRIES = 10000;
 
 /** Run hourly (see index.ts) — same in-process sweep pattern as
  *  presenceHistory.ts's prunePresenceHistory. Deletes everything past the

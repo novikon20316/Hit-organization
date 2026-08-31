@@ -1,6 +1,6 @@
 # Data Safety & Content Rating — draft answers for Play Console
 
-Based on what the app actually collects/does today (Firebase Auth+Firestore, Expo push, SMTP email, ipinfo.io for login-security IP lookups; no ads, no analytics SDK, no crash-reporting SDK, no in-app chat moderation/reporting). Re-check this if any of those integrations change before you submit.
+Based on what the app actually collects/does today (Firebase Auth+Firestore, Expo push, Brevo email, ipinfo.io for login-security IP lookups; no ads, no analytics SDK, no crash-reporting SDK, no in-app chat moderation/reporting). Re-check this if any of those integrations change before you submit.
 
 ---
 
@@ -32,7 +32,7 @@ Everything else on Play's list (financial info, health, photos/videos as a disti
 **Yes** — in-app account deletion request, subject to an eligibility check (e.g., no active academic process in progress). Link to your privacy policy URL here.
 
 ### Is data shared with third parties?
-**No**, in Play's specific sense of "sharing" (transfer to a third party for *their own* purposes). Firebase, Expo, your SMTP provider, and ipinfo.io process data strictly as service providers **on your behalf** and are contractually barred from using it for their own purposes — Play's Data Safety policy excludes this from being counted as "sharing." Answer "No" to the sharing question, but list these as service providers in your privacy policy (already done).
+**No**, in Play's specific sense of "sharing" (transfer to a third party for *their own* purposes). Firebase, Expo, Brevo, and ipinfo.io process data strictly as service providers **on your behalf** and are contractually barred from using it for their own purposes — Play's Data Safety policy excludes this from being counted as "sharing." Answer "No" to the sharing question, but list these as service providers in your privacy policy (already done).
 
 ### Ads
 **No ads, no advertising ID collected.**

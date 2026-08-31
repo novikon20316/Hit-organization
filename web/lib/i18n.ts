@@ -879,11 +879,11 @@ export const t = {
   rejectErasureReasonRequired: { he: 'יש להזין סיבה לדחיית הבקשה',     en: 'A reason is required to reject this request' },
   searchArchivedProjects:   { he: 'חפש פרויקט לפי שם...',              en: 'Search project by name...' },
   noArchivedProjects:       { he: 'אין פרויקטים בארכיון',              en: 'No archived projects' },
-  erasedOn:                 { he: 'נמחק בתאריך',                       en: 'Erased on' },
+  erasedOn:                 { he: 'בארכיון מתאריך',                    en: 'Archived on' },
   restoreProject:           { he: 'שחזר פרויקט',                       en: 'Restore Project' },
   restoreProjectConfirm:    { he: 'האם להחזיר את הפרויקט לפעילות?',   en: 'Restore this project to active status?' },
   restoreProjectSuccess:    { he: '✅ הפרויקט שוחזר',                  en: '✅ Project restored' },
-  eraseProject:             { he: 'מחק פרויקט',                        en: 'Erase Project' },
+  eraseProject:             { he: 'העבר פרויקט לארכיון',               en: 'Archive Project' },
   eraseProjectConfirm:      { he: 'הפרויקט יועבר לארכיון וניתן יהיה לשחזרו בכל עת.', en: 'The project will be moved to the archive and can be restored at any time.' },
 
 } as const;

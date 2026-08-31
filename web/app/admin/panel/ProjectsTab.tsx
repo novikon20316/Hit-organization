@@ -179,9 +179,9 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
 
       <ConfirmDialog
         open={!!deletingProject}
-        title={lang === 'he' ? 'מחיקת פרויקט' : 'Erase Project'}
+        title={lang === 'he' ? 'העברת פרויקט לארכיון' : 'Archive Project'}
         message={lang === 'he' ? 'הפרויקט יועבר לארכיון וניתן יהיה לשחזרו בכל עת.' : 'The project will be moved to the archive and can be restored at any time.'}
-        confirmLabel={lang === 'he' ? 'מחק' : 'Erase'}
+        confirmLabel={lang === 'he' ? 'העבר לארכיון' : 'Archive'}
         cancelLabel={lang === 'he' ? 'ביטול' : 'Cancel'}
         destructive
         busy={deleting}
