@@ -9,72 +9,27 @@
 // collapsible sidebar.
 //
 // This folder isn't exclusively hers, though — system_admin has standing
-// oversight access to the dashboard here, and program_head/coordinator can
-// land on the nested student-detail page (reached from THEIR OWN dashboards'
-// student search/report). Before this fix, any of them saw this sidebar's
-// hardcoded "Administrative Coordinator Portal" branding regardless of who
-// they actually were — confusing at best, and for a moment genuinely made it
-// look like the account's role had changed. Now each of those roles gets
-// their own real sidebar here instead, same fix/pattern as
-// app/workflow-templates/layout.tsx's system_admin branch.
+// oversight access to the dashboard here, and program_head/coordinator (and
+// anyone else) can land on the nested student-detail page (reached from
+// THEIR OWN dashboards' student search/report). The sidebar chrome is
+// resolved centrally by lib/roleChrome.ts's getChromeForRole, keyed by the
+// signed-in user's activeRole — always their single highest-ranked role —
+// so whoever lands here always sees their own real sidebar instead of this
+// route's own hardcoded "Administrative Coordinator Portal" branding. See
+// that file's header comment for the full rationale.
 
-import { useAuth } from '@/contexts/AuthContext';
 import { SidebarShell } from '@/components/dashboard/SidebarShell';
-import { ADMIN_NAV_SECTIONS, ADMIN_QUICK_ACTIONS } from '@/app/admin/navConfig';
-import { buildProgramHeadNavSections } from '@/app/program_head/layout';
-import { buildCoordinatorNavSections, COORDINATOR_QUICK_ACTIONS } from '@/app/coordinator/navSections';
-import { ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS as NAV_SECTIONS } from './navSections';
+import { useAuth } from '@/contexts/AuthContext';
+import { getChromeForRole } from '@/lib/roleChrome';
 
 export default function AdministrativeCoordinatorLayout({ children }: { children: React.ReactNode }) {
   const { activeRole, roles } = useAuth();
+  const chrome = getChromeForRole(activeRole, roles);
 
-  if (activeRole === 'system_admin') {
-    return (
-      <SidebarShell
-        brand={{ name: 'HIT', subtitle: { he: 'פורטל מנהל מערכת', en: 'System Admin Portal' } }}
-        sections={ADMIN_NAV_SECTIONS}
-        quickActions={ADMIN_QUICK_ACTIONS}
-        theme={{ mode: 'tokens', tokenPrefix: 'admin' }}
-      >
-        {children}
-      </SidebarShell>
-    );
-  }
-
-  if (activeRole === 'program_head') {
-    return (
-      <SidebarShell
-        brand={{ name: 'HIT', subtitle: { he: 'פורטל ראש תוכנית', en: 'Program Head Portal' } }}
-        sections={buildProgramHeadNavSections(roles)}
-        theme={{ mode: 'accent' }}
-      >
-        {children}
-      </SidebarShell>
-    );
-  }
-
-  // coordinator is a distinct role from administrative_secretary
-  // ("administrative coordinator") — she reaches the nested student-detail
-  // page too, and must never see the wrong one's branding either.
-  if (activeRole === 'coordinator') {
-    return (
-      <SidebarShell
-        brand={{ name: 'HIT', subtitle: { he: 'פורטל רכז', en: 'Coordinator Portal' } }}
-        sections={buildCoordinatorNavSections(activeRole)}
-        quickActions={COORDINATOR_QUICK_ACTIONS}
-        theme={{ mode: 'accent' }}
-      >
-        {children}
-      </SidebarShell>
-    );
-  }
+  if (!chrome) return <>{children}</>;
 
   return (
-    <SidebarShell
-      brand={{ name: 'HIT', subtitle: { he: 'פורטל רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator Portal' } }}
-      sections={NAV_SECTIONS}
-      theme={{ mode: 'accent' }}
-    >
+    <SidebarShell brand={chrome.brand} sections={chrome.sections} quickActions={chrome.quickActions} theme={chrome.theme}>
       {children}
     </SidebarShell>
   );

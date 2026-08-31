@@ -1,57 +1,26 @@
 'use client';
 
 // app/student/layout.tsx
-// A client component — its NAV_SECTIONS includes plain functions
-// (isActive), which can't cross the server/client boundary as props to
-// the client SidebarShell (see app/admin/layout.tsx for the full note).
+// A client component — see app/admin/layout.tsx's note (NAV_SECTIONS'
+// isActive functions can't cross the server/client boundary as props).
 //
-// student never had any DashboardShell hamburger-menu actions to migrate.
-// This also migrates ActiveDashboard's former in-page tab bar (Overview /
-// Milestones / Grades) into permanent nav entries pointing at the same
-// /student/home route via ?tab= — same URL-as-source-of-truth pattern as
-// app/admin/layout.tsx + app/admin/panel/page.tsx. These three links are
-// only meaningful once the student has an active project (studentState ===
-// 'active' in home/page.tsx) — for a student not yet at that stage, they're
-// harmless no-ops that just show the same no-project/pending screen.
+// The sidebar chrome is resolved centrally by lib/roleChrome.ts's
+// getChromeForRole, keyed by the signed-in user's activeRole — always their
+// single highest-ranked role. Nav content itself lives in ./navSections.ts.
+// See roleChrome.ts's header comment for the full rationale.
 
-import { SidebarShell, type SidebarSection } from '@/components/dashboard/SidebarShell';
-
-const NAV_SECTIONS: SidebarSection[] = [
-  {
-    title: { he: 'ניווט', en: 'Navigation' },
-    items: [
-      {
-        key: 'home',
-        icon: '🏠',
-        href: '/student/home',
-        label: { he: 'סקירה', en: 'Overview' },
-        isActive: (pathname, sp) => pathname === '/student/home' && (!sp.get('tab') || sp.get('tab') === 'overview'),
-      },
-      {
-        key: 'milestones',
-        icon: '🏁',
-        href: '/student/home?tab=milestones',
-        label: { he: 'אבני דרך', en: 'Milestones' },
-        isActive: (pathname, sp) => pathname === '/student/home' && sp.get('tab') === 'milestones',
-      },
-      {
-        key: 'grades',
-        icon: '🎓',
-        href: '/student/home?tab=grades',
-        label: { he: 'ציונים', en: 'Grades' },
-        isActive: (pathname, sp) => pathname === '/student/home' && sp.get('tab') === 'grades',
-      },
-    ],
-  },
-];
+import { SidebarShell } from '@/components/dashboard/SidebarShell';
+import { useAuth } from '@/contexts/AuthContext';
+import { getChromeForRole } from '@/lib/roleChrome';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
+  const { activeRole, roles } = useAuth();
+  const chrome = getChromeForRole(activeRole, roles);
+
+  if (!chrome) return <>{children}</>;
+
   return (
-    <SidebarShell
-      brand={{ name: 'HIT', subtitle: { he: 'פורטל סטודנט', en: 'Student Portal' } }}
-      sections={NAV_SECTIONS}
-      theme={{ mode: 'accent' }}
-    >
+    <SidebarShell brand={chrome.brand} sections={chrome.sections} quickActions={chrome.quickActions} theme={chrome.theme}>
       {children}
     </SidebarShell>
   );

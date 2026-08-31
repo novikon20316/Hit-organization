@@ -16,57 +16,30 @@
 // from app/admin/panel/page.tsx.
 //
 // This route is shared by coordinator, system_admin, and
-// administrative_secretary (see the 'archived' item's activeRole check
-// below, which excludes her from that one tab but not the route itself).
-// Nav content itself now lives in ./navSections.ts (a leaf module, so
-// app/administrative_coordinator/layout.tsx can reuse it for a coordinator
-// who lands on ITS nested student-detail page, without a layout-to-layout
-// circular import) — before that split, every one of these three roles saw
-// this file's hardcoded "Coordinator Portal" branding regardless of who
-// they actually were, the same bug fixed in administrative_coordinator/
-// layout.tsx and worth fixing symmetrically here.
+// administrative_secretary — plus anyone else who reaches it while a
+// higher- or lower-ranked role is their real activeRole (e.g. a
+// grad_school_head who also holds 'coordinator' as an additional role, or a
+// coordinator who also supervises and gets linked here from a supervisor
+// context). The sidebar chrome is resolved centrally by lib/roleChrome.ts's
+// getChromeForRole, keyed by the signed-in user's activeRole — always their
+// single highest-ranked role — so it can never drift from what that role's
+// own dashboard already shows, no matter which route they're physically on.
+// See that file's header comment for the full rationale.
 
 import { SidebarShell } from '@/components/dashboard/SidebarShell';
 import { useAuth } from '@/contexts/AuthContext';
-import { ADMIN_NAV_SECTIONS, ADMIN_QUICK_ACTIONS } from '@/app/admin/navConfig';
-import { ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS } from '@/app/administrative_coordinator/navSections';
-import { buildCoordinatorNavSections, COORDINATOR_QUICK_ACTIONS } from './navSections';
+import { getChromeForRole } from '@/lib/roleChrome';
 
 export default function CoordinatorLayout({ children }: { children: React.ReactNode }) {
-  const { activeRole } = useAuth();
+  const { activeRole, roles } = useAuth();
+  const chrome = getChromeForRole(activeRole, roles);
 
-  if (activeRole === 'system_admin') {
-    return (
-      <SidebarShell
-        brand={{ name: 'HIT', subtitle: { he: 'פורטל מנהל מערכת', en: 'System Admin Portal' } }}
-        sections={ADMIN_NAV_SECTIONS}
-        quickActions={ADMIN_QUICK_ACTIONS}
-        theme={{ mode: 'tokens', tokenPrefix: 'admin' }}
-      >
-        {children}
-      </SidebarShell>
-    );
-  }
-
-  if (activeRole === 'administrative_secretary') {
-    return (
-      <SidebarShell
-        brand={{ name: 'HIT', subtitle: { he: 'פורטל רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator Portal' } }}
-        sections={ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS}
-        theme={{ mode: 'accent' }}
-      >
-        {children}
-      </SidebarShell>
-    );
-  }
+  // Briefly true before AuthContext resolves activeRole on first load —
+  // render bare rather than guess a role's sidebar.
+  if (!chrome) return <>{children}</>;
 
   return (
-    <SidebarShell
-      brand={{ name: 'HIT', subtitle: { he: 'פורטל רכז', en: 'Coordinator Portal' } }}
-      sections={buildCoordinatorNavSections(activeRole)}
-      quickActions={COORDINATOR_QUICK_ACTIONS}
-      theme={{ mode: 'accent' }}
-    >
+    <SidebarShell brand={chrome.brand} sections={chrome.sections} quickActions={chrome.quickActions} theme={chrome.theme}>
       {children}
     </SidebarShell>
   );
