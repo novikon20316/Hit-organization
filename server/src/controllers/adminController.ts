@@ -156,6 +156,9 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
 export const impersonateUser = async (req: AuthenticatedRequest, res: Response) => {
   const adminUid = req.user?.uid;
   const targetUid = req.params.id;
+  if (!targetUid || typeof targetUid !== 'string') {
+    return res.status(400).json({ message: 'Missing target user id.' });
+  }
 
   if (!hasAnyRole(req.user, ['system_admin'])) {
     await logPermissionDenied(req, 'user_impersonation', targetUid);
