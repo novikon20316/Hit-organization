@@ -15,7 +15,6 @@ import { requestExceptionalAction } from '../services/exceptionalActions.js';
 import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser } from '../services/notify.js';
-import { targetScreenFor } from '../services/notificationTargets.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { getUserRoles, matchedRole } from '../middleware/auth.js';
@@ -334,48 +333,33 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     // Coordinator and administrative-coordinator staff covering this
     // project's faculty/major also want to know a milestone came in, not
     // just the supervisor — same scope resolution notify.ts's callers use
-    // elsewhere (defenseScheduling.ts, examinerEscalation.ts, etc.). Kept on
-    // the lighter in-app+push-only path (no email/SMS) — that upgrade was
-    // requested for the supervisor specifically, and fanning full multi-
-    // channel delivery out to every covering coordinator on every single
-    // submission would be noisy (and costs real money on the SMS leg).
-    const notifyStaffMilestoneSubmitted = async (recipientId: string) => {
-      const recipientData = (await db.collection('users').doc(recipientId).get()).data();
-      const pushToken = recipientData?.expoPushToken ?? null;
-      // Same convention as notifyUser (services/notify.ts) — a user doc with
-      // no 'en' language flag defaults to Hebrew — so the push notification
-      // matches the language the recipient actually reads the app in,
-      // instead of always sending the English copy.
-      const lang: 'he' | 'en' = recipientData?.language === 'en' ? 'en' : 'he';
-      const targetScreen = targetScreenFor(recipientData?.role, 'milestone_action');
-
-      await db.collection('notifications').add({
-        recipientId,
-        type:               'milestone_submitted',
-        titleHe:            'הגשה חדשה ממתינה לבדיקה 📤',
-        titleEn:            'New Milestone Submission 📤',
-        bodyHe:             staffBody.he,
-        bodyEn:             staffBody.en,
-        isRead:             false,
-        relatedProjectId:   projectId,
-        relatedMilestoneId: milestoneId,
-        ...(targetScreen ? { targetScreen } : {}),
-        createdAt:          admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      if (pushToken) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to:    pushToken,
-            title: lang === 'he' ? 'הגשה חדשה ממתינה לבדיקה 📤' : '📤 New Milestone Submission',
-            body:  lang === 'he' ? staffBody.he : staffBody.en,
-            data:  { projectId, milestoneId },
-          }),
-        });
-      }
-    };
+    // elsewhere (defenseScheduling.ts, examinerEscalation.ts, etc.).
+    //
+    // Previously this stayed on a hand-rolled in-app+push-only path with no
+    // email, on the theory that push already reached these staff. In
+    // practice none of them carry an expoPushToken (that field is only ever
+    // populated by the mobile app registering for Expo push — coordinators
+    // and administrative coordinators work from the web dashboard), so push
+    // silently no-opped and the only thing that ever landed was an unread
+    // in-app bell they had no reason to go check — which is why this looked
+    // like it worked (a Firestore doc *was* being written) but in practice
+    // never actually notified anyone. Routed through notifyUser now, same
+    // as the supervisor above, so they get a real email too; SMS stays off
+    // to avoid fanning a paid channel out to every covering coordinator on
+    // every single submission.
+    const notifyStaffMilestoneSubmitted = (recipientId: string) => notifyUser({
+      recipientId,
+      type: 'milestone_submitted',
+      titleHe: 'הגשה חדשה ממתינה לבדיקה 📤',
+      titleEn: 'New Milestone Submission 📤',
+      bodyHe:  staffBody.he,
+      bodyEn:  staffBody.en,
+      relatedProjectId: projectId,
+      relatedMilestoneId: milestoneId,
+      emailData: { milestoneTitle, projectTitle },
+      taskKind: 'milestone_action',
+      channels: { sms: false },
+    });
 
     const projectScope = await resolveProjectScope(projectId);
     if (projectScope) {

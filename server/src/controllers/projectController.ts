@@ -11,7 +11,6 @@ import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFi
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
-import { targetScreenFor } from '../services/notificationTargets.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones } from '../services/workflowTemplates.js';
@@ -1042,39 +1041,26 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       });
     }
 
-    const notifyStaffMilestoneSubmitted = async (recipientId: string) => {
-      const recipientData = (await db.collection('users').doc(recipientId).get()).data();
-      const pushToken = recipientData?.expoPushToken ?? null;
-      const lang: 'he' | 'en' = recipientData?.language === 'en' ? 'en' : 'he';
-      const targetScreen = targetScreenFor(recipientData?.role, 'milestone_action');
-
-      await db.collection('notifications').add({
-        recipientId,
-        type:               'milestone_submitted',
-        titleHe:            'הגשה חדשה ממתינה לבדיקה 📤',
-        titleEn:            'New Milestone Submission 📤',
-        bodyHe:             staffBody.he,
-        bodyEn:             staffBody.en,
-        isRead:             false,
-        relatedProjectId:   projectId,
-        relatedMilestoneId: milestoneId,
-        ...(targetScreen ? { targetScreen } : {}),
-        createdAt:          admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      if (pushToken) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to:    pushToken,
-            title: lang === 'he' ? 'הגשה חדשה ממתינה לבדיקה 📤' : '📤 New Milestone Submission',
-            body:  lang === 'he' ? staffBody.he : staffBody.en,
-            data:  { projectId, milestoneId },
-          }),
-        });
-      }
-    };
+    // See the identical change in milestoneController.ts's submitMilestone
+    // (the web submit route) — this used to be a hand-rolled in-app+push
+    // path with no email, but none of these staff carry an expoPushToken
+    // (only the mobile app registers one), so push silently no-opped and
+    // they only ever got an unread in-app bell they had no reason to check.
+    // Routed through notifyUser now so they get a real email too; SMS stays
+    // off to avoid fanning a paid channel out on every submission.
+    const notifyStaffMilestoneSubmitted = (recipientId: string) => notifyUser({
+      recipientId,
+      type: 'milestone_submitted',
+      titleHe: 'הגשה חדשה ממתינה לבדיקה 📤',
+      titleEn: 'New Milestone Submission 📤',
+      bodyHe:  staffBody.he,
+      bodyEn:  staffBody.en,
+      relatedProjectId: projectId,
+      relatedMilestoneId: milestoneId,
+      emailData: { milestoneTitle, projectTitle },
+      taskKind: 'milestone_action',
+      channels: { sms: false },
+    });
 
     const projectScope = await resolveProjectScope(projectId);
     if (projectScope) {
