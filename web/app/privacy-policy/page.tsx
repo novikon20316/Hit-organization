@@ -18,7 +18,7 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 
 const CONTACT_EMAIL = 'Support2HIT@gmail.com';
 const INSTITUTION_NAME = 'Holon Institute of Technology (HIT)';
-const EFFECTIVE_DATE = '2026-07-11';
+const EFFECTIVE_DATE = '2026-08-31';
 
 const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: string } }[] = [
   {
@@ -62,6 +62,8 @@ const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: str
         '• Google Firebase (Authentication, Firestore, Cloud Messaging) — אחסון חשבונות, בסיס הנתונים והתראות הדחיפה.\n' +
         '• Expo — העברת התראות הדחיפה למכשיר שלך.\n' +
         '• ספק דוא"ל (SMTP) — שליחת מיילים תפעוליים (אימות הרשמה, התראות אבטחה, עדכונים).\n' +
+        '• Cloudinary — אחסון קבצים שהעלית (הגשות אבני דרך, קבצים מצורפים בצ׳אט, קורות חיים ומסמכים נוספים).\n' +
+        '• Anthropic — עיבוד מבוסס בינה מלאכותית של קורות חיים וגיליונות ציונים שהעלית, לצורך בדיקת דרישות קדם וזכאות.\n' +
         '• ipinfo.io — זיהוי מיקום גס לפי כתובת IP, לצורך התראות אבטחה בלבד.\n' +
         'איננו מוכרים את המידע האישי שלך למפרסמים או לצדדים שלישיים.',
       en:
@@ -69,6 +71,8 @@ const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: str
         '• Google Firebase (Authentication, Firestore, Cloud Messaging) — account storage, the app database, and push notifications.\n' +
         '• Expo — delivering push notifications to your device.\n' +
         '• Our SMTP email provider — sending operational emails (signup verification, security alerts, updates).\n' +
+        '• Cloudinary — storage for files you upload (milestone submissions, chat attachments, CVs, and other documents).\n' +
+        '• Anthropic — AI-assisted processing of uploaded CVs and academic transcripts, for prerequisite/eligibility screening.\n' +
         '• ipinfo.io — coarse IP-based location lookup, used only for login security alerts.\n' +
         'We do not sell your personal data to advertisers or other third parties.',
     },

@@ -12,7 +12,7 @@ import { Router, Request, Response } from 'express';
 
 const CONTACT_EMAIL = 'Support2HIT@gmail.com';
 const INSTITUTION_NAME = 'Holon Institute of Technology (HIT)';
-const EFFECTIVE_DATE = '2026-07-11';
+const EFFECTIVE_DATE = '2026-08-31';
 
 const PRIVACY_POLICY_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -50,6 +50,8 @@ const PRIVACY_POLICY_HTML = `<!DOCTYPE html>
 &bull; Google Firebase (Authentication, Firestore, Cloud Messaging) &mdash; account storage, the app database, and push notifications.
 &bull; Expo &mdash; delivering push notifications to your device.
 &bull; Our SMTP email provider &mdash; sending operational emails (signup verification, security alerts, updates).
+&bull; Cloudinary &mdash; storage for files you upload (milestone submissions, chat attachments, CVs, and other documents).
+&bull; Anthropic &mdash; AI-assisted processing of uploaded CVs and academic transcripts, for prerequisite/eligibility screening.
 &bull; ipinfo.io &mdash; coarse IP-based location lookup, used only for login security alerts.
 We do not sell your personal data to advertisers or other third parties.</p>
 
