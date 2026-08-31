@@ -92,7 +92,7 @@ export const decideErasureRequestHandler = async (req: AuthenticatedRequest, res
 // system_admin's direct path — no supervisor request needed.
 export const eraseProjectHandler = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (req.user.role !== 'system_admin') return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  if (!hasAnyRole(req.user, ['system_admin'])) return res.status(403).json({ message: 'Access denied: system_admin only.' });
 
   const { id: projectId } = req.params;
   const { reason } = req.body ?? {};

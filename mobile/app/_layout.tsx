@@ -453,9 +453,7 @@ function RootLayoutInner() {
 
   // ── Notification listeners ─────────────────────────────────────────────────
   useEffect(() => {
-    const notifListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('🔔 Foreground notification:', notification);
-    });
+    const notifListener = Notifications.addNotificationReceivedListener(() => {});
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data as Record<string, string>;

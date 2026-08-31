@@ -187,8 +187,6 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
 
     const data = await response.json();
 
-    console.log('UPLOAD RESULT:', data);
-
     return data.secure_url;
 
   } catch (error) {
