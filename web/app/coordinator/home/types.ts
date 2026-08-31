@@ -29,12 +29,28 @@ export interface AssignedMilestone {
     | 'completed'
     | string;
   studentNames: string[];
+  /** Which enrolled student(s) this specific milestone doc belongs to — a
+   *  shared team project can still have one doc per student for older
+   *  enrollments (see projectEnrollment.ts's own comments), so this is
+   *  needed to scope the order-based prerequisite check in DefenseTab.tsx
+   *  to the right student instead of the whole project. */
+  studentIds?: string[];
   dueDate?: string | { toDate?: () => Date; _seconds?: number } | null;
   defenseDate?: string | null;
   defenseRoom?: string | null;
   defenseTime?: string | null;
   defensePanel?: DefensePanelMember[];
   examinerGrading?: Record<string, { gradedAt?: string | null }>;
+  /** Position among this project's own milestones, snapshotted from the
+   *  faculty's workflow template at enrollment (see projectEnrollment.ts) —
+   *  the only reliable way to tell whether a 'defense' milestone sitting at
+   *  'pending' is actually next up, since every milestone (including
+   *  defense) starts at 'pending' the moment the project is created. */
+  order?: number;
+  /** Chain-driven routing (see services/milestoneRouting.ts) — present only
+   *  for a non-examiner milestone that uses the configurable approval chain
+   *  instead of the examiner-panel flow. */
+  routing?: ChainStage[] | null;
 }
 
 export interface Project {

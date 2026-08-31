@@ -43,6 +43,37 @@ const MILESTONE_PROGRESS: Record<string, number> = {
   defense:           100,
 };
 
+// Milestone TYPE ordering used only as a last resort, for a milestone doc
+// that predates the `order` field being stored at all. A per-faculty/major
+// workflow template can define its own milestones in any order (including
+// custom types this list has never heard of) — see
+// server/src/services/workflowTemplates.ts's own LEGACY_MILESTONE_TYPE_ORDER,
+// which this mirrors. Never trust this as "the" ordering going forward.
+const LEGACY_MILESTONE_TYPE_ORDER = ['research_proposal', 'progress_report', 'final_report', 'defense', 'poster'];
+
+// Sort value for a milestone doc relative to its siblings on the same
+// project. Prefers the doc's own `order` (correct for ANY template shape,
+// including chains with no 'final_report' step at all — see
+// seedDataScienceWorkflowTemplate.ts). An unrecognized/legacy type with no
+// `order` sorts LAST, so it's never mistaken for "the next one due".
+function resolveMilestoneOrder(m: { type?: string; order?: number }): number {
+  if (typeof m.order === 'number') return m.order;
+  const idx = m.type ? LEGACY_MILESTONE_TYPE_ORDER.indexOf(m.type) : -1;
+  return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+}
+
+// A team project can still have one milestone doc per student rather than
+// one shared doc per type for older enrollments (see projectEnrollment.ts's
+// own comments on that migration) — so "every earlier milestone is done"
+// has to mean "every earlier milestone for THIS student", not every earlier
+// milestone doc in the whole project, or one teammate's still-in-progress
+// research proposal would block a different, further-along teammate's
+// defense from ever showing up.
+function sharesStudent(a: { studentIds?: string[] }, b: { studentIds?: string[] }): boolean {
+  const as = a.studentIds ?? [];
+  return (b.studentIds ?? []).some((id) => as.includes(id));
+}
+
 // External examiner support — no app account, gets a one-time access link by
 // email instead of being picked from the internal examiner list. Examiner
 // count is not fixed at exactly 2 — the coordinator can add/remove slots.
@@ -247,9 +278,13 @@ export default function CoordinatorHome() {
         }
         return true;
       }));
+      // Only the "still needs coordinator approval" half — once approved,
+      // this milestone itself needs no further action; whether the
+      // (possibly final_report-less) 'defense' milestone is ready for
+      // examiners is decided by stuckPendingItems below, generalized on
+      // milestone order rather than hardcoded to follow a 'final_report' step.
       setDefenseSetups(allMilestones.filter(
-        (m: PendingMilestone) =>
-          m.type === 'final_report' && (m.status === 'graded' || m.status === 'coordinator_approved')
+        (m: PendingMilestone) => m.type === 'final_report' && m.status === 'graded'
       ));
       setProjects(dashboardRes.data.projects || []);
       setAllExaminers(examinersRes.data || []);
@@ -726,22 +761,33 @@ export default function CoordinatorHome() {
       .map((m) => ({ project: p, milestone: m }))
   );
 
-  // Defense milestones stuck at their initial 'pending' state. Covers two
-  // cases: (1) examiners were already assigned on the project but
-  // maybeOpenDefenseScheduling() never actually opened the panel on the
-  // milestone itself (e.g. it threw, or the panel was written some other
-  // way), and (2) workflow chains with no 'final_report' gate before
-  // 'defense' (e.g. data_science's own template — see
-  // seedDataScienceWorkflowTemplate.ts) whose defense milestone starts life
-  // directly at 'pending' with no examiners at all yet. Without this bucket
-  // both are permanently invisible: 'pending' isn't a status any other
-  // bucket looks for. The render branch below distinguishes the two with
-  // different copy.
-  const stuckPendingItems = projects.flatMap((p) =>
-    (p.milestones ?? [])
-      .filter((m) => m.type === 'defense' && m.status === 'pending')
-      .map((m) => ({ project: p, milestone: m }))
-  );
+  // Defense milestones stuck at their initial 'pending' state, ready for the
+  // coordinator to assign examiners. Every milestone (including defense) is
+  // created 'pending' upfront at project enrollment (see
+  // projectEnrollment.ts), so status alone can't tell "genuinely next up"
+  // apart from "just hasn't been reached yet" — only checking that every
+  // earlier-ordered milestone on the same project has actually finished can.
+  // Generalized on `order` instead of assuming a 'final_report' milestone
+  // exists right before 'defense' — some faculty chains don't have one at
+  // all (see seedDataScienceWorkflowTemplate.ts), and this still works for
+  // the ones that do. Also still catches the case where examiners were
+  // already assigned but the panel never opened (e.g.
+  // openDefenseSchedulingIfPanelReady threw) — the render branch below
+  // distinguishes the two with different copy. Chain-driven variants (has
+  // `routing`) run their own approval flow instead of the examiner-panel
+  // one, so they're excluded here.
+  const stuckPendingItems = projects.flatMap((p) => {
+    const milestones = p.milestones ?? [];
+    return milestones
+      .filter((m) => {
+        if (m.type !== 'defense' || m.status !== 'pending' || m.routing) return false;
+        const myOrder = resolveMilestoneOrder(m);
+        return !milestones.some(
+          (other) => other.id !== m.id && sharesStudent(other, m) && resolveMilestoneOrder(other) < myOrder && other.status !== 'coordinator_approved'
+        );
+      })
+      .map((m) => ({ project: p, milestone: m }));
+  });
 
   const daysUntilDefense = (date: Date | null): number | null =>
     date ? Math.ceil((date.getTime() - now) / (1000 * 60 * 60 * 24)) : null;

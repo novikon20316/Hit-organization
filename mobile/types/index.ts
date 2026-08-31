@@ -565,6 +565,12 @@ export interface AssignedMilestone {
   // "already graded" apart from "not yet" for this examiner.
   stageScores?: Record<string, { score: number; gradedBy: string }> | null;
   routing?: Array<{ id: string; role: string; action: string }> | null;
+  // Position among this project's own milestones, snapshotted from the
+  // faculty's workflow template at enrollment (see projectEnrollment.ts) —
+  // the only reliable way to tell whether a 'defense' milestone sitting at
+  // 'pending' is actually next up, since every milestone (including
+  // defense) starts at 'pending' the moment the project is created.
+  order?: number;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
