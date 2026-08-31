@@ -1408,11 +1408,11 @@ export const extendDefenseAccessGrant = async (req: AuthenticatedRequest, res: R
  * number — visible elsewhere as an academicYearHeld badge/audit trail.
  */
 const ACADEMIC_YEAR_ROLES = ['system_admin', 'administrative_secretary'];
-// searchStudents' own, narrower allowlist — program_head needs to find a
-// student to manage thesis-eligibility/average for (see
+// searchStudents' own, narrower allowlist — program_head/grad_school_head
+// need to find a student to manage thesis-eligibility/average for (see
 // studentTrackController.ts), but must NOT gain the academic-year/completed-
 // courses editing endpoints above that ACADEMIC_YEAR_ROLES also gates.
-const STUDENT_SEARCH_ROLES = [...ACADEMIC_YEAR_ROLES, 'program_head'];
+const STUDENT_SEARCH_ROLES = [...ACADEMIC_YEAR_ROLES, 'program_head', 'grad_school_head'];
 
 export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: Response) => {
   const callerUid = req.user?.uid;

@@ -22,7 +22,10 @@ import {
 // isn't in that file's own allowlist (kept narrow there for unrelated
 // endpoints — see that file's COORDINATOR_STATISTICS_ROLES for the same
 // "add a scoped extra constant rather than widen the shared one" precedent).
-const THESIS_ELIGIBILITY_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'system_admin'];
+// grad_school_head added so a CS grad-school head can enter their own
+// faculty's students' averages too — withinCoordinatorScope below already
+// confines them to their own facultyId, same as program_head.
+const THESIS_ELIGIBILITY_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'];
 
 export const chooseTrack = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });

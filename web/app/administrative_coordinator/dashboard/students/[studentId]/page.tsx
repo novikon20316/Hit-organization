@@ -28,13 +28,17 @@ import { majorCellText } from '../../StudentsReportTab';
 // for them same as for administrative_secretary. 'program_head' added so a
 // CS program head has somewhere to reach a specific student (see the new
 // search box on app/program_head/dashboard/page.tsx's students tab).
-const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordinator', 'program_head', 'system_admin'];
-// Grade-average entry is narrower than the page's own role guard — confirmed
-// with the user as exactly these three (the two who'll actually enter a CS
-// student's average, plus system_admin); plain 'coordinator' keeps the
-// existing manual eligible/not-eligible buttons only, same as before this
-// feature existed.
-const THESIS_AVERAGE_ROLES: AppRole[] = ['program_head', 'administrative_secretary', 'system_admin'];
+// 'grad_school_head' added the same way, via the search box on
+// app/grad_school_head/dashboard/page.tsx's overview tab.
+const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordinator', 'program_head', 'grad_school_head', 'system_admin'];
+// Grade-average entry is narrower than the page's own role guard — originally
+// confirmed with the user as exactly program_head/administrative_secretary/
+// system_admin; grad_school_head added later so the CS grad-school head can
+// enter averages too (server-side scope-checked to their own facultyId via
+// withinCoordinatorScope, same as program_head). Plain 'coordinator' keeps
+// the existing manual eligible/not-eligible buttons only, same as before
+// this feature existed.
+const THESIS_AVERAGE_ROLES: AppRole[] = ['program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
 
 type StudentDetail = Awaited<ReturnType<typeof apiClient.getStudentDetail>>;
 
