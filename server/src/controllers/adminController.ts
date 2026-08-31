@@ -701,7 +701,7 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
  * Manually forces a student enrollment into a specific project.
  */
 export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     await logPermissionDenied(req, 'project', req.params.id ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
@@ -1016,7 +1016,7 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
  * Suspends or activates a user account.
  */
 export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     await logPermissionDenied(req, 'user', req.params.id ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
@@ -1140,7 +1140,7 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
  * own email link, or an admin lifting it directly via the endpoint below.
  */
 export const getLockedUsers = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     await logPermissionDenied(req, 'user', 'login-security-locked-list');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
@@ -1163,7 +1163,7 @@ export const getLockedUsers = async (req: AuthenticatedRequest, res: Response) =
  * safe to re-enable, same intent as the owner confirming it themselves.
  */
 export const liftLoginLockout = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     await logPermissionDenied(req, 'user', req.params.code ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
@@ -1329,7 +1329,7 @@ export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Res
  * trace that it happened at all.
  */
 export const deleteAuditLogEntries = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     await logPermissionDenied(req, 'auditLog', 'delete');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
@@ -1387,7 +1387,7 @@ export const deleteAuditLogEntries = async (req: AuthenticatedRequest, res: Resp
  * flips it at midnight, so we recompute before filtering.
  */
 export const listDefenseAccessGrants = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     await logPermissionDenied(req, 'defenseAccessGrants', 'list');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
@@ -1424,7 +1424,7 @@ export const listDefenseAccessGrants = async (req: AuthenticatedRequest, res: Re
  * Body: { newExpiresAtISO: string, reason?: string }
  */
 export const extendDefenseAccessGrant = async (req: AuthenticatedRequest, res: Response) => {
-  if (req.user?.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     await logPermissionDenied(req, 'defenseAccessGrant', req.params.grantCode ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }

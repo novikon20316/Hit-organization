@@ -115,7 +115,12 @@ export const restoreProjectHandler = async (req: AuthenticatedRequest, res: Resp
   if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: 'Invalid projectId.' });
 
   try {
-    await restoreProject({ projectId, restoredBy: req.user.uid, restoredByRole: req.user.role });
+    await restoreProject({
+      projectId,
+      restoredBy: req.user.uid,
+      restoredByRole: req.user.role,
+      restorerEffectiveFacultyIds: callerEffectiveFacultyIds(req),
+    });
     return res.status(200).json({ success: true, message: 'Project restored.' });
   } catch (error: any) {
     return res.status(400).json({ message: error.message || 'Failed to restore project.' });

@@ -305,12 +305,16 @@ export async function restoreProject(input: {
   projectId: string;
   restoredBy: string;
   restoredByRole: string;
+  restorerEffectiveFacultyIds: string[] | 'all';
 }): Promise<void> {
   const projectRef = db.collection('projects').doc(input.projectId);
   const snap = await projectRef.get();
   if (!snap.exists) throw new Error('Project not found.');
   const project = snap.data()!;
   if (!project.isArchived) throw new Error('This project is not archived.');
+  if (input.restorerEffectiveFacultyIds !== 'all' && !input.restorerEffectiveFacultyIds.includes(project.facultyId)) {
+    throw new Error('This project is outside your faculty.');
+  }
 
   await projectRef.update({
     isArchived: false,

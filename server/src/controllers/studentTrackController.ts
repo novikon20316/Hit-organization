@@ -121,7 +121,7 @@ export const setStudentThesisAverage = async (req: AuthenticatedRequest, res: Re
 
 export const overrideStudentTrack = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (req.user.role !== 'system_admin') {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'system_admin only.' });
   }
   const { id: studentId } = req.params;

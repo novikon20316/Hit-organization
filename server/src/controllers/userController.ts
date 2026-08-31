@@ -213,6 +213,13 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 
 
     const userRef = db.collection('users').doc(newUid);
+    // Preserve the existing programStartDate on repeat syncs (e.g. a student
+    // re-running signup after an interrupted flow) — this field anchors the
+    // automatic post-graduation deletion sweep (services/accountDeletion.ts),
+    // so re-stamping it to "now" on every call would let a student push their
+    // own deletion date out indefinitely just by re-calling this endpoint.
+    const existingSnap = await userRef.get();
+    const existingProgramStartDate = existingSnap.exists ? existingSnap.data()?.programStartDate : undefined;
     const firestoreUserDoc = {
       uid:          newUid,
       email,
@@ -228,9 +235,10 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       major:        role === 'student' ? major : null,
       studentId:    role === 'student' ? (studentId    || null) : null,
       // Anchor for the automatic graduation-based deletion sweep (see
-      // services/accountDeletion.ts). Defaults to signup time; system_admin
-      // can correct it per-student for transfers/import discrepancies.
-      programStartDate: role === 'student' ? Timestamp.now() : null,
+      // services/accountDeletion.ts). Defaults to signup time on first sync
+      // only; system_admin can correct it per-student for transfers/import
+      // discrepancies. Preserved across repeat syncs — see comment above.
+      programStartDate: role === 'student' ? (existingProgramStartDate ?? Timestamp.now()) : null,
 
       isActive:        true,
       profileComplete: true,
