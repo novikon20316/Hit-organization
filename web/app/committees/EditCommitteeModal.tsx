@@ -128,7 +128,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
           <h2 className="text-lg font-semibold text-ink">
             {isCreate ? (lang === 'he' ? 'הקמת ועדה' : 'Create Committee') : (lang === 'he' ? 'עריכת חברי ועדה' : 'Edit Committee Members')}
           </h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">✕</button>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">✕</button>
         </div>
 
         <div className="mt-4 grid gap-3">

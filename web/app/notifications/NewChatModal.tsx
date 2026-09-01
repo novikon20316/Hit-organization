@@ -130,7 +130,7 @@ export function NewChatModal({ existingChatIds, onClose, onChatCreated }: NewCha
       >
         <div className="flex items-center justify-between border-b border-line p-4">
           <h2 className="text-base font-semibold text-ink">{lang === 'he' ? 'הודעה חדשה' : 'New Message'}</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
             ✕
           </button>
         </div>

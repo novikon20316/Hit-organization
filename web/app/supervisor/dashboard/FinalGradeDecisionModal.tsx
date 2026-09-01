@@ -81,7 +81,7 @@ export function FinalGradeDecisionModal({ milestoneId, autoCalculatedFinalGrade,
       >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'ציון סופי מחושב' : 'Computed Final Grade'}</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">✕</button>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">✕</button>
         </div>
 
         <div className="mt-4 rounded-lg bg-paper p-4 text-center">

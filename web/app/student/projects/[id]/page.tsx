@@ -94,7 +94,7 @@ export default function StudentProjectDetailPage() {
 
   return (
     <DashboardShell title={lang === 'he' ? 'הפרויקט שלי' : 'My Project'}>
-      {loadingData && <p className="text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+      {loadingData && <p className="text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
       {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       {!loadingData && !error && (

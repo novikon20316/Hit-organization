@@ -124,7 +124,7 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
           <h2 className="text-lg font-semibold text-ink">
             {lang === 'he' ? 'הגשת' : 'Submit'} {MILESTONE_LABEL[milestone.type]?.[lang]}
           </h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
             ✕
           </button>
         </div>
@@ -139,7 +139,7 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
               {files.map((f, i) => (
                 <div key={i} className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2 text-sm">
                   <span className="truncate text-ink">📎 {f.name}</span>
-                  <button type="button" onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted hover:text-danger">
+                  <button type="button" onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`${lang === 'he' ? 'הסר קובץ' : 'Remove file'} ${f.name}`} className="text-muted hover:text-danger">
                     ✕
                   </button>
                 </div>

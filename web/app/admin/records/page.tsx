@@ -46,7 +46,7 @@ export default function AdminRecordsPage() {
         </p>
 
         {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
-        {!error && faculties === null && <p className="text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+        {!error && faculties === null && <p className="text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
         {!error && faculties !== null && faculties.length === 0 && (
           <p className="text-sm text-muted">{lang === 'he' ? 'אין פקולטות להצגה.' : 'No faculties to show.'}</p>
         )}

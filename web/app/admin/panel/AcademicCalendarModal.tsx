@@ -84,7 +84,7 @@ export function AcademicCalendarModal({ onClose }: AcademicCalendarModalProps) {
       >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📅 {lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar'}</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
             ✕
           </button>
         </div>

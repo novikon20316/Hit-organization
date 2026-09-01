@@ -18,7 +18,7 @@ export function DefenseBuildingPicker({ value, onChange }: DefenseBuildingPicker
   const { lang } = useLanguage();
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div role="group" aria-label={lang === 'he' ? 'בניין ההגנה' : 'Defense building'} className="flex flex-wrap gap-2">
       {DEFENSE_BUILDINGS.map((b) => {
         const disabled = !AVAILABLE_DEFENSE_BUILDINGS.includes(b);
         const selected = value === b;
@@ -28,6 +28,7 @@ export function DefenseBuildingPicker({ value, onChange }: DefenseBuildingPicker
             type="button"
             disabled={disabled}
             onClick={() => onChange(b)}
+            aria-pressed={selected}
             className={`rounded-lg border px-3 py-2 text-sm font-medium ${
               selected ? 'border-primary bg-primary text-primary-ink' : disabled ? 'border-line bg-paper text-muted' : 'border-line bg-surface text-ink hover:border-primary'
             }`}

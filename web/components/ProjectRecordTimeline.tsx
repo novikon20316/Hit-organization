@@ -114,7 +114,7 @@ export function ProjectRecordTimeline({ projectId }: { projectId: string }) {
           : 'A permanent, read-only record — cannot be edited or deleted by any user.'}
       </p>
 
-      {loading && <p className="mt-2 text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+      {loading && <p className="mt-2 text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
       {error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       {!loading && !error && (entries?.length ?? 0) === 0 && (

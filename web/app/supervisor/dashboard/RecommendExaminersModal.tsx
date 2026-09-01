@@ -111,7 +111,7 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
             <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'המלצת בוחנים' : 'Examiner Recommendation'}</h2>
             <p className="mt-0.5 text-sm text-muted">{lang === 'he' ? project.titleHe : project.titleEn}</p>
           </div>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
             ✕
           </button>
         </div>
@@ -130,7 +130,7 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
                       {lang === 'he' ? 'עדיפות' : 'Priority'} {ex.priority}
                     </p>
                   </div>
-                  <button type="button" onClick={() => setExaminers((prev) => prev.filter((_, idx) => idx !== i))} className="px-2 text-danger">
+                  <button type="button" onClick={() => setExaminers((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`${lang === 'he' ? 'הסר בוחן' : 'Remove examiner'} ${ex.name}`} className="px-2 text-danger">
                     ✕
                   </button>
                 </div>

@@ -197,7 +197,7 @@ export default function ChatConversationPage() {
       >
         {loadingMessages ? (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>
+            <p className="text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
@@ -218,10 +218,15 @@ export default function ChatConversationPage() {
                       <button
                         type="button"
                         onClick={() => setViewerUrl(item.imageUrl)}
+                        aria-label={lang === 'he' ? 'פתח תמונה במסך מלא' : 'Open image full size'}
                         className={`max-w-[75%] overflow-hidden rounded-2xl p-1 text-sm ${mine ? 'bg-primary' : 'bg-surface'}`}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary URL, not a local asset */}
-                        <img src={item.imageUrl} alt="" className="max-h-72 w-full rounded-xl object-cover" />
+                        <img
+                          src={item.imageUrl}
+                          alt={lang === 'he' ? 'תמונה שצורפה' : 'Attached image'}
+                          className="max-h-72 w-full rounded-xl object-cover"
+                        />
                         {item.text && <p className={`px-2 py-1.5 text-left ${mine ? 'text-primary-ink' : 'text-ink'}`}>{item.text}</p>}
                       </button>
                     ) : (
@@ -278,7 +283,11 @@ export default function ChatConversationPage() {
           onClick={() => setViewerUrl(null)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary URL, not a local asset */}
-          <img src={viewerUrl} alt="" className="max-h-full max-w-full object-contain" />
+          <img
+            src={viewerUrl}
+            alt={lang === 'he' ? 'תמונה שצורפה, מוגדלת' : 'Attached image, enlarged'}
+            className="max-h-full max-w-full object-contain"
+          />
         </div>
       )}
     </div>

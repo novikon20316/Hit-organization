@@ -109,7 +109,7 @@ export function MilestoneFilePanel({ title, subtitle, submissionNote, fileUrls, 
             <h2 id="milestone-file-panel-title" className="truncate text-base font-semibold text-ink">{title}</h2>
             <p className="mt-0.5 truncate text-xs text-muted">{subtitle}</p>
           </div>
-          <button type="button" onClick={onClose} className="shrink-0 text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="shrink-0 text-muted hover:text-ink">
             ✕
           </button>
         </div>

@@ -398,7 +398,7 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
           >
             <div className="flex items-start justify-between">
               <h2 className="text-lg font-semibold text-student-on-surface">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
-              <button type="button" onClick={closeApply} className="text-student-on-surface-variant hover:text-student-on-surface">
+              <button type="button" onClick={closeApply} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-student-on-surface-variant hover:text-student-on-surface">
                 ✕
               </button>
             </div>

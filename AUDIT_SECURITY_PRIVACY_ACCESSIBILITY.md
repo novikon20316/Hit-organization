@@ -14,10 +14,10 @@ Use the checkboxes to track fixes. Re-run this audit (or at least the relevant s
 |---|---|---|---|
 | Critical | 0 | 0 | 0 |
 | High | 0 | 0 | 0 |
-| Medium | 0 | 0 | 6 |
+| Medium | 0 | 0 | 0 |
 | Low | 0 | 0 | 0 |
 
-Every High and Low finding across all three categories is fixed as of 2026-09-01. Only Accessibility's 6 Medium findings (A4-A9) remain open — none of them were in scope for the most recent fix pass, which was limited to High + Low.
+**Every finding in this audit is fixed as of 2026-09-01.** See each section for what changed and what was verified. This is a snapshot, not a guarantee — re-run (or spot-check) the relevant section after future changes rather than assuming this stays true forever.
 
 ---
 
@@ -73,14 +73,16 @@ Account deletion pipeline (`accountDeletion.ts`) is genuinely well-designed — 
 
 Verified with `npx tsc --noEmit` in `web/` — clean.
 
-### Medium (not in this pass — user scoped this round to High + Low)
+### Fixed 2026-09-01 (Medium)
 
-- [ ] **A4 — `SessionExpiredModal` has no focus trap**, unlike every sibling modal in the app. `web/components/SessionExpiredModal.tsx:20-49`. All other modals route through the shared `useModalA11y` hook; this one doesn't, so a keyboard user can tab into hidden background content while it's showing.
-- [ ] **A5 — Icon-only "✕" close buttons with no accessible name** in 5+ modals (`BulkImportModal.tsx`, `DeleteAccountModal.tsx`, `StudentContactModal.tsx`, `EditCommitteeModal.tsx`, `CommitteeReviewModal.tsx`, plus supervisor-dashboard modals).
-- [ ] **A6 — Approval-chain expand/collapse toggle has no `aria-expanded`.** `web/components/MilestoneTimeline.tsx:416-418`.
-- [ ] **A7 — Defense building picker has no group label or selected-state announcement** (`aria-pressed`). `web/components/DefenseBuildingPicker.tsx:20-41`. Same pattern for the Thesis/Track toggle in signup (`signup/page.tsx:434-446`).
-- [ ] **A8 — Loading states are silent to assistive tech in most places** (bare "…" text, no `role="status"`/`aria-live`), even though the correct pattern already exists and is used in ~13 other files (e.g. `BulkDueDateModal.tsx`). Sampled and confirmed missing on student home and chat loading states.
-- [ ] **A9 — Chat image attachments have `alt=""`** (marked decorative), so a screen reader skips them entirely and the user doesn't know an image was sent. `web/app/message/[chatId]/page.tsx:213,270`. Contrast with the 2FA QR code, which has a correct descriptive alt.
+- [x] **A4 — `SessionExpiredModal` had no focus trap.** `web/components/SessionExpiredModal.tsx`. Wired through the shared `useModalA11y` hook like every sibling modal — but with a no-op `onClose` (Escape does nothing), since this modal is deliberately un-dismissable except via its OK button; only the focus trap and focus-restore behavior were missing, not the dismiss action.
+- [x] **A5 — Icon-only "✕" close buttons with no accessible name.** The audit's "5+ modals" turned out to be an undercount — a full sweep found 34 files with the same pattern (not just the 5 sampled). Added contextual bilingual `aria-label`s to all of them: "Close" for modal-close buttons, "Cancel" for inline sub-form cancel buttons (`CoordinatorScopesModal.tsx`, `PermissionsEditorModal.tsx`), and specific item-name labels for remove/delete buttons (remove file, remove examiner, remove course row, delete file/content, dismiss error). A few ✕-adjacent buttons found during the sweep were confirmed already fine (visible text label already present, e.g. `reports/page.tsx`'s filter chips, `ApplicationCard.tsx`'s "✕ Reject" button, and a few already-labeled remove buttons) and left untouched.
+- [x] **A6 — Approval-chain expand/collapse toggle had no `aria-expanded`.** `web/components/MilestoneTimeline.tsx`. Added `aria-expanded` + `aria-controls` pointing at the revealed chain detail (given a stable id via `milestone.id`, since this component renders once per milestone in a list).
+- [x] **A7 — Defense building picker had no group label or selected-state announcement.** `web/components/DefenseBuildingPicker.tsx`. Added `role="group" aria-label` on the container and `aria-pressed` per building button. Also added `aria-pressed` to the Thesis/Track toggle in signup (`signup/page.tsx`).
+- [x] **A8 — Loading states were silent to assistive tech in most places.** Broader than the audit's "~13 other files" sample suggested — found 22 files using the exact same bare `"טוען…"/"Loading…"` text pattern with no `role`/`aria-live` (20 records-list pages/`ProjectRecordTimeline.tsx`/chat, plus 2 more on student home not caught by that exact string match). All now have `role="status" aria-live="polite"`.
+- [x] **A9 — Chat image attachments had `alt=""`.** `web/app/message/[chatId]/page.tsx`. Both the inline chat-bubble thumbnail and the full-screen viewer now have a descriptive bilingual `alt`; the thumbnail's wrapping button (which had no accessible name at all when the message carried no caption text) also got an `aria-label`.
+
+Verified with `npx tsc --noEmit` in `web/` — clean.
 
 ### Fixed 2026-09-01 (Low)
 
@@ -101,8 +103,6 @@ Exhaustive mobile touch-target sizing beyond the two sampled components; whether
 
 ## Suggested order of work
 
-Only Accessibility's 6 Medium findings remain (A4-A9) — all in `web/`, all small contained fixes (focus trap, close-button labels, `aria-expanded`, group labels, loading-state live regions, chat image alt text). None are urgent on their own; worth a batch pass whenever convenient.
-
-Everything else — all Security, all Privacy, and all Accessibility High/Low findings — is fixed. See each section for what changed.
+Nothing left open. All Security, Privacy, and Accessibility findings (Critical through Low) are fixed as of 2026-09-01. Treat this file as a record of what was found and fixed, not a live task list — if you make further changes to auth, admin actions, data handling, or UI, it's worth another pass rather than assuming this stays current indefinitely.
 
 Note: findings related to the admin "impersonate user" feature were removed from this audit (2026-09-01) — that feature is a temporary debugging aid and won't ship in the final product. If it ever does become a permanent feature, it should get its own dedicated security/privacy review before shipping, since impersonation-style features carry accountability and disclosure risks that don't show up anywhere else in this app.

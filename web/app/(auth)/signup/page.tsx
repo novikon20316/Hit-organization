@@ -458,6 +458,7 @@ export default function SignupPage() {
                         key={track}
                         type="button"
                         onClick={() => setChosenTrack(track)}
+                        aria-pressed={chosenTrack === track}
                         className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                           chosenTrack === track ? 'border-primary bg-primary/10 text-primary' : 'border-line bg-paper text-ink'
                         }`}

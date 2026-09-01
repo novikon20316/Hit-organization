@@ -168,7 +168,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
       >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
             ✕
           </button>
         </div>

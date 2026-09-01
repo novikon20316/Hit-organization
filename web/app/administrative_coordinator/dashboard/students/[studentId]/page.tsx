@@ -178,7 +178,7 @@ export default function StudentDetailPage() {
         {lang === 'he' ? '← חזרה לדוח הסטודנטים' : '← Back to Students Report'}
       </Link>
 
-      {loadingData && <p className="mt-4 text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+      {loadingData && <p className="mt-4 text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
       {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       {!loadingData && !error && student && (

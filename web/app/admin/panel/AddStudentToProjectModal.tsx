@@ -72,7 +72,7 @@ export function AddStudentToProjectModal({ project, users, onClose, onEnrolled }
             <h2 className="text-lg font-semibold text-ink">👤 {lang === 'he' ? 'הוסף סטודנט לפרויקט' : 'Add Student to Project'}</h2>
             {projectTitle && <p className="mt-1 truncate text-sm text-muted">📁 {projectTitle}</p>}
           </div>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
             ✕
           </button>
         </div>

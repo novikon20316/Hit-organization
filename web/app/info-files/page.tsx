@@ -823,7 +823,7 @@ export default function InfoFilesPage() {
                     >
                       {f.isVisible ? '👁️' : '🚫'}
                     </button>
-                    <button type="button" onClick={() => setDeletingFile(f)} disabled={busy} className="shrink-0 px-2 py-1 text-sm font-semibold text-danger hover:opacity-70 disabled:opacity-50">
+                    <button type="button" onClick={() => setDeletingFile(f)} disabled={busy} aria-label={lang === 'he' ? 'מחק קובץ' : 'Delete file'} className="shrink-0 px-2 py-1 text-sm font-semibold text-danger hover:opacity-70 disabled:opacity-50">
                       ✕
                     </button>
                   </>
@@ -1003,7 +1003,7 @@ export default function InfoFilesPage() {
                   <p className="mt-1 whitespace-pre-wrap text-xs text-muted">{lang === 'he' ? c.bodyHe || c.bodyEn : c.bodyEn || c.bodyHe}</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{scopeSummary(c, lang)}</span>
-                <button type="button" onClick={() => setDeletingContent(c)} className="shrink-0 px-2 py-1 text-sm font-semibold text-danger hover:opacity-70">
+                <button type="button" onClick={() => setDeletingContent(c)} aria-label={lang === 'he' ? 'מחק תוכן' : 'Delete content'} className="shrink-0 px-2 py-1 text-sm font-semibold text-danger hover:opacity-70">
                   ✕
                 </button>
               </div>

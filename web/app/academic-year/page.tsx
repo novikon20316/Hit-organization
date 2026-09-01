@@ -321,7 +321,7 @@ function EditCompletedCoursesForm({
               <span className="text-xs text-muted">
                 {lang === 'he' ? 'ציון:' : 'Grade:'} {r.grade ?? '—'}
               </span>
-              <button type="button" onClick={() => removeRow(r.subject)} className="text-danger hover:opacity-70">
+              <button type="button" onClick={() => removeRow(r.subject)} aria-label={`${lang === 'he' ? 'הסר' : 'Remove'} ${r.subject}`} className="text-danger hover:opacity-70">
                 ✕
               </button>
             </div>

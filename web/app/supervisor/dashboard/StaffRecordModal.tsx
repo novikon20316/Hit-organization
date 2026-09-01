@@ -115,7 +115,7 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
       >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'רשומת מנחה' : 'Staff Record'}</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">✕</button>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">✕</button>
         </div>
 
         <div className="mt-4 flex gap-1.5">

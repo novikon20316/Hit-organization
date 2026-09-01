@@ -187,7 +187,7 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
       >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">🛠️ {isHe ? 'מצב תחזוקה' : 'Maintenance mode'}</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
             ✕
           </button>
         </div>

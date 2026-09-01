@@ -205,7 +205,7 @@ export default function NotificationsPage() {
       {actionError && (
         <div className="mb-4 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
           <span>⚠️ {actionError}</span>
-          <button type="button" onClick={() => setActionError('')} className="font-medium">
+          <button type="button" onClick={() => setActionError('')} aria-label={lang === 'he' ? 'סגור הודעת שגיאה' : 'Dismiss error'} className="font-medium">
             ✕
           </button>
         </div>

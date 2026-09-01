@@ -309,7 +309,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
           >
             <div className="flex items-start justify-between">
               <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
-              <button type="button" onClick={closeApply} className="text-muted hover:text-ink">
+              <button type="button" onClick={closeApply} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
                 ✕
               </button>
             </div>

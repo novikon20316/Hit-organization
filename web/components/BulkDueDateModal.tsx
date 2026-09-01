@@ -111,7 +111,7 @@ export function BulkDueDateModal({ projects, onClose, onSaved }: BulkDueDateModa
       >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Due-Date Update'}</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
             ✕
           </button>
         </div>

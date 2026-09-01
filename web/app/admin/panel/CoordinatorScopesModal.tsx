@@ -77,7 +77,7 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
             {/* ── List screen ── */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-ink">📋 {lang === 'he' ? 'היקף אחריות רכז' : 'Coordinator Scope'}</h2>
-              <button type="button" onClick={onClose} className="text-lg text-muted hover:text-ink">
+              <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-lg text-muted hover:text-ink">
                 ✕
               </button>
             </div>
@@ -136,7 +136,7 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
             {/* ── Add/edit scope form ── */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'תחום אחריות' : 'Scope'}</h2>
-              <button type="button" onClick={cancelForm} className="text-lg text-muted hover:text-ink">
+              <button type="button" onClick={cancelForm} aria-label={lang === 'he' ? 'ביטול' : 'Cancel'} className="text-lg text-muted hover:text-ink">
                 ✕
               </button>
             </div>

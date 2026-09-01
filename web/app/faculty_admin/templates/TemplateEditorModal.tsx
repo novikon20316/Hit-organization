@@ -99,7 +99,7 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
           <h2 className="text-base font-semibold text-ink">
             {template ? `✏️ ${lang === 'he' ? 'עריכת תבנית' : 'Edit Template'}` : `➕ ${lang === 'he' ? 'תבנית חדשה' : 'New Template'}`}
           </h2>
-          <button type="button" onClick={onClose} className="text-lg text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-lg text-muted hover:text-ink">
             ✕
           </button>
         </div>

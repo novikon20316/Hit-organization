@@ -72,7 +72,7 @@ function StudentHomeContent() {
   if (guardLoading || !isAllowed) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper">
-        <p className="text-sm text-muted">…</p>
+        <p className="text-sm text-muted" role="status" aria-live="polite">…</p>
       </div>
     );
   }
@@ -81,7 +81,7 @@ function StudentHomeContent() {
     <DashboardShell title={t('appName')} showBackButton={activeTab !== 'overview'}>
         {studentState === 'loading' && (
           <div className="flex justify-center py-16">
-            <p className="text-sm text-muted">{t('loading')}</p>
+            <p className="text-sm text-muted" role="status" aria-live="polite">{t('loading')}</p>
           </div>
         )}
 
@@ -123,7 +123,7 @@ function StudentHomeContent() {
 
 export default function StudentHomePage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted" role="status" aria-live="polite">…</p>}>
       <StudentHomeContent />
     </Suspense>
   );

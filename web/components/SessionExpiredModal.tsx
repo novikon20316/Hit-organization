@@ -7,7 +7,9 @@
 // before forcing a re-login. Deliberately has no close/X and no backdrop
 // click-to-dismiss: the only way out is the OK button.
 
+import { useRef } from 'react';
 import { t } from '@/lib/i18n';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface SessionExpiredModalProps {
   open: boolean;
@@ -15,11 +17,18 @@ interface SessionExpiredModalProps {
 }
 
 export function SessionExpiredModal({ open, onConfirm }: SessionExpiredModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // No-op onClose: this modal is deliberately un-dismissable except via the
+  // OK button (see comment above) — Escape shouldn't bypass that, so we
+  // still get the focus trap and focus-restore from the hook without wiring
+  // up an actual close behavior.
+  useModalA11y(dialogRef, open, () => {});
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg">
+      <div ref={dialogRef} tabIndex={-1} className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none">
         <h2 className="text-base font-semibold text-ink" dir="rtl">
           {t.sessionExpiredTitle.he}
         </h2>

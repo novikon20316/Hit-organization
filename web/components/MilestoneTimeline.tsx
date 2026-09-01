@@ -413,12 +413,18 @@ function MilestoneCard({
       )}
 
       {/* Expand toggle */}
-      <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-controls={`approval-chain-${milestone.id}`}
+        className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+      >
         {expanded ? '▲' : '▼'} {lang === 'he' ? 'תהליך האישור' : 'Approval Process'}
       </button>
 
       {expanded && (
-        <div className="mt-2 grid gap-1 border-t border-line pt-2.5">
+        <div id={`approval-chain-${milestone.id}`} className="mt-2 grid gap-1 border-t border-line pt-2.5">
           {buildApprovalChain(milestone, lang).map((step, i) => (
             <div key={i} className="flex items-center gap-2">
               <span className={`h-2 w-2 shrink-0 rounded-full ${step.done ? 'bg-success' : 'bg-line'}`} />
