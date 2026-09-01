@@ -6,6 +6,10 @@ steps:
       - '-t'
       - 'us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
       - '.'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
