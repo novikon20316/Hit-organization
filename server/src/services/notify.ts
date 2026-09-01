@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 import { toE164IL, sendSms } from './smsService.js';
+import { sendWhatsapp } from './whatsappService.js';
 import type { NotificationType } from './emailTemplates.js';
 import { targetScreenFor, type NotificationTaskKind } from './notificationTargets.js';
 
@@ -14,6 +15,7 @@ export interface NotifyChannels {
   email?: boolean;
   push?:  boolean;
   sms?:   boolean;
+  whatsapp?: boolean;
 }
 
 export interface NotifyParams {
@@ -56,7 +58,7 @@ export interface NotifyParams {
 
 /**
  * Single dispatcher for every outbound notification: writes the in-app
- * Firestore doc and attempts email/push/SMS independently, then persists
+ * Firestore doc and attempts email/push/SMS/WhatsApp independently, then persists
  * what actually happened on each channel back onto that doc — so "did this
  * notification actually go out" is a Firestore read, not a guess from a
  * server log. See services/loginSecurity.ts for the precedent this
@@ -73,6 +75,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
   const wantEmail = channels?.email !== false;
   const wantPush  = channels?.push  !== false;
   const wantSms   = channels?.sms   !== false;
+  const wantWhatsapp = channels?.whatsapp !== false;
 
   const userSnap = await db.collection('users').doc(recipientId).get();
   const user = userSnap.data();
@@ -105,6 +108,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
       emailDelivery: 'pending' satisfies DeliveryStatus,
       pushDelivery:  'pending' satisfies DeliveryStatus,
       smsDelivery:   'pending' satisfies DeliveryStatus,
+      whatsappDelivery: 'pending' satisfies DeliveryStatus,
     });
   }
 
@@ -173,6 +177,25 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
         console.error(`notifyUser: sms failed for ${recipientId} [${type}]:`, err);
         statuses.smsDelivery = 'failed';
         statuses.smsDeliveryError = String(err?.message ?? err);
+      }
+    }
+  }
+
+  // ─── WhatsApp (Twilio) ──────────────────────────────────────────────────
+  if (!wantWhatsapp || !phoneRaw) {
+    statuses.whatsappDelivery = 'skipped';
+  } else {
+    const e164 = toE164IL(phoneRaw);
+    if (!e164) {
+      statuses.whatsappDelivery = 'invalid_number';
+    } else {
+      try {
+        await sendWhatsapp(e164, `${lang === 'he' ? titleHe : titleEn}\n${lang === 'he' ? bodyHe : bodyEn}`);
+        statuses.whatsappDelivery = 'sent';
+      } catch (err: any) {
+        console.error(`notifyUser: whatsapp failed for ${recipientId} [${type}]:`, err);
+        statuses.whatsappDelivery = 'failed';
+        statuses.whatsappDeliveryError = String(err?.message ?? err);
       }
     }
   }

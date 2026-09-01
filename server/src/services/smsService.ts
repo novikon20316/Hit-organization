@@ -19,7 +19,8 @@ export function toE164IL(phone: string | null | undefined): string | null {
 }
 
 let client: ReturnType<typeof twilio> | null = null;
-function getClient(): ReturnType<typeof twilio> {
+/** Shared Twilio client — same account serves SMS and WhatsApp (see whatsappService.ts). */
+export function getClient(): ReturnType<typeof twilio> {
   if (!client) {
     client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
   }
