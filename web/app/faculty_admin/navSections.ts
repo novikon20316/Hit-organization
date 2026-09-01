@@ -33,6 +33,13 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'projects',
       },
       {
+        key: 'students',
+        icon: '🎓',
+        href: '/faculty_admin/dashboard?tab=students',
+        label: { he: 'רשימת סטודנטים', en: 'Students List' },
+        isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'students',
+      },
+      {
         key: 'deadlines',
         icon: '⏰',
         href: '/faculty_admin/dashboard?tab=deadlines',

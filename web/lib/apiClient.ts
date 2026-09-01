@@ -415,6 +415,29 @@ export const apiClient = {
     return request<{ success: boolean; staff: Array<Record<string, unknown> & { id: string }> }>('/api/admin/staff', { method: 'GET' });
   },
 
+  /** GET /api/admin/students-list — read-only student roster for
+   *  faculty_admin (own faculty, any major/degree) and grad_school_head
+   *  (masters only, narrowed to their coordinatorScopes majors if any are
+   *  set, otherwise the whole faculty). See
+   *  studentsListController.listStudentsForScope. */
+  async getStudentsList() {
+    return request<{
+      success: boolean;
+      students: Array<{
+        id: string; displayName: string; email: string; studentId: string; facultyId: string;
+        degreeType: string | null; major: string | null; yearOfStudy: number | null;
+        isEligibleForProcess: boolean;
+        track: 'thesis' | 'project' | null;
+        trackPolicy: 'coordinator_gated' | 'signup_choice' | 'project_only' | null;
+        trackLocked: boolean;
+        thesisEligibility: { eligible: boolean } | null;
+        hasActiveProject: boolean;
+        supervisorId: string | null;
+        isActive: boolean;
+      }>;
+    }>('/api/admin/students-list', { method: 'GET' });
+  },
+
   /** system_admin only — accounts currently disabled by the 3-strikes
    *  failed-login flow (server/src/services/loginSecurity.ts), still
    *  awaiting either the owner's own email link or an admin lifting it. */

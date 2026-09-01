@@ -12,18 +12,18 @@ export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
     title: { he: 'ניווט', en: 'Navigation' },
     items: [
       {
-        key: 'approvals',
-        icon: '✅',
-        href: '/grad_school_head/dashboard',
-        label: { he: 'ממתין לאישורי', en: 'Approvals' },
-        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && (!sp.get('tab') || sp.get('tab') === 'approvals'),
-      },
-      {
         key: 'overview',
         icon: '📊',
-        href: '/grad_school_head/dashboard?tab=overview',
+        href: '/grad_school_head/dashboard',
         label: { he: 'סקירה כללית', en: 'Overview' },
-        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'overview',
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && (!sp.get('tab') || sp.get('tab') === 'overview'),
+      },
+      {
+        key: 'approvals',
+        icon: '✅',
+        href: '/grad_school_head/dashboard?tab=approvals',
+        label: { he: 'ממתין לאישורי', en: 'Approvals' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'approvals',
       },
       {
         key: 'stuck',
@@ -52,6 +52,13 @@ export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
         href: '/grad_school_head/dashboard?tab=staff',
         label: { he: 'סגל', en: 'Staff' },
         isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'staff',
+      },
+      {
+        key: 'students',
+        icon: '🎓',
+        href: '/grad_school_head/dashboard?tab=students',
+        label: { he: 'רשימת סטודנטים', en: 'Students List' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'students',
       },
       {
         key: 'workflowTemplates',

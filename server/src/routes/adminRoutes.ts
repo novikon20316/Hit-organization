@@ -55,6 +55,7 @@ import {
   setStudentStatus,
 } from '../controllers/studentStatusController.js';
 import { overrideStudentTrack } from '../controllers/studentTrackController.js';
+import { listStudentsForScope } from '../controllers/studentsListController.js';
 
 const router = Router();
 
@@ -79,6 +80,7 @@ router.get('/student-roster', verifyToken, listStudentRosterAdmin);
 // (cross-faculty) — gated inside the controller, same pattern as the rest
 // of this file.
 router.get('/staff', verifyToken, listManagedStaff);
+router.get('/students-list', verifyToken, listStudentsForScope);
 router.get('/login-security/locked', verifyToken, getLockedUsers);
 
 // POST routes

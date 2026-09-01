@@ -135,10 +135,14 @@ export default function EditUserModal({
   // to one or more specific subjects (facultyId+major) — "keep a separation
   // between degrees" for the workflow-templates screen. See
   // resolveCoordinatorScope in server/src/controllers/workflowTemplateController.ts.
+  // Also doubles as grad_school_head's optional major narrowing for the
+  // Students List tab — no scopes set means the whole (masters-only) faculty,
+  // see studentsListController.ts's majorAllowed.
   const showCoordinatorScopes =
     coordinatorScopes !== undefined && !!setCoordinatorScopes &&
     (role === 'coordinator' || roles.includes('coordinator') ||
-      role === 'administrative_secretary' || roles.includes('administrative_secretary'));
+      role === 'administrative_secretary' || roles.includes('administrative_secretary') ||
+      role === 'grad_school_head' || roles.includes('grad_school_head'));
   const showAssignedMajors =
     assignedMajors !== undefined && !!setAssignedMajors &&
     (role === 'supervisor' || role === 'secondary_supervisor' ||

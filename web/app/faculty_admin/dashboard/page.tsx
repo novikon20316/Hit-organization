@@ -27,6 +27,7 @@ import { apiClient } from '@/lib/apiClient';
 import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
 import type { FacultyId } from '@/lib/i18n';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
+import { StudentsListTab } from '@/components/students/StudentsListTab';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
 import { ProjectCard } from './ProjectCard';
 import { EnrollStudentModal } from './EnrollStudentModal';
@@ -40,9 +41,9 @@ import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDea
 
 const FACULTY_ADMIN_ROLES: AppRole[] = ['faculty_admin', 'system_admin'];
 
-type Tab = 'overview' | 'users' | 'projects' | 'deadlines' | 'signoffs';
+type Tab = 'overview' | 'users' | 'projects' | 'deadlines' | 'signoffs' | 'students';
 
-const FACULTY_ADMIN_TABS: Tab[] = ['overview', 'users', 'projects', 'deadlines', 'signoffs'];
+const FACULTY_ADMIN_TABS: Tab[] = ['overview', 'users', 'projects', 'deadlines', 'signoffs', 'students'];
 const isFacultyAdminTab = (v: string | null): v is Tab => !!v && (FACULTY_ADMIN_TABS as string[]).includes(v);
 
 function FacultyAdminDashboardContent() {
@@ -166,6 +167,8 @@ function FacultyAdminDashboardContent() {
         </div>
       ) : tab === 'deadlines' ? (
         <DeadlinesTab deadlines={deadlines} projects={projects} users={users} onSaved={fetchDashboard} />
+      ) : tab === 'students' ? (
+        <StudentsListTab />
       ) : (
         <PendingSignoffsWidget showEmptyState />
       )}

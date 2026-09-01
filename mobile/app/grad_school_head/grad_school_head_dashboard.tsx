@@ -17,6 +17,7 @@ import { t, tx, type Lang } from '../../components/i18n';
 import { GradSchoolHeadDashboardStyles, adminPanelStyles } from '../../constants/styles';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
+import StudentsListSection from '@/components/StudentsListSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { NewProjectModal } from '@/components/modals';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
@@ -119,11 +120,11 @@ export default function GradSchoolHeadDashboard() {
   // Lets a notification's "Go to dashboard" deep-link land on a specific tab
   // (?tab=...) instead of always opening on Approvals — same convention the
   // web dashboard already supports.
-  type GradSchoolHeadTab = 'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff';
-  const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['approvals', 'overview', 'stuck', 'examiners', 'grades', 'staff'];
+  type GradSchoolHeadTab = 'overview' | 'approvals' | 'stuck' | 'examiners' | 'grades' | 'staff' | 'students';
+  const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['overview', 'approvals', 'stuck', 'examiners', 'grades', 'staff', 'students'];
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab]  = useState<GradSchoolHeadTab>(
-    GRAD_SCHOOL_HEAD_TABS.includes(tabParam as GradSchoolHeadTab) ? (tabParam as GradSchoolHeadTab) : 'approvals'
+    GRAD_SCHOOL_HEAD_TABS.includes(tabParam as GradSchoolHeadTab) ? (tabParam as GradSchoolHeadTab) : 'overview'
   );
   // Cross-faculty staff this role can now manage directly (see
   // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — this
@@ -418,12 +419,13 @@ export default function GradSchoolHeadDashboard() {
   }
 
   const tabs = [
-    { key: 'approvals' as const, he: 'ממתין לאישורי',   en: 'Pending',   badge: data?.pendingApprovals.length ?? 0 },
     { key: 'overview'  as const, he: 'סקירה כללית',     en: 'Overview',  badge: 0 },
+    { key: 'approvals' as const, he: 'ממתין לאישורי',   en: 'Pending',   badge: data?.pendingApprovals.length ?? 0 },
     { key: 'stuck'     as const, he: 'תקועים',          en: 'Stuck',     badge: data?.stuckStudents.length ?? 0 },
     { key: 'examiners' as const, he: 'עומס בוחנים',     en: 'Examiners', badge: 0 },
     { key: 'grades'    as const, he: 'ציונים מאושרים',  en: 'Approved Grades', badge: 0 },
     { key: 'staff'     as const, he: 'סגל',             en: 'Staff', badge: 0 },
+    { key: 'students'  as const, he: 'רשימת סטודנטים',  en: 'Students List', badge: 0 },
   ];
 
   return (
@@ -857,6 +859,11 @@ export default function GradSchoolHeadDashboard() {
             lang={lang}
             isRtl={lang === 'he'}
           />
+        )}
+
+        {/* ── STUDENTS LIST TAB ── */}
+        {activeTab === 'students' && (
+          <StudentsListSection lang={lang} isRtl={lang === 'he'} />
         )}
 
         <View style={{ height: 60 }} />

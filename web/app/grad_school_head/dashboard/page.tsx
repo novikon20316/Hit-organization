@@ -27,6 +27,7 @@ import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
+import { StudentsListTab } from '@/components/students/StudentsListTab';
 import { NewProjectModal } from './NewProjectModal';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
@@ -35,8 +36,8 @@ import type { AdminUserRecord } from '@/app/admin/panel/types';
 
 const GRAD_SCHOOL_HEAD_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
 
-type GradSchoolHeadTab = 'approvals' | 'overview' | 'stuck' | 'examiners' | 'grades' | 'staff';
-const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['approvals', 'overview', 'stuck', 'examiners', 'grades', 'staff'];
+type GradSchoolHeadTab = 'overview' | 'approvals' | 'stuck' | 'examiners' | 'grades' | 'staff' | 'students';
+const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['overview', 'approvals', 'stuck', 'examiners', 'grades', 'staff', 'students'];
 const isGradSchoolHeadTab = (v: string | null): v is GradSchoolHeadTab => !!v && (GRAD_SCHOOL_HEAD_TABS as string[]).includes(v);
 
 type ApprovalType = 'supervisor' | 'proposal' | 'thesis' | 'examiners' | 'final_grade' | 'template';
@@ -121,7 +122,7 @@ function GradSchoolHeadDashboardContent() {
   // no separate mirrored state — same pattern as app/admin/panel/page.tsx.
   // Tab switching now happens via GradSchoolHeadLayout's sidebar links.
   const paramTab = searchParams.get('tab');
-  const tab: GradSchoolHeadTab = isGradSchoolHeadTab(paramTab) ? paramTab : 'approvals';
+  const tab: GradSchoolHeadTab = isGradSchoolHeadTab(paramTab) ? paramTab : 'overview';
   const [headName, setHeadName] = useState('');
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [processSummaries, setProcessSummaries] = useState<ProcessSummary[]>([]);
@@ -323,7 +324,7 @@ function GradSchoolHeadDashboardContent() {
     <DashboardShell
       title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש בית הספר ללימודי מוסמכים' : 'Graduate School Head'}
       subtitle={lang === 'he' ? 'אישורים, תקועים ועומס בוחנים' : 'Approvals, stuck students, and examiner load'}
-      showBackButton={tab !== 'approvals'}
+      showBackButton={tab !== 'overview'}
     >
       <div className="mb-5">
         <CreateOwnProjectButton onCreated={fetchDashboard} />
@@ -616,6 +617,8 @@ function GradSchoolHeadDashboardContent() {
           ))}
           {approvedFinalGrades.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'}</p>}
         </div>
+      ) : tab === 'students' ? (
+        <StudentsListTab />
       ) : (
         <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }} />
       )}

@@ -35,6 +35,7 @@ import {
 } from '@/components/modals';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import ManagedStaffSection from '@/components/ManagedStaffSection';
+import StudentsListSection from '@/components/StudentsListSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
@@ -58,8 +59,8 @@ export default function PanelScreen() {
   // Lets a notification's "Go to dashboard" deep-link land on a specific tab
   // (?tab=...) instead of always opening on Overview — same convention the
   // web dashboard already supports.
-  type FacultyAdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'deadlines' | 'staff' | 'signoffs';
-  const FACULTY_ADMIN_TABS: FacultyAdminTab[] = ['overview', 'users', 'projects', 'milestones', 'deadlines', 'staff', 'signoffs'];
+  type FacultyAdminTab = 'overview' | 'users' | 'projects' | 'milestones' | 'deadlines' | 'staff' | 'signoffs' | 'students';
+  const FACULTY_ADMIN_TABS: FacultyAdminTab[] = ['overview', 'users', 'projects', 'milestones', 'deadlines', 'staff', 'signoffs', 'students'];
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useState<FacultyAdminTab>(
     FACULTY_ADMIN_TABS.includes(tabParam as FacultyAdminTab) ? (tabParam as FacultyAdminTab) : 'overview'
@@ -404,6 +405,9 @@ export default function PanelScreen() {
       <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('signoffs')} accessibilityRole="button">
         <Text style={localStyles.tabLabel}>{lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}</Text>
       </Pressable>
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('students')} accessibilityRole="button">
+        <Text style={localStyles.tabLabel}>🎓 {lang === 'he' ? 'רשימת סטודנטים' : 'Students List'}</Text>
+      </Pressable>
       <Pressable
         style={localStyles.tabBar}
         onPress={() => {
@@ -504,6 +508,8 @@ export default function PanelScreen() {
           )
         ) : activeTab === 'signoffs' ? (
           <PendingSignoffsWidget lang={lang} showEmptyState />
+        ) : activeTab === 'students' ? (
+          <StudentsListSection lang={lang} isRtl={isRtl} />
         ) : (
           /* USERS */
           users.map((u) => (
