@@ -10,21 +10,44 @@
 // bar that filters that list client-side as you type, and an inline
 // grade-average field per row.
 //
+// Live-synced, not fetch-once: the roster is a Firestore onSnapshot listener
+// (same established pattern as hooks/useStudentData.ts's proposals/milestones
+// listeners), not a one-shot apiClient call. firestore.rules already lets any
+// signed-in user read `users` docs directly (see mobile/firestore.rules's
+// "allow read: if isSignedIn()" on /users/{userId} — the actual write stays
+// server-only, see below), so this needs no new rule. The practical effect:
+// the instant either role's grade-average write commits on the server, EVERY
+// open viewer's list updates itself within the same snapshot round-trip — no
+// manual refresh, and the other grader typically never even sees a student
+// who was just graded a moment ago.
+//
 // One-time by business rule: the instant a student's average is saved, they
 // leave this list for good (server/src/services/studentTrack.ts's
 // setThesisEligibilityFromAverage never lets a second average overwrite the
-// first). Two staff members entering the same student's grade at nearly the
-// same moment is handled server-side via a Firestore transaction — the
-// loser of that race gets back a 409/ALREADY_GRADED response instead of
-// silently clobbering the winner's value, which this component turns into a
-// plain-language notice instead of a thrown error, and removes the row same
-// as a successful save would.
+// first). Writing thesisEligibility itself is NOT done from this listener —
+// firestore.rules only allows self-service profile-field updates and one
+// unrelated isActive toggle from the client, everything else (including this
+// field) must go through the server, so saves still call
+// apiClient.setStudentThesisAverage exactly as before. The live listener
+// mostly prevents the race described below from ever being seen; the
+// server-side transaction remains the actual correctness guarantee for the
+// split-second case where two saves land before either listener update does:
+// the loser gets a 409/ALREADY_GRADED response instead of silently
+// clobbering the winner's value, which this component turns into a
+// plain-language notice instead of a thrown error.
 
 import { useEffect, useMemo, useState } from 'react';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 
-type StudentRecord = Awaited<ReturnType<typeof apiClient.getStudentsList>>['students'][number];
+interface UngradedStudent {
+  id: string;
+  displayName: string;
+  email: string;
+  studentId: string;
+}
 
 function errorText(err: unknown, lang: 'he' | 'en', fallback: string): string {
   if (err instanceof ApiError) {
@@ -37,7 +60,7 @@ function errorText(err: unknown, lang: 'he' | 'en', fallback: string): string {
 
 export function UngradedCsMastersTab() {
   const { lang } = useLanguage();
-  const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [students, setStudents] = useState<UngradedStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
@@ -46,37 +69,53 @@ export function UngradedCsMastersTab() {
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<{ text: string; tone: 'conflict' | 'success' } | null>(null);
 
-  const load = () => {
+  // The one hard-coded scope rule for this tab: computer_science + masters
+  // (the only coordinator_gated program today), live from Firestore rather
+  // than a point-in-time fetch. "Without an average" is applied client-side
+  // below rather than as a fourth where() clause, since Firestore can't
+  // query "field is null or missing" directly.
+  useEffect(() => {
     setLoading(true);
     setLoadError('');
-    apiClient
-      .getStudentsList()
-      .then((res) => setStudents(res.students ?? []))
-      .catch((err) => setLoadError(errorText(err, lang, lang === 'he' ? 'טעינת רשימת הסטודנטים נכשלה' : 'Failed to load students list')))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // The one hard-coded scope rule for this tab: computer_science + masters
-  // (the only coordinator_gated program today) and never-yet-graded. Every
-  // other major/degree a viewer's account can otherwise see via
-  // getStudentsList is deliberately excluded here — "nothing else".
-  const ungraded = useMemo(
-    () => students.filter((s) => s.major === 'computer_science' && s.degreeType === 'masters' && s.thesisEligibility?.average == null),
-    [students]
-  );
+    const q = query(
+      collection(db, 'users'),
+      where('role', '==', 'student'),
+      where('major', '==', 'computer_science'),
+      where('degreeType', '==', 'masters')
+    );
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const rows = snapshot.docs
+          .filter((d) => d.data().thesisEligibility?.average == null)
+          .map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              displayName: data.displayName ?? '',
+              email: data.email ?? '',
+              studentId: data.studentId ?? '',
+            };
+          });
+        setStudents(rows);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Ungraded CS-masters students snapshot error:', err);
+        setLoadError(lang === 'he' ? 'טעינת רשימת הסטודנטים נכשלה' : 'Failed to load students list');
+        setLoading(false);
+      }
+    );
+    return () => unsub();
+  }, [lang]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return ungraded;
-    return ungraded.filter(
+    if (!q) return students;
+    return students.filter(
       (s) => s.displayName.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || s.studentId.toLowerCase().includes(q)
     );
-  }, [ungraded, search]);
+  }, [students, search]);
 
   const handleSave = async (studentId: string) => {
     const raw = averageInputs[studentId] ?? '';
@@ -93,15 +132,17 @@ export function UngradedCsMastersTab() {
     setSavingId(studentId);
     try {
       await apiClient.setStudentThesisAverage(studentId, parsed);
+      // The live listener above will also drop this row once the write
+      // propagates, but that's typically one round-trip later than this —
+      // remove it immediately too so the person who just saved isn't left
+      // looking at their own now-stale row for a beat.
       setStudents((prev) => prev.filter((s) => s.id !== studentId));
       setNotice({ text: lang === 'he' ? 'הממוצע נשמר בהצלחה.' : 'Average saved successfully.', tone: 'success' });
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        // Someone else (the other role that can grade this same student)
-        // already entered an average for them, most likely moments ago —
-        // not a bug, just the two-grader race this tab is built to expect.
-        // Surface it plainly and drop the row instead of leaving a dead
-        // "Save" button pointed at a student who's no longer gradable.
+        // The other grader's write landed first, in the split-second window
+        // before this tab's live listener had a chance to drop the row on
+        // its own — not a bug, just the two-grader race this tab expects.
         setNotice({ text: errorText(err, lang, lang === 'he' ? 'סטודנט/ית זה כבר צוין/ה' : 'This student was already graded'), tone: 'conflict' });
         setStudents((prev) => prev.filter((s) => s.id !== studentId));
       } else {
@@ -135,14 +176,7 @@ export function UngradedCsMastersTab() {
           placeholder={lang === 'he' ? 'חפש סטודנט...' : 'Search students...'}
           className="w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
         />
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="rounded-lg border border-line bg-surface px-3 py-2 text-xs font-medium text-ink hover:border-primary disabled:opacity-60"
-        >
-          🔄 {lang === 'he' ? 'רענן' : 'Refresh'}
-        </button>
+        <span className="text-xs text-muted">🟢 {lang === 'he' ? 'מסונכרן בזמן אמת' : 'Live-synced'}</span>
       </div>
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
