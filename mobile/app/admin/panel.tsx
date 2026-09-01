@@ -20,9 +20,9 @@ import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userIm
 import { pickAndImportStudentRoster, listStudentRoster, updateStudentRosterEntry, deleteStudentRosterEntry, type RosterEntry } from '@/src/api/studentRoster';
 import { auth } from '../../src/firebase/firebase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import type { Lang, AppRole } from '../../components/i18n';
+import { facultyLabel, type Lang, type AppRole, type FacultyId } from '../../components/i18n';
 import { CROSS_FACULTY_ROLES } from '../../firebase/roles';
-import type { ScopeRule, CoordinatorScope } from '../../constants/permissions';
+import { staffFacultyMajorLabel, type ScopeRule, type CoordinatorScope } from '../../constants/permissions';
 import type { RoleFacultyField } from '../../constants/roleFacultyPicker';
 import { getProgramByKey } from '../../constants/faculties';
 import { VALID_ROLES, isStaff } from '../../firebase/roles';
@@ -1541,10 +1541,17 @@ export default function PanelScreen() {
                   </View>
 
                   <View style={styles.userBottom}>
-                    <View style={[styles.roleBadge, { backgroundColor: rc.bg }]}>
-                      <Text style={[styles.roleBadgeText, { color: rc.text }]}>
-                        {ROLE_LABELS[u.role as AppRole]?.[lang] ?? u.role}
-                      </Text>
+                    <View style={{ alignItems: 'flex-start' }}>
+                      <View style={[styles.roleBadge, { backgroundColor: rc.bg }]}>
+                        <Text style={[styles.roleBadgeText, { color: rc.text }]}>
+                          {ROLE_LABELS[u.role as AppRole]?.[lang] ?? u.role}
+                        </Text>
+                      </View>
+                      {u.role !== 'student' && u.role !== 'system_admin' && (
+                        <Text style={{ marginTop: 2, marginStart: 4, fontSize: 11, color: '#64748B' }}>
+                          {staffFacultyMajorLabel(u.facultyId, u.assignedMajors, lang, (id) => facultyLabel(id as FacultyId, lang))}
+                        </Text>
+                      )}
                     </View>
 
                     {/* Student Primary/Secondary status badge — students

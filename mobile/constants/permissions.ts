@@ -160,6 +160,25 @@ export function majorsForFaculty(facultyId: string): { slug: string; label: { he
   return out;
 }
 
+/** "Faculty, Major, Major" display line for a staff member — the faculty/
+ *  department name plus, for a supervisor/secondary_supervisor restricted to
+ *  specific majors (assignedMajors), each of those majors' names, comma-
+ *  separated. assignedMajors empty/unset (unrestricted, or a role that has no
+ *  such concept) means the line is just the faculty name. */
+export function staffFacultyMajorLabel(
+  facultyId: string,
+  assignedMajors: string[] | undefined,
+  lang: 'he' | 'en',
+  facultyLabelFn: (facultyId: string) => string
+): string {
+  const parts = [facultyLabelFn(facultyId)];
+  for (const slug of assignedMajors ?? []) {
+    const match = majorsForFaculty(facultyId).find((m) => m.slug === slug);
+    parts.push(match?.label[lang] ?? slug);
+  }
+  return parts.join(', ');
+}
+
 /** The scope-relevant fields of a resource (e.g. a workflow template) being
  *  checked against a user's ScopeRule grants. Client-side mirror of
  *  server/src/services/scopeAuthorization.ts's ResourceScope/scopeMatches/

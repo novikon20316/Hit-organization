@@ -10,7 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
 import { auth } from '@/lib/firebase';
 import { getFacultyColor, getRoleAccent, withAlpha } from '@/lib/facultyColors';
-import { roleLabel, type AppRole } from '@/lib/i18n';
+import { roleLabel, facultyLabel, type AppRole, type FacultyId } from '@/lib/i18n';
+import { staffFacultyMajorLabel } from '@/lib/permissions';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { setActiveImpersonation, clearActiveImpersonation } from '@/lib/impersonation';
 import type { AdminUserRecord, StudentStatusConfig } from './types';
@@ -37,6 +38,15 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
   // Status badges are student-only, and only shown once actually set —
   // omit entirely rather than showing an empty/placeholder badge.
   const isStudent = user.role === 'student' || (user.roles ?? []).includes('student');
+  // Every staff role but system_admin (cross-faculty by nature) has a real
+  // faculty, and a supervisor/secondary_supervisor may additionally be
+  // restricted to specific majors within it — surface both under the role
+  // badge so an admin managing many supervisors across majors can tell them
+  // apart at a glance.
+  const isSystemAdmin = user.role === 'system_admin' || (user.roles ?? []).includes('system_admin');
+  const facultyMajorLine = !isStudent && !isSystemAdmin
+    ? staffFacultyMajorLabel(user.facultyId, user.assignedMajors, lang, (id) => facultyLabel(id as FacultyId, lang))
+    : null;
   const primaryStatusOption = isStudent && user.primaryStatus ? statusConfig.primary.find((o) => o.key === user.primaryStatus) : undefined;
   const secondaryStatusOption = isStudent && user.secondaryStatus ? statusConfig.secondary.find((o) => o.key === user.secondaryStatus) : undefined;
 
@@ -177,12 +187,17 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span
-          className="rounded-full px-2.5 py-1 text-xs font-medium"
-          style={{ backgroundColor: withAlpha(roleColor, 0.12), color: roleColor }}
-        >
-          {roleLabel(user.role as AppRole, lang)}
-        </span>
+        <div className="flex flex-col items-start gap-0.5">
+          <span
+            className="rounded-full px-2.5 py-1 text-xs font-medium"
+            style={{ backgroundColor: withAlpha(roleColor, 0.12), color: roleColor }}
+          >
+            {roleLabel(user.role as AppRole, lang)}
+          </span>
+          {facultyMajorLine && (
+            <span className="px-2.5 text-[11px] text-admin-on-surface-variant">{facultyMajorLine}</span>
+          )}
+        </div>
         <span
           className="rounded-full px-2.5 py-1 text-xs font-medium"
           style={

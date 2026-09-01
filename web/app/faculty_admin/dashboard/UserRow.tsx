@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getRoleAccent, withAlpha } from '@/lib/facultyColors';
-import { roleLabel, type AppRole } from '@/lib/i18n';
+import { roleLabel, facultyLabel, type AppRole, type FacultyId } from '@/lib/i18n';
+import { staffFacultyMajorLabel } from '@/lib/permissions';
 import type { FacultyAdminUserRecord, StudentStatusConfig } from './types';
 
 interface UserRowProps {
@@ -26,6 +27,15 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
   const isStudent = user.role === 'student' || (user.roles ?? []).includes('student');
   const primaryStatusOption = isStudent && user.primaryStatus ? statusConfig.primary.find((o) => o.key === user.primaryStatus) : undefined;
   const secondaryStatusOption = isStudent && user.secondaryStatus ? statusConfig.secondary.find((o) => o.key === user.secondaryStatus) : undefined;
+
+  // Every staff role but system_admin has a real faculty, and a supervisor/
+  // secondary_supervisor may additionally be restricted to specific majors
+  // within it — surface both under the role badge (see permissions.ts's
+  // staffFacultyMajorLabel).
+  const isSystemAdmin = user.role === 'system_admin' || (user.roles ?? []).includes('system_admin');
+  const facultyMajorLine = !isStudent && !isSystemAdmin
+    ? staffFacultyMajorLabel(user.facultyId, user.assignedMajors, lang, (id) => facultyLabel(id as FacultyId, lang))
+    : null;
 
   const handleToggle = async () => {
     setToggling(true);
@@ -63,9 +73,12 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
       </div>
 
       <div className="mt-3 flex items-center justify-between">
-        <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: withAlpha(roleColor, 0.12), color: roleColor }}>
-          {roleLabel(user.role as AppRole, lang)}
-        </span>
+        <div className="flex flex-col items-start gap-0.5">
+          <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: withAlpha(roleColor, 0.12), color: roleColor }}>
+            {roleLabel(user.role as AppRole, lang)}
+          </span>
+          {facultyMajorLine && <span className="px-2.5 text-[11px] text-muted">{facultyMajorLine}</span>}
+        </div>
         <button type="button" onClick={() => onEdit(user)} className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary">
           ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
         </button>

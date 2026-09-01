@@ -10,6 +10,10 @@ export interface FacultyAdminUserRecord {
   facultyId: FacultyId;
   isActive: boolean;
   hasActiveProject?: boolean;
+  /** Restricts a supervisor/secondary_supervisor to specific majors within
+   *  their faculty. Empty/unset means unrestricted (all majors in their
+   *  faculty) — see server/src/controllers/adminController.ts. */
+  assignedMajors?: string[];
   /** Admin-manageable Primary/Secondary status keys — only meaningful when
    *  role === 'student'. Resolve to display labels via a fetched
    *  StudentStatusConfig (see server/src/services/studentStatuses.ts). */

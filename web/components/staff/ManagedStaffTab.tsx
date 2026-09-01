@@ -16,7 +16,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { roleLabel, facultyLabel } from '@/lib/i18n';
 import type { AppRole, FacultyId } from '@/lib/roles';
-import type { ActionType } from '@/lib/permissions';
+import { staffFacultyMajorLabel, type ActionType } from '@/lib/permissions';
 import { NewUserModal } from '@/app/admin/panel/NewUserModal';
 import { EditUserModal } from '@/app/admin/panel/EditUserModal';
 import type { AdminUserRecord } from '@/app/admin/panel/types';
@@ -116,11 +116,15 @@ export function ManagedStaffTab({ staff, onRefresh, scope }: ManagedStaffTabProp
               </span>
             </div>
 
-            <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted">
-              <span className="rounded-full bg-paper px-2 py-0.5">{roleLabel(u.role, lang)}</span>
-              {!scope.lockedFacultyId && (
-                <span className="rounded-full bg-paper px-2 py-0.5">{facultyLabel(u.facultyId as FacultyId, lang)}</span>
-              )}
+            <div className="mt-2 flex flex-wrap items-start gap-1.5 text-xs text-muted">
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="rounded-full bg-paper px-2 py-0.5">{roleLabel(u.role, lang)}</span>
+                {u.role !== 'system_admin' && (
+                  <span className="px-2 text-[11px]">
+                    {staffFacultyMajorLabel(u.facultyId, u.assignedMajors, lang, (id) => facultyLabel(id as FacultyId, lang))}
+                  </span>
+                )}
+              </div>
               {!!u.permissionRules?.length && (
                 <span className="rounded-full bg-paper px-2 py-0.5">
                   🔐 {u.permissionRules.length} {lang === 'he' ? 'הרשאות' : 'grants'}

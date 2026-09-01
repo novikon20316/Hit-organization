@@ -17,10 +17,11 @@ import { View, Text, TextInput, Pressable, ScrollView, Switch, Alert } from 'rea
 import { apiClient } from '../src/api/apiClient';
 import { ROLE_LABELS } from '../constants';
 import { FACULTY_COLORS } from './shared';
+import { facultyLabel, type FacultyId } from './i18n';
 import { adminPanelStyles } from '../constants/styles';
 import NewUserModal from './modals/NewUserModal';
 import EditUserModal from './modals/EditUserModal';
-import type { ScopeRule, CoordinatorScope, ActionType } from '../constants/permissions';
+import { staffFacultyMajorLabel, type ScopeRule, type CoordinatorScope, type ActionType } from '../constants/permissions';
 
 export interface ManagedStaffScope {
   selectableRoles: string[];
@@ -208,6 +209,11 @@ export default function ManagedStaffSection({ staff, onRefresh, scope, lang, isR
               <Switch value={u.isActive} onValueChange={() => handleToggleActive(u)} disabled={togglingId === u.id} />
             </View>
             <Text style={s.projectMeta}>{(ROLE_LABELS as Record<string, { he: string; en: string }>)[u.role]?.[lang] ?? u.role}</Text>
+            {u.role !== 'system_admin' && (
+              <Text style={[s.projectMeta, { marginTop: 0 }]}>
+                {staffFacultyMajorLabel(u.facultyId, u.assignedMajors, lang, (id) => facultyLabel(id as FacultyId, lang))}
+              </Text>
+            )}
             <Pressable style={[s.submitBtn, { marginTop: 10 }]} onPress={() => openEdit(u)} accessibilityRole="button">
               <Text style={s.submitBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
             </Pressable>
