@@ -253,7 +253,10 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
             const isExpanded = expandedSupervisorId === s.supervisorId;
             return (
               <View key={s.supervisorId} style={{ marginTop: 8, borderWidth: 1, borderColor: '#E5EAF5', borderRadius: 12, padding: 14, backgroundColor: '#fff' }}>
-                <Pressable onPress={() => setExpandedSupervisorId(isExpanded ? null : s.supervisorId)}>
+                <Pressable
+                  onPress={() => setExpandedSupervisorId(isExpanded ? null : s.supervisorId)}
+                  accessibilityRole="button"
+                >
                   <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <View>
                       <Text style={{ fontSize: 14, fontWeight: '600' }}>👨‍🏫 {s.supervisorName}</Text>
@@ -286,6 +289,7 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
                             <Pressable
                               onPress={() => (supervisorSelectionRequiresApproval ? openApply(p) : setJoinTarget(p))}
                               style={{ marginTop: 8, backgroundColor: '#2E86FF', borderRadius: 8, paddingVertical: 8, alignItems: 'center' }}
+                              accessibilityRole="button"
                             >
                               <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
                                 {supervisorSelectionRequiresApproval
@@ -312,7 +316,11 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
             <ScrollView>
               <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 16, fontWeight: '700' }}>{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</Text>
-                <Pressable onPress={() => setApplyTarget(null)}><Text style={{ fontSize: 16 }}>✕</Text></Pressable>
+                <Pressable
+                  onPress={() => setApplyTarget(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+                ><Text style={{ fontSize: 16 }}>✕</Text></Pressable>
               </View>
               {applyTarget && <Text style={{ marginTop: 4, fontSize: 13, color: '#8899BB' }}>{lang === 'he' ? applyTarget.titleHe : applyTarget.titleEn}</Text>}
 
@@ -321,7 +329,13 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
                   <Text style={{ fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{lang === 'he' ? 'מסלול *' : 'Track *'}</Text>
                   <View style={{ flexDirection: 'row', gap: 12 }}>
                     {applyTarget.projectTypes.map((tp) => (
-                      <Pressable key={tp} onPress={() => setSelectedProjectType(tp as 'project' | 'thesis')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Pressable
+                        key={tp}
+                        onPress={() => setSelectedProjectType(tp as 'project' | 'thesis')}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selectedProjectType === tp }}
+                      >
                         <Text>{selectedProjectType === tp ? '◉' : '○'}</Text>
                         <Text>{projectTypeLabel(tp)}</Text>
                       </Pressable>
@@ -339,12 +353,20 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
                 style={{ borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 10, padding: 10, fontSize: 13, textAlignVertical: 'top' }}
               />
 
-              <Pressable onPress={() => pickFile('transcript')} style={{ marginTop: 12, borderWidth: 1, borderColor: '#D0DEFF', borderStyle: 'dashed', borderRadius: 10, padding: 12 }}>
+              <Pressable
+                onPress={() => pickFile('transcript')}
+                style={{ marginTop: 12, borderWidth: 1, borderColor: '#D0DEFF', borderStyle: 'dashed', borderRadius: 10, padding: 12 }}
+                accessibilityRole="button"
+              >
                 <Text style={{ fontSize: 13 }}>
                   {transcriptUri ? `✓ ${transcriptName}` : lastTranscriptUrl ? `✓ ${lang === 'he' ? 'נעשה שימוש בקובץ אחרון' : 'Using last file'}` : `📄 ${lang === 'he' ? 'גיליון ציונים *' : 'Transcript *'}`}
                 </Text>
               </Pressable>
-              <Pressable onPress={() => pickFile('cv')} style={{ marginTop: 8, borderWidth: 1, borderColor: '#D0DEFF', borderStyle: 'dashed', borderRadius: 10, padding: 12 }}>
+              <Pressable
+                onPress={() => pickFile('cv')}
+                style={{ marginTop: 8, borderWidth: 1, borderColor: '#D0DEFF', borderStyle: 'dashed', borderRadius: 10, padding: 12 }}
+                accessibilityRole="button"
+              >
                 <Text style={{ fontSize: 13 }}>
                   {cvUri ? `✓ ${cvName}` : lastCvUrl ? `✓ ${lang === 'he' ? 'נעשה שימוש בקובץ אחרון' : 'Using last file'}` : `📄 ${lang === 'he' ? 'קורות חיים *' : 'CV *'}`}
                 </Text>
@@ -356,6 +378,8 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
                 onPress={handleApply}
                 disabled={submitting}
                 style={{ marginTop: 16, backgroundColor: '#2E86FF', borderRadius: 10, paddingVertical: 12, alignItems: 'center', opacity: submitting ? 0.6 : 1 }}
+                accessibilityRole="button"
+                accessibilityLabel={tx('submit', lang)}
               >
                 {submitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{tx('submit', lang)}</Text>}
               </Pressable>
@@ -376,13 +400,19 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
             )}
             {joinError && <Text style={{ marginTop: 8, fontSize: 13, color: '#EF4444' }}>{joinError}</Text>}
             <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <Pressable onPress={() => setJoinTarget(null)} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+              <Pressable
+                onPress={() => setJoinTarget(null)}
+                style={{ paddingVertical: 8, paddingHorizontal: 14 }}
+                accessibilityRole="button"
+              >
                 <Text>{tx('cancel', lang)}</Text>
               </Pressable>
               <Pressable
                 onPress={handleJoinDirect}
                 disabled={joining}
                 style={{ backgroundColor: '#2E86FF', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, opacity: joining ? 0.6 : 1 }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'הצטרף/י' : 'Join'}
               >
                 {joining ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{lang === 'he' ? 'הצטרף/י' : 'Join'}</Text>}
               </Pressable>

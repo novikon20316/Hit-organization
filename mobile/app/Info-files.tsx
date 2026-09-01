@@ -412,7 +412,7 @@ export default function InfoFilesAdmin() {
             placeholderTextColor="#9BA8C0"
           />
 
-          <Pressable style={styles.pickBtn} onPress={handlePickFile}>
+          <Pressable style={styles.pickBtn} onPress={handlePickFile} accessibilityRole="button">
             <Text style={styles.pickBtnText}>
               {pickedFile ? `✓ ${pickedFile.name}` : `📄 ${lang === 'he' ? 'בחר קובץ' : 'Pick a file'}`}
             </Text>
@@ -437,6 +437,8 @@ export default function InfoFilesAdmin() {
                     key={id}
                     style={[styles.chip, active && styles.chipActive]}
                     onPress={() => toggleFaculty(id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
                   >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>
                       {FACULTY_COLORS[id]?.label[lang] ?? id}
@@ -457,6 +459,8 @@ export default function InfoFilesAdmin() {
                     key={m.slug}
                     style={[styles.chip, active && styles.chipActive]}
                     onPress={() => toggleIn(scopeMajors, m.slug, setScopeMajors)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
                   >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>{m.label[lang]}</Text>
                   </Pressable>
@@ -475,6 +479,8 @@ export default function InfoFilesAdmin() {
                     key={d}
                     style={[styles.chip, active && styles.chipActive]}
                     onPress={() => toggleIn(scopeDegreeTypes, d, setScopeDegreeTypes)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
                   >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>
                       {d === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
@@ -489,6 +495,7 @@ export default function InfoFilesAdmin() {
             style={[styles.uploadBtn, uploading && { opacity: 0.6 }]}
             onPress={handleUpload}
             disabled={uploading}
+            accessibilityRole="button"
           >
             {uploading
               ? <ActivityIndicator color="#fff" />
@@ -511,6 +518,7 @@ export default function InfoFilesAdmin() {
             <View key={f.id} style={[styles.fileRow, isRtl && styles.rowReverse]}>
               <Pressable style={{ flex: 1, flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}
                 onPress={() => Linking.openURL(f.fileUrl)}
+                accessibilityRole="link"
               >
                 <Text style={{ fontSize: 18, marginRight: isRtl ? 0 : 10, marginLeft: isRtl ? 10 : 0 }}>📄</Text>
                 <View style={{ flex: 1 }}>
@@ -523,7 +531,12 @@ export default function InfoFilesAdmin() {
               <View style={[styles.scopeBadge, isRtl && styles.scopeBadgeRtl]}>
                 <Text style={styles.scopeBadgeText}>{scopeSummary(f, lang)}</Text>
               </View>
-              <Pressable onPress={() => handleDelete(f)} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+              <Pressable
+                onPress={() => handleDelete(f)}
+                style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'מחק קובץ' : 'Delete file'}
+              >
                 {deletingId === f.id
                   ? <ActivityIndicator size="small" color="#EF4444" />
                   : <Text style={{ color: '#EF4444', fontWeight: '700' }}>✕</Text>
@@ -547,6 +560,8 @@ export default function InfoFilesAdmin() {
                   key={v}
                   style={[styles.chip, active && styles.chipActive]}
                   onPress={() => setContentType(v)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
                 >
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>
                     {v === 'announcement' ? (lang === 'he' ? '📣 הודעה' : '📣 Announcement') : (lang === 'he' ? '📘 נוהל' : '📘 Procedure')}
@@ -584,7 +599,13 @@ export default function InfoFilesAdmin() {
               {SELECTABLE_FACULTIES.map((id) => {
                 const active = contentScopeFacultyIds.includes(id);
                 return (
-                  <Pressable key={id} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleContentFaculty(id)}>
+                  <Pressable
+                    key={id}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleContentFaculty(id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>{FACULTY_COLORS[id]?.label[lang] ?? id}</Text>
                   </Pressable>
                 );
@@ -596,7 +617,13 @@ export default function InfoFilesAdmin() {
               {contentAvailableMajors.map((m) => {
                 const active = contentScopeMajors.includes(m.slug);
                 return (
-                  <Pressable key={m.slug} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleIn(contentScopeMajors, m.slug, setContentScopeMajors)}>
+                  <Pressable
+                    key={m.slug}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleIn(contentScopeMajors, m.slug, setContentScopeMajors)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>{m.label[lang]}</Text>
                   </Pressable>
                 );
@@ -608,7 +635,13 @@ export default function InfoFilesAdmin() {
               {contentAvailableDegreeTypes.map((d) => {
                 const active = contentScopeDegreeTypes.includes(d);
                 return (
-                  <Pressable key={d} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleIn(contentScopeDegreeTypes, d, setContentScopeDegreeTypes)}>
+                  <Pressable
+                    key={d}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleIn(contentScopeDegreeTypes, d, setContentScopeDegreeTypes)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>
                       {d === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
                     </Text>
@@ -618,7 +651,7 @@ export default function InfoFilesAdmin() {
             </View>
           </View>
 
-          <Pressable style={[styles.uploadBtn, posting && { opacity: 0.6 }]} onPress={handlePostContent} disabled={posting}>
+          <Pressable style={[styles.uploadBtn, posting && { opacity: 0.6 }]} onPress={handlePostContent} disabled={posting} accessibilityRole="button">
             {posting ? <ActivityIndicator color="#fff" /> : <Text style={styles.uploadBtnText}>{lang === 'he' ? 'פרסם' : 'Post'}</Text>}
           </Pressable>
         </View>
@@ -642,7 +675,12 @@ export default function InfoFilesAdmin() {
                   {lang === 'he' ? (c.bodyHe || c.bodyEn) : (c.bodyEn || c.bodyHe)}
                 </Text>
               </View>
-              <Pressable onPress={() => handleDeleteContent(c)} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+              <Pressable
+                onPress={() => handleDeleteContent(c)}
+                style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'מחק תוכן' : 'Delete content'}
+              >
                 {deletingContentId === c.id
                   ? <ActivityIndicator size="small" color="#EF4444" />
                   : <Text style={{ color: '#EF4444', fontWeight: '700' }}>✕</Text>

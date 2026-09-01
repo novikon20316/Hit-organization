@@ -100,7 +100,13 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
           <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E293B' }}>
             {lang === 'he' ? 'הערכת מנחה' : 'Supervisor Evaluation'}
           </Text>
-          <Pressable onPress={onClose}><Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text></Pressable>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+          >
+            <Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text>
+          </Pressable>
         </View>
 
         <View style={{ marginTop: 16, gap: 14 }}>
@@ -146,6 +152,7 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
         <Pressable
           onPress={pickFile}
           style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+          accessibilityRole="button"
         >
           <Text style={{ fontSize: 13, color: file ? '#1E293B' : '#94A3B8' }}>
             {file ? `📄 ${file.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
@@ -158,6 +165,7 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
           onPress={handleSubmit}
           disabled={submitting}
           style={{ marginTop: 16, borderRadius: 10, backgroundColor: '#7C3AED', paddingVertical: 12, alignItems: 'center', opacity: submitting ? 0.6 : 1 }}
+          accessibilityRole="button"
         >
           {submitting
             ? <ActivityIndicator color="#fff" />

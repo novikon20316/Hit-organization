@@ -138,12 +138,14 @@ export default function ProjectPage() {
                 }
                 style={styles.input}
                 multiline
+                accessibilityLabel="Write your submission"
               />
 
               <Pressable
                 style={styles.button}
                 onPress={() => submitMilestone(m.id)}
                 disabled={submitting === m.id}
+                accessibilityRole="button"
               >
                 <Text style={styles.buttonText}>
                   {submitting === m.id ? 'Submitting...' : 'Submit'}

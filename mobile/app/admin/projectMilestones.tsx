@@ -135,6 +135,7 @@ export default function ProjectMilestonesScreen() {
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/admin/panel' as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: spacing.xs }}
+          accessibilityRole="button"
         >
           <Text style={{ fontSize: 14, fontWeight: '600', color: p.primary }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה לפאנל הניהול' : 'Back to admin panel'}

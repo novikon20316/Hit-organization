@@ -111,6 +111,8 @@ export default function AddStudentToProjectModal({
               setProject(null);
               setStudentSearch('');
             }}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
           >
             <Text style={styles.close}>✕</Text>
           </Pressable>
@@ -133,7 +135,11 @@ export default function AddStudentToProjectModal({
           />
 
           {studentSearch.length > 0 && (
-            <Pressable onPress={() => setStudentSearch('')}>
+            <Pressable
+              onPress={() => setStudentSearch('')}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'נקה חיפוש' : 'Clear search'}
+            >
               <Text style={{ color: '#9BA8C0', fontSize: 16 }}>✕</Text>
             </Pressable>
           )}
@@ -150,6 +156,7 @@ export default function AddStudentToProjectModal({
                 style={styles.studentPickerCard}
                 onPress={() => onAddStudent(u)}
                 disabled={addingStudent}
+                accessibilityRole="button"
               >
                 <View
                   style={[

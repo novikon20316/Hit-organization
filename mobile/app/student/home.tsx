@@ -128,6 +128,8 @@ export default function StudentHome() {
                   key={ap.project.id}
                   style={[tempStyles.switcherPill, i === selectedProjectIndex && tempStyles.switcherPillActive]}
                   onPress={() => setSelectedProjectIndex(i)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: i === selectedProjectIndex }}
                 >
                   <Text
                     style={[tempStyles.switcherText, i === selectedProjectIndex && tempStyles.switcherTextActive]}

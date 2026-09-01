@@ -115,7 +115,14 @@ export default function FeedbackChat({ lang }: { lang: Lang }) {
           placeholderTextColor="#9CA3AF"
           multiline
         />
-        <Pressable style={[s.sendBtn, sending && s.sendBtnDisabled]} onPress={handleSend} disabled={sending}>
+        <Pressable
+          style={[s.sendBtn, sending && s.sendBtnDisabled]}
+          onPress={handleSend}
+          disabled={sending}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'he' ? 'שלח הודעה' : 'Send message'}
+          accessibilityState={{ disabled: sending }}
+        >
           {sending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.sendBtnText}>➤</Text>}
         </Pressable>
       </View>

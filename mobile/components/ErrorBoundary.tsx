@@ -76,6 +76,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <Pressable
             onPress={this.handleCopyDetails}
             style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#1a1a2e', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28, marginBottom: 12 }}
+            accessibilityRole="button"
           >
             <Text style={{ color: '#1a1a2e', fontWeight: '600' }}>Copy details</Text>
           </Pressable>
@@ -83,6 +84,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <Pressable
             onPress={this.handleRetry}
             style={{ backgroundColor: '#1a1a2e', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 }}
+            accessibilityRole="button"
           >
             <Text style={{ color: '#fff', fontWeight: '600' }}>Try again</Text>
           </Pressable>

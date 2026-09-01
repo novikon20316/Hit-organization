@@ -154,7 +154,11 @@ export default function SubmitMilestoneModal({
               ? (MILESTONE_LABEL[milestone.type]?.he ?? milestone.type)
               : (MILESTONE_LABEL[milestone.type]?.en ?? milestone.type)}
           </Text>
-          <Pressable onPress={onClose}>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+          >
             <Text style={styles.modalClose}>✕</Text>
           </Pressable>
         </View>
@@ -169,12 +173,16 @@ export default function SubmitMilestoneModal({
             {files.map((f, i) => (
               <View key={i} style={styles.fileRow}>
                 <Text style={styles.fileName}>📎 {f.name}</Text>
-                <Pressable onPress={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}>
+                <Pressable
+                  onPress={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                  accessibilityRole="button"
+                  accessibilityLabel={lang === 'he' ? `הסר קובץ ${f.name}` : `Remove file ${f.name}`}
+                >
                   <Text style={styles.fileRemove}>✕</Text>
                 </Pressable>
               </View>
             ))}
-            <Pressable style={styles.uploadBtn} onPress={pickFile}>
+            <Pressable style={styles.uploadBtn} onPress={pickFile} accessibilityRole="button">
               <Text style={styles.uploadBtnText}>
                 + {lang === 'he' ? 'הוסף קובץ' : 'Add File'}
               </Text>
@@ -221,6 +229,7 @@ export default function SubmitMilestoneModal({
           style={[styles.submitBtn, (submitting || !canSubmitMilestone) && { opacity: 0.6 }]}
           onPress={handleSubmit}
           disabled={submitting || !canSubmitMilestone}
+          accessibilityRole="button"
         >
           {submitting
             ? <ActivityIndicator color="#fff" />

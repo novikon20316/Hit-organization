@@ -86,7 +86,12 @@ export default function DeleteAccountModal({ visible, onClose, lang, onRequested
           <Text style={s.title}>
             {lang === 'he' ? '🗑️ מחיקת חשבון' : '🗑️ Delete Account'}
           </Text>
-          <Pressable onPress={handleClose} style={s.closeBtn}>
+          <Pressable
+            onPress={handleClose}
+            style={s.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+          >
             <Text style={s.closeText}>✕</Text>
           </Pressable>
         </View>
@@ -118,6 +123,7 @@ export default function DeleteAccountModal({ visible, onClose, lang, onRequested
             style={[s.confirmBtn, (busy || !password) && s.btnDisabled]}
             onPress={handleConfirm}
             disabled={busy || !password}
+            accessibilityRole="button"
           >
             {busy
               ? <ActivityIndicator color="#fff" />
@@ -127,7 +133,7 @@ export default function DeleteAccountModal({ visible, onClose, lang, onRequested
             }
           </Pressable>
 
-          <Pressable style={s.cancelBtn} onPress={handleClose} disabled={busy}>
+          <Pressable style={s.cancelBtn} onPress={handleClose} disabled={busy} accessibilityRole="button">
             <Text style={s.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
         </View>

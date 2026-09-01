@@ -129,7 +129,12 @@ export default function ChangePasswordScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.langRow}>
-        <Pressable style={styles.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+        <Pressable
+          style={styles.langBtn}
+          onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+        >
           <Text style={styles.langBtnText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
         </Pressable>
       </View>
@@ -144,6 +149,7 @@ export default function ChangePasswordScreen() {
         value={newPassword}
         onChangeText={setNewPassword}
         autoFocus
+        accessibilityLabel={t.newPass}
       />
       <Text style={[styles.subtitle, isRtl && styles.textRight]}>{t.rules}</Text>
 
@@ -153,6 +159,7 @@ export default function ChangePasswordScreen() {
         secureTextEntry
         value={confirmPassword}
         onChangeText={setConfirmPassword}
+        accessibilityLabel={t.confirmPass}
       />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -161,6 +168,7 @@ export default function ChangePasswordScreen() {
         style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleSubmit}
         disabled={loading}
+        accessibilityRole="button"
       >
         {loading
           ? <ActivityIndicator color="#fff" />
@@ -168,7 +176,7 @@ export default function ChangePasswordScreen() {
         }
       </TouchableOpacity>
 
-      <Pressable onPress={handleSignOut} disabled={signingOut}>
+      <Pressable onPress={handleSignOut} disabled={signingOut} accessibilityRole="button">
         {signingOut
           ? <ActivityIndicator color="#2E86FF" />
           : <Text style={styles.backLink}>{t.signOut}</Text>

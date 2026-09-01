@@ -202,6 +202,7 @@ function MilestoneCard({
       <Pressable
         style={[mc.card, expanded && mc.cardExpanded, isCompleted && mc.cardCompleted]}
         onPress={() => setExpanded(!expanded)}
+        accessibilityRole="button"
       >
         {/* Header */}
         <View style={[mc.cardHeader, isRtl && mc.rowReverse]}>
@@ -334,7 +335,7 @@ function MilestoneCard({
 
             {/* Student: submit */}
             {viewerRole === 'student' && milestone.status === 'pending' && !isDefense && (
-              <Pressable style={mc.actionBtn} onPress={() => onStudentSubmit?.(milestone)}>
+              <Pressable style={mc.actionBtn} onPress={() => onStudentSubmit?.(milestone)} accessibilityRole="button">
                 <Text style={mc.actionBtnText}>
                   📤 {lang === 'he' ? 'הגש עכשיו' : 'Submit Now'}
                 </Text>
@@ -343,7 +344,7 @@ function MilestoneCard({
 
             {/* Supervisor: grade */}
             {viewerRole === 'supervisor' && milestone.status === 'submitted' && (
-              <Pressable style={[mc.actionBtn, mc.actionBtnGreen]} onPress={() => onSupervisorGrade?.(milestone)}>
+              <Pressable style={[mc.actionBtn, mc.actionBtnGreen]} onPress={() => onSupervisorGrade?.(milestone)} accessibilityRole="button">
                 <Text style={mc.actionBtnText}>
                   ✏️ {lang === 'he' ? 'תן ציון' : 'Grade Submission'}
                 </Text>
@@ -353,7 +354,7 @@ function MilestoneCard({
             {/* Coordinator: approve */}
             {(viewerRole === 'coordinator' || viewerRole === 'faculty_admin' || viewerRole === 'system_admin')
               && milestone.status === 'supervisor_graded' && (
-              <Pressable style={[mc.actionBtn, mc.actionBtnPurple]} onPress={() => onCoordinatorApprove?.(milestone)}>
+              <Pressable style={[mc.actionBtn, mc.actionBtnPurple]} onPress={() => onCoordinatorApprove?.(milestone)} accessibilityRole="button">
                 <Text style={mc.actionBtnText}>
                   ✅ {lang === 'he' ? 'אשר ציון' : 'Approve Grade'}
                 </Text>
@@ -363,7 +364,7 @@ function MilestoneCard({
             {/* Coordinator: schedule defense */}
             {(viewerRole === 'coordinator' || viewerRole === 'faculty_admin' || viewerRole === 'system_admin')
               && isDefense && milestone.status === 'coordinator_approved' && !milestone.defenseDate && (
-              <Pressable style={[mc.actionBtn, mc.actionBtnOrange]} onPress={() => onScheduleDefense?.(milestone)}>
+              <Pressable style={[mc.actionBtn, mc.actionBtnOrange]} onPress={() => onScheduleDefense?.(milestone)} accessibilityRole="button">
                 <Text style={mc.actionBtnText}>
                   📅 {lang === 'he' ? 'תאם מועד הגנה' : 'Schedule Defense'}
                 </Text>
@@ -372,7 +373,7 @@ function MilestoneCard({
 
             {/* Examiner: grade defense */}
             {viewerRole === 'examiner' && isDefense && milestone.status === 'coordinator_approved' && (
-              <Pressable style={[mc.actionBtn, mc.actionBtnPurple]} onPress={() => onExaminerGrade?.(milestone)}>
+              <Pressable style={[mc.actionBtn, mc.actionBtnPurple]} onPress={() => onExaminerGrade?.(milestone)} accessibilityRole="button">
                 <Text style={mc.actionBtnText}>
                   ✏️ {lang === 'he' ? 'מלא טופס ציון הגנה' : 'Fill Defense Grade Form'}
                 </Text>
@@ -440,7 +441,7 @@ function MilestoneCard({
               textAlign={isRtl ? 'right' : 'left'}
             />
             <View style={mc.modalBtns}>
-              <Pressable style={mc.modalCancelBtn} onPress={() => setShowDatePicker(false)}>
+              <Pressable style={mc.modalCancelBtn} onPress={() => setShowDatePicker(false)} accessibilityRole="button">
                 <Text style={mc.modalCancelText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
               </Pressable>
               <Pressable
@@ -451,6 +452,8 @@ function MilestoneCard({
                   }
                 }}
                 disabled={savingDate}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'שמור' : 'Save'}
               >
                 {savingDate
                   ? <ActivityIndicator color="#fff" size="small" />

@@ -132,7 +132,7 @@ export default function StudentStatusesModal({ visible, onClose, lang }: Props) 
     <View style={s.section}>
       <View style={rs.sectionHeaderRow}>
         <Text style={s.sectionLabel}>{title}</Text>
-        <Pressable style={rs.addBtn} onPress={() => addRow(section)}>
+        <Pressable style={rs.addBtn} onPress={() => addRow(section)} accessibilityRole="button">
           <Text style={rs.addBtnText}>＋ {isHe ? 'הוסף' : 'Add'}</Text>
         </Pressable>
       </View>
@@ -162,7 +162,12 @@ export default function StudentStatusesModal({ visible, onClose, lang }: Props) 
               placeholderTextColor="#94A3B8"
             />
           </View>
-          <Pressable style={rs.deleteBtn} onPress={() => removeRow(section, row.localId)}>
+          <Pressable
+            style={rs.deleteBtn}
+            onPress={() => removeRow(section, row.localId)}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? 'מחק שורה' : 'Remove row'}
+          >
             <Text>🗑️</Text>
           </Pressable>
         </View>
@@ -190,7 +195,12 @@ export default function StudentStatusesModal({ visible, onClose, lang }: Props) 
                 </Text>
               </View>
             </View>
-            <Pressable style={s.closeBtn} onPress={onClose}>
+            <Pressable
+              style={s.closeBtn}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? 'סגור' : 'Close'}
+            >
               <Text style={s.closeBtnText}>✕</Text>
             </Pressable>
           </View>
@@ -213,13 +223,14 @@ export default function StudentStatusesModal({ visible, onClose, lang }: Props) 
               style={[s.saveBtn, saving && s.saveBtnDisabled]}
               onPress={handleSave}
               disabled={saving || loading}
+              accessibilityRole="button"
             >
               {saving
                 ? <ActivityIndicator color="#fff" size="small" />
                 : <Text style={s.saveBtnText}>{isHe ? '💾 שמור' : '💾 Save'}</Text>
               }
             </Pressable>
-            <Pressable style={s.cancelBtn} onPress={onClose}>
+            <Pressable style={s.cancelBtn} onPress={onClose} accessibilityRole="button">
               <Text style={s.cancelBtnText}>{isHe ? 'ביטול' : 'Cancel'}</Text>
             </Pressable>
           </View>

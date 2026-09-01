@@ -198,7 +198,11 @@ export default function EditUserModal({
             <Text style={styles.modalTitle}>
               {lang === "he" ? "עריכת משתמש" : "Edit User"}
             </Text>
-            <Pressable onPress={() => setVisible(false)}>
+            <Pressable
+              onPress={() => setVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel={lang === "he" ? "סגור" : "Close"}
+            >
               <Text style={styles.close}>✕</Text>
             </Pressable>
           </View>
@@ -224,6 +228,8 @@ export default function EditUserModal({
                   // Keep primary in roles array, remove old primary
                   setRoles([r, ...roles.filter((x) => x !== role && x !== r)]);
                 }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isActive }}
               >
                 <View style={[editStyles.roleDot, { backgroundColor: accent.text }]} />
                 <Text style={[styles.roleOptionText, isActive && { color: accent.text }]}>
@@ -239,7 +245,7 @@ export default function EditUserModal({
               {lang === "he" ? "תפקידים נוספים" : "Additional Roles"}
             </Text>
             {additionalRoles.length > 0 && (
-              <Pressable onPress={() => setRoles([role])}>
+              <Pressable onPress={() => setRoles([role])} accessibilityRole="button">
                 <Text style={editStyles.clearAllText}>
                   {lang === "he" ? "נקה הכל" : "Clear all"}
                 </Text>
@@ -263,6 +269,8 @@ export default function EditUserModal({
                   key={r}
                   style={[editStyles.additionalRoleBtn, isActive && editStyles.additionalRoleBtnActive]}
                   onPress={() => toggleAdditionalRole(r)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isActive }}
                 >
                   <View style={[editStyles.checkbox, isActive && editStyles.checkboxActive]}>
                     {isActive && <Text style={editStyles.checkmark}>✓</Text>}
@@ -306,6 +314,8 @@ export default function EditUserModal({
                     key={fid}
                     style={[styles.facultyOption, faculty === fid && styles.facultyOptionActive]}
                     onPress={() => { setFaculty(fid); setAssignedMajors?.([]); }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: faculty === fid }}
                   >
                     <View style={[styles.facultyDot, { backgroundColor: fc.primary }]} />
                     <Text>{fc.label[lang]}</Text>
@@ -338,6 +348,8 @@ export default function EditUserModal({
                           : [...assignedMajors!, m.slug]
                       )
                     }
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
                   >
                     <View style={[editStyles.checkbox, isSelected && editStyles.checkboxActive]}>
                       {isSelected && <Text style={editStyles.checkmark}>✓</Text>}
@@ -393,6 +405,8 @@ export default function EditUserModal({
                             [field]: isSelected ? ids.filter((f) => f !== fid) : [...ids, fid],
                           })
                         }
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: isSelected }}
                       >
                         <View style={[editStyles.checkbox, isSelected && editStyles.checkboxActive]}>
                           {isSelected && <Text style={editStyles.checkmark}>✓</Text>}
@@ -461,6 +475,7 @@ export default function EditUserModal({
             <Pressable
               style={[editStyles.additionalRoleBtn, { marginTop: 16, justifyContent: 'space-between' }]}
               onPress={() => setPermissionsModalVisible(true)}
+              accessibilityRole="button"
             >
               <Text style={editStyles.additionalRoleText}>
                 🔐 {lang === "he" ? "הרשאות מפורטות" : "Granular Permissions"}
@@ -480,6 +495,7 @@ export default function EditUserModal({
             <Pressable
               style={[editStyles.additionalRoleBtn, { marginTop: 12, justifyContent: 'space-between' }]}
               onPress={() => setScopesModalVisible(true)}
+              accessibilityRole="button"
             >
               <Text style={editStyles.additionalRoleText}>
                 📋{' '}
@@ -496,7 +512,7 @@ export default function EditUserModal({
           )}
 
           {/* ── Save ── */}
-          <Pressable style={[styles.submitBtn, { marginTop: 24 }]} onPress={onSave}>
+          <Pressable style={[styles.submitBtn, { marginTop: 24 }]} onPress={onSave} accessibilityRole="button">
             {saving
               ? <ActivityIndicator color="#fff" />
               : <Text style={styles.submitBtnText}>

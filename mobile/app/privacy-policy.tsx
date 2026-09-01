@@ -122,10 +122,10 @@ export default function PrivacyPolicyScreen() {
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <View style={[s.topRow, isRtl && s.rowReverse]}>
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}>
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))} accessibilityRole="button">
             <Text style={s.backText}>{isRtl ? '→ חזרה' : '← Back'}</Text>
           </Pressable>
-          <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+          <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')} accessibilityRole="button">
             <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
         </View>

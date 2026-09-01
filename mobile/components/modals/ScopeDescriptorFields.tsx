@@ -47,6 +47,8 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
                 processType: degreeLevel === 'masters' ? scope.processType : undefined,
               });
             }}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: isActive }}
           >
             <View style={[s.checkbox, isActive && s.checkboxActive]}>
               {isActive && <Text style={s.checkmark}>✓</Text>}
@@ -61,7 +63,12 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
       {scope.facultyId !== 'all' && (
         <>
           <Text style={[s.degreeLabel, { marginTop: 16 }]}>{lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}</Text>
-          <Pressable style={s.permRow} onPress={() => onChange({ major: undefined })}>
+          <Pressable
+            style={s.permRow}
+            onPress={() => onChange({ major: undefined })}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: !scope.major }}
+          >
             <View style={[s.checkbox, !scope.major && s.checkboxActive]}>
               {!scope.major && <Text style={s.checkmark}>✓</Text>}
             </View>
@@ -70,7 +77,13 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
           {majors.map((m) => {
             const isActive = scope.major === m.slug;
             return (
-              <Pressable key={m.slug} style={s.permRow} onPress={() => onChange({ major: m.slug })}>
+              <Pressable
+                key={m.slug}
+                style={s.permRow}
+                onPress={() => onChange({ major: m.slug })}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isActive }}
+              >
                 <View style={[s.checkbox, isActive && s.checkboxActive]}>
                   {isActive && <Text style={s.checkmark}>✓</Text>}
                 </View>
@@ -83,7 +96,12 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
 
       {/* Degree level */}
       <Text style={[s.degreeLabel, { marginTop: 16 }]}>{lang === 'he' ? 'תואר (אופציונלי)' : 'Degree Level (optional)'}</Text>
-      <Pressable style={s.permRow} onPress={() => onChange({ degreeLevel: undefined, processType: undefined })}>
+      <Pressable
+        style={s.permRow}
+        onPress={() => onChange({ degreeLevel: undefined, processType: undefined })}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: !scope.degreeLevel }}
+      >
         <View style={[s.checkbox, !scope.degreeLevel && s.checkboxActive]}>
           {!scope.degreeLevel && <Text style={s.checkmark}>✓</Text>}
         </View>
@@ -99,6 +117,8 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
               degreeLevel: d.key,
               processType: d.key === 'masters' ? scope.processType : undefined,
             })}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: isActive }}
           >
             <View style={[s.checkbox, isActive && s.checkboxActive]}>
               {isActive && <Text style={s.checkmark}>✓</Text>}
@@ -112,7 +132,12 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
       {scope.degreeLevel === 'masters' && (
         <>
           <Text style={[s.degreeLabel, { marginTop: 16 }]}>{lang === 'he' ? 'מסלול (אופציונלי)' : 'Process Type (optional)'}</Text>
-          <Pressable style={s.permRow} onPress={() => onChange({ processType: undefined })}>
+          <Pressable
+            style={s.permRow}
+            onPress={() => onChange({ processType: undefined })}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: !scope.processType }}
+          >
             <View style={[s.checkbox, !scope.processType && s.checkboxActive]}>
               {!scope.processType && <Text style={s.checkmark}>✓</Text>}
             </View>
@@ -121,7 +146,13 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
           {PROCESS_TYPES.map((p) => {
             const isActive = scope.processType === p.key;
             return (
-              <Pressable key={p.key} style={s.permRow} onPress={() => onChange({ processType: p.key })}>
+              <Pressable
+                key={p.key}
+                style={s.permRow}
+                onPress={() => onChange({ processType: p.key })}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isActive }}
+              >
                 <View style={[s.checkbox, isActive && s.checkboxActive]}>
                   {isActive && <Text style={s.checkmark}>✓</Text>}
                 </View>

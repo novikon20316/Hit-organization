@@ -150,6 +150,8 @@ export default function LoginSecurityScreen() {
           style={[styles.button, styles.yesButton, actionBusy && styles.buttonDisabled]}
           onPress={() => respond('owner')}
           disabled={actionBusy}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: actionBusy }}
         >
           <Text style={styles.buttonText}>{L('כן, זה הייתי אני', 'Yes, that was me')}</Text>
         </Pressable>
@@ -158,6 +160,8 @@ export default function LoginSecurityScreen() {
           style={[styles.button, styles.noButton, actionBusy && styles.buttonDisabled]}
           onPress={() => respond('attacker')}
           disabled={actionBusy}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: actionBusy }}
         >
           <Text style={styles.buttonText}>{L('לא, זה לא הייתי אני', "No, that wasn't me")}</Text>
         </Pressable>

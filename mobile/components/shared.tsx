@@ -202,12 +202,17 @@ function SecurityModal({ visible, onClose, lang }: {
         {/* Header */}
         <View style={sm.header}>
           {screen === 'setup' && (
-            <Pressable onPress={() => setScreen('status')} style={sm.backBtn}>
+            <Pressable onPress={() => setScreen('status')} style={sm.backBtn} accessibilityRole="button">
               <Text style={sm.backText}>{txt.back}</Text>
             </Pressable>
           )}
           <Text style={sm.title}>{txt.title}</Text>
-          <Pressable onPress={onClose} style={sm.closeBtn}>
+          <Pressable
+            onPress={onClose}
+            style={sm.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel={txt.close}
+          >
             <Text style={sm.closeText}>✕</Text>
           </Pressable>
         </View>
@@ -239,6 +244,7 @@ function SecurityModal({ visible, onClose, lang }: {
                 style={[sm.primaryBtn, busy && sm.btnDisabled]}
                 onPress={handleStartSetup}
                 disabled={busy}
+                accessibilityRole="button"
               >
                 {busy
                   ? <ActivityIndicator color="#fff" />
@@ -267,6 +273,7 @@ function SecurityModal({ visible, onClose, lang }: {
               <Pressable
                 style={sm.openAuthBtn}
                 onPress={() => Linking.openURL(otpauthUrl)}
+                accessibilityRole="button"
               >
                 <Text style={sm.openAuthText}>
                   {lang === 'he' ? '📱 פתח ב-Google Authenticator' : '📱 Open in Google Authenticator'}
@@ -293,6 +300,7 @@ function SecurityModal({ visible, onClose, lang }: {
               style={[sm.primaryBtn, (busy || token.length !== 6) && sm.btnDisabled]}
               onPress={handleConfirmSetup}
               disabled={busy || token.length !== 6}
+              accessibilityRole="button"
             >
               {busy
                 ? <ActivityIndicator color="#fff" />
@@ -385,6 +393,7 @@ export function TopBar({
             style={[tb.backBtn, { marginLeft: isRtl ? 10 : 0, marginRight: isRtl ? 0 : 10 }]}
             onPress={() => (router.canGoBack() ? router.back() : undefined)}
             accessibilityLabel={lang === 'he' ? 'חזרה' : 'Go back'}
+            accessibilityRole="button"
           >
             <Text style={tb.backBtnText}>{isRtl ? '→' : '←'}</Text>
           </Pressable>
@@ -410,6 +419,8 @@ export function TopBar({
             style={[tb.iconBtn, { position: 'relative' }]}
             onPress={() => router.push('/(tabs)/notifications')}
             accessibilityLabel={lang === 'he' ? 'התראות' : 'Notifications'}
+            accessibilityRole="button"
+            hitSlop={{ top: 9, bottom: 9, left: 9, right: 9 }}
           >
             <Text style={tb.iconBtnText}>🔔</Text>
             {!!unreadCount && unreadCount > 0 && (
@@ -418,7 +429,12 @@ export function TopBar({
               </View>
             )}
           </Pressable>
-          <Pressable style={tb.langBtn} onPress={onToggleLang}>
+          <Pressable
+            style={tb.langBtn}
+            onPress={onToggleLang}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+          >
             <Text style={tb.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
           <HeaderMenu items={menuItems} isRtl={isRtl} />

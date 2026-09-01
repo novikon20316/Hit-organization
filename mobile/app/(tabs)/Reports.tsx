@@ -180,6 +180,8 @@ function FilterPillRow({
             backgroundColor: value === opt ? '#2E86FF' : '#fff',
             borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6,
           }}
+          accessibilityRole="button"
+          accessibilityState={{ selected: value === opt }}
         >
           <Text style={{ color: value === opt ? '#fff' : '#2E86FF', fontWeight: '600', fontSize: 12 }}>
             {labelFor(opt)}
@@ -329,6 +331,8 @@ export default function Reports() {
               borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
             }}
             onPress={() => setActiveReport(r.key)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activeReport === r.key }}
           >
             <Text style={{ color: activeReport === r.key ? '#fff' : '#2E86FF', fontWeight: '600', fontSize: 13 }}>
               {lang === 'he' ? r.he : r.en}
@@ -345,6 +349,7 @@ export default function Reports() {
           onChangeText={setStartYear}
           keyboardType="numeric"
           placeholder={lang === 'he' ? 'שנת התחלה' : 'Start year'}
+          accessibilityLabel={lang === 'he' ? 'שנת התחלה' : 'Start year'}
         />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={{ fontSize: 13, color: '#445' }}>{lang === 'he' ? 'חריגה בלבד' : 'Overdue only'}</Text>
@@ -352,7 +357,12 @@ export default function Reports() {
         </View>
       </View>
 
-      <Pressable onPress={() => setShowMoreFilters(v => !v)} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      <Pressable
+        onPress={() => setShowMoreFilters(v => !v)}
+        style={{ paddingHorizontal: 16, paddingTop: 8 }}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: showMoreFilters }}
+      >
         <Text style={{ fontSize: 12, fontWeight: '600', color: '#2E86FF' }}>
           {showMoreFilters ? (lang === 'he' ? '▲ פחות מסננים' : '▲ Fewer filters') : (lang === 'he' ? '▼ עוד מסננים' : '▼ More filters')}
         </Text>
@@ -385,6 +395,7 @@ export default function Reports() {
             value={advisorId}
             onChangeText={setAdvisorId}
             placeholder={lang === 'he' ? 'מזהה מנחה' : 'Advisor ID'}
+            accessibilityLabel={lang === 'he' ? 'מזהה מנחה' : 'Advisor ID'}
           />
         </View>
       )}
@@ -394,6 +405,7 @@ export default function Reports() {
         style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 10, alignItems: 'center', opacity: exporting ? 0.6 : 1 }}
         onPress={handleExport}
         disabled={exporting}
+        accessibilityRole="button"
       >
         {exporting
           ? <ActivityIndicator color="#fff" />

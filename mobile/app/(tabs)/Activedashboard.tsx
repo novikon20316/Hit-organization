@@ -258,6 +258,8 @@ export default function ActiveDashboard({
             key={tab.key}
             style={[styles.tab, activeTab === tab.key && ov.tabActive]}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activeTab === tab.key }}
           >
             <Text style={[styles.tabText, activeTab === tab.key && ov.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.labelHe : tab.labelEn}
@@ -362,7 +364,7 @@ export default function ActiveDashboard({
               </Text>
               <View style={[ov.quickActionsRow, isRtl && styles.rowReverse]}>
                 {actionableNextMilestone && (
-                  <Pressable style={ov.primaryActionBtn} onPress={() => openSubmit(actionableNextMilestone)}>
+                  <Pressable style={ov.primaryActionBtn} onPress={() => openSubmit(actionableNextMilestone)} accessibilityRole="button">
                     <Text style={ov.primaryActionBtnText}>📤 {tx('submitMilestone', lang)}</Text>
                   </Pressable>
                 )}
@@ -371,6 +373,7 @@ export default function ActiveDashboard({
                     style={[ov.secondaryActionBtn, downloadingTemplate && { opacity: 0.6 }]}
                     onPress={handleDownloadThesisTemplate}
                     disabled={downloadingTemplate}
+                    accessibilityRole="button"
                   >
                     {downloadingTemplate
                       ? <ActivityIndicator color={studentPalette.secondary} size="small" />
@@ -504,6 +507,8 @@ export default function ActiveDashboard({
                   // actually something new to show underneath it.
                   onPress={canExpand ? () => handleExpandGrade(m.id) : undefined}
                   disabled={!canExpand}
+                  accessibilityRole={canExpand ? 'button' : undefined}
+                  accessibilityState={canExpand ? { expanded: isExpanded } : undefined}
                 >
                   {/* ── Card header ── */}
                   <View style={[styles.gradeCardHeader, !isRtl && styles.rowReverse]}>

@@ -321,6 +321,7 @@ export default function FacultyTemplateManager() {
             key={tab.key}
             style={[s.tab, activeTab === tab.key && s.tabActive]}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="button"
           >
             <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.he : tab.en}
@@ -338,7 +339,7 @@ export default function FacultyTemplateManager() {
         {activeTab === 'templates' && (
           <>
             {/* New template button */}
-            <Pressable style={s.newBtn} onPress={openNewTemplate}>
+            <Pressable style={s.newBtn} onPress={openNewTemplate} accessibilityRole="button">
               <Text style={s.newBtnText}>
                 ＋ {lang === 'he' ? 'תבנית חדשה' : 'New Template'}
               </Text>
@@ -366,10 +367,20 @@ export default function FacultyTemplateManager() {
                       </Text>
                     </View>
                     <View style={s.tplActions}>
-                      <Pressable style={s.editBtn} onPress={() => openEditTemplate(tpl)}>
+                      <Pressable
+                        style={s.editBtn}
+                        onPress={() => openEditTemplate(tpl)}
+                        accessibilityRole="button"
+                        accessibilityLabel={lang === 'he' ? 'עריכת תבנית' : 'Edit template'}
+                      >
                         <Text style={s.editBtnText}>✏️</Text>
                       </Pressable>
-                      <Pressable style={s.deleteBtn} onPress={() => handleDelete(tpl)}>
+                      <Pressable
+                        style={s.deleteBtn}
+                        onPress={() => handleDelete(tpl)}
+                        accessibilityRole="button"
+                        accessibilityLabel={lang === 'he' ? 'מחיקת תבנית' : 'Delete template'}
+                      >
                         <Text style={s.deleteBtnText}>🗑️</Text>
                       </Pressable>
                     </View>
@@ -446,6 +457,7 @@ export default function FacultyTemplateManager() {
                         style={s.approveBtn}
                         onPress={() => handleApproveProposal(tpl)}
                         disabled={saving}
+                        accessibilityRole="button"
                       >
                         <Text style={s.approveBtnText}>
                           ✅ {lang === 'he' ? 'אשר' : 'Approve'}
@@ -455,6 +467,7 @@ export default function FacultyTemplateManager() {
                         style={s.rejectBtn}
                         onPress={() => openRejectModal(tpl)}
                         disabled={saving}
+                        accessibilityRole="button"
                       >
                         <Text style={s.rejectBtnText}>
                           ❌ {lang === 'he' ? 'דחה' : 'Reject'}
@@ -480,7 +493,11 @@ export default function FacultyTemplateManager() {
                 ? (lang === 'he' ? '✏️ עריכת תבנית' : '✏️ Edit Template')
                 : (lang === 'he' ? '➕ תבנית חדשה'  : '➕ New Template')}
             </Text>
-            <Pressable onPress={() => setEditorOpen(false)}>
+            <Pressable
+              onPress={() => setEditorOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+            >
               <Text style={s.modalClose}>✕</Text>
             </Pressable>
           </View>
@@ -494,6 +511,8 @@ export default function FacultyTemplateManager() {
                   key={d.key}
                   style={[s.degreeChip, tplDegree === d.key && s.degreeChipActive]}
                   onPress={() => setTplDegree(d.key)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: tplDegree === d.key }}
                 >
                   <Text style={[s.degreeChipText, tplDegree === d.key && s.degreeChipTextActive]}>
                     {lang === 'he' ? d.he : d.en}
@@ -510,6 +529,8 @@ export default function FacultyTemplateManager() {
                   key={t.key}
                   style={[s.degreeChip, tplType === t.key && s.degreeChipActive]}
                   onPress={() => setTplType(t.key)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: tplType === t.key }}
                 >
                   <Text style={[s.degreeChipText, tplType === t.key && s.degreeChipTextActive]}>
                     {lang === 'he' ? t.he : t.en}
@@ -573,6 +594,8 @@ export default function FacultyTemplateManager() {
               style={[s.saveBtn, saving && { opacity: 0.6 }]}
               onPress={handleSaveTemplate}
               disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'שמור תבנית' : 'Save Template'}
             >
               {saving
                 ? <ActivityIndicator color="#fff" />
@@ -581,7 +604,7 @@ export default function FacultyTemplateManager() {
                   </Text>}
             </Pressable>
 
-            <Pressable style={s.cancelBtn} onPress={() => setEditorOpen(false)}>
+            <Pressable style={s.cancelBtn} onPress={() => setEditorOpen(false)} accessibilityRole="button">
               <Text style={s.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
             </Pressable>
           </ScrollView>
@@ -595,7 +618,11 @@ export default function FacultyTemplateManager() {
             <Text style={s.modalTitle}>
               {lang === 'he' ? '❌ דחיית הצעה' : '❌ Reject Proposal'}
             </Text>
-            <Pressable onPress={() => setRejectModalOpen(false)}>
+            <Pressable
+              onPress={() => setRejectModalOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+            >
               <Text style={s.modalClose}>✕</Text>
             </Pressable>
           </View>
@@ -617,6 +644,8 @@ export default function FacultyTemplateManager() {
               style={[s.saveBtn, { backgroundColor: '#EF4444' }, saving && { opacity: 0.6 }]}
               onPress={handleRejectProposal}
               disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
             >
               {saving
                 ? <ActivityIndicator color="#fff" />
@@ -625,7 +654,7 @@ export default function FacultyTemplateManager() {
                   </Text>}
             </Pressable>
 
-            <Pressable style={s.cancelBtn} onPress={() => setRejectModalOpen(false)}>
+            <Pressable style={s.cancelBtn} onPress={() => setRejectModalOpen(false)} accessibilityRole="button">
               <Text style={s.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
             </Pressable>
           </ScrollView>

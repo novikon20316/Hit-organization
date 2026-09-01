@@ -147,20 +147,43 @@ function ChainEditor({
                 <Text style={{ fontSize: 10, fontWeight: '700', color: '#7C3AED' }}>{idx + 1}</Text>
               </View>
               <View style={{ flex: 1 }} />
-              <Pressable onPress={() => moveStage(idx, -1)} disabled={idx === 0} style={{ padding: 4, opacity: idx === 0 ? 0.3 : 1 }}>
+              <Pressable
+                onPress={() => moveStage(idx, -1)}
+                disabled={idx === 0}
+                style={{ padding: 4, opacity: idx === 0 ? 0.3 : 1 }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'הזז למעלה' : 'Move up'}
+              >
                 <Text>▲</Text>
               </Pressable>
-              <Pressable onPress={() => moveStage(idx, 1)} disabled={idx === stages.length - 1} style={{ padding: 4, opacity: idx === stages.length - 1 ? 0.3 : 1 }}>
+              <Pressable
+                onPress={() => moveStage(idx, 1)}
+                disabled={idx === stages.length - 1}
+                style={{ padding: 4, opacity: idx === stages.length - 1 ? 0.3 : 1 }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'הזז למטה' : 'Move down'}
+              >
                 <Text>▼</Text>
               </Pressable>
-              <Pressable onPress={() => removeStage(idx)} style={{ padding: 4 }}>
+              <Pressable
+                onPress={() => removeStage(idx)}
+                style={{ padding: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'הסר שלב' : 'Remove stage'}
+              >
                 <Text>🗑️</Text>
               </Pressable>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
               {CHAIN_ROLES.map((r) => (
-                <Pressable key={r.key} onPress={() => updateStage(idx, { role: r.key })} style={chip(stage.role === r.key)}>
+                <Pressable
+                  key={r.key}
+                  onPress={() => updateStage(idx, { role: r.key })}
+                  style={chip(stage.role === r.key)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: stage.role === r.key }}
+                >
                   <Text style={chipText(stage.role === r.key)}>{lang === 'he' ? r.he : r.en}</Text>
                 </Pressable>
               ))}
@@ -172,6 +195,8 @@ function ChainEditor({
                   key={a}
                   onPress={() => updateStage(idx, { action: a })}
                   style={{ flex: 1, borderWidth: 1.5, borderColor: stage.action === a ? '#7C3AED' : '#DDD6FE', backgroundColor: stage.action === a ? '#7C3AED' : '#fff', borderRadius: 8, paddingVertical: 6, alignItems: 'center' }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: stage.action === a }}
                 >
                   <Text style={chipText(stage.action === a)}>
                     {a === 'grade' ? (lang === 'he' ? 'מדרג' : 'Grades') : (lang === 'he' ? 'מאשר' : 'Approves')}
@@ -184,11 +209,22 @@ function ChainEditor({
               {lang === 'he' ? 'אם נדחה, יעבור אל:' : 'If rejected, goes to:'}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <Pressable onPress={() => updateStage(idx, { rejectTo: 'student' })} style={chip(stage.rejectTo === 'student')}>
+              <Pressable
+                onPress={() => updateStage(idx, { rejectTo: 'student' })}
+                style={chip(stage.rejectTo === 'student')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: stage.rejectTo === 'student' }}
+              >
                 <Text style={chipText(stage.rejectTo === 'student')}>{lang === 'he' ? 'הסטודנט' : 'Student'}</Text>
               </Pressable>
               {stages.map((s, i) => (
-                <Pressable key={s.id} onPress={() => updateStage(idx, { rejectTo: s.id })} style={chip(stage.rejectTo === s.id)}>
+                <Pressable
+                  key={s.id}
+                  onPress={() => updateStage(idx, { rejectTo: s.id })}
+                  style={chip(stage.rejectTo === s.id)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: stage.rejectTo === s.id }}
+                >
                   <Text style={chipText(stage.rejectTo === s.id)}>
                     {chainRoleLabel(s.role, lang)}{i === idx ? (lang === 'he' ? ' (לשלב זה)' : ' (this stage)') : ''}
                   </Text>
@@ -212,7 +248,13 @@ function ChainEditor({
                   </Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     {committees.map((c) => (
-                      <Pressable key={c.id} onPress={() => updateStage(idx, { committeeId: c.id })} style={chip(stage.committeeId === c.id)}>
+                      <Pressable
+                        key={c.id}
+                        onPress={() => updateStage(idx, { committeeId: c.id })}
+                        style={chip(stage.committeeId === c.id)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: stage.committeeId === c.id }}
+                      >
                         <Text style={chipText(stage.committeeId === c.id)}>{c.major}</Text>
                       </Pressable>
                     ))}
@@ -223,7 +265,7 @@ function ChainEditor({
           </View>
         );
       })}
-      <Pressable onPress={addStage} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: '#DDD6FE', borderRadius: 8, paddingVertical: 8, alignItems: 'center', marginTop: 8 }}>
+      <Pressable onPress={addStage} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: '#DDD6FE', borderRadius: 8, paddingVertical: 8, alignItems: 'center', marginTop: 8 }} accessibilityRole="button">
         <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151' }}>＋ {lang === 'he' ? 'הוסף שלב' : 'Add Stage'}</Text>
       </Pressable>
     </View>
@@ -303,7 +345,12 @@ function GradingRubricEditor({
               onChangeText={(v) => updateComponent(idx, { labelEn: v })}
               placeholder={lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}
             />
-            <Pressable onPress={() => removeComponent(idx)} style={{ padding: 4 }}>
+            <Pressable
+              onPress={() => removeComponent(idx)}
+              style={{ padding: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'הסר מרכיב' : 'Remove component'}
+            >
               <Text>🗑️</Text>
             </Pressable>
           </View>
@@ -341,6 +388,7 @@ function GradingRubricEditor({
       <Pressable
         onPress={() => setComponents((prev) => [...prev, emptyGradingComponent()])}
         style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingVertical: 6, alignItems: 'center', marginTop: 8 }}
+        accessibilityRole="button"
       >
         <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>＋ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
       </Pressable>
@@ -746,12 +794,12 @@ export default function WorkflowTemplateEditor() {
           {lang === 'he' ? '➕ הצעת גרסה חדשה' : '➕ Propose New Version'}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Pressable onPress={handleModeToggle} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EDE9FE' }}>
+          <Pressable onPress={handleModeToggle} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EDE9FE' }} accessibilityRole="button">
             <Text style={{ color: '#5B21B6', fontSize: 12, fontWeight: '700' }}>
               {isReadOnly ? tx('editTemplate', lang) : tx('viewTemplate', lang)}
             </Text>
           </Pressable>
-          <Pressable onPress={handleClose}>
+          <Pressable onPress={handleClose} accessibilityRole="button" accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}>
             <Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text>
           </Pressable>
         </View>
@@ -780,7 +828,7 @@ export default function WorkflowTemplateEditor() {
           <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
             {lang === 'he' ? 'אבני דרך' : 'Milestones'} ({editorMilestones.length})
           </Text>
-          <Pressable style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }} onPress={() => openMilestoneEditor(null)}>
+          <Pressable style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }} onPress={() => openMilestoneEditor(null)} accessibilityRole="button">
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>＋ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
           </Pressable>
         </View>
@@ -803,8 +851,18 @@ export default function WorkflowTemplateEditor() {
               </Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 6 }}>
-              <Pressable onPress={() => openMilestoneEditor(ms)} style={{ padding: 4 }}><Text>✏️</Text></Pressable>
-              <Pressable onPress={() => removeMilestoneRow(ms)} style={{ padding: 4 }}><Text>🗑️</Text></Pressable>
+              <Pressable
+                onPress={() => openMilestoneEditor(ms)}
+                style={{ padding: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'עריכת אבן דרך' : 'Edit milestone'}
+              ><Text>✏️</Text></Pressable>
+              <Pressable
+                onPress={() => removeMilestoneRow(ms)}
+                style={{ padding: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'הסר אבן דרך' : 'Remove milestone'}
+              ><Text>🗑️</Text></Pressable>
             </View>
           </View>
         ))}
@@ -826,6 +884,8 @@ export default function WorkflowTemplateEditor() {
           <Pressable
             onPress={() => setEditorExaminerSignoffRole('none')}
             style={{ borderWidth: 1.5, borderColor: editorExaminerSignoffRole === 'none' ? '#7C3AED' : '#DDD6FE', backgroundColor: editorExaminerSignoffRole === 'none' ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginEnd: 6 }}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: editorExaminerSignoffRole === 'none' }}
           >
             <Text style={{ fontSize: 11, fontWeight: '600', color: editorExaminerSignoffRole === 'none' ? '#fff' : '#7C3AED' }}>
               {lang === 'he' ? 'ללא אישור נוסף' : 'No second sign-off'}
@@ -836,6 +896,8 @@ export default function WorkflowTemplateEditor() {
               key={r.key}
               onPress={() => setEditorExaminerSignoffRole(r.key)}
               style={{ borderWidth: 1.5, borderColor: editorExaminerSignoffRole === r.key ? '#7C3AED' : '#DDD6FE', backgroundColor: editorExaminerSignoffRole === r.key ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginEnd: 6 }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: editorExaminerSignoffRole === r.key }}
             >
               <Text style={{ fontSize: 11, fontWeight: '600', color: editorExaminerSignoffRole === r.key ? '#fff' : '#7C3AED' }}>
                 {lang === 'he' ? r.he : r.en}
@@ -853,6 +915,8 @@ export default function WorkflowTemplateEditor() {
               key={r.key}
               onPress={() => setEditorFinalGradeSignoffRole(r.key)}
               style={{ borderWidth: 1.5, borderColor: editorFinalGradeSignoffRole === r.key ? '#7C3AED' : '#DDD6FE', backgroundColor: editorFinalGradeSignoffRole === r.key ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginEnd: 6 }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: editorFinalGradeSignoffRole === r.key }}
             >
               <Text style={{ fontSize: 11, fontWeight: '600', color: editorFinalGradeSignoffRole === r.key ? '#fff' : '#7C3AED' }}>
                 {lang === 'he' ? r.he : r.en}
@@ -878,6 +942,8 @@ export default function WorkflowTemplateEditor() {
               key={opt.key}
               onPress={() => setEditorFirstStepMode(opt.key)}
               style={{ borderWidth: 1.5, borderColor: editorFirstStepMode === opt.key ? '#7C3AED' : '#DDD6FE', backgroundColor: editorFirstStepMode === opt.key ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: editorFirstStepMode === opt.key }}
             >
               <Text style={{ fontSize: 11, fontWeight: '600', color: editorFirstStepMode === opt.key ? '#fff' : '#7C3AED' }}>
                 {lang === 'he' ? opt.he : opt.en}
@@ -890,6 +956,8 @@ export default function WorkflowTemplateEditor() {
           <Pressable
             onPress={() => setEditorSupervisorSelectionRequiresApproval((v) => !v)}
             style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, padding: 12, marginTop: 8 }}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: editorSupervisorSelectionRequiresApproval }}
           >
             <View style={{
               width: 18, height: 18, borderRadius: 4, borderWidth: 2, marginTop: 2,
@@ -920,6 +988,8 @@ export default function WorkflowTemplateEditor() {
             key={opt.key}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, padding: 12, marginBottom: 8 }}
             onPress={() => handleApplyModeChange(opt.key)}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: editorApplyMode === opt.key }}
           >
             <View style={{
               width: 18, height: 18, borderRadius: 9, borderWidth: 2,
@@ -960,11 +1030,13 @@ export default function WorkflowTemplateEditor() {
             style={[{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 }, saving && { opacity: 0.6 }]}
             onPress={handleSaveProposal}
             disabled={saving}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'שלח לאישור' : 'Submit for Approval'}
           >
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{lang === 'he' ? 'שלח לאישור' : 'Submit for Approval'}</Text>}
           </Pressable>
         )}
-        <Pressable style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 }} onPress={handleClose}>
+        <Pressable style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 }} onPress={handleClose} accessibilityRole="button">
           <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
         </Pressable>
         </View>
@@ -978,7 +1050,11 @@ export default function WorkflowTemplateEditor() {
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F1235' }}>
               {editingMs ? (lang === 'he' ? '✏️ עריכת אבן דרך' : '✏️ Edit Milestone') : (lang === 'he' ? '➕ אבן דרך חדשה' : '➕ New Milestone')}
             </Text>
-            <Pressable onPress={() => setMsModalOpen(false)}><Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text></Pressable>
+            <Pressable
+              onPress={() => setMsModalOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+            ><Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text></Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}</Text>
@@ -990,6 +1066,8 @@ export default function WorkflowTemplateEditor() {
               <Pressable
                 onPress={() => setMsDateMode('offset')}
                 style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msDateMode === 'offset' ? '#7C3AED' : '#DDD6FE', backgroundColor: msDateMode === 'offset' ? '#7C3AED' : '#fff' }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: msDateMode === 'offset' }}
               >
                 <Text style={{ fontSize: 12, fontWeight: '600', color: msDateMode === 'offset' ? '#fff' : '#374151' }}>
                   {lang === 'he' ? 'ימים מתחילת התהליך' : 'Days from start'}
@@ -998,6 +1076,8 @@ export default function WorkflowTemplateEditor() {
               <Pressable
                 onPress={() => setMsDateMode('fixed')}
                 style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msDateMode === 'fixed' ? '#7C3AED' : '#DDD6FE', backgroundColor: msDateMode === 'fixed' ? '#7C3AED' : '#fff' }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: msDateMode === 'fixed' }}
               >
                 <Text style={{ fontSize: 12, fontWeight: '600', color: msDateMode === 'fixed' ? '#fff' : '#374151' }}>
                   {lang === 'he' ? 'תאריך קבוע' : 'Fixed date'}
@@ -1066,6 +1146,8 @@ export default function WorkflowTemplateEditor() {
                   key={opt.key}
                   onPress={() => setMsSubmissionRequirement(opt.key)}
                   style={{ borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1.5, borderColor: msSubmissionRequirement === opt.key ? '#7C3AED' : '#DDD6FE', backgroundColor: msSubmissionRequirement === opt.key ? '#7C3AED' : '#fff' }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: msSubmissionRequirement === opt.key }}
                 >
                   <Text style={{ fontSize: 12, fontWeight: '600', color: msSubmissionRequirement === opt.key ? '#fff' : '#374151' }}>
                     {lang === 'he' ? opt.he : opt.en}
@@ -1095,6 +1177,8 @@ export default function WorkflowTemplateEditor() {
                   <Pressable
                     onPress={() => setMsStaffRecordMode('none')}
                     style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msStaffRecordMode === 'none' ? '#7C3AED' : '#DDD6FE', backgroundColor: msStaffRecordMode === 'none' ? '#7C3AED' : '#fff' }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: msStaffRecordMode === 'none' }}
                   >
                     <Text style={{ fontSize: 12, fontWeight: '600', color: msStaffRecordMode === 'none' ? '#fff' : '#374151' }}>
                       {lang === 'he' ? 'ללא' : 'None'}
@@ -1103,6 +1187,8 @@ export default function WorkflowTemplateEditor() {
                   <Pressable
                     onPress={() => setMsStaffRecordMode('upload_or_form')}
                     style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msStaffRecordMode === 'upload_or_form' ? '#7C3AED' : '#DDD6FE', backgroundColor: msStaffRecordMode === 'upload_or_form' ? '#7C3AED' : '#fff' }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: msStaffRecordMode === 'upload_or_form' }}
                   >
                     <Text style={{ fontSize: 12, fontWeight: '600', color: msStaffRecordMode === 'upload_or_form' ? '#fff' : '#374151' }}>
                       {lang === 'he' ? 'קובץ או טופס' : 'File or form'}
@@ -1119,6 +1205,7 @@ export default function WorkflowTemplateEditor() {
                       <Pressable
                         style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
                         onPress={() => setMsStaffFormFields((prev) => [...prev, emptyFormField()])}
+                        accessibilityRole="button"
                       >
                         <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>＋ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
                       </Pressable>
@@ -1144,7 +1231,12 @@ export default function WorkflowTemplateEditor() {
                             onChangeText={(v) => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, labelEn: v } : x)))}
                             placeholder={lang === 'he' ? 'תווית (אנגלית)' : 'Label (English)'}
                           />
-                          <Pressable onPress={() => setMsStaffFormFields((prev) => prev.filter((_, i) => i !== idx))} style={{ padding: 4 }}>
+                          <Pressable
+                            onPress={() => setMsStaffFormFields((prev) => prev.filter((_, i) => i !== idx))}
+                            style={{ padding: 4 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={lang === 'he' ? 'הסר שדה' : 'Remove field'}
+                          >
                             <Text>🗑️</Text>
                           </Pressable>
                         </View>
@@ -1154,6 +1246,8 @@ export default function WorkflowTemplateEditor() {
                               key={opt.value}
                               onPress={() => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, type: opt.value } : x)))}
                               style={{ borderWidth: 1.5, borderColor: f.type === opt.value ? '#7C3AED' : '#DDD6FE', backgroundColor: f.type === opt.value ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 }}
+                              accessibilityRole="radio"
+                              accessibilityState={{ checked: f.type === opt.value }}
                             >
                               <Text style={{ fontSize: 11, fontWeight: '600', color: f.type === opt.value ? '#fff' : '#7C3AED' }}>
                                 {lang === 'he' ? opt.he : opt.en}
@@ -1237,10 +1331,10 @@ export default function WorkflowTemplateEditor() {
               </Text>
             )}
 
-            <Pressable style={{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 }} onPress={saveMilestoneRow}>
+            <Pressable style={{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 }} onPress={saveMilestoneRow} accessibilityRole="button">
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{lang === 'he' ? 'שמור אבן דרך' : 'Save Milestone'}</Text>
             </Pressable>
-            <Pressable style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 }} onPress={() => setMsModalOpen(false)}>
+            <Pressable style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 }} onPress={() => setMsModalOpen(false)} accessibilityRole="button">
               <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
             </Pressable>
           </ScrollView>

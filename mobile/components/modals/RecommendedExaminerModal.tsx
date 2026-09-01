@@ -89,7 +89,11 @@ export default function RecommendedExaminerModal({
   <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
     <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
       <Text style={styles.modalTitle}>{tx('examinerRecommendTitle', lang)}</Text>
-      <Pressable onPress={() => { setRecommendModal(false); setRecExaminers([]); setSelectedProjectForRec(null); }}>
+      <Pressable
+        onPress={() => { setRecommendModal(false); setRecExaminers([]); setSelectedProjectForRec(null); }}
+        accessibilityRole="button"
+        accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+      >
         <Text style={styles.modalClose}>✕</Text>
       </Pressable>
     </View>
@@ -105,6 +109,8 @@ export default function RecommendedExaminerModal({
           { marginBottom: 6 }
         ]}
         onPress={() => setSelectedProjectForRec(p)}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: selectedProjectForRec?.id === p.id }}
       >
         <Text style={[
           styles.examinerOptionText,
@@ -143,6 +149,8 @@ export default function RecommendedExaminerModal({
             <Pressable
               onPress={() => setRecExaminers(prev => prev.filter((_, idx) => idx !== i))}
               style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? `הסר בוחן ${ex.name}` : `Remove examiner ${ex.name}`}
             >
               <Text style={{ color: '#EF4444', fontWeight: '700' }}>✕</Text>
             </Pressable>
@@ -175,6 +183,8 @@ export default function RecommendedExaminerModal({
               notes: '',
             }]);
           }}
+          accessibilityRole="button"
+          accessibilityState={{ selected: alreadyAdded }}
         >
           <Text style={[styles.examinerOptionText, alreadyAdded && { color: '#fff' }, isRtl && styles.textRight]}>
             {alreadyAdded ? '✓ ' : ''}{u.displayName} · {u.email}
@@ -247,6 +257,7 @@ export default function RecommendedExaminerModal({
         }]);
         setExtName(''); setExtEmail(''); setExtInstitution(''); setExtExpertise('');
       }}
+      accessibilityRole="button"
     >
       <Text style={styles.meetingBtnText}>+ {tx('examinerAddExternal', lang)}</Text>
     </Pressable>
@@ -257,6 +268,7 @@ export default function RecommendedExaminerModal({
       style={[styles.submitBtn, recSubmitting && { opacity: 0.6 }]}
       onPress={handleSubmitRecommendation}
       disabled={recSubmitting}
+      accessibilityRole="button"
     >
       {recSubmitting
         ? <ActivityIndicator color="#fff" />

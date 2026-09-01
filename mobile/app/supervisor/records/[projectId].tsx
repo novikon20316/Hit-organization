@@ -23,6 +23,7 @@ export default function SupervisorRecordDetailScreen() {
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/supervisor/records', params: { lang } } as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
+          accessibilityRole="button"
         >
           <Text style={{ fontSize: 14, fontWeight: '600', color: '#2E86FF' }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה לרשימת הפרויקטים' : 'Back to projects'}

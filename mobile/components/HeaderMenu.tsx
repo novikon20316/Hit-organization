@@ -42,6 +42,7 @@ export default function HeaderMenu({ items, isRtl, triggerBadge }: Props) {
         style={s.trigger}
         onPress={() => setOpen(true)}
         accessibilityLabel={isRtl ? 'תפריט' : 'Menu'}
+        accessibilityRole="button"
       >
         <Text style={s.triggerIcon}>☰</Text>
         {!!triggerBadge && triggerBadge > 0 && (
@@ -60,6 +61,7 @@ export default function HeaderMenu({ items, isRtl, triggerBadge }: Props) {
                 <Pressable
                   style={[s.row, isRtl && s.rowReverse]}
                   onPress={() => { setOpen(false); item.onPress(); }}
+                  accessibilityRole="button"
                 >
                   <Text style={s.rowIcon}>{item.icon}</Text>
                   <Text

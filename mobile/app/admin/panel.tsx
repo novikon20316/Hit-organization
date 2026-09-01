@@ -1275,6 +1275,8 @@ export default function PanelScreen() {
               activeTab === tab.key && styles.tabActive,
             ]}
             onPress={() => setActiveTab(tab.key as any)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activeTab === tab.key }}
           >
             <Text
               style={[
@@ -1318,6 +1320,8 @@ export default function PanelScreen() {
                 key={opt.key}
                 style={[styles.userFilterChip, userStaffFilter === opt.key && styles.userFilterChipActive]}
                 onPress={() => setUserStaffFilter(opt.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: userStaffFilter === opt.key }}
               >
                 <Text style={[styles.userFilterChipText, userStaffFilter === opt.key && styles.userFilterChipTextActive]}>
                   {opt.label}
@@ -1328,6 +1332,8 @@ export default function PanelScreen() {
             <Pressable
               style={[styles.userFilterChip, userRoleFilter === 'all' && styles.userFilterChipActive]}
               onPress={() => setUserRoleFilter('all')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: userRoleFilter === 'all' }}
             >
               <Text style={[styles.userFilterChipText, userRoleFilter === 'all' && styles.userFilterChipTextActive]}>
                 {lang === 'he' ? 'כל התפקידים' : 'All roles'}
@@ -1338,6 +1344,8 @@ export default function PanelScreen() {
                 key={r}
                 style={[styles.userFilterChip, userRoleFilter === r && styles.userFilterChipActive]}
                 onPress={() => setUserRoleFilter(r)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: userRoleFilter === r }}
               >
                 <Text style={[styles.userFilterChipText, userRoleFilter === r && styles.userFilterChipTextActive]}>
                   {ROLE_LABELS[r]?.[lang] ?? r}
@@ -1348,6 +1356,8 @@ export default function PanelScreen() {
             <Pressable
               style={[styles.userFilterChip, userFacultyFilter === 'all' && styles.userFilterChipActive]}
               onPress={() => setUserFacultyFilter('all')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: userFacultyFilter === 'all' }}
             >
               <Text style={[styles.userFilterChipText, userFacultyFilter === 'all' && styles.userFilterChipTextActive]}>
                 {lang === 'he' ? 'כל הפקולטות' : 'All faculties'}
@@ -1360,6 +1370,8 @@ export default function PanelScreen() {
                   key={id}
                   style={[styles.userFilterChip, userFacultyFilter === id && styles.userFilterChipActive]}
                   onPress={() => setUserFacultyFilter(id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: userFacultyFilter === id }}
                 >
                   <Text style={[styles.userFilterChipText, userFacultyFilter === id && styles.userFilterChipTextActive]}>
                     {fc.label[lang]}
@@ -1482,6 +1494,7 @@ export default function PanelScreen() {
                         style={{ backgroundColor: '#991B1B', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
                         onPress={() => handleLiftLockout(l.code)}
                         disabled={liftingCode === l.code}
+                        accessibilityRole="button"
                       >
                         {liftingCode === l.code
                           ? <ActivityIndicator color="#fff" size="small" />
@@ -1565,6 +1578,7 @@ export default function PanelScreen() {
                     {(u as any).totp_enabled && (
                       <Pressable
                         style={[styles.editBtn, { backgroundColor: '#FFF7ED', borderColor: '#F97316' }]}
+                        accessibilityRole="button"
                         onPress={() => {
                           Alert.alert(
                             lang === 'he' ? 'ביטול 2FA' : 'Disable 2FA',
@@ -1596,13 +1610,14 @@ export default function PanelScreen() {
                       </Pressable>
                     )}
 
-                    <Pressable style={styles.editBtn} onPress={() => openEditUser(u)}>
+                    <Pressable style={styles.editBtn} onPress={() => openEditUser(u)} accessibilityRole="button">
                       <Text style={styles.editBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
                     </Pressable>
 
                     <Pressable
                       style={[styles.editBtn, { backgroundColor: '#FEF2F2', borderColor: '#EF4444' }]}
                       onPress={() => eraseUser(u.id, u.displayName)}
+                      accessibilityRole="button"
                     >
                       <Text style={[styles.editBtnText, { color: '#EF4444' }]}>
                         🗑️ {lang === 'he' ? 'מחק' : 'Erase'}
@@ -1648,6 +1663,7 @@ export default function PanelScreen() {
                       setStudentSearch('');
                       setAddStudentModal(true);
                     }}
+                    accessibilityRole="button"
                   >
                     <Text style={styles.addStudentBtnText}>
                       👤➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}
@@ -1657,6 +1673,7 @@ export default function PanelScreen() {
                   <Pressable
                     style={styles.addStudentBtn}
                     onPress={() => setDefenseProject(p)}
+                    accessibilityRole="button"
                   >
                     <Text style={styles.addStudentBtnText}>
                       🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}
@@ -1666,6 +1683,7 @@ export default function PanelScreen() {
                   <Pressable
                     style={styles.deleteBtn}
                     onPress={() => deleteProject(p.id)}
+                    accessibilityRole="button"
                   >
                     <Text style={styles.deleteBtnText}>
                       🗑️ {lang === 'he' ? 'מחק' : 'Delete'}
@@ -1682,6 +1700,7 @@ export default function PanelScreen() {
             <Pressable
               style={[styles.submitBtn, { marginBottom: 14 }]}
               onPress={() => setShowBulkDueDate(true)}
+              accessibilityRole="button"
             >
               <Text style={styles.submitBtnText}>
                 📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
@@ -1712,6 +1731,7 @@ export default function PanelScreen() {
                       },
                     })
                   }
+                  accessibilityRole="link"
                 >
                   {/* Header */}
                   <View style={styles.projectHeader}>
@@ -1822,13 +1842,14 @@ export default function PanelScreen() {
                         style={[styles.submitBtn, extendingGrant && { opacity: 0.6 }]}
                         onPress={handleExtendGrant}
                         disabled={extendingGrant}
+                        accessibilityRole="button"
                       >
                         {extendingGrant
                           ? <ActivityIndicator color="#fff" />
                           : <Text style={styles.submitBtnText}>{lang === 'he' ? 'אשר הארכה' : 'Confirm extension'}</Text>
                         }
                       </Pressable>
-                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setExtendGrantCode(null)}>
+                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setExtendGrantCode(null)} accessibilityRole="button">
                         <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                       </Pressable>
                     </View>
@@ -1836,6 +1857,7 @@ export default function PanelScreen() {
                     <Pressable
                       style={[styles.submitBtn, { marginTop: 10 }]}
                       onPress={() => { setExtendGrantCode(g.code); setExtendNewDate(''); setExtendReason(''); }}
+                      accessibilityRole="button"
                     >
                       <Text style={styles.submitBtnText}>
                         {lang === 'he' ? '🔓 הארך גישה' : '🔓 Extend access'}
@@ -1882,6 +1904,8 @@ export default function PanelScreen() {
                   key={opt.key}
                   style={[styles.userFilterChip, rosterUsedFilter === opt.key && styles.userFilterChipActive]}
                   onPress={() => setRosterUsedFilter(opt.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: rosterUsedFilter === opt.key }}
                 >
                   <Text style={[styles.userFilterChipText, rosterUsedFilter === opt.key && styles.userFilterChipTextActive]}>
                     {opt.label}
@@ -1900,6 +1924,8 @@ export default function PanelScreen() {
                   key={opt.key}
                   style={[styles.userFilterChip, rosterDegreeFilter === opt.key && styles.userFilterChipActive]}
                   onPress={() => setRosterDegreeFilter(opt.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: rosterDegreeFilter === opt.key }}
                 >
                   <Text style={[styles.userFilterChipText, rosterDegreeFilter === opt.key && styles.userFilterChipTextActive]}>
                     {opt.label}
@@ -1910,6 +1936,8 @@ export default function PanelScreen() {
               <Pressable
                 style={[styles.userFilterChip, rosterFacultyFilter === 'all' && styles.userFilterChipActive]}
                 onPress={() => setRosterFacultyFilter('all')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: rosterFacultyFilter === 'all' }}
               >
                 <Text style={[styles.userFilterChipText, rosterFacultyFilter === 'all' && styles.userFilterChipTextActive]}>
                   {lang === 'he' ? 'כל הפקולטות' : 'All faculties'}
@@ -1922,6 +1950,8 @@ export default function PanelScreen() {
                     key={id}
                     style={[styles.userFilterChip, rosterFacultyFilter === id && styles.userFilterChipActive]}
                     onPress={() => setRosterFacultyFilter(id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: rosterFacultyFilter === id }}
                   >
                     <Text style={[styles.userFilterChipText, rosterFacultyFilter === id && styles.userFilterChipTextActive]}>
                       {fc.label[lang]}
@@ -1983,13 +2013,14 @@ export default function PanelScreen() {
                         style={[styles.submitBtn, savingRosterId === entry.id && { opacity: 0.6 }]}
                         onPress={() => handleSaveRosterEdit(entry)}
                         disabled={savingRosterId === entry.id}
+                        accessibilityRole="button"
                       >
                         {savingRosterId === entry.id
                           ? <ActivityIndicator color="#fff" />
                           : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
                         }
                       </Pressable>
-                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setEditingRosterId(null)}>
+                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setEditingRosterId(null)} accessibilityRole="button">
                         <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                       </Pressable>
                     </View>
@@ -2002,25 +2033,27 @@ export default function PanelScreen() {
                         style={[styles.submitBtn, { backgroundColor: '#EF4444' }, savingRosterId === entry.id && { opacity: 0.6 }]}
                         onPress={() => handleDeleteRoster(entry)}
                         disabled={savingRosterId === entry.id}
+                        accessibilityRole="button"
                       >
                         {savingRosterId === entry.id
                           ? <ActivityIndicator color="#fff" />
                           : <Text style={styles.submitBtnText}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
                         }
                       </Pressable>
-                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setConfirmDeleteRosterId(null)}>
+                      <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setConfirmDeleteRosterId(null)} accessibilityRole="button">
                         <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                       </Pressable>
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                      <Pressable style={[styles.submitBtn, { flex: 1, marginTop: 0 }]} onPress={() => startRosterEdit(entry)}>
+                      <Pressable style={[styles.submitBtn, { flex: 1, marginTop: 0 }]} onPress={() => startRosterEdit(entry)} accessibilityRole="button">
                         <Text style={styles.submitBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
                       </Pressable>
                       {entry.used && (
                         <Pressable
                           style={[styles.submitBtn, { flex: 1, marginTop: 0, backgroundColor: '#8B5CF6' }]}
                           onPress={() => handleReopenRoster(entry)}
+                          accessibilityRole="button"
                         >
                           <Text style={styles.submitBtnText}>🔓 {lang === 'he' ? 'פתח מחדש' : 'Reopen'}</Text>
                         </Pressable>
@@ -2028,6 +2061,8 @@ export default function PanelScreen() {
                       <Pressable
                         style={[styles.submitBtn, { marginTop: 0, backgroundColor: '#EF4444', flex: entry.used ? 0 : 1, paddingHorizontal: 14 }]}
                         onPress={() => setConfirmDeleteRosterId(entry.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={lang === 'he' ? 'מחק רשומה' : 'Delete entry'}
                       >
                         <Text style={styles.submitBtnText}>🗑️</Text>
                       </Pressable>
@@ -2053,6 +2088,8 @@ export default function PanelScreen() {
                   key={st}
                   style={[styles.tab, feedbackStatusFilter === st && styles.tabActive]}
                   onPress={() => setFeedbackStatusFilter(st)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: feedbackStatusFilter === st }}
                 >
                   <Text style={[styles.tabText, feedbackStatusFilter === st && styles.tabTextActive]}>
                     {st === 'open'
@@ -2084,6 +2121,7 @@ export default function PanelScreen() {
                       style={[styles.submitBtn, { marginTop: 10 }, resolvingFeedbackId === f.id && { opacity: 0.6 }]}
                       onPress={() => handleResolveFeedback(f.id)}
                       disabled={resolvingFeedbackId === f.id}
+                      accessibilityRole="button"
                     >
                       {resolvingFeedbackId === f.id
                         ? <ActivityIndicator color="#fff" />
@@ -2110,7 +2148,7 @@ export default function PanelScreen() {
           backgroundColor: '#fff', padding: 16,
           borderTopWidth: 1, borderTopColor: '#E5E7EB',
         }}>
-          <Pressable style={styles.submitBtn} onPress={() => setShowNewUser(true)}>
+          <Pressable style={styles.submitBtn} onPress={() => setShowNewUser(true)} accessibilityRole="button">
             <Text style={styles.submitBtnText}>
               ➕ {lang === 'he' ? 'הוסף משתמש' : 'Add User'}
             </Text>
@@ -2124,7 +2162,7 @@ export default function PanelScreen() {
           backgroundColor: '#fff', padding: 16,
           borderTopWidth: 1, borderTopColor: '#E5E7EB',
         }}>
-          <Pressable style={styles.submitBtn} onPress={() => setShowNewProject(true)}>
+          <Pressable style={styles.submitBtn} onPress={() => setShowNewProject(true)} accessibilityRole="button">
             <Text style={styles.submitBtnText}>
               ➕ {lang === 'he' ? 'הוסף פרויקט' : 'Add Project'}
             </Text>
@@ -2157,7 +2195,11 @@ export default function PanelScreen() {
             <Text style={{ fontSize: 18, fontWeight: '800' }}>
               📅 {lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar'}
             </Text>
-            <Pressable onPress={() => setAcademicCalendarModal(false)}>
+            <Pressable
+              onPress={() => setAcademicCalendarModal(false)}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+            >
               <Text style={{ fontSize: 20, color: '#64748B' }}>✕</Text>
             </Pressable>
           </View>
@@ -2215,6 +2257,7 @@ export default function PanelScreen() {
               <Pressable
                 style={{ backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
                 onPress={saveAcademicCalendar}
+                accessibilityRole="button"
               >
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
                   {lang === 'he' ? 'שמור' : 'Save'}

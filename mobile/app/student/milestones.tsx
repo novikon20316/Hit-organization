@@ -139,6 +139,8 @@ export default function StudentMilestones() {
                   key={ap.project.id}
                   style={[mt.switcherPill, i === selectedProjectIndex && mt.switcherPillActive]}
                   onPress={() => setSelectedProjectIndex(i)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: i === selectedProjectIndex }}
                 >
                   <Text
                     style={[mt.switcherText, i === selectedProjectIndex && mt.switcherTextActive]}
@@ -273,7 +275,7 @@ export default function StudentMilestones() {
                             {!!m.rejectionReason && (
                               <Text style={[mt.rejectionText, isRtl && styles.textRight]}>{m.rejectionReason}</Text>
                             )}
-                            <Pressable style={mt.submitBtn} onPress={() => setSubmitTarget(m)}>
+                            <Pressable style={mt.submitBtn} onPress={() => setSubmitTarget(m)} accessibilityRole="button">
                               <Text style={mt.submitBtnText}>
                                 {lang === 'he' ? 'הגש גרסה מתוקנת' : 'Submit Corrected Version'}
                               </Text>
@@ -297,7 +299,7 @@ export default function StudentMilestones() {
                                   : (lang === 'he' ? `נותרו ${days} ימים` : `${days} days left`)}
                               </Text>
                             )}
-                            <Pressable style={mt.submitBtn} onPress={() => setSubmitTarget(m)}>
+                            <Pressable style={mt.submitBtn} onPress={() => setSubmitTarget(m)} accessibilityRole="button">
                               <Text style={mt.submitBtnText}>
                                 {lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone'}
                               </Text>
@@ -347,7 +349,7 @@ export default function StudentMilestones() {
                             </Text>
                             <View style={[mt.filesRow, isRtl && styles.rowReverse]}>
                               {m.fileUrls.map((url, idx) => (
-                                <Pressable key={idx} onPress={() => Linking.openURL(url)} style={mt.fileChip}>
+                                <Pressable key={idx} onPress={() => Linking.openURL(url)} style={mt.fileChip} accessibilityRole="link">
                                   <Text style={mt.fileChipText} numberOfLines={1}>
                                     📄 {fileNameFromUrl(url, idx, lang)}
                                   </Text>

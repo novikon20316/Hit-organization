@@ -111,7 +111,13 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, o
           <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E293B' }}>
             {lang === 'he' ? 'רשומת מנחה' : 'Staff Record'}
           </Text>
-          <Pressable onPress={onClose}><Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text></Pressable>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+          >
+            <Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text>
+          </Pressable>
         </View>
 
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 16 }}>
@@ -122,6 +128,8 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, o
               borderColor: mode === 'upload' ? '#7C3AED' : '#E2E8F0',
               backgroundColor: mode === 'upload' ? '#7C3AED' : '#fff',
             }}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: mode === 'upload' }}
           >
             <Text style={{ fontSize: 12, fontWeight: '600', color: mode === 'upload' ? '#fff' : '#1E293B' }}>
               {lang === 'he' ? 'העלאת קובץ' : 'Upload a file'}
@@ -136,6 +144,8 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, o
               backgroundColor: mode === 'form' ? '#7C3AED' : '#fff',
               opacity: fields.length === 0 ? 0.4 : 1,
             }}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: mode === 'form', disabled: fields.length === 0 }}
           >
             <Text style={{ fontSize: 12, fontWeight: '600', color: mode === 'form' ? '#fff' : '#1E293B' }}>
               {lang === 'he' ? 'מילוי טופס' : 'Fill the form'}
@@ -151,6 +161,7 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, o
             <Pressable
               onPress={pickFile}
               style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+              accessibilityRole="button"
             >
               <Text style={{ fontSize: 13, color: file ? '#1E293B' : '#94A3B8' }}>
                 {file ? `📄 ${file.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
@@ -195,6 +206,7 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, o
           onPress={handleSubmit}
           disabled={submitting}
           style={{ marginTop: 16, borderRadius: 10, backgroundColor: '#7C3AED', paddingVertical: 12, alignItems: 'center', opacity: submitting ? 0.6 : 1 }}
+          accessibilityRole="button"
         >
           {submitting
             ? <ActivityIndicator color="#fff" />

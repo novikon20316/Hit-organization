@@ -37,6 +37,7 @@ function BrandedLoadingScreen({ message, retry }: { message: string; retry?: () 
         <Pressable
           onPress={retry}
           style={{ marginTop: 20, backgroundColor: "#2E86FF", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}
+          accessibilityRole="button"
         >
           <Text style={{ color: "#fff", fontWeight: "700" }}>Try Again</Text>
         </Pressable>

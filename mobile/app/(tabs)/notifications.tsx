@@ -201,12 +201,17 @@ function ErrorBanner({ message, lang, onRetry, dismissible }: { message: string;
     <View style={{ backgroundColor: '#FEF2F2', borderRadius: 10, borderWidth: 1, borderColor: '#F2C7C2', padding: 10, marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <Text style={{ fontSize: 12, color: '#A8433A', flex: 1 }}>⚠️ {message}</Text>
       {onRetry && (
-        <Pressable onPress={onRetry}>
+        <Pressable onPress={onRetry} accessibilityRole="button">
           <Text style={{ fontSize: 12, fontWeight: '700', color: '#A8433A', textDecorationLine: 'underline' }}>{lang === 'he' ? 'נסה שוב' : 'Retry'}</Text>
         </Pressable>
       )}
       {dismissible && (
-        <Pressable onPress={dismissible} style={{ marginLeft: 8 }}>
+        <Pressable
+          onPress={dismissible}
+          style={{ marginLeft: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'he' ? 'סגור' : 'Dismiss'}
+        >
           <Text style={{ fontSize: 14, color: '#A8433A' }}>✕</Text>
         </Pressable>
       )}
@@ -243,6 +248,7 @@ function NotifRow({ notif, lang, isRtl, onPress }: {
           isRtl && nr.cardRtl,
           { borderLeftColor: notif.isRead ? '#E0E8FF' : style.color },
         ]}
+        accessibilityRole="button"
       >
         {!notif.isRead && <View style={[nr.unreadDot, { backgroundColor: style.color }]} />}
         <View style={[nr.iconBubble, { backgroundColor: style.bg }]}>
@@ -277,6 +283,7 @@ function ChatRowItem({ chat, lang, isRtl, onPress, onLongPress }: {
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={500}
+      accessibilityRole="button"
     >
       <View style={[cr.avatar, { backgroundColor: color }]}>
         <Text style={cr.avatarText}>{initials(chat.otherName)}</Text>
@@ -552,7 +559,12 @@ export default function NotificationsScreen() {
 
       {/* ── Top header ── */}
       <View style={[s.header, isRtl && s.rowReverse]}>
-        <Pressable style={s.backBtn} onPress={goHomeByRole}>
+        <Pressable
+          style={s.backBtn}
+          onPress={goHomeByRole}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'he' ? 'חזרה למסך הבית' : 'Back to home'}
+        >
           <Text style={s.backText}>{isRtl ? '→' : '←'}</Text>
         </Pressable>
         <View style={[s.headerCenter, isRtl && s.alignRight]}>
@@ -569,7 +581,12 @@ export default function NotificationsScreen() {
           )}
         </View>
         <View style={[s.headerRight, isRtl && s.rowReverse]}>
-          <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+          <Pressable
+            style={s.langBtn}
+            onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'החלף לאנגלית' : 'Switch to Hebrew'}
+          >
             <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
         </View>
@@ -582,6 +599,7 @@ export default function NotificationsScreen() {
         <Pressable
           style={[s.tabBtn, activeTab === 'notifs' && s.tabBtnActive]}
           onPress={() => setActiveTab('notifs')}
+          accessibilityRole="button"
         >
           <Text style={[s.tabBtnText, activeTab === 'notifs' && s.tabBtnTextActive]} numberOfLines={1}>
             🔔 {lang === 'he' ? 'התראות' : 'Alerts'}
@@ -591,6 +609,7 @@ export default function NotificationsScreen() {
         <Pressable
           style={[s.tabBtn, activeTab === 'chats' && s.tabBtnActive]}
           onPress={() => setActiveTab('chats')}
+          accessibilityRole="button"
         >
           <Text style={[s.tabBtnText, activeTab === 'chats' && s.tabBtnTextActive]} numberOfLines={1}>
             💬 {lang === 'he' ? 'הודעות' : 'Messages'}
@@ -603,6 +622,7 @@ export default function NotificationsScreen() {
           <Pressable
             style={[s.tabBtn, activeTab === 'feedback' && s.tabBtnActive]}
             onPress={() => setActiveTab('feedback')}
+            accessibilityRole="button"
           >
             <Text style={[s.tabBtnText, activeTab === 'feedback' && s.tabBtnTextActive]} numberOfLines={1}>
               🗨️ {lang === 'he' ? 'משוב' : 'Feedback'}
@@ -626,6 +646,7 @@ export default function NotificationsScreen() {
                   key={f}
                   style={[s.filterChip, filter === f && s.filterChipActive]}
                   onPress={() => setFilter(f)}
+                  accessibilityRole="button"
                 >
                   <Text style={[s.filterText, filter === f && s.filterTextActive]}>
                     {f === 'all'
@@ -639,6 +660,7 @@ export default function NotificationsScreen() {
               style={[s.markAllBtn, unreadCount === 0 && s.markAllBtnHidden]}
               onPress={handleMarkAllRead}
               disabled={unreadCount === 0}
+              accessibilityRole="button"
             >
               <Text style={s.markAllText}>
                 {lang === 'he' ? 'סמן הכל כנקרא' : 'Mark all read'}
@@ -719,7 +741,12 @@ export default function NotificationsScreen() {
               />
             </>
           )}
-          <Pressable style={s.fab} onPress={() => setChatSheetVisible(true)}>
+          <Pressable
+            style={s.fab}
+            onPress={() => setChatSheetVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'שיחה חדשה' : 'New conversation'}
+          >
             <Text style={s.fabText}>+</Text>
           </Pressable>
         </>

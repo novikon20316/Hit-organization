@@ -498,6 +498,7 @@ export default function GradSchoolHeadDashboard() {
             key={tab.key}
             style={[s.tab, activeTab === tab.key && s.tabActive]}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="button"
           >
             <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.he : tab.en}
@@ -548,6 +549,7 @@ export default function GradSchoolHeadDashboard() {
                             style={[s.btnReturn, { flex: 1, backgroundColor: finalGradeRejectReason.trim() ? '#EF4444' : '#FCA5A5' }]}
                             onPress={() => handleRejectFinalGrade(item)}
                             disabled={!finalGradeRejectReason.trim() || approvingId === item.id}
+                            accessibilityRole="button"
                           >
                             <Text style={[s.btnReturnText, { color: '#fff' }]}>
                               {lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
@@ -556,6 +558,7 @@ export default function GradSchoolHeadDashboard() {
                           <Pressable
                             style={[s.btnReturn, { flex: 1 }]}
                             onPress={() => { setFinalGradeRejectTargetId(null); setFinalGradeRejectReason(''); }}
+                            accessibilityRole="button"
                           >
                             <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                           </Pressable>
@@ -567,6 +570,7 @@ export default function GradSchoolHeadDashboard() {
                           style={s.btnReturn}
                           onPress={() => setFinalGradeRejectTargetId(item.id)}
                           disabled={approvingId === item.id}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
                         </Pressable>
@@ -574,6 +578,7 @@ export default function GradSchoolHeadDashboard() {
                           style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
                           onPress={() => handleApproveFinalGrade(item)}
                           disabled={approvingId === item.id}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnApproveText}>
                             {approvingId === item.id
@@ -598,6 +603,7 @@ export default function GradSchoolHeadDashboard() {
                             style={[s.btnReturn, { flex: 1, backgroundColor: examinerRejectReason.trim() ? '#EF4444' : '#FCA5A5' }]}
                             onPress={() => handleRejectExaminers(item)}
                             disabled={!examinerRejectReason.trim() || approvingId === item.id}
+                            accessibilityRole="button"
                           >
                             <Text style={[s.btnReturnText, { color: '#fff' }]}>
                               {lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
@@ -606,6 +612,7 @@ export default function GradSchoolHeadDashboard() {
                           <Pressable
                             style={[s.btnReturn, { flex: 1 }]}
                             onPress={() => { setExaminerRejectTargetId(null); setExaminerRejectReason(''); }}
+                            accessibilityRole="button"
                           >
                             <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                           </Pressable>
@@ -617,6 +624,7 @@ export default function GradSchoolHeadDashboard() {
                           style={s.btnReturn}
                           onPress={() => setExaminerRejectTargetId(item.id)}
                           disabled={approvingId === item.id}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
                         </Pressable>
@@ -624,6 +632,7 @@ export default function GradSchoolHeadDashboard() {
                           style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
                           onPress={() => handleApproveExaminers(item)}
                           disabled={approvingId === item.id}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnApproveText}>
                             {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
@@ -646,6 +655,7 @@ export default function GradSchoolHeadDashboard() {
                             style={[s.btnReturn, { flex: 1, backgroundColor: templateRejectReason.trim() ? '#EF4444' : '#FCA5A5' }]}
                             onPress={() => handleRejectTemplate(item)}
                             disabled={!templateRejectReason.trim() || approvingId === item.id}
+                            accessibilityRole="button"
                           >
                             <Text style={[s.btnReturnText, { color: '#fff' }]}>
                               {lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
@@ -654,6 +664,7 @@ export default function GradSchoolHeadDashboard() {
                           <Pressable
                             style={[s.btnReturn, { flex: 1 }]}
                             onPress={() => { setTemplateRejectTargetId(null); setTemplateRejectReason(''); }}
+                            accessibilityRole="button"
                           >
                             <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                           </Pressable>
@@ -665,6 +676,7 @@ export default function GradSchoolHeadDashboard() {
                           style={s.btnReturn}
                           onPress={() => setTemplateRejectTargetId(item.id)}
                           disabled={approvingId === item.id}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
                         </Pressable>
@@ -672,6 +684,7 @@ export default function GradSchoolHeadDashboard() {
                           style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
                           onPress={() => handleApproveTemplate(item)}
                           disabled={approvingId === item.id}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnApproveText}>
                             {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
@@ -683,12 +696,12 @@ export default function GradSchoolHeadDashboard() {
                     <View style={s.actionRow}>
                       <Pressable style={s.btnApprove} onPress={() =>
                         router.push({ pathname: '/admin/panel', params: { approvalId: item.id } } as any)
-                      }>
+                      } accessibilityRole="button">
                         <Text style={s.btnApproveText}>✅ {tx('approve', lang)}</Text>
                       </Pressable>
                       <Pressable style={s.btnReturn} onPress={() =>
                         router.push({ pathname: '/admin/panel', params: { approvalId: item.id, action: 'return' } } as any)
-                      }>
+                      } accessibilityRole="button">
                         <Text style={s.btnReturnText}>↩ {tx('returnForRevision', lang)}</Text>
                       </Pressable>
                     </View>
@@ -809,6 +822,7 @@ export default function GradSchoolHeadDashboard() {
                           style={[s.btnReturn, { flex: 1, backgroundColor: unlockReason.trim() ? '#EF4444' : '#FCA5A5' }]}
                           onPress={() => handleUnlockGrade(g.id)}
                           disabled={!unlockReason.trim() || unlockingId === g.id}
+                          accessibilityRole="button"
                         >
                           <Text style={[s.btnReturnText, { color: '#fff' }]}>
                             {unlockingId === g.id ? (lang === 'he' ? 'פותח...' : 'Unlocking...') : (lang === 'he' ? 'אשר פתיחה' : 'Confirm Unlock')}
@@ -817,13 +831,14 @@ export default function GradSchoolHeadDashboard() {
                         <Pressable
                           style={[s.btnReturn, { flex: 1 }]}
                           onPress={() => { setUnlockTargetId(null); setUnlockReason(''); }}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                         </Pressable>
                       </View>
                     </View>
                   ) : (
-                    <Pressable style={[s.btnReturn, { marginTop: 10 }]} onPress={() => setUnlockTargetId(g.id)}>
+                    <Pressable style={[s.btnReturn, { marginTop: 10 }]} onPress={() => setUnlockTargetId(g.id)} accessibilityRole="button">
                       <Text style={s.btnReturnText}>🔓 {lang === 'he' ? 'פתח לתיקון' : 'Unlock for Correction'}</Text>
                     </Pressable>
                   )}

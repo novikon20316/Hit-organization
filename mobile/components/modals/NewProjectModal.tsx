@@ -226,7 +226,11 @@ export default function NewProjectModal({
           <Text style={styles.modalTitle}>
             {lang === "he" ? "פרסום פרויקט חדש" : "Post New Project"}
           </Text>
-          <Pressable onPress={() => setVisible(false)}>
+          <Pressable
+            onPress={() => setVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel={lang === "he" ? "סגור" : "Close"}
+          >
             <Text style={styles.modalClose}>✕</Text>
           </Pressable>
         </View>
@@ -266,6 +270,7 @@ export default function NewProjectModal({
           }]}
           onPress={() => pickFile(true)}
           disabled={uploadingFile}
+          accessibilityRole="button"
         >
           {uploadingFile ? (
             <ActivityIndicator color="#2E86FF" />
@@ -332,6 +337,8 @@ export default function NewProjectModal({
           <Pressable
             style={[styles.toggleBtn, maxStudents > 1 && styles.toggleBtnActive]}
             onPress={() => setMaxStudents(maxStudents > 1 ? 1 : TEAM_SIZE_OPTIONS[0])}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: maxStudents > 1 }}
           >
             <Text style={[styles.toggleText, maxStudents > 1 && styles.toggleTextActive]}>
               {maxStudents > 1
@@ -356,6 +363,9 @@ export default function NewProjectModal({
                   key={num}
                   style={[styles.toggleBtn, { flex: 0, width: 40 }, maxStudents === num && styles.toggleBtnActive]}
                   onPress={() => setMaxStudents(num)}
+                  accessibilityRole="button"
+                  accessibilityLabel={lang === "he" ? `${num} סטודנטים בקבוצה` : `${num} students per group`}
+                  accessibilityState={{ selected: maxStudents === num }}
                 >
                   <Text style={[styles.toggleText, maxStudents === num && styles.toggleTextActive]}>
                     {num}
@@ -378,6 +388,8 @@ export default function NewProjectModal({
                 key={d}
                 style={[styles.toggleBtn, isSelected && styles.toggleBtnActive]}
                 onPress={() => toggleDegreeType(d)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
               >
                 <Text style={[styles.toggleText, isSelected && styles.toggleTextActive]}>
                   {isSelected ? "✓ " : ""}
@@ -406,6 +418,8 @@ export default function NewProjectModal({
               <Pressable
                 style={[programStyles.programBtn, selectedProgram === null && programStyles.programBtnActive]}
                 onPress={() => setSelectedProgram?.(null)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedProgram === null }}
               >
                 <View style={[programStyles.programRadio, selectedProgram === null && programStyles.programRadioActive]}>
                   {selectedProgram === null && <View style={programStyles.programRadioDot} />}
@@ -423,6 +437,8 @@ export default function NewProjectModal({
                   key={p.key}
                   style={[programStyles.programBtn, isSelected && programStyles.programBtnActive]}
                   onPress={() => setSelectedProgram?.(isSelected ? null : p.key)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isSelected }}
                 >
                   <View style={[programStyles.programRadio, isSelected && programStyles.programRadioActive]}>
                     {isSelected && <View style={programStyles.programRadioDot} />}
@@ -462,6 +478,8 @@ export default function NewProjectModal({
                     onPress={() =>
                       setSelectedProgram?.(isSelected ? null : p.key)
                     }
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: isSelected }}
                   >
                     <View
                       style={[
@@ -508,6 +526,8 @@ export default function NewProjectModal({
                 key={t}
                 style={[styles.toggleBtn, isSelected && styles.toggleBtnActive]}
                 onPress={() => toggleProjectType(t)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
               >
                 <Text style={[styles.toggleText, isSelected && styles.toggleTextActive]}>
                   {isSelected ? "✓ " : ""}
@@ -555,7 +575,11 @@ export default function NewProjectModal({
               placeholder={lang === "he" ? "ציון מינ׳" : "Min grade"}
               placeholderTextColor="#9BA8C0"
             />
-            <Pressable onPress={() => setPrerequisites(prerequisites.filter((_, i) => i !== idx))}>
+            <Pressable
+              onPress={() => setPrerequisites(prerequisites.filter((_, i) => i !== idx))}
+              accessibilityRole="button"
+              accessibilityLabel={lang === "he" ? "הסר קורס" : "Remove course"}
+            >
               <Text style={{ fontSize: 16 }}>🗑️</Text>
             </Pressable>
           </View>
@@ -563,6 +587,7 @@ export default function NewProjectModal({
         <Pressable
           onPress={() => setPrerequisites([...prerequisites, { subject: '' }])}
           style={{ alignSelf: isRtl ? 'flex-end' : 'flex-start', backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 20 }}
+          accessibilityRole="button"
         >
           <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>＋ {lang === "he" ? "הוסף קורס" : "Add course"}</Text>
         </Pressable>
@@ -584,6 +609,8 @@ export default function NewProjectModal({
                   key={s.id}
                   style={[styles.supOption, selectedSupervisor?.id === s.id && styles.supOptionActive]}
                   onPress={() => { setSelectedSupervisor?.(s); setShowConfirm?.(true); }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedSupervisor?.id === s.id }}
                 >
                   <Text>{s.displayName}</Text>
                 </Pressable>
@@ -593,7 +620,7 @@ export default function NewProjectModal({
         ) : null}
 
         {/* ── Submit ───────────────────────────────────────────────────────────── */}
-        <Pressable style={styles.submitBtn} onPress={onCreate} disabled={creating}>
+        <Pressable style={styles.submitBtn} onPress={onCreate} disabled={creating} accessibilityRole="button">
           {creating
             ? <ActivityIndicator color="#fff" />
             : <Text style={styles.submitBtnText}>

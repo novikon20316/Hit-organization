@@ -39,6 +39,8 @@ export default function ChatbotFab({ lang, corner = 'bottom-left', bottomOffset 
         onPress={handlePress}
         onHoverIn={() => setShowTooltip(true)}
         onHoverOut={() => setShowTooltip(false)}
+        accessibilityRole="button"
+        accessibilityLabel={lang === 'he' ? 'עוזר AI' : 'AI Assistant'}
       >
         <Text style={styles.fabIcon}>🤖</Text>
       </Pressable>

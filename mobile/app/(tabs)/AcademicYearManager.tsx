@@ -188,11 +188,13 @@ export default function AcademicYearManager() {
             onChangeText={setQuery}
             placeholder={lang === 'he' ? 'חפש לפי שם, אימייל או ת.ז.' : 'Search by name, email, or ID'}
             onSubmitEditing={handleSearch}
+            accessibilityLabel={lang === 'he' ? 'חפש לפי שם, אימייל או ת.ז.' : 'Search by name, email, or ID'}
           />
           <Pressable
             style={{ backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' }}
             onPress={handleSearch}
             disabled={searching}
+            accessibilityRole="button"
           >
             {searching ? <ActivityIndicator color="#fff" size="small" /> : (
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? 'חיפוש' : 'Search'}</Text>
@@ -209,6 +211,7 @@ export default function AcademicYearManager() {
               borderWidth: 1.5, borderColor: selected?.id === s.id ? '#7C3AED' : '#E0E8FF',
               backgroundColor: selected?.id === s.id ? '#F5F3FF' : '#fff',
             }}
+            accessibilityRole="button"
           >
             <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', textAlign: isRtl ? 'right' : 'left' }}>{s.displayName}</Text>
             <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 2, textAlign: isRtl ? 'right' : 'left' }}>
@@ -263,6 +266,7 @@ export default function AcademicYearManager() {
               style={{ backgroundColor: '#7C3AED', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 16, opacity: saving ? 0.6 : 1 }}
               onPress={handleSave}
               disabled={saving}
+              accessibilityRole="button"
             >
               {saving ? <ActivityIndicator color="#fff" /> : (
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
@@ -310,7 +314,11 @@ export default function AcademicYearManager() {
                   <Text style={{ fontSize: 12, color: '#8899BB' }}>
                     {lang === 'he' ? 'ציון:' : 'Grade:'} {r.grade ?? '—'}
                   </Text>
-                  <Pressable onPress={() => removeCourseRow(r.subject)}>
+                  <Pressable
+                    onPress={() => removeCourseRow(r.subject)}
+                    accessibilityRole="button"
+                    accessibilityLabel={lang === 'he' ? `הסר קורס ${r.subject}` : `Remove course ${r.subject}`}
+                  >
                     <Text style={{ color: '#DC2626', fontSize: 13 }}>✕</Text>
                   </Pressable>
                 </View>
@@ -325,6 +333,7 @@ export default function AcademicYearManager() {
                 placeholderTextColor="#9BA8C0"
                 style={{ flex: 1, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, backgroundColor: '#fff' }}
                 textAlign={isRtl ? 'right' : 'left'}
+                accessibilityLabel={lang === 'he' ? 'שם הקורס' : 'Course name'}
               />
               <TextInput
                 value={courseGrade}
@@ -334,10 +343,12 @@ export default function AcademicYearManager() {
                 keyboardType="numeric"
                 style={{ width: 70, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, backgroundColor: '#fff' }}
                 textAlign={isRtl ? 'right' : 'left'}
+                accessibilityLabel={lang === 'he' ? 'ציון' : 'Grade'}
               />
               <Pressable
                 onPress={addCourseRow}
                 style={{ borderWidth: 1.5, borderColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 12, justifyContent: 'center' }}
+                accessibilityRole="button"
               >
                 <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: '700' }}>+ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
               </Pressable>
@@ -347,6 +358,7 @@ export default function AcademicYearManager() {
               style={{ backgroundColor: '#7C3AED', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 14, opacity: savingCourses ? 0.6 : 1 }}
               onPress={handleSaveCourses}
               disabled={savingCourses}
+              accessibilityRole="button"
             >
               {savingCourses ? <ActivityIndicator color="#fff" /> : (
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? 'שמור' : 'Save'}</Text>

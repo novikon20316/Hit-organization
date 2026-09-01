@@ -44,6 +44,7 @@ export default function ProgramHeadRecordsScreen() {
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/program_head/program_head_dashboard' as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
+          accessibilityRole="button"
         >
           <Text style={{ fontSize: 14, fontWeight: '600', color: '#2E86FF' }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה' : 'Back'}
@@ -79,6 +80,7 @@ export default function ProgramHeadRecordsScreen() {
             key={sup.id}
             onPress={() => router.push({ pathname: '/program_head/records/[supervisorId]', params: { supervisorId: sup.id, lang } } as any)}
             style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB' }}
+            accessibilityRole="link"
           >
             <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827', textAlign: isRtl ? 'right' : 'left' }}>
               {sup.displayName}

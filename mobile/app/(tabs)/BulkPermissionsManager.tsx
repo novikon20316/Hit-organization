@@ -37,6 +37,8 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
         backgroundColor: active ? '#7C3AED' : '#fff',
         borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7, marginRight: 6, marginBottom: 6,
       }}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
     >
       <Text style={{ color: active ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 12 }}>{label}</Text>
     </Pressable>
@@ -242,6 +244,8 @@ export default function BulkPermissionsManager() {
             key={v.key}
             onPress={() => toggleView(v.key)}
             style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#E0E8FF' }}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: view.includes(v.key) }}
           >
             <View style={{ width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: '#7C3AED', backgroundColor: view.includes(v.key) ? '#7C3AED' : 'transparent', marginRight: isRtl ? 0 : 10, marginLeft: isRtl ? 10 : 0 }} />
             <Text style={{ fontSize: 13, color: '#111', flex: 1, textAlign: isRtl ? 'right' : 'left' }}>{v.label[lang]}</Text>
@@ -256,6 +260,8 @@ export default function BulkPermissionsManager() {
             key={a.key}
             onPress={() => toggleAction(a.key)}
             style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#E0E8FF' }}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: actions.includes(a.key) }}
           >
             <View style={{ width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: '#7C3AED', backgroundColor: actions.includes(a.key) ? '#7C3AED' : 'transparent', marginRight: isRtl ? 0 : 10, marginLeft: isRtl ? 10 : 0 }} />
             <Text style={{ fontSize: 13, color: '#111', flex: 1, textAlign: isRtl ? 'right' : 'left' }}>{a.label[lang]}</Text>
@@ -266,6 +272,7 @@ export default function BulkPermissionsManager() {
           style={{ backgroundColor: '#7C3AED', borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 16, opacity: applying ? 0.6 : 1 }}
           onPress={handleApply}
           disabled={applying}
+          accessibilityRole="button"
         >
           {applying ? <ActivityIndicator color="#fff" /> : (
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>

@@ -167,7 +167,12 @@ export default function ChatConversationPage() {
   return (
     <div className="flex h-screen flex-col bg-paper">
       <header className="flex items-center gap-3 border-b border-line bg-surface px-4 py-3">
-        <button type="button" onClick={() => router.back()} className="text-lg text-ink">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label={lang === 'he' ? 'חזור' : 'Back'}
+          className="text-lg text-ink"
+        >
           {lang === 'he' ? '→' : '←'}
         </button>
         <span className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ backgroundColor: accentColor }}>
@@ -183,7 +188,13 @@ export default function ChatConversationPage() {
         </div>
       </header>
 
-      <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div
+        ref={listRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        className="flex-1 overflow-y-auto px-4 py-4"
+      >
         {loadingMessages ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-muted">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>

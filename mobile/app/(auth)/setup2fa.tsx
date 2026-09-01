@@ -64,7 +64,7 @@ export default function Setup2FA() {
       <Text style={styles.subtitle}>Scan this QR code with Google Authenticator or Authy</Text>
       {qrCode && <Image source={{ uri: qrCode }} style={styles.qr} />}
       {!qrCode && error ? (
-        <TouchableOpacity style={styles.button} onPress={loadQrCode}>
+        <TouchableOpacity style={styles.button} onPress={loadQrCode} accessibilityRole="button">
           <Text style={styles.buttonText}>Retry</Text>
         </TouchableOpacity>
       ) : null}
@@ -75,9 +75,10 @@ export default function Setup2FA() {
         maxLength={6}
         value={token}
         onChangeText={setToken}
+        accessibilityLabel="Enter 6-digit code"
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <TouchableOpacity style={styles.button} onPress={handleVerify}>
+      <TouchableOpacity style={styles.button} onPress={handleVerify} accessibilityRole="button">
         <Text style={styles.buttonText}>Activate 2FA</Text>
       </TouchableOpacity>
     </View>

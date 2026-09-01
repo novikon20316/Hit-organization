@@ -163,6 +163,8 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
                   key={p.id}
                   style={[s.projectRow, isActive && s.projectRowActive]}
                   onPress={() => toggleProject(p.id)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isActive }}
                 >
                   <View style={[s.checkbox, isActive && s.checkboxActive]}>
                     {isActive && <Text style={s.checkmark}>✓</Text>}
@@ -181,7 +183,10 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
           )}
         </View>
         {filteredProjects.length > 0 && (
-          <Pressable onPress={() => setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredProjects.map((p) => p.id)])))}>
+          <Pressable
+            onPress={() => setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredProjects.map((p) => p.id)])))}
+            accessibilityRole="button"
+          >
             <Text style={s.selectAll}>
               {search.trim()
                 ? (lang === 'he' ? 'בחר את כל התוצאות' : 'Select all matches')
@@ -199,6 +204,8 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
               key={opt.value}
               style={[s.chip, milestoneType === opt.value && s.chipActive]}
               onPress={() => setMilestoneType(opt.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: milestoneType === opt.value }}
             >
               <Text style={[s.chipText, milestoneType === opt.value && s.chipTextActive]}>
                 {lang === 'he' ? opt.he : opt.en}
@@ -230,14 +237,14 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
           placeholderTextColor="#9CA3AF"
         />
 
-        <Pressable style={[s.submitBtn, saving && s.submitBtnDisabled]} onPress={handleSubmit} disabled={saving}>
+        <Pressable style={[s.submitBtn, saving && s.submitBtnDisabled]} onPress={handleSubmit} disabled={saving} accessibilityRole="button">
           {saving
             ? <ActivityIndicator color="#fff" />
             : <Text style={s.submitBtnText}>{lang === 'he' ? 'עדכן תאריכים' : 'Update Due Dates'}</Text>
           }
         </Pressable>
 
-        <Pressable style={s.cancelBtn} onPress={handleClose}>
+        <Pressable style={s.cancelBtn} onPress={handleClose} accessibilityRole="button">
           <Text style={s.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
         </Pressable>
       </ScrollView>

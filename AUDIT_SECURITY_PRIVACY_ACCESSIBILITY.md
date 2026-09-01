@@ -13,13 +13,11 @@ Use the checkboxes to track fixes. Re-run this audit (or at least the relevant s
 | Severity | Security | Privacy | Accessibility |
 |---|---|---|---|
 | Critical | 0 | 0 | 0 |
-| High | 0 | 0 | 3 |
+| High | 0 | 0 | 0 |
 | Medium | 0 | 0 | 6 |
-| Low | 0 | 0 | 4 |
+| Low | 0 | 0 | 0 |
 
-All Security findings (S2, S4, S5, S6) and all Privacy findings (P5, P6, P8, P9) are fixed as of 2026-09-01 — see those sections for details. Only Accessibility remains open.
-
-**If you only fix a few things first:** accessibility A1 (mobile app is nearly unusable with a screen reader) is the standout — it's the only High-or-above item left in the whole audit.
+Every High and Low finding across all three categories is fixed as of 2026-09-01. Only Accessibility's 6 Medium findings (A4-A9) remain open — none of them were in scope for the most recent fix pass, which was limited to High + Low.
 
 ---
 
@@ -67,15 +65,15 @@ Account deletion pipeline (`accountDeletion.ts`) is genuinely well-designed — 
 
 ## 3. Accessibility
 
-### High
+### Fixed 2026-09-01 (High)
 
-- [ ] **A1 — Mobile app: ~1,322 tappable controls (`TouchableOpacity`/`Pressable`) across 101 files, only 3 have `accessibilityLabel`, 0 have `accessibilityRole`.** This is the largest single finding in the whole audit. Concretely: `mobile/app/(auth)/login.tsx` has 5 unlabeled controls including a password show/hide toggle that's just an emoji (`🙈`/`👁️`); `mobile/app/coordinator/home.tsx` has 95 unlabeled `Pressable`s. VoiceOver/TalkBack users are blocked across nearly every mobile screen, not just isolated spots.
-  - Fix: this needs a systematic sweep, not a spot fix. Start with auth screens and primary navigation, then work outward by frequency of use.
-- [ ] **A2 — Web chat has no live region for new messages.** `web/app/message/[chatId]/page.tsx:186-224`. A screen reader gets no notification when a message arrives while the chat is open.
-  - Fix: `role="log" aria-live="polite" aria-relevant="additions"` on the message list container.
-- [ ] **A3 — Signup form errors aren't linked to their inputs.** `web/app/(auth)/signup/page.tsx:318-343`. Errors are plain unlinked `<p>` text; the login page does this correctly (`aria-invalid`/`aria-describedby`) but signup doesn't match it.
+- [x] **A1 — Mobile app: ~1,334 tappable controls across 101 files had no `accessibilityRole`/`accessibilityLabel`.** Full systematic sweep, split across 6 batches by area (dashboards, admin/heads/examiner, tabs/workflow screens, auth/student/shared-components, all modals, records/misc components). Every `Pressable`/`TouchableOpacity` in every one of the 101 files now has an `accessibilityRole` (mostly `"button"`, with `"link"` for row-cards that navigate, `"radio"`/`"checkbox"`/`"switch"` + `accessibilityState` for real toggles/pickers). Icon-only controls (modal close "✕" buttons, password show/hide, back arrows, delete/trash icons, FABs, language toggles) got an explicit bilingual `accessibilityLabel` matching each file's own existing `lang`/`isRtl` convention; controls with clear visible text were left label-free (role only) since React Native already announces the child text — this kept the diff minimal and consistent with how `HeaderMenu.tsx` did it correctly before this fix. Also added `accessibilityLabel` to ~15 auth/student `TextInput`s that relied only on a placeholder (which disappears once the user starts typing). Verified with `npx tsc --noEmit -p tsconfig.json` in `mobile/` after every batch and once more combined at the end — clean, no errors.
+- [x] **A2 — Web chat had no live region for new messages.** `web/app/message/[chatId]/page.tsx`. Added `role="log" aria-live="polite" aria-relevant="additions"` to the message list container.
+- [x] **A3 — Signup form errors weren't linked to their inputs.** `web/app/(auth)/signup/page.tsx`. Phone, email, student ID, and password-rules errors now use `aria-invalid`/`aria-describedby`/`role="alert"`, matching the login page's existing pattern.
 
-### Medium
+Verified with `npx tsc --noEmit` in `web/` — clean.
+
+### Medium (not in this pass — user scoped this round to High + Low)
 
 - [ ] **A4 — `SessionExpiredModal` has no focus trap**, unlike every sibling modal in the app. `web/components/SessionExpiredModal.tsx:20-49`. All other modals route through the shared `useModalA11y` hook; this one doesn't, so a keyboard user can tab into hidden background content while it's showing.
 - [ ] **A5 — Icon-only "✕" close buttons with no accessible name** in 5+ modals (`BulkImportModal.tsx`, `DeleteAccountModal.tsx`, `StudentContactModal.tsx`, `EditCommitteeModal.tsx`, `CommitteeReviewModal.tsx`, plus supervisor-dashboard modals).
@@ -84,12 +82,14 @@ Account deletion pipeline (`accountDeletion.ts`) is genuinely well-designed — 
 - [ ] **A8 — Loading states are silent to assistive tech in most places** (bare "…" text, no `role="status"`/`aria-live`), even though the correct pattern already exists and is used in ~13 other files (e.g. `BulkDueDateModal.tsx`). Sampled and confirmed missing on student home and chat loading states.
 - [ ] **A9 — Chat image attachments have `alt=""`** (marked decorative), so a screen reader skips them entirely and the user doesn't know an image was sent. `web/app/message/[chatId]/page.tsx:213,270`. Contrast with the 2FA QR code, which has a correct descriptive alt.
 
-### Low
+### Fixed 2026-09-01 (Low)
 
-- [ ] **A10 — Signup's password show/hide toggle has no `aria-label`**, unlike the equivalent control on login. `signup/page.tsx:355-365` vs `login/page.tsx:427`.
-- [ ] **A11 — Chat header back button has no `aria-label`** (bare arrow glyph), unlike `DashboardShell.tsx`'s back button. `message/[chatId]/page.tsx:170-172`.
-- [ ] **A12 — Mobile `NotificationBell` is icon-only with no accessibility label**, unlike its web counterpart and unlike mobile's own `HeaderMenu.tsx` (which does set one).
-- [ ] **A13 — Mobile `NotificationBell` tap target is under the ~44×44pt guidance** — no explicit width/height beyond the 22px glyph plus small margins.
+- [x] **A10 — Signup's password show/hide toggle had no `aria-label`.** `web/app/(auth)/signup/page.tsx`. Added, matching login's pattern.
+- [x] **A11 — Chat header back button had no `aria-label`.** `web/app/message/[chatId]/page.tsx`. Added.
+- [x] **A12 — Mobile `NotificationBell` was icon-only with no accessibility label.** Turned out the standalone `mobile/components/NotificationBell.tsx` this finding literally named is currently dead code (never imported anywhere) — fixed it anyway in case it's wired up later. The actual live bell users interact with is inline in `mobile/components/shared.tsx`'s TopBar, which already had a label but was missing `accessibilityRole` — added that too.
+- [x] **A13 — Mobile `NotificationBell` tap target was under the ~44×44pt guidance.** Added `hitSlop` to both the live TopBar bell (`shared.tsx`, ~26px visual button → ~44px effective touch area) and the standalone component, without changing their visual size/layout.
+
+Verified with `npx tsc --noEmit` in `mobile/` — clean.
 
 ### Looked fine, no action needed
 Login page's form accessibility (`aria-invalid`/`aria-describedby`/`role="alert"`, real focus-trapped dialogs). The shared `useModalA11y` hook is a solid, correctly-implemented pattern (focus trap, Escape-to-close, focus restore) — most modals already use it. Status/faculty/role color coding consistently pairs color with an icon and text label, not color alone, on both web and mobile. `web/app/layout.tsx` sets `lang="he" dir="rtl"` by default (the runtime toggle-flip wasn't independently traced — worth a quick manual check by switching language in the browser and inspecting `<html dir>`). Mobile has no `allowFontScaling={false}` anywhere, so system text-size scaling isn't blocked.
@@ -101,8 +101,8 @@ Exhaustive mobile touch-target sizing beyond the two sampled components; whether
 
 ## Suggested order of work
 
-Only Accessibility findings remain. Start with **A1** (mobile accessibility labels) — largest gap in the whole audit, blocks a whole user population on a whole platform — then work down the severity order in that section.
+Only Accessibility's 6 Medium findings remain (A4-A9) — all in `web/`, all small contained fixes (focus trap, close-button labels, `aria-expanded`, group labels, loading-state live regions, chat image alt text). None are urgent on their own; worth a batch pass whenever convenient.
 
-All Security findings (S2, S4, S5, S6) and all Privacy findings (P5, P6, P8, P9) are fixed — see those sections.
+Everything else — all Security, all Privacy, and all Accessibility High/Low findings — is fixed. See each section for what changed.
 
 Note: findings related to the admin "impersonate user" feature were removed from this audit (2026-09-01) — that feature is a temporary debugging aid and won't ship in the final product. If it ever does become a permanent feature, it should get its own dedicated security/privacy review before shipping, since impersonation-style features carry accountability and disclosure risks that don't show up anywhere else in this app.

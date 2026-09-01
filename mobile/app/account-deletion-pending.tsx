@@ -111,14 +111,26 @@ export default function AccountDeletionPending() {
           </Text>
         )}
 
-        <Pressable style={[s.cancelBtn, busy && s.btnDisabled]} onPress={handleCancel} disabled={busy}>
+        <Pressable
+          style={[s.cancelBtn, busy && s.btnDisabled]}
+          onPress={handleCancel}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: busy }}
+        >
           {busy
             ? <ActivityIndicator color="#fff" />
             : <Text style={s.cancelBtnText}>{lang === 'he' ? 'בטל את המחיקה' : 'Cancel Deletion'}</Text>
           }
         </Pressable>
 
-        <Pressable style={s.signOutBtn} onPress={handleSignOut} disabled={busy}>
+        <Pressable
+          style={s.signOutBtn}
+          onPress={handleSignOut}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: busy }}
+        >
           <Text style={s.signOutText}>{lang === 'he' ? 'יציאה' : 'Sign Out'}</Text>
         </Pressable>
       </View>

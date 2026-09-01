@@ -193,7 +193,7 @@ export default function ManagedStaffSection({ staff, onRefresh, scope, lang, isR
         />
       </View>
 
-      <Pressable style={[s.submitBtn, { marginBottom: 12 }]} onPress={() => setShowNew(true)}>
+      <Pressable style={[s.submitBtn, { marginBottom: 12 }]} onPress={() => setShowNew(true)} accessibilityRole="button">
         <Text style={s.submitBtnText}>+ {lang === 'he' ? 'איש סגל חדש' : 'New Staff'}</Text>
       </Pressable>
 
@@ -208,7 +208,7 @@ export default function ManagedStaffSection({ staff, onRefresh, scope, lang, isR
               <Switch value={u.isActive} onValueChange={() => handleToggleActive(u)} disabled={togglingId === u.id} />
             </View>
             <Text style={s.projectMeta}>{(ROLE_LABELS as Record<string, { he: string; en: string }>)[u.role]?.[lang] ?? u.role}</Text>
-            <Pressable style={[s.submitBtn, { marginTop: 10 }]} onPress={() => openEdit(u)}>
+            <Pressable style={[s.submitBtn, { marginTop: 10 }]} onPress={() => openEdit(u)} accessibilityRole="button">
               <Text style={s.submitBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
             </Pressable>
           </View>

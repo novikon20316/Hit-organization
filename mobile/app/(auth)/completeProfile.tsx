@@ -174,7 +174,12 @@ export default function CompleteProfile() {
         onScrollBeginDrag={Keyboard.dismiss}
       >
         <View style={[s.langRow, isRtl && s.rowReverse]}>
-          <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+          <Pressable
+            style={s.langBtn}
+            onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+          >
             <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
         </View>
@@ -202,6 +207,7 @@ export default function CompleteProfile() {
             placeholder={lang === 'he' ? 'שם מלא' : 'Full Name'}
             placeholderTextColor="#9BA8C0"
             style={[s.input, isRtl && s.textRight]}
+            accessibilityLabel={lang === 'he' ? 'שם מלא' : 'Full Name'}
           />
 
           <TextInput
@@ -212,6 +218,7 @@ export default function CompleteProfile() {
             keyboardType="phone-pad"
             maxLength={10}
             style={[s.input, isRtl && s.textRight, attemptedSubmit && !isValidPhoneNumber(phoneNumber) && { borderColor: '#EF4444' }]}
+            accessibilityLabel={lang === 'he' ? 'מספר טלפון' : 'Phone Number'}
           />
           {attemptedSubmit && !isValidPhoneNumber(phoneNumber) && (
             <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
@@ -235,6 +242,7 @@ export default function CompleteProfile() {
                 ? { borderColor: isValidStudentId(studentId) ? '#10B981' : '#EF4444' }
                 : attemptedSubmit && { borderColor: '#EF4444' },
             ]}
+            accessibilityLabel={lang === 'he' ? 'תעודת זהות' : 'Student ID'}
           />
           {attemptedSubmit && studentId.length === 0 ? (
             <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
@@ -261,6 +269,7 @@ export default function CompleteProfile() {
             },
           ]}
           onPress={() => setShowFacultyModal(true)}
+          accessibilityRole="button"
         >
           <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ fontSize: 16, color: '#333' }}>
@@ -286,6 +295,7 @@ export default function CompleteProfile() {
                   key={p.key}
                   style={[s.majorOption, programKey === p.key && s.majorOptionActive]}
                   onPress={() => { setProgramKey(p.key); setYearOfStudy(null); }}
+                  accessibilityRole="button"
                 >
                   <Text style={[s.majorText, programKey === p.key && s.majorTextActive, isRtl && s.textRight]}>
                     {p.label[lang]}
@@ -323,6 +333,7 @@ export default function CompleteProfile() {
                       yearOfStudy === yr && isFinalYear && s.yearOptionFinalActive,
                     ]}
                     onPress={() => setYearOfStudy(yr)}
+                    accessibilityRole="button"
                   >
                     <Text style={[s.yearNum, yearOfStudy === yr && s.yearNumActive]}>
                       {lang === 'he' ? `שנה ${['א׳', 'ב׳', 'ג׳', 'ד׳'][yr - 1]}` : `Year ${yr}`}
@@ -353,6 +364,7 @@ export default function CompleteProfile() {
             handleSave();
           }}
           disabled={saving}
+          accessibilityRole="button"
         >
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnText}>{lang === 'he' ? 'סיום הרשמה →' : 'Finish Sign Up →'}</Text>}
         </Pressable>
@@ -389,6 +401,7 @@ export default function CompleteProfile() {
                         setYearOfStudy(null);
                         setShowFacultyModal(false);
                       }}
+                      accessibilityRole="button"
                     >
                       <Text style={{ fontSize: 15, fontWeight: isSelected ? '700' : '500', color: isSelected ? '#2E86FF' : '#444', textAlign: lang === 'he' ? 'right' : 'left' }}>
                         {item.label[lang]}

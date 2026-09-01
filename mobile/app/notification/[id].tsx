@@ -137,10 +137,17 @@ export default function NotificationDetailScreen() {
           <Pressable
             style={s.backBtn}
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/notifications' as any))}
+            accessibilityRole="button"
+            accessibilityLabel={isRtl ? 'חזרה' : 'Go back'}
           >
             <Text style={s.backText}>{isRtl ? '→' : '←'}</Text>
           </Pressable>
-          <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+          <Pressable
+            style={s.langBtn}
+            onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+          >
             <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
         </View>
@@ -161,6 +168,7 @@ export default function NotificationDetailScreen() {
             style={[s.navBtn, !hasPrev && s.navBtnDisabled]}
             disabled={!hasPrev}
             onPress={() => goTo('prev')}
+            accessibilityRole="button"
           >
             <Text style={s.navBtnText}>{lang === 'he' ? '‹ הקודם' : '‹ Previous'}</Text>
           </Pressable>
@@ -168,13 +176,14 @@ export default function NotificationDetailScreen() {
             style={[s.navBtn, !hasNext && s.navBtnDisabled]}
             disabled={!hasNext}
             onPress={() => goTo('next')}
+            accessibilityRole="button"
           >
             <Text style={s.navBtnText}>{lang === 'he' ? 'הבא ›' : 'Next ›'}</Text>
           </Pressable>
         </View>
 
         {!!targetRoute && (
-          <Pressable style={s.actionBtn} onPress={() => router.replace(targetRoute as any)}>
+          <Pressable style={s.actionBtn} onPress={() => router.replace(targetRoute as any)} accessibilityRole="button">
             <Text style={s.actionBtnText}>
               {lang === 'he' ? 'עבור לדשבורד' : 'Go to dashboard'}
             </Text>

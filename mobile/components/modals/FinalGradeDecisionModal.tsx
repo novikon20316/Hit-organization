@@ -132,7 +132,13 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
           <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E293B' }}>
             {lang === 'he' ? 'ציון סופי מחושב' : 'Computed Final Grade'}
           </Text>
-          <Pressable onPress={onClose}><Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text></Pressable>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+          >
+            <Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text>
+          </Pressable>
         </View>
 
         <View style={{ marginTop: 16, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', padding: 16, alignItems: 'center' }}>
@@ -149,6 +155,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
           <Pressable
             onPress={pickFile}
             style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+            accessibilityRole="button"
           >
             <Text style={{ fontSize: 13, color: file ? '#1E293B' : '#94A3B8' }}>
               {file ? `📄 ${file.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
@@ -162,6 +169,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
               onPress={handleApprove}
               disabled={submitting}
               style={{ borderRadius: 10, backgroundColor: '#7C3AED', paddingVertical: 12, alignItems: 'center', opacity: submitting ? 0.6 : 1 }}
+              accessibilityRole="button"
             >
               {submitting
                 ? <ActivityIndicator color="#fff" />
@@ -175,6 +183,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
             <Pressable
               onPress={() => setMode('override')}
               style={{ borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1', paddingVertical: 12, alignItems: 'center' }}
+              accessibilityRole="button"
             >
               <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B' }}>
                 {lang === 'he' ? 'שנה את הציון' : 'Change the grade'}
@@ -219,6 +228,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
               <Pressable
                 onPress={() => setMode('choose')}
                 style={{ flex: 1, borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1', paddingVertical: 10, alignItems: 'center' }}
+                accessibilityRole="button"
               >
                 <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B' }}>{lang === 'he' ? 'חזרה' : 'Back'}</Text>
               </Pressable>
@@ -226,6 +236,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
                 onPress={handleOverride}
                 disabled={submitting}
                 style={{ flex: 1, borderRadius: 10, backgroundColor: '#7C3AED', paddingVertical: 10, alignItems: 'center', opacity: submitting ? 0.6 : 1 }}
+                accessibilityRole="button"
               >
                 {submitting
                   ? <ActivityIndicator color="#fff" />

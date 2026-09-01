@@ -397,6 +397,7 @@ export default function ExaminerAccessScreen() {
               style={[s.btnPrimary, otpSending && s.btnDisabled, { marginTop: 20 }]}
               onPress={handleRequestOtp}
               disabled={otpSending}
+              accessibilityRole="button"
             >
               {otpSending
                 ? <ActivityIndicator color="#fff" />
@@ -421,6 +422,7 @@ export default function ExaminerAccessScreen() {
                 style={[s.btnPrimary, (otpVerifying || !otpCode.trim()) && s.btnDisabled, { marginTop: 12 }]}
                 onPress={handleVerifyOtp}
                 disabled={otpVerifying || !otpCode.trim()}
+                accessibilityRole="button"
               >
                 {otpVerifying
                   ? <ActivityIndicator color="#fff" />
@@ -431,6 +433,7 @@ export default function ExaminerAccessScreen() {
                 style={s.btnGhost}
                 onPress={handleRequestOtp}
                 disabled={otpSending}
+                accessibilityRole="button"
               >
                 <Text style={s.btnGhostText}>
                   {otpSending
@@ -574,6 +577,7 @@ export default function ExaminerAccessScreen() {
                 style={[s.btnPrimary, actionBusy && s.btnDisabled]}
                 onPress={handleAccept}
                 disabled={actionBusy}
+                accessibilityRole="button"
               >
                 {actionBusy
                   ? <ActivityIndicator color="#fff" />
@@ -585,6 +589,7 @@ export default function ExaminerAccessScreen() {
                 style={[s.btnOutline, actionBusy && s.btnDisabled]}
                 onPress={() => setShowDeclineForm(true)}
                 disabled={actionBusy}
+                accessibilityRole="button"
               >
                 <Text style={s.btnOutlineText}>✋ {t.examinerDecline[lang]}</Text>
               </Pressable>
@@ -606,13 +611,14 @@ export default function ExaminerAccessScreen() {
                 style={[s.btnDanger, actionBusy && s.btnDisabled]}
                 onPress={handleDecline}
                 disabled={actionBusy}
+                accessibilityRole="button"
               >
                 {actionBusy
                   ? <ActivityIndicator color="#fff" />
                   : <Text style={s.btnPrimaryText}>{t.examinerDecline[lang]}</Text>
                 }
               </Pressable>
-              <Pressable style={s.btnGhost} onPress={() => setShowDeclineForm(false)}>
+              <Pressable style={s.btnGhost} onPress={() => setShowDeclineForm(false)} accessibilityRole="button">
                 <Text style={s.btnGhostText}>{t.cancel[lang]}</Text>
               </Pressable>
             </View>
@@ -638,7 +644,7 @@ export default function ExaminerAccessScreen() {
         {/* Download thesis */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>{t.examinerViewThesis[lang]}</Text>
-          <Pressable style={s.downloadBtn} onPress={handleDownloadThesis}>
+          <Pressable style={s.downloadBtn} onPress={handleDownloadThesis} accessibilityRole="button">
             <Text style={s.downloadBtnText}>📄 {t.examinerDownloadThesis[lang]}</Text>
           </Pressable>
         </View>
@@ -668,6 +674,7 @@ export default function ExaminerAccessScreen() {
                   style={[s.btnPrimary, { marginTop: 10 }, submittingDates && s.btnDisabled]}
                   onPress={handleSubmitDefenseDates}
                   disabled={submittingDates}
+                  accessibilityRole="button"
                 >
                   {submittingDates
                     ? <ActivityIndicator color="#fff" />
@@ -736,6 +743,8 @@ export default function ExaminerAccessScreen() {
               key={opt.value}
               style={[s.radioRow, recommendation === opt.value && s.radioRowSelected]}
               onPress={() => setRecommendation(opt.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: recommendation === opt.value }}
             >
               <View style={[s.radioCircle, recommendation === opt.value && s.radioCircleSelected]} />
               <Text style={[s.radioLabel, recommendation === opt.value && s.radioLabelSelected]}>
@@ -762,6 +771,7 @@ export default function ExaminerAccessScreen() {
             style={[s.btnPrimary, submittingOpinion && s.btnDisabled]}
             onPress={handleSubmitOpinion}
             disabled={submittingOpinion}
+            accessibilityRole="button"
           >
             {submittingOpinion
               ? <ActivityIndicator color="#fff" />
@@ -780,7 +790,12 @@ export default function ExaminerAccessScreen() {
 
 function LangToggle({ lang, onToggle }: { lang: Lang; onToggle: () => void }) {
   return (
-    <Pressable style={s.langToggle} onPress={onToggle}>
+    <Pressable
+      style={s.langToggle}
+      onPress={onToggle}
+      accessibilityRole="button"
+      accessibilityLabel={lang === 'he' ? 'עבור לאנגלית' : 'Switch to Hebrew'}
+    >
       <Text style={s.langToggleText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
     </Pressable>
   );

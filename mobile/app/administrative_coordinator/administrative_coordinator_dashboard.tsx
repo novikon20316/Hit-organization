@@ -145,7 +145,13 @@ function FileLinksRow({ label, urls }: { label: string; urls: string[] }) {
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 }}>
       <Text style={{ fontSize: 10, color: '#64748B' }}>{label}</Text>
       {urls.map((url, i) => (
-        <Pressable key={i} onPress={() => Linking.openURL(url)} style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+        <Pressable
+          key={i}
+          onPress={() => Linking.openURL(url)}
+          style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}
+          accessibilityRole="link"
+          accessibilityLabel={`${label} ${i + 1}`}
+        >
           <Text style={{ fontSize: 11, color: '#1E293B' }}>📄 {i + 1}</Text>
         </Pressable>
       ))}
@@ -284,6 +290,7 @@ function SendExaminerModal({
               key={l}
               style={[m.langBtn, examinerLanguage === l && m.langBtnActive]}
               onPress={() => setExaminerLanguage(l)}
+              accessibilityRole="button"
             >
               <Text style={[m.langBtnText, examinerLanguage === l && m.langBtnTextActive]}>
                 {l === 'he' ? 'עברית' : 'English'}
@@ -305,6 +312,7 @@ function SendExaminerModal({
           style={[m.btnSend, sending && { opacity: 0.6 }]}
           onPress={handleSend}
           disabled={sending}
+          accessibilityRole="button"
         >
           {sending
             ? <ActivityIndicator color="#fff" />
@@ -316,7 +324,7 @@ function SendExaminerModal({
           }
         </Pressable>
 
-        <Pressable style={m.btnCancel} onPress={handleClose}>
+        <Pressable style={m.btnCancel} onPress={handleClose} accessibilityRole="button">
           <Text style={m.btnCancelText}>{tx('cancel', lang)}</Text>
         </Pressable>
       </ScrollView>
@@ -437,6 +445,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
           style={[m.btnSend, saving && { opacity: 0.6 }]}
           onPress={handleSave}
           disabled={saving}
+          accessibilityRole="button"
         >
           {saving
             ? <ActivityIndicator color="#fff" />
@@ -444,7 +453,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
           }
         </Pressable>
 
-        <Pressable style={m.btnCancel} onPress={handleClose}>
+        <Pressable style={m.btnCancel} onPress={handleClose} accessibilityRole="button">
           <Text style={m.btnCancelText}>{tx('cancel', lang)}</Text>
         </Pressable>
       </ScrollView>
@@ -464,13 +473,17 @@ function StudentContactModal({ member, lang, onClose }: { member: ContactMember 
         <View style={contactStyles.card}>
           <View style={contactStyles.header}>
             <Text style={contactStyles.title}>👤 {member?.name}</Text>
-            <Pressable onPress={onClose}>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+            >
               <Text style={contactStyles.closeIcon}>✕</Text>
             </Pressable>
           </View>
 
           {member?.email ? (
-            <Pressable style={contactStyles.row} onPress={() => Linking.openURL(`mailto:${member.email}`)}>
+            <Pressable style={contactStyles.row} onPress={() => Linking.openURL(`mailto:${member.email}`)} accessibilityRole="link">
               <Text style={contactStyles.rowText}>✉️ {member.email}</Text>
             </Pressable>
           ) : (
@@ -478,7 +491,7 @@ function StudentContactModal({ member, lang, onClose }: { member: ContactMember 
           )}
 
           {member?.phoneNumber ? (
-            <Pressable style={contactStyles.row} onPress={() => Linking.openURL(`tel:${member.phoneNumber}`)}>
+            <Pressable style={contactStyles.row} onPress={() => Linking.openURL(`tel:${member.phoneNumber}`)} accessibilityRole="link">
               <Text style={contactStyles.rowText}>📞 {member.phoneNumber}</Text>
             </Pressable>
           ) : (
@@ -847,6 +860,7 @@ export default function ProjectCoordinatorDashboard() {
             key={key}
             style={[s.filterChip, activeTab === key && { backgroundColor: fc.primary }]}
             onPress={() => setActiveTab(key)}
+            accessibilityRole="button"
           >
             <Text style={[s.filterChipText, activeTab === key && { color: '#fff' }]}>
               {key === 'groups'
@@ -932,6 +946,7 @@ export default function ProjectCoordinatorDashboard() {
                           style={[s.btnApproveOverride, overrideBusyId === r.milestoneId && { opacity: 0.6 }]}
                           onPress={() => decideOverride(r.milestoneId, 'approve_override')}
                           disabled={overrideBusyId === r.milestoneId}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnApproveOverrideText}>{lang === 'he' ? '✓ אשר את השינוי' : '✓ Approve change'}</Text>
                         </Pressable>
@@ -939,6 +954,7 @@ export default function ProjectCoordinatorDashboard() {
                           style={[s.btnKeepAuto, overrideBusyId === r.milestoneId && { opacity: 0.6 }]}
                           onPress={() => decideOverride(r.milestoneId, 'keep_auto')}
                           disabled={overrideBusyId === r.milestoneId}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnKeepAutoText}>{lang === 'he' ? 'השאר מחושב' : 'Keep computed'}</Text>
                         </Pressable>
@@ -956,6 +972,7 @@ export default function ProjectCoordinatorDashboard() {
                           style={[s.btnApproveOverride, { flex: 1 }, overrideBusyId === r.milestoneId && { opacity: 0.6 }]}
                           onPress={() => decideOverride(r.milestoneId, 'approve_override')}
                           disabled={overrideBusyId === r.milestoneId}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnApproveOverrideText}>{lang === 'he' ? '✓ אשר ציון סופי' : '✓ Approve final grade'}</Text>
                         </Pressable>
@@ -982,6 +999,7 @@ export default function ProjectCoordinatorDashboard() {
                   key={st}
                   style={[s.filterChip, reportFilterStatus === st && { backgroundColor: fc.primary }]}
                   onPress={() => setReportFilterStatus(st)}
+                  accessibilityRole="button"
                 >
                   <Text style={[s.filterChipText, reportFilterStatus === st && { color: '#fff' }]}>
                     {st === 'all' ? (lang === 'he' ? 'הכל' : 'All') : STUDENT_STATUS_LABEL[st][lang]}
@@ -1020,6 +1038,7 @@ export default function ProjectCoordinatorDashboard() {
                     key={row.id}
                     style={[s.card, { borderLeftColor: fc.primary }]}
                     onPress={() => router.push(`/administrative_coordinator/students/${row.id}` as any)}
+                    accessibilityRole="link"
                   >
                     <Text style={s.cardTitle}>{row.name}</Text>
                     <Text style={[s.cardSub, { color: STUDENT_STATUS_COLOR[row.status], fontWeight: '700' }]}>
@@ -1061,6 +1080,7 @@ export default function ProjectCoordinatorDashboard() {
               key={sv.key}
               style={[s.card, { borderLeftColor: sv.overdueCount > 0 ? '#EF4444' : fc.primary }]}
               onPress={() => setViewingSupervisorKey(sv.key)}
+              accessibilityRole="button"
             >
               <View style={s.cardHeaderRow}>
                 <Text style={s.cardTitle}>👨‍🏫 {sv.name}</Text>
@@ -1079,7 +1099,7 @@ export default function ProjectCoordinatorDashboard() {
         </>
         ) : (
         <>
-        <Pressable style={s.filterChip} onPress={() => setViewingSupervisorKey(null)}>
+        <Pressable style={s.filterChip} onPress={() => setViewingSupervisorKey(null)} accessibilityRole="button">
           <Text style={s.filterChipText}>{lang === 'he' ? '← חזרה למנחים' : '← Back to supervisors'}</Text>
         </Pressable>
         <Text style={[s.cardTitle, { marginTop: 10, marginBottom: 4 }]}>👨‍🏫 {viewingSupervisor?.name}</Text>
@@ -1098,6 +1118,7 @@ export default function ProjectCoordinatorDashboard() {
               key={track}
               style={[s.filterChip, filterTrack === track && { backgroundColor: fc.primary }]}
               onPress={() => setFilterTrack(track)}
+              accessibilityRole="button"
             >
               <Text style={[s.filterChipText, filterTrack === track && { color: '#fff' }]}>
                 {track === 'all'
@@ -1111,6 +1132,7 @@ export default function ProjectCoordinatorDashboard() {
           <Pressable
             style={[s.filterChip, filterOverdue && { backgroundColor: '#EF4444' }]}
             onPress={() => setFilterOverdue(v => !v)}
+            accessibilityRole="button"
           >
             <Text style={[s.filterChipText, filterOverdue && { color: '#fff' }]}>
               ⚠️ {lang === 'he' ? 'באיחור' : 'Overdue'}
@@ -1146,7 +1168,7 @@ export default function ProjectCoordinatorDashboard() {
                 {group.members.map((m, i) => (
                   <React.Fragment key={m.uid}>
                     {i > 0 && <Text style={s.cardSub}>  ·  </Text>}
-                    <Pressable onPress={() => setContactMember({ name: m.name, email: m.email, phoneNumber: m.phoneNumber })}>
+                    <Pressable onPress={() => setContactMember({ name: m.name, email: m.email, phoneNumber: m.phoneNumber })} accessibilityRole="button">
                       <Text style={[s.cardSub, { textDecorationLine: 'underline' }]}>{m.name}</Text>
                     </Pressable>
                   </React.Fragment>
@@ -1188,6 +1210,7 @@ export default function ProjectCoordinatorDashboard() {
                   onPress={() =>
                     router.push({ pathname: '/admin/panel', params: { groupId: group.id } } as any)
                   }
+                  accessibilityRole="link"
                 >
                   <Text style={[s.actionBtnText, { color: '#1D4ED8' }]}>
                     📁 {tx('view', lang)}
@@ -1197,6 +1220,7 @@ export default function ProjectCoordinatorDashboard() {
                 <Pressable
                   style={[s.actionBtn, { backgroundColor: '#F0FDF4' }]}
                   onPress={() => setDefenseModalGroup(group)}
+                  accessibilityRole="button"
                 >
                   <Text style={[s.actionBtnText, { color: '#065F46' }]}>
                     🛡 {tx('scheduleDefense', lang)}
@@ -1206,6 +1230,7 @@ export default function ProjectCoordinatorDashboard() {
                 <Pressable
                   style={[s.actionBtn, { backgroundColor: '#FFF7ED' }]}
                   onPress={() => setExaminerModalGroup(group)}
+                  accessibilityRole="button"
                 >
                   <Text style={[s.actionBtnText, { color: '#92400E' }]}>
                     📧 {tx('externalExaminer', lang)}

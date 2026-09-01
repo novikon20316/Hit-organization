@@ -377,6 +377,7 @@ export default function LoginScreen() {
             style={styles.input}
             keyboardType="email-address"
             autoCapitalize="none"
+            accessibilityLabel="Email"
           />
 
           {/* ── Password row with show/hide toggle ── */}
@@ -388,10 +389,13 @@ export default function LoginScreen() {
               onChangeText={(t) => { setPassword(t); setError(''); }}
               secureTextEntry={!showPassword}
               style={[styles.input, { marginBottom: 0, paddingRight: 48 }]}
+              accessibilityLabel="Password"
             />
             <Pressable
               onPress={() => setShowPassword(prev => !prev)}
               style={{ position: 'absolute', right: 14, padding: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             >
               <Text style={{ fontSize: 18 }}>{showPassword ? '🙈' : '👁️'}</Text>
             </Pressable>
@@ -407,6 +411,7 @@ export default function LoginScreen() {
             style={styles.button}
             onPress={handleLogin}
             disabled={loading}
+            accessibilityRole="button"
           >
             {loading
               ? <ActivityIndicator color="#fff" />
@@ -424,6 +429,7 @@ export default function LoginScreen() {
             style={[styles.button, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e5e5' }]}
             onPress={handleGoogleSignIn}
             disabled={googleSubmitting}
+            accessibilityRole="button"
           >
             {googleSubmitting
               ? <ActivityIndicator color={PRIMARY} />
@@ -448,13 +454,13 @@ export default function LoginScreen() {
             </View>
           )}
 
-          <Pressable onPress={() => router.push('/(auth)/signup')}>
+          <Pressable onPress={() => router.push('/(auth)/signup')} accessibilityRole="link">
             <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
               Don&#39;t have an account? Sign Up.
             </Text>
           </Pressable>
 
-          <Pressable onPress={() => router.push('/(auth)/resetPass')}>
+          <Pressable onPress={() => router.push('/(auth)/resetPass')} accessibilityRole="link">
             <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
               Don&#39;t remember your password? Reset It.
             </Text>
@@ -478,6 +484,7 @@ export default function LoginScreen() {
               onChangeText={(t) => { setLinkingPassword(t); setLinkingError(''); }}
               secureTextEntry
               style={styles.input}
+              accessibilityLabel="Password"
             />
             {linkingError ? (
               <Text style={{ color: 'red', marginBottom: 8, fontSize: 13 }}>{linkingError}</Text>
@@ -486,6 +493,7 @@ export default function LoginScreen() {
               <TouchableOpacity
                 style={[styles.button, { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e5e5' }]}
                 onPress={() => { setLinkingPrompt(null); setLinkingPassword(''); setLinkingError(''); }}
+                accessibilityRole="button"
               >
                 <Text style={[styles.buttonText, { color: '#333' }]}>Cancel</Text>
               </TouchableOpacity>
@@ -493,6 +501,7 @@ export default function LoginScreen() {
                 style={[styles.button, { flex: 1 }]}
                 onPress={handleLinkSubmit}
                 disabled={linkingSubmitting}
+                accessibilityRole="button"
               >
                 {linkingSubmitting
                   ? <ActivityIndicator color="#fff" />

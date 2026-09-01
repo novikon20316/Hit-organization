@@ -156,6 +156,7 @@ export default function StudentDetailScreen() {
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/administrative_coordinator/administrative_coordinator_dashboard' as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 16 }}
+          accessibilityRole="button"
         >
           <Text style={{ fontSize: 15, fontWeight: '600', color: '#3E6C8C' }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה לדוח הסטודנטים' : 'Back to Students Report'}
@@ -217,6 +218,8 @@ export default function StudentDetailScreen() {
                       disabled={savingEligibility}
                       onPress={() => handleSetEligibility(true)}
                       style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 8, paddingVertical: 10, alignItems: 'center', opacity: savingEligibility ? 0.6 : 1 }}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: savingEligibility }}
                     >
                       <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
                         {lang === 'he' ? 'סמן כזכאי/ת לתזה' : 'Mark thesis-eligible'}
@@ -226,6 +229,8 @@ export default function StudentDetailScreen() {
                       disabled={savingEligibility}
                       onPress={() => handleSetEligibility(false)}
                       style={{ flex: 1, backgroundColor: '#EF4444', borderRadius: 8, paddingVertical: 10, alignItems: 'center', opacity: savingEligibility ? 0.6 : 1 }}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: savingEligibility }}
                     >
                       <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
                         {lang === 'he' ? 'סמן כלא זכאי/ת' : 'Mark not eligible'}
@@ -248,14 +253,14 @@ export default function StudentDetailScreen() {
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>☎️ {lang === 'he' ? 'פרטי התקשרות' : 'Communication'}</Text>
               {student.email ? (
-                <Pressable onPress={() => Linking.openURL(`mailto:${student.email}`)}>
+                <Pressable onPress={() => Linking.openURL(`mailto:${student.email}`)} accessibilityRole="link">
                   <Text style={[styles.cardSub, { color: '#3E6C8C', fontWeight: '600' }]}>✉️ {student.email}</Text>
                 </Pressable>
               ) : (
                 <Text style={[styles.cardSub, { fontStyle: 'italic' }]}>{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</Text>
               )}
               {student.phoneNumber ? (
-                <Pressable onPress={() => Linking.openURL(`tel:${student.phoneNumber}`)}>
+                <Pressable onPress={() => Linking.openURL(`tel:${student.phoneNumber}`)} accessibilityRole="link">
                   <Text style={[styles.cardSub, { color: '#3E6C8C', fontWeight: '600' }]}>📞 {student.phoneNumber}</Text>
                 </Pressable>
               ) : (

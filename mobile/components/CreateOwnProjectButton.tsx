@@ -129,6 +129,7 @@ export default function CreateOwnProjectButton({ lang, isRtl, onCreated }: Props
       <Pressable
         style={{ backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 14 }}
         onPress={() => setShowNewProject(true)}
+        accessibilityRole="button"
       >
         <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
           + {lang === 'he' ? 'פרסום פרויקט חדש (כמנחה)' : 'Post New Project (as Supervisor)'}

@@ -63,7 +63,13 @@ export default function FacultyCheckboxes({ selected, onChange, lang }: Props) {
         const faculty = getFacultyByKey(facultyId);
         const label = faculty?.label?.[lang] ?? facultyId;
         return (
-          <Pressable key={facultyId} style={styles.row} onPress={() => toggle(facultyId)}>
+          <Pressable
+            key={facultyId}
+            style={styles.row}
+            onPress={() => toggle(facultyId)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isActive }}
+          >
             <View style={[styles.checkbox, isActive && styles.checkboxActive]}>{isActive && <Text style={styles.checkmark}>✓</Text>}</View>
             <Text style={styles.label}>{label}</Text>
           </Pressable>

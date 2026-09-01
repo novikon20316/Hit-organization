@@ -143,12 +143,15 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
                   style={[{ flex: 1, backgroundColor: rejectReason.trim() ? '#EF4444' : '#FCA5A5', borderRadius: 8, padding: 10, alignItems: 'center' }]}
                   onPress={() => handleReject(item)}
                   disabled={!rejectReason.trim() || busyId === item.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !rejectReason.trim() || busyId === item.id }}
                 >
                   <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}</Text>
                 </Pressable>
                 <Pressable
                   style={{ flex: 1, backgroundColor: '#FEF3C7', borderRadius: 8, padding: 10, alignItems: 'center' }}
                   onPress={() => { setRejectTargetId(null); setRejectReason(''); }}
+                  accessibilityRole="button"
                 >
                   <Text style={{ color: '#92400E', fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                 </Pressable>
@@ -159,6 +162,8 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
                   style={{ flex: 1, backgroundColor: '#FEF3C7', borderRadius: 8, padding: 10, alignItems: 'center' }}
                   onPress={() => setRejectTargetId(item.id)}
                   disabled={busyId === item.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: busyId === item.id }}
                 >
                   <Text style={{ color: '#92400E', fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
                 </Pressable>
@@ -166,6 +171,8 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
                   style={[{ flex: 1, backgroundColor: '#D1FAE5', borderRadius: 8, padding: 10, alignItems: 'center' }, busyId === item.id && { opacity: 0.6 }]}
                   onPress={() => handleApprove(item)}
                   disabled={busyId === item.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: busyId === item.id }}
                 >
                   {busyId === item.id ? <ActivityIndicator color="#065F46" /> : (
                     <Text style={{ color: '#065F46', fontWeight: '700', fontSize: 13 }}>✅ {lang === 'he' ? 'אשר' : 'Approve'}</Text>

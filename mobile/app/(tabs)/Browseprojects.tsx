@@ -310,6 +310,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                 key={tp}
                 style={[styles.chip, typeFilter === tp && styles.chipActiveAlt]}
                 onPress={() => setTypeFilter(tp)}
+                accessibilityRole="button"
               >
                 <Text style={[styles.chipText, typeFilter === tp && styles.chipTextActive]}>
                   {tp === 'all'     ? tx('all', lang) :
@@ -330,6 +331,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
               key={ef}
               style={[styles.chip, eligibilityFilter === ef && styles.chipActive]}
               onPress={() => setEligibilityFilter(ef)}
+              accessibilityRole="button"
             >
               <Text style={[styles.chipText, eligibilityFilter === ef && styles.chipTextActive]}>
                 {ef === 'all'
@@ -362,6 +364,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                   key={p.id}
                   style={styles.card}
                   onPress={() => setExpandedProjectId(isExpanded ? null : p.id)}
+                  accessibilityRole="button"
                 >
                   {/* Header row */}
                   <View style={styles.cardHeader}>
@@ -485,6 +488,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                           onPress={() => {
                             Linking.openURL(p.projectFileUrl!);
                           }}
+                          accessibilityRole="link"
                         >
                           <Text style={{ fontSize: 20 }}>📄</Text>
                           <View style={{ flex: 1 }}>
@@ -534,6 +538,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                                 e.stopPropagation?.();
                                 openApply(p);
                               }}
+                              accessibilityRole="button"
                             >
                               <Text style={[styles.applyBtnText, !isQualified && { color: '#94A3B8' }]}>
                                 {tx('applyBtn', lang)}
@@ -567,7 +572,11 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
           <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
             <Text style={styles.modalTitle}>{tx('applyTitle', lang)}</Text>
-            <Pressable onPress={() => setShowApply(false)}>
+            <Pressable
+              onPress={() => setShowApply(false)}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+            >
               <Text style={styles.modalClose}>✕</Text>
             </Pressable>
           </View>
@@ -596,6 +605,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                       key={tp}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                       onPress={() => setSelectedProjectType(tp)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: isActive }}
                     >
                       <View style={{
                         width: 20, height: 20, borderRadius: 10, borderWidth: 2,
@@ -636,6 +647,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
           <Pressable
             style={[styles.uploadBtn, (transcriptUri || lastTranscriptUrl) && styles.uploadBtnDone]}
             onPress={() => pickFile('transcript')}
+            accessibilityRole="button"
           >
             <Text style={styles.uploadBtnText}>
               {transcriptUri
@@ -647,10 +659,10 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
           </Pressable>
           {!transcriptUri && lastTranscriptUrl ? (
             <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 16, marginTop: -6, marginBottom: 10 }}>
-              <Pressable onPress={() => Linking.openURL(lastTranscriptUrl)}>
+              <Pressable onPress={() => Linking.openURL(lastTranscriptUrl)} accessibilityRole="link">
                 <Text style={{ fontSize: 12, color: '#2E86FF', fontWeight: '600' }}>{lang === 'he' ? 'צפייה בקובץ' : 'View file'}</Text>
               </Pressable>
-              <Pressable onPress={() => setLastTranscriptUrl('')}>
+              <Pressable onPress={() => setLastTranscriptUrl('')} accessibilityRole="button">
                 <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '600' }}>{lang === 'he' ? 'הסר' : 'Remove'}</Text>
               </Pressable>
             </View>
@@ -663,6 +675,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
           <Pressable
             style={[styles.uploadBtn, (cvUri || lastCvUrl) && styles.uploadBtnDone]}
             onPress={() => pickFile('cv')}
+            accessibilityRole="button"
           >
             <Text style={styles.uploadBtnText}>
               {cvUri
@@ -674,10 +687,10 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
           </Pressable>
           {!cvUri && lastCvUrl ? (
             <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 16, marginTop: -6, marginBottom: 10 }}>
-              <Pressable onPress={() => Linking.openURL(lastCvUrl)}>
+              <Pressable onPress={() => Linking.openURL(lastCvUrl)} accessibilityRole="link">
                 <Text style={{ fontSize: 12, color: '#2E86FF', fontWeight: '600' }}>{lang === 'he' ? 'צפייה בקובץ' : 'View file'}</Text>
               </Pressable>
-              <Pressable onPress={() => setLastCvUrl('')}>
+              <Pressable onPress={() => setLastCvUrl('')} accessibilityRole="button">
                 <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '600' }}>{lang === 'he' ? 'הסר' : 'Remove'}</Text>
               </Pressable>
             </View>
@@ -698,6 +711,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
             style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
             onPress={handleApply}
             disabled={submitting}
+            accessibilityRole="button"
+            accessibilityLabel={tx('submit', lang)}
           >
             {submitting
               ? <ActivityIndicator color="#fff" />

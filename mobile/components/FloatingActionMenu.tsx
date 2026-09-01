@@ -129,6 +129,7 @@ export default function FloatingActionMenu({
               style={[styles.pill, isRtl && styles.pillRtl]}
               onPress={() => { toggle(); action.onPress(); }}
               disabled={action.loading}
+              accessibilityRole="button"
               onLayout={(e) => {
                 const h = Math.ceil(e.nativeEvent.layout.height);
                 setPillHeights((prev) => {
@@ -162,6 +163,9 @@ export default function FloatingActionMenu({
         onPress={toggle}
         onHoverIn={() => setShowTooltip(true)}
         onHoverOut={() => setShowTooltip(false)}
+        accessibilityRole="button"
+        accessibilityLabel={tooltipText}
+        accessibilityState={{ expanded }}
       >
         <Animated.Text
           style={[

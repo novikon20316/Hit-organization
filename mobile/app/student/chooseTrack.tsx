@@ -41,7 +41,12 @@ export default function ChooseTrackScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.langRow}>
-        <Pressable style={styles.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+        <Pressable
+          style={styles.langBtn}
+          onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+        >
           <Text style={styles.langBtnText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
         </Pressable>
       </View>
@@ -59,6 +64,7 @@ export default function ChooseTrackScreen() {
         style={[styles.button, choosing !== null && styles.buttonDisabled]}
         onPress={() => handleChoose('thesis')}
         disabled={choosing !== null}
+        accessibilityRole="button"
       >
         {choosing === 'thesis' ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{lang === 'he' ? 'תזה' : 'Thesis'}</Text>}
       </Pressable>
@@ -67,6 +73,7 @@ export default function ChooseTrackScreen() {
         style={[styles.button, choosing !== null && styles.buttonDisabled]}
         onPress={() => handleChoose('project')}
         disabled={choosing !== null}
+        accessibilityRole="button"
       >
         {choosing === 'project' ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{lang === 'he' ? 'פרויקט גמר' : 'Final Project'}</Text>}
       </Pressable>

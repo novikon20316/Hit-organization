@@ -386,6 +386,7 @@ export default function ExaminerHome() {
             key={tab.key}
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="button"
           >
             <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.he : tab.en}
@@ -436,6 +437,7 @@ export default function ExaminerHome() {
                     onPress={() =>
                       setExpandedCards((prev) => ({ ...prev, [m.id]: !prev[m.id] }))
                     }
+                    accessibilityRole="button"
                   >
                     {/* Title */}
                     <Text style={styles.cardTitle}>
@@ -504,6 +506,7 @@ export default function ExaminerHome() {
                           style={[styles.gradeBtn, { backgroundColor: '#F59E0B', marginTop: 8 }, submittingDates[m.id] && { opacity: 0.6 }]}
                           onPress={() => handleSubmitDates(m)}
                           disabled={!!submittingDates[m.id]}
+                          accessibilityRole="button"
                         >
                           {submittingDates[m.id]
                             ? <ActivityIndicator color="#fff" />
@@ -592,6 +595,7 @@ export default function ExaminerHome() {
                                         onPress={() =>
                                           router.push({ pathname: '/pdfViewer', params: { url } })
                                         }
+                                        accessibilityRole="button"
                                       >
                                         <Text style={styles.fileBtnText}>
                                           📄 {lang === 'he' ? `קובץ ${idx + 1}` : `File ${idx + 1}`}
@@ -636,6 +640,7 @@ export default function ExaminerHome() {
                           style={[styles.gradeBtn, { flex: 1, backgroundColor: fc.primary }, examinerEvaluationDone(m, 'project') && { opacity: 0.5 }]}
                           onPress={() => openEvalModal(m, 'project')}
                           disabled={examinerEvaluationDone(m, 'project')}
+                          accessibilityRole="button"
                         >
                           <Text style={styles.gradeBtnText}>
                             {examinerEvaluationDone(m, 'project')
@@ -647,6 +652,7 @@ export default function ExaminerHome() {
                           style={[styles.gradeBtn, { flex: 1, backgroundColor: fc.primary }, examinerEvaluationDone(m, 'defense') && { opacity: 0.5 }]}
                           onPress={() => openEvalModal(m, 'defense')}
                           disabled={examinerEvaluationDone(m, 'defense')}
+                          accessibilityRole="button"
                         >
                           <Text style={styles.gradeBtnText}>
                             {examinerEvaluationDone(m, 'defense')
@@ -659,6 +665,7 @@ export default function ExaminerHome() {
                       <Pressable
                         style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
                         onPress={() => openGradeModal(m)}
+                        accessibilityRole="button"
                       >
                         <Text style={styles.gradeBtnText}>
                           ✏️ {lang === 'he' ? 'הגש ציון' : 'Submit Grade'}
@@ -842,6 +849,7 @@ export default function ExaminerHome() {
             style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
             onPress={handleSubmitGrade}
             disabled={submitting}
+            accessibilityRole="button"
           >
             {submitting
               ? <ActivityIndicator color="#fff" />
@@ -851,7 +859,7 @@ export default function ExaminerHome() {
             }
           </Pressable>
  
-          <Pressable style={styles.cancelBtn} onPress={() => setGradeModal(false)}>
+          <Pressable style={styles.cancelBtn} onPress={() => setGradeModal(false)} accessibilityRole="button">
             <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
         </ScrollView>
@@ -929,6 +937,7 @@ export default function ExaminerHome() {
           <Pressable
             onPress={pickEvalFile}
             style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+            accessibilityRole="button"
           >
             <Text style={{ fontSize: 13, color: evalFile ? '#1E293B' : '#94A3B8' }}>
               {evalFile ? `📄 ${evalFile.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
@@ -939,6 +948,7 @@ export default function ExaminerHome() {
             style={[styles.submitBtn, evalSubmitting && { opacity: 0.6 }]}
             onPress={handleSubmitEvaluation}
             disabled={evalSubmitting}
+            accessibilityRole="button"
           >
             {evalSubmitting
               ? <ActivityIndicator color="#fff" />
@@ -948,7 +958,7 @@ export default function ExaminerHome() {
             }
           </Pressable>
 
-          <Pressable style={styles.cancelBtn} onPress={() => setEvalModal(false)}>
+          <Pressable style={styles.cancelBtn} onPress={() => setEvalModal(false)} accessibilityRole="button">
             <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
         </ScrollView>

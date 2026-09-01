@@ -75,7 +75,13 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
               <Text style={s.headerTitle}>
                 {lang === 'he' ? '🔐 הרשאות מפורטות' : '🔐 Granular Permissions'}
               </Text>
-              <Pressable onPress={onClose}><Text style={s.close}>✕</Text></Pressable>
+              <Pressable
+                onPress={onClose}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+              >
+                <Text style={s.close}>✕</Text>
+              </Pressable>
             </View>
 
             <View style={s.countBar}>
@@ -107,10 +113,10 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
                         : `👁️ ${rule.view.length} view  ·  ⚡ ${rule.actions.length} action`}
                     </Text>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <Pressable onPress={() => openEditRule(rule)}>
+                      <Pressable onPress={() => openEditRule(rule)} accessibilityRole="button">
                         <Text style={s.selectAllText}>{lang === 'he' ? 'ערוך' : 'Edit'}</Text>
                       </Pressable>
-                      <Pressable onPress={() => deleteRule(rule.id)}>
+                      <Pressable onPress={() => deleteRule(rule.id)} accessibilityRole="button">
                         <Text style={[s.selectAllText, { color: '#EF4444' }]}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
                       </Pressable>
                     </View>
@@ -118,7 +124,7 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
                 </View>
               ))}
 
-              <Pressable style={[s.groupTab, { backgroundColor: '#EFF6FF', marginTop: 8 }]} onPress={openNewRule}>
+              <Pressable style={[s.groupTab, { backgroundColor: '#EFF6FF', marginTop: 8 }]} onPress={openNewRule} accessibilityRole="button">
                 <Text style={[s.groupTabText, { color: '#2E86FF' }]}>
                   ＋ {lang === 'he' ? 'הוסף כלל הרשאה' : 'Add Scope Rule'}
                 </Text>
@@ -126,7 +132,7 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
             </ScrollView>
 
             <View style={s.footer}>
-              <Pressable style={s.doneBtn} onPress={onClose}>
+              <Pressable style={s.doneBtn} onPress={onClose} accessibilityRole="button">
                 <Text style={s.doneBtnText}>{lang === 'he' ? 'סגור' : 'Done'}</Text>
               </Pressable>
             </View>
@@ -138,7 +144,13 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
               <Text style={s.headerTitle}>
                 {lang === 'he' ? 'כלל הרשאה' : 'Scope Rule'}
               </Text>
-              <Pressable onPress={cancelForm}><Text style={s.close}>✕</Text></Pressable>
+              <Pressable
+                onPress={cancelForm}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+              >
+                <Text style={s.close}>✕</Text>
+              </Pressable>
             </View>
 
             <ScrollView contentContainerStyle={s.scroll}>
@@ -149,7 +161,13 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
               {VIEW_TYPES.map((t) => {
                 const isActive = draft.view.includes(t.key);
                 return (
-                  <Pressable key={t.key} style={s.permRow} onPress={() => setDraft({ ...draft, view: toggleType(draft.view, t.key) })}>
+                  <Pressable
+                    key={t.key}
+                    style={s.permRow}
+                    onPress={() => setDraft({ ...draft, view: toggleType(draft.view, t.key) })}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isActive }}
+                  >
                     <View style={[s.checkbox, isActive && s.checkboxActive]}>
                       {isActive && <Text style={s.checkmark}>✓</Text>}
                     </View>
@@ -163,7 +181,13 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
               {availableActions.map((t) => {
                 const isActive = draft.actions.includes(t.key);
                 return (
-                  <Pressable key={t.key} style={s.permRow} onPress={() => setDraft({ ...draft, actions: toggleType(draft.actions, t.key) })}>
+                  <Pressable
+                    key={t.key}
+                    style={s.permRow}
+                    onPress={() => setDraft({ ...draft, actions: toggleType(draft.actions, t.key) })}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isActive }}
+                  >
                     <View style={[s.checkbox, isActive && s.checkboxActive]}>
                       {isActive && <Text style={s.checkmark}>✓</Text>}
                     </View>
@@ -174,7 +198,7 @@ export default function PermissionsEditorModal({ visible, onClose, lang, rules, 
             </ScrollView>
 
             <View style={s.footer}>
-              <Pressable style={s.doneBtn} onPress={saveRule}>
+              <Pressable style={s.doneBtn} onPress={saveRule} accessibilityRole="button">
                 <Text style={s.doneBtnText}>{lang === 'he' ? 'שמור כלל' : 'Save Rule'}</Text>
               </Pressable>
             </View>

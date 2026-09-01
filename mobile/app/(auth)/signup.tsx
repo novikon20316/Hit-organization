@@ -99,6 +99,7 @@ const s = SignupStyles;
           </Text>
         )}
         <TextInput
+          accessibilityLabel={placeholder}
           {...props}
           placeholder=""
           onFocus={(e) => { setIsFocused(true); props.onFocus?.(e); }}
@@ -376,7 +377,12 @@ export default function ProfileSetup() {
       <SafeAreaView style={s.root}>
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           <View style={[s.langRow, isRtl && s.rowReverse]}>
-            <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+            <Pressable
+              style={s.langBtn}
+              onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+            >
               <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
             </Pressable>
           </View>
@@ -397,6 +403,7 @@ export default function ProfileSetup() {
             style={[s.saveBtn, saving && { opacity: 0.5 }]}
             onPress={handleContinueAfterVerify}
             disabled={saving}
+            accessibilityRole="button"
           >
             {saving
               ? <ActivityIndicator color="#fff" />
@@ -410,6 +417,7 @@ export default function ProfileSetup() {
             style={{ marginTop: 18, alignItems: 'center' }}
             onPress={handleResendEmail}
             disabled={resending}
+            accessibilityRole="button"
           >
             <Text style={{ color: '#2E86FF', fontWeight: '700', fontSize: 14 }}>
               {resending
@@ -421,6 +429,7 @@ export default function ProfileSetup() {
           <Pressable
             style={{ marginTop: 24, alignItems: 'center' }}
             onPress={() => setStage('form')}
+            accessibilityRole="button"
           >
             <Text style={{ color: '#8899BB', fontSize: 13 }}>
               {lang === 'he' ? '← חזור לטופס' : '← Back to form'}
@@ -441,7 +450,12 @@ export default function ProfileSetup() {
       >
 
         <View style={[s.langRow, isRtl && s.rowReverse]}>
-          <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+          <Pressable
+            style={s.langBtn}
+            onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+          >
             <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
         </View>
@@ -546,10 +560,15 @@ export default function ProfileSetup() {
             secureTextEntry={!showPassword}
             onFocus={() => setPasswordFocused(true)}              // ← add these
             onBlur={() => setPasswordFocused(false)}              // ← add these
+            accessibilityLabel={lang === 'he' ? 'סיסמה' : 'Password'}
           />
           <Pressable
             onPress={() => setShowPassword(prev => !prev)}
             style={{ position: 'absolute', right: 14, padding: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword
+              ? (lang === 'he' ? 'הסתר סיסמה' : 'Hide password')
+              : (lang === 'he' ? 'הצג סיסמה' : 'Show password')}
           >
             <Text style={{ fontSize: 18 }}>{showPassword ? '🙈' : '👁️'}</Text>
           </Pressable>
@@ -603,6 +622,7 @@ export default function ProfileSetup() {
               }
             ]}
             onPress={() => setShowFacultyModal(true)}
+            accessibilityRole="button"
           >
             <View style={{
               flexDirection: isRtl ? 'row-reverse' : 'row',
@@ -635,6 +655,7 @@ export default function ProfileSetup() {
                   key={p.key}
                   style={[s.majorOption, programKey === p.key && s.majorOptionActive]}
                   onPress={() => { setProgramKey(p.key); setYearOfStudy(null); setChosenTrack(null); }}
+                  accessibilityRole="button"
                 >
                   <Text style={[s.majorText, programKey === p.key && s.majorTextActive, isRtl && s.textRight]}>
                     {p.label[lang]}
@@ -676,6 +697,7 @@ export default function ProfileSetup() {
                       yearOfStudy === yr && isFinalYear && s.yearOptionFinalActive,
                     ]}
                     onPress={() => setYearOfStudy(yr)}
+                    accessibilityRole="button"
                   >
                     <Text style={[
                       s.yearNum,
@@ -713,6 +735,7 @@ export default function ProfileSetup() {
                   key={track}
                   style={[s.yearOption, chosenTrack === track && s.yearOptionActive]}
                   onPress={() => setChosenTrack(track)}
+                  accessibilityRole="button"
                 >
                   <Text style={[s.yearNum, chosenTrack === track && s.yearNumActive]}>
                     {track === 'thesis'
@@ -741,6 +764,7 @@ export default function ProfileSetup() {
             handleSave();
           }}
           disabled={saving}
+          accessibilityRole="button"
         >
           {saving
             ? <ActivityIndicator color="#fff" />
@@ -753,6 +777,7 @@ export default function ProfileSetup() {
         <Pressable
           style={{ marginTop: 16, alignItems: 'center' }}
           onPress={() => router.push('/privacy-policy' as any)}
+          accessibilityRole="link"
         >
           <Text style={{ color: '#8899BB', fontSize: 12, textAlign: 'center' }}>
             {lang === 'he'
@@ -824,6 +849,7 @@ export default function ProfileSetup() {
                         setYearOfStudy(null);
                         setShowFacultyModal(false);
                       }}
+                      accessibilityRole="button"
                     >
                       <Text style={{
                         fontSize: 15,

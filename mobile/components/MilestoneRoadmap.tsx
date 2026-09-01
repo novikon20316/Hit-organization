@@ -197,7 +197,7 @@ export function MilestoneRoadmap({ milestones, lang, isRtl }: Props) {
               </Text>
             )}
             {isDefense && !!m.onlineDefenseLink && (
-              <Pressable onPress={() => Linking.openURL(m.onlineDefenseLink!)}>
+              <Pressable onPress={() => Linking.openURL(m.onlineDefenseLink!)} accessibilityRole="link">
                 <Text style={[s.linkText, isRtl && s.textRight]}>💻 {lang === 'he' ? 'הצטרפות מקוונת' : 'Join online'}</Text>
               </Pressable>
             )}
@@ -207,7 +207,7 @@ export function MilestoneRoadmap({ milestones, lang, isRtl }: Props) {
                 <Text style={[s.statLabel, isRtl && s.textRight]}>{lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}</Text>
                 <View style={[s.filesRow, isRtl && s.rowReverse]}>
                   {m.fileUrls.map((url, idx) => (
-                    <Pressable key={idx} onPress={() => Linking.openURL(url)} style={s.fileChip}>
+                    <Pressable key={idx} onPress={() => Linking.openURL(url)} style={s.fileChip} accessibilityRole="link">
                       <Text style={s.fileChipText} numberOfLines={1}>
                         📄 {fileNameFromUrl(url, idx, lang)}
                       </Text>

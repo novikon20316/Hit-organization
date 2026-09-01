@@ -157,7 +157,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={ss.backdrop} onPress={onClose} />
+      <Pressable style={ss.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
 
       <Animated.View style={[ss.sheet, { transform: [{ translateY: slideAnim }] }]}>
         <KeyboardAvoidingView
@@ -168,7 +168,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
 
           <View style={ss.header}>
             <Text style={ss.headerTitle}>New Message</Text>
-            <Pressable onPress={onClose} style={ss.closeBtn}>
+            <Pressable onPress={onClose} style={ss.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
               <Text style={ss.closeText}>✕</Text>
             </Pressable>
           </View>
@@ -178,6 +178,8 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
               <Pressable
                 style={[ss.modeBtn, mode === 'chat' && ss.modeBtnActive]}
                 onPress={() => setMode('chat')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: mode === 'chat' }}
               >
                 <Text style={[ss.modeBtnText, mode === 'chat' && ss.modeBtnTextActive]}>
                   💬 Direct
@@ -186,6 +188,8 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
               <Pressable
                 style={[ss.modeBtn, mode === 'broadcast' && ss.modeBtnActive]}
                 onPress={() => setMode('broadcast')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: mode === 'broadcast' }}
               >
                 <Text style={[ss.modeBtnText, mode === 'broadcast' && ss.modeBtnTextActive]}>
                   📢 Broadcast
@@ -224,6 +228,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
                 style={[ss.sendBroadcastBtn, creating && { opacity: 0.6 }]}
                 onPress={handleBroadcast}
                 disabled={creating}
+                accessibilityRole="button"
               >
                 {creating
                   ? <ActivityIndicator color="#fff" />
@@ -243,7 +248,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
                   placeholderTextColor={palette.textMuted}
                 />
                 {search.length > 0 && (
-                  <Pressable onPress={() => setSearch('')}>
+                  <Pressable onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear search">
                     <Text style={ss.clearSearch}>✕</Text>
                   </Pressable>
                 )}
@@ -252,7 +257,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
               {loadError && (
                 <View style={{ backgroundColor: '#FEF2F2', borderRadius: 10, borderWidth: 1, borderColor: '#F2C7C2', padding: 12, marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Text style={{ fontSize: 12, color: '#A8433A', flex: 1 }}>⚠️ {loadError}</Text>
-                  <Pressable onPress={loadCandidates}>
+                  <Pressable onPress={loadCandidates} accessibilityRole="button">
                     <Text style={{ fontSize: 12, fontWeight: '700', color: '#A8433A', textDecorationLine: 'underline' }}>Retry</Text>
                   </Pressable>
                 </View>
@@ -280,6 +285,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
                       style={ss.userRow}
                       onPress={() => handleSelectUser(item)}
                       disabled={creating}
+                      accessibilityRole="button"
                     >
                       <View style={[ss.avatar, { backgroundColor: roleColor(item.role) }]}>
                         <Text style={ss.avatarText}>

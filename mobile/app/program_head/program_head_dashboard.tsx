@@ -301,6 +301,7 @@ export default function ProgramHeadDashboard() {
             key={tab.key}
             style={[s.tab, activeTab === tab.key && { borderBottomColor: fc.primary, borderBottomWidth: 2 }]}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="button"
           >
             <Text
               style={[s.tabText, activeTab === tab.key && { color: fc.primary, fontWeight: '700' }]}
@@ -341,6 +342,7 @@ export default function ProgramHeadDashboard() {
                   key={track}
                   style={[s.filterChip, filterTrack === track && { backgroundColor: fc.primary }]}
                   onPress={() => setFilterTrack(track)}
+                  accessibilityRole="button"
                 >
                   <Text style={[s.filterChipText, filterTrack === track && { color: '#fff' }]}>
                     {track === 'all'
@@ -355,6 +357,7 @@ export default function ProgramHeadDashboard() {
               <Pressable
                 style={[s.filterChip, filterOverdue && { backgroundColor: '#EF4444' }]}
                 onPress={() => setFilterOverdue(v => !v)}
+                accessibilityRole="button"
               >
                 <Text style={[s.filterChipText, filterOverdue && { color: '#fff' }]}>
                   ⚠️ {lang === 'he' ? 'באיחור' : 'Overdue'}
@@ -372,6 +375,7 @@ export default function ProgramHeadDashboard() {
                   onPress={() =>
                     router.push({ pathname: '/admin/panel', params: { studentId: st.uid } } as any)
                   }
+                  accessibilityRole="link"
                 >
                   <View style={s.row}>
                     <Text style={s.cardTitle}>👤 {st.studentName}</Text>
@@ -431,6 +435,7 @@ export default function ProgramHeadDashboard() {
                         style={s.btnReturn}
                         onPress={() => handleRejectExaminers(item)}
                         disabled={approvingId === item.id}
+                        accessibilityRole="button"
                       >
                         <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
                       </Pressable>
@@ -438,6 +443,7 @@ export default function ProgramHeadDashboard() {
                         style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
                         onPress={() => handleApproveExaminers(item)}
                         disabled={approvingId === item.id}
+                        accessibilityRole="button"
                       >
                         <Text style={s.btnApproveText}>
                           {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
@@ -459,6 +465,7 @@ export default function ProgramHeadDashboard() {
                             style={[s.btnReturn, { flex: 1, backgroundColor: templateRejectReason.trim() ? '#EF4444' : '#FCA5A5' }]}
                             onPress={() => handleRejectTemplate(item)}
                             disabled={!templateRejectReason.trim() || approvingId === item.id}
+                            accessibilityRole="button"
                           >
                             <Text style={[s.btnReturnText, { color: '#fff' }]}>
                               {lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}
@@ -467,6 +474,7 @@ export default function ProgramHeadDashboard() {
                           <Pressable
                             style={[s.btnReturn, { flex: 1 }]}
                             onPress={() => { setTemplateRejectTargetId(null); setTemplateRejectReason(''); }}
+                            accessibilityRole="button"
                           >
                             <Text style={s.btnReturnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                           </Pressable>
@@ -478,6 +486,7 @@ export default function ProgramHeadDashboard() {
                           style={s.btnReturn}
                           onPress={() => setTemplateRejectTargetId(item.id)}
                           disabled={approvingId === item.id}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnReturnText}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
                         </Pressable>
@@ -485,6 +494,7 @@ export default function ProgramHeadDashboard() {
                           style={[s.btnApprove, approvingId === item.id && { opacity: 0.6 }]}
                           onPress={() => handleApproveTemplate(item)}
                           disabled={approvingId === item.id}
+                          accessibilityRole="button"
                         >
                           <Text style={s.btnApproveText}>
                             {approvingId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}

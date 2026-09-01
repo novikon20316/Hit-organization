@@ -162,6 +162,8 @@ export default function NewUserModal({
               setNewUserTempPassword('');
               setNewUserAssignedMajors([]);
             }}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
           >
             <Text style={styles.modalClose}>✕</Text>
           </Pressable>
@@ -220,6 +222,7 @@ export default function NewUserModal({
           />
           <Pressable
             onPress={() => setNewUserTempPassword(generateReadableTempPassword())}
+            accessibilityRole="button"
             style={{
               borderWidth: 1,
               borderColor: '#CBD5E1',
@@ -257,6 +260,8 @@ export default function NewUserModal({
                 isActive && { backgroundColor: accent.bg, borderWidth: 1.5, borderColor: accent.text },
               ]}
               onPress={() => setNewUserRole(role)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: isActive }}
             >
               <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: accent.text }} />
               <Text style={isActive ? { color: accent.text, fontWeight: '700' } : undefined}>
@@ -297,6 +302,8 @@ export default function NewUserModal({
                       const levels = picked ? Array.from(new Set(picked.programs.map((p) => p.level))) : [];
                       if (levels.length === 1) setNewUserDegree(levels[0]!);
                     }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: newUserFaculty === fid }}
                   >
                     <Text>{fc.label[lang]}</Text>
                   </Pressable>
@@ -336,6 +343,8 @@ export default function NewUserModal({
                         : [...newUserAssignedMajors, m.slug]
                     )
                   }
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isSelected }}
                 >
                   <Text style={isSelected ? { color: '#fff' } : undefined}>
                     {m.label[lang]}
@@ -374,6 +383,8 @@ export default function NewUserModal({
                     newUserDegree === d && { backgroundColor: '#2E86FF' },
                   ]}
                   onPress={() => { if (availableDegreeLevels.length > 1) { setNewUserDegree(d); setNewUserMajor(''); } }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: newUserDegree === d }}
                 >
                   <Text style={newUserDegree === d ? { color: '#fff' } : undefined}>
                     {d === 'bachelors'
@@ -405,6 +416,8 @@ export default function NewUserModal({
                       newUserMajor === program.slug && { backgroundColor: '#2E86FF' },
                     ]}
                     onPress={() => setNewUserMajor(program.slug)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: newUserMajor === program.slug }}
                   >
                     <Text style={newUserMajor === program.slug ? { color: '#fff' } : undefined}>
                       {program.label[lang]}
@@ -428,6 +441,7 @@ export default function NewUserModal({
           style={styles.submitBtn}
           onPress={onCreate}
           disabled={creating}
+          accessibilityRole="button"
         >
           {creating ? (
             <ActivityIndicator color="#fff" />

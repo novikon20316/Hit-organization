@@ -90,14 +90,20 @@ export function ClockPauseControl({ projectId, lang }: { projectId: string; lang
           <Text style={{ fontSize: 11, fontWeight: '600', color: '#A8433A', flex: 1 }}>
             ⏸ {lang === 'he' ? 'שעון מוקפא:' : 'Clock paused:'} {REASON_LABEL[activePause.reason]?.[lang] ?? activePause.reason}
           </Text>
-          <Pressable onPress={handleResume} disabled={saving} style={{ borderWidth: 1, borderColor: '#A8433A', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+          <Pressable
+            onPress={handleResume}
+            disabled={saving}
+            style={{ borderWidth: 1, borderColor: '#A8433A', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: saving }}
+          >
             {saving ? <ActivityIndicator size="small" color="#A8433A" /> : (
               <Text style={{ fontSize: 11, fontWeight: '600', color: '#A8433A' }}>{lang === 'he' ? 'המשך' : 'Resume'}</Text>
             )}
           </Pressable>
         </View>
       ) : (
-        <Pressable onPress={() => setShowModal(true)}>
+        <Pressable onPress={() => setShowModal(true)} accessibilityRole="button">
           <Text style={{ fontSize: 11, fontWeight: '500', color: '#8899BB', textDecorationLine: 'underline' }}>
             ⏸ {lang === 'he' ? 'הקפא שעון (חופשה/מילואים/מחלה)' : 'Pause clock (leave/reserve/illness)'}
           </Text>
@@ -126,6 +132,8 @@ export function ClockPauseControl({ projectId, lang }: { projectId: string; lang
                     backgroundColor: reason === r ? '#2E86FF' : '#fff',
                     borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
                   }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: reason === r }}
                 >
                   <Text style={{ fontSize: 12, color: reason === r ? '#fff' : '#445', fontWeight: '600' }}>
                     {REASON_LABEL[r][lang]}
@@ -145,10 +153,16 @@ export function ClockPauseControl({ projectId, lang }: { projectId: string; lang
             />
 
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <Pressable onPress={() => setShowModal(false)} style={{ borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }}>
+              <Pressable onPress={() => setShowModal(false)} style={{ borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }} accessibilityRole="button">
                 <Text style={{ fontSize: 13, color: '#445' }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
               </Pressable>
-              <Pressable onPress={handlePause} disabled={saving} style={{ backgroundColor: '#A8433A', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, opacity: saving ? 0.6 : 1 }}>
+              <Pressable
+                onPress={handlePause}
+                disabled={saving}
+                style={{ backgroundColor: '#A8433A', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, opacity: saving ? 0.6 : 1 }}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: saving }}
+              >
                 {saving ? <ActivityIndicator size="small" color="#fff" /> : (
                   <Text style={{ fontSize: 13, color: '#fff', fontWeight: '600' }}>{lang === 'he' ? 'הקפא' : 'Pause'}</Text>
                 )}

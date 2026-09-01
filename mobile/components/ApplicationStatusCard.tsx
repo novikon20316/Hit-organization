@@ -119,10 +119,10 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
             </Text>
           </View>
           <View style={styles.confirmRow}>
-            <Pressable style={styles.confirmYesBtn} onPress={() => confirmStart('yes')}>
+            <Pressable style={styles.confirmYesBtn} onPress={() => confirmStart('yes')} accessibilityRole="button">
               <Text style={styles.confirmYesText}>{lang === 'he' ? 'כן, התחל בפרויקט' : 'Yes, start this project'}</Text>
             </Pressable>
-            <Pressable style={styles.withdrawBtn} onPress={handleDecline}>
+            <Pressable style={styles.withdrawBtn} onPress={handleDecline} accessibilityRole="button">
               <Text style={styles.withdrawText}>{lang === 'he' ? 'לא, תודה' : 'No, thanks'}</Text>
             </Pressable>
           </View>
@@ -130,7 +130,7 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
       )}
 
       {!isAwaitingConfirmation && (
-        <Pressable style={[styles.withdrawBtn, { marginTop: 12, alignSelf: 'flex-start' }]} onPress={handleWithdraw}>
+        <Pressable style={[styles.withdrawBtn, { marginTop: 12, alignSelf: 'flex-start' }]} onPress={handleWithdraw} accessibilityRole="button">
           <Text style={styles.withdrawText}>{lang === 'he' ? 'משוך מועמדות' : 'Withdraw Application'}</Text>
         </Pressable>
       )}

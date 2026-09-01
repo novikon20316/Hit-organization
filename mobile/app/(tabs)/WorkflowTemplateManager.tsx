@@ -581,6 +581,7 @@ export default function WorkflowTemplateManager() {
                 borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
               }}
               onPress={() => setSelectedFacultyId(id)}
+              accessibilityRole="button"
             >
               <Text style={{ color: selectedFacultyId === id ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
                 {FACULTY_COLORS[id]?.label[lang] ?? id}
@@ -611,6 +612,7 @@ export default function WorkflowTemplateManager() {
                 borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
               }}
               onPress={() => setCoordinatorScopeIndex(i)}
+              accessibilityRole="button"
             >
               <Text style={{ color: coordinatorScopeIndex === i ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
                 {FACULTY_COLORS[s.facultyId]?.label[lang] ?? s.facultyId}{s.major ? ` — ${s.major}` : ''}
@@ -631,6 +633,7 @@ export default function WorkflowTemplateManager() {
               borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
             }}
             onPress={() => setActiveProcessType(pt.key)}
+            accessibilityRole="button"
           >
             <Text style={{ color: activeProcessType === pt.key ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
               {lang === 'he' ? pt.he : pt.en}
@@ -651,6 +654,7 @@ export default function WorkflowTemplateManager() {
               borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
             }}
             onPress={() => setSelectedMajor(null)}
+            accessibilityRole="button"
           >
             <Text style={{ color: selectedMajor === null ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
               {lang === 'he' ? 'כל המגמות' : 'All majors'}
@@ -665,6 +669,7 @@ export default function WorkflowTemplateManager() {
                 borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
               }}
               onPress={() => setSelectedMajor(m.slug)}
+              accessibilityRole="button"
             >
               <Text style={{ color: selectedMajor === m.slug ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
                 {m.label}
@@ -698,6 +703,7 @@ export default function WorkflowTemplateManager() {
               backgroundColor: activeTab === tab.key ? '#EDE9FE' : 'transparent',
             }}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="button"
           >
             <Text
               style={{ fontSize: 13, fontWeight: activeTab === tab.key ? '700' : '500', color: activeTab === tab.key ? '#7C3AED' : '#8899BB' }}
@@ -784,6 +790,7 @@ export default function WorkflowTemplateManager() {
               <Pressable
                 style={{ flex: 1, backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
                 onPress={() => openEditorScreen(approvedForActive ?? undefined, approvedForActive ? 'view' : 'edit')}
+                accessibilityRole="button"
               >
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
                   {approvedForActive ? tx('viewOrEditTemplate', lang) : (lang === 'he' ? '＋ הצע גרסה חדשה' : '＋ Propose New Version')}
@@ -793,6 +800,7 @@ export default function WorkflowTemplateManager() {
                 <Pressable
                   style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
                   onPress={() => openEditorScreen(approvedForOther)}
+                  accessibilityRole="button"
                 >
                   <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 13 }}>
                     📋 {lang === 'he'
@@ -854,12 +862,14 @@ export default function WorkflowTemplateManager() {
                             style={{ flex: 1, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                             onPress={() => handleDelete(tpl.id)}
                             disabled={saving}
+                            accessibilityRole="button"
                           >
                             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
                           </Pressable>
                           <Pressable
                             style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                             onPress={() => setConfirmDeleteId(null)}
+                            accessibilityRole="button"
                           >
                             <Text style={{ color: '#374151', fontWeight: '600', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                           </Pressable>
@@ -871,6 +881,7 @@ export default function WorkflowTemplateManager() {
                           style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                           onPress={() => handleApproveClick(tpl)}
                           disabled={saving}
+                          accessibilityRole="button"
                         >
                           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>✅ {lang === 'he' ? 'אשר' : 'Approve'}</Text>
                         </Pressable>
@@ -878,6 +889,7 @@ export default function WorkflowTemplateManager() {
                           style={{ flex: 1, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                           onPress={() => openRejectModal(tpl)}
                           disabled={saving}
+                          accessibilityRole="button"
                         >
                           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>❌ {lang === 'he' ? 'דחה' : 'Reject'}</Text>
                         </Pressable>
@@ -885,6 +897,8 @@ export default function WorkflowTemplateManager() {
                           style={{ borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, alignItems: 'center' }}
                           onPress={() => setConfirmDeleteId(tpl.id)}
                           disabled={saving}
+                          accessibilityRole="button"
+                          accessibilityLabel={lang === 'he' ? 'מחק הצעה' : 'Delete proposal'}
                         >
                           <Text>🗑️</Text>
                         </Pressable>
@@ -941,12 +955,14 @@ export default function WorkflowTemplateManager() {
                               style={{ flex: 1, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                               onPress={() => handleDelete(tpl.id)}
                               disabled={saving}
+                              accessibilityRole="button"
                             >
                               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
                             </Pressable>
                             <Pressable
                               style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                               onPress={() => setConfirmDeleteId(null)}
+                              accessibilityRole="button"
                             >
                               <Text style={{ color: '#374151', fontWeight: '600', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                             </Pressable>
@@ -956,6 +972,7 @@ export default function WorkflowTemplateManager() {
                         <Pressable
                           style={{ borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignSelf: 'flex-start' }}
                           onPress={() => setConfirmDeleteId(tpl.id)}
+                          accessibilityRole="button"
                         >
                           <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>🗑️ {lang === 'he' ? 'מחק' : 'Delete'}</Text>
                         </Pressable>
@@ -977,7 +994,11 @@ export default function WorkflowTemplateManager() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F0EBFF' }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F1235' }}>{lang === 'he' ? '❌ דחיית הצעה' : '❌ Reject Proposal'}</Text>
-            <Pressable onPress={() => setRejectOpen(false)}><Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text></Pressable>
+            <Pressable
+              onPress={() => setRejectOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+            ><Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text></Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}</Text>
@@ -993,10 +1014,16 @@ export default function WorkflowTemplateManager() {
               style={[{ backgroundColor: '#EF4444', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 }, saving && { opacity: 0.6 }]}
               onPress={handleReject}
               disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'שלח דחייה' : 'Submit Rejection'}
             >
               {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{lang === 'he' ? 'שלח דחייה' : 'Submit Rejection'}</Text>}
             </Pressable>
-            <Pressable style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 }} onPress={() => setRejectOpen(false)}>
+            <Pressable
+              style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 }}
+              onPress={() => setRejectOpen(false)}
+              accessibilityRole="button"
+            >
               <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
             </Pressable>
           </ScrollView>
@@ -1020,6 +1047,7 @@ export default function WorkflowTemplateManager() {
                 style={{ flex: 1, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
                 onPress={() => setApprovePreview(null)}
                 disabled={saving}
+                accessibilityRole="button"
               >
                 <Text style={{ color: '#374151', fontWeight: '600', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
               </Pressable>
@@ -1027,6 +1055,8 @@ export default function WorkflowTemplateManager() {
                 style={{ flex: 1, backgroundColor: '#7C3AED', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
                 onPress={() => approvePreview && handleApprove(approvePreview.tpl)}
                 disabled={saving}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'אשר בכל זאת' : 'Confirm & Approve'}
               >
                 {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{lang === 'he' ? 'אשר בכל זאת' : 'Confirm & Approve'}</Text>}
               </Pressable>

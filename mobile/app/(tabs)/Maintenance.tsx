@@ -124,7 +124,12 @@ export default function MaintenanceScreen() {
 
         {/* ── Language toggle ── */}
         <View style={s.langToggleRow}>
-          <Pressable style={s.langToggleBtn} onPress={() => setLang(isHe ? 'en' : 'he')}>
+          <Pressable
+            style={s.langToggleBtn}
+            onPress={() => setLang(isHe ? 'en' : 'he')}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+          >
             <Text style={s.langToggleText}>{isHe ? 'English' : 'עברית'}</Text>
           </Pressable>
         </View>
@@ -190,6 +195,7 @@ export default function MaintenanceScreen() {
           style={s.refreshBtn}
           onPress={pollStatus}
           disabled={checking}
+          accessibilityRole="button"
         >
           {checking
             ? <ActivityIndicator color="#fff" size="small" />
@@ -198,7 +204,7 @@ export default function MaintenanceScreen() {
         </Pressable>
 
         {/* ── Sign out ── */}
-        <Pressable onPress={handleSignOut}>
+        <Pressable onPress={handleSignOut} accessibilityRole="button">
           <Text style={s.signOutLink}>{isHe ? 'התנתקות' : 'Sign out'}</Text>
         </Pressable>
 

@@ -155,6 +155,8 @@ function RoleToggle({
     <Pressable
       style={[s.roleChip, selected && s.roleChipSelected]}
       onPress={onToggle}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: selected }}
     >
       <View style={[s.roleChipDot, selected && s.roleChipDotSelected]} />
       <Text style={[s.roleChipText, selected && s.roleChipTextSelected]}>
@@ -242,7 +244,12 @@ export default function MaintenanceModal({
                 </Text>
               </View>
             </View>
-            <Pressable style={s.closeBtn} onPress={() => setVisible(false)}>
+            <Pressable
+              style={s.closeBtn}
+              onPress={() => setVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "סגור" : "Close"}
+            >
               <Text style={s.closeBtnText}>✕</Text>
             </Pressable>
           </View>
@@ -270,6 +277,7 @@ export default function MaintenanceModal({
                       style={[s.endNowBtn, deactivating && s.endNowBtnDisabled]}
                       onPress={onDeactivate}
                       disabled={deactivating}
+                      accessibilityRole="button"
                     >
                       <Text style={s.endNowBtnText}>
                         {deactivating ? "…" : isHe ? "סיים עכשיו" : "End now"}
@@ -311,7 +319,12 @@ export default function MaintenanceModal({
               </Text>
 
               {/* Select all toggle */}
-              <Pressable style={s.selectAllRow} onPress={toggleAll}>
+              <Pressable
+                style={s.selectAllRow}
+                onPress={toggleAll}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: allSelected }}
+              >
                 <View style={[s.selectAllBox, allSelected && s.selectAllBoxActive]}>
                   {allSelected && <Text style={s.selectAllCheck}>✓</Text>}
                 </View>
@@ -443,6 +456,7 @@ export default function MaintenanceModal({
               style={[s.saveBtn, (saving || blockedRoles.length === 0) && s.saveBtnDisabled]}
               onPress={onSave}
               disabled={saving || blockedRoles.length === 0}
+              accessibilityRole="button"
             >
               {saving
                 ? <ActivityIndicator color="#fff" size="small" />
@@ -453,7 +467,7 @@ export default function MaintenanceModal({
                   </Text>
               }
             </Pressable>
-            <Pressable style={s.cancelBtn} onPress={() => setVisible(false)}>
+            <Pressable style={s.cancelBtn} onPress={() => setVisible(false)} accessibilityRole="button">
               <Text style={s.cancelBtnText}>{isHe ? "ביטול" : "Cancel"}</Text>
             </Pressable>
           </View>

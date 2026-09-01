@@ -392,16 +392,16 @@ export default function PanelScreen() {
           moved into the TopBar's ☰ menu (extraMenuItems above) — same
           routes, no functionality dropped, just decluttered off the header. */}
 
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('overview')}>
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('overview')} accessibilityRole="button">
         <Text style={localStyles.tabLabel}>Overview</Text>
       </Pressable>
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('deadlines')}>
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('deadlines')} accessibilityRole="button">
         <Text style={localStyles.tabLabel}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
       </Pressable>
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('staff')}>
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('staff')} accessibilityRole="button">
         <Text style={localStyles.tabLabel}>{lang === 'he' ? 'סגל' : 'Staff'}</Text>
       </Pressable>
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('signoffs')}>
+      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('signoffs')} accessibilityRole="button">
         <Text style={localStyles.tabLabel}>{lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}</Text>
       </Pressable>
       <Pressable
@@ -410,6 +410,7 @@ export default function PanelScreen() {
           if (newProjectFacultyIds.length === 0 && adminFacultyId) setNewProjectFacultyIds([adminFacultyId]);
           setShowNewProject(true);
         }}
+        accessibilityRole="button"
       >
         <Text style={localStyles.tabLabel}>📁 {lang === 'he' ? 'פרויקט חדש' : 'New Project'}</Text>
       </Pressable>
@@ -530,6 +531,7 @@ export default function PanelScreen() {
               <Pressable
                 style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10 }}
                 onPress={() => openEditUser(u)}
+                accessibilityRole="button"
               >
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
                   ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}

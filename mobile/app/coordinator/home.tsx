@@ -920,6 +920,7 @@ export default function CoordinatorHome() {
             key={tab.key}
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="button"
           >
             <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.heLabel : tab.enLabel}
@@ -934,6 +935,7 @@ export default function CoordinatorHome() {
         <Pressable
           style={[styles.tab, activeTab === 'deadlines' && styles.tabActive]}
           onPress={() => setActiveTab('deadlines')}
+          accessibilityRole="button"
         >
           <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
         </Pressable>
@@ -941,6 +943,7 @@ export default function CoordinatorHome() {
           <Pressable
             style={[styles.tab, activeTab === 'archived' && styles.tabActive]}
             onPress={() => setActiveTab('archived')}
+            accessibilityRole="button"
           >
             <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'ארכיון' : 'Archived'}</Text>
           </Pressable>
@@ -954,19 +957,19 @@ export default function CoordinatorHome() {
           return (
             <>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('inProgress')}>
+                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('inProgress')} accessibilityRole="button">
                   <Text style={apStyles.metricLabel}>{lang === 'he' ? 'פרויקטים פעילים' : 'Active Projects'}</Text>
                   <Text style={apStyles.metricValue}>{inProgressProjects.length}</Text>
                 </Pressable>
-                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('pending')}>
+                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('pending')} accessibilityRole="button">
                   <Text style={apStyles.metricLabel}>{lang === 'he' ? 'הגשות ממתינות לבדיקה' : 'Submissions Pending Review'}</Text>
                   <Text style={apStyles.metricValue}>{pendingMilestones.length}</Text>
                 </Pressable>
-                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('defense')}>
+                <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('defense')} accessibilityRole="button">
                   <Text style={apStyles.metricLabel}>{lang === 'he' ? 'הגנות' : 'Defenses'}</Text>
                   <Text style={apStyles.metricValue}>{sortedDefenseCards.length}</Text>
                 </Pressable>
-                <Pressable style={[apStyles.metricCard, apStyles.metricCardAlert]} onPress={() => setActiveTab('defense')}>
+                <Pressable style={[apStyles.metricCard, apStyles.metricCardAlert]} onPress={() => setActiveTab('defense')} accessibilityRole="button">
                   <Text style={[apStyles.metricLabel, apStyles.metricLabelAlert]}>{lang === 'he' ? 'התראות מערכת' : 'System Alerts'}</Text>
                   <Text style={[apStyles.metricValue, apStyles.metricValueAlert]}>{alertCards.length}</Text>
                 </Pressable>
@@ -979,13 +982,13 @@ export default function CoordinatorHome() {
                 ) : (
                   <>
                     {pendingMilestones.slice(0, 3).map((m) => (
-                      <Pressable key={m.id} style={apStyles.feedItem} onPress={() => setActiveTab('pending')}>
+                      <Pressable key={m.id} style={apStyles.feedItem} onPress={() => setActiveTab('pending')} accessibilityRole="button">
                         <Text style={apStyles.feedBadge}>{lang === 'he' ? 'ממתין לאישור' : 'Pending Approval'}</Text>
                         <Text style={apStyles.feedTitle}>{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</Text>
                       </Pressable>
                     ))}
                     {alertCards.slice(0, 3).map((c) => (
-                      <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => setActiveTab('defense')}>
+                      <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => setActiveTab('defense')} accessibilityRole="button">
                         <Text style={[apStyles.feedBadge, apStyles.feedBadgeAlert]}>
                           {c.kind === 'conflict'
                             ? lang === 'he' ? 'התנגשות תאריכים' : 'Date Conflict'
@@ -1058,6 +1061,7 @@ export default function CoordinatorHome() {
                     expandedCards[m.id] && styles.cardExpanded,
                   ]}
                   onPress={() => toggleCardExpansion(m.id)}
+                  accessibilityRole="button"
                 >
                   <View style={apStyles.pendingBadge}>
                     <Text style={apStyles.pendingBadgeText}>
@@ -1136,6 +1140,7 @@ export default function CoordinatorHome() {
                                   params: { url },
                                 })}
                               }
+                              accessibilityRole="button"
                             >
                               <Text style={styles.fileBtnText}>
                                 📄 {lang === 'he'
@@ -1154,6 +1159,7 @@ export default function CoordinatorHome() {
                     <Pressable
                       style={styles.approveBtn}
                       onPress={() => handleApprove(m)}
+                      accessibilityRole="button"
                     >
                       <Text style={styles.approveBtnText}>
                         {m.type === 'final_report'
@@ -1164,6 +1170,7 @@ export default function CoordinatorHome() {
                     <Pressable
                       style={styles.rejectBtn}
                       onPress={() => handleReject(m)}
+                      accessibilityRole="button"
                     >
                       <Text style={styles.rejectBtnText}>
                         {m.type === 'final_report'
@@ -1191,6 +1198,7 @@ export default function CoordinatorHome() {
           key={opt.key}
           style={[styles.sortChip, defenseSort === opt.key && styles.sortChipActive]}
           onPress={() => setDefenseSort(opt.key)}
+          accessibilityRole="button"
         >
           <Text style={[styles.sortChipText, defenseSort === opt.key && styles.sortChipTextActive]}>
             {lang === 'he' ? opt.heLabel : opt.enLabel}
@@ -1218,6 +1226,7 @@ export default function CoordinatorHome() {
               key={card.key}
               style={[styles.card, accentStyle, expandedCards[m.id] && styles.cardExpanded]}
               onPress={() => toggleCardExpansion(m.id)}
+              accessibilityRole="button"
             >
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>
@@ -1287,12 +1296,12 @@ export default function CoordinatorHome() {
               )}
 
               <View style={styles.actionRow}>
-                <Pressable style={styles.approveBtn} onPress={() => handleApprove(m)}>
+                <Pressable style={styles.approveBtn} onPress={() => handleApprove(m)} accessibilityRole="button">
                   <Text style={styles.approveBtnText}>
                     {lang === 'he' ? '👥 אשר + הקצה בוחנים' : '👥 Approve + Assign Examiners'}
                   </Text>
                 </Pressable>
-                <Pressable style={styles.rejectBtn} onPress={() => handleReject(m)}>
+                <Pressable style={styles.rejectBtn} onPress={() => handleReject(m)} accessibilityRole="button">
                   <Text style={styles.rejectBtnText}>
                     {lang === 'he' ? '👥 דחה + אל תקצה בוחנים' : '👥 Reject + Do Not Assign Examiners'}
                   </Text>
@@ -1323,7 +1332,7 @@ export default function CoordinatorHome() {
                   ? (lang === 'he' ? 'בוחנים משובצים בפרויקט אך לא נפתח מסלול ההגנה' : 'Examiners assigned but the defense pipeline never opened')
                   : (lang === 'he' ? 'טרם שובצו בוחנים להגנה' : 'No examiners assigned yet for this defense')}
               </Text>
-              <Pressable style={styles.approveBtn} onPress={() => handleReopenDefenseScheduling(project, milestone)}>
+              <Pressable style={styles.approveBtn} onPress={() => handleReopenDefenseScheduling(project, milestone)} accessibilityRole="button">
                 <Text style={styles.approveBtnText}>
                   {hasExaminersAlready
                     ? (lang === 'he' ? '🔄 פתח מסלול הגנה' : '🔄 Re-open defense scheduling')
@@ -1370,7 +1379,7 @@ export default function CoordinatorHome() {
               <Text style={[styles.cardMeta, { color: '#EF4444', fontWeight: '700' }]}>
                 ⚠️ {lang === 'he' ? 'לא נמצא תאריך משותף בין הבוחנים' : 'No common date found between examiners'}
               </Text>
-              <Pressable style={styles.approveBtn} onPress={() => openConflictModal(project, milestone)}>
+              <Pressable style={styles.approveBtn} onPress={() => openConflictModal(project, milestone)} accessibilityRole="button">
                 <Text style={styles.approveBtnText}>
                   {lang === 'he' ? '🛠️ פתור התנגשות' : '🛠️ Resolve conflict'}
                 </Text>
@@ -1394,7 +1403,7 @@ export default function CoordinatorHome() {
                 📅 {lang === 'he' ? 'מועד הגנה אושר — יש לקבוע שעה, חדר ובניין' : 'Defense date confirmed — set time, room & building'}
                 {card.daysLeft !== null ? ` (${card.daysLeft}${lang === 'he' ? ' ימים' : 'd'})` : ''}
               </Text>
-              <Pressable style={styles.approveBtn} onPress={() => openDefenseLogisticsModal(project, milestone)}>
+              <Pressable style={styles.approveBtn} onPress={() => openDefenseLogisticsModal(project, milestone)} accessibilityRole="button">
                 <Text style={styles.approveBtnText}>
                   {lang === 'he' ? '📍 קבע פרטים' : '📍 Set logistics'}
                 </Text>
@@ -1488,6 +1497,7 @@ export default function CoordinatorHome() {
                       key={opt.key}
                       style={[styles.sortChip, inProgressScope === opt.key && styles.sortChipActive]}
                       onPress={() => setInProgressScope(opt.key)}
+                      accessibilityRole="button"
                     >
                       <Text style={[styles.sortChipText, inProgressScope === opt.key && styles.sortChipTextActive]}>
                         {lang === 'he' ? opt.heLabel : opt.enLabel}
@@ -1510,6 +1520,7 @@ export default function CoordinatorHome() {
           <Pressable
             style={styles.cardHeader}
             onPress={() => toggleCardExpansion(p.id)} // Restored general project card expansion toggle
+            accessibilityRole="button"
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>
@@ -1542,9 +1553,10 @@ export default function CoordinatorHome() {
                   <View key={sIdx} style={{ marginBottom: 12 }}>
                     
                     {/* Clickable Row: Student Name + Progress Bar */}
-                    <Pressable 
+                    <Pressable
                       onPress={() => toggleStudentExpansion(p.id, sIdx)}
                       style={[{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }]}
+                      accessibilityRole="button"
                     >
                       <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', width: 80, textAlign: isRtl ? 'right' : 'left' }}>
                         {student.name}
@@ -1658,7 +1670,12 @@ export default function CoordinatorHome() {
           )}
 
           {/* Bottom visual toggle indicators for the main card layout expansion */}
-          <Pressable onPress={() => toggleCardExpansion(p.id)} style={{ paddingVertical: 4 }}>
+          <Pressable
+            onPress={() => toggleCardExpansion(p.id)}
+            style={{ paddingVertical: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'הצג/הסתר פרטי פרויקט' : 'Toggle project details'}
+          >
             <Text style={{ textAlign: 'center', color: '#C0CCDD', fontSize: 11, marginTop: 6 }}>
               {expandedCards[p.id] ? '▲' : '▼'}
             </Text>
@@ -1675,6 +1692,7 @@ export default function CoordinatorHome() {
             <Pressable
               style={[styles.submitBtn, { marginBottom: 14 }]}
               onPress={() => setShowBulkDueDate(true)}
+              accessibilityRole="button"
             >
               <Text style={styles.submitBtnText}>
                 📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
@@ -1761,7 +1779,7 @@ export default function CoordinatorHome() {
             ) : (
               examinerRecs.map((rec: any) => (
                 <View key={rec.id} style={[styles.card, expandedCards[rec.id] && styles.cardExpanded]}>
-                  <Pressable onPress={() => toggleCardExpansion(rec.id)}>
+                  <Pressable onPress={() => toggleCardExpansion(rec.id)} accessibilityRole="button">
                     <Text style={styles.cardTitle}>
                       {lang === 'he' ? rec.projectTitleHe : rec.projectTitleEn}
                     </Text>
@@ -1793,6 +1811,7 @@ export default function CoordinatorHome() {
                       <View style={styles.actionRow}>
                         <Pressable
                           style={styles.approveBtn}
+                          accessibilityRole="button"
                           onPress={async () => {
                             try {
                               await apiClient.post(`/api/coordinator/examiner-recommendations/${rec.id}/approve`);
@@ -1809,6 +1828,7 @@ export default function CoordinatorHome() {
                         </Pressable>
                         <Pressable
                           style={styles.rejectBtn}
+                          accessibilityRole="button"
                           onPress={async () => {
                             try {
                               await apiClient.post(`/api/coordinator/examiner-recommendations/${rec.id}/reject`);
@@ -1868,12 +1888,13 @@ export default function CoordinatorHome() {
               {lang === 'he' ? 'אישור אבן דרך' : 'Approve Milestone'}
             </Text>
             <View style={styles.dialogBtns}>
-              <Pressable style={styles.dialogCancel} onPress={() => setApproveModal(false)}>
+              <Pressable style={styles.dialogCancel} onPress={() => setApproveModal(false)} accessibilityRole="button">
                 <Text>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
               </Pressable>
               <Pressable
                 style={styles.dialogConfirm}
                 onPress={() => { setApproveModal(false); selectedMilestone && handleApprove(selectedMilestone); }}
+                accessibilityRole="button"
               >
                 <Text style={{ color: '#fff', fontWeight: '700' }}>
                   {lang === 'he' ? 'אשר' : 'Confirm'}
@@ -1888,7 +1909,7 @@ export default function CoordinatorHome() {
       <Modal visible={assignModal} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Pressable onPress={() => setAssignModal(false)}>
+            <Pressable onPress={() => setAssignModal(false)} accessibilityRole="button">
               <Text style={styles.backButton}>
                 ← {lang === 'he' ? 'חזור' : 'Back'}
               </Text>
@@ -1907,7 +1928,7 @@ export default function CoordinatorHome() {
                     {lang === 'he' ? `בוחן ${idx + 1}` : `Examiner ${idx + 1}`}
                   </Text>
                   {examinerSlots.length > 1 && (
-                    <Pressable onPress={() => removeExaminerSlot(idx)}>
+                    <Pressable onPress={() => removeExaminerSlot(idx)} accessibilityRole="button">
                       <Text style={{ color: '#EF4444', fontSize: 13 }}>✕ {lang === 'he' ? 'הסר' : 'Remove'}</Text>
                     </Pressable>
                   )}
@@ -1916,6 +1937,7 @@ export default function CoordinatorHome() {
                   <Pressable
                     style={[styles.examinerOption, { flex: 1 }, slot.type === 'internal' && styles.examinerOptionActive]}
                     onPress={() => updateExaminerSlot(idx, { type: 'internal' })}
+                    accessibilityRole="button"
                   >
                     <Text style={[styles.examinerOptionText, slot.type === 'internal' && { color: '#fff' }]}>
                       {lang === 'he' ? 'בוחן פנימי' : 'Internal'}
@@ -1924,6 +1946,7 @@ export default function CoordinatorHome() {
                   <Pressable
                     style={[styles.examinerOption, { flex: 1 }, slot.type === 'external' && styles.examinerOptionActive]}
                     onPress={() => updateExaminerSlot(idx, { type: 'external' })}
+                    accessibilityRole="button"
                   >
                     <Text style={[styles.examinerOptionText, slot.type === 'external' && { color: '#fff' }]}>
                       {lang === 'he' ? 'בוחן חיצוני' : 'External'}
@@ -1939,6 +1962,7 @@ export default function CoordinatorHome() {
                       key={ex.id}
                       style={[styles.examinerOption, slot.id === ex.id && styles.examinerOptionActive]}
                       onPress={() => updateExaminerSlot(idx, { id: ex.id })}
+                      accessibilityRole="button"
                     >
                       <Text style={[styles.examinerOptionText, slot.id === ex.id && { color: '#fff' }]}>
                         {ex.displayName} · {ex.email}
@@ -1970,6 +1994,7 @@ export default function CoordinatorHome() {
           <Pressable
             style={{ borderWidth: 1.5, borderColor: '#7C3AED', borderStyle: 'dashed', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
             onPress={addExaminerSlot}
+            accessibilityRole="button"
           >
             <Text style={{ color: '#7C3AED', fontWeight: '600', fontSize: 13 }}>＋ {lang === 'he' ? 'הוסף בוחן' : 'Add examiner'}</Text>
           </Pressable>
@@ -2007,6 +2032,7 @@ export default function CoordinatorHome() {
             style={[styles.submitBtn, saving && { opacity: 0.6 }]}
             onPress={handleAssignExaminers}
             disabled={saving}
+            accessibilityRole="button"
           >
             {saving
               ? <ActivityIndicator color="#fff" />
@@ -2014,7 +2040,7 @@ export default function CoordinatorHome() {
             }
           </Pressable>
 
-          <Pressable style={styles.cancelBtn} onPress={() => setAssignModal(false)}>
+          <Pressable style={styles.cancelBtn} onPress={() => setAssignModal(false)} accessibilityRole="button">
             <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
         </ScrollView>
@@ -2073,6 +2099,7 @@ export default function CoordinatorHome() {
             style={[styles.submitBtn, saving && { opacity: 0.6 }]}
             onPress={handleSetDefense}
             disabled={saving}
+            accessibilityRole="button"
           >
             {saving
               ? <ActivityIndicator color="#fff" />
@@ -2080,7 +2107,7 @@ export default function CoordinatorHome() {
             }
           </Pressable>
 
-          <Pressable style={styles.cancelBtn} onPress={() => setDefenseModal(false)}>
+          <Pressable style={styles.cancelBtn} onPress={() => setDefenseModal(false)} accessibilityRole="button">
             <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
         </ScrollView>
@@ -2102,6 +2129,7 @@ export default function CoordinatorHome() {
             style={[styles.submitBtn, saving && { opacity: 0.6 }]}
             onPress={handleKeepExaminers}
             disabled={saving}
+            accessibilityRole="button"
           >
             {saving
               ? <ActivityIndicator color="#fff" />
@@ -2123,6 +2151,7 @@ export default function CoordinatorHome() {
                 key={key}
                 style={[styles.examinerOption, replacedExaminerKey === key && styles.examinerOptionActive]}
                 onPress={() => setReplacedExaminerKey(key)}
+                accessibilityRole="button"
               >
                 <Text style={[styles.examinerOptionText, replacedExaminerKey === key && { color: '#fff' }]}>
                   {member.displayName} {member.type === 'external' ? `(${lang === 'he' ? 'חיצוני' : 'external'})` : ''}
@@ -2135,6 +2164,7 @@ export default function CoordinatorHome() {
             <Pressable
               style={[styles.examinerOption, { flex: 1 }, replacementType === 'internal' && styles.examinerOptionActive]}
               onPress={() => setReplacementType('internal')}
+              accessibilityRole="button"
             >
               <Text style={[styles.examinerOptionText, replacementType === 'internal' && { color: '#fff' }]}>
                 {lang === 'he' ? 'בוחן פנימי' : 'Internal'}
@@ -2143,6 +2173,7 @@ export default function CoordinatorHome() {
             <Pressable
               style={[styles.examinerOption, { flex: 1 }, replacementType === 'external' && styles.examinerOptionActive]}
               onPress={() => setReplacementType('external')}
+              accessibilityRole="button"
             >
               <Text style={[styles.examinerOptionText, replacementType === 'external' && { color: '#fff' }]}>
                 {lang === 'he' ? 'בוחן חיצוני' : 'External'}
@@ -2156,6 +2187,7 @@ export default function CoordinatorHome() {
                 key={ex.id}
                 style={[styles.examinerOption, replacementInternalId === ex.id && styles.examinerOptionActive]}
                 onPress={() => setReplacementInternalId(ex.id)}
+                accessibilityRole="button"
               >
                 <Text style={[styles.examinerOptionText, replacementInternalId === ex.id && { color: '#fff' }]}>
                   {ex.displayName} · {ex.email}
@@ -2185,6 +2217,7 @@ export default function CoordinatorHome() {
             style={[styles.submitBtn, saving && { opacity: 0.6 }]}
             onPress={handleReplaceExaminer}
             disabled={saving}
+            accessibilityRole="button"
           >
             {saving
               ? <ActivityIndicator color="#fff" />
@@ -2192,7 +2225,7 @@ export default function CoordinatorHome() {
             }
           </Pressable>
 
-          <Pressable style={styles.cancelBtn} onPress={() => setConflictModal(false)}>
+          <Pressable style={styles.cancelBtn} onPress={() => setConflictModal(false)} accessibilityRole="button">
             <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
         </ScrollView>

@@ -126,7 +126,7 @@ export default function DefenseAccessScreen() {
         </View>
 
         {info?.onlineDefenseLink && (
-          <Pressable style={s.card} onPress={() => Linking.openURL(info.onlineDefenseLink!)}>
+          <Pressable style={s.card} onPress={() => Linking.openURL(info.onlineDefenseLink!)} accessibilityRole="link">
             <Text style={[s.title, { fontSize: 16 }]}>💻 {L('הצטרפות להגנה המקוונת', 'Join the online defense')}</Text>
           </Pressable>
         )}

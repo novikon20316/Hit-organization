@@ -225,7 +225,7 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
 
                     {/* Staff record action (research_proposal/progress_report only). */}
                     {m.staffRecordMode === 'upload_or_form' && m.id && (
-                      <Pressable onPress={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })} style={{ marginTop: 4 }}>
+                      <Pressable onPress={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })} style={{ marginTop: 4 }} accessibilityRole="button">
                         <Text style={{ fontSize: 12, fontWeight: '600', color: '#7C3AED' }}>
                           {m.staffRecordSubmitted
                             ? `✓ ${lang === 'he' ? 'רשומת מנחה הוגשה — עדכן' : 'Staff record submitted — update'}`
@@ -246,13 +246,13 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
                             ⏳ {lang === 'he' ? 'שינוי ציון ממתין לאישור הרכז/ת' : "Grade change pending the coordinator's review"}
                           </Text>
                         ) : m.autoCalculatedFinalGrade != null ? (
-                          <Pressable onPress={() => setFinalGradeDecisionFor({ milestoneId: m.id!, autoGrade: m.autoCalculatedFinalGrade! })}>
+                          <Pressable onPress={() => setFinalGradeDecisionFor({ milestoneId: m.id!, autoGrade: m.autoCalculatedFinalGrade! })} accessibilityRole="button">
                             <Text style={{ fontSize: 12, fontWeight: '600', color: '#7C3AED' }}>
                               🎓 {lang === 'he' ? `ציון סופי מחושב: ${m.autoCalculatedFinalGrade} — לחץ להחלטה` : `Computed final grade: ${m.autoCalculatedFinalGrade} — tap to decide`}
                             </Text>
                           </Pressable>
                         ) : !m.supervisorEvaluationSubmitted ? (
-                          <Pressable onPress={() => setSupervisorEvalFor({ milestoneId: m.id!, components: spec?.finalGradeComponents?.supervisorEvaluation.components ?? [] })}>
+                          <Pressable onPress={() => setSupervisorEvalFor({ milestoneId: m.id!, components: spec?.finalGradeComponents?.supervisorEvaluation.components ?? [] })} accessibilityRole="button">
                             <Text style={{ fontSize: 12, fontWeight: '600', color: '#7C3AED' }}>
                               📝 {lang === 'he' ? 'הגש הערכת מנחה' : 'Submit supervisor evaluation'}
                             </Text>

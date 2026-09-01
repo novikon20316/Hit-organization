@@ -29,6 +29,8 @@ export default function DefenseBuildingPicker({ value, onChange, lang }: Props) 
             disabled={disabled}
             style={[s.chip, selected && s.chipSelected, disabled && s.chipDisabled]}
             onPress={() => onChange(b)}
+            accessibilityRole="button"
+            accessibilityState={{ disabled, selected }}
           >
             <Text style={[s.chipText, selected && s.chipTextSelected, disabled && s.chipTextDisabled]}>
               {b}

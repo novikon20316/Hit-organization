@@ -313,19 +313,30 @@ export default function SignupPage() {
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
                   className={inputCls}
+                  aria-invalid={phoneNumber.length > 0 && !isValidPhoneNumber(phoneNumber)}
+                  aria-describedby={phoneNumber.length > 0 && !isValidPhoneNumber(phoneNumber) ? 'phone-error' : undefined}
                   required
                 />
                 {phoneNumber.length > 0 && !isValidPhoneNumber(phoneNumber) && (
-                  <p className="mt-1 text-xs text-danger">
+                  <p id="phone-error" role="alert" className="mt-1 text-xs text-danger">
                     {lang === 'he' ? 'מספר טלפון חייב להכיל בדיוק 10 ספרות' : 'Phone number must be exactly 10 digits'}
                   </p>
                 )}
               </Field>
 
               <Field label={lang === 'he' ? 'דוא"ל' : 'Email'}>
-                <input type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} required />
+                <input
+                  type="email"
+                  dir="ltr"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={inputCls}
+                  aria-invalid={email.length > 0 && !isAllowedStudentEmailDomain(email)}
+                  aria-describedby={email.length > 0 && !isAllowedStudentEmailDomain(email) ? 'email-error' : undefined}
+                  required
+                />
                 {email.length > 0 && !isAllowedStudentEmailDomain(email) && (
-                  <p className="mt-1 text-xs text-danger">
+                  <p id="email-error" role="alert" className="mt-1 text-xs text-danger">
                     {lang === 'he'
                       ? `יש להשתמש בכתובת ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' או ')} בלבד`
                       : `Must be an ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ')} address`}
@@ -334,9 +345,17 @@ export default function SignupPage() {
               </Field>
 
               <Field label={lang === 'he' ? 'מספר תעודת זהות (9 ספרות)' : 'Student ID (9 digits)'}>
-                <input dir="ltr" value={studentId} onChange={(e) => setStudentId(e.target.value.replace(/\D/g, '').slice(0, 9))} className={inputCls} required />
+                <input
+                  dir="ltr"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                  className={inputCls}
+                  aria-invalid={studentId.length > 0 && !isValidStudentId(studentId)}
+                  aria-describedby={studentId.length > 0 && !isValidStudentId(studentId) ? 'studentid-error' : undefined}
+                  required
+                />
                 {studentId.length > 0 && !isValidStudentId(studentId) && (
-                  <p className="mt-1 text-xs text-danger">
+                  <p id="studentid-error" role="alert" className="mt-1 text-xs text-danger">
                     {lang === 'he' ? 'מספר תעודת הזהות אינו תקין. בדוק את הספרות שהזנת' : 'Invalid ID number. Please check the digits you entered'}
                   </p>
                 )}
@@ -350,6 +369,8 @@ export default function SignupPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={`${inputCls} pr-11`}
+                    aria-invalid={password.length > 0 && !passwordCheck.valid}
+                    aria-describedby={password.length > 0 && !passwordCheck.valid ? 'password-errors' : undefined}
                     required
                   />
                   <button
@@ -360,12 +381,13 @@ export default function SignupPage() {
                     // `end-*` position would flip to the left in Hebrew/RTL
                     // mode and sit on top of the password text.
                     className="absolute inset-y-0 right-2 flex items-center px-2 text-sm text-muted hover:text-ink"
+                    aria-label={showPassword ? (lang === 'he' ? 'הסתר סיסמה' : 'Hide password') : (lang === 'he' ? 'הצג סיסמה' : 'Show password')}
                   >
                     {showPassword ? '🙈' : '👁️'}
                   </button>
                 </div>
                 {password.length > 0 && !passwordCheck.valid && (
-                  <ul className="mt-1.5 grid gap-0.5">
+                  <ul id="password-errors" role="alert" className="mt-1.5 grid gap-0.5">
                     {passwordCheck.errors.map((msg) => (
                       <li key={msg} className="text-xs text-danger">
                         · {msg}

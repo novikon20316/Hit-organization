@@ -95,7 +95,7 @@ export default function PdfViewer() {
         justifyContent: 'space-between',
         borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
       }}>
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={() => router.back()} accessibilityRole="button">
           <Text style={{ fontSize: 16, fontWeight: '600', color: '#2563EB' }}>← Back</Text>
         </Pressable>
         <Text style={{ fontSize: 17, fontWeight: '700' }}>PDF Viewer</Text>
@@ -157,6 +157,7 @@ export default function PdfViewer() {
                 paddingVertical: 14, paddingHorizontal: 32,
                 width: '100%', alignItems: 'center', marginBottom: 12,
               }}
+              accessibilityRole="button"
             >
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
                 {Platform.OS === 'ios' ? '📂  Open / Save to Files' : '📂  Open PDF'}
@@ -171,6 +172,7 @@ export default function PdfViewer() {
                 paddingVertical: 13, paddingHorizontal: 32,
                 width: '100%', alignItems: 'center', marginBottom: 12,
               }}
+              accessibilityRole="button"
             >
               <Text style={{ color: '#374151', fontWeight: '600', fontSize: 15 }}>
                 🌐  Open in Browser
@@ -178,7 +180,7 @@ export default function PdfViewer() {
             </Pressable>
 
             {/* Back */}
-            <Pressable onPress={() => router.back()}>
+            <Pressable onPress={() => router.back()} accessibilityRole="button">
               <Text style={{ color: '#9CA3AF', fontSize: 14, marginTop: 8 }}>← Go Back</Text>
             </Pressable>
           </>
@@ -206,6 +208,7 @@ export default function PdfViewer() {
                 borderRadius: 8, width: '100%', alignItems: 'center',
                 marginBottom: 10,
               }}
+              accessibilityRole="button"
             >
               <Text style={{ color: '#fff', fontWeight: '600' }}>🔄  Retry</Text>
             </Pressable>
@@ -218,6 +221,7 @@ export default function PdfViewer() {
                 paddingHorizontal: 24, paddingVertical: 12,
                 width: '100%', alignItems: 'center',
               }}
+              accessibilityRole="button"
             >
               <Text style={{ color: '#374151', fontWeight: '600' }}>🌐  Open in Browser</Text>
             </Pressable>

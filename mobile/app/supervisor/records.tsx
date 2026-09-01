@@ -51,6 +51,7 @@ export default function SupervisorRecordsScreen() {
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/supervisor/dashboard' as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
+          accessibilityRole="button"
         >
           <Text style={{ fontSize: 14, fontWeight: '600', color: '#2E86FF' }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה' : 'Back'}
@@ -90,6 +91,7 @@ export default function SupervisorRecordsScreen() {
             key={p.id}
             onPress={() => router.push({ pathname: '/supervisor/records/[projectId]', params: { projectId: p.id, lang } } as any)}
             style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB' }}
+            accessibilityRole="link"
           >
             <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827', textAlign: isRtl ? 'right' : 'left' }}>
               {lang === 'he' ? p.titleHe : p.titleEn}

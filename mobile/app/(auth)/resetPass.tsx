@@ -99,7 +99,12 @@ export default function ResetPassword() {
 
         {/* Lang toggle */}
         <View style={[s.langRow, isRtl && s.langRowRtl]}>
-          <Pressable style={s.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+          <Pressable
+            style={s.langBtn}
+            onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+          >
             <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
         </View>
@@ -141,6 +146,7 @@ export default function ResetPassword() {
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               editable={!loading}
+              accessibilityLabel={t.placeholder}
             />
 
             {showError && (
@@ -153,6 +159,7 @@ export default function ResetPassword() {
               style={[s.btn, (!isValidEmail || loading) && s.btnDisabled]}
               onPress={handleSend}
               disabled={!isValidEmail || loading}
+              accessibilityRole="button"
             >
               {loading
                 ? <ActivityIndicator color="#fff" />
@@ -163,7 +170,7 @@ export default function ResetPassword() {
         )}
 
         {/* Back to login */}
-        <Pressable style={s.backBtn} onPress={() => router.replace('/(auth)/login')}>
+        <Pressable style={s.backBtn} onPress={() => router.replace('/(auth)/login')} accessibilityRole="link">
           <Text style={s.backText}>{t.back}</Text>
         </Pressable>
 

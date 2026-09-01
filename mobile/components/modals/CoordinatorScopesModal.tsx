@@ -72,7 +72,13 @@ export default function CoordinatorScopesModal({ visible, onClose, lang, scopes,
               <Text style={s.headerTitle}>
                 {lang === 'he' ? '📋 היקף אחריות רכז' : '📋 Coordinator Scope'}
               </Text>
-              <Pressable onPress={onClose}><Text style={s.close}>✕</Text></Pressable>
+              <Pressable
+                onPress={onClose}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+              >
+                <Text style={s.close}>✕</Text>
+              </Pressable>
             </View>
 
             <View style={s.countBar}>
@@ -101,10 +107,10 @@ export default function CoordinatorScopesModal({ visible, onClose, lang, scopes,
                   </View>
                   <View style={s.degreeBlock}>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <Pressable onPress={() => openEditScope(scope)}>
+                      <Pressable onPress={() => openEditScope(scope)} accessibilityRole="button">
                         <Text style={s.selectAllText}>{lang === 'he' ? 'ערוך' : 'Edit'}</Text>
                       </Pressable>
-                      <Pressable onPress={() => deleteScope(scope.id)}>
+                      <Pressable onPress={() => deleteScope(scope.id)} accessibilityRole="button">
                         <Text style={[s.selectAllText, { color: '#EF4444' }]}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
                       </Pressable>
                     </View>
@@ -112,7 +118,7 @@ export default function CoordinatorScopesModal({ visible, onClose, lang, scopes,
                 </View>
               ))}
 
-              <Pressable style={[s.groupTab, { backgroundColor: '#EFF6FF', marginTop: 8 }]} onPress={openNewScope}>
+              <Pressable style={[s.groupTab, { backgroundColor: '#EFF6FF', marginTop: 8 }]} onPress={openNewScope} accessibilityRole="button">
                 <Text style={[s.groupTabText, { color: '#2E86FF' }]}>
                   ＋ {lang === 'he' ? 'הוסף תחום אחריות' : 'Add Scope'}
                 </Text>
@@ -120,7 +126,7 @@ export default function CoordinatorScopesModal({ visible, onClose, lang, scopes,
             </ScrollView>
 
             <View style={s.footer}>
-              <Pressable style={s.doneBtn} onPress={onClose}>
+              <Pressable style={s.doneBtn} onPress={onClose} accessibilityRole="button">
                 <Text style={s.doneBtnText}>{lang === 'he' ? 'סגור' : 'Done'}</Text>
               </Pressable>
             </View>
@@ -132,7 +138,13 @@ export default function CoordinatorScopesModal({ visible, onClose, lang, scopes,
               <Text style={s.headerTitle}>
                 {lang === 'he' ? 'תחום אחריות' : 'Scope'}
               </Text>
-              <Pressable onPress={cancelForm}><Text style={s.close}>✕</Text></Pressable>
+              <Pressable
+                onPress={cancelForm}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+              >
+                <Text style={s.close}>✕</Text>
+              </Pressable>
             </View>
 
             <ScrollView contentContainerStyle={s.scroll}>
@@ -140,7 +152,7 @@ export default function CoordinatorScopesModal({ visible, onClose, lang, scopes,
             </ScrollView>
 
             <View style={s.footer}>
-              <Pressable style={s.doneBtn} onPress={saveScope}>
+              <Pressable style={s.doneBtn} onPress={saveScope} accessibilityRole="button">
                 <Text style={s.doneBtnText}>{lang === 'he' ? 'שמור תחום' : 'Save Scope'}</Text>
               </Pressable>
             </View>

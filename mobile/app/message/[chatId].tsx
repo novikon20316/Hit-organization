@@ -223,7 +223,7 @@ export default function ChatScreen() {
 
       {/* ── Top header ── */}
       <View style={s.header}>
-        <Pressable style={s.backBtn} onPress={() => router.back()}>
+        <Pressable style={s.backBtn} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={s.backArrow}>←</Text>
         </Pressable>
 
@@ -289,6 +289,8 @@ export default function ChatScreen() {
                     <Pressable
                       style={[s.bubble, mine && s.bubbleMine, { padding: 4 }]}
                       onPress={() => setViewerUrl(item.imageUrl)}
+                      accessibilityRole="button"
+                      accessibilityLabel="View image"
                     >
                       <Image
                         source={{ uri: item.imageUrl }}
@@ -320,6 +322,8 @@ export default function ChatScreen() {
             style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
             onPress={pickAndSendImage}
             disabled={uploadingImage}
+            accessibilityRole="button"
+            accessibilityLabel="Attach image"
           >
             {uploadingImage
               ? <ActivityIndicator color={accentColor} size="small" />
@@ -341,6 +345,8 @@ export default function ChatScreen() {
             style={[s.sendBtn, (!text.trim() || sending) && s.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={!text.trim() || sending}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
           >
             {sending
               ? <ActivityIndicator color="#fff" size="small" />
@@ -355,6 +361,8 @@ export default function ChatScreen() {
         <Pressable
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' }}
           onPress={() => setViewerUrl(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Close image"
         >
           {viewerUrl && (
             <Image source={{ uri: viewerUrl }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />

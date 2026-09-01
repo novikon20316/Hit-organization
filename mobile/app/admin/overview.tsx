@@ -296,7 +296,7 @@ export default function AdminOverviewScreen() {
           )}
         </View>
 
-        <Pressable style={styles.panelButton} onPress={() => router.push('/admin/panel')}>
+        <Pressable style={styles.panelButton} onPress={() => router.push('/admin/panel')} accessibilityRole="button">
           <Text style={styles.panelButtonText}>{lang === 'he' ? 'פתח פאנל ניהול מלא' : 'Open Admin Panel'}</Text>
         </Pressable>
       </ScrollView>

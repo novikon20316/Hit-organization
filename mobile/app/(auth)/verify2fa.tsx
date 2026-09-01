@@ -91,7 +91,12 @@ function RecoveryModal({ visible, onClose, onActivated }: RecoveryModalProps) {
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <ScrollView style={m.modal} contentContainerStyle={m.content}>
         <View style={[m.langRow, isRtl && m.rowReverse]}>
-          <TouchableOpacity style={m.langBtn} onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+          <TouchableOpacity
+            style={m.langBtn}
+            onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+          >
             <Text style={m.langBtnText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </TouchableOpacity>
         </View>
@@ -106,7 +111,7 @@ function RecoveryModal({ visible, onClose, onActivated }: RecoveryModalProps) {
                 : "Lost access to your authenticator app? We'll email a recovery code to the address on your account. Enter it here to set up a new authenticator."}
             </Text>
             {error ? <Text style={m.error}>{error}</Text> : null}
-            <TouchableOpacity style={[m.button, busy && m.buttonDisabled]} onPress={handleSendCode} disabled={busy}>
+            <TouchableOpacity style={[m.button, busy && m.buttonDisabled]} onPress={handleSendCode} disabled={busy} accessibilityRole="button">
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={m.buttonText}>{lang === 'he' ? 'שלח קוד שחזור' : 'Send Recovery Code'}</Text>}
             </TouchableOpacity>
           </>
@@ -125,12 +130,13 @@ function RecoveryModal({ visible, onClose, onActivated }: RecoveryModalProps) {
               value={emailCode}
               onChangeText={setEmailCode}
               autoFocus
+              accessibilityLabel={lang === 'he' ? 'קוד בן 6 ספרות מהמייל' : '6-digit code from email'}
             />
             {error ? <Text style={m.error}>{error}</Text> : null}
-            <TouchableOpacity style={[m.button, busy && m.buttonDisabled]} onPress={handleConfirmEmailCode} disabled={busy}>
+            <TouchableOpacity style={[m.button, busy && m.buttonDisabled]} onPress={handleConfirmEmailCode} disabled={busy} accessibilityRole="button">
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={m.buttonText}>{lang === 'he' ? 'אשר קוד' : 'Confirm Code'}</Text>}
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleSendCode} disabled={busy}>
+            <TouchableOpacity onPress={handleSendCode} disabled={busy} accessibilityRole="button">
               <Text style={m.link}>{lang === 'he' ? 'שלח קוד מחדש' : 'Resend code'}</Text>
             </TouchableOpacity>
           </>
@@ -152,15 +158,16 @@ function RecoveryModal({ visible, onClose, onActivated }: RecoveryModalProps) {
               value={newToken}
               onChangeText={setNewToken}
               autoFocus
+              accessibilityLabel={lang === 'he' ? 'קוד בן 6 ספרות מאפליקציית האימות' : '6-digit code from authenticator app'}
             />
             {error ? <Text style={m.error}>{error}</Text> : null}
-            <TouchableOpacity style={[m.button, busy && m.buttonDisabled]} onPress={handleActivateNewAuthenticator} disabled={busy}>
+            <TouchableOpacity style={[m.button, busy && m.buttonDisabled]} onPress={handleActivateNewAuthenticator} disabled={busy} accessibilityRole="button">
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={m.buttonText}>{lang === 'he' ? 'הפעל והמשך' : 'Activate & Continue'}</Text>}
             </TouchableOpacity>
           </>
         )}
 
-        <TouchableOpacity onPress={handleClose} disabled={busy}>
+        <TouchableOpacity onPress={handleClose} disabled={busy} accessibilityRole="button">
           <Text style={m.cancelLink}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -231,6 +238,7 @@ export default function Verify2FA() {
         value={token}
         onChangeText={setToken}
         autoFocus
+        accessibilityLabel="6-digit authenticator code"
       />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -239,6 +247,7 @@ export default function Verify2FA() {
         style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleVerify}
         disabled={loading}
+        accessibilityRole="button"
       >
         {loading
           ? <ActivityIndicator color="#fff" />
@@ -246,14 +255,17 @@ export default function Verify2FA() {
         }
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => setShowRecovery(true)}>
+      <TouchableOpacity onPress={() => setShowRecovery(true)} accessibilityRole="button">
         <Text style={styles.recoveryLink}>Lost your authenticator app?</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={async () => {
-        await signOut(auth);
-        router.replace('/(auth)/login' as any);
-      }}>
+      <TouchableOpacity
+        onPress={async () => {
+          await signOut(auth);
+          router.replace('/(auth)/login' as any);
+        }}
+        accessibilityRole="link"
+      >
         <Text style={styles.backLink}>← Back to login</Text>
       </TouchableOpacity>
 

@@ -68,7 +68,7 @@ export function ExceptionalActionQueue({ lang }: { lang: Lang }) {
     return (
       <View style={{ backgroundColor: '#FEF2F2', borderRadius: 10, borderWidth: 1, borderColor: '#F2C7C2', padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={{ fontSize: 12, color: '#A8433A', flex: 1 }}>⚠️ {loadError}</Text>
-        <Pressable onPress={load}>
+        <Pressable onPress={load} accessibilityRole="button">
           <Text style={{ fontSize: 12, fontWeight: '700', color: '#A8433A', textDecorationLine: 'underline' }}>
             {lang === 'he' ? 'נסה שוב' : 'Retry'}
           </Text>
@@ -110,6 +110,8 @@ export function ExceptionalActionQueue({ lang }: { lang: Lang }) {
               onPress={() => decide(r.id, 'rejected')}
               disabled={decidingId === r.id}
               style={{ borderWidth: 1, borderColor: '#A8433A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, opacity: decidingId === r.id ? 0.6 : 1 }}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: decidingId === r.id }}
             >
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#A8433A' }}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
             </Pressable>
@@ -117,6 +119,8 @@ export function ExceptionalActionQueue({ lang }: { lang: Lang }) {
               onPress={() => decide(r.id, 'approved')}
               disabled={decidingId === r.id}
               style={{ backgroundColor: '#2E86FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, opacity: decidingId === r.id ? 0.6 : 1 }}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: decidingId === r.id }}
             >
               {decidingId === r.id
                 ? <ActivityIndicator size="small" color="#fff" />

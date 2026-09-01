@@ -205,6 +205,7 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
                 backgroundColor: '#F8FAFF', borderRadius: 10, padding: 12,
                 borderWidth: 1, borderColor: '#E0E8FF', marginBottom: 8,
               }}
+              accessibilityRole="link"
             >
               <Text style={{ fontSize: 18, marginRight: isRtl ? 0 : 10, marginLeft: isRtl ? 10 : 0 }}>📄</Text>
               <Text style={{ fontSize: 13, fontWeight: '700', color: '#111', flex: 1, textAlign: isRtl ? 'right' : 'left' }}>

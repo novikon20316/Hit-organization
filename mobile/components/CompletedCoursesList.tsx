@@ -25,6 +25,8 @@ export default function CompletedCoursesList({ lang, isRtl, completedCourses }: 
       <Pressable
         onPress={() => setExpanded((v) => !v)}
         style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
       >
         <Text style={{ fontSize: 14, fontWeight: '700', color: '#111' }}>
           📚 {lang === 'he' ? 'הקורסים שהשלמתי' : 'My Completed Courses'} ({completedCourses.length})

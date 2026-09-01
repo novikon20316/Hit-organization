@@ -905,6 +905,7 @@ export default function SupervisorHome() {
             key={tab.key}
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="button"
           >
             <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.heLabel : tab.enLabel}
@@ -919,6 +920,7 @@ export default function SupervisorHome() {
         <Pressable
           style={[styles.tab, activeTab === 'signoffs' && styles.tabActive]}
           onPress={() => setActiveTab('signoffs')}
+          accessibilityRole="button"
         >
           <Text style={[styles.tabText, activeTab === 'signoffs' && styles.tabTextActive]} numberOfLines={1}>
             {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}
@@ -927,6 +929,7 @@ export default function SupervisorHome() {
         <Pressable
           style={[styles.tab, activeTab === 'projects' && styles.tabActive]}
           onPress={() => setActiveTab('projects')}
+          accessibilityRole="button"
         >
           <Text style={[styles.tabText, activeTab === 'projects' && styles.tabTextActive]} numberOfLines={1}>
             {lang === 'he' ? 'פרויקטים' : 'Projects'}
@@ -949,6 +952,7 @@ export default function SupervisorHome() {
                 <Pressable
                   key={f.key}
                   onPress={() => setProjectFilter(f.key)}
+                  accessibilityRole="button"
                   style={{
                     paddingHorizontal: 12,
                     paddingVertical: 6,
@@ -1039,10 +1043,10 @@ export default function SupervisorHome() {
                       </View>
                     )}
                     <View style={[styles.actionRow, isRtl && styles.rowReverse]}>
-                      <Pressable style={[styles.actionBtn, styles.editBtn]} onPress={() => handleOpenEditModal(p)}>
+                      <Pressable style={[styles.actionBtn, styles.editBtn]} onPress={() => handleOpenEditModal(p)} accessibilityRole="button">
                         <Text style={styles.actionBtnText}>{lang === 'he' ? 'עריכה' : 'Edit'}</Text>
                       </Pressable>
-                      <Pressable style={[styles.actionBtn, styles.deleteBtn]} onPress={() => setErasureProject(p)}>
+                      <Pressable style={[styles.actionBtn, styles.deleteBtn]} onPress={() => setErasureProject(p)} accessibilityRole="button">
                         <Text style={styles.actionBtnText}>{tx('requestErasure', lang)}</Text>
                       </Pressable>
                     </View>
@@ -1063,6 +1067,7 @@ export default function SupervisorHome() {
                 <Pressable
                   key={f.key}
                   onPress={() => setApplicationFilter(f.key)}
+                  accessibilityRole="button"
                   style={{
                     paddingHorizontal: 12,
                     paddingVertical: 6,
@@ -1095,6 +1100,7 @@ export default function SupervisorHome() {
                     key={app.id}
                     style={styles.appCard}
                     onPress={() => toggleCardExpansion(app.id)}
+                    accessibilityRole="button"
                   >
                     {/* ── Always visible header ── */}
                     <View style={[styles.row, isRtl && styles.rowReverse, { justifyContent: 'space-between' }]}>
@@ -1185,6 +1191,7 @@ export default function SupervisorHome() {
                             <Pressable
                               style={styles.docChip}
                               onPress={(e) => { e.stopPropagation?.(); handleOpenDocument(app.transcriptUrl); }}
+                              accessibilityRole="button"
                             >
                               <Text style={styles.docChipText}>📄 {lang === 'he' ? 'גיליון ציונים' : 'Transcript'}</Text>
                             </Pressable>
@@ -1193,6 +1200,7 @@ export default function SupervisorHome() {
                             <Pressable
                               style={styles.docChip}
                               onPress={(e) => { e.stopPropagation?.(); handleOpenDocument(app.cvUrl); }}
+                              accessibilityRole="button"
                             >
                               <Text style={styles.docChipText}>📋 {lang === 'he' ? 'קורות חיים' : 'CV'}</Text>
                             </Pressable>
@@ -1254,18 +1262,21 @@ export default function SupervisorHome() {
                             <Pressable
                               style={styles.approveBtn}
                               onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'approved', app.studentId); }}
+                              accessibilityRole="button"
                             >
                               <Text style={styles.approveBtnText}>✓ {lang === 'he' ? 'אשר' : 'Approve'}</Text>
                             </Pressable>
                             <Pressable
                               style={styles.meetingBtn}
                               onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'meeting_requested', app.studentId); }}
+                              accessibilityRole="button"
                             >
                               <Text style={styles.meetingBtnText}>📅 {lang === 'he' ? 'בקש פגישה' : 'Request Meeting'}</Text>
                             </Pressable>
                             <Pressable
                               style={styles.rejectBtn}
                               onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'rejected', app.studentId); }}
+                              accessibilityRole="button"
                             >
                               <Text style={styles.rejectBtnText}>✕ {lang === 'he' ? 'דחה' : 'Reject'}</Text>
                             </Pressable>
@@ -1312,10 +1323,11 @@ export default function SupervisorHome() {
                   }
                 }
                 return (
-                  <Pressable 
-                    key={m.id} 
+                  <Pressable
+                    key={m.id}
                     style={[styles.gradeCard, isRtl ? { borderRightColor: fc.primary, borderRightWidth: 4 } : { borderLeftColor: fc.primary, borderLeftWidth: 4 }]}
                     onPress={() => toggleCardExpansion(m.id)}
+                    accessibilityRole="button"
                   >
                     {/* Header Content Info */}
                     <View style={[styles.row, isRtl && styles.rowReverse, { justifyContent: 'space-between', alignItems: 'center' }]}>
@@ -1393,6 +1405,7 @@ export default function SupervisorHome() {
                                     // before opening it — do the same here.
                                     router.push({ pathname: '/pdfViewer', params: { url } });
                                   }}
+                                  accessibilityRole="button"
                                 >
                                   <Text style={[styles.docChipText, { color: milestonePalette.onSurface }]} numberOfLines={1}>
                                     📄 {fileNameFromUrl(url, uIdx, lang)}
@@ -1419,6 +1432,7 @@ export default function SupervisorHome() {
                             setGradeMilestone(m);
                             setGradeModal(true);
                           }}
+                          accessibilityRole="button"
                         >
                           <Text style={styles.gradeBtnText}>✏️ {lang === 'he' ? 'תן ציון' : 'Grade'}</Text>
                         </Pressable>
@@ -1446,6 +1460,7 @@ export default function SupervisorHome() {
                 }
                 setRecommendModal(true);
               }}
+              accessibilityRole="button"
             >
               <Text style={styles.addBtnText}>
                 + {tx('recommendExaminers', lang)}
@@ -1505,7 +1520,7 @@ export default function SupervisorHome() {
           backgroundColor: '#fff', padding: 16,
           borderTopWidth: 1, borderTopColor: '#E5E7EB',
         }}>
-          <Pressable style={styles.addBtn} onPress={() => setShowNewProject(true)}>
+          <Pressable style={styles.addBtn} onPress={() => setShowNewProject(true)} accessibilityRole="button">
             <Text style={styles.addBtnText}>
               + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
             </Text>
@@ -1553,7 +1568,11 @@ export default function SupervisorHome() {
           <ScrollView contentContainerStyle={styles.modalContent}>
             <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
               <Text style={styles.modalTitle}>{lang === 'he' ? 'טופס ציון' : 'Grading Form'}</Text>
-              <Pressable onPress={() => { setGradeModal(false); setGradeComment(''); }}>
+              <Pressable
+                onPress={() => { setGradeModal(false); setGradeComment(''); }}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+              >
                 <Text style={styles.modalClose}>✕</Text>
               </Pressable>
             </View>
@@ -1631,6 +1650,7 @@ export default function SupervisorHome() {
               style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
               onPress={handleGrade}
               disabled={submitting}
+              accessibilityRole="button"
             >
               {submitting
                 ? <ActivityIndicator color="#fff" />
@@ -1647,7 +1667,11 @@ export default function SupervisorHome() {
           <ScrollView contentContainerStyle={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{lang === 'he' ? 'עריכת פרויקט' : 'Edit Project'}</Text>
-              <Pressable onPress={() => setProjectModal(false)}>
+              <Pressable
+                onPress={() => setProjectModal(false)}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
+              >
                 <Text style={styles.close}>✕</Text>
               </Pressable>
             </View>
@@ -1676,6 +1700,7 @@ export default function SupervisorHome() {
               style={[styles.uploadBtn, editProjectFile && styles.uploadBtnDone]}
               onPress={() => pickFile(false)}
               disabled={uploadingProjectFile}
+              accessibilityRole="button"
             >
               {uploadingProjectFile ? (
                 <ActivityIndicator color="#2E86FF" />
@@ -1687,7 +1712,7 @@ export default function SupervisorHome() {
                 </Text>
               )}
             </Pressable>
-            <Pressable style={styles.submitBtn} onPress={() => handleEditProject(editProject)} disabled={saving}>
+            <Pressable style={styles.submitBtn} onPress={() => handleEditProject(editProject)} disabled={saving} accessibilityRole="button">
               {saving
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שמור שינויים' : 'Save Changes'}</Text>
@@ -1740,6 +1765,7 @@ export default function SupervisorHome() {
               onPress={() => { setErasureProject(null); setErasureReason(''); }}
               disabled={submittingErasure}
               style={{ flex: 1, borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
+              accessibilityRole="button"
             >
               <Text style={{ fontSize: 14, fontWeight: '600', color: '#111' }}>{tx('cancel', lang)}</Text>
             </Pressable>
@@ -1747,6 +1773,7 @@ export default function SupervisorHome() {
               onPress={submitErasureRequest}
               disabled={submittingErasure}
               style={{ flex: 1, backgroundColor: '#A8433A', borderRadius: 8, paddingVertical: 12, alignItems: 'center', opacity: submittingErasure ? 0.6 : 1 }}
+              accessibilityRole="button"
             >
               {submittingErasure
                 ? <ActivityIndicator size="small" color="#fff" />

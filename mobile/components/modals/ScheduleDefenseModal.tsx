@@ -85,14 +85,14 @@ export default function ScheduleDefenseModal({ visible, project, lang, isRtl, sa
           autoCapitalize="none"
         />
 
-        <Pressable style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
+        <Pressable style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} accessibilityRole="button">
           {saving
             ? <ActivityIndicator color="#fff" />
             : <Text style={s.saveBtnText}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
           }
         </Pressable>
 
-        <Pressable style={s.cancelBtn} onPress={handleClose}>
+        <Pressable style={s.cancelBtn} onPress={handleClose} accessibilityRole="button">
           <Text style={s.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
         </Pressable>
       </ScrollView>

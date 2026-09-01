@@ -33,12 +33,13 @@ export default function SharedProjectRecordDetailScreen() {
           <Pressable
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as any))}
             style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}
+            accessibilityRole="button"
           >
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#2E86FF' }}>
               {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה' : 'Back'}
             </Text>
           </Pressable>
-          <Pressable onPress={() => setLang(lang === 'he' ? 'en' : 'he')}>
+          <Pressable onPress={() => setLang(lang === 'he' ? 'en' : 'he')} accessibilityRole="button">
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280' }}>
               {lang === 'he' ? 'EN' : 'עב'}
             </Text>
