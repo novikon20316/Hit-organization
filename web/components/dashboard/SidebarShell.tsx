@@ -32,6 +32,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { deriveSidebarTones } from '@/lib/colorTones';
 import { NotificationBell } from '@/components/NotificationBell';
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 
 export interface SidebarNavItem {
   key: string;
@@ -43,6 +44,11 @@ export interface SidebarNavItem {
   href: string | ((searchParams: URLSearchParams) => string);
   label: { he: string; en: string };
   isActive: (pathname: string, searchParams: URLSearchParams) => boolean;
+  /** Shown as a tour step's body text when the first-login onboarding tour
+   *  (components/onboarding/OnboardingTour.tsx) walks through this role's
+   *  tabs — see SidebarShell's own render below. Items without this are
+   *  simply skipped by the tour, not a hard requirement for every item. */
+  description?: { he: string; en: string };
 }
 
 export interface SidebarSection {
@@ -92,6 +98,7 @@ function SidebarNavSections({
             <li key={item.key}>
               <Link
                 href={resolveHref(item.href)}
+                data-tour-id={item.key}
                 className={`flex items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${
                   active ? `border-e-4 font-bold ${cls.itemActive}` : cls.itemInactive
                 }`}
@@ -213,6 +220,13 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
       </nav>
 
       <div className="min-w-0 flex-1">{children}</div>
+
+      {/* system_admin uses theme.mode 'tokens' exclusively — every other
+       *  role uses 'accent', which doubles as "not system_admin" here
+       *  without a separate role check. */}
+      {theme.mode === 'accent' && userData && !userData.hasSeenOnboardingTour && (
+        <OnboardingTour sections={sections} quickActions={quickActions} />
+      )}
     </div>
   );
 }

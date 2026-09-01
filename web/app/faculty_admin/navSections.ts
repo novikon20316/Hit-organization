@@ -16,6 +16,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '🏠',
         href: '/faculty_admin/dashboard',
         label: { he: 'בית', en: 'Home' },
+        description: {
+          he: 'לוח הבקרה של הפקולטה שלך — תמונת מצב של כל מה שדורש את תשומת ליבך כרגע.',
+          en: "Your faculty's dashboard — a snapshot of everything that needs your attention right now.",
+        },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && (!sp.get('tab') || sp.get('tab') === 'overview'),
       },
       {
@@ -23,6 +27,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '🧑‍💼',
         href: '/faculty_admin/dashboard?tab=users',
         label: { he: 'משתמשים', en: 'Users' },
+        description: {
+          he: 'כל חשבונות הסגל בפקולטה שלך — צור, ערוך או השבת מנחים, רכזים ובוחנים.',
+          en: 'Every staff account in your faculty — create, edit, or deactivate supervisors, coordinators, and examiners.',
+        },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'users',
       },
       {
@@ -30,6 +38,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '📁',
         href: '/faculty_admin/dashboard?tab=projects',
         label: { he: 'פרויקטים', en: 'Projects' },
+        description: {
+          he: 'כל הפרויקטים שפורסמו בפקולטה שלך, בכל הסטטוסים.',
+          en: 'Every project posted in your faculty, across every status.',
+        },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'projects',
       },
       {
@@ -37,6 +49,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '🎓',
         href: '/faculty_admin/dashboard?tab=students',
         label: { he: 'רשימת סטודנטים', en: 'Students List' },
+        description: {
+          he: 'רשימה מלאה של הסטודנטים הרשומים לתוכניות של הפקולטה שלך.',
+          en: "The full list of students enrolled in your faculty's programs.",
+        },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'students',
       },
       {
@@ -44,6 +60,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '⏰',
         href: '/faculty_admin/dashboard?tab=deadlines',
         label: { he: 'מועדי הגשה', en: 'Deadlines' },
+        description: {
+          he: 'מועדי הגשה קרובים ומועדים שחלפו, בכל הפקולטה.',
+          en: 'Upcoming and overdue milestone deadlines across your faculty.',
+        },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'deadlines',
       },
       {
@@ -51,6 +71,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '✅',
         href: '/faculty_admin/dashboard?tab=signoffs',
         label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' },
+        description: {
+          he: 'ציונים ומינויי בוחנים הממתינים לאישור סופי שלך.',
+          en: 'Grades and examiner assignments waiting for your final approval.',
+        },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'signoffs',
       },
       {
@@ -58,6 +82,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '📋',
         href: '/faculty_admin/templates',
         label: { he: 'תבניות פרויקט', en: 'Project Templates' },
+        description: {
+          he: 'תבניות פרויקט לשימוש חוזר שמנחים יכולים להתחיל מהן פרויקט חדש.',
+          en: 'Reusable project templates supervisors can start new projects from.',
+        },
         isActive: (pathname) => pathname === '/faculty_admin/templates',
       },
       {
@@ -65,6 +93,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '🧬',
         href: '/workflow-templates',
         label: { he: 'תבניות תהליך', en: 'Process Templates' },
+        description: {
+          he: 'שרשראות אבני הדרך והאישורים שבהן פרויקטי הפקולטה מתנהלים — ערוך אותן כאן.',
+          en: "The milestone/approval chains your faculty's projects follow — edit them here.",
+        },
         isActive: (pathname) => pathname === '/workflow-templates',
       },
       {
@@ -72,6 +104,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '🛡️',
         href: '/bulk-permissions',
         label: { he: 'הרשאות מרוכזות', en: 'Bulk Permissions' },
+        description: {
+          he: 'הענק או שלול הרשאות ספציפיות להרבה חשבונות סגל בבת אחת.',
+          en: 'Grant or revoke specific permissions for many staff accounts at once.',
+        },
         isActive: (pathname) => pathname === '/bulk-permissions',
       },
       {
@@ -79,6 +115,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '📈',
         href: '/reports',
         label: { he: 'דוחות', en: 'Reports' },
+        description: {
+          he: 'הפק וייצא דוחות מפורטים על פרויקטים, סטודנטים וציונים.',
+          en: 'Generate and export detailed reports across projects, students, and grades.',
+        },
         isActive: (pathname) => pathname === '/reports',
       },
       {
@@ -86,6 +126,10 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         icon: '📜',
         href: '/faculty_admin/records',
         label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        description: {
+          he: 'ארכיון קבוע לחיפוש של כל פרויקט שטופל בפקולטה שלך.',
+          en: 'A permanent, searchable archive of every project handled by your faculty.',
+        },
         isActive: (pathname) => pathname.startsWith('/faculty_admin/records'),
       },
     ],
@@ -100,6 +144,10 @@ export const FACULTY_ADMIN_QUICK_ACTIONS: SidebarSection = {
       icon: '📁',
       href: (sp: URLSearchParams) => `/faculty_admin/dashboard?${sp.get('tab') ? `tab=${sp.get('tab')}&` : ''}modal=newProject`,
       label: { he: 'פרסם פרויקט חדש', en: 'Post New Project' },
+      description: {
+        he: 'פרסם פרויקט חדש בשם מנחה בפקולטה שלך.',
+        en: 'Post a new project on behalf of a supervisor in your faculty.',
+      },
       isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('modal') === 'newProject',
     },
   ],

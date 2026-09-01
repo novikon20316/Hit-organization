@@ -15,6 +15,8 @@ import { NotificationsProvider } from '../src/context/NotificationsContext';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { getHomeRoute, getUserRoles, resolveActiveRole } from '@/firebase/roles'; // ← single source of truth
 import { ActiveRoleProvider, useActiveRole } from '@/contexts/ActiveRoleContext';
+import { OnboardingTourProvider } from '@/contexts/OnboardingTourContext';
+import { OnboardingTourOverlay } from '@/components/onboarding/OnboardingTourOverlay';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // ─── Lock native layout direction to LTR ──────────────────────────────────────
@@ -118,7 +120,9 @@ const authRoutes = new Set<string>([
 export default function RootLayout() {
   return (
     <ActiveRoleProvider>
-      <RootLayoutInner />
+      <OnboardingTourProvider>
+        <RootLayoutInner />
+      </OnboardingTourProvider>
     </ActiveRoleProvider>
   );
 }
@@ -240,7 +244,7 @@ function RootLayoutInner() {
         // context) reflects it, not just the primary role.
         const roles = getUserRoles(userData);
         const activeRole = resolveActiveRole(userData) ?? role;
-        sync(user.uid, roles, userData.facultyId ?? '');
+        sync(user.uid, roles, userData.facultyId ?? '', userData.language, userData.hasSeenOnboardingTour);
 
         // ── Forced password change (accounts created via Excel import) ──────
         // Takes priority over everything below, including the 2FA gate.
@@ -504,6 +508,7 @@ function RootLayoutInner() {
         <NotificationsProvider>
           <StatusBar style="auto" translucent={false} />
           <Stack screenOptions={{ headerShown: false }} />
+          <OnboardingTourOverlay />
         </NotificationsProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

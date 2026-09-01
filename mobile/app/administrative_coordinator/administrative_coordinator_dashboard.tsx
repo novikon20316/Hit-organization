@@ -24,6 +24,7 @@ import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import type { AppUser } from '@/types';
 import ChatbotFab from '@/components/ChatbotFab';
+import { TourTarget } from '@/components/onboarding/TourTarget';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -856,20 +857,21 @@ export default function ProjectCoordinatorDashboard() {
       {/* Tab switcher: Project Groups / Students Report / Grade Overrides */}
       <View style={s.filterRow}>
         {(['groups', 'students', 'overrides'] as const).map((key) => (
-          <Pressable
-            key={key}
-            style={[s.filterChip, activeTab === key && { backgroundColor: fc.primary }]}
-            onPress={() => setActiveTab(key)}
-            accessibilityRole="button"
-          >
-            <Text style={[s.filterChipText, activeTab === key && { color: '#fff' }]}>
-              {key === 'groups'
-                ? (lang === 'he' ? 'קבוצות פרויקט' : 'Project Groups')
-                : key === 'students'
-                  ? (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')
-                  : (lang === 'he' ? 'אישור ציונים סופיים' : 'Final Grade Approvals')}
-            </Text>
-          </Pressable>
+          <TourTarget key={key} tourKey={key}>
+            <Pressable
+              style={[s.filterChip, activeTab === key && { backgroundColor: fc.primary }]}
+              onPress={() => setActiveTab(key)}
+              accessibilityRole="button"
+            >
+              <Text style={[s.filterChipText, activeTab === key && { color: '#fff' }]}>
+                {key === 'groups'
+                  ? (lang === 'he' ? 'קבוצות פרויקט' : 'Project Groups')
+                  : key === 'students'
+                    ? (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')
+                    : (lang === 'he' ? 'אישור ציונים סופיים' : 'Final Grade Approvals')}
+              </Text>
+            </Pressable>
+          </TourTarget>
         ))}
       </View>
 

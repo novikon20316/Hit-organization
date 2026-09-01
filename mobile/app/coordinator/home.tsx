@@ -27,6 +27,7 @@ import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
+import { TourTarget } from '@/components/onboarding/TourTarget';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -919,37 +920,42 @@ export default function CoordinatorHome() {
           { key: 'recommendations', heLabel: 'המלצות בוחנים', enLabel: 'Examiner Recs', badge: examinerRecs.length },
           { key: 'signoffs', heLabel: 'ממתין לאישור ציונים ובוחנים', enLabel: 'Awaiting Grade/Examiner Approval', badge: 0 },
         ] as const).map((tab) => (
-          <Pressable
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
-              {lang === 'he' ? tab.heLabel : tab.enLabel}
-            </Text>
-            {tab.badge > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{tab.badge}</Text>
-              </View>
-            )}
-          </Pressable>
+          <TourTarget key={tab.key} tourKey={tab.key}>
+            <Pressable
+              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
+                {lang === 'he' ? tab.heLabel : tab.enLabel}
+              </Text>
+              {tab.badge > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{tab.badge}</Text>
+                </View>
+              )}
+            </Pressable>
+          </TourTarget>
         ))}
-        <Pressable
-          style={[styles.tab, activeTab === 'deadlines' && styles.tabActive]}
-          onPress={() => setActiveTab('deadlines')}
-          accessibilityRole="button"
-        >
-          <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
-        </Pressable>
-        {activeRole !== 'administrative_secretary' && (
+        <TourTarget tourKey="deadlines">
           <Pressable
-            style={[styles.tab, activeTab === 'archived' && styles.tabActive]}
-            onPress={() => setActiveTab('archived')}
+            style={[styles.tab, activeTab === 'deadlines' && styles.tabActive]}
+            onPress={() => setActiveTab('deadlines')}
             accessibilityRole="button"
           >
-            <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'ארכיון' : 'Archived'}</Text>
+            <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
           </Pressable>
+        </TourTarget>
+        {activeRole !== 'administrative_secretary' && (
+          <TourTarget tourKey="archived">
+            <Pressable
+              style={[styles.tab, activeTab === 'archived' && styles.tabActive]}
+              onPress={() => setActiveTab('archived')}
+              accessibilityRole="button"
+            >
+              <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'ארכיון' : 'Archived'}</Text>
+            </Pressable>
+          </TourTarget>
         )}
       </ScrollView>
 

@@ -20,6 +20,7 @@ import { getProgramByKey } from '../../constants/faculties';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { milestonePalette } from '@/constants/milestoneTheme';
 import ChatbotFab from '@/components/ChatbotFab';
+import { TourTarget } from '@/components/onboarding/TourTarget';
 
 // Derives a human-readable file name from a Cloudinary/Storage URL for the
 // grading-queue "Submitted Files" chips — same approach as web's
@@ -901,45 +902,50 @@ export default function SupervisorHome() {
           { key: 'grading',      heLabel: 'מתן ציונים', enLabel: 'Grading',      badge: pendingGrades.length },
           { key: 'recommend', heLabel: 'המלצת בוחנים', enLabel: 'Recommend Examiners', badge: 0 },
         ] as const).map((tab) => (
+          <TourTarget key={tab.key} tourKey={tab.key}>
+            <Pressable
+              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
+                {lang === 'he' ? tab.heLabel : tab.enLabel}
+              </Text>
+              {tab.badge > 0 && (
+                <View style={[styles.tabBadge, activeTab === tab.key && styles.tabBadgeActive]}>
+                  <Text style={styles.tabBadgeText}>{tab.badge}</Text>
+                </View>
+              )}
+            </Pressable>
+          </TourTarget>
+        ))}
+        <TourTarget tourKey="signoffs">
           <Pressable
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
+            style={[styles.tab, activeTab === 'signoffs' && styles.tabActive]}
+            onPress={() => setActiveTab('signoffs')}
             accessibilityRole="button"
           >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
-              {lang === 'he' ? tab.heLabel : tab.enLabel}
+            <Text style={[styles.tabText, activeTab === 'signoffs' && styles.tabTextActive]} numberOfLines={1}>
+              {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}
             </Text>
-            {tab.badge > 0 && (
-              <View style={[styles.tabBadge, activeTab === tab.key && styles.tabBadgeActive]}>
-                <Text style={styles.tabBadgeText}>{tab.badge}</Text>
+          </Pressable>
+        </TourTarget>
+        <TourTarget tourKey="projects">
+          <Pressable
+            style={[styles.tab, activeTab === 'projects' && styles.tabActive]}
+            onPress={() => setActiveTab('projects')}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.tabText, activeTab === 'projects' && styles.tabTextActive]} numberOfLines={1}>
+              {lang === 'he' ? 'פרויקטים' : 'Projects'}
+            </Text>
+            {myProjects.length > 0 && (
+              <View style={[styles.tabBadge, activeTab === 'projects' && styles.tabBadgeActive]}>
+                <Text style={styles.tabBadgeText}>{myProjects.length}</Text>
               </View>
             )}
           </Pressable>
-        ))}
-        <Pressable
-          style={[styles.tab, activeTab === 'signoffs' && styles.tabActive]}
-          onPress={() => setActiveTab('signoffs')}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.tabText, activeTab === 'signoffs' && styles.tabTextActive]} numberOfLines={1}>
-            {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === 'projects' && styles.tabActive]}
-          onPress={() => setActiveTab('projects')}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.tabText, activeTab === 'projects' && styles.tabTextActive]} numberOfLines={1}>
-            {lang === 'he' ? 'פרויקטים' : 'Projects'}
-          </Text>
-          {myProjects.length > 0 && (
-            <View style={[styles.tabBadge, activeTab === 'projects' && styles.tabBadgeActive]}>
-              <Text style={styles.tabBadgeText}>{myProjects.length}</Text>
-            </View>
-          )}
-        </Pressable>
+        </TourTarget>
       </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

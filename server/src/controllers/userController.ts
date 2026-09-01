@@ -247,6 +247,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       expoPushToken:   null,
       totp_enabled: false,
       totp_last_verified: null,
+      hasSeenOnboardingTour: false,
 
       ...(role === 'examiner' ? { dates: [] } : {}),
       isEligibleForProcess,
@@ -310,6 +311,25 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('updatePushToken error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// ─── POST /api/users/complete-onboarding-tour ─────────────────────────────────
+// Called once by either client when a user finishes or dismisses their
+// first-login onboarding tour (web: OnboardingTour, mobile:
+// OnboardingTourOverlay) — permanently hides it from then on. No body; uid
+// comes only from the verified token, same pattern as updatePushToken above.
+export const completeOnboardingTour = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+    await db.collection('users').doc(uid).update({ hasSeenOnboardingTour: true });
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('completeOnboardingTour error:', error);
     return res.status(500).json({ error: error.message });
   }
 };

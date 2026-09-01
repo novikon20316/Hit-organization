@@ -4902,3 +4902,90 @@ export const StudentStatusesModalStyles = StyleSheet.create({
     marginBottom: 8,
   },
 });
+
+// ─── One-time first-login onboarding tour (components/onboarding/OnboardingTourOverlay.tsx) ──
+export const OnboardingTourStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  mask: {
+    position:        'absolute',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  },
+  ring: {
+    position:     'absolute',
+    borderWidth:  2,
+    borderColor:  '#2E86FF',
+    borderRadius: 10,
+  },
+  card: {
+    position:         'absolute',
+    left:             16,
+    right:            16,
+    bottom:           32,
+    backgroundColor:  '#ffffff',
+    borderRadius:     14,
+    padding:          16,
+    shadowColor:      '#000',
+    shadowOffset:     { width: 0, height: 4 },
+    shadowOpacity:    0.2,
+    shadowRadius:     10,
+    elevation:        8,
+  },
+  stepCounter: {
+    fontSize:     12,
+    fontWeight:   '600',
+    color:        '#64748B',
+  },
+  title: {
+    fontSize:     16,
+    fontWeight:   '700',
+    color:        '#0F172A',
+    marginTop:    4,
+  },
+  body: {
+    fontSize:     13,
+    color:        '#475569',
+    marginTop:    6,
+    lineHeight:   19,
+  },
+  footer: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    marginTop:      16,
+  },
+  skip: {
+    fontSize:   13,
+    fontWeight: '600',
+    color:      '#64748B',
+  },
+  footerButtons: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           8,
+  },
+  backBtn: {
+    paddingHorizontal: 14,
+    paddingVertical:   9,
+    borderRadius:      10,
+    borderWidth:       1,
+    borderColor:       '#CBD5E1',
+  },
+  backBtnText: {
+    fontSize:   13,
+    fontWeight: '600',
+    color:      '#0F172A',
+  },
+  nextBtn: {
+    paddingHorizontal: 16,
+    paddingVertical:   9,
+    borderRadius:      10,
+    backgroundColor:   '#2E86FF',
+  },
+  nextBtnText: {
+    fontSize:   13,
+    fontWeight: '700',
+    color:      '#ffffff',
+  },
+});

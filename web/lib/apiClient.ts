@@ -912,6 +912,12 @@ export const apiClient = {
     return request<{ success?: boolean }>('/api/users/logout', { method: 'POST' });
   },
 
+  /** POST /api/users/complete-onboarding-tour — permanently hides the
+   *  first-login onboarding tour (see components/onboarding/OnboardingTour.tsx). */
+  async completeOnboardingTour() {
+    return request<{ success?: boolean }>('/api/users/complete-onboarding-tour', { method: 'POST' });
+  },
+
   /** POST /api/users/delete-account/request — starts the 14-day grace
    *  period (server/src/services/accountDeletion.ts). Server rejects this
    *  with 401 unless the ID token's auth_time is under 5 minutes old, so

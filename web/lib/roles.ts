@@ -316,6 +316,13 @@ export interface UserDoc {
   /** Mirrors mobile's post-login nudge condition (app/(auth)/login.tsx) —
    *  when false/undefined, the user hasn't set up 2FA yet. */
   totp_enabled?: boolean;
+  /** True once this user has finished or dismissed their one-time, first-
+   *  login onboarding tour (see components/dashboard/SidebarShell.tsx /
+   *  components/onboarding/OnboardingTour.tsx). False/undefined means it
+   *  hasn't been shown yet — includes every pre-existing account, so this
+   *  field's rollout is itself each of their next "first login". Never
+   *  shown to system_admin (excluded by construction, not by this flag). */
+  hasSeenOnboardingTour?: boolean;
   /** Only meaningful for supervisor/secondary_supervisor — restricts them to
    *  specific majors within their own facultyId. Empty/unset means
    *  unrestricted (all majors in their faculty). See

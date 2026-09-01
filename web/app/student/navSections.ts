@@ -16,6 +16,10 @@ export const STUDENT_NAV_SECTIONS: SidebarSection[] = [
         icon: '🏠',
         href: '/student/home',
         label: { he: 'סקירה', en: 'Overview' },
+        description: {
+          he: 'סקירת הפרויקט שלך — הסטטוס הנוכחי, שם המנחה, והמשימה הבאה שממתינה לך.',
+          en: "Your project overview — current status, your supervisor, and what's due next.",
+        },
         isActive: (pathname, sp) => pathname === '/student/home' && (!sp.get('tab') || sp.get('tab') === 'overview'),
       },
       {
@@ -23,6 +27,10 @@ export const STUDENT_NAV_SECTIONS: SidebarSection[] = [
         icon: '🏁',
         href: '/student/home?tab=milestones',
         label: { he: 'אבני דרך', en: 'Milestones' },
+        description: {
+          he: 'כל אבני הדרך בתהליך הפרויקט שלך (הצעה, דוחות, הגנה ועוד), מועדי ההגשה וההיסטוריה של ההגשות שלך.',
+          en: "Every milestone in your project's workflow (proposal, reports, defense, and more), its due date, and your submission history.",
+        },
         isActive: (pathname, sp) => pathname === '/student/home' && sp.get('tab') === 'milestones',
       },
       {
@@ -30,6 +38,10 @@ export const STUDENT_NAV_SECTIONS: SidebarSection[] = [
         icon: '🎓',
         href: '/student/home?tab=grades',
         label: { he: 'ציונים', en: 'Grades' },
+        description: {
+          he: 'הציונים שלך, לפי כל אבן דרך, ככל שהם נכנסים למערכת ומאושרים.',
+          en: 'Your grades, milestone by milestone, as they get entered and approved.',
+        },
         isActive: (pathname, sp) => pathname === '/student/home' && sp.get('tab') === 'grades',
       },
     ],

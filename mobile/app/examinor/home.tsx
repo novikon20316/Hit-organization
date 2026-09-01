@@ -12,6 +12,7 @@ import {type GradeWeights, type IdentityGradeWeights } from '../../components/Mi
 import { examinerHomeStyles } from '../../constants/styles';
 import { apiClient } from '@/src/api/apiClient';
 import ChatbotFab from '@/components/ChatbotFab';
+import { TourTarget } from '@/components/onboarding/TourTarget';
 import {AssignedMilestone, GradingComponentSpec} from '@/types'
  
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -382,21 +383,22 @@ export default function ExaminerHome() {
           { key: 'projects', he: 'הגנות לבחינה', en: 'Defenses', badge: assignments.length },
           { key: 'schedule', he: 'לוח זמנים',     en: 'Schedule', badge: scheduled.length  },
         ] as const).map((tab) => (
-          <Pressable
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
-              {lang === 'he' ? tab.he : tab.en}
-            </Text>
-            {tab.badge > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{tab.badge}</Text>
-              </View>
-            )}
-          </Pressable>
+          <TourTarget key={tab.key} tourKey={tab.key}>
+            <Pressable
+              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
+                {lang === 'he' ? tab.he : tab.en}
+              </Text>
+              {tab.badge > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{tab.badge}</Text>
+                </View>
+              )}
+            </Pressable>
+          </TourTarget>
         ))}
       </ScrollView>
  

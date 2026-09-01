@@ -665,6 +665,7 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
       totp_last_verified: null,
       isActive: true,
       mustChangePassword: true, // enforced in-app on first login — see /api/users/change-password
+      hasSeenOnboardingTour: false,
       createdAt: new Date().toISOString()
     });
     await setTempPasswordHash(authUser.uid, tempPassword);

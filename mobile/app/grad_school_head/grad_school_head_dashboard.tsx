@@ -24,6 +24,7 @@ import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import type { AppUser } from '@/types';
 import ChatbotFab from '@/components/ChatbotFab';
+import { TourTarget } from '@/components/onboarding/TourTarget';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -496,19 +497,20 @@ export default function GradSchoolHeadDashboard() {
       {/* Tab bar */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabBar}>
         {tabs.map(tab => (
-          <Pressable
-            key={tab.key}
-            style={[s.tab, activeTab === tab.key && s.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-            accessibilityRole="button"
-          >
-            <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]} numberOfLines={1}>
-              {lang === 'he' ? tab.he : tab.en}
-            </Text>
-            {tab.badge > 0 && (
-              <View style={s.badge}><Text style={s.badgeText}>{tab.badge}</Text></View>
-            )}
-          </Pressable>
+          <TourTarget key={tab.key} tourKey={tab.key}>
+            <Pressable
+              style={[s.tab, activeTab === tab.key && s.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+              accessibilityRole="button"
+            >
+              <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]} numberOfLines={1}>
+                {lang === 'he' ? tab.he : tab.en}
+              </Text>
+              {tab.badge > 0 && (
+                <View style={s.badge}><Text style={s.badgeText}>{tab.badge}</Text></View>
+              )}
+            </Pressable>
+          </TourTarget>
         ))}
       </ScrollView>
 

@@ -16,6 +16,10 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
         icon: '📁',
         href: '/supervisor/dashboard',
         label: { he: 'הפרויקטים שלי', en: 'My Projects' },
+        description: {
+          he: 'כל הפרויקטים שאתה מנחה — הסטודנטים הרשומים, ההתקדמות באבני הדרך ומתן הציונים.',
+          en: 'Every project you supervise — enrolled students, milestone progress, and grading.',
+        },
         isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && (!sp.get('tab') || sp.get('tab') === 'projects'),
       },
       {
@@ -23,6 +27,10 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
         icon: '📨',
         href: '/supervisor/dashboard?tab=applications',
         label: { he: 'מועמדויות', en: 'Applications' },
+        description: {
+          he: 'מועמדויות של סטודנטים לפרויקטים הפתוחים שלך — אשר או דחה אותן כאן.',
+          en: 'Student applications to your open projects — review, approve, or decline them here.',
+        },
         isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'applications',
       },
       {
@@ -30,6 +38,10 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
         icon: '✅',
         href: '/supervisor/dashboard?tab=signoffs',
         label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' },
+        description: {
+          he: 'ציונים ומינויי בוחנים שהגשת, שעדיין ממתינים לאישור הרכז או בית הספר ללימודי מוסמך.',
+          en: "Grades and examiner assignments you've submitted that are still waiting on coordinator or grad-school approval.",
+        },
         isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'signoffs',
       },
       {
@@ -37,6 +49,10 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
         icon: '📜',
         href: '/supervisor/records',
         label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        description: {
+          he: 'ארכיון לחיפוש של כל פרויקט שהנחית, כולל פרויקטים שהסתיימו.',
+          en: "A searchable archive of every project you've supervised, including completed ones.",
+        },
         isActive: (pathname) => pathname.startsWith('/supervisor/records'),
       },
     ],

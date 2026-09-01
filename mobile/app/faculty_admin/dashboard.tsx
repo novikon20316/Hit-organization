@@ -40,6 +40,7 @@ import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import ChatbotFab from '@/components/ChatbotFab';
+import { TourTarget } from '@/components/onboarding/TourTarget';
 
 const { width } = Dimensions.get('window');
 
@@ -393,21 +394,31 @@ export default function PanelScreen() {
           moved into the TopBar's ☰ menu (extraMenuItems above) — same
           routes, no functionality dropped, just decluttered off the header. */}
 
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('overview')} accessibilityRole="button">
-        <Text style={localStyles.tabLabel}>Overview</Text>
-      </Pressable>
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('deadlines')} accessibilityRole="button">
-        <Text style={localStyles.tabLabel}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
-      </Pressable>
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('staff')} accessibilityRole="button">
-        <Text style={localStyles.tabLabel}>{lang === 'he' ? 'סגל' : 'Staff'}</Text>
-      </Pressable>
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('signoffs')} accessibilityRole="button">
-        <Text style={localStyles.tabLabel}>{lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}</Text>
-      </Pressable>
-      <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('students')} accessibilityRole="button">
-        <Text style={localStyles.tabLabel}>🎓 {lang === 'he' ? 'רשימת סטודנטים' : 'Students List'}</Text>
-      </Pressable>
+      <TourTarget tourKey="overview">
+        <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('overview')} accessibilityRole="button">
+          <Text style={localStyles.tabLabel}>Overview</Text>
+        </Pressable>
+      </TourTarget>
+      <TourTarget tourKey="deadlines">
+        <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('deadlines')} accessibilityRole="button">
+          <Text style={localStyles.tabLabel}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
+        </Pressable>
+      </TourTarget>
+      <TourTarget tourKey="staff">
+        <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('staff')} accessibilityRole="button">
+          <Text style={localStyles.tabLabel}>{lang === 'he' ? 'סגל' : 'Staff'}</Text>
+        </Pressable>
+      </TourTarget>
+      <TourTarget tourKey="signoffs">
+        <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('signoffs')} accessibilityRole="button">
+          <Text style={localStyles.tabLabel}>{lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}</Text>
+        </Pressable>
+      </TourTarget>
+      <TourTarget tourKey="students">
+        <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('students')} accessibilityRole="button">
+          <Text style={localStyles.tabLabel}>🎓 {lang === 'he' ? 'רשימת סטודנטים' : 'Students List'}</Text>
+        </Pressable>
+      </TourTarget>
       <Pressable
         style={localStyles.tabBar}
         onPress={() => {

@@ -152,6 +152,11 @@ export interface UserDocument {
   facultyId: string;
   isActive: boolean;
   expoPushToken?: string | null;
+  /** True once this user has finished or dismissed their one-time, first-
+   *  login onboarding tour (see contexts/OnboardingTourContext.tsx /
+   *  components/onboarding/OnboardingTourOverlay.tsx). False/undefined means
+   *  it hasn't been shown yet. Never shown to system_admin. */
+  hasSeenOnboardingTour?: boolean;
   // Student-only fields
   studentId?: string;
   phone?: string;

@@ -23,6 +23,7 @@ import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import ChatbotFab from '@/components/ChatbotFab';
+import { TourTarget } from '@/components/onboarding/TourTarget';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -297,24 +298,25 @@ export default function ProgramHeadDashboard() {
       {/* Tab bar */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabBar}>
         {tabs.map(tab => (
-          <Pressable
-            key={tab.key}
-            style={[s.tab, activeTab === tab.key && { borderBottomColor: fc.primary, borderBottomWidth: 2 }]}
-            onPress={() => setActiveTab(tab.key)}
-            accessibilityRole="button"
-          >
-            <Text
-              style={[s.tabText, activeTab === tab.key && { color: fc.primary, fontWeight: '700' }]}
-              numberOfLines={1}
+          <TourTarget key={tab.key} tourKey={tab.key}>
+            <Pressable
+              style={[s.tab, activeTab === tab.key && { borderBottomColor: fc.primary, borderBottomWidth: 2 }]}
+              onPress={() => setActiveTab(tab.key)}
+              accessibilityRole="button"
             >
-              {lang === 'he' ? tab.he : tab.en}
-            </Text>
-            {tab.badge > 0 && (
-              <View style={[s.badge, { backgroundColor: tab.key === 'approvals' ? '#EF4444' : fc.primary }]}>
-                <Text style={s.badgeText}>{tab.badge}</Text>
-              </View>
-            )}
-          </Pressable>
+              <Text
+                style={[s.tabText, activeTab === tab.key && { color: fc.primary, fontWeight: '700' }]}
+                numberOfLines={1}
+              >
+                {lang === 'he' ? tab.he : tab.en}
+              </Text>
+              {tab.badge > 0 && (
+                <View style={[s.badge, { backgroundColor: tab.key === 'approvals' ? '#EF4444' : fc.primary }]}>
+                  <Text style={s.badgeText}>{tab.badge}</Text>
+                </View>
+              )}
+            </Pressable>
+          </TourTarget>
         ))}
       </ScrollView>
 
