@@ -594,7 +594,13 @@ export async function listWorkflowTemplates(facultyId: string, major?: string | 
   // doesn't have here, which throws and turns into a 500 (same class of bug
   // fixed for feedback-history queries).
   let query: FirebaseFirestore.Query = db.collection(COLLECTION).where('facultyId', '==', facultyId);
-  if (major !== undefined) query = query.where('major', '==', major);
+  // When filtering by a specific major, return both templates scoped to that major
+  // AND templates with major=null (which apply to all majors in the faculty).
+  if (major !== undefined && major !== null) {
+    query = query.where('major', 'in', [major, null]);
+  } else if (major === null) {
+    query = query.where('major', '==', null);
+  }
   const snap = await query.get();
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() } as WorkflowTemplateDoc))
@@ -615,6 +621,10 @@ export async function proposeWorkflowTemplate(params: {
   firstStepMode?: 'browse_projects' | 'choose_supervisor';
   supervisorSelectionRequiresApproval?: boolean;
 }): Promise<{ id: string }> {
+  // Fetch the creator's user document to get their major
+  const creatorDoc = await db.collection('users').doc(params.createdBy).get();
+  const creatorMajor = creatorDoc.exists ? (creatorDoc.data()?.major ?? null) : null;
+
   // Version numbering is scoped per facultyId+processType+major — each
   // subject gets its own clean version history, rather than an unrelated
   // major's proposals bumping this one's version number.
@@ -634,6 +644,7 @@ export async function proposeWorkflowTemplate(params: {
     status: 'pending_approval',
     milestones: params.milestones,
     createdBy: params.createdBy,
+    createdByMajor: creatorMajor,
     createdAt: new Date().toISOString(),
     proposedNote: params.note ?? null,
     applyMode: params.applyMode,
