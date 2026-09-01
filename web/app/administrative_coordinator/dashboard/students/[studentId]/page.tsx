@@ -29,16 +29,21 @@ import { majorCellText } from '../../StudentsReportTab';
 // CS program head has somewhere to reach a specific student (see the new
 // search box on app/program_head/dashboard/page.tsx's students tab).
 // 'grad_school_head' added the same way, via the search box on
-// app/grad_school_head/dashboard/page.tsx's overview tab.
-const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordinator', 'program_head', 'grad_school_head', 'system_admin'];
+// app/grad_school_head/dashboard/page.tsx's overview tab. 'faculty_admin'
+// added to match — already permitted on the write endpoints via
+// studentTrackController.ts's THESIS_ELIGIBILITY_ROLES and on this page's
+// own data load via projectCoordinatorController.ts's STUDENT_DETAIL_ROLES,
+// but missing here; no dedicated search box yet on their dashboard, so today
+// they'd need a direct link (e.g. from the Students List tab) to land here.
+const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordinator', 'program_head', 'grad_school_head', 'faculty_admin', 'system_admin'];
 // Grade-average entry is narrower than the page's own role guard — originally
 // confirmed with the user as exactly program_head/administrative_secretary/
-// system_admin; grad_school_head added later so the CS grad-school head can
+// system_admin; grad_school_head and faculty_admin added later so they can
 // enter averages too (server-side scope-checked to their own facultyId via
 // withinCoordinatorScope, same as program_head). Plain 'coordinator' keeps
 // the existing manual eligible/not-eligible buttons only, same as before
 // this feature existed.
-const THESIS_AVERAGE_ROLES: AppRole[] = ['program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
+const THESIS_AVERAGE_ROLES: AppRole[] = ['program_head', 'administrative_secretary', 'grad_school_head', 'faculty_admin', 'system_admin'];
 
 type StudentDetail = Awaited<ReturnType<typeof apiClient.getStudentDetail>>;
 

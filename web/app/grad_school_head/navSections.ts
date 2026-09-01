@@ -61,6 +61,13 @@ export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'students',
       },
       {
+        key: 'ungraded',
+        icon: '📝',
+        href: '/grad_school_head/dashboard?tab=ungraded',
+        label: { he: 'סטודנטים ללא ציון ממוצע', en: 'Students Without a Grade Average' },
+        isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'ungraded',
+      },
+      {
         key: 'workflowTemplates',
         icon: '🧬',
         href: '/workflow-templates',

@@ -33,6 +33,13 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'overrides',
       },
       {
+        key: 'ungraded',
+        icon: '📝',
+        href: '/administrative_coordinator/dashboard?tab=ungraded',
+        label: { he: 'סטודנטים ללא ציון ממוצע', en: 'Students Without a Grade Average' },
+        isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'ungraded',
+      },
+      {
         key: 'statistics',
         icon: '🧮',
         href: '/administrative_coordinator/dashboard?tab=statistics',

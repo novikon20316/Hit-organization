@@ -28,6 +28,7 @@ import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import { StudentsListTab } from '@/components/students/StudentsListTab';
+import { UngradedCsMastersTab } from '@/components/students/UngradedCsMastersTab';
 import { NewProjectModal } from './NewProjectModal';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
@@ -36,8 +37,8 @@ import type { AdminUserRecord } from '@/app/admin/panel/types';
 
 const GRAD_SCHOOL_HEAD_ROLES: AppRole[] = ['grad_school_head', 'system_admin'];
 
-type GradSchoolHeadTab = 'overview' | 'approvals' | 'stuck' | 'examiners' | 'grades' | 'staff' | 'students';
-const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['overview', 'approvals', 'stuck', 'examiners', 'grades', 'staff', 'students'];
+type GradSchoolHeadTab = 'overview' | 'approvals' | 'stuck' | 'examiners' | 'grades' | 'staff' | 'students' | 'ungraded';
+const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['overview', 'approvals', 'stuck', 'examiners', 'grades', 'staff', 'students', 'ungraded'];
 const isGradSchoolHeadTab = (v: string | null): v is GradSchoolHeadTab => !!v && (GRAD_SCHOOL_HEAD_TABS as string[]).includes(v);
 
 type ApprovalType = 'supervisor' | 'proposal' | 'thesis' | 'examiners' | 'final_grade' | 'template';
@@ -143,35 +144,6 @@ function GradSchoolHeadDashboardContent() {
   const [finalGradeRejectReason, setFinalGradeRejectReason] = useState('');
   const [templateRejectTargetId, setTemplateRejectTargetId] = useState<string | null>(null);
   const [templateRejectReason, setTemplateRejectReason] = useState('');
-
-  // Thesis-eligibility student lookup — same search box/flow as
-  // app/program_head/dashboard/page.tsx's students tab, reused here since a
-  // grad_school_head can now also enter a coordinator_gated student's
-  // average (studentTrackController.ts's THESIS_ELIGIBILITY_ROLES;
-  // server-side scoped to this head's own facultyId via
-  // withinCoordinatorScope, same as program_head).
-  const [eligibilityQuery, setEligibilityQuery] = useState('');
-  const [eligibilityResults, setEligibilityResults] = useState<Awaited<ReturnType<typeof apiClient.searchStudents>>['students']>([]);
-  const [eligibilitySearching, setEligibilitySearching] = useState(false);
-  const [eligibilityError, setEligibilityError] = useState('');
-
-  const runEligibilitySearch = async () => {
-    const q = eligibilityQuery.trim();
-    if (q.length < 2) {
-      setEligibilityError(lang === 'he' ? 'יש להזין לפחות 2 תווים' : 'Enter at least 2 characters');
-      return;
-    }
-    setEligibilitySearching(true);
-    setEligibilityError('');
-    try {
-      const res = await apiClient.searchStudents(q);
-      setEligibilityResults(res.students.filter((s) => s.trackPolicy === 'coordinator_gated'));
-    } catch (err) {
-      setEligibilityError(err instanceof Error ? err.message : lang === 'he' ? 'החיפוש נכשל' : 'Search failed');
-    } finally {
-      setEligibilitySearching(false);
-    }
-  };
 
   const fetchDashboard = useCallback(async () => {
     if (!firebaseUser) return;
@@ -461,50 +433,6 @@ function GradSchoolHeadDashboardContent() {
         </div>
       ) : tab === 'overview' ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2 rounded-[var(--radius)] border border-line bg-surface p-4">
-            <p className="text-sm font-semibold text-ink">
-              🎓 {lang === 'he' ? 'בדיקת זכאות לתזה' : 'Thesis Eligibility Lookup'}
-            </p>
-            <p className="mt-0.5 text-xs text-muted">
-              {lang === 'he'
-                ? 'חיפוש סטודנט/ית (גם ללא פרויקט פעיל עדיין) כדי להזין ממוצע או לעדכן זכאות לתזה.'
-                : "Search for a student (even one without an active project yet) to enter an average or update thesis eligibility."}
-            </p>
-            <div className="mt-2 flex gap-2">
-              <input
-                value={eligibilityQuery}
-                onChange={(e) => setEligibilityQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && runEligibilitySearch()}
-                placeholder={lang === 'he' ? 'שם, אימייל או מספר סטודנט...' : 'Name, email, or student ID...'}
-                className="w-full max-w-sm rounded-lg border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={runEligibilitySearch}
-                disabled={eligibilitySearching}
-                className="shrink-0 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
-              >
-                {eligibilitySearching ? '…' : lang === 'he' ? 'חפש' : 'Search'}
-              </button>
-            </div>
-            {eligibilityError && <p className="mt-2 text-xs text-danger" role="alert">{eligibilityError}</p>}
-            {eligibilityResults.length > 0 && (
-              <div className="mt-3 grid gap-1.5">
-                {eligibilityResults.map((s) => (
-                  <Link
-                    key={s.id}
-                    href={`/administrative_coordinator/dashboard/students/${s.id}`}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink hover:border-primary hover:text-primary"
-                  >
-                    <span>{s.displayName || s.email}</span>
-                    <span className="text-xs text-muted">
-                      {s.thesisEligibility?.eligible ? (lang === 'he' ? '✓ זכאי/ת לתזה' : '✓ Thesis-eligible') : (lang === 'he' ? 'פרויקט בלבד' : 'Project only')}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
           <div className="sm:col-span-2">
             <MyApplicationsWidget />
           </div>
@@ -619,6 +547,8 @@ function GradSchoolHeadDashboardContent() {
         </div>
       ) : tab === 'students' ? (
         <StudentsListTab />
+      ) : tab === 'ungraded' ? (
+        <UngradedCsMastersTab />
       ) : (
         <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }} />
       )}

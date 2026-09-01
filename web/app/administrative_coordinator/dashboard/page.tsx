@@ -31,6 +31,7 @@ import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { MyProjectsWidget } from '@/components/MyProjectsWidget';
 import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
+import { UngradedCsMastersTab } from '@/components/students/UngradedCsMastersTab';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { StudentContactModal, type ContactMember } from './StudentContactModal';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
@@ -196,8 +197,8 @@ function AdministrativeCoordinatorDashboardContent() {
   // land back on the Students Report tab instead of always resetting to
   // Groups.
   const paramTab = searchParams.get('tab');
-  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' =
-    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' ? paramTab : 'groups';
+  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' | 'ungraded' =
+    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' || paramTab === 'ungraded' ? paramTab : 'groups';
   const [facultyId, setFacultyId] = useState('');
   const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [stats, setStats] = useState({ totalGroups: 0, activeGroups: 0, scheduledDefenses: 0, overdueGroups: 0 });
@@ -321,6 +322,8 @@ function AdministrativeCoordinatorDashboardContent() {
         <StudentsReportTab />
       ) : activeTab === 'statistics' ? (
         <CoordinatorStatisticsTab />
+      ) : activeTab === 'ungraded' ? (
+        <UngradedCsMastersTab />
       ) : (
         <>
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}

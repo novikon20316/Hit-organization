@@ -430,7 +430,7 @@ export const apiClient = {
         track: 'thesis' | 'project' | null;
         trackPolicy: 'coordinator_gated' | 'signup_choice' | 'project_only' | null;
         trackLocked: boolean;
-        thesisEligibility: { eligible: boolean } | null;
+        thesisEligibility: { eligible: boolean; average?: number | null; method?: 'manual' | 'average'; threshold?: number | null } | null;
         hasActiveProject: boolean;
         supervisorId: string | null;
         isActive: boolean;

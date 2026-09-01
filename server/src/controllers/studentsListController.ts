@@ -1,22 +1,24 @@
 // src/controllers/studentsListController.ts
 //
 // GET /api/admin/students-list — a read-only student roster for
-// faculty_admin (every student under their faculty, any major/degree) and
+// faculty_admin (every student under their faculty, any major/degree),
 // grad_school_head (masters students only, narrowed to whichever majors
 // their coordinatorScopes name — see majorAllowed below — or the whole
-// faculty's masters students if none are set). system_admin sees everyone.
+// faculty's masters students if none are set), and administrative_secretary
+// (whatever their own coordinatorScopes name, same scope the thesis-average
+// write endpoints already use). system_admin sees everyone.
 //
 // Scoped the same way listManagedStaff (facultyAdminController.ts) scopes
 // the staff roster — via each role's own *FacultyIds delegate field — with
 // grad_school_head additionally narrowed by degreeType and, optionally, by
-// major through the generic coordinatorScopes mechanism (already used
-// elsewhere for administrative_secretary's own scope — see
-// scopeAuthorization.ts's withinCoordinatorScope).
+// major through the generic coordinatorScopes mechanism, and
+// administrative_secretary (no *FacultyIds field of its own) scoped directly
+// via that same mechanism (scopeAuthorization.ts's withinCoordinatorScope).
 
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { facultyIdMatches, type RoleFacultyField } from '../services/scopeAuthorization.js';
+import { facultyIdMatches, withinCoordinatorScope, type RoleFacultyField } from '../services/scopeAuthorization.js';
 
 const db = admin.firestore();
 
@@ -45,12 +47,22 @@ function inScope(user: AuthenticatedRequest['user'], student: { facultyId: strin
     if (!facultyIdMatches(user as any, student.facultyId, 'gradSchoolHeadFacultyIds' as RoleFacultyField)) return false;
     return majorAllowed(user, student);
   }
+  // administrative_secretary ("administrative coordinator") has no
+  // *FacultyIds delegate field of its own — its real scope lives in
+  // coordinatorScopes (facultyId/major pairs), the same mechanism the
+  // thesis-average write endpoints already scope it by (see
+  // studentTrackController.ts). Reused as-is here rather than adding a
+  // degreeType restriction, since callers (e.g. the "students without an
+  // average" tab) already narrow further client-side for their own purpose.
+  if (hasRole(user, 'administrative_secretary')) {
+    return withinCoordinatorScope(user as any, { facultyId: student.facultyId, ...(student.major ? { major: student.major } : {}) });
+  }
   return false;
 }
 
 export const listStudentsForScope = async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
-  const isAllowed = hasRole(user, 'system_admin') || hasRole(user, 'faculty_admin') || hasRole(user, 'grad_school_head');
+  const isAllowed = hasRole(user, 'system_admin') || hasRole(user, 'faculty_admin') || hasRole(user, 'grad_school_head') || hasRole(user, 'administrative_secretary');
   if (!user || !isAllowed) {
     return res.status(403).json({ message: 'Access denied.' });
   }

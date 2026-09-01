@@ -36,7 +36,14 @@ const COORDINATOR_STATISTICS_ROLES = ['administrative_secretary', 'coordinator',
 // where the student thesis/project track (config/studentTrack.ts) is shown
 // and, for a computer_science masters student, where the plain `coordinator`
 // role (who the business rule actually names) grants thesis eligibility.
-const STUDENT_DETAIL_ROLES = ['administrative_secretary', 'coordinator', 'program_head', 'system_admin'];
+// grad_school_head added so a CS grad-school head can actually open the page
+// their own dashboard's Thesis Eligibility Lookup search links to — that
+// search box and the page's own THESIS_AVERAGE_ROLES already allowed
+// grad_school_head, but this endpoint backing the page's data load didn't,
+// so every grad_school_head account 403'd immediately on click-through.
+// faculty_admin added for the same reason — already in studentTrackController.ts's
+// THESIS_ELIGIBILITY_ROLES (can call the write endpoints) but missing here.
+const STUDENT_DETAIL_ROLES = ['administrative_secretary', 'coordinator', 'program_head', 'grad_school_head', 'faculty_admin', 'system_admin'];
 
 interface DegreeScope { facultyId: string; major?: string }
 

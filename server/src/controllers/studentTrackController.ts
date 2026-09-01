@@ -111,8 +111,11 @@ export const setStudentThesisAverage = async (req: AuthenticatedRequest, res: Re
     await setThesisEligibilityFromAverage(studentId, average, req.user.uid, req.user.role);
     return res.status(200).json({ success: true });
   } catch (error) {
+    // error.status: 409/'ALREADY_GRADED' when a concurrent submission for
+    // the same student already won (see setThesisEligibilityFromAverage's
+    // transaction) — everything else stays a plain 400, same as before.
     if (error instanceof StudentTrackError) {
-      return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
+      return res.status(error.status).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn, code: error.code });
     }
     const message = error instanceof Error ? error.message : 'Failed to set thesis average.';
     return res.status(400).json({ message });
