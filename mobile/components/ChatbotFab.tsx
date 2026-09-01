@@ -1,11 +1,15 @@
 // components/ChatbotFab.tsx
 //
-// Placeholder floating button for the future AI chatbot — no chatbot
-// behavior yet, just the affordance + a "coming soon" note. Mounted on
-// every role's home/dashboard screen except system_admin's.
+// Realizes the Stitch design "Academic Assistant: Mobile AI Chatbot" (project
+// "Unified Academic Project Manager"): pushes the full-screen chat at
+// app/chatbot.tsx instead of the old "coming soon" Alert. Mounted on every
+// role's home/dashboard screen except system_admin's. `lang` is forwarded as
+// a route param since this app has no global language context — each screen
+// (including app/chatbot.tsx) holds its own local `lang` state.
 
 import React, { useState } from 'react';
-import { View, Text, Pressable, Alert } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import type { Lang } from './i18n';
 import { ChatbotFabStyles } from '../constants/styles';
 
@@ -17,14 +21,12 @@ interface Props {
 }
 
 export default function ChatbotFab({ lang, corner = 'bottom-left', bottomOffset = 24 }: Props) {
+  const router = useRouter();
   const [showTooltip, setShowTooltip] = useState(false);
   const screenOffset = corner === 'bottom-left' ? { left: 20 } : { right: 20 };
 
   const handlePress = () => {
-    Alert.alert(
-      lang === 'he' ? '🤖 עוזר AI' : '🤖 AI Assistant',
-      lang === 'he' ? 'העוזר החכם יגיע בקרוב.' : 'The AI assistant is coming soon.'
-    );
+    router.push({ pathname: '/chatbot', params: { lang } });
   };
 
   return (

@@ -328,3 +328,58 @@ select:not(:disabled):hover {
   --color-admin-primary-fixed-dim: var(--admin-primary-fixed-dim);
   --color-admin-on-primary-fixed: var(--admin-on-primary-fixed);
 }
+
+/*
+ * "Academic Precision" tokens — AI chatbot overlay only
+ * ────────────────────────────────────────────────────────
+ * Same palette/source as the --student-/--coordinator-/--admin- tokens
+ * above, pulled from the Stitch design project "Unified Academic Project
+ * Manager" (screen: "Academic Assistant: AI Chatbot Overlay"). Its own
+ * `--chatbot-` prefix because ChatbotFab is mounted globally for every role
+ * except system_admin (see DashboardShell) — it isn't one role's screen, so
+ * it can't reuse a role-scoped block without implying it belongs to that role.
+ */
+:root {
+  --chatbot-primary: #00236f;
+  --chatbot-primary-container: #1e3a8a;
+  --chatbot-on-primary: #ffffff;
+  --chatbot-surface: #faf8ff;
+  --chatbot-surface-container-lowest: #ffffff;
+  --chatbot-surface-container-low: #f4f3fa;
+  --chatbot-surface-container: #eeedf4;
+  --chatbot-on-surface: #1a1b21;
+  --chatbot-on-surface-variant: #444651;
+  --chatbot-outline: #757682;
+  --chatbot-outline-variant: #c5c5d3;
+  --chatbot-radius-sm: 2px;
+  --chatbot-radius: 4px;
+}
+
+@theme inline {
+  --color-chatbot-primary: var(--chatbot-primary);
+  --color-chatbot-primary-container: var(--chatbot-primary-container);
+  --color-chatbot-on-primary: var(--chatbot-on-primary);
+  --color-chatbot-surface: var(--chatbot-surface);
+  --color-chatbot-surface-container-lowest: var(--chatbot-surface-container-lowest);
+  --color-chatbot-surface-container-low: var(--chatbot-surface-container-low);
+  --color-chatbot-surface-container: var(--chatbot-surface-container);
+  --color-chatbot-on-surface: var(--chatbot-on-surface);
+  --color-chatbot-on-surface-variant: var(--chatbot-on-surface-variant);
+  --color-chatbot-outline: var(--chatbot-outline);
+  --color-chatbot-outline-variant: var(--chatbot-outline-variant);
+  --radius-chatbot-sm: var(--chatbot-radius-sm);
+  --radius-chatbot: var(--chatbot-radius);
+}
+
+/* Subtle scrollbar for the chatbot message history — mirrors the Stitch
+   design's .chat-scroll, scoped so it doesn't affect scrollbars elsewhere. */
+.chatbot-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.chatbot-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chatbot-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--chatbot-outline-variant);
+  border-radius: 10px;
+}
