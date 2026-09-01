@@ -242,10 +242,16 @@ export const updateInfoFile = async (req: AuthenticatedRequest, res: Response) =
 };
 
 // ─── GET /api/info-files ───────────────────────────────────────────────────────
-// Any authenticated user can list info files — staff (system_admin/coordinator,
-// who manage these) always see every file unfiltered; students only see files
-// whose facultyIds/majors/degreeTypes (each empty = unrestricted for that axis)
-// all match their own facultyId/major/degreeType.
+// Any authenticated user can list info files. system_admin/coordinator (who
+// can attach a file to ANY project unrestricted — see uploadInfoFile) see
+// every file unfiltered. Everyone else is scoped: students only see
+// faculty-wide files matching their own facultyId/major/degreeType plus
+// project-scoped files for their own active project(s); other staff
+// (supervisor, examiner, program_head, ...) see faculty-wide files plus
+// project-scoped files ONLY for projects they actually supervise — mirrors
+// the write-side verifySupervisorOwnsProjects restriction, so a supervisor
+// (or any other non-admin-tier role) can no longer read a file scoped to a
+// project they have no relation to.
 export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const snap = await db.collection('infoFiles').orderBy('createdAt', 'desc').get();
@@ -321,6 +327,23 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
       }
 
       files = [...facultyMajorMatched, ...projectScopedMatched];
+    } else if (req.user && !matchedRole(req.user, ['system_admin', 'coordinator'])) {
+      // Non-admin-tier staff (supervisor, examiner, program_head, ...) — keep
+      // faculty-wide files visible to everyone, but a project-scoped file is
+      // only visible to a supervisor who actually owns that project (primary
+      // or secondary). Roles with no ownership channel into project-scoped
+      // files (examiner, program_head, ...) see none of them.
+      let ownedProjectIds = new Set<string>();
+      if (hasAnyRole(req.user, ['supervisor'])) {
+        const [asPrimarySnap, asSecondarySnap] = await Promise.all([
+          db.collection('projects').where('supervisorId', '==', req.user.uid).get(),
+          db.collection('projects').where('secondarySupervisorId', '==', req.user.uid).get(),
+        ]);
+        ownedProjectIds = new Set([...asPrimarySnap.docs, ...asSecondarySnap.docs].map((d) => d.id));
+      }
+      files = files.filter((f) =>
+        f.projectIds.length === 0 || f.projectIds.some((pid: string) => ownedProjectIds.has(pid))
+      );
     }
 
     return res.status(200).json({ files });
