@@ -20,7 +20,7 @@ import type { AppRole } from '@/lib/roles';
 import { PendingMilestoneCard } from './PendingMilestoneCard';
 import { RecommendationCard } from './RecommendationCard';
 import { AssignExaminersModal } from './AssignExaminersModal';
-import { DefenseTab, buildDefenseCards } from './DefenseTab';
+import { DefenseTab, buildDefenseCards, type DefenseCard } from './DefenseTab';
 import { InProgressTab } from './InProgressTab';
 import { DeadlinesTab } from './DeadlinesTab';
 import { BulkImportModal } from '@/components/BulkImportModal';
@@ -155,11 +155,55 @@ function CoordinatorHomeContent() {
   );
 
   // Defense cards with no confirmed path forward yet — surfaced on the
-  // Overview tab's "Alerts" metric and Urgent Actions feed.
+  // Overview tab's "Alerts" metric.
   const defenseAlertCards = useMemo(
     () => defenseCards.filter((c) => c.kind === 'conflict' || c.kind === 'expiredUngraded'),
     [defenseCards]
   );
+
+  // Every defense card the coordinator actually has something to DO about —
+  // excludes 'awaitingDate' (ball's in the examiners' court) and
+  // 'scheduledUpcoming' (already on track, nothing to fix). Used by the
+  // Urgent Actions feed's "defense exams needing attention" bucket, which is
+  // deliberately broader than defenseAlertCards above (that one's only the
+  // two most severe kinds, for the red stat tile).
+  const defenseActionCards = useMemo(
+    () => defenseCards.filter((c) => c.kind !== 'awaitingDate' && c.kind !== 'scheduledUpcoming'),
+    [defenseCards]
+  );
+
+  // Milestones already past their due date — the "students late on a
+  // submission" bucket of the Urgent Actions feed. getStaffDeadlines returns
+  // daysLeft going negative once overdue (see DeadlinesTab's urgencyColorFor).
+  const lateMilestones = useMemo(
+    () => deadlines.filter((d) => typeof d.daysLeft === 'number' && d.daysLeft < 0),
+    [deadlines]
+  );
+
+  // Quick-jump-to-fix-screen links on Urgent Actions cards are a coordinator
+  // convenience only — administrative_secretary shares this page but not the
+  // rest of its screen (no Pending/Defense/Deadlines tabs in its own sidebar,
+  // see navSections.ts), so a deep link here would dead-end for them. Cards
+  // render as plain (non-clickable) info for that role instead. system_admin
+  // is browsing the actual coordinator screen (this page, "Coordinator View"),
+  // so it keeps the same navigation as a real coordinator.
+  const canQuickNavigate = activeRole !== 'administrative_secretary';
+
+  function defenseActionLabel(kind: DefenseCard['kind'], lang: 'he' | 'en'): string {
+    switch (kind) {
+      case 'setup':
+      case 'stuckPending':
+        return lang === 'he' ? 'טרם שובצו בוחנים' : 'Needs Examiners';
+      case 'conflict':
+        return lang === 'he' ? 'התנגשות תאריכים' : 'Date Conflict';
+      case 'dateSet':
+        return lang === 'he' ? 'יש לקבוע פרטים' : 'Set Logistics';
+      case 'expiredUngraded':
+        return lang === 'he' ? 'הגנה שחלפה ללא ציון' : 'Overdue Grading';
+      default:
+        return lang === 'he' ? 'הגנה' : 'Defense';
+    }
+  }
 
   if (guardLoading) {
     return (
@@ -224,41 +268,51 @@ function CoordinatorHomeContent() {
             <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-coordinator-on-surface">
               ⚠️ {lang === 'he' ? 'פעולות דחופות' : 'Urgent Actions'}
             </h3>
-            {pendingMilestones.length === 0 && defenseAlertCards.length === 0 ? (
+            {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 ? (
               <p className="text-sm text-coordinator-on-surface-variant">
                 ✅ {lang === 'he' ? 'אין פעולות דחופות כרגע' : 'Nothing urgent right now'}
               </p>
             ) : (
               <ul className="grid gap-2">
-                {pendingMilestones.slice(0, 3).map((m) => (
-                  <li key={m.id}>
-                    <Link
-                      href="/coordinator/home?tab=pending"
-                      className="block w-full rounded-coordinator border border-coordinator-outline-variant p-3 text-start transition-colors hover:bg-coordinator-surface-container-low"
-                    >
-                      <span className="mb-1 block rounded-coordinator-sm bg-coordinator-secondary-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coordinator-on-secondary-container">
-                        {lang === 'he' ? 'ממתין לאישור' : 'Pending Approval'}
-                      </span>
-                      <p className="text-sm font-medium text-coordinator-on-surface">
-                        {lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
-                      </p>
-                    </Link>
-                  </li>
+                {/* 1. Defense exams needing coordinator attention (examiners,
+                    date conflicts, logistics, overdue grading). */}
+                {defenseActionCards.slice(0, 3).map((c) => (
+                  <UrgentActionRow
+                    key={c.key}
+                    href="/coordinator/home?tab=defense"
+                    clickable={canQuickNavigate}
+                    accent="error"
+                    badgeClassName="bg-coordinator-error-container text-coordinator-error"
+                    badge={defenseActionLabel(c.kind, lang)}
+                    title={lang === 'he' ? c.titleHe : c.titleEn}
+                  />
                 ))}
-                {defenseAlertCards.slice(0, 3).map((c) => (
-                  <li key={c.key}>
-                    <Link
-                      href="/coordinator/home?tab=defense"
-                      className="block w-full rounded-coordinator border border-coordinator-error-container p-3 text-start transition-colors hover:bg-coordinator-surface-container-low"
-                    >
-                      <span className="mb-1 block rounded-coordinator-sm bg-coordinator-error-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coordinator-error">
-                        {c.kind === 'conflict'
-                          ? lang === 'he' ? 'התנגשות תאריכים' : 'Date Conflict'
-                          : lang === 'he' ? 'הגנה שחלפה ללא ציון' : 'Overdue Grading'}
-                      </span>
-                      <p className="text-sm font-medium text-coordinator-on-surface">{lang === 'he' ? c.titleHe : c.titleEn}</p>
-                    </Link>
-                  </li>
+                {/* 2. Submissions awaiting review/approve/reject — already
+                    filtered above (pendingMilestones) to whatever the
+                    project's workflow template says is currently the
+                    coordinator's turn to act on. */}
+                {pendingMilestones.slice(0, 3).map((m) => (
+                  <UrgentActionRow
+                    key={m.id}
+                    href="/coordinator/home?tab=pending"
+                    clickable={canQuickNavigate}
+                    accent="default"
+                    badgeClassName="bg-coordinator-secondary-container text-coordinator-on-secondary-container"
+                    badge={lang === 'he' ? 'ממתין לאישור' : 'Pending Approval'}
+                    title={lang === 'he' ? m.projectTitleHe : m.projectTitleEn}
+                  />
+                ))}
+                {/* 3. Students late on a milestone submission. */}
+                {lateMilestones.slice(0, 3).map((d) => (
+                  <UrgentActionRow
+                    key={`${d.milestoneId ?? d.id}-${d.studentId ?? ''}`}
+                    href="/coordinator/home?tab=deadlines"
+                    clickable={canQuickNavigate}
+                    accent="error"
+                    badgeClassName="bg-coordinator-error-container text-coordinator-error"
+                    badge={lang === 'he' ? 'הגשה באיחור' : 'Late Submission'}
+                    title={`${d.studentName ?? ''}${d.projectTitle ? ` — ${d.projectTitle}` : ''}`}
+                  />
                 ))}
               </ul>
             )}
@@ -332,5 +386,44 @@ export default function CoordinatorHomePage() {
     <Suspense fallback={<p className="text-sm text-muted">…</p>}>
       <CoordinatorHomeContent />
     </Suspense>
+  );
+}
+
+// One row in the Urgent Actions feed. `clickable` is false for
+// administrative_secretary — see canQuickNavigate above for why.
+function UrgentActionRow({
+  href,
+  clickable,
+  accent,
+  badge,
+  badgeClassName,
+  title,
+}: {
+  href: string;
+  clickable: boolean;
+  accent: 'error' | 'default';
+  badge: string;
+  badgeClassName: string;
+  title: string;
+}) {
+  const borderClassName = accent === 'error' ? 'border-coordinator-error-container' : 'border-coordinator-outline-variant';
+  const inner = (
+    <>
+      <span className={`mb-1 block w-fit rounded-coordinator-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeClassName}`}>
+        {badge}
+      </span>
+      <p className="text-sm font-medium text-coordinator-on-surface">{title}</p>
+    </>
+  );
+  return (
+    <li>
+      {clickable ? (
+        <Link href={href} className={`block w-full rounded-coordinator border ${borderClassName} p-3 text-start transition-colors hover:bg-coordinator-surface-container-low`}>
+          {inner}
+        </Link>
+      ) : (
+        <div className={`block w-full rounded-coordinator border ${borderClassName} p-3 text-start`}>{inner}</div>
+      )}
+    </li>
   );
 }

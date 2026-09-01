@@ -397,7 +397,10 @@ export default function CoordinatorHome() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'deadlines') return;
+    // Also fetched for 'overview' (not just 'deadlines') so the Urgent
+    // Actions feed's "late submission" bucket has data as soon as the
+    // coordinator lands on this screen — see the overview tab below.
+    if (activeTab !== 'deadlines' && activeTab !== 'overview') return;
     const fetchDeadlines = async () => {
       if(coordinatorId === '') return;
       try {
@@ -954,6 +957,35 @@ export default function CoordinatorHome() {
 
         {activeTab === 'overview' && (() => {
           const alertCards = sortedDefenseCards.filter((c) => c.kind === 'conflict' || c.kind === 'expiredUngraded');
+          // Every defense card the coordinator has something to DO about —
+          // broader than alertCards above (that one's just the two most
+          // severe kinds, for the red "System Alerts" metric tile). Excludes
+          // 'awaitingDate' (ball's in the examiners' court) and
+          // 'scheduledUpcoming' (already on track, nothing to fix).
+          const defenseActionCards = sortedDefenseCards.filter((c) => c.kind !== 'awaitingDate' && c.kind !== 'scheduledUpcoming');
+          // Students late on a milestone submission — deadlines' daysLeft
+          // goes negative once overdue (see the 'deadlines' tab below).
+          const lateMilestones = deadlines.filter((d: any) => typeof d.daysLeft === 'number' && d.daysLeft < 0);
+          // Quick-jump-to-fix-screen taps on Urgent Actions cards are a
+          // coordinator convenience only — administrative_secretary shares
+          // this screen but has its own dashboard as its actual home, so
+          // cards render as plain (non-tappable) info for that role instead.
+          const canQuickNavigate = activeRole !== 'administrative_secretary';
+          const defenseActionLabel = (kind: string) => {
+            switch (kind) {
+              case 'setup':
+              case 'stuckPending':
+                return lang === 'he' ? 'טרם שובצו בוחנים' : 'Needs Examiners';
+              case 'conflict':
+                return lang === 'he' ? 'התנגשות תאריכים' : 'Date Conflict';
+              case 'dateSet':
+                return lang === 'he' ? 'יש לקבוע פרטים' : 'Set Logistics';
+              case 'expiredUngraded':
+                return lang === 'he' ? 'הגנה שחלפה ללא ציון' : 'Overdue Grading';
+              default:
+                return lang === 'he' ? 'הגנה' : 'Defense';
+            }
+          };
           return (
             <>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -977,26 +1009,64 @@ export default function CoordinatorHome() {
 
               <View style={apStyles.sectionCard}>
                 <Text style={apStyles.sectionTitle}>⚠️ {lang === 'he' ? 'פעולות דחופות' : 'Urgent Actions'}</Text>
-                {pendingMilestones.length === 0 && alertCards.length === 0 ? (
+                {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 ? (
                   <Text style={apStyles.emptyText}>✅ {lang === 'he' ? 'אין פעולות דחופות כרגע' : 'Nothing urgent right now'}</Text>
                 ) : (
                   <>
-                    {pendingMilestones.slice(0, 3).map((m) => (
-                      <Pressable key={m.id} style={apStyles.feedItem} onPress={() => setActiveTab('pending')} accessibilityRole="button">
-                        <Text style={apStyles.feedBadge}>{lang === 'he' ? 'ממתין לאישור' : 'Pending Approval'}</Text>
-                        <Text style={apStyles.feedTitle}>{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</Text>
-                      </Pressable>
-                    ))}
-                    {alertCards.slice(0, 3).map((c) => (
-                      <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => setActiveTab('defense')} accessibilityRole="button">
-                        <Text style={[apStyles.feedBadge, apStyles.feedBadgeAlert]}>
-                          {c.kind === 'conflict'
-                            ? lang === 'he' ? 'התנגשות תאריכים' : 'Date Conflict'
-                            : lang === 'he' ? 'הגנה שחלפה ללא ציון' : 'Overdue Grading'}
-                        </Text>
-                        <Text style={apStyles.feedTitle}>{lang === 'he' ? c.titleHe : c.titleEn}</Text>
-                      </Pressable>
-                    ))}
+                    {/* 1. Defense exams needing coordinator attention
+                        (examiners, date conflicts, logistics, overdue
+                        grading). */}
+                    {defenseActionCards.slice(0, 3).map((c) => {
+                      const row = (
+                        <>
+                          <Text style={[apStyles.feedBadge, apStyles.feedBadgeAlert]}>{defenseActionLabel(c.kind)}</Text>
+                          <Text style={apStyles.feedTitle}>{lang === 'he' ? c.titleHe : c.titleEn}</Text>
+                        </>
+                      );
+                      return canQuickNavigate ? (
+                        <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => setActiveTab('defense')} accessibilityRole="button">
+                          {row}
+                        </Pressable>
+                      ) : (
+                        <View key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]}>{row}</View>
+                      );
+                    })}
+                    {/* 2. Submissions awaiting review/approve/reject —
+                        pendingMilestones is already filtered to whatever the
+                        project's workflow template says is currently the
+                        coordinator's turn to act on. */}
+                    {pendingMilestones.slice(0, 3).map((m) => {
+                      const row = (
+                        <>
+                          <Text style={apStyles.feedBadge}>{lang === 'he' ? 'ממתין לאישור' : 'Pending Approval'}</Text>
+                          <Text style={apStyles.feedTitle}>{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</Text>
+                        </>
+                      );
+                      return canQuickNavigate ? (
+                        <Pressable key={m.id} style={apStyles.feedItem} onPress={() => setActiveTab('pending')} accessibilityRole="button">
+                          {row}
+                        </Pressable>
+                      ) : (
+                        <View key={m.id} style={apStyles.feedItem}>{row}</View>
+                      );
+                    })}
+                    {/* 3. Students late on a milestone submission. */}
+                    {lateMilestones.slice(0, 3).map((d: any) => {
+                      const key = `${d.milestoneId ?? d.id}-${d.studentId ?? ''}`;
+                      const row = (
+                        <>
+                          <Text style={[apStyles.feedBadge, apStyles.feedBadgeAlert]}>{lang === 'he' ? 'הגשה באיחור' : 'Late Submission'}</Text>
+                          <Text style={apStyles.feedTitle}>{`${d.studentName ?? ''}${d.projectTitle ? ` — ${d.projectTitle}` : ''}`}</Text>
+                        </>
+                      );
+                      return canQuickNavigate ? (
+                        <Pressable key={key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => setActiveTab('deadlines')} accessibilityRole="button">
+                          {row}
+                        </Pressable>
+                      ) : (
+                        <View key={key} style={[apStyles.feedItem, apStyles.feedItemAlert]}>{row}</View>
+                      );
+                    })}
                   </>
                 )}
               </View>
