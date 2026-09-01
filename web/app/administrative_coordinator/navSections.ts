@@ -54,13 +54,6 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname) => pathname === '/workflow-templates',
       },
       {
-        key: 'committees',
-        icon: '🧑‍⚖️',
-        href: '/committees',
-        label: { he: 'ועדות', en: 'Committees' },
-        isActive: (pathname) => pathname === '/committees',
-      },
-      {
         key: 'academicYear',
         icon: '🎓',
         href: '/academic-year',

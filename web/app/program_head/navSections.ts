@@ -61,13 +61,6 @@ export function buildProgramHeadNavSections(roles: string[]): SidebarSection[] {
             ]
           : []),
         {
-          key: 'committees',
-          icon: '🧑‍⚖️',
-          href: '/committees',
-          label: { he: 'ועדות', en: 'Committees' },
-          isActive: (pathname) => pathname === '/committees',
-        },
-        {
           key: 'records',
           icon: '📜',
           href: '/program_head/records',

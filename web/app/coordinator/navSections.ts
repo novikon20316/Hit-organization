@@ -113,13 +113,6 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
           isActive: (pathname) => pathname === '/workflow-templates',
         },
         {
-          key: 'committees',
-          icon: '🧑‍⚖️',
-          href: '/committees',
-          label: { he: 'ועדות', en: 'Committees' },
-          isActive: (pathname) => pathname === '/committees',
-        },
-        {
           key: 'reports',
           icon: '📈',
           href: '/reports',

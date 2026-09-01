@@ -68,13 +68,6 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname) => pathname === '/workflow-templates',
       },
       {
-        key: 'committees',
-        icon: '🧑‍⚖️',
-        href: '/committees',
-        label: { he: 'ועדות', en: 'Committees' },
-        isActive: (pathname) => pathname === '/committees',
-      },
-      {
         key: 'bulkPermissions',
         icon: '🛡️',
         href: '/bulk-permissions',
