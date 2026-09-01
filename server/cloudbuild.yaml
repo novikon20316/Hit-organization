@@ -1,0 +1,20 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    dir: 'server'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
+      - '.'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'api'
+      - '--image=us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
+      - '--region=us-central1'
+images:
+  - 'us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
+options:
+  logging: CLOUD_LOGGING_ONLY
