@@ -18,6 +18,7 @@ import type { Lang } from './i18n';
 import StaffRecordModal from './modals/StaffRecordModal';
 import SupervisorEvaluationModal from './modals/SupervisorEvaluationModal';
 import FinalGradeDecisionModal from './modals/FinalGradeDecisionModal';
+import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
 
 interface StaffFormField {
   key: string;
@@ -56,6 +57,9 @@ interface StudentMilestoneRow {
   status: string;
   dueDate: string | null;
   submittedAt: string | null;
+  /** The resolved defense date (only ever set on 'defense'-type milestones) —
+   *  used by the data_science final-grade certificate. */
+  defenseDate: string | null;
   staffRecordMode: 'none' | 'upload_or_form' | null;
   staffRecordSubmitted: boolean;
   hasFinalGradeComponents: boolean;
@@ -77,9 +81,22 @@ interface StudentRow {
   milestones: StudentMilestoneRow[];
 }
 
+interface CertificateProject {
+  titleHe: string;
+  titleEn: string;
+  facultyId: string;
+  academicYear: string;
+  projectStartDate?: string | null;
+  enrolledStudents?: Array<{ id: string; studentIdNumber?: string | null }>;
+}
+
 interface Props {
   lang: Lang;
   projectId: string;
+  /** Project-level fields the final-grade certificate needs — not otherwise
+   *  fetched by this component, which only loads per-milestone workflow
+   *  data. Optional: omitting it simply hides the certificate button. */
+  project?: CertificateProject;
 }
 
 function statusColor(status: string): string {
@@ -107,7 +124,7 @@ function formatShortDate(iso: string | null | undefined, lang: Lang): string | n
   return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function ProjectWorkflowSection({ lang, projectId }: Props) {
+export default function ProjectWorkflowSection({ lang, projectId, project }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
@@ -116,6 +133,18 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: StaffFormField[] } | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
+  const [showCertificate, setShowCertificate] = useState(false);
+
+  // The final-grade certificate (digitizing Project_final_grade.docx) is
+  // data_science-only — that faculty's masters students are always on the
+  // project track (see server's studentTrack.ts, project_only policy), so no
+  // separate thesis-vs-project check is needed. Offered once every enrolled
+  // student's defense milestone has a coordinator-approved final grade.
+  const certificateAvailable =
+    !!project &&
+    project.facultyId === 'data_science' &&
+    students.length > 0 &&
+    students.every((s) => s.milestones.find((m) => m.type === 'defense')?.gradeApproved);
 
   // `silent` skips the loading flag — used after an evaluation/decision
   // submits, so the update lands on screen without the whole section
@@ -145,9 +174,22 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
 
   return (
     <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 12 }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E293B', marginBottom: 8 }}>
-        🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}
-      </Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E293B' }}>
+          🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}
+        </Text>
+        {certificateAvailable && (
+          <Pressable
+            onPress={() => setShowCertificate(true)}
+            style={{ borderRadius: 20, backgroundColor: '#00236f', paddingHorizontal: 12, paddingVertical: 5 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>
+              📜 {lang === 'he' ? 'תעודת ציון סופי' : 'Final Grade Certificate'}
+            </Text>
+          </Pressable>
+        )}
+      </View>
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 8 }} />
@@ -301,6 +343,15 @@ export default function ProjectWorkflowSection({ lang, projectId }: Props) {
           autoCalculatedFinalGrade={finalGradeDecisionFor.autoGrade}
           onClose={() => setFinalGradeDecisionFor(null)}
           onDecided={refreshDetailSilently}
+        />
+      )}
+      {project && (
+        <FinalGradeCertificateModal
+          visible={showCertificate}
+          lang={lang}
+          project={project}
+          students={students}
+          onClose={() => setShowCertificate(false)}
         />
       )}
     </View>

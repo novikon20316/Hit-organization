@@ -15,6 +15,9 @@ export interface MyProjectEnrolledStudent {
   name: string;
   degreeType: string | null;
   yearOfStudy: number | null;
+  /** Teudat zehut, captured at signup — used by the data_science final-grade
+   *  certificate. */
+  studentIdNumber: string | null;
 }
 
 export interface MyProject {
@@ -32,6 +35,10 @@ export interface MyProject {
   degreeTypes?: string[];
   projectTypes?: string[];
   academicYear: string;
+  /** Set once at enrollment — when the supervisor accepted the student's
+   *  application and the project actually started. Used by the data_science
+   *  final-grade certificate. */
+  projectStartDate: string | null;
   enrolledStudentIds: string[];
   applicationIds: string[];
   NumberOfStudents: number;

@@ -364,6 +364,7 @@ export default function SupervisorHome() {
         degreeType:         data.degreeType         ?? '',
         projectType:        data.projectType        ?? '',
         academicYear:       data.academicYear       ?? '',
+        projectStartDate:   data.projectStartDate?.toDate?.()?.toISOString() ?? null,
         applicationIds:     data.applicationIds     ?? [],
         enrolledStudentIds: data.enrolledStudentIds ?? [],
         NumberOfStudents:   data.maxStudents        ?? data.NumberOfStudents ?? 1,
@@ -1057,7 +1058,7 @@ export default function SupervisorHome() {
                       </Pressable>
                     </View>
 
-                    <ProjectWorkflowSection lang={lang} projectId={p.id} />
+                    <ProjectWorkflowSection lang={lang} projectId={p.id} project={p} />
                   </View>
                   </View>
                 );

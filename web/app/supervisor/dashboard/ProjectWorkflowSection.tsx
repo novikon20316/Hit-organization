@@ -18,6 +18,7 @@ import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
 import { UpdateGradeModal } from './UpdateGradeModal';
+import { FinalGradeCertificateModal } from './FinalGradeCertificateModal';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import type { MyProject, SupervisorPendingMilestone } from './types';
 
@@ -51,12 +52,16 @@ interface TemplateMilestone {
   };
 }
 
-interface StudentMilestoneRow {
+export interface StudentMilestoneRow {
   id: string | null;
   type: string;
   status: string;
   dueDate: string | null;
   submittedAt: string | null;
+  /** The resolved defense date (only ever set on 'defense'-type milestones) —
+   *  see server's defenseScheduling.ts. Used by the data_science final-grade
+   *  certificate. */
+  defenseDate: string | null;
   fileUrls: string[];
   submissionNote: string;
   staffRecordMode: 'none' | 'upload_or_form' | null;
@@ -73,7 +78,7 @@ interface StudentMilestoneRow {
   gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
 }
 
-interface StudentRow {
+export interface StudentRow {
   studentId: string;
   studentName: string;
   /** Weighted across every milestone by the template's own
@@ -172,6 +177,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [previewFor, setPreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
   const [updateGradeFor, setUpdateGradeFor] = useState<{ milestoneId: string; type: string; score: number | null } | null>(null);
+  const [showCertificate, setShowCertificate] = useState(false);
 
   // A grade can only be revised while the project is still in progress —
   // once every milestone is done there's nothing left to reopen. Mirrors
@@ -180,6 +186,17 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   // when no student is enrolled yet — excluded here since that can't have a
   // graded milestone in the first place).
   const projectFinished = project.enrolledStudentIds.length > 0 && project.currentMilestone == null;
+
+  // The final-grade certificate (digitizing Project_final_grade.docx) is
+  // data_science-only — that faculty's masters students are always on the
+  // project track (see server's studentTrack.ts, project_only policy), so no
+  // separate thesis-vs-project check is needed. Offered once every enrolled
+  // student's defense milestone has a coordinator-approved final grade —
+  // before that the certificate would have missing/pending data.
+  const certificateAvailable =
+    project.facultyId === 'data_science' &&
+    students.length > 0 &&
+    students.every((s) => s.milestones.find((m) => m.type === 'defense')?.gradeApproved);
 
   // Click-vs-double-click disambiguation for the per-file chips below — a
   // single click opens the preview panel, a double click downloads that one
@@ -230,7 +247,18 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
 
   return (
     <div className="mt-3 border-t border-[#c5c5d3] pt-3">
-      <p className="mb-2 text-sm font-semibold text-[#1a1b21]">🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}</p>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-[#1a1b21]">🧬 {lang === 'he' ? 'תהליך העבודה' : 'Workflow'}</p>
+        {certificateAvailable && (
+          <button
+            type="button"
+            onClick={() => setShowCertificate(true)}
+            className="rounded-full bg-[#00236f] px-3 py-1 text-xs font-semibold text-white hover:bg-[#001a52]"
+          >
+            📜 {lang === 'he' ? 'תעודת ציון סופי' : 'Final Grade Certificate'}
+          </button>
+        )}
+      </div>
 
       {loading ? (
         <p className="text-sm text-[#444651]">…</p>
@@ -508,6 +536,13 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
           currentScore={updateGradeFor.score}
           onClose={() => setUpdateGradeFor(null)}
           onUpdated={refreshDetailSilently}
+        />
+      )}
+      {showCertificate && (
+        <FinalGradeCertificateModal
+          project={project}
+          students={students}
+          onClose={() => setShowCertificate(false)}
         />
       )}
     </div>

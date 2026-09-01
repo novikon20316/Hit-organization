@@ -100,6 +100,11 @@ const ALLOWED_ORIGINS = new Set([
   WEBSITE_URL,
   'http://localhost:3000',
   'http://127.0.0.1:3000',
+  // `next dev` falls back to the next free port (3099 observed locally) once
+  // 3000 is already taken by another dev instance — without this, every
+  // request from that fallback port fails CORS with an opaque 500.
+  'http://localhost:3099',
+  'http://127.0.0.1:3099',
 ]);
 app.use(cors({
   origin(origin, callback) {

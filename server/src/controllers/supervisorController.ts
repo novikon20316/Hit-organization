@@ -140,7 +140,7 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
     const studentSnaps = enrolledStudentIds.length
       ? await Promise.all(enrolledStudentIds.map((id) => db.collection('users').doc(id as string).get()))
       : [];
-    const studentInfoById: Record<string, { name: string; degreeType: string | null; yearOfStudy: number | null }> = {};
+    const studentInfoById: Record<string, { name: string; degreeType: string | null; yearOfStudy: number | null; studentIdNumber: string | null }> = {};
     studentSnaps.forEach((snap) => {
       if (!snap.exists) return;
       const data = snap.data()!;
@@ -148,6 +148,9 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         name:        data.displayName ?? data.displayNameHe ?? '',
         degreeType:  data.degreeType  ?? null,
         yearOfStudy: data.yearOfStudy ?? null,
+        // Teudat zehut, captured at signup (see (auth)/signup/page.tsx) — used
+        // by the data_science final-grade certificate.
+        studentIdNumber: data.studentId ?? null,
       };
     });
 
@@ -200,6 +203,10 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         degreeType:         data.degreeType         ?? '',
         projectType:        data.projectType        ?? '',
         academicYear:       data.academicYear       ?? '',
+        // Set once at enrollment (see projectEnrollment.ts) — the date the
+        // supervisor accepted the student's application and the project
+        // actually started. Used by the data_science final-grade certificate.
+        projectStartDate:   data.projectStartDate?.toDate?.()?.toISOString() ?? null,
         applicationIds:     data.applicationIds     ?? [],
         enrolledStudentIds: data.enrolledStudentIds ?? [],
         NumberOfStudents:   data.maxStudents        ?? data.NumberOfStudents ?? 1,
@@ -210,6 +217,7 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
           name: studentInfoById[sid]?.name ?? '',
           degreeType: studentInfoById[sid]?.degreeType ?? null,
           yearOfStudy: studentInfoById[sid]?.yearOfStudy ?? null,
+          studentIdNumber: studentInfoById[sid]?.studentIdNumber ?? null,
         })),
         currentMilestone,
       };
@@ -353,6 +361,10 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             status: (m?.status as string | undefined) ?? 'not_created',
             dueDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
             submittedAt: m?.submittedAt?.toDate?.()?.toISOString() ?? null,
+            // The resolved defense date (see defenseScheduling.ts) — only
+            // ever set on 'defense'-type milestones. Used by the data_science
+            // final-grade certificate.
+            defenseDate: m?.defenseDate?.toDate?.()?.toISOString() ?? null,
             // The student's submitted files/note for this milestone — lets
             // the supervisor preview/download them straight from the
             // project card instead of a separate Grading tab.
@@ -877,6 +889,21 @@ export const submitStaffRecord = async (req: AuthenticatedRequest, res: Response
         staffRecord: { mode: 'form', formData, submittedBy: supervisorId, submittedAt: admin.firestore.FieldValue.serverTimestamp() },
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      // The research-proposal form is where a project's real title first
+      // becomes known — propagate it onto the project doc itself so anything
+      // reading project.titleHe/titleEn (e.g. the final-grade certificate)
+      // doesn't need to reach into this milestone's staffRecord separately.
+      // Keyed off milestone type (stable across faculties), not the label
+      // ("הצעת מחקר" varies by faculty).
+      if (data.type === 'research_proposal' && data.projectId
+        && typeof formData.projectNameHe === 'string' && typeof formData.projectNameEn === 'string') {
+        await db.collection('projects').doc(data.projectId).update({
+          titleHe: formData.projectNameHe,
+          titleEn: formData.projectNameEn,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
     }
 
     return res.status(200).json({ success: true });
