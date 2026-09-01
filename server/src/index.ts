@@ -57,6 +57,14 @@ dotenv.config()
 const app  = express();
 const PORT = Number(process.env.PORT) || 5000; // ← cast to number fixes ts(2769)
 
+// Cloud Run's own front-end proxy sits directly in front of this container
+// and sets X-Forwarded-For — without this, express-rate-limit can't safely
+// resolve the real client IP (it refuses to trust the header by default,
+// which is what backs totpLimiter/examinerAccessLimiter/loginSecurityLimiter's
+// req.ip-based keying). Render never needed this since it terminates TLS
+// itself without adding a hop the app has to account for.
+app.set('trust proxy', 1);
+
 // MEDIUM FIX: Express 5 auto-forwards rejections from async route handlers
 // to the error middleware below, and every scheduled sweep in this file
 // already self-catches — but neither covers a stray fire-and-forget async
