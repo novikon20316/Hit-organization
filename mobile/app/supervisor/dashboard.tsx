@@ -19,6 +19,7 @@ import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { milestonePalette } from '@/constants/milestoneTheme';
+import { GradeMilestoneModal } from '@/components/GradeMilestoneModal';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 
@@ -1570,103 +1571,28 @@ export default function SupervisorHome() {
       />
 
       {/* ── Grade Modal ── */}
-      <Modal visible={gradeModal} animationType="slide" presentationStyle="formSheet">
-        <View style={styles.modal}>
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
-              <Text style={styles.modalTitle}>{lang === 'he' ? 'טופס ציון' : 'Grading Form'}</Text>
-              <Pressable
-                onPress={() => { setGradeModal(false); setGradeComment(''); }}
-                accessibilityRole="button"
-                accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
-              >
-                <Text style={styles.modalClose}>✕</Text>
-              </Pressable>
-            </View>
-
-            {gradeMilestone && (
-              <View style={styles.gradeContext}>
-                <Text style={[styles.gradeContextTitle, isRtl && styles.textRight]}>
-                  {lang === 'he' ? MILESTONE_LABEL[gradeMilestone.type]?.he : MILESTONE_LABEL[gradeMilestone.type]?.en}
-                </Text>
-                <Text style={[styles.gradeContextSub, isRtl && styles.textRight]}>
-                  {lang === 'he' ? gradeMilestone.projectTitleHe : gradeMilestone.projectTitleEn}
-                </Text>
-                <Text style={[styles.gradeContextSub, isRtl && styles.textRight]}>
-                  👤 {gradeMilestone.studentNames.join(', ')}
-                </Text>
-              </View>
-            )}
-
-            {activeFields.map((field) => (
-              <View key={field.key}>
-                <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                  {lang === 'he' ? field.he : field.en}
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={criteria[field.key]}
-                  onChangeText={(v) => setCriteria({ ...criteria, [field.key]: clampScoreInput(v, field.max) })}
-                />
-              </View>
-            ))}
-
-            {/* Group projects only: personal component per student, on top of the
-                shared group score above — final grades can differ within the group. */}
-            {gradeMilestone && gradeMilestone.studentIds.length > 1 && (
-              <View style={{ marginTop: 12 }}>
-                <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                  {lang === 'he' ? 'ציון אישי (לצד הציון הקבוצתי)' : 'Individual grade (on top of the group score)'}
-                </Text>
-                {gradeMilestone.studentIds.map((sid, idx) => (
-                  <View key={sid} style={{ marginBottom: 8 }}>
-                    <Text style={[styles.gradeStudents, isRtl && styles.textRight]}>
-                      👤 {gradeMilestone.studentNames[idx] ?? sid}
-                    </Text>
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="numeric"
-                      placeholder={lang === 'he' ? 'ציון אישי 0–100 (אופציונלי)' : 'Individual score 0–100 (optional)'}
-                      placeholderTextColor="#9BA8C0"
-                      value={individualScores[sid] ?? ''}
-                      onChangeText={(v) => setIndividualScores({ ...individualScores, [sid]: clampScoreInput(v, 100) })}
-                    />
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-              {lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}
-            </Text>
-            <TextInput
-              style={[styles.input, styles.textarea, isRtl && styles.textRight]}
-              value={gradeComment}
-              onChangeText={setGradeComment}
-              multiline
-              numberOfLines={5}
-              placeholder={lang === 'he' ? 'הערות...' : 'Comments...'}
-              placeholderTextColor="#9BA8C0"
-              textAlign={isRtl ? 'right' : 'left'}
-            />
-
-            <Text style={{ marginTop: 10, fontWeight: '700' }}>Total: {totalScore}/100</Text>
-
-            <Pressable
-              style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
-              onPress={handleGrade}
-              disabled={submitting}
-              accessibilityRole="button"
-            >
-              {submitting
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שלח ציון' : 'Submit Grade'}</Text>
-              }
-            </Pressable>
-          </ScrollView>
-        </View>
-      </Modal>
+      <GradeMilestoneModal
+        visible={gradeModal}
+        milestone={gradeMilestone}
+        lang={lang}
+        isRtl={isRtl}
+        activeFields={activeFields}
+        criteria={criteria}
+        onCriteriaChange={(key, v) => {
+          const max = activeFields.find((f) => f.key === key)?.max ?? 100;
+          setCriteria({ ...criteria, [key]: clampScoreInput(v, max) });
+        }}
+        individualScores={individualScores}
+        onIndividualScoreChange={(sid, v) =>
+          setIndividualScores({ ...individualScores, [sid]: clampScoreInput(v, 100) })
+        }
+        comment={gradeComment}
+        onCommentChange={setGradeComment}
+        totalScore={totalScore}
+        submitting={submitting}
+        onClose={() => { setGradeModal(false); setGradeComment(''); }}
+        onSubmit={handleGrade}
+      />
 
       {/* ── Edit Project Modal ── */}
       <Modal visible={projectModal} animationType="slide">
