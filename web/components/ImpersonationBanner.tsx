@@ -25,10 +25,14 @@ export function ImpersonationBanner() {
 
   // sessionStorage changes don't trigger a re-render on their own — re-check
   // on mount and whenever the signed-in identity changes, which is what
-  // actually happens right after UserRow signs in as the target user.
+  // actually happens right after UserRow signs in as the target user. Reset
+  // `returning` here too — this component stays mounted across an entire
+  // return-then-impersonate-again cycle, so without this a stale `true` from
+  // a previous return would leave the next session's button stuck disabled.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from sessionStorage, an external (non-React) source, on identity change
     setSession(getActiveImpersonation());
+    setReturning(false);
   }, [firebaseUser?.uid]);
 
   // Only show once the switch has actually completed — otherwise there's a
