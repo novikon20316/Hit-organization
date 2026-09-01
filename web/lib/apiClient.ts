@@ -1267,6 +1267,7 @@ export const apiClient = {
           status: string;
           dueDate: string | null;
           submittedAt: string | null;
+          defenseDate: string | null;
           fileUrls: string[];
           submissionNote: string;
           staffRecordMode: 'none' | 'upload_or_form' | null;
@@ -2130,6 +2131,17 @@ export const apiClient = {
        *  SubmitDatesResult.waitingOn. */
       waitingOn?: string[];
     }>(`/api/examiner-access/${encodeURIComponent(token)}/defense-dates`, { method: 'POST', body: { candidateDates } });
+  },
+
+  /** POST /api/examiner-access/:token/examiner-evaluation — the data_science-
+   *  only digitized paper form (Project_examiner.docx), external-examiner
+   *  equivalent of submitExaminerEvaluation above. 400s for any token whose
+   *  milestone doesn't use the three-rubric finalGradeComponents workflow. */
+  async submitExaminerAccessEvaluation(token: string, data: { kind: 'project' | 'defense'; scores: Record<string, number>; comment?: string }) {
+    return request<{ success: boolean; total: number }>(
+      `/api/examiner-access/${encodeURIComponent(token)}/examiner-evaluation`,
+      { method: 'POST', body: data }
+    );
   },
 
   // ─── 17. GRADE HISTORY — read-only over `grades` + `auditLog`; access

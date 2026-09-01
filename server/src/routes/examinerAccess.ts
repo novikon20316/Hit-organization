@@ -10,6 +10,7 @@ import {
   getDefenseAccessStatus,
   requestOtp,
   verifyOtp,
+  submitExternalExaminerEvaluation,
 } from '../controllers/examinerAccessController.js';
 import { examinerAccessLimiter } from '../middleware/rateLimit.js';
 
@@ -22,5 +23,6 @@ router.post('/:token/verify-otp', verifyOtp);
 router.get('/defense/:grantCode', getDefenseAccessStatus);
 router.get('/:token/defense-dates', getDefenseDateStatus);
 router.post('/:token/defense-dates', submitExternalDefenseDates);
+router.post('/:token/examiner-evaluation', submitExternalExaminerEvaluation);
 
 export default router;

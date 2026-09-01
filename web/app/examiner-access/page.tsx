@@ -32,6 +32,7 @@ import type { Lang } from '@/lib/i18n';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { OtpGate } from './OtpGate';
 import { OpinionForm } from './OpinionForm';
+import { DataScienceExaminerEvaluationForm } from './DataScienceExaminerEvaluationForm';
 import { DefenseDateSection } from './DefenseDateSection';
 import type { ExaminerAccessPhase } from './types';
 
@@ -318,7 +319,13 @@ function ExaminerAccessContent() {
 
       {token && <DefenseDateSection token={token} />}
 
-      {token && (
+      {token && tokenDoc?.facultyId === 'data_science' && tokenDoc?.finalGradeComponents ? (
+        <DataScienceExaminerEvaluationForm
+          token={token}
+          tokenDoc={tokenDoc}
+          onSubmitted={() => setPhase('submitted')}
+        />
+      ) : token && (
         <OpinionForm
           token={token}
           examinerName={tokenDoc?.examinerName ?? ''}

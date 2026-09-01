@@ -35,6 +35,7 @@ import {
 import { apiClient } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { t } from '@/components/i18n';
+import { examinerSignatureStyle } from '@/utils/examinerSignature';
 
 // ─── Defense date submission — a SEPARATE concern from the review/opinion
 // flow above (see server/src/services/defenseScheduling.ts). Routed through
@@ -699,7 +700,19 @@ export default function ExaminerAccessScreen() {
           </View>
         )}
 
-        {/* Opinion form */}
+        {/* Opinion form — data_science's digitized paper form
+            (Project_examiner.docx) is a structurally different, two-rubric
+            flow; kept as a separate component (not a branch inline here)
+            so this generic opinion form stays byte-for-byte unchanged for
+            every other faculty's tokens. */}
+        {tokenDoc?.facultyId === 'data_science' && tokenDoc?.finalGradeComponents ? (
+          <DataScienceEvaluationSection
+            token={token}
+            tokenDoc={tokenDoc}
+            lang={lang}
+            onBothSubmitted={() => setPhase('submitted')}
+          />
+        ) : (
         <View style={s.section}>
           <Text style={s.sectionTitle}>{t.examinerSubmitOpinion[lang]}</Text>
 
@@ -779,6 +792,7 @@ export default function ExaminerAccessScreen() {
             }
           </Pressable>
         </View>
+        )}
 
         <BottomPadding />
       </ScrollView>
@@ -814,6 +828,169 @@ function InfoRow({
 
 function BottomPadding() {
   return <View style={{ height: 60 }} />;
+}
+
+// ─── Data Science's digitized paper form (Project_examiner.docx) ────────────
+// External-examiner equivalent of mobile/app/examinor/home.tsx's
+// isDataScienceDocument flow — two independently-submitted rubrics
+// (project/defense), header fields, mandatory validation, and a signature.
+// Kept as its own component (not inlined in the parent's render) since it
+// needs its own local state per rubric, same reasoning as web's sibling
+// DataScienceExaminerEvaluationForm.tsx.
+interface RubricField { key: string; labelHe: string; labelEn: string; maxScore: number }
+
+function DsRubricSection({
+  title, rubric, mandatory, done, lang, onSubmit,
+}: {
+  title: string;
+  rubric: RubricField[];
+  mandatory: boolean;
+  done: boolean;
+  lang: Lang;
+  onSubmit: (scores: Record<string, number>, comment: string) => Promise<void>;
+}) {
+  const L = (he: string, en: string) => (lang === 'he' ? he : en);
+  const [scores, setScores] = useState<Record<string, string>>(() => Object.fromEntries(rubric.map((c) => [c.key, ''])));
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const total = Math.round(rubric.reduce((sum, c) => sum + ((parseFloat(scores[c.key] || '0')) / c.maxScore) * c.maxScore, 0));
+
+  if (done) {
+    return (
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>{title}</Text>
+        <Text style={{ marginTop: 8, fontSize: 13, fontWeight: '700', color: '#10B981' }}>✅ {L('הוגש', 'Submitted')}</Text>
+      </View>
+    );
+  }
+
+  const handleSubmit = async () => {
+    for (const c of rubric) {
+      const raw = scores[c.key];
+      const v = raw === undefined || raw === '' ? NaN : parseFloat(raw);
+      if (!raw || isNaN(v) || v < 0 || v > c.maxScore) {
+        const label = lang === 'he' ? c.labelHe : c.labelEn;
+        Alert.alert(L('שגיאה', 'Error'), L(`יש להזין ציון עבור "${label}" בטווח 0–${c.maxScore}`, `Enter a score for "${label}" in the range 0–${c.maxScore}`));
+        return;
+      }
+    }
+    if (mandatory && !comment.trim()) {
+      Alert.alert(L('שגיאה', 'Error'), L('יש למלא הערכה מילולית והערות', 'A written evaluation and comments are required'));
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await onSubmit(Object.fromEntries(rubric.map((c) => [c.key, parseFloat(scores[c.key]) || 0])), comment);
+    } catch (e) {
+      Alert.alert(L('שגיאה', 'Error'), String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View style={s.section}>
+      <Text style={s.sectionTitle}>{title}</Text>
+      {rubric.map((c) => (
+        <View key={c.key} style={s.criterionRow}>
+          <View style={s.criterionHeader}>
+            <Text style={s.criterionLabel}>{lang === 'he' ? c.labelHe : c.labelEn}</Text>
+            <Text style={s.criterionMax}>/ {c.maxScore}</Text>
+          </View>
+          <TextInput
+            style={s.scoreInput}
+            value={scores[c.key] || ''}
+            onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: v }))}
+            keyboardType="numeric"
+            placeholder="0"
+            placeholderTextColor="#9CA3AF"
+          />
+        </View>
+      ))}
+      <View style={s.totalRow}>
+        <Text style={s.totalLabel}>{L('סה"כ', 'Total')}</Text>
+        <Text style={s.totalScore}>{total} / 100</Text>
+      </View>
+      <Text style={s.fieldLabel}>{L('הערכה מילולית והערות', 'Written evaluation and comments')}{mandatory ? ' *' : ''}</Text>
+      <TextInput
+        style={s.textarea}
+        value={comment}
+        onChangeText={setComment}
+        multiline
+        numberOfLines={5}
+        placeholder={L('הערות...', 'Comments...')}
+        placeholderTextColor="#9CA3AF"
+        textAlign={lang === 'he' ? 'right' : 'left'}
+      />
+      <Pressable style={[s.btnPrimary, submitting && s.btnDisabled]} onPress={handleSubmit} disabled={submitting} accessibilityRole="button">
+        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.btnPrimaryText}>{L('שלח', 'Submit')}</Text>}
+      </Pressable>
+    </View>
+  );
+}
+
+function DataScienceEvaluationSection({
+  token, tokenDoc, lang, onBothSubmitted,
+}: {
+  token: string;
+  tokenDoc: ExaminerTokenDoc;
+  lang: Lang;
+  onBothSubmitted: () => void;
+}) {
+  const L = (he: string, en: string) => (lang === 'he' ? he : en);
+  const opinion = (tokenDoc.opinion ?? {}) as { project?: unknown; defense?: unknown };
+  const [projectDone, setProjectDone] = useState(!!opinion.project);
+  const [defenseDone, setDefenseDone] = useState(!!opinion.defense);
+  const components = tokenDoc.finalGradeComponents;
+  if (!components) return null;
+
+  const submit = async (kind: 'project' | 'defense', scores: Record<string, number>, comment: string) => {
+    await apiClient.post(`/api/examiner-access/${token}/examiner-evaluation`, { kind, scores, comment });
+    if (kind === 'project') setProjectDone(true); else setDefenseDone(true);
+    if ((kind === 'project' && defenseDone) || (kind === 'defense' && projectDone)) onBothSubmitted();
+  };
+
+  const signature = examinerSignatureStyle(tokenDoc.examinerName, tokenDoc.facultyId ?? 'data_science', 'external', tokenDoc.major ?? null);
+  const fmtDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—');
+
+  return (
+    <>
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>📄 {L('טופס הערכת בוחן — עבודת הגמר', 'Examiner Evaluation Form — The Final Project')}</Text>
+        <Text style={{ marginTop: 6, fontSize: 12, color: '#64748B' }}>{L('שנה"ל:', 'Academic year:')} {tokenDoc.academicYearHebrew ?? '—'}</Text>
+        <Text style={{ marginTop: 2, fontSize: 12, color: '#64748B' }}>{L('תאריך תחילת פרויקט:', 'Project start date:')} {fmtDate(tokenDoc.projectStartDate)}</Text>
+        <Text style={{ marginTop: 2, fontSize: 12, color: '#64748B' }}>{L('תאריך ההגנה:', 'Defense date:')} {fmtDate(tokenDoc.defenseDate)}</Text>
+      </View>
+
+      <DsRubricSection
+        title={L('📄 הערכת בוחן — עבודת הגמר', '📄 Examiner Evaluation — The Project')}
+        rubric={components.examinerProjectEvaluation.components}
+        mandatory
+        done={projectDone}
+        lang={lang}
+        onSubmit={(scores, comment) => submit('project', scores, comment)}
+      />
+      <DsRubricSection
+        title={L('🛡 הערכת בוחן — בחינת ההגנה', '🛡 Examiner Evaluation — The Defense Exam')}
+        rubric={components.examinerDefenseEvaluation.components}
+        mandatory={false}
+        done={defenseDone}
+        lang={lang}
+        onSubmit={(scores, comment) => submit('defense', scores, comment)}
+      />
+
+      {projectDone && defenseDone && (
+        <View style={s.section}>
+          <Text style={{ fontSize: 12, color: '#64748B' }}>{L('שם הבוחן', 'Examiner name')}</Text>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B', marginTop: 2 }}>{tokenDoc.examinerName}</Text>
+          <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10 }}>{L('תאריך', 'Date')}</Text>
+          <Text style={{ fontSize: 14, color: '#1E293B', marginTop: 2 }}>{new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</Text>
+          <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10 }}>{L('חתימה', 'Signature')}</Text>
+          <Text style={{ fontSize: 22, marginTop: 2, color: signature.color, fontFamily: signature.fontFamily }}>{tokenDoc.examinerName}</Text>
+        </View>
+      )}
+    </>
+  );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────

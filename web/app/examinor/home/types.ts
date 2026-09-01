@@ -42,6 +42,13 @@ export interface AssignedMilestone {
   projectId: string;
   projectTitleHe: string;
   projectTitleEn: string;
+  // Data-Science-only paper-form fields (see ExaminerEvaluationModal.tsx's
+  // isDataScience header block) — populated for every faculty by
+  // getExaminerDashboard, but only rendered when facultyId === 'data_science'.
+  academicYear: string | null;
+  academicYearHebrew: string | null;
+  projectStartDate: string | null;
+  major: string | null;
   type: string;
   status: string;
   studentNames: string[];

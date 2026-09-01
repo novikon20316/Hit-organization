@@ -512,6 +512,13 @@ export interface AssignedMilestone {
   projectId: string;
   projectTitleHe: string;
   projectTitleEn: string;
+  // Data-Science-only paper-form fields (see examinor/home.tsx's
+  // isDataScienceDocument header block) — populated for every faculty by
+  // getExaminerDashboard, but only rendered when facultyId === 'data_science'.
+  academicYear: string | null;
+  academicYearHebrew: string | null;
+  projectStartDate: string | null;
+  major: string | null;
   type: string;
   status: string;
   studentNames: string[];
@@ -883,6 +890,9 @@ export interface MyProjectMilestoneInfo {
 export interface MyProjectEnrolledStudent {
   id: string; name: string;
   degreeType: string | null; yearOfStudy: number | null;
+  /** Teudat zehut, captured at signup — used by the data_science final-grade
+   *  certificate. */
+  studentIdNumber?: string | null;
 }
 
 export interface MyProject {
@@ -891,6 +901,10 @@ export interface MyProject {
   enrolledStudentIds: string[]; applicationIds: string[];
   academicYear: string; projectType: string;
   degreeTypes?: string[]; projectTypes?: string[];
+  /** Set once at enrollment — when the supervisor accepted the student's
+   *  application and the project actually started. Used by the data_science
+   *  final-grade certificate. */
+  projectStartDate?: string | null;
   descriptionHe: string; descriptionEn: string;
   NumberOfStudents:number;
   requiredSkills?: string[];

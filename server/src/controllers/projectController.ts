@@ -578,7 +578,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
  *  autoCalculatedFinalGrade, notifying the supervisor it's ready for their
  *  decision. Wrapped in a transaction so two near-simultaneous submissions
  *  (e.g. both examiners finishing at once) can't double-notify or race. */
-async function maybeFinalizeAutoCalculatedGrade(milestoneRef: FirebaseFirestore.DocumentReference): Promise<void> {
+export async function maybeFinalizeAutoCalculatedGrade(milestoneRef: FirebaseFirestore.DocumentReference): Promise<void> {
   let shouldNotify = false;
   let autoGrade = 0;
   let supervisorId = '';
@@ -594,13 +594,25 @@ async function maybeFinalizeAutoCalculatedGrade(milestoneRef: FirebaseFirestore.
     const supervisorEval = data.supervisorEvaluation;
     if (!supervisorEval) return;
 
+    // The full panel's identities — internal uids from examinerIds, PLUS any
+    // external examiner's token (examinerEvaluations is keyed by token for an
+    // external submission — see examinerAccessController.ts's
+    // submitExternalExaminerEvaluation, which counts toward this same
+    // computed grade exactly like an internal examiner's submission).
+    // defensePanel's external members carry the token in `ref`; internal
+    // members there duplicate what's already in examinerIds, so a Set dedupes.
     const examinerIds: string[] = data.examinerIds ?? [];
+    const externalIds: string[] = (data.defensePanel ?? [])
+      .filter((p: { type?: string; ref?: string }) => p.type === 'external' && p.ref)
+      .map((p: { ref: string }) => p.ref);
+    const allIds = Array.from(new Set([...examinerIds, ...externalIds]));
+
     const examinerEvals: Record<string, { project?: { total: number }; defense?: { total: number } }> = data.examinerEvaluations ?? {};
-    const allExaminersDone = examinerIds.length > 0 && examinerIds.every((id) => examinerEvals[id]?.project && examinerEvals[id]?.defense);
+    const allExaminersDone = allIds.length > 0 && allIds.every((id) => examinerEvals[id]?.project && examinerEvals[id]?.defense);
     if (!allExaminersDone) return;
 
-    const examinerProjectAvg = examinerIds.reduce((sum, id) => sum + examinerEvals[id]!.project!.total, 0) / examinerIds.length;
-    const examinerDefenseAvg = examinerIds.reduce((sum, id) => sum + examinerEvals[id]!.defense!.total, 0) / examinerIds.length;
+    const examinerProjectAvg = allIds.reduce((sum, id) => sum + examinerEvals[id]!.project!.total, 0) / allIds.length;
+    const examinerDefenseAvg = allIds.reduce((sum, id) => sum + examinerEvals[id]!.defense!.total, 0) / allIds.length;
 
     autoGrade = Math.round(
       (supervisorEval.total * rubrics.supervisorEvaluation.weight +
@@ -745,6 +757,14 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
     }
     if (data.gradeApproved) {
       return res.status(409).json({ message: 'This grade has already been finalized.' });
+    }
+
+    // Project_examiner.docx (data_science's digitized paper form) makes
+    // "הערכה מילולית והערות" mandatory, unlike every other faculty's
+    // examiner comment, which stays optional — see ExaminerEvaluationModal.tsx's
+    // matching client-side check.
+    if (data.facultyId === 'data_science' && kind === 'project' && !comment?.trim()) {
+      return res.status(400).json({ message: 'A written comment is required.' });
     }
 
     const rubric: GradingComponentSpec[] = kind === 'project'

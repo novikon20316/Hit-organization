@@ -179,6 +179,13 @@ export async function enrollStudentInProject(
   await db.runTransaction(async (transaction) => {
     const studentSnap = await transaction.get(studentRef);
     const studentDataBefore = studentSnap.data();
+    // Fresh read (not the pre-transaction projectSnapForTemplate above) so a
+    // concurrent first-enrollment race is resolved by the transaction's own
+    // retry-on-conflict, not by a stale pre-check — "תאריך תחילת פרויקט" must
+    // be the FIRST student's enrollment moment, never overwritten by a
+    // teammate joining later.
+    const projectSnapInTx = await transaction.get(projectRef);
+    const hasProjectStartDate = projectSnapInTx.data()?.projectStartDate != null;
 
     const priorActiveIds: string[] = studentDataBefore?.activeProjectIds
       ?? (studentDataBefore?.hasActiveProject && studentDataBefore?.activeProjectId ? [studentDataBefore.activeProjectId] : []);
@@ -196,6 +203,10 @@ export async function enrollStudentInProject(
       studentId:          admin.firestore.FieldValue.delete(),
       studentIds:         admin.firestore.FieldValue.delete(),
       updatedAt:          admin.firestore.FieldValue.serverTimestamp(),
+      // "תאריך תחילת פרויקט" (Project_examiner.docx) — the approval moment
+      // that actually seats a student, i.e. right here, not project creation.
+      // Set once, by whichever student is first to enroll; never touched again.
+      ...(hasProjectStartDate ? {} : { projectStartDate: admin.firestore.FieldValue.serverTimestamp() }),
     });
 
     transaction.update(studentRef, {

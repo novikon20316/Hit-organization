@@ -14,6 +14,7 @@ import { apiClient } from '@/src/api/apiClient';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import {AssignedMilestone, GradingComponentSpec} from '@/types'
+import { examinerSignatureStyle } from '@/utils/examinerSignature';
  
 // ─── Constants ────────────────────────────────────────────────────────────────
  
@@ -107,6 +108,9 @@ export default function ExaminerHome() {
   const [evalComment,    setEvalComment]    = useState('');
   const [evalFile,       setEvalFile]       = useState<{ uri: string; name: string; mimeType?: string } | null>(null);
   const [evalSubmitting, setEvalSubmitting] = useState(false);
+  // Shown instead of auto-closing the modal, only for the data_science
+  // document flow — see isDataScienceDocument below.
+  const [evalSubmittedAt, setEvalSubmittedAt] = useState<Date | null>(null);
 
   const pickEvalFile = async () => {
     const result = await DocumentPicker.getDocumentAsync();
@@ -206,6 +210,15 @@ export default function ExaminerHome() {
     evalRubric.reduce((sum, c) => sum + ((parseFloat(evalScores[c.key] || '0')) / c.maxScore) * c.weight, 0)
   );
 
+  // Project_examiner.docx's digitized paper form — header fields, mandatory
+  // every-field validation, and a signature — is exclusive to data_science's
+  // 'project' evaluation (the written thesis). The oral-defense rubric
+  // ('defense', from a different paper form) and every other faculty's
+  // 'project' evaluation keep today's exact behavior. See the identical
+  // gate in web/app/examinor/home/ExaminerEvaluationModal.tsx.
+  const isDataScienceDocument = evalTarget?.milestone.facultyId === 'data_science' && evalTarget?.kind === 'project';
+  const evalSignature = examinerSignatureStyle(examinerName, evalTarget?.milestone.facultyId ?? '', 'internal', evalTarget?.milestone.major ?? null);
+
   const openEvalModal = (m: AssignedMilestone, kind: 'project' | 'defense') => {
     const rubric = kind === 'project'
       ? m.finalGradeComponents?.examinerProjectEvaluation.components ?? []
@@ -216,11 +229,35 @@ export default function ExaminerHome() {
     setEvalScores(initial);
     setEvalComment('');
     setEvalFile(null);
+    setEvalSubmittedAt(null);
     setEvalModal(true);
   };
 
   const handleSubmitEvaluation = async () => {
     if (!evalTarget) return;
+
+    if (isDataScienceDocument) {
+      for (const c of evalRubric) {
+        const raw = evalScores[c.key];
+        const v = raw === undefined || raw === '' ? NaN : parseFloat(raw);
+        if (!raw || isNaN(v) || v < 0 || v > c.maxScore) {
+          const label = lang === 'he' ? c.labelHe : c.labelEn;
+          Alert.alert(
+            lang === 'he' ? 'שגיאה' : 'Error',
+            lang === 'he' ? `יש להזין ציון עבור "${label}" בטווח 0–${c.maxScore}` : `Enter a score for "${label}" in the range 0–${c.maxScore}`
+          );
+          return;
+        }
+      }
+      if (!evalComment.trim()) {
+        Alert.alert(
+          lang === 'he' ? 'שגיאה' : 'Error',
+          lang === 'he' ? 'יש למלא הערכה מילולית והערות' : 'A written evaluation and comments are required'
+        );
+        return;
+      }
+    }
+
     try {
       setEvalSubmitting(true);
       const scoresObj = Object.fromEntries(evalRubric.map((c) => [c.key, parseFloat(evalScores[c.key]) || 0]));
@@ -243,11 +280,15 @@ export default function ExaminerHome() {
           comment: evalComment,
         });
       }
-      Alert.alert(
-        lang === 'he' ? '✅ הצלחה' : '✅ Success',
-        lang === 'he' ? 'ההערכה נשלחה בהצלחה' : 'Evaluation submitted successfully'
-      );
-      setEvalModal(false);
+      if (isDataScienceDocument) {
+        setEvalSubmittedAt(new Date());
+      } else {
+        Alert.alert(
+          lang === 'he' ? '✅ הצלחה' : '✅ Success',
+          lang === 'he' ? 'ההערכה נשלחה בהצלחה' : 'Evaluation submitted successfully'
+        );
+        setEvalModal(false);
+      }
       await fetchDashboardData();
     } catch (e) {
       console.error(e);
@@ -876,6 +917,27 @@ export default function ExaminerHome() {
           convention of not extracting its modals into components. */}
       <Modal visible={evalModal} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+        {evalSubmittedAt ? (
+          <>
+            <Text style={styles.modalTitle}>✅ {lang === 'he' ? 'ההערכה נשלחה' : 'Evaluation submitted'}</Text>
+            <View style={{ marginTop: 16, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 14, backgroundColor: '#F8FAFC' }}>
+              <Text style={{ fontSize: 12, color: '#64748B' }}>{lang === 'he' ? 'שם הבוחן' : 'Examiner name'}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B', marginTop: 2 }}>{examinerName}</Text>
+              <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10 }}>{lang === 'he' ? 'תאריך' : 'Date'}</Text>
+              <Text style={{ fontSize: 14, color: '#1E293B', marginTop: 2 }}>
+                {evalSubmittedAt.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10 }}>{lang === 'he' ? 'חתימה' : 'Signature'}</Text>
+              <Text style={{ fontSize: 22, marginTop: 2, color: evalSignature.color, fontFamily: evalSignature.fontFamily }}>
+                {examinerName}
+              </Text>
+            </View>
+            <Pressable style={styles.submitBtn} onPress={() => setEvalModal(false)} accessibilityRole="button">
+              <Text style={styles.submitBtnText}>{lang === 'he' ? 'סגור' : 'Close'}</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
           <Text style={styles.modalTitle}>
             {evalTarget?.kind === 'project'
               ? (lang === 'he' ? '📄 הערכת בוחן — עבודת הגמר' : '📄 Examiner Evaluation — The Project')
@@ -888,6 +950,21 @@ export default function ExaminerHome() {
                 {lang === 'he' ? evalTarget.milestone.projectTitleHe : evalTarget.milestone.projectTitleEn}
               </Text>
               <Text style={styles.contextSub}>👤 {evalTarget.milestone.studentNames.join(', ')}</Text>
+              {isDataScienceDocument && (
+                <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+                  <Text style={{ fontSize: 12, color: '#64748B' }}>
+                    {lang === 'he' ? 'שנה"ל:' : 'Academic year:'} {evalTarget.milestone.academicYearHebrew ?? '—'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                    {lang === 'he' ? 'תאריך תחילת פרויקט:' : 'Project start date:'}{' '}
+                    {evalTarget.milestone.projectStartDate ? new Date(evalTarget.milestone.projectStartDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                    {lang === 'he' ? 'תאריך ההגנה:' : 'Defense date:'}{' '}
+                    {evalTarget.milestone.defenseDate ? new Date(evalTarget.milestone.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -921,7 +998,7 @@ export default function ExaminerHome() {
           </View>
 
           <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}
+            {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}{isDataScienceDocument ? ' *' : ''}
           </Text>
           <TextInput
             style={styles.textarea}
@@ -963,6 +1040,8 @@ export default function ExaminerHome() {
           <Pressable style={styles.cancelBtn} onPress={() => setEvalModal(false)} accessibilityRole="button">
             <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
+          </>
+        )}
         </ScrollView>
       </Modal>
 

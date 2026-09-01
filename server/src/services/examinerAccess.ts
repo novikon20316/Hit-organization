@@ -17,6 +17,7 @@ import timezone from 'dayjs/plugin/timezone.js';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
+import { academicYearToHebrew } from './hebrewYear.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -83,10 +84,35 @@ export async function createExternalExaminerAccess(
   // thesisUrl below. Omitted (undefined/empty) means the opinion form falls
   // back to its hardcoded default rubric.
   let gradingComponents: unknown[] | undefined;
+  // Data-Science-only paper-form fields (Project_examiner.docx, digitized —
+  // see web/app/examiner-access's data_science-specific evaluation form).
+  // finalGradeComponents carries the SAME two-rubric (project/defense) shape
+  // internal examiners get via getExaminerDashboard — denormalized here for
+  // the same reason gradingComponents is above. Harmless to compute/store for
+  // every faculty; the client decides whether to render the document UI.
+  let finalGradeComponents: unknown | undefined;
+  let facultyId: string | null = null;
+  let academicYear: string | null = null;
+  let academicYearHebrew: string | null = null;
+  let projectStartDate: string | null = null;
+  let major: string | null = null;
+  let defenseDate: string | null = null;
   if (params.milestoneId) {
     const milestoneSnap = await db.collection('milestones').doc(params.milestoneId).get();
-    const components = milestoneSnap.data()?.gradingComponents;
+    const milestoneData = milestoneSnap.data();
+    const components = milestoneData?.gradingComponents;
     if (Array.isArray(components) && components.length > 0) gradingComponents = components;
+    if (milestoneData?.finalGradeComponents) finalGradeComponents = milestoneData.finalGradeComponents;
+    facultyId = milestoneData?.facultyId ?? null;
+    defenseDate = milestoneData?.dueDate?.toDate?.().toISOString?.() ?? null;
+  }
+  if (params.projectId) {
+    const projectSnap = await db.collection('projects').doc(params.projectId).get();
+    const projectData = projectSnap.data();
+    academicYear = projectData?.academicYear ?? null;
+    academicYearHebrew = academicYearToHebrew(academicYear);
+    projectStartDate = projectData?.projectStartDate?.toDate?.().toISOString?.() ?? null;
+    major = projectData?.major ?? null;
   }
 
   await db.collection('examinerTokens').doc(code).set({
@@ -110,6 +136,7 @@ export async function createExternalExaminerAccess(
     // request-otp/verify-otp round trip. See firestore.rules' `allow get`.
     otpVerified: false,
     ...(gradingComponents ? { gradingComponents } : {}),
+    ...(finalGradeComponents ? { finalGradeComponents, facultyId, academicYear, academicYearHebrew, projectStartDate, major, defenseDate } : {}),
   });
 
   const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || ''; // TODO: set once the app has a public web/deep-link URL

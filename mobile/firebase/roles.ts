@@ -451,7 +451,25 @@ export interface ExaminerTokenDoc {
     hasComment: boolean;
     visibleToStudent: boolean;
   }>;
-  // Opinion data (filled when status === 'submitted')
+  // Data-Science-only paper-form fields (Project_examiner.docx, digitized) —
+  // the SAME two-rubric shape internal examiners get via AssignedMilestone,
+  // denormalized at token-creation time (see
+  // server/src/services/examinerAccess.ts). Absent for every other faculty's
+  // token, which keeps using gradingComponents/the hardcoded opinion form
+  // exactly as today.
+  finalGradeComponents?: {
+    supervisorEvaluation: { components: NonNullable<ExaminerTokenDoc['gradingComponents']>; weight: number };
+    examinerProjectEvaluation: { components: NonNullable<ExaminerTokenDoc['gradingComponents']>; weight: number };
+    examinerDefenseEvaluation: { components: NonNullable<ExaminerTokenDoc['gradingComponents']>; weight: number };
+  };
+  facultyId?: string | null;
+  academicYear?: string | null;
+  academicYearHebrew?: string | null;
+  projectStartDate?: string | null;
+  major?: string | null;
+  defenseDate?: string | null;
+  // Opinion data (filled when status === 'submitted') — for the data_science
+  // flow this is namespaced by kind: { project?: {...}, defense?: {...} }.
   opinion?: Record<string, unknown>;
   opinionVisible: boolean;     // whether student can see the opinion
   opinionAnonymous: boolean;   // whether student can see the name

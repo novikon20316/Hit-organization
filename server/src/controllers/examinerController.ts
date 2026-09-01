@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { submitCandidateDatesAndResolve, examinerKeyOf } from '../services/defenseScheduling.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { academicYearToHebrew } from '../services/hebrewYear.js';
 
 const db = admin.firestore();
 
@@ -34,12 +35,24 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
 
         let projectTitleHe = 'Unknown';
         let projectTitleEn = 'Unknown';
+        // Data-Science-only paper-form fields (see ExaminerEvaluationModal.tsx's
+        // isDataScience header block) — harmless to compute for every faculty,
+        // the client decides whether to render them.
+        let academicYear: string | null = null;
+        let academicYearHebrew: string | null = null;
+        let projectStartDate: string | null = null;
+        let major: string | null = null;
 
         if (milestoneData.projectId) {
           const projectSnap = await db.collection('projects').doc(milestoneData.projectId).get();
           if (projectSnap.exists) {
-            projectTitleHe = projectSnap.data()?.titleHe || 'Unknown';
-            projectTitleEn = projectSnap.data()?.titleEn || 'Unknown';
+            const projectData = projectSnap.data();
+            projectTitleHe = projectData?.titleHe || 'Unknown';
+            projectTitleEn = projectData?.titleEn || 'Unknown';
+            academicYear = projectData?.academicYear ?? null;
+            academicYearHebrew = academicYearToHebrew(academicYear);
+            projectStartDate = projectData?.projectStartDate?.toDate?.().toISOString?.() ?? null;
+            major = projectData?.major ?? null;
           }
         }
 
@@ -73,6 +86,10 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           projectId: milestoneData.projectId,
           projectTitleHe,
           projectTitleEn,
+          academicYear,
+          academicYearHebrew,
+          projectStartDate,
+          major,
           facultyId: milestoneData.facultyId || '',
           type: milestoneData.type,
           status: milestoneData.status,
