@@ -471,9 +471,35 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
     const facultyId = coordinatorData?.facultyId;
     if (!facultyId) return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
 
+    // BUG FIX: this used to query straight off the account's own facultyId
+    // field, which is just the user's "home" faculty (e.g. from a supervisor
+    // role) and is independent of where they actually hold coordinator
+    // authority. A user who's a coordinator in one faculty but also a
+    // supervisor (or any other role) in another, with their facultyId field
+    // set to that other faculty, could see and act on that other faculty's
+    // projects/milestones here — the coordinator dashboard's real scope must
+    // come from coordinatorScopes, same as getCoordinatorExaminerRecommendations
+    // above. A coordinator with no coordinatorScopes configured falls back to
+    // their own facultyId, same as withinCoordinatorScope's fallback in
+    // scopeAuthorization.ts.
+    const coordinatorScopes = coordinatorData?.coordinatorScopes ?? [];
+    const scopeFacultyIds: string[] = coordinatorScopes.length
+      ? Array.from(new Set(coordinatorScopes.map((s: { facultyId: string }) => s.facultyId)))
+      : [facultyId];
+    const isAllFaculties = scopeFacultyIds.includes('all');
+
+    let projectsQuery: FirebaseFirestore.Query = db.collection('projects');
+    let milestonesQuery: FirebaseFirestore.Query = db.collection('milestones');
+    if (!isAllFaculties) {
+      // Firestore 'in' caps at 10 values — matches the same cap already
+      // applied in getCoordinatorExaminerRecommendations above.
+      projectsQuery = projectsQuery.where('facultyId', 'in', scopeFacultyIds.slice(0, 10));
+      milestonesQuery = milestonesQuery.where('facultyId', 'in', scopeFacultyIds.slice(0, 10));
+    }
+
     const [projectsSnap, milestonesSnap, notifSnap] = await Promise.all([
-      db.collection('projects').where('facultyId', '==', facultyId).get(),
-      db.collection('milestones').where('facultyId', '==', facultyId).get(),
+      projectsQuery.get(),
+      milestonesQuery.get(),
       db.collection('notifications')
         .where('recipientId', '==', coordinatorId)
         .where('isRead', '==', false)
