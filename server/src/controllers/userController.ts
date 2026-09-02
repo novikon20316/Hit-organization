@@ -103,6 +103,17 @@ function withRecomputedEligibility(data: FirebaseFirestore.DocumentData): Fireba
   return {
     ...withPhoto,
     isEligibleForProcess: computeIsEligible(withPhoto.degreeType ?? null, withPhoto.major ?? null, withPhoto.yearOfStudy ?? null),
+    // Same staleness bug as isEligibleForProcess above: trackPolicy was
+    // previously written ONCE at signup (or by the one-off
+    // backfillStudentTracks.ts migration) and never recomputed, so any
+    // student account created before that migration ran (or whose
+    // degreeType/major was corrected afterward) has no trackPolicy field at
+    // all — silently skipping the awaiting-grade gate (useStudentData.ts)
+    // and the mandatory choose-track redirect (mobile app/_layout.tsx) as if
+    // their program had no thesis-eligibility gate. Recomputing it live from
+    // the current degreeType/major on every read makes both paths correct
+    // without depending on a migration ever having run.
+    trackPolicy: resolveTrackPolicy(withPhoto.degreeType ?? null, withPhoto.major ?? null),
   };
 }
 

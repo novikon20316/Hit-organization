@@ -12,6 +12,35 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { resolveTrackPolicy, THESIS_ELIGIBILITY_THRESHOLD, type StudentTrack } from '../config/studentTrack.js';
 import { logAuditEvent } from './auditLog.js';
+import { notifyUser } from './notify.js';
+
+// "the system notifies the student to log in and see" — fired for both the
+// manual (setThesisEligibility) and average-derived (setThesisEligibilityFromAverage)
+// paths, since either one is the first time the student learns their fate.
+// Not fired from adminOverrideStudentTrack — that's a data-correction escape
+// hatch, not a real grade-entry event, so it shouldn't claim "your grade was
+// just entered" when it wasn't. Best-effort: a notification failure must
+// never fail the eligibility write that already committed.
+async function notifyThesisEligibilityDecided(studentId: string): Promise<void> {
+  try {
+    await notifyUser({
+      recipientId: studentId,
+      type: 'general',
+      titleHe: 'הוזן לך ממוצע ציונים',
+      titleEn: 'Your grade average has been entered',
+      bodyHe: 'הוזן לך ממוצע ציונים במערכת. היכנס/י כדי לראות כיצד התהליך שלך ממשיך.',
+      bodyEn: "Your grade average has been entered into the system. Log in to see how your process continues.",
+      emailData: {
+        message: {
+          he: 'הוזן לך ממוצע ציונים במערכת. היכנס/י כדי לראות כיצד התהליך שלך ממשיך.',
+          en: "Your grade average has been entered into the system. Log in to see how your process continues.",
+        },
+      },
+    });
+  } catch (err) {
+    console.error(`notifyThesisEligibilityDecided: failed to notify student ${studentId}:`, err);
+  }
+}
 
 export class StudentTrackError extends Error {
   // status defaults to 400 (the pre-existing behavior for every caller that
@@ -133,6 +162,8 @@ export async function setThesisEligibility(
     newValue: { eligible },
     explanation: reason,
   });
+
+  await notifyThesisEligibilityDecided(studentId);
 }
 
 /** Sets thesis eligibility FROM a grade average instead of a direct manual
@@ -227,6 +258,8 @@ export async function setThesisEligibilityFromAverage(
     oldValue: { eligible: previousEligible },
     newValue: { eligible, average, threshold: THESIS_ELIGIBILITY_THRESHOLD },
   });
+
+  await notifyThesisEligibilityDecided(studentId);
 }
 
 /** system_admin-only escape hatch — the caller (controller) must already

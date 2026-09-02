@@ -12,8 +12,24 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
 import { getUserRoles, resolveActiveRole, type AppRole, type UserDoc } from '@/lib/roles';
+import { resolveTrackPolicy } from '@/lib/studentTrack';
 import { useIdleTimer } from '@/hooks/useIdleTimer';
 import { SessionExpiredModal } from '@/components/SessionExpiredModal';
+
+// Same staleness bug as server/src/controllers/userController.ts's
+// withRecomputedEligibility: trackPolicy was previously written once at
+// signup (or by the one-off backfillStudentTracks.ts migration) and never
+// recomputed, so a student account created before that migration ran has no
+// trackPolicy field at all — silently skipping useRequireRole's mandatory
+// choose-track redirect below as if their program had no thesis-eligibility
+// gate. This context reads the Firestore doc directly (not through the API,
+// so the server-side fix alone doesn't cover it) — recompute live from the
+// current degreeType/major on every snapshot instead of trusting the stored
+// field.
+function withRecomputedTrackPolicy(data: UserDoc): UserDoc {
+  if (data.role !== 'student') return data;
+  return { ...data, trackPolicy: resolveTrackPolicy(data.degreeType ?? null, data.major ?? null) };
+}
 
 // After this long with no mouse/keyboard/touch activity, we assume the
 // Firebase ID token is stale enough that API calls will start failing in
@@ -112,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onSnapshot(
       doc(db, 'users', firebaseUser.uid),
       (snap) => {
-        setUserData(snap.exists() ? (snap.data() as UserDoc) : null);
+        setUserData(snap.exists() ? withRecomputedTrackPolicy(snap.data() as UserDoc) : null);
         setProfileResolved(true);
       },
       (err) => {
