@@ -875,6 +875,10 @@ export interface Milestone {
    *  feature existed) — the submit screen treats that the same as 'none',
    *  showing both fields as optional. */
   submissionRequirement?: 'file' | 'comment' | 'both' | 'none';
+  /** Which file types the student may attach, when submissionRequirement is
+   *  'file'/'both' — see server/src/services/workflowTemplates.ts's
+   *  MilestoneFileType. Absent means unrestricted. */
+  allowedFileTypes?: ('pdf' | 'word' | 'powerpoint' | 'image' | 'zip')[];
   /** The student's own online form for this milestone (currently only
    *  data_science's research_proposal — see
    *  server/src/scripts/addResearchProposalStudentForm.ts). Absent means this

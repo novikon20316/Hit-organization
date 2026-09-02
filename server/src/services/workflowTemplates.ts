@@ -144,6 +144,48 @@ export type MilestoneRoutingSpec = ChainStage[];
 // in flight is retroactively blocked.
 export type SubmissionRequirement = 'file' | 'comment' | 'both' | 'none';
 
+// The file categories a milestone's `allowedFileTypes` can restrict a
+// student's upload to — only meaningful when submissionRequirement is
+// 'file'/'both'. Each category maps to the actual MIME types/extensions
+// milestoneController.ts's submitMilestone (and projectController.ts's
+// submitStudentMilestone) check an uploaded file against; extensions are the
+// fallback for a client that sends a generic/incorrect MIME type (common for
+// mobile document pickers), same reasoning as MilestoneFilePanel.tsx's own
+// guessMimeFromUrl on the read side.
+export type MilestoneFileType = 'pdf' | 'word' | 'powerpoint' | 'image' | 'zip';
+
+export const MILESTONE_FILE_TYPES: { key: MilestoneFileType; labelHe: string; labelEn: string; mimeTypes: string[]; extensions: string[] }[] = [
+  { key: 'pdf', labelHe: 'PDF', labelEn: 'PDF', mimeTypes: ['application/pdf'], extensions: ['pdf'] },
+  { key: 'word', labelHe: 'Word (‎.doc/.docx)', labelEn: 'Word (.doc/.docx)', mimeTypes: ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'], extensions: ['doc', 'docx'] },
+  { key: 'powerpoint', labelHe: 'PowerPoint (‎.ppt/.pptx)', labelEn: 'PowerPoint (.ppt/.pptx)', mimeTypes: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'], extensions: ['ppt', 'pptx'] },
+  { key: 'image', labelHe: 'תמונה (PNG/JPG)', labelEn: 'Image (PNG/JPG)', mimeTypes: ['image/png', 'image/jpeg'], extensions: ['png', 'jpg', 'jpeg'] },
+  { key: 'zip', labelHe: 'ZIP', labelEn: 'ZIP Archive', mimeTypes: ['application/zip'], extensions: ['zip'] },
+];
+
+// A newly-created milestone (no explicit staff choice yet) restricts to PDF
+// only — the strictest, safest default. Only applied when submissionRequirement
+// is 'file'/'both'; see workflowTemplateController.ts's validateMilestones.
+export const DEFAULT_ALLOWED_FILE_TYPES: MilestoneFileType[] = ['pdf'];
+
+/** Whether an uploaded file (its reported MIME type and original filename)
+ *  matches one of a milestone's allowed file-type categories. A milestone
+ *  with no allowedFileTypes recorded (every milestone created before this
+ *  feature existed, or one whose submissionRequirement doesn't call for a
+ *  file at all) is unrestricted — matches submissionRequirementMet's own
+ *  "absent means nothing already in flight is retroactively blocked" rule. */
+export function fileMatchesAllowedTypes(
+  allowedFileTypes: MilestoneFileType[] | undefined,
+  mimetype: string,
+  filename: string
+): boolean {
+  if (!allowedFileTypes || allowedFileTypes.length === 0) return true;
+  const ext = filename.includes('.') ? filename.split('.').pop()!.toLowerCase() : '';
+  return allowedFileTypes.some((key) => {
+    const meta = MILESTONE_FILE_TYPES.find((t) => t.key === key);
+    return !!meta && (meta.mimeTypes.includes(mimetype) || meta.extensions.includes(ext));
+  });
+}
+
 /** Shared by milestoneController.ts's submitMilestone (web/mobile student
  *  submission) and projectController.ts's submitStudentMilestone — whether a
  *  given file/comment combination satisfies a milestone's recorded
@@ -169,7 +211,30 @@ export function submissionRequirementMet(
  *  fixed-vs-offset branch only lives in one place. A 'fixed' spec with no
  *  usable fixedDate falls back to the offset behavior rather than throwing,
  *  so a malformed/legacy doc never blocks enrollment. */
-export function resolveMilestoneDueDate(spec: WorkflowMilestoneSpec, baseDate: Date): Date {
+export function resolveMilestoneDueDate(
+  spec: WorkflowMilestoneSpec,
+  baseDate: Date,
+  /** The full sibling milestone list of the same template — needed to
+   *  resolve spec.syncDueDateWith. Omitted (every pre-existing call site
+   *  before this feature) simply disables syncing, same as an unresolvable
+   *  reference — never a hard error. */
+  allSpecs?: WorkflowMilestoneSpec[],
+  _visited: Set<string> = new Set(),
+): Date {
+  // syncDueDateWith ties this milestone's date to another one in the same
+  // template (e.g. a presentation + poster pair that must always be due the
+  // same day) — resolved recursively so a chain of synced milestones still
+  // bottoms out at a real date. _visited guards against a reference cycle
+  // (A syncs to B, B syncs to A): once a type has been visited, stop
+  // following syncDueDateWith and fall through to this spec's own
+  // dateMode/dueDaysFromStart/fixedDate instead of looping forever.
+  if (spec.syncDueDateWith && allSpecs && !_visited.has(spec.type)) {
+    const target = allSpecs.find((s) => s.type === spec.syncDueDateWith);
+    if (target) {
+      _visited.add(spec.type);
+      return resolveMilestoneDueDate(target, baseDate, allSpecs, _visited);
+    }
+  }
   if (spec.dateMode === 'fixed' && spec.fixedDate) {
     const fixed = new Date(spec.fixedDate);
     if (!isNaN(fixed.getTime())) return fixed;
@@ -238,6 +303,16 @@ export interface WorkflowMilestoneSpec {
   /** ISO date string (e.g. '2026-11-15'). Only meaningful when
    *  dateMode === 'fixed'. */
   fixedDate?: string;
+  /** The `type` of another milestone in the SAME template whose due date
+   *  this milestone always mirrors, instead of computing its own from
+   *  dateMode/dueDaysFromStart/fixedDate above — e.g. a presentation (15%
+   *  of the final grade) and a poster (5%) that must always be submitted on
+   *  the exact same date because staff evaluates them together. This
+   *  milestone's own dateMode fields are kept as a fallback (used if the
+   *  referenced type is ever removed from the template, or forms a cycle —
+   *  see resolveMilestoneDueDate). Omitted (the default) keeps today's
+   *  fully-independent-per-milestone behavior. */
+  syncDueDateWith?: string;
   requiresExaminers: boolean;
   /** How many examiner slots a defense panel needs for this milestone.
    *  Only meaningful when requiresExaminers is true. Omitted means the
@@ -296,6 +371,11 @@ export interface WorkflowMilestoneSpec {
    *  'both' when omitted/invalid) for any milestone saved through that path;
    *  only truly absent on milestones from before this feature existed. */
   submissionRequirement?: SubmissionRequirement;
+  /** Which file types a student may attach, when submissionRequirement is
+   *  'file'/'both' — see the MilestoneFileType doc above. Omitted means
+   *  unrestricted (every milestone created before this feature existed, or
+   *  one whose submissionRequirement never called for a file at all). */
+  allowedFileTypes?: MilestoneFileType[];
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';

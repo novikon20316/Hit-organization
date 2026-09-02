@@ -42,6 +42,22 @@ function guessMimeFromUrl(url: string): string | null {
   return null;
 }
 
+// Word/PowerPoint can't be rendered by the browser natively the way
+// PDF/images can (see FilePreviewFrame below) — Microsoft's free "Office
+// Online" viewer renders them instead, but it works by having MICROSOFT'S
+// OWN SERVERS fetch the file from its public URL and render it server-side,
+// so (unlike the blob-based approach below) this needs the real Cloudinary
+// URL, not a same-origin blob: URL, and only works for a URL Microsoft's
+// servers can themselves reach (i.e. not localhost during local dev).
+function isOfficeFileUrl(url: string): boolean {
+  const path = url.split('?')[0].toLowerCase();
+  return ['.doc', '.docx', '.ppt', '.pptx'].some((ext) => path.endsWith(ext));
+}
+
+function officeViewerSrc(url: string): string {
+  return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
+}
+
 // Fetches the file into a Blob (same approach as downloadFile — Cloudinary
 // is cross-origin, and a plain <iframe src> hitting a URL with no/unhelpful
 // Content-Type triggers the browser's download handling instead of an
@@ -54,7 +70,12 @@ export function FilePreviewFrame({ url, index }: { url: string; index: number })
   const { lang } = useLanguage();
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; objectUrl?: string }>({ status: 'loading' });
 
+  // Word/PowerPoint skip the blob-fetch dance entirely — the iframe below
+  // points straight at Microsoft's viewer with the real URL embedded in it.
+  const isOffice = isOfficeFileUrl(url);
+
   useEffect(() => {
+    if (isOffice) return;
     let cancelled = false;
     let objectUrl: string | undefined;
     fetch(url)
@@ -73,7 +94,11 @@ export function FilePreviewFrame({ url, index }: { url: string; index: number })
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [url]);
+  }, [url, isOffice]);
+
+  if (isOffice) {
+    return <iframe src={officeViewerSrc(url)} title={`file-${index}`} className="h-96 w-full bg-white" />;
+  }
 
   if (state.status === 'loading') {
     return (

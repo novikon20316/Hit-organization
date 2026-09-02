@@ -12,8 +12,8 @@ import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
-import type { ChainStage, GradingComponentSpec, FormFieldSpec } from '../services/workflowTemplates.js';
-import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones } from '../services/workflowTemplates.js';
+import type { ChainStage, GradingComponentSpec, FormFieldSpec, MilestoneFileType } from '../services/workflowTemplates.js';
+import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 
 const db = admin.firestore();
@@ -970,6 +970,25 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       if (!submissionRequirementMet(milestoneData.submissionRequirement, hasFile, hasComment)) {
         return res.status(400).json({ message: 'This milestone requires ' +
           (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`) });
+      }
+
+      // Same allowedFileTypes restriction as milestoneController.ts's
+      // submitMilestone — this route receives already-uploaded URLs rather
+      // than raw file buffers, so there's no real MIME type to check; the
+      // URL's own extension (fileMatchesAllowedTypes' fallback) is all
+      // that's available here.
+      if (hasFile) {
+        const allowedFileTypes: MilestoneFileType[] | undefined = milestoneData.allowedFileTypes;
+        const rejectedUrl = (fileUrls as string[]).find((url) => !fileMatchesAllowedTypes(allowedFileTypes, '', url.split('?')[0] ?? url));
+        if (rejectedUrl) {
+          const allowedLabelsEn = (allowedFileTypes ?? []).map((k) => MILESTONE_FILE_TYPES.find((t) => t.key === k)?.labelEn).filter(Boolean).join(', ');
+          const allowedLabelsHe = (allowedFileTypes ?? []).map((k) => MILESTONE_FILE_TYPES.find((t) => t.key === k)?.labelHe).filter(Boolean).join(', ');
+          return res.status(400).json({
+            message: `This milestone only accepts: ${allowedLabelsEn}.`,
+            messageHe: `אבן דרך זו מקבלת רק: ${allowedLabelsHe}.`,
+            messageEn: `This milestone only accepts: ${allowedLabelsEn}.`,
+          });
+        }
       }
     }
 

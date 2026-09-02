@@ -7,6 +7,25 @@ import {SafeAreaView} from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { WebView } from 'react-native-webview';
+
+// Extensions this viewer knows about — anything else falls back to the
+// generic "download + hand off to another app" flow below rather than
+// mis-tagging an unrecognized file as a PDF (the previous, unconditional
+// `${decoded}.pdf` rename did exactly that for every non-PDF file).
+const KNOWN_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'zip', 'doc', 'docx', 'ppt', 'pptx'];
+const OFFICE_EXTENSIONS = ['doc', 'docx', 'ppt', 'pptx'];
+const MIME_BY_EXTENSION: Record<string, string> = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  zip: 'application/zip', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
+function extensionOf(rawUrl: string): string {
+  const rawName = rawUrl.split('?')[0].split('/').pop() ?? '';
+  const decoded = decodeURIComponent(rawName);
+  return decoded.includes('.') ? decoded.split('.').pop()!.toLowerCase() : '';
+}
 
 export default function PdfViewer() {
   const router = useRouter();
@@ -16,13 +35,28 @@ export default function PdfViewer() {
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const [localUri, setLocalUri] = useState('');
-  const [filename, setFilename] = useState('document.pdf');
+  const [filename, setFilename] = useState('document');
   const [fileUrl,  setFileUrl]  = useState('');
+
+  const ext = fileUrl ? extensionOf(fileUrl) : '';
+  // Word/PowerPoint render in-app via Microsoft's free Office Online viewer
+  // (their servers fetch the file from its own public Cloudinary URL and
+  // render it — same approach as web's MilestoneFilePanel.tsx) instead of
+  // the download-then-hand-to-another-app flow below, which doesn't render
+  // anything itself. Needs a URL Microsoft's servers can actually reach —
+  // won't work against a local/dev-only URL.
+  const isOffice = OFFICE_EXTENSIONS.includes(ext);
 
   useEffect(() => {
     if (!url) return;
     const decoded = decodeURIComponent(url);
     setFileUrl(decoded);
+    if (OFFICE_EXTENSIONS.includes(extensionOf(decoded))) {
+      // No local download needed — the WebView below points straight at
+      // Microsoft's viewer with the real URL embedded in it.
+      setStatus('ready');
+      return;
+    }
     downloadFile(decoded);
   }, [url]);
 
@@ -35,7 +69,14 @@ export default function PdfViewer() {
       // ── Safe filename ─────────────────────────────────────────────────────
       const rawName  = rawUrl.split('?')[0].split('/').pop() ?? 'document';
       const decoded  = decodeURIComponent(rawName);
-      const safe     = decoded.endsWith('.pdf') ? decoded : `${decoded}.pdf`;
+      const fileExt  = extensionOf(rawUrl);
+      // A legacy Cloudinary "raw" URL predating milestoneController.ts's
+      // `format` fix can lack any extension at all — same issue
+      // MilestoneFilePanel.tsx's guessMimeFromUrl works around on the web
+      // side. Falls back to assuming PDF (today's original behavior) only
+      // when there's truly no extension to go on; a real, known extension
+      // is never overwritten.
+      const safe     = KNOWN_EXTENSIONS.includes(fileExt) ? decoded : `${decoded}.pdf`;
       const destUri  = `${FileSystem.cacheDirectory}${safe}`;
 
       setFilename(safe);
@@ -63,14 +104,14 @@ export default function PdfViewer() {
 
   // ── Open with Sharing (works in Expo Go on both platforms) ────────────────
   // On iOS → opens "Save to Files / Open With" native sheet
-  // On Android → opens "Open with" app picker (PDF viewer apps)
+  // On Android → opens "Open with" app picker (a PDF/Office-capable app)
   const handleOpen = async () => {
     if (!localUri) return;
+    const mimeType = MIME_BY_EXTENSION[extensionOf(localUri)] ?? 'application/pdf';
     try {
       await Sharing.shareAsync(localUri, {
-        mimeType:    'application/pdf',
-        UTI:         'com.adobe.pdf',
-        dialogTitle: 'Open PDF',
+        mimeType,
+        dialogTitle: 'Open document',
       });
     } catch (e: any) {
       // Fallback: open the original Cloudinary URL in the browser
@@ -98,11 +139,37 @@ export default function PdfViewer() {
         <Pressable onPress={() => router.back()} accessibilityRole="button">
           <Text style={{ fontSize: 16, fontWeight: '600', color: '#2563EB' }}>← Back</Text>
         </Pressable>
-        <Text style={{ fontSize: 17, fontWeight: '700' }}>PDF Viewer</Text>
+        <Text style={{ fontSize: 17, fontWeight: '700' }}>Document Viewer</Text>
         <View style={{ width: 50 }} />
       </View>
 
-      {/* Body */}
+      {/* ── Office (Word/PowerPoint) — rendered in-app via Microsoft's viewer ── */}
+      {isOffice && status === 'ready' && fileUrl ? (
+        <>
+          <WebView
+            source={{ uri: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}` }}
+            style={{ flex: 1 }}
+            startInLoadingState
+            renderLoading={() => (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#2563EB" />
+              </View>
+            )}
+          />
+          <Pressable
+            onPress={handleOpenInBrowser}
+            style={{
+              margin: 16, borderWidth: 1.5, borderColor: '#D1D5DB', borderRadius: 12,
+              paddingVertical: 13, alignItems: 'center',
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#374151', fontWeight: '600', fontSize: 15 }}>🌐  Open in Browser</Text>
+          </Pressable>
+        </>
+      ) : (
+
+      /* Body */
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
 
         {/* ── Downloading ── */}
@@ -229,6 +296,7 @@ export default function PdfViewer() {
         )}
 
       </View>
+      )}
     </SafeAreaView>
   );
 }

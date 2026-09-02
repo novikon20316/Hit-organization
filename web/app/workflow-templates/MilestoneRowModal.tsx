@@ -15,8 +15,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import type { CommitteeRecord } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { ChainEditor, emptyStage } from './ChainEditor';
-import { SUBMISSION_REQUIREMENTS } from './types';
-import type { FormFieldSpec, GradingComponentSpec, MilestoneRoutingSpec, MilestoneSpec, SubmissionRequirement } from './types';
+import { SUBMISSION_REQUIREMENTS, MILESTONE_FILE_TYPES, DEFAULT_ALLOWED_FILE_TYPES } from './types';
+import type { FormFieldSpec, GradingComponentSpec, MilestoneFileType, MilestoneRoutingSpec, MilestoneSpec, SubmissionRequirement } from './types';
 
 function emptyComponent(): GradingComponentSpec {
   return { key: `c_${Math.random().toString(36).slice(2, 8)}`, labelHe: '', labelEn: '', maxScore: 20, weight: 20, hasComment: true, visibleToStudent: true };
@@ -136,6 +136,10 @@ function RubricEditor({ title, components, setComponents, weight, setWeight }: R
 interface MilestoneRowModalProps {
   open: boolean;
   editing: MilestoneSpec | null;
+  /** Every OTHER milestone already in this template (including the one
+   *  currently open for edit — this component filters that one out itself)
+   *  — populates the "sync due date with" picker. */
+  otherMilestones: MilestoneSpec[];
   /** Committees eligible for this template's own faculty/major — forwarded
    *  to this row's own chain-override editor. See ChainEditor's committees prop. */
   committees: CommitteeRecord[];
@@ -146,6 +150,7 @@ interface MilestoneRowModalProps {
     dateMode: 'offset' | 'fixed';
     dueDaysFromStart: number;
     fixedDate?: string;
+    syncDueDateWith?: string;
     percentOfFinalGrade: number;
     requiresExaminers: boolean;
     examinerCount?: number;
@@ -155,10 +160,11 @@ interface MilestoneRowModalProps {
     staffFormFields?: FormFieldSpec[];
     finalGradeComponents?: MilestoneSpec['finalGradeComponents'];
     submissionRequirement: SubmissionRequirement;
+    allowedFileTypes?: MilestoneFileType[];
   }) => void;
 }
 
-export function MilestoneRowModal({ open, editing, committees, onCancel, onSave }: MilestoneRowModalProps) {
+export function MilestoneRowModal({ open, editing, otherMilestones, committees, onCancel, onSave }: MilestoneRowModalProps) {
   const { lang, t } = useLanguage();
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, open, onCancel);
@@ -167,11 +173,26 @@ export function MilestoneRowModal({ open, editing, committees, onCancel, onSave 
   const [dateMode, setDateMode] = useState<'offset' | 'fixed'>(editing?.dateMode === 'fixed' ? 'fixed' : 'offset');
   const [days, setDays] = useState(String(editing?.dueDaysFromStart ?? 90));
   const [fixedDate, setFixedDate] = useState(editing?.fixedDate ?? '');
+  // Every other milestone this one could sync its due date to — excludes
+  // itself (relevant only while editing; a brand-new row isn't in the list
+  // yet at all).
+  const syncOptions = otherMilestones.filter((m) => m.type !== editing?.type);
+  const [syncDueDateWith, setSyncDueDateWith] = useState(editing?.syncDueDateWith ?? '');
   const [percentOfFinalGrade, setPercentOfFinalGrade] = useState(String(editing?.percentOfFinalGrade ?? 0));
   const [requiresExaminers, setRequiresExaminers] = useState(editing?.requiresExaminers ?? false);
   const [examinerCount, setExaminerCount] = useState(String(editing?.examinerCount ?? 2));
   const [components, setComponents] = useState<GradingComponentSpec[]>(editing?.gradingComponents ?? []);
   const [submissionRequirement, setSubmissionRequirement] = useState<SubmissionRequirement>(editing?.submissionRequirement ?? 'both');
+  // Only meaningful when submissionRequirement is 'file'/'both' — see the
+  // multi-select below. Defaults to PDF-only, the strictest safe choice,
+  // for both a brand-new milestone and one saved before this feature existed.
+  const [allowedFileTypes, setAllowedFileTypes] = useState<MilestoneFileType[]>(
+    editing?.allowedFileTypes && editing.allowedFileTypes.length > 0 ? editing.allowedFileTypes : DEFAULT_ALLOWED_FILE_TYPES
+  );
+  const requiresFile = submissionRequirement === 'file' || submissionRequirement === 'both';
+  const toggleFileType = (key: MilestoneFileType) => {
+    setAllowedFileTypes((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  };
   const [overrideChain, setOverrideChain] = useState(!!(editing?.routing && editing.routing.length > 0));
   const [routing, setRouting] = useState<MilestoneRoutingSpec>(editing?.routing && editing.routing.length > 0 ? editing.routing.map((s) => ({ ...s })) : [emptyStage()]);
   const [error, setError] = useState('');
@@ -249,6 +270,10 @@ export function MilestoneRowModal({ open, editing, committees, onCancel, onSave 
         }
       }
     }
+    if (requiresFile && allowedFileTypes.length === 0) {
+      setError(lang === 'he' ? 'יש לבחור לפחות סוג קובץ אחד' : 'Choose at least one file type');
+      return;
+    }
     if (overrideChain && routing.length === 0) {
       setError(lang === 'he' ? 'שרשרת מותאמת אישית חייבת לכלול לפחות שלב אחד' : 'A custom chain needs at least one stage');
       return;
@@ -302,6 +327,7 @@ export function MilestoneRowModal({ open, editing, committees, onCancel, onSave 
       dateMode,
       dueDaysFromStart: parsedDays,
       ...(dateMode === 'fixed' ? { fixedDate: parsedFixedDate } : {}),
+      ...(syncDueDateWith ? { syncDueDateWith } : {}),
       percentOfFinalGrade: parsedPercent,
       requiresExaminers,
       ...(requiresExaminers ? { examinerCount: parsedExaminerCount } : {}),
@@ -310,6 +336,7 @@ export function MilestoneRowModal({ open, editing, committees, onCancel, onSave 
       ...(isProposalOrMidterm ? { staffRecordMode, staffFormFields: staffRecordMode === 'upload_or_form' ? staffFormFields : [] } : {}),
       ...(finalGradeComponents ? { finalGradeComponents } : {}),
       submissionRequirement,
+      ...(requiresFile ? { allowedFileTypes } : {}),
     });
   };
 
@@ -379,6 +406,31 @@ export function MilestoneRowModal({ open, editing, committees, onCancel, onSave 
                 </p>
               </>
             )}
+
+            {syncOptions.length > 0 && (
+              <div className="mt-3">
+                <span className="mb-1.5 block text-sm font-medium text-ink">
+                  {lang === 'he' ? 'סנכרון מועד עם אבן דרך אחרת (אופציונלי)' : 'Sync due date with another milestone (optional)'}
+                </span>
+                <select
+                  value={syncDueDateWith}
+                  onChange={(e) => setSyncDueDateWith(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">{lang === 'he' ? 'ללא — מועד עצמאי (ברירת מחדל)' : 'None — independent due date (default)'}</option>
+                  {syncOptions.map((m) => (
+                    <option key={m.type} value={m.type}>{lang === 'he' ? m.nameHe || m.type : m.nameEn || m.type}</option>
+                  ))}
+                </select>
+                {syncDueDateWith && (
+                  <p className="mt-1.5 text-xs text-muted">
+                    {lang === 'he'
+                      ? 'המועד לעיל ישמש רק כגיבוי — כל עוד אבן הדרך שנבחרה קיימת בתבנית, המועד הזה תמיד יתאים לה בדיוק.'
+                      : "The date above is used only as a fallback — as long as the chosen milestone still exists in this template, this one's due date will always match it exactly."}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'אחוז מהציון הסופי' : '% of final grade'}</span>
@@ -440,6 +492,34 @@ export function MilestoneRowModal({ open, editing, committees, onCancel, onSave 
               </p>
             )}
           </div>
+
+          {requiresFile && (
+            <div className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'סוגי קובץ מותרים להגשה' : 'Allowed file types'}
+              </span>
+              <p className="mb-1.5 text-xs text-muted">
+                {lang === 'he'
+                  ? 'ניתן לבחור כמה סוגים. הסטודנט/ית לא יוכל/תוכל להעלות סוג קובץ שלא נבחר כאן.'
+                  : "Multiple types may be selected. The student won't be able to upload a file type not chosen here."}
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {MILESTONE_FILE_TYPES.map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => toggleFileType(opt.key)}
+                    aria-pressed={allowedFileTypes.includes(opt.key)}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                      allowedFileTypes.includes(opt.key) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                    }`}
+                  >
+                    {lang === 'he' ? opt.he : opt.en}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {isProposalOrMidterm && (
             <div className="rounded-lg border border-line bg-paper p-3">

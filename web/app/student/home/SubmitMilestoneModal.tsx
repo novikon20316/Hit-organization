@@ -7,6 +7,29 @@ import { apiClient, ApiError } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { MILESTONE_LABEL, type Milestone } from './types';
 
+// Mirrors MILESTONE_FILE_TYPES in server/src/services/workflowTemplates.ts —
+// this repo's convention is for each screen to keep its own small copy
+// rather than share it across unrelated domains (see MILESTONE_LABEL above).
+// Used both for the file input's `accept` hint and for a client-side
+// pre-check (the server is the real gate — see milestoneController.ts's
+// submitMilestone — this just avoids a round trip for the common case).
+const MILESTONE_FILE_TYPE_META: Record<string, { he: string; en: string; mimeTypes: string[]; extensions: string[] }> = {
+  pdf: { he: 'PDF', en: 'PDF', mimeTypes: ['application/pdf'], extensions: ['pdf'] },
+  word: { he: 'Word (‎.doc/.docx)', en: 'Word (.doc/.docx)', mimeTypes: ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'], extensions: ['doc', 'docx'] },
+  powerpoint: { he: 'PowerPoint (‎.ppt/.pptx)', en: 'PowerPoint (.ppt/.pptx)', mimeTypes: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'], extensions: ['ppt', 'pptx'] },
+  image: { he: 'תמונה (PNG/JPG)', en: 'Image (PNG/JPG)', mimeTypes: ['image/png', 'image/jpeg'], extensions: ['png', 'jpg', 'jpeg'] },
+  zip: { he: 'ZIP', en: 'ZIP Archive', mimeTypes: ['application/zip'], extensions: ['zip'] },
+};
+
+function fileMatchesAllowedTypes(allowedFileTypes: string[] | undefined, file: File): boolean {
+  if (!allowedFileTypes || allowedFileTypes.length === 0) return true;
+  const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+  return allowedFileTypes.some((key) => {
+    const meta = MILESTONE_FILE_TYPE_META[key];
+    return !!meta && (meta.mimeTypes.includes(file.type) || meta.extensions.includes(ext));
+  });
+}
+
 interface SubmitMilestoneModalProps {
   milestone: Milestone;
   projectId: string;
@@ -59,16 +82,32 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
     return false;
   };
 
+  const allowedFileTypes = milestone.allowedFileTypes;
+  const acceptAttr = allowedFileTypes?.length
+    ? allowedFileTypes.flatMap((k) => [...(MILESTONE_FILE_TYPE_META[k]?.mimeTypes ?? []), ...(MILESTONE_FILE_TYPE_META[k]?.extensions.map((e) => `.${e}`) ?? [])]).join(',')
+    : undefined;
+  const allowedTypesLabel = allowedFileTypes?.length
+    ? allowedFileTypes.map((k) => MILESTONE_FILE_TYPE_META[k]?.[lang]).filter(Boolean).join(lang === 'he' ? ', ' : ', ')
+    : null;
+
   const addFiles = (list: FileList | null) => {
     if (!list) return;
     const incoming = Array.from(list);
     const tooLong = incoming.filter((f) => tooLongFileName(f.name));
-    const ok = incoming.filter((f) => !tooLongFileName(f.name));
+    const wrongType = incoming.filter((f) => !tooLongFileName(f.name) && !fileMatchesAllowedTypes(allowedFileTypes, f));
+    const ok = incoming.filter((f) => !tooLongFileName(f.name) && fileMatchesAllowedTypes(allowedFileTypes, f));
     if (tooLong.length > 0) {
       setMessage({
         text: lang === 'he'
           ? `שם הקובץ ארוך מדי (מקסימום כ-${MAX_FILENAME_BYTES} תווים באנגלית, פחות בעברית): ${tooLong.map((f) => f.name).join(', ')}. נא לקצר את שם הקובץ ולנסות שוב.`
           : `File name too long (max ~${MAX_FILENAME_BYTES} characters): ${tooLong.map((f) => f.name).join(', ')}. Please shorten the file name and try again.`,
+        ok: false,
+      });
+    } else if (wrongType.length > 0) {
+      setMessage({
+        text: lang === 'he'
+          ? `סוג קובץ לא נתמך עבור אבן דרך זו: ${wrongType.map((f) => f.name).join(', ')}. סוגים מותרים: ${allowedTypesLabel}.`
+          : `Unsupported file type for this milestone: ${wrongType.map((f) => f.name).join(', ')}. Allowed: ${allowedTypesLabel}.`,
         ok: false,
       });
     }
@@ -135,6 +174,11 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
               {lang === 'he' ? 'קבצים' : 'Files'}
               {(requirement === 'file' || requirement === 'both') && <span className="text-danger"> *</span>}
             </span>
+            {allowedTypesLabel && (
+              <p className="mb-1.5 text-xs text-muted">
+                {lang === 'he' ? `סוגי קובץ מותרים: ${allowedTypesLabel}` : `Allowed file types: ${allowedTypesLabel}`}
+              </p>
+            )}
             <div className="grid gap-1.5">
               {files.map((f, i) => (
                 <div key={i} className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2 text-sm">
@@ -147,7 +191,7 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
             </div>
             <label className="relative mt-1.5 block overflow-hidden rounded-lg border border-dashed border-line bg-paper px-3 py-2.5 text-center text-sm text-ink hover:border-primary">
               + {lang === 'he' ? 'הוסף קובץ' : 'Add File'}
-              <input type="file" multiple onChange={(e) => addFiles(e.target.files)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+              <input type="file" multiple accept={acceptAttr} onChange={(e) => addFiles(e.target.files)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
             </label>
           </div>
         )}

@@ -12,7 +12,7 @@ import { sanitizeMilestoneForViewer } from '../services/milestoneVisibility.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
-import { submissionRequirementMet, resolveMilestoneOrder, type FormFieldSpec } from '../services/workflowTemplates.js';
+import { submissionRequirementMet, resolveMilestoneOrder, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES, type FormFieldSpec, type MilestoneFileType } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser } from '../services/notify.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
@@ -22,14 +22,12 @@ import { getUserRoles, matchedRole } from '../middleware/auth.js';
 const db = admin.firestore();
 
 // ── Multer setup (memory storage — files available as buffers) ────────────────
-const ALLOWED_MILESTONE_MIME_TYPES = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/zip',
-  'image/png',
-  'image/jpeg',
-]);
+// The union of every MilestoneFileType's mime types — this is only the FIRST,
+// coarse pass (multer's own fileFilter can't cheaply look up which specific
+// milestone a file is being submitted to). The real per-milestone restriction
+// (a milestone that only allows Word, say, rejecting a PDF) is enforced below
+// in submitMilestone, against that milestone's own recorded allowedFileTypes.
+const ALLOWED_MILESTONE_MIME_TYPES = new Set(MILESTONE_FILE_TYPES.flatMap((t) => t.mimeTypes));
 
 // Thrown from fileFilter below for an unsupported type — caught by
 // handleUploadError, not left to multer's default "silently drop the file"
@@ -66,9 +64,9 @@ export const uploadMiddleware: RequestHandler = upload.array('files') as unknown
 export const handleUploadError: import('express').ErrorRequestHandler = (err, _req, res, next) => {
   if (err instanceof UnsupportedFileTypeError) {
     return res.status(400).json({
-      message: `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, ZIP, PNG, JPEG.`,
-      messageHe: `סוג קובץ לא נתמך: ${err.fileName}. סוגים מותרים: PDF, Word, ZIP, PNG, JPEG.`,
-      messageEn: `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, ZIP, PNG, JPEG.`,
+      message: `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, PowerPoint, ZIP, PNG, JPEG.`,
+      messageHe: `סוג קובץ לא נתמך: ${err.fileName}. סוגים מותרים: PDF, Word, PowerPoint, ZIP, PNG, JPEG.`,
+      messageEn: `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, PowerPoint, ZIP, PNG, JPEG.`,
     });
   }
   if (err?.code === 'LIMIT_FILE_SIZE') {
@@ -170,6 +168,26 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       // language; `message` stays the English fallback for any caller that
       // predates these fields.
       return res.status(400).json({ message: messageEn, messageHe, messageEn });
+    }
+
+    // A milestone with allowedFileTypes recorded (see workflowTemplateController.ts's
+    // validateAllowedFileTypes / projectEnrollment.ts) restricts a student's
+    // upload to specific categories (e.g. Word only, no PDF) — checked
+    // before touching Cloudinary, same reasoning as the requirement check
+    // above. A milestone with no allowedFileTypes recorded (created before
+    // this feature existed, or one whose submissionRequirement never called
+    // for a file) is unrestricted — see fileMatchesAllowedTypes.
+    const allowedFileTypes: MilestoneFileType[] | undefined = milestoneData.allowedFileTypes;
+    const rejectedFile = files.find((f) => !fileMatchesAllowedTypes(allowedFileTypes, f.mimetype, f.originalname));
+    if (rejectedFile) {
+      const allowedLabelsEn = (allowedFileTypes ?? []).map((k) => MILESTONE_FILE_TYPES.find((t) => t.key === k)?.labelEn).filter(Boolean).join(', ');
+      const allowedLabelsHe = (allowedFileTypes ?? []).map((k) => MILESTONE_FILE_TYPES.find((t) => t.key === k)?.labelHe).filter(Boolean).join(', ');
+      const rejectedName = fixMulterFilenameEncoding(rejectedFile.originalname);
+      return res.status(400).json({
+        message: `This milestone only accepts: ${allowedLabelsEn}. "${rejectedName}" is not one of them.`,
+        messageHe: `אבן דרך זו מקבלת רק: ${allowedLabelsHe}. "${rejectedName}" אינו אחד מהם.`,
+        messageEn: `This milestone only accepts: ${allowedLabelsEn}. "${rejectedName}" is not one of them.`,
+      });
     }
 
     // Sorted by the milestone's OWN order (from the template it was created

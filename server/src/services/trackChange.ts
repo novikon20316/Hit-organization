@@ -126,7 +126,7 @@ export async function changeProjectTrack(
 
   const baseDate = new Date();
   for (const t of milestoneTemplates) {
-    const dueDate = resolveMilestoneDueDate(t, baseDate);
+    const dueDate = resolveMilestoneDueDate(t, baseDate, milestoneTemplates);
     const milestoneRef = db.collection('milestones').doc();
     batch.set(milestoneRef, {
       projectId: newProjectRef.id,

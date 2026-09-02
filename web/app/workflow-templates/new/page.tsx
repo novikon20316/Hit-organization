@@ -311,17 +311,19 @@ function ProposeVersionForm({
 
   const handleSaveRow = (values: {
     nameHe: string; nameEn: string; dateMode: 'offset' | 'fixed'; dueDaysFromStart: number; fixedDate?: string;
+    syncDueDateWith?: string;
     requiresExaminers: boolean; examinerCount?: number; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec;
     staffRecordMode?: 'none' | 'upload_or_form'; staffFormFields?: FormFieldSpec[];
     finalGradeComponents?: MilestoneSpec['finalGradeComponents'];
     submissionRequirement: MilestoneSpec['submissionRequirement'];
+    allowedFileTypes?: MilestoneSpec['allowedFileTypes'];
   }) => {
-    // `routing`/`finalGradeComponents` are only present in `values` when the
-    // row's chain override / three-rubric toggle is ON — spread the rest in
-    // when present, but explicitly drop any pre-existing value on the
-    // milestone being edited when absent (turning either override off must
-    // actually clear it, not leave the stale config behind).
-    const { routing, finalGradeComponents, ...rest } = values;
+    // `routing`/`finalGradeComponents`/`syncDueDateWith` are only present in
+    // `values` when their respective toggle/picker is actually set — spread
+    // the rest in when present, but explicitly drop any pre-existing value
+    // on the milestone being edited when absent (turning an override off
+    // must actually clear it, not leave the stale config behind).
+    const { routing, finalGradeComponents, allowedFileTypes, syncDueDateWith, ...rest } = values;
     markDirty();
     if (editingRow) {
       setMilestones((prev) => prev.map((m) => {
@@ -331,6 +333,13 @@ function ProposeVersionForm({
         else delete next.routing;
         if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
         else delete next.finalGradeComponents;
+        // Same "clear the stale value when the field stops being relevant"
+        // rule as routing/finalGradeComponents above — allowedFileTypes is
+        // only present in `values` while submissionRequirement is 'file'/'both'.
+        if (allowedFileTypes) next.allowedFileTypes = allowedFileTypes;
+        else delete next.allowedFileTypes;
+        if (syncDueDateWith) next.syncDueDateWith = syncDueDateWith;
+        else delete next.syncDueDateWith;
         return next;
       }));
     } else {
@@ -338,6 +347,8 @@ function ProposeVersionForm({
         const next: MilestoneSpec = { type: `custom_${Math.random().toString(36).slice(2, 10)}`, order: prev.length + 1, ...rest };
         if (routing) next.routing = routing;
         if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
+        if (allowedFileTypes) next.allowedFileTypes = allowedFileTypes;
+        if (syncDueDateWith) next.syncDueDateWith = syncDueDateWith;
         return [...prev, next];
       });
     }
@@ -476,6 +487,13 @@ function ProposeVersionForm({
                     : ''}
                   {ms.routing && ms.routing.length > 0
                     ? ` · 🔀 ${lang === 'he' ? 'שרשרת מותאמת אישית' : 'custom chain'}`
+                    : ''}
+                  {ms.syncDueDateWith
+                    ? ` · 🔗 ${lang === 'he' ? 'מסונכרן עם' : 'Synced with'} ${
+                        (lang === 'he'
+                          ? milestones.find((m) => m.type === ms.syncDueDateWith)?.nameHe
+                          : milestones.find((m) => m.type === ms.syncDueDateWith)?.nameEn) || ms.syncDueDateWith
+                      }`
                     : ''}
                 </p>
               </div>
@@ -702,7 +720,7 @@ function ProposeVersionForm({
         </div>
       )}
 
-      <MilestoneRowModal key={modalKey} open={rowModalOpen} editing={editingRow} committees={committees} onCancel={() => setRowModalOpen(false)} onSave={handleSaveRow} />
+      <MilestoneRowModal key={modalKey} open={rowModalOpen} editing={editingRow} otherMilestones={milestones} committees={committees} onCancel={() => setRowModalOpen(false)} onSave={handleSaveRow} />
     </div>
   );
 }

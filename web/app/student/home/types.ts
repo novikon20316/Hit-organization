@@ -205,6 +205,10 @@ export interface Milestone {
    *  feature existed) — SubmitMilestoneModal treats that the same as
    *  'none', showing both fields as optional. */
   submissionRequirement?: 'file' | 'comment' | 'both' | 'none';
+  /** Which file types the student may attach, when submissionRequirement is
+   *  'file'/'both' — see server/src/services/workflowTemplates.ts's
+   *  MilestoneFileType. Absent means unrestricted. */
+  allowedFileTypes?: ('pdf' | 'word' | 'powerpoint' | 'image' | 'zip')[];
   /** Permanent record of every committee stage this milestone ever passed
    *  through (see server/src/controllers/committeeReviewController.ts) —
    *  every member's vote+comment plus the chairman's final decision, one

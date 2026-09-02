@@ -177,7 +177,7 @@ export async function applyTemplateRetroactively(
 
     for (const spec of milestoneSpecs) {
       const current = existingByType.get(spec.type);
-      const dueDate = resolveMilestoneDueDate(spec, new Date());
+      const dueDate = resolveMilestoneDueDate(spec, new Date(), milestoneSpecs);
 
       if (current) {
         // Never touch a milestone that's moved past 'pending' — already

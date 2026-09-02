@@ -18,6 +18,9 @@ import {
   ChainStage,
   MilestoneRoutingSpec,
   SubmissionRequirement,
+  MilestoneFileType,
+  MILESTONE_FILE_TYPES,
+  DEFAULT_ALLOWED_FILE_TYPES,
   listWorkflowTemplates,
   findApprovedTemplateId,
   proposeWorkflowTemplate,
@@ -111,6 +114,18 @@ const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'facu
 // the signoff endpoints (gradSchoolHeadController.ts) know how to resolve.
 const SIGNOFF_ROLES: ChainRole[] = CHAIN_ROLES.filter((r) => r !== 'examiner' && r !== 'committee');
 const SUBMISSION_REQUIREMENTS: SubmissionRequirement[] = ['file', 'comment', 'both', 'none'];
+const MILESTONE_FILE_TYPE_KEYS: MilestoneFileType[] = MILESTONE_FILE_TYPES.map((t) => t.key);
+
+/** Validates a milestone's `allowedFileTypes` — only meaningful when
+ *  submissionRequirement is 'file'/'both'; ignored (never stored) otherwise.
+ *  Missing/invalid/empty defaults to DEFAULT_ALLOWED_FILE_TYPES (PDF only),
+ *  the strictest safe default, rather than rejecting the whole request —
+ *  same leniency as submissionRequirement's own default above. */
+function validateAllowedFileTypes(input: any): MilestoneFileType[] {
+  if (!Array.isArray(input)) return DEFAULT_ALLOWED_FILE_TYPES;
+  const cleaned = [...new Set(input.filter((v): v is MilestoneFileType => MILESTONE_FILE_TYPE_KEYS.includes(v)))];
+  return cleaned.length > 0 ? cleaned : DEFAULT_ALLOWED_FILE_TYPES;
+}
 
 /** Validates a routing chain (either a template's defaultRouting or a
  *  milestone's per-milestone override). Returns null on malformed input —
@@ -255,6 +270,12 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
       if (!Number.isFinite(dueDaysFromStart) || dueDaysFromStart < 0) return null;
     }
 
+    // Ties this milestone's due date to another milestone in the same
+    // template (see workflowTemplates.ts's resolveMilestoneDueDate) —
+    // existence/self-reference is checked in a second pass below, once the
+    // full `cleaned` array (every valid `type` in this template) exists.
+    const syncDueDateWith = typeof m.syncDueDateWith === 'string' && m.syncDueDateWith.trim() ? m.syncDueDateWith.trim() : undefined;
+
     const gradingComponents = validateGradingComponents(m.gradingComponents);
     if (gradingComponents === null) return null;
 
@@ -290,6 +311,13 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
       ? m.submissionRequirement
       : 'both';
 
+    // Only meaningful when the student is actually asked for a file —
+    // never stored otherwise, so a milestone whose requirement is
+    // 'comment'/'none' doesn't carry a misleading restriction it can never
+    // apply (see fileMatchesAllowedTypes's own "absent means unrestricted").
+    const requiresFile = submissionRequirement === 'file' || submissionRequirement === 'both';
+    const allowedFileTypes = requiresFile ? validateAllowedFileTypes(m.allowedFileTypes) : undefined;
+
     const spec: WorkflowMilestoneSpec = {
       type: m.type.trim(),
       nameHe: m.nameHe.trim(),
@@ -299,6 +327,7 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
       requiresExaminers: !!m.requiresExaminers,
       submissionRequirement,
     };
+    if (allowedFileTypes) spec.allowedFileTypes = allowedFileTypes;
     if (dateMode === 'fixed') {
       spec.dateMode = 'fixed';
       spec.fixedDate = fixedDate;
@@ -311,6 +340,7 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     }
     if (finalGradeComponents.value) spec.finalGradeComponents = finalGradeComponents.value;
     if (percentOfFinalGrade !== undefined) spec.percentOfFinalGrade = percentOfFinalGrade;
+    if (syncDueDateWith) spec.syncDueDateWith = syncDueDateWith;
     cleaned.push(spec);
   }
 
@@ -319,6 +349,16 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
   // client alone. Epsilon tolerance since percentages may be non-integer.
   const totalPercent = cleaned.reduce((sum, m) => sum + (m.percentOfFinalGrade ?? 0), 0);
   if (Math.abs(totalPercent - 100) > 0.01) return null;
+
+  // syncDueDateWith must reference another milestone actually present in
+  // this same template — never itself. (A reference that later becomes
+  // dangling, e.g. its target gets removed in a future edit, is tolerated
+  // at resolve-time — see resolveMilestoneDueDate's graceful fallback — but
+  // a proposal must never be SAVED with a reference that's already invalid.)
+  const typesInTemplate = new Set(cleaned.map((m) => m.type));
+  for (const m of cleaned) {
+    if (m.syncDueDateWith && (m.syncDueDateWith === m.type || !typesInTemplate.has(m.syncDueDateWith))) return null;
+  }
 
   return cleaned;
 }

@@ -49,6 +49,26 @@ interface Props {
 // the multipart request itself once it's long enough — most commonly a
 // Hebrew name, since Hebrew characters take 2 bytes each in UTF-8. Caught
 // here, before it's ever sent, with a clear message.
+// Mirrors MILESTONE_FILE_TYPES in server/src/services/workflowTemplates.ts —
+// this repo's convention is for each screen to keep its own small copy
+// rather than share it across unrelated files (see MILESTONE_LABEL above).
+const MILESTONE_FILE_TYPE_META: Record<string, { he: string; en: string; mimeTypes: string[]; extensions: string[] }> = {
+  pdf: { he: 'PDF', en: 'PDF', mimeTypes: ['application/pdf'], extensions: ['pdf'] },
+  word: { he: 'Word (‎.doc/.docx)', en: 'Word (.doc/.docx)', mimeTypes: ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'], extensions: ['doc', 'docx'] },
+  powerpoint: { he: 'PowerPoint (‎.ppt/.pptx)', en: 'PowerPoint (.ppt/.pptx)', mimeTypes: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'], extensions: ['ppt', 'pptx'] },
+  image: { he: 'תמונה (PNG/JPG)', en: 'Image (PNG/JPG)', mimeTypes: ['image/png', 'image/jpeg'], extensions: ['png', 'jpg', 'jpeg'] },
+  zip: { he: 'ZIP', en: 'ZIP Archive', mimeTypes: ['application/zip'], extensions: ['zip'] },
+};
+
+function fileMatchesAllowedTypes(allowedFileTypes: string[] | undefined, name: string, mimeType: string | undefined): boolean {
+  if (!allowedFileTypes || allowedFileTypes.length === 0) return true;
+  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+  return allowedFileTypes.some((key) => {
+    const meta = MILESTONE_FILE_TYPE_META[key];
+    return !!meta && ((mimeType && meta.mimeTypes.includes(mimeType)) || meta.extensions.includes(ext));
+  });
+}
+
 const MAX_FILENAME_BYTES = 150;
 function tooLongFileName(name: string): boolean {
   let bytes = 0;
@@ -82,16 +102,36 @@ export default function SubmitMilestoneModal({
     submissionRequirement === 'both' ? files.length > 0 && note.trim().length > 0 :
     true;
 
+  // Only meaningful when submissionRequirement is 'file'/'both' — see
+  // fileMatchesAllowedTypes above. Absent means unrestricted (a milestone
+  // created before this feature existed). '*/*' keeps today's behavior; the
+  // picker's own `type` filter is just a UI hint (some file providers ignore
+  // it entirely), which is why the client-side check below still runs too.
+  const allowedFileTypes = milestone.allowedFileTypes;
+  const pickerMimeTypes = allowedFileTypes?.length
+    ? allowedFileTypes.flatMap((k) => MILESTONE_FILE_TYPE_META[k]?.mimeTypes ?? [])
+    : ['*/*'];
+  const allowedTypesLabel = allowedFileTypes?.length
+    ? allowedFileTypes.map((k) => MILESTONE_FILE_TYPE_META[k]?.[lang]).filter(Boolean).join(', ')
+    : null;
+
   const pickFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ multiple: true });
+    const result = await DocumentPicker.getDocumentAsync({ multiple: true, type: pickerMimeTypes });
     if (result.canceled || !result.assets?.length) return;
     const tooLong = result.assets.filter((a) => tooLongFileName(a.name));
-    const ok = result.assets.filter((a) => !tooLongFileName(a.name));
+    const wrongType = result.assets.filter((a) => !tooLongFileName(a.name) && !fileMatchesAllowedTypes(allowedFileTypes, a.name, a.mimeType));
+    const ok = result.assets.filter((a) => !tooLongFileName(a.name) && fileMatchesAllowedTypes(allowedFileTypes, a.name, a.mimeType));
     if (tooLong.length > 0) {
       setSubmitMessage(
         lang === 'he'
           ? `שם הקובץ ארוך מדי (מקסימום כ-${MAX_FILENAME_BYTES} תווים באנגלית, פחות בעברית): ${tooLong.map((a) => a.name).join(', ')}. נא לקצר את שם הקובץ ולנסות שוב.`
           : `File name too long (max ~${MAX_FILENAME_BYTES} characters): ${tooLong.map((a) => a.name).join(', ')}. Please shorten the file name and try again.`
+      );
+    } else if (wrongType.length > 0) {
+      setSubmitMessage(
+        lang === 'he'
+          ? `סוג קובץ לא נתמך עבור אבן דרך זו: ${wrongType.map((a) => a.name).join(', ')}. סוגים מותרים: ${allowedTypesLabel}.`
+          : `Unsupported file type for this milestone: ${wrongType.map((a) => a.name).join(', ')}. Allowed: ${allowedTypesLabel}.`
       );
     }
     if (ok.length > 0) {
@@ -170,6 +210,11 @@ export default function SubmitMilestoneModal({
               {tx('uploadFiles', lang)}
               {(submissionRequirement === 'file' || submissionRequirement === 'both') ? ' *' : ''}
             </Text>
+            {allowedTypesLabel && (
+              <Text style={[styles.fieldLabel, { fontSize: 11, fontWeight: '400', marginTop: -4 }, isRtl && styles.textRight]}>
+                {lang === 'he' ? `סוגי קובץ מותרים: ${allowedTypesLabel}` : `Allowed file types: ${allowedTypesLabel}`}
+              </Text>
+            )}
             {files.map((f, i) => (
               <View key={i} style={styles.fileRow}>
                 <Text style={styles.fileName}>📎 {f.name}</Text>

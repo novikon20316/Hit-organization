@@ -161,6 +161,12 @@ export interface MilestoneSpec {
   dueDaysFromStart: number;
   /** ISO date (YYYY-MM-DD). Only meaningful when dateMode === 'fixed'. */
   fixedDate?: string;
+  /** The `type` of another milestone in the SAME template whose due date
+   *  this milestone always mirrors instead of computing its own (e.g. a
+   *  presentation + poster pair that must always be due the same day
+   *  because staff evaluates them together). This milestone's own dateMode
+   *  fields above stay as a fallback. Mirrors web/app/workflow-templates/types.ts. */
+  syncDueDateWith?: string;
   requiresExaminers: boolean;
   /** How many examiner slots a defense panel needs for this milestone. Only
    *  meaningful when requiresExaminers is true. Omitted means the legacy
@@ -194,6 +200,11 @@ export interface MilestoneSpec {
    *  templates) means no requirement recorded — treated as unrestricted at
    *  submission time. Mirrors web/app/workflow-templates/types.ts. */
   submissionRequirement?: SubmissionRequirement;
+  /** Which file types a student may attach, when submissionRequirement is
+   *  'file'/'both'. Omitted means unrestricted (every milestone created
+   *  before this feature existed, or one that never calls for a file).
+   *  Mirrors web/app/workflow-templates/types.ts. */
+  allowedFileTypes?: MilestoneFileType[];
 }
 
 export type SubmissionRequirement = 'file' | 'comment' | 'both' | 'none';
@@ -204,6 +215,21 @@ export const SUBMISSION_REQUIREMENTS: { key: SubmissionRequirement; he: string; 
   { key: 'both', he: 'קובץ והערה', en: 'File and comment' },
   { key: 'none', he: 'ללא (לא מומלץ)', en: 'Neither (not recommended)' },
 ];
+
+// Mirrors MilestoneFileType/MILESTONE_FILE_TYPES in
+// server/src/services/workflowTemplates.ts and
+// web/app/workflow-templates/types.ts.
+export type MilestoneFileType = 'pdf' | 'word' | 'powerpoint' | 'image' | 'zip';
+
+export const MILESTONE_FILE_TYPES: { key: MilestoneFileType; he: string; en: string }[] = [
+  { key: 'pdf', he: 'PDF', en: 'PDF' },
+  { key: 'word', he: 'Word (‎.doc/.docx)', en: 'Word (.doc/.docx)' },
+  { key: 'powerpoint', he: 'PowerPoint (‎.ppt/.pptx)', en: 'PowerPoint (.ppt/.pptx)' },
+  { key: 'image', he: 'תמונה (PNG/JPG)', en: 'Image (PNG/JPG)' },
+  { key: 'zip', he: 'ZIP', en: 'ZIP Archive' },
+];
+
+export const DEFAULT_ALLOWED_FILE_TYPES: MilestoneFileType[] = ['pdf'];
 
 export type ApplyMode = 'now' | 'from_now_on';
 

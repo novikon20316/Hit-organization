@@ -61,6 +61,23 @@ export const SUBMISSION_REQUIREMENTS: { key: SubmissionRequirement; he: string; 
   { key: 'none', he: 'ללא (לא מומלץ)', en: 'Neither (not recommended)' },
 ];
 
+// Mirrors MilestoneFileType/MILESTONE_FILE_TYPES in
+// server/src/services/workflowTemplates.ts. Only meaningful when
+// submissionRequirement is 'file'/'both' — see MilestoneRowModal.tsx.
+export type MilestoneFileType = 'pdf' | 'word' | 'powerpoint' | 'image' | 'zip';
+
+export const MILESTONE_FILE_TYPES: { key: MilestoneFileType; he: string; en: string }[] = [
+  { key: 'pdf', he: 'PDF', en: 'PDF' },
+  { key: 'word', he: 'Word (‎.doc/.docx)', en: 'Word (.doc/.docx)' },
+  { key: 'powerpoint', he: 'PowerPoint (‎.ppt/.pptx)', en: 'PowerPoint (.ppt/.pptx)' },
+  { key: 'image', he: 'תמונה (PNG/JPG)', en: 'Image (PNG/JPG)' },
+  { key: 'zip', he: 'ZIP', en: 'ZIP Archive' },
+];
+
+// The strictest safe default for a newly-created milestone — see
+// server/src/services/workflowTemplates.ts's DEFAULT_ALLOWED_FILE_TYPES.
+export const DEFAULT_ALLOWED_FILE_TYPES: MilestoneFileType[] = ['pdf'];
+
 // Mirrors FormFieldSpec/FinalGradeRubric in server/src/services/workflowTemplates.ts.
 export interface FormFieldSpec {
   key: string;
@@ -137,6 +154,13 @@ export interface MilestoneSpec {
   dueDaysFromStart: number;
   /** ISO date (YYYY-MM-DD). Only meaningful when dateMode === 'fixed'. */
   fixedDate?: string;
+  /** The `type` of another milestone in the SAME template whose due date
+   *  this milestone always mirrors instead of computing its own (e.g. a
+   *  presentation + poster pair that must always be due the same day
+   *  because staff evaluates them together). This milestone's own dateMode
+   *  fields above stay as a fallback. Mirrors
+   *  server/src/services/workflowTemplates.ts. */
+  syncDueDateWith?: string;
   requiresExaminers: boolean;
   /** How many examiner slots a defense panel needs for this milestone. Only
    *  meaningful when requiresExaminers is true. Omitted means the legacy
@@ -172,6 +196,11 @@ export interface MilestoneSpec {
    *  SubmissionRequirement type doc above. Omitted (pre-existing templates)
    *  means no requirement recorded, same as 'none' at submission time. */
   submissionRequirement?: SubmissionRequirement;
+  /** Which file types a student may attach, when submissionRequirement is
+   *  'file'/'both'. Omitted means unrestricted (every milestone created
+   *  before this feature existed, or one that never calls for a file).
+   *  Mirrors server/src/services/workflowTemplates.ts. */
+  allowedFileTypes?: MilestoneFileType[];
 }
 
 export type ApplyMode = 'now' | 'from_now_on';

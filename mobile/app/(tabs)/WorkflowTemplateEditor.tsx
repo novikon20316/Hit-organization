@@ -35,9 +35,10 @@ import { ResponsiveScreen } from '../../components/ResponsiveScreen';
 import { apiClient } from '../../src/api/apiClient';
 import {
   CHAIN_ROLES, SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, SUBMISSION_REQUIREMENTS,
+  MILESTONE_FILE_TYPES, DEFAULT_ALLOWED_FILE_TYPES,
   type ProcessType, type ChainRole, type ChainStage, type MilestoneRoutingSpec,
   type GradingComponentSpec, type FormFieldSpec, type FinalGradeComponents,
-  type MilestoneSpec, type ApplyMode, type SubmissionRequirement, type CommitteeOption,
+  type MilestoneSpec, type ApplyMode, type SubmissionRequirement, type CommitteeOption, type MilestoneFileType,
 } from './WorkflowTemplateManager';
 
 // ─── Payload passed across the route boundary from WorkflowTemplateManager ──
@@ -527,12 +528,21 @@ export default function WorkflowTemplateEditor() {
   const [msDateMode, setMsDateMode] = useState<'offset' | 'fixed'>('offset');
   const [msDays, setMsDays] = useState('90');
   const [msFixedDate, setMsFixedDate] = useState('');
+  // Ties this milestone's due date to another milestone in the SAME
+  // template (e.g. a presentation + poster pair that must always be due the
+  // same day) — '' means independent (default). See workflowTemplates.ts's
+  // resolveMilestoneDueDate.
+  const [msSyncDueDateWith, setMsSyncDueDateWith] = useState('');
   const [msPercentOfFinalGrade, setMsPercentOfFinalGrade] = useState('0');
   const [msExaminers, setMsExaminers] = useState(false);
   const [msExaminerCount, setMsExaminerCount] = useState('2');
   const [msOverrideChain, setMsOverrideChain] = useState(false);
   const [msRouting, setMsRouting] = useState<MilestoneRoutingSpec>([emptyStage()]);
   const [msSubmissionRequirement, setMsSubmissionRequirement] = useState<SubmissionRequirement>('both');
+  // Only meaningful when msSubmissionRequirement is 'file'/'both' — see the
+  // multi-select in the milestone modal. Defaults to PDF-only.
+  const [msAllowedFileTypes, setMsAllowedFileTypes] = useState<MilestoneFileType[]>(DEFAULT_ALLOWED_FILE_TYPES);
+  const msRequiresFile = msSubmissionRequirement === 'file' || msSubmissionRequirement === 'both';
   // research_proposal/progress_report only — an official staff (supervisor)
   // record alongside the student's own submission.
   const [msStaffRecordMode, setMsStaffRecordMode] = useState<'none' | 'upload_or_form'>('none');
@@ -573,12 +583,14 @@ export default function WorkflowTemplateEditor() {
       setMsDateMode(ms.dateMode === 'fixed' ? 'fixed' : 'offset');
       setMsDays(String(ms.dueDaysFromStart));
       setMsFixedDate(ms.fixedDate ?? '');
+      setMsSyncDueDateWith(ms.syncDueDateWith ?? '');
       setMsPercentOfFinalGrade(String(ms.percentOfFinalGrade ?? 0));
       setMsExaminers(ms.requiresExaminers);
       setMsExaminerCount(String(ms.examinerCount ?? 2));
       setMsOverrideChain(!!(ms.routing && ms.routing.length > 0));
       setMsRouting(ms.routing && ms.routing.length > 0 ? ms.routing.map((s) => ({ ...s })) : [emptyStage()]);
       setMsSubmissionRequirement(ms.submissionRequirement ?? 'both');
+      setMsAllowedFileTypes(ms.allowedFileTypes && ms.allowedFileTypes.length > 0 ? ms.allowedFileTypes : DEFAULT_ALLOWED_FILE_TYPES);
       setMsStaffRecordMode(ms.staffRecordMode ?? 'none');
       setMsStaffFormFields(ms.staffFormFields ? ms.staffFormFields.map((f) => ({ ...f })) : []);
       setMsUseFinalGradeComponents(!!ms.finalGradeComponents);
@@ -590,10 +602,11 @@ export default function WorkflowTemplateEditor() {
       setMsExaminerDefenseWeight(String(ms.finalGradeComponents?.examinerDefenseEvaluation.weight ?? 30));
     } else {
       setEditingMs(null);
-      setMsNameHe(''); setMsNameEn(''); setMsDateMode('offset'); setMsDays('90'); setMsFixedDate(''); setMsPercentOfFinalGrade('0'); setMsExaminers(false); setMsExaminerCount('2');
+      setMsNameHe(''); setMsNameEn(''); setMsDateMode('offset'); setMsDays('90'); setMsFixedDate(''); setMsSyncDueDateWith(''); setMsPercentOfFinalGrade('0'); setMsExaminers(false); setMsExaminerCount('2');
       setMsOverrideChain(false);
       setMsRouting([emptyStage()]);
       setMsSubmissionRequirement('both');
+      setMsAllowedFileTypes(DEFAULT_ALLOWED_FILE_TYPES);
       setMsStaffRecordMode('none');
       setMsStaffFormFields([]);
       setMsUseFinalGradeComponents(false);
@@ -632,6 +645,10 @@ export default function WorkflowTemplateEditor() {
     const percentOfFinalGrade = Number(msPercentOfFinalGrade);
     if (!Number.isFinite(percentOfFinalGrade) || percentOfFinalGrade < 0 || percentOfFinalGrade > 100) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'אחוז מהציון הסופי חייב להיות בין 0 ל-100' : 'Percentage of final grade must be between 0 and 100');
+      return;
+    }
+    if (msRequiresFile && msAllowedFileTypes.length === 0) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור לפחות סוג קובץ אחד' : 'Choose at least one file type');
       return;
     }
     if (msIsProposalOrMidterm && msStaffRecordMode === 'upload_or_form') {
@@ -686,6 +703,8 @@ export default function WorkflowTemplateEditor() {
         };
         if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
         else { delete next.dateMode; delete next.fixedDate; }
+        if (msSyncDueDateWith) next.syncDueDateWith = msSyncDueDateWith;
+        else delete next.syncDueDateWith;
         if (msExaminers) next.examinerCount = examinerCount;
         else delete next.examinerCount;
         // Turning the override off must actually clear a pre-existing
@@ -699,6 +718,8 @@ export default function WorkflowTemplateEditor() {
         }
         if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
         else delete next.finalGradeComponents;
+        if (msRequiresFile) next.allowedFileTypes = msAllowedFileTypes;
+        else delete next.allowedFileTypes;
         return next;
       }));
     } else {
@@ -708,6 +729,7 @@ export default function WorkflowTemplateEditor() {
           submissionRequirement: msSubmissionRequirement,
         };
         if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
+        if (msSyncDueDateWith) next.syncDueDateWith = msSyncDueDateWith;
         if (msExaminers) next.examinerCount = examinerCount;
         if (msOverrideChain) next.routing = msRouting;
         if (msIsProposalOrMidterm) {
@@ -715,6 +737,7 @@ export default function WorkflowTemplateEditor() {
           next.staffFormFields = msStaffRecordMode === 'upload_or_form' ? msStaffFormFields : [];
         }
         if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
+        if (msRequiresFile) next.allowedFileTypes = msAllowedFileTypes;
         return [...prev, next];
       });
     }
@@ -848,6 +871,13 @@ export default function WorkflowTemplateEditor() {
                 {ms.staffRecordMode === 'upload_or_form' ? `  ·  📝 ${lang === 'he' ? 'רשומת מנחה' : 'Staff record'}` : ''}
                 {ms.finalGradeComponents ? `  ·  ⚖️ ${lang === 'he' ? 'ציון משולש' : '3-rubric grading'}` : ''}
                 {ms.routing && ms.routing.length > 0 ? `  ·  🔀 ${lang === 'he' ? 'שרשרת מותאמת' : 'custom chain'}` : ''}
+                {ms.syncDueDateWith
+                  ? `  ·  🔗 ${lang === 'he' ? 'מסונכרן עם' : 'Synced with'} ${
+                      (lang === 'he'
+                        ? editorMilestones.find((m) => m.type === ms.syncDueDateWith)?.nameHe
+                        : editorMilestones.find((m) => m.type === ms.syncDueDateWith)?.nameEn) || ms.syncDueDateWith
+                    }`
+                  : ''}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -1102,6 +1132,47 @@ export default function WorkflowTemplateEditor() {
                 </Text>
               </>
             )}
+
+            {editorMilestones.filter((m) => m.type !== editingMs?.type).length > 0 && (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 4, marginBottom: 6 }}>
+                  {lang === 'he' ? 'סנכרון מועד עם אבן דרך אחרת (אופציונלי)' : 'Sync due date with another milestone (optional)'}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                  <Pressable
+                    onPress={() => setMsSyncDueDateWith('')}
+                    style={{ borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1.5, borderColor: msSyncDueDateWith === '' ? '#7C3AED' : '#DDD6FE', backgroundColor: msSyncDueDateWith === '' ? '#7C3AED' : '#fff' }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: msSyncDueDateWith === '' }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: msSyncDueDateWith === '' ? '#fff' : '#374151' }}>
+                      {lang === 'he' ? 'ללא (ברירת מחדל)' : 'None (default)'}
+                    </Text>
+                  </Pressable>
+                  {editorMilestones.filter((m) => m.type !== editingMs?.type).map((m) => (
+                    <Pressable
+                      key={m.type}
+                      onPress={() => setMsSyncDueDateWith(m.type)}
+                      style={{ borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1.5, borderColor: msSyncDueDateWith === m.type ? '#7C3AED' : '#DDD6FE', backgroundColor: msSyncDueDateWith === m.type ? '#7C3AED' : '#fff' }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: msSyncDueDateWith === m.type }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: msSyncDueDateWith === m.type ? '#fff' : '#374151' }}>
+                        {lang === 'he' ? (m.nameHe || m.type) : (m.nameEn || m.type)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {msSyncDueDateWith !== '' && (
+                  <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 8 }}>
+                    {lang === 'he'
+                      ? 'המועד לעיל ישמש רק כגיבוי — כל עוד אבן הדרך שנבחרה קיימת בתבנית, המועד הזה תמיד יתאים לה בדיוק.'
+                      : "The date above is used only as a fallback — as long as the chosen milestone still exists in this template, this one's due date will always match it exactly."}
+                  </Text>
+                )}
+              </>
+            )}
+
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12, marginBottom: 6 }}>
               {lang === 'he' ? 'אחוז מהציון הסופי' : '% of final grade'}
             </Text>
@@ -1161,6 +1232,37 @@ export default function WorkflowTemplateEditor() {
                   ? '⚠️ לא מומלץ — הסטודנט/ית יוכל/תוכל להגיש ללא כל קובץ או הערה.'
                   : "⚠️ Not recommended — the student will be able to submit with no file or comment at all."}
               </Text>
+            )}
+
+            {msRequiresFile && (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 16, marginBottom: 4 }}>
+                  {lang === 'he' ? 'סוגי קובץ מותרים להגשה' : 'Allowed file types'}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 6 }}>
+                  {lang === 'he'
+                    ? 'ניתן לבחור כמה סוגים. הסטודנט/ית לא יוכל/תוכל להעלות סוג קובץ שלא נבחר כאן.'
+                    : "Multiple types may be selected. The student won't be able to upload a file type not chosen here."}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {MILESTONE_FILE_TYPES.map((opt) => {
+                    const checked = msAllowedFileTypes.includes(opt.key);
+                    return (
+                      <Pressable
+                        key={opt.key}
+                        onPress={() => setMsAllowedFileTypes((prev) => (prev.includes(opt.key) ? prev.filter((k) => k !== opt.key) : [...prev, opt.key]))}
+                        style={{ borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1.5, borderColor: checked ? '#7C3AED' : '#DDD6FE', backgroundColor: checked ? '#7C3AED' : '#fff' }}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: checked ? '#fff' : '#374151' }}>
+                          {lang === 'he' ? opt.he : opt.en}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
             )}
 
             {msIsProposalOrMidterm && (

@@ -262,7 +262,7 @@ export async function enrollStudentInProject(
 
     const baseDate = new Date();
     for (const t of milestoneTemplates) {
-      const dueDate = resolveMilestoneDueDate(t, baseDate);
+      const dueDate = resolveMilestoneDueDate(t, baseDate, milestoneTemplates);
       const milestoneRef = db.collection('milestones').doc();
       transaction.set(milestoneRef, {
         projectId, studentIds: [studentId], supervisorId, facultyId,
@@ -294,6 +294,10 @@ export async function enrollStudentInProject(
         // submissionRequirementMet. Omitted means no requirement recorded,
         // which submitMilestone/submitStudentMilestone treat as unrestricted.
         ...(t.submissionRequirement ? { submissionRequirement: t.submissionRequirement } : {}),
+        // Which file types the student may attach — see workflowTemplates.ts's
+        // fileMatchesAllowedTypes. Omitted (like submissionRequirement above)
+        // means unrestricted, same reasoning.
+        ...(t.allowedFileTypes?.length ? { allowedFileTypes: t.allowedFileTypes } : {}),
         // Three-rubric final-grade config (defense milestones only) —
         // independent of the examiner/routing branch below, same reasoning
         // as gradingComponents. Omitted keeps today's single-rubric behavior.
