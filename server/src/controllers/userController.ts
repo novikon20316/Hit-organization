@@ -12,6 +12,16 @@ import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../s
 import { hashPassword, getTempPasswordHash, clearTempPasswordHash } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
+import { uploadStudentPhoto, resolveStudentPhotoUrl } from '../services/studentPhoto.js';
+import multer from 'multer';
+
+const ALLOWED_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg']);
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, ALLOWED_PHOTO_MIME_TYPES.has(file.mimetype)),
+});
+export const photoUploadMiddleware = photoUpload.single('photo');
 
 // Exported — also used by adminController.ts's updateStudentAcademicYear to
 // recompute this whenever a student's yearOfStudy is corrected/advanced, so
@@ -83,10 +93,16 @@ export const getUserProfile = async (req: AuthenticatedRequest, res: Response) =
 // updateStudentAcademicYear (adminController.ts) gives staff a way to
 // correct/advance that field.
 function withRecomputedEligibility(data: FirebaseFirestore.DocumentData): FirebaseFirestore.DocumentData {
-  if (data.role !== 'student') return data;
+  // photoUrl is generated fresh from the stored photoPublicId on every read
+  // (see studentPhoto.ts's file header — never stored as a URL itself), for
+  // any role that has one set, not just students.
+  const withPhoto = data.photoPublicId
+    ? { ...data, photoUrl: resolveStudentPhotoUrl(data.photoPublicId) }
+    : data;
+  if (withPhoto.role !== 'student') return withPhoto;
   return {
-    ...data,
-    isEligibleForProcess: computeIsEligible(data.degreeType ?? null, data.major ?? null, data.yearOfStudy ?? null),
+    ...withPhoto,
+    isEligibleForProcess: computeIsEligible(withPhoto.degreeType ?? null, withPhoto.major ?? null, withPhoto.yearOfStudy ?? null),
   };
 }
 
@@ -593,6 +609,54 @@ export const cancelAccountDeletion = async (req: AuthenticatedRequest, res: Resp
   } catch (error: any) {
     console.error('cancelAccountDeletion error:', error);
     return res.status(500).json({ error: error.message || 'Failed to cancel account deletion.' });
+  }
+};
+
+// ─── POST /api/users/photo ─────────────────────────────────────────────────────
+// Uploads (or replaces) the caller's own profile photo — used by the
+// research-proposal form's auto-filled "תמונת סטודנט/ית" field (see
+// ResearchProposalFormModal.tsx). Stored via studentPhoto.ts as a Cloudinary
+// `authenticated` asset, never a public one — see that file's header for why.
+export const uploadUserPhoto = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ error: 'Unauthorized.' });
+
+  const file = (req as any).file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ error: 'A PNG or JPEG photo is required.' });
+
+  try {
+    const { publicId } = await uploadStudentPhoto(uid, file);
+    await db.collection('users').doc(uid).update({ photoPublicId: publicId });
+    return res.status(200).json({ success: true, photoUrl: resolveStudentPhotoUrl(publicId) });
+  } catch (error: any) {
+    console.error('uploadUserPhoto error:', error);
+    return res.status(500).json({ error: error.message || 'Photo upload failed.' });
+  }
+};
+
+// ─── GET /api/users/:uid/photo-url ─────────────────────────────────────────────
+// Resolves another user's (e.g. a teammate's, or a project's supervisor's)
+// photo into a fresh signed URL — needed because the research-proposal form
+// shows every enrolled student's photo, not just the viewer's own (see
+// studentPhoto.ts — an authenticated-type asset's plain URL never renders, so
+// this is the only way any OTHER user's photo actually displays). Gated only
+// by verifyToken, matching this app's existing bar for reading another user's
+// displayName/major/etc. elsewhere (rosters, project cards) — no extra
+// per-viewer restriction, since a face photo isn't more sensitive than the
+// profile fields already exposed that way.
+export const getUserPhotoUrl = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user?.uid) return res.status(401).json({ error: 'Unauthorized.' });
+  const { uid } = req.params;
+  if (!uid || typeof uid !== 'string') return res.status(400).json({ error: 'Invalid uid.' });
+
+  try {
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
+    const photoUrl = resolveStudentPhotoUrl(userDoc.data()?.photoPublicId ?? null);
+    return res.status(200).json({ photoUrl });
+  } catch (error: any) {
+    console.error('getUserPhotoUrl error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to resolve photo URL.' });
   }
 };
 

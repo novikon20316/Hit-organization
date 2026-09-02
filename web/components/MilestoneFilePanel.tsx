@@ -7,7 +7,11 @@
 // download link for each submitted file. Originally lived under
 // app/supervisor/dashboard/ (its first caller); moved here once the
 // administrative_coordinator dashboard needed the same panel — it never had
-// any supervisor-specific dependency.
+// any supervisor-specific dependency. FilePreviewFrame is exported too —
+// GradeMilestoneModal.tsx and ProjectWorkflowSection.tsx's research_proposal
+// sign-off both embed it directly inline (next to the grading/signing
+// action itself) rather than opening this side panel, so grading/signing
+// never requires leaving the document to go find the action.
 
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -46,7 +50,7 @@ function guessMimeFromUrl(url: string): string | null {
 // renderable one. A local object URL never carries a Content-Disposition,
 // so at worst an unrenderable type just shows blank — it can no longer
 // force a download the way navigating to the real URL did.
-function FilePreviewFrame({ url, index }: { url: string; index: number }) {
+export function FilePreviewFrame({ url, index }: { url: string; index: number }) {
   const { lang } = useLanguage();
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; objectUrl?: string }>({ status: 'loading' });
 

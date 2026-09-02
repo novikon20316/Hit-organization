@@ -13,7 +13,8 @@
 // receives fully-formed values and calls back up rather than owning state).
 
 import React from 'react';
-import { Modal, View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Linking, StyleSheet } from 'react-native';
+import { Modal, View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
 
 export interface GradeMilestoneModalField {
@@ -93,6 +94,7 @@ export function GradeMilestoneModal({
   criteria, onCriteriaChange, individualScores, onIndividualScoreChange,
   comment, onCommentChange, totalScore, submitting, onClose, onSubmit,
 }: Props) {
+  const router = useRouter();
   const isGroupProject = (milestone?.studentIds.length ?? 0) > 1;
   const pct = Math.max(0, Math.min(100, totalScore));
 
@@ -146,7 +148,18 @@ export function GradeMilestoneModal({
                   <Text style={[s.statLabel, isRtl && s.textRight]}>{lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}</Text>
                   <View style={[s.chipsRow, isRtl && s.rowReverse]}>
                     {milestone.fileUrls.map((url, idx) => (
-                      <Pressable key={idx} onPress={() => Linking.openURL(url)} style={s.fileChip} accessibilityRole="link">
+                      <Pressable
+                        key={idx}
+                        // Same in-app viewer the grading-queue card and the
+                        // coordinator's pending-milestone card already use
+                        // (see app/supervisor/dashboard.tsx and
+                        // app/coordinator/home.tsx) — Linking.openURL sent the
+                        // supervisor out to the OS browser to see the document
+                        // they're about to grade, right when they need it most.
+                        onPress={() => router.push({ pathname: '/pdfViewer', params: { url } })}
+                        style={s.fileChip}
+                        accessibilityRole="button"
+                      >
                         <Text style={s.fileChipText} numberOfLines={1}>📄 {fileNameFromUrl(url, idx, lang)}</Text>
                       </Pressable>
                     ))}

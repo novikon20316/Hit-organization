@@ -675,6 +675,20 @@ export interface PendingMilestone {
    *  server/src/services/workflowTemplates.ts's examinerCount. Omitted
    *  means the legacy default of 2. */
   examinerCount?: number;
+  submittedAt?: string | null;
+  /** research_proposal's own online form — field spec + the student's
+   *  submitted values (see addResearchProposalStudentForm.ts). */
+  studentFormFields?: Array<{
+    key: string; labelHe: string; labelEn: string;
+    type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+    tableColumns?: Array<{ key: string; labelHe: string; labelEn: string }>;
+    autoFill?: 'studentName' | 'studentIdNumber' | 'studentPhone' | 'studentEmail'
+      | 'studentPhoto' | 'accumulatedCredits' | 'supervisorName' | 'submissionDate';
+    locked?: boolean;
+  }> | null;
+  studentFormData?: Record<string, unknown> | null;
+  supervisorSignedByName?: string | null;
+  supervisorSignedAt?: string | null;
 }
 
 export interface Project {
@@ -878,6 +892,17 @@ export interface Milestone {
   /** The student's (or teammate's) submitted values, keyed by
    *  studentFormFields[].key. */
   studentFormData?: Record<string, unknown> | null;
+  /** Tri-state coordinator decision on a research_proposal milestone — see
+   *  ProposalRecommendationModal.tsx. "פרויקט לא מאושר" isn't a value here at
+   *  all; it goes through the ordinary rejectionReason/status:'rejected' path
+   *  instead. */
+  coordinatorRecommendation?: 'approved' | 'approved_conditionally' | null;
+  /** Deterministic signature stamps (see utils/examinerSignature.ts) — only
+   *  the name+timestamp are ever persisted, never a drawn/uploaded image. */
+  supervisorSignedAt?: string | null;
+  supervisorSignedByName?: string | null;
+  coordinatorSignedAt?: string | null;
+  coordinatorSignedByName?: string | null;
 }
 
 export interface PendingApplication {

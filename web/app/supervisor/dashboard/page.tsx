@@ -290,7 +290,7 @@ function SupervisorDashboardContent() {
       </div>
 
       <div className="w-full shrink-0 lg:w-80">
-        <QuickTasksPanel myProjects={myProjects} applications={applications} pendingGrades={pendingGrades} />
+        <QuickTasksPanel myProjects={myProjects} applications={applications} pendingGrades={pendingGrades} onGrade={setGradingTarget} />
       </div>
       </div>
 

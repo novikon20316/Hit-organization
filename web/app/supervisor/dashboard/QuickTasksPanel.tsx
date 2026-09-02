@@ -1,12 +1,16 @@
 'use client';
 
 // app/supervisor/dashboard/QuickTasksPanel.tsx
-// Read-only "what needs my attention" summary — Academic Precision's quick
-// tasks panel, built from data already on the page (no new API calls).
-// Surfaces submissions awaiting grading first (they're blocking a student
-// right now), then the soonest project deadlines, then the oldest pending
-// applications — capped at 3 items total.
-
+// "What needs my attention" summary — Academic Precision's quick tasks
+// panel, built from data already on the page (no new API calls). Surfaces
+// submissions awaiting grading first (they're blocking a student right
+// now), then the soonest project deadlines, then the oldest pending
+// applications — capped at 3 items total. Every item is a jump straight to
+// where the supervisor can act on it: a grade-pending row opens the grading
+// form directly (same modal ProjectWorkflowSection's own "Grade" button
+// opens), the other two rows switch to the tab that shows them, since
+// there's no single project/application card to deep-link to on the page.
+import Link from 'next/link';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { MyProject, Application, SupervisorPendingMilestone } from './types';
 import { MILESTONE_LABEL } from './types';
@@ -27,9 +31,15 @@ interface QuickTasksPanelProps {
    *  student), so these are listed first, ahead of upcoming-deadline
    *  projects and pending applications. */
   pendingGrades: SupervisorPendingMilestone[];
+  /** Opens GradeMilestoneModal for a given pending milestone — same handler
+   *  the Projects tab's own "Grade" button uses (page.tsx's setGradingTarget) —
+   *  so a "Grade pending review" row jumps straight into the grading form
+   *  instead of just pointing at the Projects tab and leaving the supervisor
+   *  to find the right row themselves. */
+  onGrade: (milestone: SupervisorPendingMilestone) => void;
 }
 
-export function QuickTasksPanel({ myProjects, applications, pendingGrades }: QuickTasksPanelProps) {
+export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGrade }: QuickTasksPanelProps) {
   const { lang } = useLanguage();
 
   // Oldest submission first — the longer it's sat waiting, the more urgent.
@@ -53,6 +63,7 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades }: Qui
       label: lang === 'he' ? 'ציון ממתין לבדיקה' : 'Grade pending review',
       title: MILESTONE_LABEL[m.type] ? (lang === 'he' ? MILESTONE_LABEL[m.type].he : MILESTONE_LABEL[m.type].en) : m.type,
       sub: lang === 'he' ? m.projectTitleHe : m.projectTitleEn,
+      onClick: () => onGrade(m),
     })),
     ...urgentProjects.map((p) => {
       const urgency = p.currentMilestone!.urgency as 'red' | 'orange';
@@ -73,6 +84,7 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades }: Qui
               : lang === 'he'
                 ? `${daysLeft} ימים נותרו`
                 : `${daysLeft} days left`,
+        href: '/supervisor/dashboard?tab=projects',
       };
     }),
     ...pendingApps.map((a) => ({
@@ -82,6 +94,7 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades }: Qui
       label: lang === 'he' ? 'מועמדות ממתינה' : 'New Applicant',
       title: a.studentName || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable'),
       sub: lang === 'he' ? a.projectTitleHe : a.projectTitleEn,
+      href: '/supervisor/dashboard?tab=applications',
     })),
   ].slice(0, 3);
 
@@ -94,8 +107,8 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades }: Qui
         <p className="text-xs text-[#444651]">{lang === 'he' ? 'אין משימות דחופות כרגע' : 'Nothing urgent right now'}</p>
       ) : (
         <div className="grid gap-3">
-          {items.map((item, i) => (
-            <div key={item.key} className={i > 0 ? 'border-t border-dashed border-[#c5c5d3] pt-3' : ''}>
+          {items.map((item, i) => {
+            const content = (
               <div className="flex items-start gap-2">
                 <span className="mt-0.5">{item.icon}</span>
                 <div className="min-w-0">
@@ -106,8 +119,24 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades }: Qui
                   {item.sub && <p className="truncate text-xs leading-tight text-[#444651]">{item.sub}</p>}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+            const wrapperClassName = `-m-1 rounded-md p-1 text-start transition-colors hover:bg-[#f4f3fa] ${
+              i > 0 ? 'border-t border-dashed border-[#c5c5d3] pt-3' : ''
+            }`;
+            return (
+              <div key={item.key}>
+                {'onClick' in item ? (
+                  <button type="button" onClick={item.onClick} className={`w-full ${wrapperClassName}`}>
+                    {content}
+                  </button>
+                ) : (
+                  <Link href={item.href} className={`block ${wrapperClassName}`}>
+                    {content}
+                  </Link>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

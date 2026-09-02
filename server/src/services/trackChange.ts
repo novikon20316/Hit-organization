@@ -146,6 +146,7 @@ export async function changeProjectTrack(
       // projectEnrollment.ts's identical comment.
       ...(t.gradingComponents?.length ? { gradingComponents: t.gradingComponents } : {}),
       ...(t.staffRecordMode === 'upload_or_form' ? { staffRecordMode: t.staffRecordMode, staffFormFields: t.staffFormFields ?? [] } : {}),
+      ...(t.studentFormFields?.length ? { studentFormFields: t.studentFormFields } : {}),
       ...(t.finalGradeComponents ? { finalGradeComponents: t.finalGradeComponents } : {}),
       ...(t.requiresExaminers
         ? { examinerIds: [], examinerScores: {}, examinerCount: t.examinerCount ?? 2 }

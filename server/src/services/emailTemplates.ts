@@ -497,13 +497,27 @@ export function buildEmailHtml(
     ? `${template.subjectHe} / ${template.subjectEn}`
     : (isHe ? template.subjectHe : template.subjectEn);
 
-  const body = template.bilingual
+  const templateBody = template.bilingual
     ? `
       <div dir="rtl" style="text-align:right;">${template.bodyHe(safeData)}</div>
       <hr style="border:none; border-top:1px solid #E3E8F2; margin:24px 0;" />
       <div dir="ltr" style="text-align:left;">${template.bodyEn(safeData)}</div>
     `
     : (isHe ? template.bodyHe(safeData) : template.bodyEn(safeData));
+
+  // A real "go see it" link at the very bottom of the message, for whichever
+  // channels notify.ts's resolveNotificationLinks found a destination for
+  // (webLink/appLink land in `data` only via notifyUser — a template sent
+  // through some other path, e.g. examiner_access_link's own bespoke `d.link`,
+  // simply won't have either key set, so no footer is added on top of that
+  // template's own action link). Not escaped through escapeEmailData — these
+  // are server-generated URLs, never another user's free text.
+  const linkFooter = (data.webLink || data.appLink) ? `
+    <hr style="border:none; border-top:1px solid #E3E8F2; margin:24px 0;" />
+    ${data.webLink ? `<p style="margin:4px 0;">${isHe ? 'לצפייה באתר, ' : 'To view on the website, '}<a href="${data.webLink}">${isHe ? 'לחצו כאן' : 'click here'}</a></p>` : ''}
+    ${data.appLink ? `<p style="margin:4px 0;">${isHe ? 'לצפייה באפליקציה, ' : 'To view in the app, '}<a href="${data.appLink}">${isHe ? 'לחצו כאן' : 'click here'}</a></p>` : ''}
+  ` : '';
+  const body = `${templateBody}${linkFooter}`;
 
   const html = `
     <!DOCTYPE html>

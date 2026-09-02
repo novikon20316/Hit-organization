@@ -20,6 +20,7 @@ import { TopBar } from '../../components/shared';
 import { studentHomeStyles } from '@/constants';
 import { studentPalette, studentRadius, studentSpacing, studentCardStyles } from '@/constants';
 import SubmitMilestoneModal from '@/components/modals/SubmitMilestoneModal';
+import ResearchProposalFormModal from '@/components/modals/ResearchProposalFormModal';
 import ProgressReportFormModal from '@/components/modals/ProgressReportFormModal';
 import type { Milestone, MilestoneType } from '@/types';
 
@@ -373,7 +374,19 @@ export default function StudentMilestones() {
 
       {submitTarget && (() => {
         const selected = activeProjects[Math.min(selectedProjectIndex, activeProjects.length - 1)];
-        if (submitTarget.type === 'progress_report' && submitTarget.studentFormFields?.length) {
+        if (!submitTarget.studentFormFields?.length) {
+          return (
+            <SubmitMilestoneModal
+              milestone={submitTarget}
+              projectId={selected.project.id}
+              lang={lang}
+              isRtl={isRtl}
+              onClose={() => setSubmitTarget(null)}
+              onSubmitted={() => setSubmitTarget(null)}
+            />
+          );
+        }
+        if (submitTarget.type === 'progress_report') {
           return (
             <ProgressReportFormModal
               milestone={submitTarget}
@@ -386,9 +399,9 @@ export default function StudentMilestones() {
           );
         }
         return (
-          <SubmitMilestoneModal
+          <ResearchProposalFormModal
             milestone={submitTarget}
-            projectId={selected.project.id}
+            project={selected.project}
             lang={lang}
             isRtl={isRtl}
             onClose={() => setSubmitTarget(null)}

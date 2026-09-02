@@ -5,6 +5,8 @@ import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
+import { FilePreviewFrame } from '@/components/MilestoneFilePanel';
 import { GRADING_CRITERIA, MILESTONE_LABEL, type SupervisorPendingMilestone } from './types';
 
 interface GradeMilestoneModalProps {
@@ -118,7 +120,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'טופס ציון' : 'Grading Form'}</h2>
@@ -131,7 +133,33 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           <p className="text-sm font-semibold text-ink">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</p>
           <p className="mt-0.5 text-xs text-muted">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
           <p className="mt-0.5 text-xs text-muted">👤 {m.studentNames.join(', ')}</p>
+          {m.submissionNote && <p className="mt-2 whitespace-pre-wrap text-sm text-ink">💬 {m.submissionNote}</p>}
         </div>
+
+        {/* The actual submitted document, rendered right here rather than
+            requiring a trip back to ProjectWorkflowSection's own file chips
+            — the supervisor should never have to grade blind or hunt down
+            the file in a separate view first. */}
+        {m.fileUrls.length > 0 && (
+          <div className="mt-4 grid gap-3">
+            <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'המסמך שהוגש' : 'Submitted document'}</p>
+            {m.fileUrls.map((url, i) => (
+              <div key={i} className="overflow-hidden rounded-lg border border-line">
+                <div className="flex items-center justify-between border-b border-line bg-paper px-3 py-2">
+                  <span className="min-w-0 truncate text-xs font-medium text-ink">📄 {fileNameFromUrl(url, i, lang)}</span>
+                  <button
+                    type="button"
+                    onClick={() => downloadFile(url, fileNameFromUrl(url, i, lang))}
+                    className="shrink-0 text-xs font-medium text-primary hover:underline"
+                  >
+                    📥 {lang === 'he' ? 'הורדה' : 'Download'}
+                  </button>
+                </div>
+                <FilePreviewFrame url={url} index={i} />
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-4 grid gap-3">
           {activeFields.map((field) => (

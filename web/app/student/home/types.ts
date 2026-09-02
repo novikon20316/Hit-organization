@@ -164,12 +164,6 @@ export interface Milestone {
   gradeOverride?: { status: 'pending' | 'approved' | 'rejected' } | null;
   staffRecord?: StudentVisibleStaffRecord | null;
   staffFormFields?: { key: string; labelHe: string; labelEn: string }[];
-  /** What this milestone requires the student to attach — see
-   *  server/src/services/workflowTemplates.ts's SubmissionRequirement.
-   *  Absent means no requirement recorded (a milestone created before this
-   *  feature existed) — SubmitMilestoneModal treats that the same as
-   *  'none', showing both fields as optional. */
-  submissionRequirement?: 'file' | 'comment' | 'both' | 'none';
   /** The student's own online form for this milestone (currently only
    *  data_science's research_proposal — see
    *  server/src/scripts/addResearchProposalStudentForm.ts). Absent means
@@ -192,6 +186,25 @@ export interface Milestone {
    *  studentFormFields[].key — present once the form has been submitted at
    *  least once. */
   studentFormData?: Record<string, unknown> | null;
+  /** Tri-state coordinator decision on a research_proposal milestone — see
+   *  ProposalRecommendationModal.tsx. "פרויקט לא מאושר" isn't a value here at
+   *  all; it goes through the ordinary rejectionReason/status:'rejected' path
+   *  instead. Absent on any milestone whose coordinator stage didn't send one
+   *  (every milestone type other than research_proposal, today). */
+  coordinatorRecommendation?: 'approved' | 'approved_conditionally' | null;
+  /** Deterministic signature stamps (see lib/examinerSignature.ts) — only the
+   *  name+timestamp are ever persisted, never a drawn/uploaded image; the
+   *  stylized color/font are recomputed client-side on every view. */
+  supervisorSignedAt?: string | null;
+  supervisorSignedByName?: string | null;
+  coordinatorSignedAt?: string | null;
+  coordinatorSignedByName?: string | null;
+  /** What this milestone requires the student to attach — see
+   *  server/src/services/workflowTemplates.ts's SubmissionRequirement.
+   *  Absent means no requirement recorded (a milestone created before this
+   *  feature existed) — SubmitMilestoneModal treats that the same as
+   *  'none', showing both fields as optional. */
+  submissionRequirement?: 'file' | 'comment' | 'both' | 'none';
   /** Permanent record of every committee stage this milestone ever passed
    *  through (see server/src/controllers/committeeReviewController.ts) —
    *  every member's vote+comment plus the chairman's final decision, one

@@ -5,6 +5,7 @@ import { toE164IL, sendSms } from './smsService.js';
 import { sendWhatsapp } from './whatsappService.js';
 import type { NotificationType } from './emailTemplates.js';
 import { targetScreenFor, type NotificationTaskKind } from './notificationTargets.js';
+import { resolveNotificationLinks } from './notificationLinks.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -93,6 +94,22 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
 
   const targetScreen = targetScreenOverride ?? (taskKind ? targetScreenFor(user.role, taskKind) : null);
 
+  // A real, clickable "go see it" link for the channels OUTSIDE the app
+  // (email/SMS/WhatsApp) — in-app/push notifications already deep-link via
+  // the client's own copy of this same targetScreen resolution, so they
+  // don't need one appended to their body text. See notificationLinks.ts.
+  const { webUrl, appUrl } = resolveNotificationLinks(user.role, type, targetScreen);
+  if (webUrl) fullEmailData.webLink = webUrl;
+  if (appUrl) fullEmailData.appLink = appUrl;
+  const linkFooterHe = [
+    webUrl ? `לצפייה, לחצו כאן: ${webUrl}` : null,
+    appUrl ? `לצפייה באפליקציה, לחצו כאן: ${appUrl}` : null,
+  ].filter(Boolean).join('\n');
+  const linkFooterEn = [
+    webUrl ? `To view, click here: ${webUrl}` : null,
+    appUrl ? `To view in the app, click here: ${appUrl}` : null,
+  ].filter(Boolean).join('\n');
+
   let notifRef: FirebaseFirestore.DocumentReference | null = null;
   if (wantInApp) {
     notifRef = db.collection('notifications').doc();
@@ -171,7 +188,9 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
       statuses.smsDelivery = 'invalid_number';
     } else {
       try {
-        await sendSms(e164, `${lang === 'he' ? titleHe : titleEn}\n${lang === 'he' ? bodyHe : bodyEn}`);
+        const footer = lang === 'he' ? linkFooterHe : linkFooterEn;
+        const smsText = `${lang === 'he' ? titleHe : titleEn}\n${lang === 'he' ? bodyHe : bodyEn}${footer ? `\n\n${footer}` : ''}`;
+        await sendSms(e164, smsText);
         statuses.smsDelivery = 'sent';
       } catch (err: any) {
         console.error(`notifyUser: sms failed for ${recipientId} [${type}]:`, err);
@@ -190,7 +209,9 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
       statuses.whatsappDelivery = 'invalid_number';
     } else {
       try {
-        await sendWhatsapp(e164, `${lang === 'he' ? titleHe : titleEn}\n${lang === 'he' ? bodyHe : bodyEn}`);
+        const footer = lang === 'he' ? linkFooterHe : linkFooterEn;
+        const waText = `${lang === 'he' ? titleHe : titleEn}\n${lang === 'he' ? bodyHe : bodyEn}${footer ? `\n\n${footer}` : ''}`;
+        await sendWhatsapp(e164, waText);
         statuses.whatsappDelivery = 'sent';
       } catch (err: any) {
         console.error(`notifyUser: whatsapp failed for ${recipientId} [${type}]:`, err);

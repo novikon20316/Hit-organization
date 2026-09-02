@@ -342,6 +342,20 @@ export function useStudentData() {
             defenseBuilding:data.defenseBuilding ?? null,
             defenseTime:    data.defenseTime     ?? null,
             examinerNames:  data.examinerNames   ?? [],
+            examinerIds:    data.examinerIds     ?? [],
+            rejectionReason: data.rejectionReason ?? null,
+            coordinatorComment: data.coordinatorComment ?? null,
+            staffRecord: data.staffRecord ?? null,
+            staffFormFields: data.staffFormFields ?? undefined,
+            submissionRequirement: data.submissionRequirement ?? undefined,
+            studentIds: data.studentIds ?? [],
+            studentFormFields: data.studentFormFields ?? undefined,
+            studentFormData: data.studentFormData ?? null,
+            coordinatorRecommendation: data.coordinatorRecommendation ?? null,
+            supervisorSignedAt: data.supervisorSignedAt?.toDate?.()?.toISOString() ?? null,
+            supervisorSignedByName: data.supervisorSignedByName ?? null,
+            coordinatorSignedAt: data.coordinatorSignedAt?.toDate?.()?.toISOString() ?? null,
+            coordinatorSignedByName: data.coordinatorSignedByName ?? null,
           } as Milestone & { projectId: string };
         });
 

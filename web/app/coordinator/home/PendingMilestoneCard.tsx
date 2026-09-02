@@ -6,8 +6,11 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { apiClient } from '@/lib/apiClient';
+import { fileNameFromUrl } from '@/lib/fileClickPreview';
+import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import { ApproveMilestoneModal } from './ApproveMilestoneModal';
 import { RejectMilestoneModal } from './RejectMilestoneModal';
+import { ProposalRecommendationModal, type ProposalDecision } from './ProposalRecommendationModal';
 import { MILESTONE_LABEL, type CoordinatorPendingMilestone } from './types';
 
 interface PendingMilestoneCardProps {
@@ -24,8 +27,16 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
   const [showApprove, setShowApprove] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const [rowError, setRowError] = useState('');
+  // Opens the same inline preview panel (iframe render + download) other
+  // dashboards already use for milestone files — clicking one of these
+  // chips used to just open a raw Cloudinary URL in a new tab, which is
+  // where extension-less legacy uploads (see MilestoneFilePanel.tsx) fail
+  // to render at all. Approve/Reject stay on this same card underneath, so
+  // reviewing the document and deciding on it still never leaves this view.
+  const [previewFor, setPreviewFor] = useState<{ title: string; subtitle: string; fileUrls: string[] } | null>(null);
   const facultyColor = getFacultyColor(m.facultyId);
   const isFinalReport = m.type === 'final_report';
+  const isProposal = m.type === 'research_proposal';
 
   const handleApproveClick = () => {
     if (isFinalReport) {
@@ -44,6 +55,29 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
       onChanged();
     } catch (err) {
       setRowError(err instanceof Error ? err.message : 'Failed to approve milestone');
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  // research_proposal's tri-state recommendation (see
+  // ProposalRecommendationModal.tsx) — "פרויקט לא מאושר" is just the ordinary
+  // reject flow (mandatory reason, status:'rejected') under a
+  // form-matching label; the other two both go through the approve endpoint
+  // with a `recommendation`.
+  const handleProposalDecision = async (decision: ProposalDecision, comment: string) => {
+    if (decision === 'rejected') {
+      await handleReject(comment);
+      return;
+    }
+    setApproving(true);
+    setRowError('');
+    try {
+      await apiClient.coordinatorApproveMilestone(m.id, comment || undefined, decision);
+      setShowApprove(false);
+      onChanged();
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : 'Failed to submit the recommendation');
     } finally {
       setApproving(false);
     }
@@ -86,6 +120,17 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
 
       {expanded && (
         <div className="mt-3 grid gap-2 border-t border-line pt-3">
+          {/* research_proposal's full document (personal info, every field,
+              supervisor's signature) now lives inside
+              ProposalRecommendationModal, opened via the "Review & decide"
+              button below — reading it and deciding are one screen, per the
+              paper form's own layout. */}
+          {isProposal && m.supervisorSignedByName && (
+            <p className="text-xs text-success">
+              ✍️ {lang === 'he' ? `נחתם ע"י המנחה: ${m.supervisorSignedByName}` : `Signed by supervisor: ${m.supervisorSignedByName}`}
+            </p>
+          )}
+
           {(m.supervisorScore !== null || m.supervisorComment) && (
             <div className="rounded-lg bg-paper p-2.5">
               <p className="text-xs font-semibold text-ink">{lang === 'he' ? '💬 מנחה' : '💬 Supervisor'}</p>
@@ -110,15 +155,20 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
               <p className="mb-1.5 text-xs font-semibold text-ink">{lang === 'he' ? '📎 קבצים שהועלו' : '📎 Uploaded Files'}</p>
               <div className="flex flex-wrap gap-1.5">
                 {m.fileUrls.map((url, i) => (
-                  <a
+                  <button
                     key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    type="button"
+                    onClick={() =>
+                      setPreviewFor({
+                        title: MILESTONE_LABEL[m.type]?.[lang] ?? m.type,
+                        subtitle: lang === 'he' ? m.projectTitleHe : m.projectTitleEn,
+                        fileUrls: m.fileUrls ?? [],
+                      })
+                    }
                     className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-ink hover:border-primary hover:text-primary"
                   >
-                    📄 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
-                  </a>
+                    📄 {fileNameFromUrl(url, i, lang)}
+                  </button>
                 ))}
               </div>
             </div>
@@ -161,15 +211,20 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
                     {rev.fileUrls.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {rev.fileUrls.map((url, i) => (
-                          <a
+                          <button
                             key={i}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            type="button"
+                            onClick={() =>
+                              setPreviewFor({
+                                title: `${MILESTONE_LABEL[m.type]?.[lang] ?? m.type} — ${lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}`,
+                                subtitle: lang === 'he' ? m.projectTitleHe : m.projectTitleEn,
+                                fileUrls: rev.fileUrls,
+                              })
+                            }
                             className="rounded-full border border-line px-2 py-0.5 text-[10px] text-ink hover:border-primary hover:text-primary"
                           >
-                            📄 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
-                          </a>
+                            📄 {fileNameFromUrl(url, i, lang)}
+                          </button>
                         ))}
                       </div>
                     )}
@@ -183,32 +238,57 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
 
       {rowError && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{rowError}</p>}
 
-      <div className="mt-3 flex gap-2">
-        <button
-          type="button"
-          onClick={handleApproveClick}
-          disabled={approving}
-          className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-        >
-          {isFinalReport
-            ? lang === 'he'
-              ? '👥 אשר + הקצה בוחנים'
-              : '👥 Approve + Assign Examiners'
-            : lang === 'he'
-              ? '✅ אשר'
-              : '✅ Approve'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowReject(true)}
-          className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger hover:bg-danger-bg"
-        >
-          {isFinalReport ? (lang === 'he' ? '👥 דחה' : '👥 Reject') : lang === 'he' ? '❌ דחה' : '❌ Reject'}
-        </button>
-      </div>
+      {isProposal ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setShowApprove(true)}
+            className="w-full rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+          >
+            📄 {lang === 'he' ? 'סקור את ההצעה וקבל החלטה' : 'Review the proposal & decide'}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={handleApproveClick}
+            disabled={approving}
+            className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {isFinalReport
+              ? lang === 'he'
+                ? '👥 אשר + הקצה בוחנים'
+                : '👥 Approve + Assign Examiners'
+              : lang === 'he'
+                ? '✅ אשר'
+                : '✅ Approve'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowReject(true)}
+            className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger hover:bg-danger-bg"
+          >
+            {isFinalReport ? (lang === 'he' ? '👥 דחה' : '👥 Reject') : lang === 'he' ? '❌ דחה' : '❌ Reject'}
+          </button>
+        </div>
+      )}
 
-      <ApproveMilestoneModal open={showApprove} busy={approving} onCancel={() => setShowApprove(false)} onConfirm={handleApprove} />
+      {isProposal ? (
+        <ProposalRecommendationModal open={showApprove} busy={approving} milestone={m} onCancel={() => setShowApprove(false)} onConfirm={handleProposalDecision} />
+      ) : (
+        <ApproveMilestoneModal open={showApprove} busy={approving} onCancel={() => setShowApprove(false)} onConfirm={handleApprove} />
+      )}
       <RejectMilestoneModal open={showReject} busy={rejecting} onCancel={() => setShowReject(false)} onConfirm={handleReject} />
+      {previewFor && (
+        <MilestoneFilePanel
+          title={previewFor.title}
+          subtitle={previewFor.subtitle}
+          submissionNote=""
+          fileUrls={previewFor.fileUrls}
+          onClose={() => setPreviewFor(null)}
+        />
+      )}
     </div>
   );
 }

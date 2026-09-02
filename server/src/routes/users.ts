@@ -15,6 +15,9 @@ import {
   cancelAccountDeletion,
   verifyStudentEligibility,
   completeOnboardingTour,
+  uploadUserPhoto,
+  getUserPhotoUrl,
+  photoUploadMiddleware,
 } from '../controllers/userController.js'
 console.log("🔥 Loading user routes...");
 const router = Router();
@@ -34,6 +37,8 @@ router.post('/change-password', verifyToken, changePassword)
 router.post('/delete-account/request', verifyToken, requestAccountDeletion)
 router.post('/delete-account/cancel', verifyToken, cancelAccountDeletion)
 router.post('/complete-onboarding-tour', verifyToken, completeOnboardingTour)
+router.post('/photo', verifyToken, photoUploadMiddleware, uploadUserPhoto)
+router.get('/:uid/photo-url', verifyToken, getUserPhotoUrl)
 
 
 export default router;

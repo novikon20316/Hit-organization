@@ -12,7 +12,7 @@ import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
-import type { ChainStage, GradingComponentSpec } from '../services/workflowTemplates.js';
+import type { ChainStage, GradingComponentSpec, FormFieldSpec } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones } from '../services/workflowTemplates.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 
@@ -914,7 +914,7 @@ export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Resp
 // ─── Submit milestone (student) ───────────────────────────────────────────────
 export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Response) => {
   const { milestoneId } = req.params;
-  const { fileUrls, submissionNote } = req.body;
+  const { fileUrls, submissionNote, formData } = req.body;
   const studentId = req.user?.uid;
 
   if (!studentId) return res.status(401).json({ message: 'Unauthorized.' });
@@ -944,11 +944,33 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       });
     }
 
-    const hasFile = Array.isArray(fileUrls) && fileUrls.length > 0;
-    const hasComment = typeof submissionNote === 'string' && submissionNote.trim().length > 0;
-    if (!submissionRequirementMet(milestoneData.submissionRequirement, hasFile, hasComment)) {
-      return res.status(400).json({ message: 'This milestone requires ' +
-        (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`) });
+    // Same structured-form branch as the web route
+    // (milestoneController.ts's submitMilestone) — a milestone with
+    // studentFormFields configured is submitted as `formData`, not
+    // fileUrls/submissionNote, and validated against its own field list
+    // instead of the generic submissionRequirement check below.
+    const studentFormFieldsSpec: FormFieldSpec[] = milestoneData.studentFormFields ?? [];
+    const isStructuredFormMilestone = studentFormFieldsSpec.length > 0;
+    let studentFormData: Record<string, unknown> | undefined;
+
+    if (isStructuredFormMilestone) {
+      if (!formData || typeof formData !== 'object') {
+        return res.status(400).json({ message: 'formData is required for this milestone.' });
+      }
+      studentFormData = formData;
+      const missing = studentFormFieldsSpec.filter(
+        (f) => f.required && !f.locked && (studentFormData![f.key] === undefined || studentFormData![f.key] === null || studentFormData![f.key] === '')
+      );
+      if (missing.length > 0) {
+        return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
+      }
+    } else {
+      const hasFile = Array.isArray(fileUrls) && fileUrls.length > 0;
+      const hasComment = typeof submissionNote === 'string' && submissionNote.trim().length > 0;
+      if (!submissionRequirementMet(milestoneData.submissionRequirement, hasFile, hasComment)) {
+        return res.status(400).json({ message: 'This milestone requires ' +
+          (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`) });
+      }
     }
 
     // Preserve the outgoing round before it's overwritten — see
@@ -960,6 +982,7 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
       fileUrls:       fileUrls       ?? [],
       submissionNote: submissionNote ?? '',
+      ...(studentFormData ? { studentFormData } : {}),
       ...(archiveUpdate ?? {}),
       // Chain-driven milestones restart the chain on every fresh submission
       // (first-time or resubmission after a student-facing rejection) — the
@@ -969,6 +992,17 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
     });
+
+    // Same project-title propagation as the web submit route
+    // (milestoneController.ts's submitMilestone) — see its comment.
+    if (milestoneData.type === 'research_proposal' && milestoneData.projectId
+      && typeof studentFormData?.projectNameHe === 'string' && typeof studentFormData?.projectNameEn === 'string') {
+      await db.collection('projects').doc(milestoneData.projectId).update({
+        titleHe: studentFormData.projectNameHe,
+        titleEn: studentFormData.projectNameEn,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     await logProjectRecordEntry({
       projectId: milestoneData.projectId,

@@ -12,7 +12,7 @@ import { sanitizeMilestoneForViewer } from '../services/milestoneVisibility.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
-import { submissionRequirementMet, resolveMilestoneOrder } from '../services/workflowTemplates.js';
+import { submissionRequirementMet, resolveMilestoneOrder, type FormFieldSpec } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser } from '../services/notify.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
@@ -126,11 +126,41 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       });
     }
 
+    // A milestone with studentFormFields configured (currently only
+    // data_science's research_proposal — see addResearchProposalStudentForm.ts)
+    // is submitted as a structured form instead of the generic file+note —
+    // the form itself has its own required-field validation below, so the
+    // note/file submissionRequirement check (which doesn't apply here) is
+    // skipped entirely for it.
+    const studentFormFields: FormFieldSpec[] = milestoneData.studentFormFields ?? [];
+    const isStructuredFormMilestone = studentFormFields.length > 0;
+    let studentFormData: Record<string, unknown> | undefined;
+
+    if (isStructuredFormMilestone) {
+      try {
+        studentFormData = typeof req.body?.formData === 'string' ? JSON.parse(req.body.formData) : req.body?.formData;
+      } catch {
+        return res.status(400).json({ message: 'Invalid formData.' });
+      }
+      if (!studentFormData || typeof studentFormData !== 'object') {
+        return res.status(400).json({ message: 'formData is required for this milestone.' });
+      }
+      // Locked fields (autoFill) are never typed by the student — only the
+      // freely-editable fields are checked for "required and present".
+      const missing = studentFormFields.filter(
+        (f) => f.required && !f.locked && (studentFormData![f.key] === undefined || studentFormData![f.key] === null || studentFormData![f.key] === '')
+      );
+      if (missing.length > 0) {
+        return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
+      }
+    }
+
     // Checked before touching Cloudinary at all — no point uploading a file
     // for a submission that's about to be rejected anyway (or, worse,
     // silently accepting a comment-only submission on a milestone that
-    // actually required a file).
-    if (!submissionRequirementMet(milestoneData.submissionRequirement, files.length > 0, note.trim().length > 0)) {
+    // actually required a file). Doesn't apply to a structured-form
+    // milestone, whose own field validation just ran above.
+    if (!isStructuredFormMilestone && !submissionRequirementMet(milestoneData.submissionRequirement, files.length > 0, note.trim().length > 0)) {
       const req = milestoneData.submissionRequirement;
       const messageEn = 'This milestone requires ' + (req === 'both' ? 'a file and a comment.' : `a ${req}.`);
       const messageHe = 'אבן דרך זו דורשת ' + (req === 'both' ? 'קובץ והערה.' : req === 'file' ? 'קובץ.' : 'הערה.');
@@ -224,6 +254,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
       fileUrls,
       submissionNote: note,
+      ...(studentFormData ? { studentFormData } : {}),
       ...(archiveUpdate ?? {}),
       // Chain-driven milestones restart the chain on every fresh submission
       // — see the identical addition in projectController.ts's
@@ -233,6 +264,20 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
     });
+
+    // The research-proposal form is where a project's real title first
+    // becomes known when the student (not the supervisor) is the one filling
+    // it in — mirrors submitStaffRecord's identical propagation
+    // (supervisorController.ts) so anything reading project.titleHe/titleEn
+    // doesn't need to reach into this milestone's studentFormData separately.
+    if (milestoneData.type === 'research_proposal' && milestoneData.projectId
+      && typeof studentFormData?.projectNameHe === 'string' && typeof studentFormData?.projectNameEn === 'string') {
+      await db.collection('projects').doc(milestoneData.projectId).update({
+        titleHe: studentFormData.projectNameHe,
+        titleEn: studentFormData.projectNameEn,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     await logProjectRecordEntry({
       projectId: milestoneData.projectId,

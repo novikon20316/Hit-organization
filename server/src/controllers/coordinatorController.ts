@@ -16,6 +16,7 @@ import { deriveProcessType, resolveExaminerSignoffRole, type ChainStage } from '
 import { authorizeStageActor, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser } from '../services/notify.js';
+import { targetScreenFor } from '../services/notificationTargets.js';
 
 // Matches the Firestore project document shape exactly
 interface ProjectDocument {
@@ -580,6 +581,7 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
           facultyId:        data.facultyId     ?? project?.facultyId ?? '',
           type:             data.type,
           status:           data.status,
+          submittedAt:      data.submittedAt?.toDate?.()?.toISOString() ?? null,
           // Chain-driven milestones (see services/milestoneRouting.ts) can
           // sit at a status this array's own filter matches (e.g.
           // 'supervisor_graded') while their CURRENT stage is actually owned
@@ -595,6 +597,14 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
           submissionNote:    data.submissionNote    ?? null,
           fileUrls:          data.fileUrls          ?? [],
           revisionHistory:   data.revisionHistory   ?? [],
+          // The research-proposal form's own field spec + the student's
+          // submitted values (see addResearchProposalStudentForm.ts) — lets
+          // PendingMilestoneCard.tsx render the filled-in document instead of
+          // just the generic submissionNote/fileUrls.
+          studentFormFields: data.studentFormFields ?? null,
+          studentFormData:   data.studentFormData   ?? null,
+          supervisorSignedByName: data.supervisorSignedByName ?? null,
+          supervisorSignedAt: data.supervisorSignedAt?.toDate?.()?.toISOString() ?? null,
 
           studentNames,
           studentIds:        project?.enrolledStudentIds ?? [],
@@ -720,6 +730,7 @@ async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.Docu
  *  notification regardless of which role actually approved it. */
 async function approveChainMilestone(
   req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string, comment?: string,
+  recommendation?: 'approved' | 'approved_conditionally',
 ): Promise<Response> {
   const routing: ChainStage[] = milestone.routing;
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
@@ -738,6 +749,12 @@ async function approveChainMilestone(
   let finalized = false;
   let finalizedMilestone: FirebaseFirestore.DocumentData | undefined;
   let enteredCommitteeStage = false;
+  // Captured so the next stage's actor(s) can be notified once the
+  // transaction commits — a non-final stage advance had no notification at
+  // all before this (only the terminal 'coordinator_approved' did), so
+  // e.g. a supervisor's research_proposal sign-off never told the
+  // coordinator it was now their turn.
+  let advancedToStage: ChainStage | undefined;
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -754,15 +771,31 @@ async function approveChainMilestone(
 
       const nextStage = freshRouting[freshIndex + 1];
       const update: Record<string, any> = { stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() };
+      // Deterministic signature stamp (see examinerSignature.ts's
+      // examinerSignatureStyle) — only the name + timestamp are persisted;
+      // the stylized color/font are recomputed client-side on every view,
+      // never stored as an image. Only meaningful for research_proposal's
+      // supervisor_sign/coordinator_sign stages today, but harmless to stamp
+      // on any 'approve' stage using one of these two roles (e.g. poster's
+      // coordinator stage).
+      if (stage.role === 'supervisor') {
+        update.supervisorSignedAt = admin.firestore.FieldValue.serverTimestamp();
+        update.supervisorSignedByName = req.user?.displayName ?? '';
+      } else if (stage.role === 'coordinator') {
+        update.coordinatorSignedAt = admin.firestore.FieldValue.serverTimestamp();
+        update.coordinatorSignedByName = req.user?.displayName ?? '';
+      }
       if (nextStage) {
         update.currentStageIndex = freshIndex + 1;
         update.status = statusForStage(nextStage);
         enteredCommitteeStage = nextStage.role === 'committee';
+        advancedToStage = nextStage;
       } else {
         update.status = 'coordinator_approved';
         update.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
         update.coordinatorId = actorId;
         if (comment) update.coordinatorComment = comment;
+        if (recommendation) update.coordinatorRecommendation = recommendation;
         finalized = true;
         finalizedMilestone = { ...fresh, ...update };
       }
@@ -793,6 +826,39 @@ async function approveChainMilestone(
       const freshMilestone = (await milestoneRef.get()).data()!;
       await onEnterCommitteeStage(milestoneId, freshMilestone);
     }
+    // Non-final stage advance, no committee (that flow notifies its own
+    // members via onEnterCommitteeStage above) — let whoever is authorized
+    // at the newly-current stage know it's awaiting them.
+    if (!finalized && advancedToStage && advancedToStage.role !== 'committee') {
+      const nextActorIds = await resolveStaffForScope(
+        advancedToStage.role, resource, projectSupervisorIds, milestone.examinerIds ?? []
+      );
+      const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
+      // Resolved from the STAGE's role, not the recipient's own stored
+      // profile role — a multi-role user (e.g. someone who is both a
+      // supervisor and a coordinator) is being notified specifically in
+      // their advancedToStage.role capacity here, and targetScreenFor keyed
+      // on their own primary `role` field can land on the wrong dashboard
+      // entirely for that person (see notify.ts's own taskKind path, which
+      // has exactly that gap — this bypasses it with a direct override).
+      const nextStageTargetScreen = targetScreenFor(advancedToStage.role, 'milestone_action');
+      await Promise.all(nextActorIds.map((uid) =>
+        notifyUser({
+          recipientId: uid,
+          type: 'milestone_submitted',
+          titleHe: 'ממתין לבדיקתך',
+          titleEn: 'Awaiting your review',
+          bodyHe: `אבן הדרך "${milestoneTitle.he}" ממתינה כעת לבדיקתך.`,
+          bodyEn: `Milestone "${milestoneTitle.en}" is now awaiting your review.`,
+          relatedProjectId: milestone.projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          ...(nextStageTargetScreen ? { targetScreen: nextStageTargetScreen } : {}),
+          emailData: { milestoneTitle },
+        }).catch((notifyError) => {
+          console.error(`approveChainMilestone: next-stage notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);
+        })
+      ));
+    }
 
     return res.status(200).json({
       success: true,
@@ -817,6 +883,19 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   // status), but staff can attach a reason, e.g. "approved provided the
   // bibliography is expanded before the defense." See ApproveMilestoneModal.tsx.
   const comment: string | undefined = typeof req.body?.comment === 'string' ? req.body.comment.trim() || undefined : undefined;
+  // Tri-state recommendation — currently only meaningful for
+  // research_proposal's coordinator_sign stage (see
+  // ProposalRecommendationModal.tsx): "פרויקט לא מאושר" isn't sent here at
+  // all, it calls the reject endpoint instead (which already mandates a
+  // reason). 'approved_conditionally' mandates a comment — an unconditional
+  // approve's comment stays optional, same as every other milestone type.
+  const recommendation: 'approved' | 'approved_conditionally' | undefined =
+    req.body?.recommendation === 'approved' || req.body?.recommendation === 'approved_conditionally'
+      ? req.body.recommendation
+      : undefined;
+  if (recommendation === 'approved_conditionally' && !comment) {
+    return res.status(400).json({ message: 'A comment describing the conditions is required for a conditional approval.' });
+  }
 
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid or missing milestoneId.' });
@@ -833,7 +912,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment);
+    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation);
   }
 
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {

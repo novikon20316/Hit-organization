@@ -375,6 +375,11 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // submission, if any.
             staffRecordMode: m?.staffRecordMode ?? null,
             staffRecordSubmitted: !!m?.staffRecord,
+            // The student's own research-proposal form field spec + their
+            // submitted values (see addResearchProposalStudentForm.ts) — lets
+            // the supervisor review what they're signing before confirming.
+            studentFormFields: m?.studentFormFields ?? null,
+            studentFormData: m?.studentFormData ?? null,
             // Three-rubric final-grade workflow state (defense only — see
             // workflowTemplates.ts's finalGradeComponents). Lets the UI
             // decide what to show (evaluation form vs. approve/override vs.

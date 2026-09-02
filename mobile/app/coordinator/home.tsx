@@ -6,7 +6,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { auth } from '../../src/firebase/firebase';
+import { auth, db } from '../../src/firebase/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import ProposalRecommendationModal from '@/components/modals/ProposalRecommendationModal';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, FacultyBadge, getFacultyColor } from '../../components/shared';
@@ -187,6 +189,13 @@ export default function CoordinatorHome() {
   const [approveModal,     setApproveModal]     = useState(false);
   const [selectedMilestone,setSelectedMilestone]= useState<PendingMilestone | null>(null);
 
+  // Tri-state research_proposal recommendation (see
+  // web/app/coordinator/home/ProposalRecommendationModal.tsx) — "פרויקט
+  // מאושר / מאושר בתנאי / לא מאושר", replacing the plain Approve/Reject
+  // buttons for this one milestone type.
+  const [proposalDecisionFor, setProposalDecisionFor] = useState<PendingMilestone | null>(null);
+  const [proposalSaving, setProposalSaving] = useState(false);
+
   // Assign examiners modal (milestone 3) — examiner count is no longer fixed
   // at exactly 2; the coordinator can add/remove slots freely (minimum 1).
   // Every slot shares the same grade weight (see IdentityGradeWeights
@@ -219,6 +228,17 @@ export default function CoordinatorHome() {
   const [saving, setSaving] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const coordinatorId = auth.currentUser?.uid || '';
+  // Own profile, fetched once — needed only for ProposalRecommendationModal's
+  // signature preview (name/facultyId/major, same inputs
+  // examinerSignatureStyle uses on web).
+  const [coordinatorProfile, setCoordinatorProfile] = useState<{ displayName: string; facultyId: string; major: string | null } | null>(null);
+  useEffect(() => {
+    if (!coordinatorId) return;
+    getDoc(doc(db, 'users', coordinatorId)).then((snap) => {
+      const u = snap.data();
+      if (u) setCoordinatorProfile({ displayName: u.displayName ?? '', facultyId: u.facultyId ?? '', major: u.major ?? null });
+    }).catch(() => {});
+  }, [coordinatorId]);
   const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
   // Examiner recommendations
   const [examinerRecs,    setExaminerRecs]    = useState<any[]>([]);
@@ -448,16 +468,17 @@ export default function CoordinatorHome() {
     }
   };
   //--- Reject milestone (research_proposal or progress_report) ----------------------
-  const handleReject = async (milestone: PendingMilestone) => {
+  const handleReject = async (milestone: PendingMilestone, reason?: string) => {
     try {
       setSaving(true);
-      // 🚀 We send the ID and the reason to the server. 
+      // 🚀 We send the ID and the reason to the server.
       // The server handles the update AND the notification creation.
       await apiClient.post(`/api/coordinator/${milestone.id}/reject`, {
         id: milestone.id,
         projectId: milestone.projectId,
         studentNames: milestone.studentNames,
-        supervisorId: milestone.supervisorId, 
+        supervisorId: milestone.supervisorId,
+        reason,
       });
 
       Alert.alert('✅', lang === 'he' ? 'אבן הדרך נדחתה' : 'Milestone rejected');
@@ -467,6 +488,33 @@ export default function CoordinatorHome() {
       Alert.alert('Error', 'Failed to reject milestone');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // research_proposal's tri-state recommendation — "פרויקט לא מאושר" is just
+  // the ordinary reject flow (mandatory reason) under a form-matching label;
+  // the other two go through the approve endpoint with a `recommendation`.
+  // Decision/comment come straight from ProposalRecommendationModal's own
+  // local state (it owns the radio/comment inputs, not this screen) — the
+  // modal only calls this once "Sign & submit decision" is actually pressed.
+  const handleProposalDecision = async (decision: 'approved' | 'approved_conditionally' | 'rejected', comment: string) => {
+    if (!proposalDecisionFor) return;
+    setProposalSaving(true);
+    try {
+      if (decision === 'rejected') {
+        await handleReject(proposalDecisionFor, comment);
+      } else {
+        await apiClient.post(`/api/coordinator/${proposalDecisionFor.id}/approve`, {
+          comment: comment || undefined,
+          recommendation: decision,
+        });
+        fetchCoordinatorDashboard();
+      }
+      setProposalDecisionFor(null);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to submit the recommendation.');
+    } finally {
+      setProposalSaving(false);
     }
   };
   // ── Assign examiners + weights (final_report) ─────────────────────────────
@@ -1232,28 +1280,42 @@ export default function CoordinatorHome() {
 
                   {/* ── Action buttons ── */}
                   <View style={styles.actionRow}>
-                    <Pressable
-                      style={styles.approveBtn}
-                      onPress={() => handleApprove(m)}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.approveBtnText}>
-                        {m.type === 'final_report'
-                          ? (lang === 'he' ? '👥 אשר + הקצה בוחנים' : '👥 Approve + Assign Examiners')
-                          : (lang === 'he' ? '✅ אשר' : '✅ Approve')}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.rejectBtn}
-                      onPress={() => handleReject(m)}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.rejectBtnText}>
-                        {m.type === 'final_report'
-                          ? (lang === 'he' ? '👥 דחה + אל תקצה בוחנים' : '👥 Reject + Do Not Assign Examiners')
-                          : (lang === 'he' ? '❌ דחה' : '❌ Reject')}
-                      </Text>
-                    </Pressable>
+                    {m.type === 'research_proposal' ? (
+                      <Pressable
+                        style={styles.approveBtn}
+                        onPress={() => setProposalDecisionFor(m)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.approveBtnText}>
+                          📋 {lang === 'he' ? 'המלצת רכז הפרויקטים' : "Coordinator's recommendation"}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <>
+                        <Pressable
+                          style={styles.approveBtn}
+                          onPress={() => handleApprove(m)}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.approveBtnText}>
+                            {m.type === 'final_report'
+                              ? (lang === 'he' ? '👥 אשר + הקצה בוחנים' : '👥 Approve + Assign Examiners')
+                              : (lang === 'he' ? '✅ אשר' : '✅ Approve')}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.rejectBtn}
+                          onPress={() => handleReject(m)}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.rejectBtnText}>
+                            {m.type === 'final_report'
+                              ? (lang === 'he' ? '👥 דחה + אל תקצה בוחנים' : '👥 Reject + Do Not Assign Examiners')
+                              : (lang === 'he' ? '❌ דחה' : '❌ Reject')}
+                          </Text>
+                        </Pressable>
+                      </>
+                    )}
                   </View>
                 </Pressable>
               ))
@@ -1955,6 +2017,19 @@ export default function CoordinatorHome() {
       />
 
       <ChatbotFab lang={lang} corner="bottom-left" />
+
+      {/* ── research_proposal's full document review + tri-state decision ── */}
+      {proposalDecisionFor && (
+        <ProposalRecommendationModal
+          milestone={proposalDecisionFor}
+          coordinator={coordinatorProfile}
+          busy={proposalSaving}
+          lang={lang}
+          isRtl={isRtl}
+          onCancel={() => setProposalDecisionFor(null)}
+          onConfirm={handleProposalDecision}
+        />
+      )}
 
       {/* ── Approve modal (simple confirm for milestone 1 & 2) ── */}
       <Modal visible={approveModal} animationType="fade" transparent>

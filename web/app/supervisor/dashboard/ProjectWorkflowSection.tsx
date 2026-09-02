@@ -13,13 +13,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
+import { examinerSignatureStyle } from '@/lib/examinerSignature';
 import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
 import { UpdateGradeModal } from './UpdateGradeModal';
 import { FinalGradeCertificateModal } from './FinalGradeCertificateModal';
-import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
+import { MilestoneFilePanel, FilePreviewFrame } from '@/components/MilestoneFilePanel';
 import type { MyProject, SupervisorPendingMilestone } from './types';
 
 interface ProjectWorkflowSectionProps {
@@ -76,6 +78,15 @@ export interface StudentMilestoneRow {
   supervisorScore: number | null;
   gradeApproved: boolean;
   gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
+  /** research_proposal's own online form — field spec + the student's
+   *  submitted values (see addResearchProposalStudentForm.ts). */
+  studentFormFields?: Array<{
+    key: string; labelHe: string; labelEn: string;
+    type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+    tableColumns?: Array<{ key: string; labelHe: string; labelEn: string }>;
+    locked?: boolean;
+  }> | null;
+  studentFormData?: Record<string, unknown> | null;
 }
 
 export interface StudentRow {
@@ -167,7 +178,9 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   // submitted grade actually appear here without navigating away and back.
   const isFirstLoadRef = useRef(true);
   const { lang } = useLanguage();
+  const { userData } = useAuth();
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
+  const [signingId, setSigningId] = useState<string | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -404,9 +417,100 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                             </div>
                           )}
 
+                          {/* Sign-off action for research_proposal — the supervisor's
+                              stage on this milestone is 'approve' (a pure sign-off), not
+                              'grade' (see addResearchProposalStudentForm.ts), so it's kept
+                              out of the generic Grade branch below entirely: submitting a
+                              score against an 'approve' stage would 400. */}
+                          {m.type === 'research_proposal' && m.id && (
+                            m.finalGrade == null && m.status === 'submitted' ? (
+                              signingId === m.id ? (
+                                <div className="mt-1 rounded-md border border-line bg-paper p-2">
+                                  {m.studentFormFields && m.studentFormFields.length > 0 && (
+                                    <div className="mb-2 grid max-h-64 gap-1.5 overflow-y-auto">
+                                      {m.studentFormFields.filter((f) => !f.locked).map((f) => {
+                                        const v = m.studentFormData?.[f.key];
+                                        return (
+                                          <div key={f.key}>
+                                            <p className="text-[11px] font-medium text-muted">{lang === 'he' ? f.labelHe : f.labelEn}</p>
+                                            {f.type === 'table' ? (
+                                              (Array.isArray(v) ? v : []).map((row: Record<string, unknown>, i: number) => (
+                                                <p key={i} className="text-xs text-ink">
+                                                  {(f.tableColumns ?? []).map((c) => String(row[c.key] ?? '')).join(' · ')}
+                                                </p>
+                                              ))
+                                            ) : (
+                                              <p className="whitespace-pre-wrap text-xs text-ink">{v != null && v !== '' ? String(v) : '—'}</p>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                {/* The actual uploaded document (distinct from the online
+                                    form fields above, which some projects use instead of/
+                                    alongside a file) — shown right here so signing never
+                                    requires leaving to go find it first. */}
+                                {m.fileUrls.length > 0 && (
+                                  <div className="mb-2 grid gap-1.5">
+                                    {m.fileUrls.map((url, i) => (
+                                      <div key={i} className="overflow-hidden rounded-md border border-line">
+                                        <div className="flex items-center justify-between border-b border-line bg-surface px-2 py-1">
+                                          <span className="min-w-0 truncate text-[11px] font-medium text-ink">📄 {fileNameFromUrl(url, i, lang)}</span>
+                                        </div>
+                                        <FilePreviewFrame url={url} index={i} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="text-sm"
+                                    style={
+                                      userData
+                                        ? examinerSignatureStyle(userData.displayName, userData.facultyId, 'supervisor', userData.major ?? null)
+                                        : undefined
+                                    }
+                                  >
+                                    {userData?.displayName}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await apiClient.coordinatorApproveMilestone(m.id!);
+                                      setSigningId(null);
+                                      fetchDetail();
+                                    }}
+                                    className="rounded-md bg-primary px-2 py-1 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+                                  >
+                                    {lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}
+                                  </button>
+                                  <button type="button" onClick={() => setSigningId(null)} className="text-xs text-muted hover:text-ink">
+                                    {lang === 'he' ? 'ביטול' : 'Cancel'}
+                                  </button>
+                                </div>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setSigningId(m.id!)}
+                                  className="mt-1 text-xs font-medium text-[#00236f] hover:underline"
+                                >
+                                  ✍️ {lang === 'he' ? 'חתום על הצעת המחקר' : 'Sign the research proposal'}
+                                </button>
+                              )
+                            ) : m.status === 'coordinator_approved' || m.status === 'completed' ? (
+                              <p className="mt-1 text-xs font-semibold text-success">✓ {lang === 'he' ? 'נחתם ואושר סופית' : 'Signed and finalized'}</p>
+                            ) : m.status === 'supervisor_graded' ? (
+                              <p className="mt-1 text-xs text-accent">✓ {lang === 'he' ? 'נחתם ע"י המנחה — ממתין לרכז/ת' : "Signed — awaiting the coordinator"}</p>
+                            ) : null
+                          )}
+
                           {/* Grade action/display for ordinary milestones — the
-                              three-rubric defense workflow below handles its own. */}
-                          {!m.hasFinalGradeComponents && m.id && (() => {
+                              three-rubric defense workflow below handles its own,
+                              and research_proposal is handled by the sign-off
+                              block above. */}
+                          {!m.hasFinalGradeComponents && m.type !== 'research_proposal' && m.id && (() => {
                             const pending = pendingGrades.find((pg) => pg.id === m.id);
                             if (m.finalGrade != null) {
                               return (

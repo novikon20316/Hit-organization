@@ -20,6 +20,7 @@ import { getProgramByKey } from '../../constants/faculties';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { milestonePalette } from '@/constants/milestoneTheme';
 import { GradeMilestoneModal } from '@/components/GradeMilestoneModal';
+import { examinerSignatureStyle } from '@/utils/examinerSignature';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 
@@ -204,6 +205,10 @@ export default function SupervisorHome() {
   // ── Grade modal ───────────────────────────────────────────────────────────
   const [gradeModal,      setGradeModal]      = useState(false);
   const [gradeMilestone,  setGradeMilestone]  = useState<PendingMilestone | null>(null);
+  // research_proposal sign-off — a pure approve, not a grade (see
+  // addResearchProposalStudentForm.ts); kept out of the grade modal entirely.
+  const [signingId, setSigningId] = useState<string | null>(null);
+  const [signing,   setSigning]   = useState(false);
   const [activeMilestone, setActiveMilestone] = useState<any | null>(null);
   const [expandedCards,   setExpandedCards]   = useState<Record<string, boolean>>({});
   const [criteria, setCriteria] = useState<Record<string, string>>({
@@ -885,16 +890,22 @@ export default function SupervisorHome() {
         ]}
       />
 
-      {/* Stats row */}
+      {/* Stats row — each card is a quick jump to the tab that actually
+          lists those items, same "tap the metric, land on the right
+          screen" convention as the coordinator dashboard's overview cards,
+          so a supervisor never has to go hunting for where a stat came from. */}
       <View style={[styles.statsRow, isRtl && styles.rowReverse]}>
         <StatCard emoji="📁" value={myProjects.length}
-          label={lang === 'he' ? 'הפרויקטים שלי' : 'My Projects'} color="#2E86FF" isRtl={isRtl} />
+          label={lang === 'he' ? 'הפרויקטים שלי' : 'My Projects'} color="#2E86FF" isRtl={isRtl}
+          onPress={() => setActiveTab('projects')} />
         <View style={styles.statGap} />
         <StatCard emoji="📨" value={pendingApplicationsCount}
-          label={lang === 'he' ? 'מועמדויות ממתינות' : 'Pending Applications'} color="#F59E0B" isRtl={isRtl} />
+          label={lang === 'he' ? 'מועמדויות ממתינות' : 'Pending Applications'} color="#F59E0B" isRtl={isRtl}
+          onPress={() => setActiveTab('applications')} />
         <View style={styles.statGap} />
         <StatCard emoji="✏️" value={pendingGrades.length}
-          label={lang === 'he' ? 'ממתינות לציון' : 'Need Grading'} color="#8B5CF6" isRtl={isRtl} />
+          label={lang === 'he' ? 'ממתינות לציון' : 'Need Grading'} color="#8B5CF6" isRtl={isRtl}
+          onPress={() => setActiveTab('grading')} />
       </View>
 
       {/* Tabs */}
@@ -1428,22 +1439,72 @@ export default function SupervisorHome() {
                           </Text>
                         )}
 
-                        {/* Execution Grade Button Action Form */}
-                        <Pressable
-                          style={[styles.gradeBtn, { backgroundColor: fc.primary, marginTop: 4 }]}
-                          onPress={(e) => {
-                            e.stopPropagation(); // prevent collapsing layout card
-                            setActiveMilestone(m);
-                            setGradeComment('');
-                            setCriteria(Object.fromEntries(activeGradingFields(m).map((f) => [f.key, ''])));
-                            setIndividualScores({});
-                            setGradeMilestone(m);
-                            setGradeModal(true);
-                          }}
-                          accessibilityRole="button"
-                        >
-                          <Text style={styles.gradeBtnText}>✏️ {lang === 'he' ? 'תן ציון' : 'Grade'}</Text>
-                        </Pressable>
+                        {/* research_proposal's supervisor stage is a pure
+                            sign-off ('approve'), not a numeric grade — see
+                            addResearchProposalStudentForm.ts — so it gets its
+                            own button instead of opening GradeMilestoneModal. */}
+                        {m.type === 'research_proposal' ? (
+                          signingId === m.id ? (
+                            <View style={{ marginTop: 4, flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <Text
+                                style={
+                                  currentUser
+                                    ? examinerSignatureStyle(currentUser.displayName ?? '', currentUser.facultyId ?? '', 'supervisor', null)
+                                    : undefined
+                                }
+                              >
+                                {currentUser?.displayName}
+                              </Text>
+                              <Pressable
+                                style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
+                                disabled={signing}
+                                onPress={async (e) => {
+                                  e.stopPropagation();
+                                  setSigning(true);
+                                  try {
+                                    await apiClient.post(`/api/coordinator/${m.id}/approve`);
+                                    setSigningId(null);
+                                    fetchDashboardData();
+                                  } catch {
+                                    Alert.alert('Error', 'Failed to sign the proposal.');
+                                  } finally {
+                                    setSigning(false);
+                                  }
+                                }}
+                                accessibilityRole="button"
+                              >
+                                <Text style={styles.gradeBtnText}>{lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}</Text>
+                              </Pressable>
+                              <Pressable onPress={(e) => { e.stopPropagation(); setSigningId(null); }} accessibilityRole="button">
+                                <Text style={{ color: '#8899BB', fontSize: 12 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                              </Pressable>
+                            </View>
+                          ) : (
+                            <Pressable
+                              style={[styles.gradeBtn, { backgroundColor: fc.primary, marginTop: 4 }]}
+                              onPress={(e) => { e.stopPropagation(); setSigningId(m.id); }}
+                              accessibilityRole="button"
+                            >
+                              <Text style={styles.gradeBtnText}>✍️ {lang === 'he' ? 'חתום על הצעת המחקר' : 'Sign the research proposal'}</Text>
+                            </Pressable>
+                          )
+                        ) : (
+                          <Pressable
+                            style={[styles.gradeBtn, { backgroundColor: fc.primary, marginTop: 4 }]}
+                            onPress={(e) => {
+                              e.stopPropagation(); // prevent collapsing layout card
+                              setActiveMilestone(m);
+                              setGradeComment('');
+                              setCriteria(Object.fromEntries(activeGradingFields(m).map((f) => [f.key, ''])));
+                              setIndividualScores({});
+                              setGradeMilestone(m);
+                              setGradeModal(true);
+                            }}
+                            accessibilityRole="button"
+                          >
+                            <Text style={styles.gradeBtnText}>✏️ {lang === 'he' ? 'תן ציון' : 'Grade'}</Text>
+                          </Pressable>
+                        )}
                       </View>
                     )}
                   </Pressable>

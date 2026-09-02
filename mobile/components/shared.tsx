@@ -460,17 +460,31 @@ export function TopBar({
 
 // ─── Shared stat card ─────────────────────────────────────────────────────────
 export function StatCard({
-  emoji, value, label, color = '#2E86FF', isRtl = false,
+  emoji, value, label, color = '#2E86FF', isRtl = false, onPress,
 }: {
   emoji: string; value: string | number; label: string; color?: string; isRtl?: boolean;
+  /** Optional quick-jump to wherever this stat's items actually live (e.g.
+   *  the tab that lists them) — same "tap the metric, land on the right
+   *  screen" convention already used by the coordinator overview's metric
+   *  cards. Renders as a plain, non-interactive View when omitted, so every
+   *  existing caller is unaffected. */
+  onPress?: () => void;
 }) {
-  return (
-    <View style={[sc.card, { borderTopColor: color }]}>
+  const content = (
+    <>
       <Text style={sc.emoji}>{emoji}</Text>
       <Text style={[sc.value, { color }]}>{value}</Text>
       <Text style={[sc.label, isRtl && sc.labelRight]}>{label}</Text>
-    </View>
+    </>
   );
+  if (onPress) {
+    return (
+      <Pressable style={[sc.card, { borderTopColor: color }]} onPress={onPress} accessibilityRole="button">
+        {content}
+      </Pressable>
+    );
+  }
+  return <View style={[sc.card, { borderTopColor: color }]}>{content}</View>;
 }
 
 export function SectionHeader({ title, isRtl }: { title: string; isRtl: boolean }) {

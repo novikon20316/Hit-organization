@@ -148,6 +148,7 @@ export interface CoordinatorPendingMilestone {
    *  while its current stage belongs to a different role/action. */
   routing?: ChainStage[] | null;
   currentStageIndex?: number;
+  submittedAt?: string | null;
   studentNames: string[];
   studentIds: string[];
   supervisorId: string;
@@ -157,6 +158,19 @@ export interface CoordinatorPendingMilestone {
   submissionNote?: string | null;
   fileUrls?: string[];
   revisionHistory?: MilestoneRevision[];
+  /** research_proposal's own online form — field spec + the student's
+   *  submitted values (see addResearchProposalStudentForm.ts). */
+  studentFormFields?: Array<{
+    key: string; labelHe: string; labelEn: string;
+    type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+    tableColumns?: Array<{ key: string; labelHe: string; labelEn: string }>;
+    autoFill?: 'studentName' | 'studentIdNumber' | 'studentPhone' | 'studentEmail'
+      | 'studentPhoto' | 'accumulatedCredits' | 'supervisorName' | 'submissionDate';
+    locked?: boolean;
+  }> | null;
+  studentFormData?: Record<string, unknown> | null;
+  supervisorSignedByName?: string | null;
+  supervisorSignedAt?: string | null;
   facultyId: FacultyId;
   // ── Defense-tab "setup" bucket extras (final_report already graded /
   // coordinator_approved) — mostly empty until examiners get assigned, see

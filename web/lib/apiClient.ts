@@ -209,6 +209,23 @@ export const apiClient = {
     return request<{ eligible: boolean; message?: string }>('/api/users/verify-eligibility', { method: 'POST', body: params });
   },
 
+  /** Uploads (or replaces) the caller's own profile photo — see
+   *  studentPhoto.ts. Stored as a Cloudinary `authenticated` asset; the
+   *  returned photoUrl is a freshly-signed link, not the plain (401-ing)
+   *  secure_url. */
+  async uploadUserPhoto(file: File) {
+    const formData = new FormData();
+    formData.append('photo', file);
+    return request<{ success: boolean; photoUrl: string | null }>('/api/users/photo', { method: 'POST', body: formData, raw: true });
+  },
+
+  /** Resolves ANY user's (e.g. a teammate's) photo into a fresh signed URL —
+   *  the caller's own is also available this way, but getFullFirestore/
+   *  getUserProfile already include a fresh photoUrl inline. */
+  async getUserPhotoUrl(uid: string) {
+    return request<{ photoUrl: string | null }>(`/api/users/${uid}/photo-url`, { method: 'GET' });
+  },
+
   // ─── 2. MILESTONES ─────────────────────────────────────────────────────────
   async submitMilestone(milestoneId: string, formData: FormData) {
     return request(`/api/milestones/${milestoneId}/submit`, { method: 'POST', body: formData, raw: true });
@@ -790,10 +807,13 @@ export const apiClient = {
     );
   },
 
-  async coordinatorApproveMilestone(milestoneId: string, comment?: string) {
+  /** `recommendation` is only meaningful for a research_proposal milestone's
+   *  coordinator_sign stage — see ProposalRecommendationModal.tsx. A comment
+   *  is mandatory server-side when recommendation === 'approved_conditionally'. */
+  async coordinatorApproveMilestone(milestoneId: string, comment?: string, recommendation?: 'approved' | 'approved_conditionally') {
     return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/approve`, {
       method: 'POST',
-      body: comment ? { comment } : undefined,
+      body: (comment || recommendation) ? { ...(comment ? { comment } : {}), ...(recommendation ? { recommendation } : {}) } : undefined,
     });
   },
 

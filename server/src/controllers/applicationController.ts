@@ -3,7 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js'
 import { Response } from 'express'
 import { screenApplication } from '../services/cvScreeningService.js'
 import { reviewApplication } from '../services/applicationReviewService.js'
-import { extractCompletedCourses } from '../services/transcriptExtractionService.js'
+import { extractCompletedCourses, computeAccumulatedCredits, type ExtractedCourse } from '../services/transcriptExtractionService.js'
 import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js'
 import { notifyUser } from '../services/notify.js'
 import { enrollStudentInProject } from '../services/projectEnrollment.js'
@@ -18,12 +18,26 @@ const db = admin.firestore();
 // (adminController.ts; students can no longer self-report this themselves).
 // Upserts by subject: a freshly-read grade overwrites whatever was there
 // before (from an earlier, possibly less complete, transcript).
+// Also writes accumulatedCredits (see transcriptExtractionService.ts's
+// computeAccumulatedCredits) in the SAME transaction as the completedCourses
+// merge below — both are derived from the one transcript this application
+// upload just supplied, so there's no reason to risk them landing under
+// separate, potentially-interleaved writes. Unlike completedCourses (which
+// upserts per-subject, keeping older courses a newer transcript doesn't
+// mention), accumulatedCredits is a straight overwrite each time: it's a
+// single running total for "credits so far", and a fresh transcript
+// supersedes whatever total the previous one implied entirely, not just the
+// courses it happens to repeat. A transcript with no credits column at all
+// (computeAccumulatedCredits returns null) leaves accumulatedCredits
+// untouched rather than blanking out a total a staff member may have entered
+// manually.
 async function mergeExtractedGradesIntoCompletedCourses(
   studentId: string,
-  extractedGrades: { subject: string; grade: number }[]
+  extractedCourses: ExtractedCourse[]
 ) {
-  if (extractedGrades.length === 0) return;
+  if (extractedCourses.length === 0) return;
   const studentRef = db.collection('users').doc(studentId);
+  const accumulatedCredits = computeAccumulatedCredits(extractedCourses);
 
   // A plain get()-then-update() here raced against a system_admin's manual
   // edit landing in between: whichever write committed last silently
@@ -38,9 +52,12 @@ async function mergeExtractedGradesIntoCompletedCourses(
 
     const existing = normalizeCompletedCourses(studentSnap.data()?.completedCourses);
     const merged = new Map(existing.map((c) => [c.subject, c]));
-    for (const g of extractedGrades) merged.set(g.subject, { subject: g.subject, grade: g.grade });
+    for (const g of extractedCourses) merged.set(g.subject, { subject: g.subject, grade: g.grade });
 
-    tx.update(studentRef, { completedCourses: [...merged.values()] });
+    tx.update(studentRef, {
+      completedCourses: [...merged.values()],
+      ...(accumulatedCredits !== null ? { accumulatedCredits } : {}),
+    });
   });
 }
 
