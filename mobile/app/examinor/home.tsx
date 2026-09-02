@@ -126,7 +126,7 @@ export default function ExaminerHome() {
   //    grade/eval modals above. ─────────────────────────────────────────
   const [formModal,      setFormModal]      = useState(false);
   const [formTarget,     setFormTarget]     = useState<AssignedMilestone | null>(null);
-  const [formAnswers,    setFormAnswers]    = useState<Record<string, { value: 'yes' | 'no' | ''; comment: string }>>({});
+  const [formAnswers,    setFormAnswers]    = useState<Record<string, { value: string; comment: string }>>({});
   const [formSubmitting, setFormSubmitting] = useState(false);
   // Shown instead of auto-closing the modal, only for the data_science
   // document flow — see isDataScienceDocument below.
@@ -444,17 +444,16 @@ export default function ExaminerHome() {
     }
   };
  
-  // ── Non-scored examiner Q&A form (see workflowTemplates.ts's
-  //    examinerFormFields) ──────────────────────────────────────────────
+  // ── Examiner online form (see workflowTemplates.ts's examinerFormFields) ──
   const openFormModal = (m: AssignedMilestone) => {
-    const initial: Record<string, { value: 'yes' | 'no' | ''; comment: string }> = {};
+    const initial: Record<string, { value: string; comment: string }> = {};
     (m.examinerFormFields ?? []).forEach((f) => { initial[f.key] = { value: '', comment: '' }; });
     setFormTarget(m);
     setFormAnswers(initial);
     setFormModal(true);
   };
 
-  const setFormAnswerValue = (fieldKey: string, value: 'yes' | 'no') => {
+  const setFormAnswerValue = (fieldKey: string, value: string) => {
     setFormAnswers((prev) => {
       const field = (formTarget?.examinerFormFields ?? []).find((f) => f.key === fieldKey);
       const keepComment = field?.commentRequiredOn === value ? prev[fieldKey]?.comment ?? '' : '';
@@ -466,22 +465,30 @@ export default function ExaminerHome() {
     if (!formTarget) return;
     const fields = formTarget.examinerFormFields ?? [];
     for (const f of fields) {
-      const a = formAnswers[f.key];
-      if (a?.value !== 'yes' && a?.value !== 'no') {
-        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש לבחור כן/לא עבור "${f.labelHe}"` : `Choose yes/no for "${f.labelEn}"`);
-        return;
-      }
-      if (f.commentRequiredOn === a.value && !a.comment.trim()) {
-        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש להוסיף הסבר עבור "${f.labelHe}"` : `An explanation is required for "${f.labelEn}"`);
+      const a = formAnswers[f.key] ?? { value: '', comment: '' };
+      if (f.type === 'yesno') {
+        if (a.value !== 'yes' && a.value !== 'no') {
+          Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש לבחור כן/לא עבור "${f.labelHe}"` : `Choose yes/no for "${f.labelEn}"`);
+          return;
+        }
+        if (f.commentRequiredOn === a.value && !a.comment.trim()) {
+          Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש להוסיף הסבר עבור "${f.labelHe}"` : `An explanation is required for "${f.labelEn}"`);
+          return;
+        }
+      } else if (f.required && !a.value.trim()) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש למלא את "${f.labelHe}"` : `"${f.labelEn}" is required`);
         return;
       }
     }
     try {
       setFormSubmitting(true);
       const answers = Object.fromEntries(fields.map((f) => {
-        const a = formAnswers[f.key];
-        const comment = a.comment.trim();
-        return [f.key, comment ? { value: a.value, comment } : { value: a.value }];
+        const a = formAnswers[f.key] ?? { value: '', comment: '' };
+        if (f.type === 'yesno') {
+          const comment = a.comment.trim();
+          return [f.key, comment ? { value: a.value, comment } : { value: a.value }];
+        }
+        return [f.key, { value: a.value.trim() }];
       }));
       await apiClient.post(`/api/projects/milestones/${formTarget.id}/examiner-form`, { answers });
       Alert.alert(lang === 'he' ? '✅ הצלחה' : '✅ Success', lang === 'he' ? 'הטופס נשלח בהצלחה' : 'Form submitted successfully');
@@ -1091,12 +1098,13 @@ export default function ExaminerHome() {
         </ScrollView>
       </Modal>
 
-      {/* ════════ EXAMINER FORM-ANSWERS MODAL — non-scored Q&A workflow ════════
+      {/* ════════ EXAMINER FORM-ANSWERS MODAL — non-scored online form ════════
           Generic (not faculty-specific) renderer for a milestone's
           examinerFormFields (see workflowTemplates.ts) — e.g. the Industrial
-          Engineering & Management "Presentation 1" form: yes/no questions,
+          Engineering & Management "Presentation 1" form (yes/no questions,
           each with a comment that becomes mandatory only for a specific
-          answer (see each field's own commentRequiredOn). */}
+          answer — see each field's own commentRequiredOn), or any other
+          text/number/date/textarea field a template defines. */}
       <Modal visible={formModal} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
           <Text style={styles.modalTitle}>
@@ -1116,55 +1124,83 @@ export default function ExaminerHome() {
           )}
 
           {(formTarget?.examinerFormFields ?? []).map((f, idx) => {
-            const a = formAnswers[f.key] ?? { value: '' as const, comment: '' };
-            const commentEnabled = f.commentRequiredOn ? a.value === f.commentRequiredOn : a.value !== '';
-            const commentRequired = f.commentRequiredOn ? a.value === f.commentRequiredOn : false;
+            const a = formAnswers[f.key] ?? { value: '', comment: '' };
             return (
               <View key={f.key} style={[styles.criterionRow, { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 10 }]}>
-                <Text style={styles.criterionLabel}>{idx + 1}. {lang === 'he' ? f.labelHe : f.labelEn}</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                  <Pressable
-                    onPress={() => setFormAnswerValue(f.key, 'yes')}
+                <Text style={styles.criterionLabel}>
+                  {idx + 1}. {lang === 'he' ? f.labelHe : f.labelEn}{f.type !== 'yesno' && f.required ? ' *' : ''}
+                </Text>
+                {f.type === 'yesno' ? (
+                  <>
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                      <Pressable
+                        onPress={() => setFormAnswerValue(f.key, 'yes')}
+                        style={{
+                          flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                          borderWidth: 1, borderColor: a.value === 'yes' ? '#10B981' : '#E5E7EB',
+                          backgroundColor: a.value === 'yes' ? '#10B981' : 'transparent',
+                        }}
+                        accessibilityRole="button"
+                      >
+                        <Text style={{ fontWeight: '700', color: a.value === 'yes' ? '#fff' : '#111827' }}>{lang === 'he' ? 'כן' : 'Yes'}</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setFormAnswerValue(f.key, 'no')}
+                        style={{
+                          flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                          borderWidth: 1, borderColor: a.value === 'no' ? '#10B981' : '#E5E7EB',
+                          backgroundColor: a.value === 'no' ? '#10B981' : 'transparent',
+                        }}
+                        accessibilityRole="button"
+                      >
+                        <Text style={{ fontWeight: '700', color: a.value === 'no' ? '#fff' : '#111827' }}>{lang === 'he' ? 'לא' : 'No'}</Text>
+                      </Pressable>
+                    </View>
+                    {(() => {
+                      const commentEnabled = f.commentRequiredOn ? a.value === f.commentRequiredOn : a.value !== '';
+                      const commentRequired = f.commentRequiredOn ? a.value === f.commentRequiredOn : false;
+                      return (
+                        <>
+                          <TextInput
+                            style={[styles.textarea, !commentEnabled && { opacity: 0.5 }]}
+                            value={a.comment}
+                            editable={commentEnabled}
+                            onChangeText={(v) => setFormAnswers((prev) => ({ ...prev, [f.key]: { value: prev[f.key]?.value ?? '', comment: v } }))}
+                            multiline
+                            numberOfLines={2}
+                            placeholder={
+                              !commentEnabled
+                                ? (lang === 'he' ? 'אין צורך בהסבר עבור תשובה זו' : 'No explanation needed for this answer')
+                                : (lang === 'he' ? 'הסבר במשפט אחד...' : 'One-sentence explanation...')
+                            }
+                            placeholderTextColor="#9CA3AF"
+                            textAlign={isRtl ? 'right' : 'left'}
+                          />
+                          {commentRequired && (
+                            <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                              {lang === 'he' ? '* הסבר חובה עבור תשובה זו' : '* An explanation is required for this answer'}
+                            </Text>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <TextInput
                     style={{
-                      flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                      borderWidth: 1, borderColor: a.value === 'yes' ? '#10B981' : '#E5E7EB',
-                      backgroundColor: a.value === 'yes' ? '#10B981' : 'transparent',
+                      marginTop: 8, borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, padding: 11,
+                      fontSize: 14, color: '#1E293B', backgroundColor: '#fff',
+                      ...(f.type === 'textarea' ? { minHeight: 90, textAlignVertical: 'top' as const } : {}),
                     }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={{ fontWeight: '700', color: a.value === 'yes' ? '#fff' : '#111827' }}>{lang === 'he' ? 'כן' : 'Yes'}</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setFormAnswerValue(f.key, 'no')}
-                    style={{
-                      flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                      borderWidth: 1, borderColor: a.value === 'no' ? '#10B981' : '#E5E7EB',
-                      backgroundColor: a.value === 'no' ? '#10B981' : 'transparent',
-                    }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={{ fontWeight: '700', color: a.value === 'no' ? '#fff' : '#111827' }}>{lang === 'he' ? 'לא' : 'No'}</Text>
-                  </Pressable>
-                </View>
-                <TextInput
-                  style={[styles.textarea, !commentEnabled && { opacity: 0.5 }]}
-                  value={a.comment}
-                  editable={commentEnabled}
-                  onChangeText={(v) => setFormAnswers((prev) => ({ ...prev, [f.key]: { ...prev[f.key], value: prev[f.key]?.value ?? '', comment: v } }))}
-                  multiline
-                  numberOfLines={2}
-                  placeholder={
-                    !commentEnabled
-                      ? (lang === 'he' ? 'אין צורך בהסבר עבור תשובה זו' : 'No explanation needed for this answer')
-                      : (lang === 'he' ? 'הסבר במשפט אחד...' : 'One-sentence explanation...')
-                  }
-                  placeholderTextColor="#9CA3AF"
-                  textAlign={isRtl ? 'right' : 'left'}
-                />
-                {commentRequired && (
-                  <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
-                    {lang === 'he' ? '* הסבר חובה עבור תשובה זו' : '* An explanation is required for this answer'}
-                  </Text>
+                    value={a.value}
+                    onChangeText={(v) => setFormAnswers((prev) => ({ ...prev, [f.key]: { value: v, comment: prev[f.key]?.comment ?? '' } }))}
+                    multiline={f.type === 'textarea'}
+                    numberOfLines={f.type === 'textarea' ? 4 : 1}
+                    keyboardType={f.type === 'number' ? 'numeric' : 'default'}
+                    placeholder={f.type === 'date' ? 'YYYY-MM-DD' : undefined}
+                    placeholderTextColor="#9CA3AF"
+                    textAlign={isRtl ? 'right' : 'left'}
+                  />
                 )}
               </View>
             );

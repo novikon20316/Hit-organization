@@ -2,13 +2,14 @@
 
 // app/examinor/home/ExaminerFormFieldsModal.tsx
 // Generic (not faculty-specific) renderer for a milestone's examinerFormFields
-// (see workflowTemplates.ts) — a non-scored Q&A form every assigned examiner
-// fills independently, e.g. the Industrial Engineering & Management
-// "Presentation 1" form (4 yes/no screening questions, each with a comment
-// that becomes mandatory only for a specific answer — see each field's own
-// commentRequiredOn). A sibling of GradeExaminerModal.tsx for the non-numeric
-// shape, dispatched from AssignmentCard.tsx whenever a milestone has
-// examinerFormFields instead of (or alongside an empty) gradingComponents.
+// (see workflowTemplates.ts) — a non-scored online form every assigned
+// examiner fills independently, e.g. the Industrial Engineering &
+// Management "Presentation 1" form (4 yes/no screening questions, each with
+// a comment that becomes mandatory only for a specific answer — see each
+// field's own commentRequiredOn), or a free-text/number/date field for any
+// other configured question. A sibling of GradeExaminerModal.tsx for the
+// non-numeric shape, dispatched from AssignmentCard.tsx whenever a milestone
+// has examinerFormFields instead of (or alongside an empty) gradingComponents.
 
 import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -25,7 +26,7 @@ interface ExaminerFormFieldsModalProps {
 }
 
 interface AnswerState {
-  value: 'yes' | 'no' | '';
+  value: string;
   comment: string;
 }
 
@@ -35,7 +36,7 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
   const fields = m.examinerFormFields ?? [];
 
   const [answers, setAnswers] = useState<Record<string, AnswerState>>(() =>
-    Object.fromEntries(fields.map((f) => [f.key, { value: '' as const, comment: '' }]))
+    Object.fromEntries(fields.map((f) => [f.key, { value: '', comment: '' }]))
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -45,7 +46,7 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
   const examinerName = (lang === 'he' ? userData?.displayNameHe : userData?.displayNameEn) || userData?.displayName || '';
   const today = new Date();
 
-  const setAnswer = (key: string, value: 'yes' | 'no') => {
+  const setAnswer = (key: string, value: string) => {
     setAnswers((prev) => {
       const field = fields.find((f) => f.key === key);
       // Switching to the answer that doesn't require a comment clears
@@ -56,6 +57,10 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
     });
   };
 
+  const setValue = (key: string, value: string) => {
+    setAnswers((prev) => ({ ...prev, [key]: { ...prev[key], value } }));
+  };
+
   const setComment = (key: string, comment: string) => {
     setAnswers((prev) => ({ ...prev, [key]: { ...prev[key], comment } }));
   };
@@ -63,13 +68,18 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
   const handleSubmit = async () => {
     setError('');
     for (const f of fields) {
-      const a = answers[f.key];
-      if (a?.value !== 'yes' && a?.value !== 'no') {
-        setError(lang === 'he' ? `יש לבחור כן/לא עבור "${f.labelHe}"` : `Choose yes/no for "${f.labelEn}"`);
-        return;
-      }
-      if (f.commentRequiredOn === a.value && !a.comment.trim()) {
-        setError(lang === 'he' ? `יש להוסיף הסבר עבור "${f.labelHe}"` : `An explanation is required for "${f.labelEn}"`);
+      const a = answers[f.key] ?? { value: '', comment: '' };
+      if (f.type === 'yesno') {
+        if (a.value !== 'yes' && a.value !== 'no') {
+          setError(lang === 'he' ? `יש לבחור כן/לא עבור "${f.labelHe}"` : `Choose yes/no for "${f.labelEn}"`);
+          return;
+        }
+        if (f.commentRequiredOn === a.value && !a.comment.trim()) {
+          setError(lang === 'he' ? `יש להוסיף הסבר עבור "${f.labelHe}"` : `An explanation is required for "${f.labelEn}"`);
+          return;
+        }
+      } else if (f.required && !a.value.trim()) {
+        setError(lang === 'he' ? `יש למלא את "${f.labelHe}"` : `"${f.labelEn}" is required`);
         return;
       }
     }
@@ -77,9 +87,12 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
     try {
       const payload = Object.fromEntries(
         fields.map((f) => {
-          const a = answers[f.key];
-          const comment = a.comment.trim();
-          return [f.key, comment ? { value: a.value as 'yes' | 'no', comment } : { value: a.value as 'yes' | 'no' }];
+          const a = answers[f.key] ?? { value: '', comment: '' };
+          if (f.type === 'yesno') {
+            const comment = a.comment.trim();
+            return [f.key, comment ? { value: a.value, comment } : { value: a.value }];
+          }
+          return [f.key, { value: a.value.trim() }];
         })
       );
       await apiClient.submitExaminerFormAnswers(m.id, payload);
@@ -114,42 +127,62 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
         <div className="mt-4 grid gap-4">
           {fields.map((f, idx) => {
             const a = answers[f.key] ?? { value: '', comment: '' };
-            const commentEnabled = f.commentRequiredOn ? a.value === f.commentRequiredOn : a.value !== '';
-            const commentRequired = f.commentRequiredOn ? a.value === f.commentRequiredOn : false;
+            const inputCls = 'mt-2 w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3 py-2 text-sm text-examinor-on-surface focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none';
             return (
               <div key={f.key} className="rounded-lg border border-examinor-outline-variant p-3">
                 <p className="text-sm font-medium text-examinor-on-surface">
-                  {idx + 1}. {lang === 'he' ? f.labelHe : f.labelEn}
+                  {idx + 1}. {lang === 'he' ? f.labelHe : f.labelEn}{f.type !== 'yesno' && f.required ? ' *' : ''}
                 </p>
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAnswer(f.key, 'yes')}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${a.value === 'yes' ? 'border-examinor-primary bg-examinor-primary text-examinor-on-primary' : 'border-examinor-outline-variant text-examinor-on-surface hover:bg-examinor-surface-container-low'}`}
-                  >
-                    {lang === 'he' ? 'כן' : 'Yes'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAnswer(f.key, 'no')}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${a.value === 'no' ? 'border-examinor-primary bg-examinor-primary text-examinor-on-primary' : 'border-examinor-outline-variant text-examinor-on-surface hover:bg-examinor-surface-container-low'}`}
-                  >
-                    {lang === 'he' ? 'לא' : 'No'}
-                  </button>
-                </div>
-                <textarea
-                  rows={2}
-                  value={a.comment}
-                  disabled={!commentEnabled}
-                  onChange={(e) => setComment(f.key, e.target.value)}
-                  placeholder={
-                    !commentEnabled
-                      ? lang === 'he' ? 'אין צורך בהסבר עבור תשובה זו' : 'No explanation needed for this answer'
-                      : lang === 'he' ? 'הסבר במשפט אחד...' : 'One-sentence explanation...'
-                  }
-                  className="mt-2 w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3 py-2 text-sm text-examinor-on-surface focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                {commentRequired && <p className="mt-1 text-[11px] text-examinor-on-surface-variant">{lang === 'he' ? '* הסבר חובה עבור תשובה זו' : '* An explanation is required for this answer'}</p>}
+                {f.type === 'yesno' ? (
+                  <>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAnswer(f.key, 'yes')}
+                        className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${a.value === 'yes' ? 'border-examinor-primary bg-examinor-primary text-examinor-on-primary' : 'border-examinor-outline-variant text-examinor-on-surface hover:bg-examinor-surface-container-low'}`}
+                      >
+                        {lang === 'he' ? 'כן' : 'Yes'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAnswer(f.key, 'no')}
+                        className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${a.value === 'no' ? 'border-examinor-primary bg-examinor-primary text-examinor-on-primary' : 'border-examinor-outline-variant text-examinor-on-surface hover:bg-examinor-surface-container-low'}`}
+                      >
+                        {lang === 'he' ? 'לא' : 'No'}
+                      </button>
+                    </div>
+                    {(() => {
+                      const commentEnabled = f.commentRequiredOn ? a.value === f.commentRequiredOn : a.value !== '';
+                      const commentRequired = f.commentRequiredOn ? a.value === f.commentRequiredOn : false;
+                      return (
+                        <>
+                          <textarea
+                            rows={2}
+                            value={a.comment}
+                            disabled={!commentEnabled}
+                            onChange={(e) => setComment(f.key, e.target.value)}
+                            placeholder={
+                              !commentEnabled
+                                ? lang === 'he' ? 'אין צורך בהסבר עבור תשובה זו' : 'No explanation needed for this answer'
+                                : lang === 'he' ? 'הסבר במשפט אחד...' : 'One-sentence explanation...'
+                            }
+                            className={`${inputCls} disabled:cursor-not-allowed disabled:opacity-50`}
+                          />
+                          {commentRequired && <p className="mt-1 text-[11px] text-examinor-on-surface-variant">{lang === 'he' ? '* הסבר חובה עבור תשובה זו' : '* An explanation is required for this answer'}</p>}
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : f.type === 'textarea' ? (
+                  <textarea rows={3} value={a.value} onChange={(e) => setValue(f.key, e.target.value)} className={inputCls} />
+                ) : (
+                  <input
+                    type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text'}
+                    value={a.value}
+                    onChange={(e) => setValue(f.key, e.target.value)}
+                    className={inputCls}
+                  />
+                )}
               </div>
             );
           })}

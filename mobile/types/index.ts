@@ -591,7 +591,7 @@ export interface AssignedMilestone {
   // inline in mobile/app/examinor/home.tsx's form-answers modal instead of
   // the numeric-rubric grade modal.
   examinerFormFields?: FormFieldSpec[];
-  examinerFormAnswers?: Record<string, Record<string, { value: 'yes' | 'no'; comment?: string }>>;
+  examinerFormAnswers?: Record<string, Record<string, { value: unknown; comment?: string }>>;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -608,8 +608,7 @@ export interface GradingComponentSpec {
   excludeFromTotal?: boolean;
 }
 
-// Mirrors FormFieldSpec in server/src/services/workflowTemplates.ts (only
-// the 'yesno' shape is actually used by mobile/app/examinor/home.tsx today).
+// Mirrors FormFieldSpec in server/src/services/workflowTemplates.ts.
 export interface FormFieldSpec {
   key: string;
   labelHe: string;

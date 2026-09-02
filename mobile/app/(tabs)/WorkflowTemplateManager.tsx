@@ -81,18 +81,22 @@ export interface GradingComponentSpec {
   visibleToStudent: boolean;
 }
 
-/** A single field in a staff-fillable online form (see MilestoneSpec's
- *  staffFormFields). Note: 'table' exists in the data model/server validation
- *  for future use, but — matching the web editor's own scope-limiting choice
- *  — this screen's type picker only offers text/textarea/date/number. */
+/** A single field in a staff- or examiner-fillable online form (see
+ *  MilestoneSpec's staffFormFields/examinerFormFields). Note: 'table' exists
+ *  in the data model/server validation for future use, but — matching the
+ *  web editor's own scope-limiting choice — this screen's type picker only
+ *  offers text/textarea/date/number/yesno. */
 export interface FormFieldSpec {
   key: string;
   labelHe: string;
   labelEn: string;
-  type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno';
   required: boolean;
   /** Only meaningful when type === 'table' — not editable from this screen. */
   tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+  /** Only meaningful when type === 'yesno' — which answer makes this field's
+   *  paired comment mandatory. Omitted means the comment is always optional. */
+  commentRequiredOn?: 'yes' | 'no';
 }
 
 /** One of the three independently-scored rubrics that combine into a defense
@@ -172,13 +176,22 @@ export interface MilestoneSpec {
    *  meaningful when requiresExaminers is true. Omitted means the legacy
    *  default of 2. Mirrors web/app/workflow-templates/types.ts. */
   examinerCount?: number;
+  /** True means this milestone has NO supervisor grading stage at all — it
+   *  finalizes once every assigned examiner has independently submitted.
+   *  Only meaningful when requiresExaminers is true. Mirrors
+   *  web/app/workflow-templates/types.ts. */
+  examinerOnlyGrading?: boolean;
+  /** A set of fields every ASSIGNED EXAMINER fills independently — a non-
+   *  scored sibling of gradingComponents. Only meaningful when
+   *  requiresExaminers is true. Mirrors web/app/workflow-templates/types.ts. */
+  examinerFormFields?: FormFieldSpec[];
   /** Per-milestone override of the template's defaultRouting. Omitted means
    *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */
   routing?: MilestoneRoutingSpec;
-  /** Only meaningful for research_proposal/progress_report-type milestones —
-   *  lets staff (the supervisor) attach an official record alongside the
-   *  student's own submission, either by uploading a file or filling
-   *  staffFormFields online. Omitted/'none' keeps today's behavior. */
+  /** Lets staff (the supervisor) attach an official record alongside the
+   *  student's own submission, on any milestone type, either by uploading a
+   *  file or filling staffFormFields online. Omitted/'none' keeps today's
+   *  behavior. */
   staffRecordMode?: 'none' | 'upload_or_form';
   staffFormFields?: FormFieldSpec[];
   /** Only meaningful for the 'defense' milestone type — replaces the single

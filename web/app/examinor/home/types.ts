@@ -101,11 +101,12 @@ export interface AssignedMilestone {
   // AssignmentCard.tsx to skip showing a "Supervisor" weight badge, and to
   // dispatch to ExaminerFormFieldsModal when examinerFormFields is set.
   examinerOnlyGrading?: boolean;
-  // A non-scored Q&A form every assigned examiner fills independently (e.g.
-  // yes/no screening questions) — a sibling of gradingComponents, rendered by
-  // ExaminerFormFieldsModal.tsx instead of GradeExaminerModal.tsx.
+  // A non-scored online form every assigned examiner fills independently
+  // (yes/no screening questions, free text, numbers, dates...) — a sibling of
+  // gradingComponents, rendered by ExaminerFormFieldsModal.tsx instead of
+  // GradeExaminerModal.tsx.
   examinerFormFields?: FormFieldSpec[];
-  examinerFormAnswers?: Record<string, Record<string, { value: 'yes' | 'no'; comment?: string }>>;
+  examinerFormAnswers?: Record<string, Record<string, { value: unknown; comment?: string }>>;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -122,8 +123,7 @@ export interface GradingComponentSpec {
   excludeFromTotal?: boolean;
 }
 
-// Mirrors FormFieldSpec in server/src/services/workflowTemplates.ts (only the
-// 'yesno' shape is actually used on this screen today).
+// Mirrors FormFieldSpec in server/src/services/workflowTemplates.ts.
 export interface FormFieldSpec {
   key: string;
   labelHe: string;

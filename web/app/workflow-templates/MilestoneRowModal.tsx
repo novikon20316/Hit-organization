@@ -3,9 +3,11 @@
 // app/workflow-templates/MilestoneRowModal.tsx
 // Add/edit a single milestone row within the propose-version editor —
 // nameHe/En, due date, requires-examiners, grading rubric, approval chain,
-// plus two department-specific extensions (see workflowTemplates.ts):
-// - research_proposal/progress_report: an optional staff-side upload-or-form
-//   record alongside the student's own submission.
+// plus:
+// - an optional staff-side upload-or-form record alongside the student's own
+//   submission, for any milestone type.
+// - an optional examiner online form (yes/no + free-text/number/date
+//   questions), when the milestone requires examiners.
 // - defense: an optional three-independent-rubric final-grade workflow
 //   (supervisor / examiner-on-the-project / examiner-on-the-defense) instead
 //   of the single shared gradingComponents rubric below.
@@ -31,7 +33,102 @@ const FORM_FIELD_TYPES: Array<{ value: FormFieldSpec['type']; he: string; en: st
   { value: 'textarea', he: 'טקסט ארוך', en: 'Long text' },
   { value: 'date', he: 'תאריך', en: 'Date' },
   { value: 'number', he: 'מספר', en: 'Number' },
+  { value: 'yesno', he: 'כן/לא', en: 'Yes/No' },
 ];
+
+interface FormFieldListEditorProps {
+  fields: FormFieldSpec[];
+  setFields: (updater: (prev: FormFieldSpec[]) => FormFieldSpec[]) => void;
+  emptyLabel: string;
+}
+
+// Shared add/remove/edit-row UI for a FormFieldSpec[] list — used for both
+// the staff-record form and the examiner form below. A row's type selector
+// includes 'yesno', in which case a `commentRequiredOn` picker appears
+// (which answer makes the paired comment mandatory) — meaningless for every
+// other type, so hidden otherwise.
+function FormFieldListEditor({ fields, setFields, emptyLabel }: FormFieldListEditorProps) {
+  const { lang, t } = useLanguage();
+  const updateField = (idx: number, patch: Partial<FormFieldSpec>) => {
+    setFields((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
+  };
+  const removeField = (idx: number) => setFields((prev) => prev.filter((_, i) => i !== idx));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-ink">{lang === 'he' ? 'שדות הטופס המקוון' : 'Online form fields'}</span>
+        <button
+          type="button"
+          onClick={() => setFields((prev) => [...prev, emptyFormField()])}
+          className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+        >
+          ＋ {t('add')}
+        </button>
+      </div>
+      {fields.length === 0 && <p className="mt-1 text-xs text-muted">{emptyLabel}</p>}
+      <div className="mt-1.5 grid gap-1.5">
+        {fields.map((f, idx) => (
+          <div key={f.key} className="rounded-md border border-line bg-surface p-2">
+            <div className="flex items-center gap-1.5">
+              <input
+                dir="rtl"
+                value={f.labelHe}
+                onChange={(e) => updateField(idx, { labelHe: e.target.value })}
+                placeholder={lang === 'he' ? 'תווית (עברית)' : 'Label (Hebrew)'}
+                className="w-full rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+              />
+              <input
+                dir="ltr"
+                value={f.labelEn}
+                onChange={(e) => updateField(idx, { labelEn: e.target.value })}
+                placeholder={lang === 'he' ? 'תווית (אנגלית)' : 'Label (English)'}
+                className="w-full rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+              />
+              <button type="button" onClick={() => removeField(idx)} className="shrink-0 px-1 text-sm" aria-label="remove">
+                🗑️
+              </button>
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <select
+                value={f.type}
+                onChange={(e) => updateField(idx, { type: e.target.value as FormFieldSpec['type'] })}
+                className="rounded-md border border-line bg-paper px-1.5 py-0.5 text-xs text-ink"
+              >
+                {FORM_FIELD_TYPES.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt[lang]}</option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={f.required}
+                  onChange={(e) => updateField(idx, { required: e.target.checked })}
+                  className="h-3.5 w-3.5 accent-[var(--primary)]"
+                />
+                {lang === 'he' ? 'שדה חובה' : 'Required'}
+              </label>
+              {f.type === 'yesno' && (
+                <label className="flex items-center gap-1 text-xs text-muted">
+                  {lang === 'he' ? 'הערה חובה כאשר התשובה:' : 'Comment required when the answer is:'}
+                  <select
+                    value={f.commentRequiredOn ?? ''}
+                    onChange={(e) => updateField(idx, { commentRequiredOn: e.target.value === '' ? undefined : (e.target.value as 'yes' | 'no') })}
+                    className="rounded-md border border-line bg-paper px-1.5 py-0.5 text-xs text-ink"
+                  >
+                    <option value="">{lang === 'he' ? 'לעולם לא' : 'Never'}</option>
+                    <option value="yes">{lang === 'he' ? 'כן' : 'Yes'}</option>
+                    <option value="no">{lang === 'he' ? 'לא' : 'No'}</option>
+                  </select>
+                </label>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface RubricEditorProps {
   title: string;
@@ -154,6 +251,8 @@ interface MilestoneRowModalProps {
     percentOfFinalGrade: number;
     requiresExaminers: boolean;
     examinerCount?: number;
+    examinerOnlyGrading?: boolean;
+    examinerFormFields?: FormFieldSpec[];
     gradingComponents: GradingComponentSpec[];
     routing?: MilestoneRoutingSpec;
     staffRecordMode?: 'none' | 'upload_or_form';
@@ -197,11 +296,18 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
   const [routing, setRouting] = useState<MilestoneRoutingSpec>(editing?.routing && editing.routing.length > 0 ? editing.routing.map((s) => ({ ...s })) : [emptyStage()]);
   const [error, setError] = useState('');
 
-  // research_proposal/progress_report only — an official staff (supervisor)
-  // record alongside the student's own submission.
-  const isProposalOrMidterm = editing?.type === 'research_proposal' || editing?.type === 'progress_report';
+  // An official staff (supervisor) record alongside the student's own
+  // submission — either a completed file upload or an online form.
   const [staffRecordMode, setStaffRecordMode] = useState<'none' | 'upload_or_form'>(editing?.staffRecordMode ?? 'none');
   const [staffFormFields, setStaffFormFields] = useState<FormFieldSpec[]>(editing?.staffFormFields ?? []);
+
+  // An online form every ASSIGNED EXAMINER fills independently, instead of
+  // (or alongside) the numeric gradingComponents rubric — only meaningful
+  // when requiresExaminers is on. examinerOnlyGrading removes the supervisor
+  // grading stage entirely: the milestone finalizes once every assigned
+  // examiner has answered.
+  const [examinerOnlyGrading, setExaminerOnlyGrading] = useState(editing?.examinerOnlyGrading ?? false);
+  const [examinerFormFields, setExaminerFormFields] = useState<FormFieldSpec[]>(editing?.examinerFormFields ?? []);
 
   // defense only — the three-independent-rubric final-grade workflow,
   // replacing the single shared gradingComponents rubric above when enabled.
@@ -220,11 +326,6 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
     setComponents((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
   };
   const removeComponent = (idx: number) => setComponents((prev) => prev.filter((_, i) => i !== idx));
-
-  const updateFormField = (idx: number, patch: Partial<FormFieldSpec>) => {
-    setStaffFormFields((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
-  };
-  const removeFormField = (idx: number) => setStaffFormFields((prev) => prev.filter((_, i) => i !== idx));
 
   const weightSum = components.reduce((sum, c) => sum + (Number(c.weight) || 0), 0);
 
@@ -289,11 +390,15 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
       setError(lang === 'he' ? 'יש לבחור ועדה עבור שלב הוועדה בשרשרת' : 'Choose a committee for the committee stage in the chain');
       return;
     }
-    if (isProposalOrMidterm && staffRecordMode === 'upload_or_form') {
+    if (staffRecordMode === 'upload_or_form') {
       if (staffFormFields.some((f) => !f.labelHe.trim() || !f.labelEn.trim())) {
-        setError(lang === 'he' ? 'יש להזין שם לכל שדה בטופס (עברית ואנגלית)' : 'Enter a name for every form field (Hebrew and English)');
+        setError(lang === 'he' ? 'יש להזין שם לכל שדה בטופס המנחה (עברית ואנגלית)' : 'Enter a name for every staff-record form field (Hebrew and English)');
         return;
       }
+    }
+    if (requiresExaminers && examinerFormFields.some((f) => !f.labelHe.trim() || !f.labelEn.trim())) {
+      setError(lang === 'he' ? 'יש להזין שם לכל שדה בטופס הבוחן (עברית ואנגלית)' : 'Enter a name for every examiner form field (Hebrew and English)');
+      return;
     }
 
     let finalGradeComponents: MilestoneSpec['finalGradeComponents'] | undefined;
@@ -337,10 +442,11 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
       ...(syncDueDateWith ? { syncDueDateWith } : {}),
       percentOfFinalGrade: parsedPercent,
       requiresExaminers,
-      ...(requiresExaminers ? { examinerCount: parsedExaminerCount } : {}),
+      ...(requiresExaminers ? { examinerCount: parsedExaminerCount, examinerOnlyGrading, examinerFormFields } : {}),
       gradingComponents: components,
       ...(overrideChain ? { routing } : {}),
-      ...(isProposalOrMidterm ? { staffRecordMode, staffFormFields: staffRecordMode === 'upload_or_form' ? staffFormFields : [] } : {}),
+      staffRecordMode,
+      staffFormFields: staffRecordMode === 'upload_or_form' ? staffFormFields : [],
       ...(finalGradeComponents ? { finalGradeComponents } : {}),
       submissionRequirement,
       ...(requiresFile ? { allowedFileTypes } : {}),
@@ -459,18 +565,55 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
           </label>
 
           {requiresExaminers && (
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">
-                {lang === 'he' ? 'מספר בוחנים נדרש' : 'Required number of examiners'}
-              </span>
-              <input
-                type="number"
-                min={1}
-                value={examinerCount}
-                onChange={(e) => setExaminerCount(e.target.value)}
-                className={inputCls}
-              />
-            </label>
+            <>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">
+                  {lang === 'he' ? 'מספר בוחנים נדרש' : 'Required number of examiners'}
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  value={examinerCount}
+                  onChange={(e) => setExaminerCount(e.target.value)}
+                  className={inputCls}
+                />
+              </label>
+
+              <label className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
+                <span className="text-sm font-medium text-ink">
+                  {lang === 'he' ? 'ציון בוחנים בלבד (ללא שלב מנחה)' : 'Examiner-only grading (no supervisor stage)'}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={examinerOnlyGrading}
+                  onChange={(e) => setExaminerOnlyGrading(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--primary)]"
+                />
+              </label>
+              {examinerOnlyGrading && (
+                <p className="-mt-1.5 text-xs text-muted">
+                  {lang === 'he'
+                    ? 'אבן הדרך תסתיים ברגע שכל הבוחנים שהוקצו הגישו את הערכתם — ללא ציון מנחה כלל.'
+                    : 'The milestone finalizes once every assigned examiner has submitted, with no supervisor grade at all.'}
+                </p>
+              )}
+
+              <div className="rounded-lg border border-line bg-paper p-3">
+                <span className="mb-1.5 block text-sm font-medium text-ink">
+                  {lang === 'he' ? 'טופס בוחן מקוון (אופציונלי)' : 'Examiner online form (optional)'}
+                </span>
+                <p className="mb-1.5 text-xs text-muted">
+                  {lang === 'he'
+                    ? 'כל בוחן/ת שהוקצה/תה ימלא/תמלא טופס זה בנפרד, במקום (או בנוסף ל)מד הציון המספרי.'
+                    : 'Every assigned examiner fills this form independently, instead of (or alongside) the numeric rubric.'}
+                </p>
+                <FormFieldListEditor
+                  fields={examinerFormFields}
+                  setFields={setExaminerFormFields}
+                  emptyLabel={lang === 'he' ? 'ניתן להשאיר ריק — ישתמש במד הציון המספרי בלבד.' : 'Can be left empty — that just leaves the numeric rubric as the only option.'}
+                />
+              </div>
+            </>
           )}
 
           <div className="block">
@@ -528,97 +671,42 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
             </div>
           )}
 
-          {isProposalOrMidterm && (
-            <div className="rounded-lg border border-line bg-paper p-3">
-              <span className="mb-1.5 block text-sm font-medium text-ink">
-                {lang === 'he' ? 'רשומת מנחה (אופציונלי)' : 'Staff record (optional)'}
-              </span>
-              <p className="mb-1.5 text-xs text-muted">
-                {lang === 'he'
-                  ? 'בנוסף להגשת הסטודנט/ית, ניתן לאפשר למנחה לצרף רשומה רשמית — קובץ מלא או טופס מקוון.'
-                  : "On top of the student's own submission, let the supervisor attach an official record — either a completed file or an online form."}
-              </p>
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setStaffRecordMode('none')}
-                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium ${staffRecordMode === 'none' ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'}`}
-                >
-                  {lang === 'he' ? 'ללא' : 'None'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStaffRecordMode('upload_or_form')}
-                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium ${staffRecordMode === 'upload_or_form' ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'}`}
-                >
-                  {lang === 'he' ? 'קובץ או טופס' : 'File or form'}
-                </button>
-              </div>
-
-              {staffRecordMode === 'upload_or_form' && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-ink">{lang === 'he' ? 'שדות הטופס המקוון' : 'Online form fields'}</span>
-                    <button
-                      type="button"
-                      onClick={() => setStaffFormFields((prev) => [...prev, emptyFormField()])}
-                      className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
-                    >
-                      ＋ {t('add')}
-                    </button>
-                  </div>
-                  {staffFormFields.length === 0 && (
-                    <p className="mt-1 text-xs text-muted">{lang === 'he' ? 'ניתן להשאיר ריק — יאפשר רק העלאת קובץ.' : 'Can be left empty — that just leaves file upload as the only option.'}</p>
-                  )}
-                  <div className="mt-1.5 grid gap-1.5">
-                    {staffFormFields.map((f, idx) => (
-                      <div key={f.key} className="rounded-md border border-line bg-surface p-2">
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            dir="rtl"
-                            value={f.labelHe}
-                            onChange={(e) => updateFormField(idx, { labelHe: e.target.value })}
-                            placeholder={lang === 'he' ? 'תווית (עברית)' : 'Label (Hebrew)'}
-                            className="w-full rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
-                          />
-                          <input
-                            dir="ltr"
-                            value={f.labelEn}
-                            onChange={(e) => updateFormField(idx, { labelEn: e.target.value })}
-                            placeholder={lang === 'he' ? 'תווית (אנגלית)' : 'Label (English)'}
-                            className="w-full rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
-                          />
-                          <button type="button" onClick={() => removeFormField(idx)} className="shrink-0 px-1 text-sm" aria-label="remove">
-                            🗑️
-                          </button>
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <select
-                            value={f.type}
-                            onChange={(e) => updateFormField(idx, { type: e.target.value as FormFieldSpec['type'] })}
-                            className="rounded-md border border-line bg-paper px-1.5 py-0.5 text-xs text-ink"
-                          >
-                            {FORM_FIELD_TYPES.map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt[lang]}</option>
-                            ))}
-                          </select>
-                          <label className="flex items-center gap-1 text-xs text-muted">
-                            <input
-                              type="checkbox"
-                              checked={f.required}
-                              onChange={(e) => updateFormField(idx, { required: e.target.checked })}
-                              className="h-3.5 w-3.5 accent-[var(--primary)]"
-                            />
-                            {lang === 'he' ? 'שדה חובה' : 'Required'}
-                          </label>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          <div className="rounded-lg border border-line bg-paper p-3">
+            <span className="mb-1.5 block text-sm font-medium text-ink">
+              {lang === 'he' ? 'רשומת מנחה (אופציונלי)' : 'Staff record (optional)'}
+            </span>
+            <p className="mb-1.5 text-xs text-muted">
+              {lang === 'he'
+                ? 'בנוסף להגשת הסטודנט/ית, ניתן לאפשר למנחה לצרף רשומה רשמית — קובץ מלא או טופס מקוון.'
+                : "On top of the student's own submission, let the supervisor attach an official record — either a completed file or an online form."}
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setStaffRecordMode('none')}
+                className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium ${staffRecordMode === 'none' ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'}`}
+              >
+                {lang === 'he' ? 'ללא' : 'None'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStaffRecordMode('upload_or_form')}
+                className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium ${staffRecordMode === 'upload_or_form' ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'}`}
+              >
+                {lang === 'he' ? 'קובץ או טופס' : 'File or form'}
+              </button>
             </div>
-          )}
+
+            {staffRecordMode === 'upload_or_form' && (
+              <div className="mt-3">
+                <FormFieldListEditor
+                  fields={staffFormFields}
+                  setFields={setStaffFormFields}
+                  emptyLabel={lang === 'he' ? 'ניתן להשאיר ריק — יאפשר רק העלאת קובץ.' : 'Can be left empty — that just leaves file upload as the only option.'}
+                />
+              </div>
+            )}
+          </div>
 
           {isDefense && (
             <label className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">

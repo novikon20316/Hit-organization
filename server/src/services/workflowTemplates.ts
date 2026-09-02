@@ -358,11 +358,11 @@ export interface WorkflowMilestoneSpec {
    *  template has none) — staff only sets this when one milestone genuinely
    *  needs a different chain than the rest of the template. */
   routing?: MilestoneRoutingSpec;
-  /** Only meaningful for research_proposal/progress_report-type milestones —
-   *  lets staff (the supervisor) attach an official record alongside the
-   *  student's own submission, either by uploading a completed file or
-   *  filling in staffFormFields online. Omitted/'none' keeps today's
-   *  behavior (student submission only, no staff-side record). */
+  /** Lets staff (the supervisor) attach an official record alongside the
+   *  student's own submission, on any milestone type — either by uploading
+   *  a completed file or filling in staffFormFields online. Omitted/'none'
+   *  keeps today's behavior (student submission only, no staff-side
+   *  record). */
   staffRecordMode?: 'none' | 'upload_or_form';
   /** The online-form field list shown when staffRecordMode === 'upload_or_form'. */
   staffFormFields?: FormFieldSpec[];
@@ -376,12 +376,14 @@ export interface WorkflowMilestoneSpec {
   studentFormFields?: FormFieldSpec[];
   /** A set of fields every ASSIGNED EXAMINER fills independently — a non-
    *  scored sibling of gradingComponents, for milestones that need a Q&A-
-   *  style evaluation (e.g. yes/no screening questions) rather than a
-   *  numeric rubric. Only meaningful when requiresExaminers && examinerOnlyGrading
-   *  are both true. Stored per-examiner in the milestone's examinerFormAnswers
-   *  map (see submitExaminerFormAnswers); the milestone finalizes (status
-   *  'graded', no finalGrade) once every assigned examiner has answered. Like
-   *  studentFormFields, this has no template-editor UI yet — script-only. */
+   *  style evaluation (yes/no screening questions, free text, numbers,
+   *  dates...) rather than (or alongside) a numeric rubric. Only meaningful
+   *  when requiresExaminers is true. Stored per-examiner in the milestone's
+   *  examinerFormAnswers map (see submitExaminerFormAnswers); the milestone
+   *  finalizes (status 'graded', no finalGrade) once every assigned
+   *  examiner has answered. Authored via MilestoneRowModal.tsx's
+   *  examiner-form section (unlike studentFormFields, which stays
+   *  script-only). */
   examinerFormFields?: FormFieldSpec[];
   /** Only meaningful for the 'defense' milestone type. Replaces the single
    *  shared gradingComponents rubric with three independent ones — one each

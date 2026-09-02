@@ -292,7 +292,119 @@ const FORM_FIELD_TYPES: Array<{ value: FormFieldSpec['type']; he: string; en: st
   { value: 'textarea', he: 'טקסט ארוך', en: 'Long text' },
   { value: 'date', he: 'תאריך', en: 'Date' },
   { value: 'number', he: 'מספר', en: 'Number' },
+  { value: 'yesno', he: 'כן/לא', en: 'Yes/No' },
 ];
+
+// Shared add/remove/edit-row UI for a FormFieldSpec[] list — used for both
+// the staff-record form and the examiner form below (ports web's
+// FormFieldListEditor). A row's type includes 'yesno', in which case a
+// commentRequiredOn picker appears (which answer makes the paired comment
+// mandatory) — meaningless for every other type, so hidden otherwise.
+function FormFieldListEditor({
+  fields, setFields, emptyLabel, lang,
+}: {
+  fields: FormFieldSpec[];
+  setFields: (updater: (prev: FormFieldSpec[]) => FormFieldSpec[]) => void;
+  emptyLabel: string;
+  lang: Lang;
+}) {
+  const updateField = (idx: number, patch: Partial<FormFieldSpec>) => {
+    setFields((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
+  };
+  const removeField = (idx: number) => setFields((prev) => prev.filter((_, i) => i !== idx));
+
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151' }}>
+          {lang === 'he' ? 'שדות הטופס המקוון' : 'Online form fields'}
+        </Text>
+        <Pressable
+          style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+          onPress={() => setFields((prev) => [...prev, emptyFormField()])}
+          accessibilityRole="button"
+        >
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>＋ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
+        </Pressable>
+      </View>
+      {fields.length === 0 && (
+        <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 4 }}>{emptyLabel}</Text>
+      )}
+      {fields.map((f, idx) => (
+        <View key={f.key} style={{ backgroundColor: '#F5F3FF', borderRadius: 8, padding: 8, marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <TextInput
+              style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, backgroundColor: '#fff' }}
+              value={f.labelHe}
+              onChangeText={(v) => updateField(idx, { labelHe: v })}
+              placeholder={lang === 'he' ? 'תווית (עברית)' : 'Label (Hebrew)'}
+              textAlign="right"
+            />
+            <TextInput
+              style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, backgroundColor: '#fff' }}
+              value={f.labelEn}
+              onChangeText={(v) => updateField(idx, { labelEn: v })}
+              placeholder={lang === 'he' ? 'תווית (אנגלית)' : 'Label (English)'}
+            />
+            <Pressable
+              onPress={() => removeField(idx)}
+              style={{ padding: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'הסר שדה' : 'Remove field'}
+            >
+              <Text>🗑️</Text>
+            </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {FORM_FIELD_TYPES.map((opt) => (
+              <Pressable
+                key={opt.value}
+                onPress={() => updateField(idx, { type: opt.value })}
+                style={{ borderWidth: 1.5, borderColor: f.type === opt.value ? '#7C3AED' : '#DDD6FE', backgroundColor: f.type === opt.value ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: f.type === opt.value }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '600', color: f.type === opt.value ? '#fff' : '#7C3AED' }}>
+                  {lang === 'he' ? opt.he : opt.en}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+            <Switch
+              value={f.required}
+              onValueChange={(v) => updateField(idx, { required: v })}
+              trackColor={{ true: '#7C3AED' }}
+            />
+            <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'שדה חובה' : 'Required'}</Text>
+          </View>
+          {f.type === 'yesno' && (
+            <View style={{ marginTop: 8 }}>
+              <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 4 }}>
+                {lang === 'he' ? 'הערה חובה כאשר התשובה:' : 'Comment required when the answer is:'}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {([{ value: undefined, he: 'לעולם לא', en: 'Never' }, { value: 'yes' as const, he: 'כן', en: 'Yes' }, { value: 'no' as const, he: 'לא', en: 'No' }]).map((opt) => (
+                  <Pressable
+                    key={opt.he}
+                    onPress={() => updateField(idx, { commentRequiredOn: opt.value })}
+                    style={{ borderWidth: 1.5, borderColor: (f.commentRequiredOn ?? undefined) === opt.value ? '#7C3AED' : '#DDD6FE', backgroundColor: (f.commentRequiredOn ?? undefined) === opt.value ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: (f.commentRequiredOn ?? undefined) === opt.value }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: (f.commentRequiredOn ?? undefined) === opt.value ? '#fff' : '#7C3AED' }}>
+                      {lang === 'he' ? opt.he : opt.en}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
 
 // One rubric's component list + its own overall weight — used three times for
 // a defense milestone's finalGradeComponents (supervisor / examiner-project /
@@ -543,10 +655,17 @@ export default function WorkflowTemplateEditor() {
   // multi-select in the milestone modal. Defaults to PDF-only.
   const [msAllowedFileTypes, setMsAllowedFileTypes] = useState<MilestoneFileType[]>(DEFAULT_ALLOWED_FILE_TYPES);
   const msRequiresFile = msSubmissionRequirement === 'file' || msSubmissionRequirement === 'both';
-  // research_proposal/progress_report only — an official staff (supervisor)
-  // record alongside the student's own submission.
+  // An official staff (supervisor) record alongside the student's own
+  // submission — either a completed file upload or an online form. Any
+  // milestone type.
   const [msStaffRecordMode, setMsStaffRecordMode] = useState<'none' | 'upload_or_form'>('none');
   const [msStaffFormFields, setMsStaffFormFields] = useState<FormFieldSpec[]>([]);
+  // An online form every ASSIGNED EXAMINER fills independently, instead of
+  // (or alongside) the numeric gradingComponents rubric — only meaningful
+  // when msExaminers is on. msExaminerOnlyGrading removes the supervisor
+  // grading stage entirely.
+  const [msExaminerOnlyGrading, setMsExaminerOnlyGrading] = useState(false);
+  const [msExaminerFormFields, setMsExaminerFormFields] = useState<FormFieldSpec[]>([]);
   // defense only — the three-independent-rubric final-grade workflow,
   // replacing the single shared gradingComponents rubric when enabled.
   const [msUseFinalGradeComponents, setMsUseFinalGradeComponents] = useState(false);
@@ -556,7 +675,6 @@ export default function WorkflowTemplateEditor() {
   const [msExaminerProjectWeight, setMsExaminerProjectWeight] = useState('30');
   const [msExaminerDefenseComponents, setMsExaminerDefenseComponents] = useState<GradingComponentSpec[]>([]);
   const [msExaminerDefenseWeight, setMsExaminerDefenseWeight] = useState('30');
-  const msIsProposalOrMidterm = editingMs?.type === 'research_proposal' || editingMs?.type === 'progress_report';
   const msIsDefense = editingMs?.type === 'defense';
 
   const handleApplyModeChange = async (mode: ApplyMode) => {
@@ -593,6 +711,8 @@ export default function WorkflowTemplateEditor() {
       setMsAllowedFileTypes(ms.allowedFileTypes && ms.allowedFileTypes.length > 0 ? ms.allowedFileTypes : DEFAULT_ALLOWED_FILE_TYPES);
       setMsStaffRecordMode(ms.staffRecordMode ?? 'none');
       setMsStaffFormFields(ms.staffFormFields ? ms.staffFormFields.map((f) => ({ ...f })) : []);
+      setMsExaminerOnlyGrading(ms.examinerOnlyGrading ?? false);
+      setMsExaminerFormFields(ms.examinerFormFields ? ms.examinerFormFields.map((f) => ({ ...f })) : []);
       setMsUseFinalGradeComponents(!!ms.finalGradeComponents);
       setMsSupervisorEvalComponents(ms.finalGradeComponents?.supervisorEvaluation.components.map((c) => ({ ...c })) ?? []);
       setMsSupervisorEvalWeight(String(ms.finalGradeComponents?.supervisorEvaluation.weight ?? 40));
@@ -609,6 +729,8 @@ export default function WorkflowTemplateEditor() {
       setMsAllowedFileTypes(DEFAULT_ALLOWED_FILE_TYPES);
       setMsStaffRecordMode('none');
       setMsStaffFormFields([]);
+      setMsExaminerOnlyGrading(false);
+      setMsExaminerFormFields([]);
       setMsUseFinalGradeComponents(false);
       setMsSupervisorEvalComponents([]); setMsSupervisorEvalWeight('40');
       setMsExaminerProjectComponents([]); setMsExaminerProjectWeight('30');
@@ -651,11 +773,15 @@ export default function WorkflowTemplateEditor() {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור לפחות סוג קובץ אחד' : 'Choose at least one file type');
       return;
     }
-    if (msIsProposalOrMidterm && msStaffRecordMode === 'upload_or_form') {
+    if (msStaffRecordMode === 'upload_or_form') {
       if (msStaffFormFields.some((f) => !f.labelHe.trim() || !f.labelEn.trim())) {
-        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין שם לכל שדה בטופס (עברית ואנגלית)' : 'Enter a name for every form field (Hebrew and English)');
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין שם לכל שדה בטופס המנחה (עברית ואנגלית)' : 'Enter a name for every staff-record form field (Hebrew and English)');
         return;
       }
+    }
+    if (msExaminers && msExaminerFormFields.some((f) => !f.labelHe.trim() || !f.labelEn.trim())) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין שם לכל שדה בטופס הבוחן (עברית ואנגלית)' : 'Enter a name for every examiner form field (Hebrew and English)');
+      return;
     }
     if (msOverrideChain && committees.length > 1 && msRouting.some((s) => s.role === 'committee' && !s.committeeId)) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור ועדה עבור שלב הוועדה בשרשרת' : 'Choose a committee for the committee stage in the chain');
@@ -705,17 +831,22 @@ export default function WorkflowTemplateEditor() {
         else { delete next.dateMode; delete next.fixedDate; }
         if (msSyncDueDateWith) next.syncDueDateWith = msSyncDueDateWith;
         else delete next.syncDueDateWith;
-        if (msExaminers) next.examinerCount = examinerCount;
-        else delete next.examinerCount;
+        if (msExaminers) {
+          next.examinerCount = examinerCount;
+          next.examinerOnlyGrading = msExaminerOnlyGrading;
+          next.examinerFormFields = msExaminerFormFields;
+        } else {
+          delete next.examinerCount;
+          delete next.examinerOnlyGrading;
+          delete next.examinerFormFields;
+        }
         // Turning the override off must actually clear a pre-existing
         // routing, not leave the stale chain behind. Same rule for
         // finalGradeComponents (three-rubric toggle) below.
         if (msOverrideChain) next.routing = msRouting;
         else delete next.routing;
-        if (msIsProposalOrMidterm) {
-          next.staffRecordMode = msStaffRecordMode;
-          next.staffFormFields = msStaffRecordMode === 'upload_or_form' ? msStaffFormFields : [];
-        }
+        next.staffRecordMode = msStaffRecordMode;
+        next.staffFormFields = msStaffRecordMode === 'upload_or_form' ? msStaffFormFields : [];
         if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
         else delete next.finalGradeComponents;
         if (msRequiresFile) next.allowedFileTypes = msAllowedFileTypes;
@@ -730,12 +861,14 @@ export default function WorkflowTemplateEditor() {
         };
         if (msDateMode === 'fixed') { next.dateMode = 'fixed'; next.fixedDate = fixedDate; }
         if (msSyncDueDateWith) next.syncDueDateWith = msSyncDueDateWith;
-        if (msExaminers) next.examinerCount = examinerCount;
-        if (msOverrideChain) next.routing = msRouting;
-        if (msIsProposalOrMidterm) {
-          next.staffRecordMode = msStaffRecordMode;
-          next.staffFormFields = msStaffRecordMode === 'upload_or_form' ? msStaffFormFields : [];
+        if (msExaminers) {
+          next.examinerCount = examinerCount;
+          next.examinerOnlyGrading = msExaminerOnlyGrading;
+          next.examinerFormFields = msExaminerFormFields;
         }
+        if (msOverrideChain) next.routing = msRouting;
+        next.staffRecordMode = msStaffRecordMode;
+        next.staffFormFields = msStaffRecordMode === 'upload_or_form' ? msStaffFormFields : [];
         if (finalGradeComponents) next.finalGradeComponents = finalGradeComponents;
         if (msRequiresFile) next.allowedFileTypes = msAllowedFileTypes;
         return [...prev, next];
@@ -1205,6 +1338,37 @@ export default function WorkflowTemplateEditor() {
                   keyboardType="numeric"
                   placeholder="2"
                 />
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', flex: 1, marginEnd: 8 }}>
+                    {lang === 'he' ? 'ציון בוחנים בלבד (ללא שלב מנחה)' : 'Examiner-only grading (no supervisor stage)'}
+                  </Text>
+                  <Switch value={msExaminerOnlyGrading} onValueChange={setMsExaminerOnlyGrading} trackColor={{ true: '#7C3AED' }} />
+                </View>
+                {msExaminerOnlyGrading && (
+                  <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 4 }}>
+                    {lang === 'he'
+                      ? 'אבן הדרך תסתיים ברגע שכל הבוחנים שהוקצו הגישו את הערכתם — ללא ציון מנחה כלל.'
+                      : 'The milestone finalizes once every assigned examiner has submitted, with no supervisor grade at all.'}
+                  </Text>
+                )}
+
+                <View style={{ marginTop: 12, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, padding: 12 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+                    {lang === 'he' ? 'טופס בוחן מקוון (אופציונלי)' : 'Examiner online form (optional)'}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 8 }}>
+                    {lang === 'he'
+                      ? 'כל בוחן/ת שהוקצה/תה ימלא/תמלא טופס זה בנפרד, במקום (או בנוסף ל)מד הציון המספרי.'
+                      : 'Every assigned examiner fills this form independently, instead of (or alongside) the numeric rubric.'}
+                  </Text>
+                  <FormFieldListEditor
+                    fields={msExaminerFormFields}
+                    setFields={setMsExaminerFormFields}
+                    emptyLabel={lang === 'he' ? 'ניתן להשאיר ריק — ישתמש במד הציון המספרי בלבד.' : 'Can be left empty — that just leaves the numeric rubric as the only option.'}
+                    lang={lang}
+                  />
+                </View>
               </>
             )}
 
@@ -1265,112 +1429,49 @@ export default function WorkflowTemplateEditor() {
               </>
             )}
 
-            {msIsProposalOrMidterm && (
-              <View style={{ marginTop: 16, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, padding: 12 }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
-                  {lang === 'he' ? 'רשומת מנחה (אופציונלי)' : 'Staff record (optional)'}
-                </Text>
-                <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 8 }}>
-                  {lang === 'he'
-                    ? 'בנוסף להגשת הסטודנט/ית, ניתן לאפשר למנחה לצרף רשומה רשמית — קובץ מלא או טופס מקוון.'
-                    : "On top of the student's own submission, let the supervisor attach an official record — either a completed file or an online form."}
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable
-                    onPress={() => setMsStaffRecordMode('none')}
-                    style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msStaffRecordMode === 'none' ? '#7C3AED' : '#DDD6FE', backgroundColor: msStaffRecordMode === 'none' ? '#7C3AED' : '#fff' }}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: msStaffRecordMode === 'none' }}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: msStaffRecordMode === 'none' ? '#fff' : '#374151' }}>
-                      {lang === 'he' ? 'ללא' : 'None'}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setMsStaffRecordMode('upload_or_form')}
-                    style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msStaffRecordMode === 'upload_or_form' ? '#7C3AED' : '#DDD6FE', backgroundColor: msStaffRecordMode === 'upload_or_form' ? '#7C3AED' : '#fff' }}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: msStaffRecordMode === 'upload_or_form' }}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: msStaffRecordMode === 'upload_or_form' ? '#fff' : '#374151' }}>
-                      {lang === 'he' ? 'קובץ או טופס' : 'File or form'}
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {msStaffRecordMode === 'upload_or_form' && (
-                  <View style={{ marginTop: 12 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151' }}>
-                        {lang === 'he' ? 'שדות הטופס המקוון' : 'Online form fields'}
-                      </Text>
-                      <Pressable
-                        style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
-                        onPress={() => setMsStaffFormFields((prev) => [...prev, emptyFormField()])}
-                        accessibilityRole="button"
-                      >
-                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>＋ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
-                      </Pressable>
-                    </View>
-                    {msStaffFormFields.length === 0 && (
-                      <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 4 }}>
-                        {lang === 'he' ? 'ניתן להשאיר ריק — יאפשר רק העלאת קובץ.' : 'Can be left empty — that just leaves file upload as the only option.'}
-                      </Text>
-                    )}
-                    {msStaffFormFields.map((f, idx) => (
-                      <View key={f.key} style={{ backgroundColor: '#F5F3FF', borderRadius: 8, padding: 8, marginTop: 8 }}>
-                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                          <TextInput
-                            style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, backgroundColor: '#fff' }}
-                            value={f.labelHe}
-                            onChangeText={(v) => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, labelHe: v } : x)))}
-                            placeholder={lang === 'he' ? 'תווית (עברית)' : 'Label (Hebrew)'}
-                            textAlign="right"
-                          />
-                          <TextInput
-                            style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, backgroundColor: '#fff' }}
-                            value={f.labelEn}
-                            onChangeText={(v) => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, labelEn: v } : x)))}
-                            placeholder={lang === 'he' ? 'תווית (אנגלית)' : 'Label (English)'}
-                          />
-                          <Pressable
-                            onPress={() => setMsStaffFormFields((prev) => prev.filter((_, i) => i !== idx))}
-                            style={{ padding: 4 }}
-                            accessibilityRole="button"
-                            accessibilityLabel={lang === 'he' ? 'הסר שדה' : 'Remove field'}
-                          >
-                            <Text>🗑️</Text>
-                          </Pressable>
-                        </View>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                          {FORM_FIELD_TYPES.map((opt) => (
-                            <Pressable
-                              key={opt.value}
-                              onPress={() => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, type: opt.value } : x)))}
-                              style={{ borderWidth: 1.5, borderColor: f.type === opt.value ? '#7C3AED' : '#DDD6FE', backgroundColor: f.type === opt.value ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 }}
-                              accessibilityRole="radio"
-                              accessibilityState={{ checked: f.type === opt.value }}
-                            >
-                              <Text style={{ fontSize: 11, fontWeight: '600', color: f.type === opt.value ? '#fff' : '#7C3AED' }}>
-                                {lang === 'he' ? opt.he : opt.en}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
-                          <Switch
-                            value={f.required}
-                            onValueChange={(v) => setMsStaffFormFields((prev) => prev.map((x, i) => (i === idx ? { ...x, required: v } : x)))}
-                            trackColor={{ true: '#7C3AED' }}
-                          />
-                          <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'שדה חובה' : 'Required'}</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
+            <View style={{ marginTop: 16, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, padding: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+                {lang === 'he' ? 'רשומת מנחה (אופציונלי)' : 'Staff record (optional)'}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 8 }}>
+                {lang === 'he'
+                  ? 'בנוסף להגשת הסטודנט/ית, ניתן לאפשר למנחה לצרף רשומה רשמית — קובץ מלא או טופס מקוון.'
+                  : "On top of the student's own submission, let the supervisor attach an official record — either a completed file or an online form."}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pressable
+                  onPress={() => setMsStaffRecordMode('none')}
+                  style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msStaffRecordMode === 'none' ? '#7C3AED' : '#DDD6FE', backgroundColor: msStaffRecordMode === 'none' ? '#7C3AED' : '#fff' }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: msStaffRecordMode === 'none' }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: msStaffRecordMode === 'none' ? '#fff' : '#374151' }}>
+                    {lang === 'he' ? 'ללא' : 'None'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setMsStaffRecordMode('upload_or_form')}
+                  style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1.5, borderColor: msStaffRecordMode === 'upload_or_form' ? '#7C3AED' : '#DDD6FE', backgroundColor: msStaffRecordMode === 'upload_or_form' ? '#7C3AED' : '#fff' }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: msStaffRecordMode === 'upload_or_form' }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: msStaffRecordMode === 'upload_or_form' ? '#fff' : '#374151' }}>
+                    {lang === 'he' ? 'קובץ או טופס' : 'File or form'}
+                  </Text>
+                </Pressable>
               </View>
-            )}
+
+              {msStaffRecordMode === 'upload_or_form' && (
+                <View style={{ marginTop: 12 }}>
+                  <FormFieldListEditor
+                    fields={msStaffFormFields}
+                    setFields={setMsStaffFormFields}
+                    emptyLabel={lang === 'he' ? 'ניתן להשאיר ריק — יאפשר רק העלאת קובץ.' : 'Can be left empty — that just leaves file upload as the only option.'}
+                    lang={lang}
+                  />
+                </View>
+              )}
+            </View>
 
             {msIsDefense && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>

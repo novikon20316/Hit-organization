@@ -834,11 +834,12 @@ export const createExaminerRecommendation = async (req: AuthenticatedRequest, re
 };
 
 // ─── POST /api/supervisor/milestones/:id/staff-record ────────────────────────
-// Only meaningful on a research_proposal/progress_report-type milestone whose
-// template configured staffRecordMode === 'upload_or_form' (data_science only,
-// as of this writing) — an official record the supervisor attaches alongside
-// the student's own submission (fileUrls/submissionNote), stored under a
-// separate `staffRecord` field so neither submission ever clobbers the other.
+// Only meaningful on a milestone whose template configured
+// staffRecordMode === 'upload_or_form' (any milestone type — see
+// MilestoneRowModal.tsx's staff-record section) — an official record the
+// supervisor attaches alongside the student's own submission
+// (fileUrls/submissionNote), stored under a separate `staffRecord` field so
+// neither submission ever clobbers the other.
 // Either a file is uploaded (see uploadMiddleware, reused from
 // milestoneController.ts's own submit-milestone multer config) or a JSON
 // `formData` body is sent — never both, file takes priority if present.

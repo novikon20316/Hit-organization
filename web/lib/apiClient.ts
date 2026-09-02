@@ -1368,11 +1368,13 @@ export const apiClient = {
   },
 
   /** POST /api/projects/milestones/:id/examiner-form — non-scored examiner
-   *  Q&A (see workflowTemplates.ts's examinerFormFields), e.g. the Industrial
-   *  Engineering & Management "Presentation 1" yes/no form. Keyed by
-   *  FormFieldSpec.key, each answer optionally carrying a comment (required
-   *  server-side per that field's commentRequiredOn rule). */
-  async submitExaminerFormAnswers(milestoneId: string, answers: Record<string, { value: 'yes' | 'no'; comment?: string }>) {
+   *  online form (see workflowTemplates.ts's examinerFormFields), e.g. the
+   *  Industrial Engineering & Management "Presentation 1" yes/no form, or
+   *  any other text/number/date field a template defines. Keyed by
+   *  FormFieldSpec.key; a 'yesno' field's answer optionally carries a
+   *  comment (required server-side per that field's commentRequiredOn
+   *  rule) — every other type's value is just a plain string. */
+  async submitExaminerFormAnswers(milestoneId: string, answers: Record<string, { value: string; comment?: string }>) {
     return request<{ success: boolean; status: string; isFinalized: boolean }>(
       `/api/projects/milestones/${milestoneId}/examiner-form`,
       { method: 'POST', body: { answers } }

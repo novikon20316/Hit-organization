@@ -313,6 +313,7 @@ function ProposeVersionForm({
     nameHe: string; nameEn: string; dateMode: 'offset' | 'fixed'; dueDaysFromStart: number; fixedDate?: string;
     syncDueDateWith?: string;
     requiresExaminers: boolean; examinerCount?: number; gradingComponents: GradingComponentSpec[]; routing?: MilestoneRoutingSpec;
+    examinerOnlyGrading?: boolean; examinerFormFields?: FormFieldSpec[];
     staffRecordMode?: 'none' | 'upload_or_form'; staffFormFields?: FormFieldSpec[];
     finalGradeComponents?: MilestoneSpec['finalGradeComponents'];
     submissionRequirement: MilestoneSpec['submissionRequirement'];

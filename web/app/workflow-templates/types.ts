@@ -187,18 +187,18 @@ export interface MilestoneSpec {
    *  hardcoded default rubric. */
   gradingComponents?: GradingComponentSpec[];
   /** A set of fields every ASSIGNED EXAMINER fills independently — a non-
-   *  scored sibling of gradingComponents (e.g. yes/no screening questions).
-   *  Only meaningful when requiresExaminers && examinerOnlyGrading are both
-   *  true. No editor UI yet (script-only), same as studentFormFields.
+   *  scored sibling of gradingComponents (yes/no screening questions, free
+   *  text, numbers, dates...). Only meaningful when requiresExaminers is
+   *  true. Authored via MilestoneRowModal.tsx's examiner-form section.
    *  Mirrors server/src/services/workflowTemplates.ts. */
   examinerFormFields?: FormFieldSpec[];
   /** Per-milestone override of the template's defaultRouting. Omitted means
    *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */
   routing?: MilestoneRoutingSpec;
-  /** Only meaningful for research_proposal/progress_report-type milestones —
-   *  lets staff (the supervisor) attach an official record alongside the
-   *  student's own submission, either by uploading a file or filling
-   *  staffFormFields online. Omitted/'none' keeps today's behavior. */
+  /** Lets staff (the supervisor) attach an official record alongside the
+   *  student's own submission, on any milestone type, either by uploading a
+   *  file or filling staffFormFields online. Omitted/'none' keeps today's
+   *  behavior. */
   staffRecordMode?: 'none' | 'upload_or_form';
   staffFormFields?: FormFieldSpec[];
   /** Only meaningful for the 'defense' milestone type — replaces the single

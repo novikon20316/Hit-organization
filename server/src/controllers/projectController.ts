@@ -942,19 +942,19 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
   }
 };
 
-// ─── Submit examiner form answers — non-scored Q&A (see workflowTemplates.ts's
-// examinerFormFields) ──────────────────────────────────────────────────────
+// ─── Submit examiner form answers (see workflowTemplates.ts's examinerFormFields) ──
 // Sibling of submitExaminerEvaluation, for milestones whose examiners fill in
-// a set of yes/no screening questions instead of a numeric rubric (e.g. the
-// Industrial Engineering & Management "Presentation 1" evaluation — see
-// server/src/scripts/seedIEMWorkflowTemplate.ts). Every assigned examiner
-// answers independently; the milestone finalizes (status 'graded', no
-// finalGrade — this milestone type never produces a score) once every
-// assigned examiner has answered.
+// a configurable online form instead of a numeric rubric — anything from
+// yes/no screening questions (e.g. the Industrial Engineering & Management
+// "Presentation 1" evaluation) to free-text/number/date fields, per each
+// field's own `type` (same field-type set as staffFormFields — see
+// submitStaffRecord). Every assigned examiner answers independently; the
+// milestone finalizes (status 'graded', no finalGrade — this milestone type
+// never produces a score) once every assigned examiner has answered.
 export const submitExaminerFormAnswers = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { milestoneId } = req.params;
-  const { answers } = req.body as { answers?: Record<string, { value?: string; comment?: string }> };
+  const { answers } = req.body as { answers?: Record<string, { value?: unknown; comment?: string }> };
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
   if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
   if (!answers || typeof answers !== 'object') return res.status(400).json({ message: 'Invalid answers.' });
@@ -977,21 +977,38 @@ export const submitExaminerFormAnswers = async (req: AuthenticatedRequest, res: 
       return res.status(409).json({ message: 'This evaluation has already been finalized.' });
     }
 
-    // Server-side re-validation of every field's yes/no answer and its
-    // commentRequiredOn rule — never trust the client's own enabled/disabled
-    // comment-box state.
-    const cleanAnswers: Record<string, { value: 'yes' | 'no'; comment?: string }> = {};
+    // Server-side re-validation of every field's answer, driven by its own
+    // `type` — never trust the client's own enabled/disabled state. 'yesno'
+    // keeps its dedicated value check plus the commentRequiredOn rule; every
+    // other type (text/textarea/date/number/table) just needs a non-empty
+    // value when the field is required, same lightweight rule
+    // submitStaffRecord already applies to staffFormFields.
+    const cleanAnswers: Record<string, { value: unknown; comment?: string }> = {};
     for (const f of fields) {
       const raw = answers[f.key];
       const value = raw?.value;
-      if (value !== 'yes' && value !== 'no') {
-        return res.status(400).json({ message: `A yes/no answer is required for "${f.labelEn}".` });
+      if (f.type === 'yesno') {
+        if (value !== 'yes' && value !== 'no') {
+          return res.status(400).json({ message: `A yes/no answer is required for "${f.labelEn}".` });
+        }
+        const comment = (raw?.comment ?? '').toString().trim();
+        if (f.commentRequiredOn === value && !comment) {
+          return res.status(400).json({ message: `A comment is required for "${f.labelEn}".` });
+        }
+        cleanAnswers[f.key] = comment ? { value, comment } : { value };
+      } else if (f.type === 'table') {
+        const rows = Array.isArray(value) ? value : [];
+        if (f.required && rows.length === 0) {
+          return res.status(400).json({ message: `At least one row is required for "${f.labelEn}".` });
+        }
+        cleanAnswers[f.key] = { value: rows };
+      } else {
+        const strValue = value === undefined || value === null ? '' : String(value).trim();
+        if (f.required && !strValue) {
+          return res.status(400).json({ message: `An answer is required for "${f.labelEn}".` });
+        }
+        cleanAnswers[f.key] = { value: strValue };
       }
-      const comment = (raw?.comment ?? '').toString().trim();
-      if (f.commentRequiredOn === value && !comment) {
-        return res.status(400).json({ message: `A comment is required for "${f.labelEn}".` });
-      }
-      cleanAnswers[f.key] = comment ? { value, comment } : { value };
     }
 
     const wasAlreadyAnswered = data.examinerFormAnswers?.[uid] != null;
@@ -1007,7 +1024,7 @@ export const submitExaminerFormAnswers = async (req: AuthenticatedRequest, res: 
       }
 
       const freshExaminerIds: string[] = fresh.examinerIds ?? [];
-      const freshAnswers: Record<string, Record<string, { value: string; comment?: string }>> = fresh.examinerFormAnswers ?? {};
+      const freshAnswers: Record<string, Record<string, { value: unknown; comment?: string }>> = fresh.examinerFormAnswers ?? {};
       const nextAnswers = { ...freshAnswers, [uid]: cleanAnswers };
 
       const update: Record<string, any> = {

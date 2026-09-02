@@ -288,8 +288,8 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     const routing = validateOptionalRouting(m.routing);
     if (!routing.ok) return null;
 
-    // Only meaningful for research_proposal/progress_report — 'none' (or
-    // omitted) keeps today's student-submission-only behavior.
+    // Meaningful for any milestone type — 'none' (or omitted) keeps today's
+    // student-submission-only behavior.
     const staffRecordMode: 'none' | 'upload_or_form' = m.staffRecordMode === 'upload_or_form' ? 'upload_or_form' : 'none';
     const staffFormFields = validateFormFields(m.staffFormFields);
     if (staffFormFields === null) return null;
