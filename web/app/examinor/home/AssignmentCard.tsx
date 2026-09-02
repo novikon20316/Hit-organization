@@ -24,10 +24,21 @@ function toDateSafe(val: unknown): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// yyyy-mm-dd for native <input type="date"> min/max — toDateSafe(...)'s
+// toISOString would shift across the local timezone boundary, so build the
+// string from local date parts instead.
+function toDateInputValue(d: Date | null): string | undefined {
+  if (!d) return undefined;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeKind }: AssignmentCardProps) {
   const { lang } = useLanguage();
   const [expanded, setExpanded] = useState(false);
-  const [dateDraft, setDateDraft] = useState('');
+  // Dates the examiner has picked so far (chips), plus whatever's currently
+  // selected in the native date input but not yet added to the list.
+  const [pickedDates, setPickedDates] = useState<string[]>([]);
+  const [dateInput, setDateInput] = useState('');
   const [submittingDates, setSubmittingDates] = useState(false);
   const [dateMessage, setDateMessage] = useState('');
 
@@ -73,21 +84,22 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   const isMyDefensePanel = (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
   const isBeforeDefense = m.defenseDate ? new Date() < new Date(m.defenseDate) : false;
 
+  const addPickedDate = () => {
+    if (!dateInput) return;
+    setPickedDates((prev) => (prev.includes(dateInput) ? prev : [...prev, dateInput].sort()));
+    setDateInput('');
+  };
+  const removePickedDate = (d: string) => setPickedDates((prev) => prev.filter((x) => x !== d));
+
   const handleSubmitDates = async () => {
-    const raw = dateDraft.split(',').map((s) => s.trim()).filter(Boolean);
-    if (raw.length === 0) {
-      setDateMessage(lang === 'he' ? 'יש להזין לפחות תאריך אחד' : 'Enter at least one date');
-      return;
-    }
-    const invalid = raw.filter((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d));
-    if (invalid.length > 0) {
-      setDateMessage(lang === 'he' ? `פורמט לא תקין: ${invalid.join(', ')} (YYYY-MM-DD)` : `Invalid format: ${invalid.join(', ')} (YYYY-MM-DD)`);
+    if (pickedDates.length === 0) {
+      setDateMessage(lang === 'he' ? 'יש להוסיף לפחות תאריך אחד' : 'Add at least one date');
       return;
     }
     setSubmittingDates(true);
     setDateMessage('');
     try {
-      const res = await apiClient.submitExaminerDefenseDates(m.id, raw);
+      const res = await apiClient.submitExaminerDefenseDates(m.id, pickedDates);
       if (res.matched) setDateMessage(lang === 'he' ? `✅ נמצא תאריך משותף: ${res.matchedDate}` : `✅ Common date found: ${res.matchedDate}`);
       else if (res.conflict) setDateMessage(lang === 'he' ? 'לא נמצא תאריך משותף — הרכז/ת יפתור/תפתור' : 'No common date — the coordinator will resolve this');
       else setDateMessage(lang === 'he' ? '✅ התאריכים נשלחו — ממתין לשאר הבוחנים' : '✅ Dates submitted — waiting on the other examiners');
@@ -132,18 +144,55 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       {m.status === 'awaiting_defense_date' && isMyDefensePanel && (
         <div className="mt-3 rounded-lg bg-[#FBF3E3] p-3">
           <p className="mb-1.5 text-xs font-semibold text-accent">📅 {lang === 'he' ? 'בחר תאריכים אפשריים להגנה' : 'Choose your available defense dates'}</p>
+          <p className="mb-1.5 text-xs text-accent">
+            {lang === 'he'
+              ? 'המערכת תאתר אוטומטית תאריך שמתאים לכל חברי ועדת הבחינה. ככל שתוסיף/י יותר תאריכים אפשריים, כך גדל הסיכוי למצוא תאריך משותף במהירות — אם לא יימצא תאריך משותף, הרכז/ת יפתור/תפתור את ההתנגשות.'
+              : "The system will automatically match a date that works for every panel member. Add as many dates as you can — the more you list, the more likely a common date is found quickly. If none is found, the coordinator will step in to resolve it."}
+          </p>
           {m.dateMatching && (
             <p className="mb-1.5 text-xs text-accent">
               {lang === 'he' ? 'בטווח' : 'Within'} {toDateSafe(m.dateMatching.windowStart)?.toLocaleDateString() ?? '—'} –{' '}
               {toDateSafe(m.dateMatching.windowEnd)?.toLocaleDateString() ?? '—'} · {lang === 'he' ? 'ראשון–חמישי בלבד' : 'Sun-Thu only'}
             </p>
           )}
-          <input
-            value={dateDraft}
-            onChange={(e) => setDateDraft(e.target.value)}
-            placeholder="YYYY-MM-DD, YYYY-MM-DD"
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
-          />
+
+          {pickedDates.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {pickedDates.map((d) => (
+                <span key={d} className="flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-ink">
+                  {new Date(d).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}
+                  <button
+                    type="button"
+                    onClick={() => removePickedDate(d)}
+                    aria-label={lang === 'he' ? 'הסר תאריך' : 'Remove date'}
+                    className="text-muted hover:text-danger"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-1.5">
+            <input
+              type="date"
+              value={dateInput}
+              onChange={(e) => setDateInput(e.target.value)}
+              min={toDateInputValue(toDateSafe(m.dateMatching?.windowStart))}
+              max={toDateInputValue(toDateSafe(m.dateMatching?.windowEnd))}
+              className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={addPickedDate}
+              disabled={!dateInput}
+              className="rounded-lg border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-surface disabled:opacity-50"
+            >
+              + {lang === 'he' ? 'הוסף' : 'Add'}
+            </button>
+          </div>
+
           {dateMessage && <p className="mt-1.5 text-xs text-ink">{dateMessage}</p>}
           <button
             type="button"

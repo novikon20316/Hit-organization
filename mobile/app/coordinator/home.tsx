@@ -560,12 +560,20 @@ export default function CoordinatorHome() {
       return;
     }
 
-    const supervisorWeight = parseFloat(weightSupervisor) / 100;
-    const examinerWeight = parseFloat(weightEachExaminer) / 100;
-    if (Math.abs(supervisorWeight + examinerSlots.length * examinerWeight - 1) > 0.01) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'סך המשקלות חייב להיות 100%' : 'Weights must sum to 100%');
-      return;
+    // data_science defense milestones use a fixed three-rubric split instead
+    // (see AssignExaminersModal.tsx's web twin for the full explanation) —
+    // gradeWeights is never read for these, so skip collecting/sending it.
+    const isThreeRubricDefense = selectedMilestone.facultyId === 'data_science' && selectedMilestone.type === 'defense';
+    let weights: { supervisorWeight: number; examinerWeight: number } | undefined;
+    if (!isThreeRubricDefense) {
+      const supervisorWeight = parseFloat(weightSupervisor) / 100;
+      const examinerWeight = parseFloat(weightEachExaminer) / 100;
+      if (Math.abs(supervisorWeight + examinerSlots.length * examinerWeight - 1) > 0.01) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error',
+          lang === 'he' ? 'סך המשקלות חייב להיות 100%' : 'Weights must sum to 100%');
+        return;
+      }
+      weights = { supervisorWeight, examinerWeight };
     }
     try {
       setSaving(true);
@@ -581,8 +589,9 @@ export default function CoordinatorHome() {
         // Written onto the milestone's gradeWeights field server-side —
         // previously validated here (the check above) but never actually
         // sent, so the final grade always used the default split regardless
-        // of what was entered.
-        weights: { supervisorWeight, examinerWeight },
+        // of what was entered. Omitted entirely for a three-rubric (DS)
+        // defense, where it would silently do nothing.
+        ...(weights ? { weights } : {}),
       });
 
       setAssignModal(false);
@@ -2150,34 +2159,46 @@ export default function CoordinatorHome() {
             <Text style={{ color: '#7C3AED', fontWeight: '600', fontSize: 13 }}>＋ {lang === 'he' ? 'הוסף בוחן' : 'Add examiner'}</Text>
           </Pressable>
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
-          </Text>
-
-          {[
-            { label: lang === 'he' ? 'משקל מנחה (%)' : 'Supervisor weight (%)', value: weightSupervisor, set: setWeightSupervisor },
-            {
-              label: lang === 'he' ? `משקל כל בוחן (מתוך ${examinerSlots.length}) (%)` : `Each examiner weight (of ${examinerSlots.length}) (%)`,
-              value: weightEachExaminer,
-              set: setWeightEachExaminer,
-            },
-          ].map((field) => (
-            <View key={field.label}>
-              <Text style={styles.weightLabel}>{field.label}</Text>
-              <TextInput
-                style={styles.weightInput}
-                value={field.value}
-                onChangeText={field.set}
-                keyboardType="numeric"
-                placeholder="0"
-              />
+          {selectedMilestone?.facultyId === 'data_science' && selectedMilestone?.type === 'defense' ? (
+            <View style={{ backgroundColor: '#F3F4F6', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: '#4B5563' }}>
+                {lang === 'he'
+                  ? 'ציון סופי: מנחה 40% · הערכת עבודה 30% (ממוצע בין הבוחנים) · הערכת הגנה 30% (ממוצע בין הבוחנים) — המשקלות קבועות ואינן תלויות במספר הבוחנים.'
+                  : 'Final grade: Supervisor 40% · Project evaluation 30% (averaged across examiners) · Defense evaluation 30% (averaged across examiners) — fixed regardless of how many examiners are on the panel.'}
+              </Text>
             </View>
-          ))}
+          ) : (
+            <>
+              <Text style={styles.fieldLabel}>
+                {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
+              </Text>
 
-          <Text style={styles.weightSum}>
-            {lang === 'he' ? 'סה"כ:' : 'Total:'}{' '}
-            {(parseFloat(weightSupervisor || '0') + examinerSlots.length * parseFloat(weightEachExaminer || '0'))}%
-          </Text>
+              {[
+                { label: lang === 'he' ? 'משקל מנחה (%)' : 'Supervisor weight (%)', value: weightSupervisor, set: setWeightSupervisor },
+                {
+                  label: lang === 'he' ? `משקל כל בוחן (מתוך ${examinerSlots.length}) (%)` : `Each examiner weight (of ${examinerSlots.length}) (%)`,
+                  value: weightEachExaminer,
+                  set: setWeightEachExaminer,
+                },
+              ].map((field) => (
+                <View key={field.label}>
+                  <Text style={styles.weightLabel}>{field.label}</Text>
+                  <TextInput
+                    style={styles.weightInput}
+                    value={field.value}
+                    onChangeText={field.set}
+                    keyboardType="numeric"
+                    placeholder="0"
+                  />
+                </View>
+              ))}
+
+              <Text style={styles.weightSum}>
+                {lang === 'he' ? 'סה"כ:' : 'Total:'}{' '}
+                {(parseFloat(weightSupervisor || '0') + examinerSlots.length * parseFloat(weightEachExaminer || '0'))}%
+              </Text>
+            </>
+          )}
 
           <Pressable
             style={[styles.submitBtn, saving && { opacity: 0.6 }]}

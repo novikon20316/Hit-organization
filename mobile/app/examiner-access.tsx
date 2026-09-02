@@ -114,7 +114,10 @@ export default function ExaminerAccessScreen() {
   const [dateStatus, setDateStatus] = useState<DefenseDateStatus>('not_open');
   const [dateWindow, setDateWindow] = useState<{ start: string; end: string } | null>(null);
   const [matchedDate, setMatchedDate] = useState<string | null>(null);
-  const [dateDraft, setDateDraft] = useState('');
+  // One row of text per candidate date (no comma-separated blob) — see
+  // examinor/home.tsx's identical dateRowsFor pattern for the internal
+  // examiner's equivalent screen.
+  const [dateDraftRows, setDateDraftRows] = useState<string[]>(['']);
   const [submittingDates, setSubmittingDates] = useState(false);
 
   const loadDefenseDateStatus = useCallback(async () => {
@@ -131,9 +134,15 @@ export default function ExaminerAccessScreen() {
     }
   }, [token]);
 
+  const updateDateRow = (idx: number, value: string) =>
+    setDateDraftRows((prev) => { const rows = [...prev]; rows[idx] = value; return rows; });
+  const addDateRow = () => setDateDraftRows((prev) => [...prev, '']);
+  const removeDateRow = (idx: number) =>
+    setDateDraftRows((prev) => { const rows = prev.filter((_, i) => i !== idx); return rows.length > 0 ? rows : ['']; });
+
   const handleSubmitDefenseDates = async () => {
     if (!token) return;
-    const raw = dateDraft.split(',').map((s) => s.trim()).filter(Boolean);
+    const raw = dateDraftRows.map((s) => s.trim()).filter(Boolean);
     if (raw.length === 0 || raw.some((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d))) {
       Alert.alert(L('שגיאה', 'Error'), L('יש להזין תאריכים בפורמט YYYY-MM-DD', 'Enter dates as YYYY-MM-DD'));
       return;
@@ -659,18 +668,46 @@ export default function ExaminerAccessScreen() {
 
             {dateStatus === 'awaiting_your_dates' && (
               <>
+                <Text style={[s.errorSub, { marginBottom: 10 }]}>
+                  {L(
+                    'המערכת תאתר אוטומטית תאריך שמתאים לכל חברי ועדת הבחינה. הוסף/י כמה תאריכים שתוכל/י — ככל שיותר, כך גדל הסיכוי למצוא תאריך משותף במהירות. אם לא יימצא תאריך משותף, הרכז/ת יפתור/תפתור את ההתנגשות.',
+                    'The system will automatically match a date that works for every panel member. Add as many dates as you can — the more you list, the more likely a common date is found quickly. If none is found, the coordinator will step in to resolve it.'
+                  )}
+                </Text>
                 {dateWindow && (
                   <Text style={[s.errorSub, { marginBottom: 10 }]}>
                     {L('בטווח', 'Within')} {dateWindow.start} – {dateWindow.end} · {L('ראשון–חמישי בלבד', 'Sun-Thu only')}
                   </Text>
                 )}
-                <TextInput
-                  style={s.scoreInput}
-                  value={dateDraft}
-                  onChangeText={setDateDraft}
-                  placeholder="YYYY-MM-DD, YYYY-MM-DD"
-                  placeholderTextColor="#9CA3AF"
-                />
+                <Text style={[s.errorSub, { marginBottom: 6 }]}>
+                  {L('פורמט: YYYY-MM-DD (למשל 2026-10-15)', 'Format: YYYY-MM-DD (e.g. 2026-10-15)')}
+                </Text>
+                {dateDraftRows.map((row, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 }}>
+                    <TextInput
+                      style={[s.scoreInput, { flex: 1 }]}
+                      value={row}
+                      onChangeText={(v) => updateDateRow(idx, v)}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                    {dateDraftRows.length > 1 && (
+                      <Pressable
+                        onPress={() => removeDateRow(idx)}
+                        accessibilityRole="button"
+                        accessibilityLabel={L('הסר תאריך', 'Remove date')}
+                        style={{ padding: 6 }}
+                      >
+                        <Text style={{ color: '#EF4444', fontSize: 16 }}>✕</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ))}
+                <Pressable onPress={addDateRow} accessibilityRole="button" style={{ alignSelf: 'flex-start', marginBottom: 4 }}>
+                  <Text style={{ color: '#374151', fontWeight: '600', fontSize: 12 }}>
+                    + {L('הוסף תאריך נוסף', 'Add another date')}
+                  </Text>
+                </Pressable>
                 <Pressable
                   style={[s.btnPrimary, { marginTop: 10 }, submittingDates && s.btnDisabled]}
                   onPress={handleSubmitDefenseDates}

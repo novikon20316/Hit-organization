@@ -168,8 +168,13 @@ export const t = {
 
   // ── External examiner — defense date matching ────────────────────────────
   examinerDefenseDateSectionTitle: { he: 'בחירת תאריך הגנה',            en: 'Defense date selection' },
+  examinerDefenseDateGuidance:     { he: 'המערכת תאתר אוטומטית תאריך שמתאים לכל חברי ועדת הבחינה. ככל שתוסיף/י יותר תאריכים אפשריים, כך גדל הסיכוי למצוא תאריך משותף במהירות — אם לא יימצא תאריך משותף, הרכז/ת יפתור/תפתור את ההתנגשות.',
+                                     en: 'The system will automatically match a date that works for every panel member. Add as many dates as you can — the more you list, the more likely a common date is found quickly. If none is found, the coordinator will step in to resolve it.' },
   examinerDefenseDateWithin:       { he: 'בטווח',                        en: 'Within' },
   examinerDefenseDateSunThu:       { he: 'ראשון–חמישי בלבד',            en: 'Sun-Thu only' },
+  examinerDefenseDateAddBtn:       { he: 'הוסף',                         en: 'Add' },
+  examinerDefenseDateRemove:       { he: 'הסר תאריך',                    en: 'Remove date' },
+  examinerDefenseDateEmpty:        { he: 'יש להוסיף לפחות תאריך אחד',    en: 'Add at least one date' },
   examinerDefenseDateSubmitBtn:    { he: 'שלח תאריכים',                  en: 'Submit dates' },
   examinerDefenseDateInvalidFormat:{ he: 'יש להזין תאריכים בפורמט YYYY-MM-DD', en: 'Enter dates as YYYY-MM-DD' },
   examinerDefenseDateWaiting:      { he: 'התאריכים נשלחו — ממתין לשאר הבוחנים', en: 'Dates submitted — waiting on the other examiners' },

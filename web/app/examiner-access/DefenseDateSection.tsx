@@ -25,7 +25,10 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
   const [loaded, setLoaded] = useState(false);
   const [dateWindow, setDateWindow] = useState<{ start: string; end: string } | null>(null);
   const [matchedDate, setMatchedDate] = useState<string | null>(null);
-  const [dateDraft, setDateDraft] = useState('');
+  // Dates picked so far (chips), plus whatever's currently selected in the
+  // native date input but not yet added to the list.
+  const [pickedDates, setPickedDates] = useState<string[]>([]);
+  const [dateInput, setDateInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -47,19 +50,22 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
     load();
   }, [load]);
 
+  const addPickedDate = () => {
+    if (!dateInput) return;
+    setPickedDates((prev) => (prev.includes(dateInput) ? prev : [...prev, dateInput].sort()));
+    setDateInput('');
+  };
+  const removePickedDate = (d: string) => setPickedDates((prev) => prev.filter((x) => x !== d));
+
   const handleSubmit = async () => {
-    const raw = dateDraft
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (raw.length === 0 || raw.some((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d))) {
-      setError(t('examinerDefenseDateInvalidFormat'));
+    if (pickedDates.length === 0) {
+      setError(t('examinerDefenseDateEmpty'));
       return;
     }
     setError('');
     setSubmitting(true);
     try {
-      const res = await apiClient.submitExaminerAccessDefenseDates(token, raw);
+      const res = await apiClient.submitExaminerAccessDefenseDates(token, pickedDates);
       if (res.matched) {
         setStatus('matched');
         setMatchedDate(res.matchedDate ?? null);
@@ -83,19 +89,46 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
 
       {status === 'awaiting_your_dates' && (
         <>
+          <p className="mt-2 text-sm text-muted">{t('examinerDefenseDateGuidance')}</p>
           {dateWindow && (
             <p className="mt-2 text-sm text-muted">
               {t('examinerDefenseDateWithin')} {dateWindow.start} – {dateWindow.end} · {t('examinerDefenseDateSunThu')}
             </p>
           )}
-          <input
-            type="text"
-            dir="ltr"
-            value={dateDraft}
-            onChange={(e) => setDateDraft(e.target.value)}
-            placeholder="YYYY-MM-DD, YYYY-MM-DD"
-            className="mt-3 w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
-          />
+
+          {pickedDates.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {pickedDates.map((d) => (
+                <span key={d} className="flex items-center gap-1 rounded-full bg-paper px-2.5 py-1 text-sm font-medium text-ink">
+                  {d}
+                  <button type="button" onClick={() => removePickedDate(d)} aria-label={t('examinerDefenseDateRemove')} className="text-muted hover:text-danger">
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 flex gap-1.5">
+            <input
+              type="date"
+              dir="ltr"
+              value={dateInput}
+              onChange={(e) => setDateInput(e.target.value)}
+              min={dateWindow?.start}
+              max={dateWindow?.end}
+              className="flex-1 rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={addPickedDate}
+              disabled={!dateInput}
+              className="rounded-lg border border-primary px-3.5 py-2.5 text-sm font-semibold text-primary hover:bg-paper disabled:opacity-50"
+            >
+              + {t('examinerDefenseDateAddBtn')}
+            </button>
+          </div>
+
           {!!error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
           <button
             type="button"

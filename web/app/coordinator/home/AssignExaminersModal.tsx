@@ -51,6 +51,14 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
   const [slots, setSlots] = useState<ExaminerSlotState[]>(() =>
     Array.from({ length: Math.max(1, milestone.examinerCount ?? 2) }, emptySlot)
   );
+  // data_science defense milestones use a fixed three-rubric split instead
+  // (finalGradeComponents: supervisor 40% / examinerProject 30% / examinerDefense
+  // 30%, each examiner-side rubric averaged across however many examiners are
+  // on the panel — see projectController.ts's maybeFinalizeAutoCalculatedGrade).
+  // gradeWeights below is never read for these milestones, so collecting and
+  // validating it here would just be busywork that silently does nothing —
+  // skip it and explain the real split instead.
+  const isThreeRubricDefense = milestone.facultyId === 'data_science' && milestone.type === 'defense';
   // Written onto the milestone's gradeWeights field server-side (see
   // coordinatorController.ts's assignExaminers) — computeIdentityWeightedFinalGrade
   // (gradeEngine.ts) reads it once submitMilestoneGrade finishes scoring,
@@ -98,11 +106,15 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
       return;
     }
 
-    const supervisorWeight = parseFloat(weightSupervisor) / 100;
-    const examinerWeight = parseFloat(weightEachExaminer) / 100;
-    if (Math.abs(supervisorWeight + slots.length * examinerWeight - 1) > 0.01) {
-      setError(lang === 'he' ? 'סך המשקלות חייב להיות 100%' : 'Weights must sum to 100%');
-      return;
+    let weights: { supervisorWeight: number; examinerWeight: number } | undefined;
+    if (!isThreeRubricDefense) {
+      const supervisorWeight = parseFloat(weightSupervisor) / 100;
+      const examinerWeight = parseFloat(weightEachExaminer) / 100;
+      if (Math.abs(supervisorWeight + slots.length * examinerWeight - 1) > 0.01) {
+        setError(lang === 'he' ? 'סך המשקלות חייב להיות 100%' : 'Weights must sum to 100%');
+        return;
+      }
+      weights = { supervisorWeight, examinerWeight };
     }
 
     setSubmitting(true);
@@ -111,7 +123,7 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
         examiners: slots.map(buildPayload),
         milestoneId: milestone.id,
         studentIds: milestone.studentIds,
-        weights: { supervisorWeight, examinerWeight },
+        ...(weights ? { weights } : {}),
       });
       onAssigned();
       onClose();
@@ -154,19 +166,27 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
           ＋ {lang === 'he' ? 'הוסף בוחן' : 'Add examiner'}
         </button>
 
-        <div className="mt-4">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
-            {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            <WeightField label={lang === 'he' ? 'מנחה' : 'Supervisor'} value={weightSupervisor} onChange={setWeightSupervisor} />
-            <WeightField
-              label={lang === 'he' ? `כל בוחן (מתוך ${slots.length})` : `Each examiner (of ${slots.length})`}
-              value={weightEachExaminer}
-              onChange={setWeightEachExaminer}
-            />
+        {isThreeRubricDefense ? (
+          <div className="mt-4 rounded-lg bg-paper p-3 text-xs text-muted">
+            {lang === 'he'
+              ? 'ציון סופי: מנחה 40% · הערכת עבודה 30% (ממוצע בין הבוחנים) · הערכת הגנה 30% (ממוצע בין הבוחנים) — המשקלות קבועות ואינן תלויות במספר הבוחנים.'
+              : 'Final grade: Supervisor 40% · Project evaluation 30% (averaged across examiners) · Defense evaluation 30% (averaged across examiners) — fixed regardless of how many examiners are on the panel.'}
           </div>
-        </div>
+        ) : (
+          <div className="mt-4">
+            <span className="mb-1.5 block text-sm font-medium text-ink">
+              {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <WeightField label={lang === 'he' ? 'מנחה' : 'Supervisor'} value={weightSupervisor} onChange={setWeightSupervisor} />
+              <WeightField
+                label={lang === 'he' ? `כל בוחן (מתוך ${slots.length})` : `Each examiner (of ${slots.length})`}
+                value={weightEachExaminer}
+                onChange={setWeightEachExaminer}
+              />
+            </div>
+          </div>
+        )}
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 

@@ -121,9 +121,28 @@ export default function ExaminerHome() {
 
   const uid = auth.currentUser?.uid;
  
-  // ── Candidate defense dates being composed for a given milestone ─────────
-  const [dateDrafts, setDateDrafts] = useState<Record<string, string>>({});
+  // ── Candidate defense dates being composed for a given milestone — one
+  //    row of text per candidate date (no comma-separated blob), so an
+  //    examiner adds/removes one date at a time instead of hand-editing a
+  //    CSV string. No native date-picker dependency in this app yet, so
+  //    each row stays a plain YYYY-MM-DD text field, validated per-row.
+  const [dateDrafts, setDateDrafts] = useState<Record<string, string[]>>({});
   const [submittingDates, setSubmittingDates] = useState<Record<string, boolean>>({});
+
+  const dateRowsFor = (milestoneId: string): string[] => dateDrafts[milestoneId] ?? [''];
+  const updateDateRow = (milestoneId: string, idx: number, value: string) =>
+    setDateDrafts((prev) => {
+      const rows = [...dateRowsFor(milestoneId)];
+      rows[idx] = value;
+      return { ...prev, [milestoneId]: rows };
+    });
+  const addDateRow = (milestoneId: string) =>
+    setDateDrafts((prev) => ({ ...prev, [milestoneId]: [...dateRowsFor(milestoneId), ''] }));
+  const removeDateRow = (milestoneId: string, idx: number) =>
+    setDateDrafts((prev) => {
+      const rows = dateRowsFor(milestoneId).filter((_, i) => i !== idx);
+      return { ...prev, [milestoneId]: rows.length > 0 ? rows : [''] };
+    });
 
   // ── Dashboard fetch — no uid in the URL, the server reads it from the
   //    auth token (see examinerController.getExaminerDashboard) ────────────
@@ -305,7 +324,7 @@ export default function ExaminerHome() {
     (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
 
   const handleSubmitDates = async (m: AssignedMilestone) => {
-    const raw = (dateDrafts[m.id] || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const raw = dateRowsFor(m.id).map((s) => s.trim()).filter(Boolean);
     if (raw.length === 0) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין לפחות תאריך אחד' : 'Enter at least one date');
       return;
@@ -529,6 +548,11 @@ export default function ExaminerHome() {
                         <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309', marginBottom: 6 }}>
                           📅 {lang === 'he' ? 'בחר תאריכים אפשריים להגנה' : 'Choose your available defense dates'}
                         </Text>
+                        <Text style={{ fontSize: 12, color: '#92400E', marginBottom: 6 }}>
+                          {lang === 'he'
+                            ? 'המערכת תאתר אוטומטית תאריך שמתאים לכל חברי ועדת הבחינה. הוסף/י כמה תאריכים שתוכל/י — ככל שיותר, כך גדל הסיכוי למצוא תאריך משותף במהירות. אם לא יימצא תאריך משותף, הרכז/ת יפתור/תפתור את ההתנגשות.'
+                            : "The system will automatically match a date that works for every panel member. Add as many dates as you can — the more you list, the more likely a common date is found quickly. If none is found, the coordinator will step in to resolve it."}
+                        </Text>
                         {m.dateMatching && (
                           <Text style={{ fontSize: 12, color: '#92400E', marginBottom: 6 }}>
                             {lang === 'he' ? 'בטווח' : 'Within'} {' '}
@@ -538,15 +562,41 @@ export default function ExaminerHome() {
                             {' · '}{lang === 'he' ? 'ראשון–חמישי בלבד' : 'Sun-Thu only'}
                           </Text>
                         )}
-                        <TextInput
-                          style={styles.scoreInput as any}
-                          value={dateDrafts[m.id] || ''}
-                          onChangeText={(v) => setDateDrafts((prev) => ({ ...prev, [m.id]: v }))}
-                          placeholder="YYYY-MM-DD, YYYY-MM-DD"
-                          placeholderTextColor="#9CA3AF"
-                        />
+                        <Text style={{ fontSize: 11, color: '#92400E', marginBottom: 4 }}>
+                          {lang === 'he' ? 'פורמט: YYYY-MM-DD (למשל 2026-10-15)' : 'Format: YYYY-MM-DD (e.g. 2026-10-15)'}
+                        </Text>
+                        {dateRowsFor(m.id).map((row, idx) => (
+                          <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 }}>
+                            <TextInput
+                              style={[styles.scoreInput as any, { flex: 1 }]}
+                              value={row}
+                              onChangeText={(v) => updateDateRow(m.id, idx, v)}
+                              placeholder="YYYY-MM-DD"
+                              placeholderTextColor="#9CA3AF"
+                            />
+                            {dateRowsFor(m.id).length > 1 && (
+                              <Pressable
+                                onPress={() => removeDateRow(m.id, idx)}
+                                accessibilityRole="button"
+                                accessibilityLabel={lang === 'he' ? 'הסר תאריך' : 'Remove date'}
+                                style={{ padding: 6 }}
+                              >
+                                <Text style={{ color: '#B91C1C', fontSize: 16 }}>✕</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        ))}
                         <Pressable
-                          style={[styles.gradeBtn, { backgroundColor: '#F59E0B', marginTop: 8 }, submittingDates[m.id] && { opacity: 0.6 }]}
+                          onPress={() => addDateRow(m.id)}
+                          accessibilityRole="button"
+                          style={{ alignSelf: 'flex-start', marginBottom: 8 }}
+                        >
+                          <Text style={{ color: '#B45309', fontWeight: '600', fontSize: 12 }}>
+                            + {lang === 'he' ? 'הוסף תאריך נוסף' : 'Add another date'}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.gradeBtn, { backgroundColor: '#F59E0B' }, submittingDates[m.id] && { opacity: 0.6 }]}
                           onPress={() => handleSubmitDates(m)}
                           disabled={!!submittingDates[m.id]}
                           accessibilityRole="button"
