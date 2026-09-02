@@ -728,11 +728,10 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
                           />
                         </label>
                         <label className="flex items-center gap-1 text-xs text-muted">
-                          {lang === 'he' ? 'משקל %' : 'Weight %'}
+                          {lang === 'he' ? 'משקל' : 'Weight'}
                           <input
                             type="number"
                             min={0}
-                            max={100}
                             value={c.weight}
                             onChange={(e) => updateComponent(idx, { weight: Number(e.target.value) })}
                             className="w-16 rounded-md border border-line bg-paper px-1.5 py-0.5 text-xs text-ink"
