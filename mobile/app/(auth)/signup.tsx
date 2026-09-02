@@ -197,6 +197,7 @@ export default function ProfileSetup() {
         yearOfStudy: yearOfStudy,
         major: selectedProgram?.slug ?? null,
         studentId: studentId,
+        phoneNumber: phoneNumber,
         chosenTrack: trackPolicy === 'signup_choice' ? chosenTrack : undefined,
         hasActiveProject: false,
         expoPushToken: null,

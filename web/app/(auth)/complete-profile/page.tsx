@@ -116,6 +116,7 @@ export default function CompleteProfilePage() {
         yearOfStudy: yearOfStudy!,
         major: selectedProgram!.slug,
         studentId,
+        phoneNumber,
       });
       if (!res.success) throw new Error(res.message ?? 'Sync failed');
 

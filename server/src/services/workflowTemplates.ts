@@ -64,6 +64,23 @@ export interface FormFieldSpec {
   required: boolean;
   /** Only meaningful when type === 'table' — the columns of each row. */
   tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+  /** Marks this field as system-derived rather than freely typed — the
+   *  renderer shows the resolved value read-only instead of an input, and
+   *  submitMilestone/submitStaffRecord skip it when checking "did the actor
+   *  fill in every required field" (a locked field is never actually typed
+   *  by whoever is submitting). See resolveAutoFillValue's callers for how
+   *  each variant is resolved server-side. */
+  autoFill?: 'studentName' | 'studentIdNumber' | 'studentPhone' | 'studentEmail'
+    | 'studentPhoto' | 'accumulatedCredits' | 'supervisorName' | 'submissionDate'
+    | 'projectNameHe' | 'projectNameEn';
+  /** Only meaningful alongside autoFill — true means the value can never be
+   *  edited by the student, even as a fallback when the auto-filled source is
+   *  empty (e.g. a not-yet-computed accumulatedCredits shows a "pending"
+   *  state rather than becoming a free-text box). Omitted defaults to true
+   *  for any field that has autoFill set — an autoFill field with no
+   *  server-side value simply renders blank/pending, it never silently
+   *  becomes editable. */
+  locked?: boolean;
 }
 
 /** One of the three independently-scored rubrics that combine into a
@@ -246,6 +263,14 @@ export interface WorkflowMilestoneSpec {
   staffRecordMode?: 'none' | 'upload_or_form';
   /** The online-form field list shown when staffRecordMode === 'upload_or_form'. */
   staffFormFields?: FormFieldSpec[];
+  /** The STUDENT-facing online form for this milestone — when set (non-empty),
+   *  the student's "Submit Milestone" action renders these fields (via
+   *  submitMilestone's formData branch) instead of the generic file+note
+   *  inputs. Distinct from staffFormFields (a supervisor-only supplementary
+   *  record, submitted separately and never overwritten by this). Currently
+   *  only populated for data_science's research_proposal milestone — see
+   *  addResearchProposalStudentForm.ts. */
+  studentFormFields?: FormFieldSpec[];
   /** Only meaningful for the 'defense' milestone type. Replaces the single
    *  shared gradingComponents rubric with three independent ones — one each
    *  for the supervisor, the examiner's evaluation of the written project,

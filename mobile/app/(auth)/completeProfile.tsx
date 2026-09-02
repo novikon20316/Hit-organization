@@ -126,6 +126,7 @@ export default function CompleteProfile() {
           yearOfStudy,
           major: selectedProgram?.slug ?? null,
           studentId,
+          phoneNumber,
         },
         { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` } }
       );

@@ -195,6 +195,15 @@ export async function enrollStudentInProject(
       throw new Error('Student already has an active project.');
     }
 
+    // Read BEFORE any transaction.update() below — the Firestore SDK requires
+    // every transaction.get() to happen before the first write, or it throws
+    // "Firestore transactions require all reads to be executed before all
+    // writes" (this used to run after the two updates below, which made every
+    // single call to this function fail unconditionally).
+    const existingMilestonesSnap = await transaction.get(
+      db.collection('milestones').where('projectId', '==', projectId)
+    );
+
     // 'in_progress', not 'active' — an enrolled project must drop out of the
     // open-for-applications browse query/rule (both key on status=='active').
     transaction.update(projectRef, {
@@ -241,10 +250,8 @@ export async function enrollStudentInProject(
     // enrolling into a project that already has milestone docs (i.e. a
     // teammate got there first) just joins those docs' `studentIds` instead
     // of creating a duplicate set; only the very first team member to enroll
-    // takes the "create from the template" path below.
-    const existingMilestonesSnap = await transaction.get(
-      db.collection('milestones').where('projectId', '==', projectId)
-    );
+    // takes the "create from the template" path below (existingMilestonesSnap
+    // read earlier, above, before this transaction's first write).
 
     if (!existingMilestonesSnap.empty) {
       for (const doc of existingMilestonesSnap.docs) {
@@ -277,6 +284,11 @@ export async function enrollStudentInProject(
         // staff-record submission endpoint doesn't need a separate template
         // lookup. Omitted means no staff-side record for this milestone.
         ...(t.staffRecordMode === 'upload_or_form' ? { staffRecordMode: t.staffRecordMode, staffFormFields: t.staffFormFields ?? [] } : {}),
+        // Student-facing form config (research_proposal only, today) — same
+        // snapshot-at-enrollment reasoning as staffFormFields above. Omitted
+        // means the student submits the generic file+note form instead (see
+        // submitMilestone's isStructuredFormMilestone branch).
+        ...(t.studentFormFields?.length ? { studentFormFields: t.studentFormFields } : {}),
         // What the student must attach to submit this milestone (file/
         // comment/both/none) — see workflowTemplates.ts's
         // submissionRequirementMet. Omitted means no requirement recorded,

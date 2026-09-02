@@ -774,6 +774,12 @@ export interface ActiveProject {
   status:        string;
   degreeType?:   string;  // 'bachelors' | 'masters' | 'both'
   projectType?:  string;  // 'project' | 'thesis'
+  /** Already present on every getStudentProject response (a plain spread of
+   *  the Firestore project doc) but not typed here until the progress_report/
+   *  midterm form needed them for its per-student signature style (see
+   *  utils/examinerSignature.ts). */
+  facultyId?:    string;
+  major?:        string;
   /** Weighted across every milestone by the project's workflow template's
    *  own percentOfFinalGrade per milestone type — see
    *  server/src/services/gradeEngine.ts's computeProjectFinalGrade. null
@@ -806,6 +812,11 @@ export interface Milestone {
   id:          string;
   type:        MilestoneType;
   status:      MilestoneStatus;
+  /** Every student this milestone belongs to — length > 1 for a team
+   *  project. Needed to render one auto-filled personal-info block per
+   *  teammate on the research-proposal form (see
+   *  ResearchProposalFormModal.tsx). */
+  studentIds?: string[];
   /** Snapshotted from the workflow template's own milestone list at
    *  enrollment — see server/src/services/projectEnrollment.ts and
    *  workflowTemplates.ts's resolveMilestoneOrder. Absent on a milestone
@@ -850,6 +861,23 @@ export interface Milestone {
    *  feature existed) — the submit screen treats that the same as 'none',
    *  showing both fields as optional. */
   submissionRequirement?: 'file' | 'comment' | 'both' | 'none';
+  /** The student's own online form for this milestone (currently only
+   *  data_science's research_proposal — see
+   *  server/src/scripts/addResearchProposalStudentForm.ts). Absent means this
+   *  milestone still uses the generic file+note SubmitMilestoneModal. */
+  studentFormFields?: Array<{
+    key: string; labelHe: string; labelEn: string;
+    type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+    required: boolean;
+    tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+    autoFill?: 'studentName' | 'studentIdNumber' | 'studentPhone' | 'studentEmail'
+      | 'studentPhoto' | 'accumulatedCredits' | 'supervisorName' | 'submissionDate'
+      | 'projectNameHe' | 'projectNameEn';
+    locked?: boolean;
+  }>;
+  /** The student's (or teammate's) submitted values, keyed by
+   *  studentFormFields[].key. */
+  studentFormData?: Record<string, unknown> | null;
 }
 
 export interface PendingApplication {

@@ -141,6 +141,7 @@ export default function SignupPage() {
       yearOfStudy: yearOfStudy!,
       major: selectedProgram!.slug,
       studentId,
+      phoneNumber,
       chosenTrack: trackPolicy === 'signup_choice' ? chosenTrack! : undefined,
     });
     if (!res.success) throw new Error(res.message ?? 'Sync failed');

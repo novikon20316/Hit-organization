@@ -194,6 +194,7 @@ export const apiClient = {
     yearOfStudy: number;
     major: string;
     studentId: string;
+    phoneNumber: string;
     /** Required only for a 'signup_choice' major (see lib/studentTrack.ts) —
      *  rejected by the server for any other program. */
     chosenTrack?: 'thesis' | 'project';

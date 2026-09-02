@@ -12,6 +12,7 @@ import {
 } from '@/constants';
 import { apiClient } from '../../src/api/apiClient';
 import SubmitMilestoneModal from '../../components/modals/SubmitMilestoneModal';
+import ProgressReportFormModal from '../../components/modals/ProgressReportFormModal';
 
 interface Props {
   project:       ActiveProject;
@@ -741,14 +742,25 @@ export default function ActiveDashboard({
 
       {/* ── Submit Milestone Modal ── */}
       {submitTarget && (
-        <SubmitMilestoneModal
-          milestone={submitTarget}
-          projectId={project.id}
-          lang={lang}
-          isRtl={isRtl}
-          onClose={() => setSubmitTarget(null)}
-          onSubmitted={() => setSubmitTarget(null)}
-        />
+        submitTarget.type === 'progress_report' && submitTarget.studentFormFields?.length ? (
+          <ProgressReportFormModal
+            milestone={submitTarget}
+            project={project}
+            lang={lang}
+            isRtl={isRtl}
+            onClose={() => setSubmitTarget(null)}
+            onSubmitted={() => setSubmitTarget(null)}
+          />
+        ) : (
+          <SubmitMilestoneModal
+            milestone={submitTarget}
+            projectId={project.id}
+            lang={lang}
+            isRtl={isRtl}
+            onClose={() => setSubmitTarget(null)}
+            onSubmitted={() => setSubmitTarget(null)}
+          />
+        )
       )}
     </View>
   );

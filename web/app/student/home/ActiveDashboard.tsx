@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { SubmitMilestoneModal } from './SubmitMilestoneModal';
+import { ProgressReportFormModal } from './ProgressReportFormModal';
 import { AnnouncementsBanner } from './AnnouncementsBanner';
 import {
   MILESTONE_LABEL,
@@ -652,13 +653,23 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
       )}
 
       {submitTarget && (
-        <SubmitMilestoneModal
-          key={submitTarget.id}
-          milestone={submitTarget}
-          projectId={project.id}
-          onClose={() => setSubmitTarget(null)}
-          onSubmitted={onChanged}
-        />
+        submitTarget.type === 'progress_report' && submitTarget.studentFormFields?.length ? (
+          <ProgressReportFormModal
+            key={submitTarget.id}
+            milestone={submitTarget}
+            project={project}
+            onClose={() => setSubmitTarget(null)}
+            onSubmitted={onChanged}
+          />
+        ) : (
+          <SubmitMilestoneModal
+            key={submitTarget.id}
+            milestone={submitTarget}
+            projectId={project.id}
+            onClose={() => setSubmitTarget(null)}
+            onSubmitted={onChanged}
+          />
+        )
       )}
     </div>
   );

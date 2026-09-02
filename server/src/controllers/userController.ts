@@ -130,7 +130,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 
     const {
       newUid, email, displayName, displayNameHe, displayNameEn,
-      role, facultyId, degreeType, yearOfStudy, major, studentId, chosenTrack,
+      role, facultyId, degreeType, yearOfStudy, major, studentId, chosenTrack, phoneNumber,
     } = req.body;
 
     if (!newUid || !email || !role) {
@@ -234,6 +234,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       yearOfStudy:  role === 'student' ? (Number(yearOfStudy) || 1)   : null,
       major:        role === 'student' ? major : null,
       studentId:    role === 'student' ? (studentId    || null) : null,
+      phoneNumber:  role === 'student' ? (phoneNumber  || null) : null,
       // Anchor for the automatic graduation-based deletion sweep (see
       // services/accountDeletion.ts). Defaults to signup time on first sync
       // only; system_admin can correct it per-student for transfers/import

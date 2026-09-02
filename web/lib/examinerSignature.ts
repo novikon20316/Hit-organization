@@ -1,8 +1,14 @@
 // lib/examinerSignature.ts
-// Deterministic "digital signature" for the Data Science examiner evaluation
-// form (Project_examiner.docx) — a stylized rendering of the examiner's own
-// name, never drawn/uploaded/verified. Same faculty+role+major+name inputs
-// always render identically; different inputs render visibly differently.
+// Deterministic "digital signature" — a stylized rendering of the signer's
+// own name, never drawn/uploaded/verified. Same faculty+role+major+name
+// inputs always render identically; different inputs render visibly
+// differently. Originally built for the Data Science examiner evaluation
+// form (Project_examiner.docx); also reused for the research-proposal form's
+// supervisor/coordinator sign-off (see ResearchProposalFormModal.tsx /
+// SignResearchProposalModal.tsx / ProposalRecommendationModal.tsx) — `role`
+// is only ever hashed, never displayed, so widening it from the original
+// 'internal'|'external' examiner-panel union to a plain string is safe; the
+// examiner call sites keep passing those same two literal strings unchanged.
 // Follows facultyColors.ts's plain-lookup-function pattern (no state, no
 // async, no storage).
 
@@ -32,10 +38,10 @@ export interface ExaminerSignatureStyle {
 export function examinerSignatureStyle(
   examinerName: string,
   facultyId: string,
-  panelType: 'internal' | 'external',
+  role: string,
   major: string | null,
 ): ExaminerSignatureStyle {
-  const h = hashString(`${examinerName}|${facultyId}|${panelType}|${major ?? ''}`);
+  const h = hashString(`${examinerName}|${facultyId}|${role}|${major ?? ''}`);
   return {
     color: SIGNATURE_PALETTE[h % SIGNATURE_PALETTE.length],
     fontFamily: SIGNATURE_FONTS[h % SIGNATURE_FONTS.length],

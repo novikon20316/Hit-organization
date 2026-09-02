@@ -70,6 +70,12 @@ export interface ActiveProject {
   status: string;
   degreeType?: string;
   projectType?: string;
+  /** Already present on every getStudentProject response (a plain `...data`
+   *  spread of the Firestore project doc — see studentController.ts) but not
+   *  typed here until the progress_report/midterm form needed them for its
+   *  per-student signature style (see lib/examinerSignature.ts). */
+  facultyId?: string;
+  major?: string;
   /** Weighted across every milestone by the project's workflow template's
    *  own percentOfFinalGrade per milestone type — see
    *  server/src/services/gradeEngine.ts's computeProjectFinalGrade. null
@@ -116,6 +122,11 @@ export interface Milestone {
   id: string;
   type: MilestoneType;
   status: MilestoneStatus;
+  /** Every student this milestone belongs to — length > 1 for a team
+   *  project. Needed to render one auto-filled personal-info block per
+   *  teammate on the research-proposal form (see
+   *  ResearchProposalFormModal.tsx). */
+  studentIds?: string[];
   /** Snapshotted from the workflow template's own milestone list at
    *  enrollment — see server/src/services/projectEnrollment.ts and
    *  workflowTemplates.ts's resolveMilestoneOrder. Absent on a milestone
@@ -159,6 +170,28 @@ export interface Milestone {
    *  feature existed) — SubmitMilestoneModal treats that the same as
    *  'none', showing both fields as optional. */
   submissionRequirement?: 'file' | 'comment' | 'both' | 'none';
+  /** The student's own online form for this milestone (currently only
+   *  data_science's research_proposal — see
+   *  server/src/scripts/addResearchProposalStudentForm.ts). Absent means
+   *  this milestone still uses the generic file+note SubmitMilestoneModal.
+   *  See ResearchProposalFormModal.tsx's local StudentFormField for the
+   *  matching field-shape definition (this repo's own convention — a small
+   *  per-component copy rather than a cross-package import from the server's
+   *  FormFieldSpec). */
+  studentFormFields?: Array<{
+    key: string; labelHe: string; labelEn: string;
+    type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+    required: boolean;
+    tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+    autoFill?: 'studentName' | 'studentIdNumber' | 'studentPhone' | 'studentEmail'
+      | 'studentPhoto' | 'accumulatedCredits' | 'supervisorName' | 'submissionDate'
+      | 'projectNameHe' | 'projectNameEn';
+    locked?: boolean;
+  }>;
+  /** The student's (or teammate's) submitted values, keyed by
+   *  studentFormFields[].key — present once the form has been submitted at
+   *  least once. */
+  studentFormData?: Record<string, unknown> | null;
   /** Permanent record of every committee stage this milestone ever passed
    *  through (see server/src/controllers/committeeReviewController.ts) —
    *  every member's vote+comment plus the chairman's final decision, one
