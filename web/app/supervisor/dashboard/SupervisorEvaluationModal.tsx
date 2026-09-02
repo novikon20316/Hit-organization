@@ -69,17 +69,17 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הערכת מנחה' : 'Supervisor Evaluation'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">✕</button>
+          <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'הערכת מנחה' : 'Supervisor Evaluation'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">✕</button>
         </div>
 
         <div className="mt-4 grid gap-3">
           {components.map((c) => (
             <label key={c.key} className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
                 {lang === 'he' ? c.labelHe : c.labelEn} (0–{c.maxScore})
               </span>
               <input
@@ -88,29 +88,29 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
                 max={c.maxScore}
                 value={scores[c.key]}
                 onChange={(e) => setScores({ ...scores, [c.key]: clampScoreInput(e.target.value, c.maxScore) })}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
               />
             </label>
           ))}
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}</span>
           <textarea
             rows={4}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
           />
         </label>
 
-        <p className="mt-3 text-sm font-bold text-ink">{lang === 'he' ? 'סה"כ' : 'Total'}: {total}/100</p>
+        <p className="mt-3 text-sm font-bold text-supervisor-on-surface">{lang === 'he' ? 'סה"כ' : 'Total'}: {total}/100</p>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
             {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
           </span>
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink" />
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface" />
         </label>
 
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
@@ -119,7 +119,7 @@ export function SupervisorEvaluationModal({ milestoneId, components, onClose, on
           type="button"
           onClick={handleSubmit}
           disabled={submitting}
-          className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
         >
           {submitting ? '…' : t('submit')}
         </button>

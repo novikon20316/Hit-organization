@@ -15,6 +15,7 @@ import { facultyLabel, type FacultyId } from '@/components/i18n';
 import { HIT_FACULTIES } from '@/constants/faculties';
 import { majorsForFaculty } from '@/constants/permissions';
 import { MilestoneRoadmap, type RoadmapMilestone } from '@/components/MilestoneRoadmap';
+import { ap } from '@/constants/theme';
 
 interface StudentDetail {
   student: {
@@ -151,14 +152,14 @@ export default function StudentDetailScreen() {
   const milestoneRoadmap = data?.milestoneRoadmap ?? [];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: ap.surface }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/administrative_coordinator/administrative_coordinator_dashboard' as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 16 }}
           accessibilityRole="button"
         >
-          <Text style={{ fontSize: 15, fontWeight: '600', color: '#3E6C8C' }}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: ap.primary }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה לדוח הסטודנטים' : 'Back to Students Report'}
           </Text>
         </Pressable>
@@ -211,7 +212,7 @@ export default function StudentDetailScreen() {
                     value={eligibilityReason}
                     onChangeText={setEligibilityReason}
                     placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
-                    style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 8, marginTop: 8, fontSize: 13 }}
+                    style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 8, marginTop: 8, fontSize: 13 }}
                   />
                   <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 8, marginTop: 8 }}>
                     <Pressable
@@ -254,14 +255,14 @@ export default function StudentDetailScreen() {
               <Text style={styles.sectionTitle}>☎️ {lang === 'he' ? 'פרטי התקשרות' : 'Communication'}</Text>
               {student.email ? (
                 <Pressable onPress={() => Linking.openURL(`mailto:${student.email}`)} accessibilityRole="link">
-                  <Text style={[styles.cardSub, { color: '#3E6C8C', fontWeight: '600' }]}>✉️ {student.email}</Text>
+                  <Text style={[styles.cardSub, { color: ap.primary, fontWeight: '600' }]}>✉️ {student.email}</Text>
                 </Pressable>
               ) : (
                 <Text style={[styles.cardSub, { fontStyle: 'italic' }]}>{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</Text>
               )}
               {student.phoneNumber ? (
                 <Pressable onPress={() => Linking.openURL(`tel:${student.phoneNumber}`)} accessibilityRole="link">
-                  <Text style={[styles.cardSub, { color: '#3E6C8C', fontWeight: '600' }]}>📞 {student.phoneNumber}</Text>
+                  <Text style={[styles.cardSub, { color: ap.primary, fontWeight: '600' }]}>📞 {student.phoneNumber}</Text>
                 </Pressable>
               ) : (
                 <Text style={[styles.cardSub, { fontStyle: 'italic' }]}>{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</Text>
@@ -321,9 +322,9 @@ export default function StudentDetailScreen() {
                 submittedMilestones.map((m, i) => (
                   <View
                     key={m.id}
-                    style={{ paddingVertical: 8, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#E2E8F0' }}
+                    style={{ paddingVertical: 8, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: ap.outlineVariant }}
                   >
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B' }}>{lang === 'he' ? m.nameHe : m.nameEn}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: ap.onSurface }}>{lang === 'he' ? m.nameHe : m.nameEn}</Text>
                     <Text style={styles.cardSub}>
                       {lang === 'he' ? 'הוגש:' : 'Submitted:'} {formatDate(m.submittedAt, lang)} · {statusLabel(m.status, lang)}
                     </Text>
@@ -347,13 +348,13 @@ export default function StudentDetailScreen() {
 
 const styles = {
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: ap.outlineVariant,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700' as const, color: '#1E293B', marginBottom: 6 },
-  sectionTitle: { fontSize: 14, fontWeight: '700' as const, color: '#1E293B', marginBottom: 6 },
-  cardSub: { fontSize: 13, color: '#64748B', marginTop: 2 },
+  cardTitle: { fontSize: 16, fontWeight: '700' as const, color: ap.onSurface, marginBottom: 6 },
+  sectionTitle: { fontSize: 14, fontWeight: '700' as const, color: ap.onSurface, marginBottom: 6 },
+  cardSub: { fontSize: 13, color: ap.onSurfaceVariant, marginTop: 2 },
 };

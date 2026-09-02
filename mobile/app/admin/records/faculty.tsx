@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
 import { facultyLabel, type FacultyId, type Lang } from '@/components/i18n';
 import { getFacultyByKey, stripDegreePrefix } from '@/constants/faculties';
+import { ap } from '@/constants/theme';
 
 // Majors come back from the taxonomy endpoint as bare subject slugs (e.g.
 // "computer_science") — this looks up the matching program's real bilingual
@@ -56,26 +57,26 @@ export default function AdminRecordsFacultyScreen() {
   }, [facultyId, lang]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F8FA' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: ap.surface }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/admin/records', params: { lang } } as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
           accessibilityRole="button"
         >
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#2E86FF' }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: ap.primary }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה לפקולטות' : 'Back to faculties'}
           </Text>
         </Pressable>
 
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827' }}>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: ap.onSurface }}>
           {facultyId ? facultyLabel(facultyId as FacultyId, lang) : ''}
         </Text>
-        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+        <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4 }}>
           {lang === 'he' ? 'בחר/י מגמה כדי להמשיך.' : 'Choose a major to continue.'}
         </Text>
 
-        {loading && <ActivityIndicator size="large" color="#2E86FF" style={{ marginTop: 30 }} />}
+        {loading && <ActivityIndicator size="large" color={ap.primary} style={{ marginTop: 30 }} />}
 
         {!loading && !!error && (
           <View style={{ marginTop: 20, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 14 }}>
@@ -86,7 +87,7 @@ export default function AdminRecordsFacultyScreen() {
         {!loading && !error && majors.length === 0 && (
           <View style={{ marginTop: 30, alignItems: 'center' }}>
             <Text style={{ fontSize: 32 }}>📭</Text>
-            <Text style={{ marginTop: 8, fontSize: 13, color: '#6B7280', textAlign: 'center' }}>
+            <Text style={{ marginTop: 8, fontSize: 13, color: ap.onSurfaceVariant, textAlign: 'center' }}>
               {lang === 'he' ? 'אין מגמות בפקולטה זו.' : 'No majors in this faculty.'}
             </Text>
           </View>
@@ -96,10 +97,10 @@ export default function AdminRecordsFacultyScreen() {
           <Pressable
             key={m}
             onPress={() => router.push({ pathname: '/admin/records/supervisors', params: { facultyId, major: m, lang } } as any)}
-            style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB' }}
+            style={{ backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: ap.outlineVariant }}
             accessibilityRole="link"
           >
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827', textAlign: isRtl ? 'right' : 'left' }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: ap.onSurface, textAlign: isRtl ? 'right' : 'left' }}>
               {majorLabel(facultyId, m, lang)}
             </Text>
           </Pressable>

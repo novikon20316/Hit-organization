@@ -25,6 +25,7 @@ import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import type { AppUser } from '@/types';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
+import { ap } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -144,16 +145,16 @@ function FileLinksRow({ label, urls }: { label: string; urls: string[] }) {
   if (urls.length === 0) return null;
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 }}>
-      <Text style={{ fontSize: 10, color: '#64748B' }}>{label}</Text>
+      <Text style={{ fontSize: 10, color: ap.onSurfaceVariant }}>{label}</Text>
       {urls.map((url, i) => (
         <Pressable
           key={i}
           onPress={() => Linking.openURL(url)}
-          style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}
+          style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}
           accessibilityRole="link"
           accessibilityLabel={`${label} ${i + 1}`}
         >
-          <Text style={{ fontSize: 11, color: '#1E293B' }}>📄 {i + 1}</Text>
+          <Text style={{ fontSize: 11, color: ap.onSurface }}>📄 {i + 1}</Text>
         </Pressable>
       ))}
     </View>
@@ -278,7 +279,7 @@ function SendExaminerModal({
               onChangeText={field.set}
               keyboardType={field.key === 'email' ? 'email-address' : 'default'}
               autoCapitalize="none"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={ap.onSurfaceVariant}
             />
           </View>
         ))}
@@ -316,7 +317,7 @@ function SendExaminerModal({
           accessibilityRole="button"
         >
           {sending
-            ? <ActivityIndicator color="#fff" />
+            ? <ActivityIndicator color={ap.onPrimary} />
             : <Text style={m.btnSendText}>
                 {sent
                   ? (lang === 'he' ? 'שלח שוב' : 'Send again')
@@ -410,7 +411,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
             value={time}
             onChangeText={setTime}
             placeholder="HH:MM"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={ap.onSurfaceVariant}
           />
         </View>
 
@@ -421,7 +422,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
             value={room}
             onChangeText={setRoom}
             placeholder={lang === 'he' ? 'חדר 101' : 'Room 101'}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={ap.onSurfaceVariant}
           />
         </View>
 
@@ -437,7 +438,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
             value={onlineDefenseLink}
             onChangeText={setOnlineDefenseLink}
             placeholder="https://zoom.us/j/..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={ap.onSurfaceVariant}
             autoCapitalize="none"
           />
         </View>
@@ -449,7 +450,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
           accessibilityRole="button"
         >
           {saving
-            ? <ActivityIndicator color="#fff" />
+            ? <ActivityIndicator color={ap.onPrimary} />
             : <Text style={m.btnSendText}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
           }
         </Pressable>
@@ -506,13 +507,13 @@ function StudentContactModal({ member, lang, onClose }: { member: ContactMember 
 
 const contactStyles = {
   backdrop: { flex: 1, backgroundColor: 'rgba(17,24,39,0.4)', alignItems: 'center', justifyContent: 'center', padding: 20 } as const,
-  card: { width: '100%', maxWidth: 320, backgroundColor: '#fff', borderRadius: 16, padding: 18 } as const,
+  card: { width: '100%', maxWidth: 320, backgroundColor: ap.surfaceContainerLowest, borderRadius: 16, padding: 18 } as const,
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 } as const,
-  title: { fontSize: 16, fontWeight: '700', color: '#111' } as const,
-  closeIcon: { fontSize: 16, color: '#8899BB' } as const,
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F4FF', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 10 } as const,
-  rowText: { fontSize: 14, color: '#111', writingDirection: 'ltr' } as const,
-  emptyText: { fontSize: 13, color: '#8899BB', fontStyle: 'italic', marginBottom: 10 } as const,
+  title: { fontSize: 16, fontWeight: '700', color: ap.onSurface } as const,
+  closeIcon: { fontSize: 16, color: ap.onSurfaceVariant } as const,
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: ap.surfaceContainerLow, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 10 } as const,
+  rowText: { fontSize: 14, color: ap.onSurface, writingDirection: 'ltr' } as const,
+  emptyText: { fontSize: 13, color: ap.onSurfaceVariant, fontStyle: 'italic', marginBottom: 10 } as const,
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -992,7 +993,7 @@ export default function ProjectCoordinatorDashboard() {
               value={reportSearchText}
               onChangeText={setReportSearchText}
               placeholder={lang === 'he' ? 'חיפוש לפי שם...' : 'Search by name...'}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={ap.onSurfaceVariant}
               textAlign={lang === 'he' ? 'right' : 'left'}
             />
             <View style={s.filterRow}>
@@ -1065,7 +1066,7 @@ export default function ProjectCoordinatorDashboard() {
           value={supervisorSearchText}
           onChangeText={setSupervisorSearchText}
           placeholder={lang === 'he' ? 'חיפוש מנחה...' : 'Search supervisor...'}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={ap.onSurfaceVariant}
           textAlign={lang === 'he' ? 'right' : 'left'}
         />
 
@@ -1111,7 +1112,7 @@ export default function ProjectCoordinatorDashboard() {
           value={searchText}
           onChangeText={setSearchText}
           placeholder={tx('searchPlaceholder', lang)}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={ap.onSurfaceVariant}
           textAlign={lang === 'he' ? 'right' : 'left'}
         />
         <View style={s.filterRow}>

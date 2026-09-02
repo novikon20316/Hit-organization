@@ -41,16 +41,16 @@ export default function ProgramHeadRecordsPage() {
   return (
     <DashboardShell title={lang === 'he' ? 'רישומי פרויקטים' : 'Project Records'} showBackButton={false}>
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <p className="mb-4 text-sm text-muted">
+        <p className="mb-4 text-sm text-program-head-on-surface-variant">
           {lang === 'he'
             ? 'בחר/י מנחה כדי לראות את הפרויקטים שלו/שלה עם רישום קבוע וקריאה בלבד.'
             : 'Choose a supervisor to see their projects with a permanent, read-only record.'}
         </p>
 
         {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
-        {!error && supervisors === null && <p className="text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+        {!error && supervisors === null && <p className="text-sm text-program-head-on-surface-variant" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
         {!error && supervisors !== null && supervisors.length === 0 && (
-          <p className="text-sm text-muted">
+          <p className="text-sm text-program-head-on-surface-variant">
             {lang === 'he' ? 'אין מנחים להצגה.' : 'No supervisors to show.'}
           </p>
         )}
@@ -60,10 +60,10 @@ export default function ProgramHeadRecordsPage() {
             <Link
               key={s.id}
               href={`/program_head/records/${s.id}`}
-              className="rounded-[var(--radius)] border border-line bg-surface px-4 py-3 transition-colors hover:border-primary"
+              className="rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest px-4 py-3 transition-colors hover:border-program-head-primary"
             >
-              <p className="text-sm font-semibold text-ink">{s.displayName}</p>
-              <p className="mt-0.5 text-xs text-muted">{s.email}</p>
+              <p className="text-sm font-semibold text-program-head-on-surface">{s.displayName}</p>
+              <p className="mt-0.5 text-xs text-program-head-on-surface-variant">{s.email}</p>
             </Link>
           ))}
         </div>

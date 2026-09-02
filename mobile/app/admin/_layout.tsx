@@ -5,6 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../../src/firebase/firebase";
 import NoAccessScreen from "../../components/NoAccessScreen";
 import { apiClient } from "../../src/api/apiClient";
+import { ap } from "../../constants/theme";
 
 // This screen only ever gets navigated to as the result of login.tsx (or
 // root _layout.tsx) already confirming role === 'system_admin' from a
@@ -23,23 +24,23 @@ const RETRY_DELAY_MS = 800;
 
 function BrandedLoadingScreen({ message, retry }: { message: string; retry?: () => void }) {
   return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F0F4FF", padding: 24 }}>
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: ap.surface, padding: 24 }}>
       <Image
         source={require("../../assets/hit-logo.png")}
         style={{ width: 96, height: 96, marginBottom: 20 }}
         resizeMode="contain"
       />
-      {!retry && <ActivityIndicator size="large" color="#2E86FF" style={{ marginBottom: 12 }} />}
-      <Text style={{ fontSize: 15, color: "#2E86FF", fontWeight: "600", textAlign: "center" }}>
+      {!retry && <ActivityIndicator size="large" color={ap.primary} style={{ marginBottom: 12 }} />}
+      <Text style={{ fontSize: 15, color: ap.primary, fontWeight: "600", textAlign: "center" }}>
         {message}
       </Text>
       {retry && (
         <Pressable
           onPress={retry}
-          style={{ marginTop: 20, backgroundColor: "#2E86FF", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}
+          style={{ marginTop: 20, backgroundColor: ap.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}
           accessibilityRole="button"
         >
-          <Text style={{ color: "#fff", fontWeight: "700" }}>Try Again</Text>
+          <Text style={{ color: ap.onPrimary, fontWeight: "700" }}>Try Again</Text>
         </Pressable>
       )}
     </View>

@@ -16,6 +16,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { TopBar, getFacultyColor } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { ProgramHeadDashboardStyles } from '../../constants/styles';
+import { ap } from '../../constants/theme';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
@@ -460,7 +461,7 @@ export default function ProgramHeadDashboard() {
                           onChangeText={setTemplateRejectReason}
                           placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
                           multiline
-                          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
+                          style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
                         />
                         <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                           <Pressable

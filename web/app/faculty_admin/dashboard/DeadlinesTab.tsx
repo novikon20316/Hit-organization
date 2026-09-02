@@ -61,45 +61,45 @@ export function DeadlinesTab({ deadlines, projects, users, onSaved }: DeadlinesT
       <button
         type="button"
         onClick={() => setShowBulk(true)}
-        className="mb-4 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+        className="mb-4 rounded-lg bg-faculty-admin-primary px-3.5 py-2 text-sm font-semibold text-faculty-admin-on-primary hover:opacity-90"
       >
         📅 {lang === 'he' ? 'עדכון תאריכי יעד מרוכז' : 'Bulk Update Due Dates'}
       </button>
 
       {deadlines.length === 0 ? (
-        <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין מועדי הגשה' : 'No deadlines'}</p>
+        <p className="text-sm text-faculty-admin-on-surface-variant">📭 {lang === 'he' ? 'אין מועדי הגשה' : 'No deadlines'}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {deadlines.map((d) => (
-            <div key={`${d.milestoneId ?? d.id}-${d.studentId ?? ''}`} className="rounded-[var(--radius)] border-s-4 border border-line bg-surface p-4" style={{ borderInlineStartColor: '#F59E0B' }}>
-              <p className="mb-2 text-sm font-semibold text-ink">👤 {d.studentName}</p>
+            <div key={`${d.milestoneId ?? d.id}-${d.studentId ?? ''}`} className="rounded-faculty-admin border-s-4 border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-lowest p-4" style={{ borderInlineStartColor: '#F59E0B' }}>
+              <p className="mb-2 text-sm font-semibold text-faculty-admin-on-surface">👤 {d.studentName}</p>
               <div className="grid gap-1.5 text-xs">
-                <p className="text-muted">
-                  {lang === 'he' ? 'תואר:' : 'Degree:'} <span className="font-medium text-ink">{d.degreeType || 'N/A'}</span>
+                <p className="text-faculty-admin-on-surface-variant">
+                  {lang === 'he' ? 'תואר:' : 'Degree:'} <span className="font-medium text-faculty-admin-on-surface">{d.degreeType || 'N/A'}</span>
                 </p>
-                <p className="text-muted">
-                  {lang === 'he' ? 'שנה:' : 'Year:'} <span className="font-medium text-ink">{d.yearOfStudy || '—'}</span>
+                <p className="text-faculty-admin-on-surface-variant">
+                  {lang === 'he' ? 'שנה:' : 'Year:'} <span className="font-medium text-faculty-admin-on-surface">{d.yearOfStudy || '—'}</span>
                 </p>
-                <p className="text-muted">
-                  {lang === 'he' ? 'פרויקט:' : 'Project:'} <span className="font-medium text-ink">{d.projectTitle || 'N/A'}</span>
+                <p className="text-faculty-admin-on-surface-variant">
+                  {lang === 'he' ? 'פרויקט:' : 'Project:'} <span className="font-medium text-faculty-admin-on-surface">{d.projectTitle || 'N/A'}</span>
                 </p>
-                <p className="text-muted">
-                  {lang === 'he' ? 'אבן דרך:' : 'Milestone:'} <span className="font-medium text-ink">{d.milestoneName || 'N/A'}</span>
+                <p className="text-faculty-admin-on-surface-variant">
+                  {lang === 'he' ? 'אבן דרך:' : 'Milestone:'} <span className="font-medium text-faculty-admin-on-surface">{d.milestoneName || 'N/A'}</span>
                 </p>
-                <div className="flex items-center justify-between border-t border-line pt-1.5">
-                  <span className="text-muted">{lang === 'he' ? 'ימים לסיום:' : 'Days Left:'}</span>
+                <div className="flex items-center justify-between border-t border-faculty-admin-outline-variant pt-1.5">
+                  <span className="text-faculty-admin-on-surface-variant">{lang === 'he' ? 'ימים לסיום:' : 'Days Left:'}</span>
                   <span className="font-bold" style={{ color: urgencyColorFor(d.daysLeft) }}>
                     {d.daysLeft !== null && d.daysLeft !== undefined ? `${d.daysLeft} ${lang === 'he' ? 'ימים' : 'days'}` : 'N/A'}
                   </span>
                 </div>
                 {formatDueDate(d.dueDate, lang) && (
-                  <p className="text-muted">
-                    {lang === 'he' ? 'תאריך יעד:' : 'Due date:'} <span className="font-medium text-ink">{formatDueDate(d.dueDate, lang)}</span>
+                  <p className="text-faculty-admin-on-surface-variant">
+                    {lang === 'he' ? 'תאריך יעד:' : 'Due date:'} <span className="font-medium text-faculty-admin-on-surface">{formatDueDate(d.dueDate, lang)}</span>
                   </p>
                 )}
                 {d.class && (
-                  <p className="border-t border-line pt-1.5 text-muted">
-                    {lang === 'he' ? 'קבוצה:' : 'Class:'} <span className="font-medium text-ink">{d.class}</span>
+                  <p className="border-t border-faculty-admin-outline-variant pt-1.5 text-faculty-admin-on-surface-variant">
+                    {lang === 'he' ? 'קבוצה:' : 'Class:'} <span className="font-medium text-faculty-admin-on-surface">{d.class}</span>
                   </p>
                 )}
               </div>

@@ -76,43 +76,43 @@ export function UpdateGradeModal({ milestoneId, projectId, milestoneType, curren
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'עדכון ציון' : 'Update Grade'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'עדכון ציון' : 'Update Grade'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
             ✕
           </button>
         </div>
 
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-supervisor-on-surface-variant">
           {MILESTONE_LABEL[milestoneType]?.[lang] ?? milestoneType}
         </p>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'ציון חדש (0–100)' : 'New grade (0–100)'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'ציון חדש (0–100)' : 'New grade (0–100)'}</span>
           <input
             type="number"
             min={0}
             max={100}
             value={score}
             onChange={(e) => setScore(clampScore(e.target.value))}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
           />
         </label>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סיבת השינוי' : 'Reason for the change'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'סיבת השינוי' : 'Reason for the change'}</span>
           <textarea
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder={lang === 'he' ? 'חובה לפרט מדוע הציון מתעדכן' : 'Required — explain why the grade is being updated'}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
           />
         </label>
 
-        <p className="mt-2 text-xs text-muted">
+        <p className="mt-2 text-xs text-supervisor-on-surface-variant">
           {lang === 'he'
             ? 'הסטודנט יקבל התראה על עדכון הציון וסיבת השינוי.'
             : 'The student will be notified that their grade changed and why.'}
@@ -124,7 +124,7 @@ export function UpdateGradeModal({ milestoneId, projectId, milestoneType, curren
           type="button"
           onClick={handleSubmit}
           disabled={submitting}
-          className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
         >
           {submitting ? '…' : lang === 'he' ? 'עדכן ציון' : 'Update Grade'}
         </button>

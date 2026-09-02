@@ -394,6 +394,321 @@ select:not(:disabled):hover {
 }
 
 /*
+ * "Academic Precision" tokens — supervisor screens only
+ * ───────────────────────────────────────────────
+ * Same palette as the --student-/--coordinator-/--admin-/--examinor- tokens
+ * above, from the same Stitch design project — kept as its own `--supervisor-`
+ * prefix so each role's tokens can be told apart/adjusted independently, and
+ * neither role's screens are affected by changes to the other's. Prefix
+ * follows the URL folder name (`supervisor`), kebab-cased.
+ */
+
+:root {
+  --supervisor-primary: #00236f;
+  --supervisor-primary-container: #1e3a8a;
+  --supervisor-on-primary: #ffffff;
+  --supervisor-on-primary-container: #90a8ff;
+  --supervisor-secondary: #505f76;
+  --supervisor-secondary-container: #d0e1fb;
+  --supervisor-on-secondary-container: #54647a;
+  --supervisor-surface: #faf8ff;
+  --supervisor-surface-container-lowest: #ffffff;
+  --supervisor-surface-container-low: #f4f3fa;
+  --supervisor-surface-container: #eeedf4;
+  --supervisor-surface-container-high: #e9e7ef;
+  --supervisor-surface-variant: #e3e1e9;
+  --supervisor-on-surface: #1a1b21;
+  --supervisor-on-surface-variant: #444651;
+  --supervisor-outline: #757682;
+  --supervisor-outline-variant: #c5c5d3;
+  --supervisor-error: #ba1a1a;
+  --supervisor-error-container: #ffdad6;
+  --supervisor-on-error-container: #93000a;
+  --supervisor-radius-sm: 2px;
+  --supervisor-radius: 4px;
+  --supervisor-radius-lg: 8px;
+}
+
+
+@theme inline {
+  --color-supervisor-primary: var(--supervisor-primary);
+  --color-supervisor-primary-container: var(--supervisor-primary-container);
+  --color-supervisor-on-primary: var(--supervisor-on-primary);
+  --color-supervisor-on-primary-container: var(--supervisor-on-primary-container);
+  --color-supervisor-secondary: var(--supervisor-secondary);
+  --color-supervisor-secondary-container: var(--supervisor-secondary-container);
+  --color-supervisor-on-secondary-container: var(--supervisor-on-secondary-container);
+  --color-supervisor-surface: var(--supervisor-surface);
+  --color-supervisor-surface-container-lowest: var(--supervisor-surface-container-lowest);
+  --color-supervisor-surface-container-low: var(--supervisor-surface-container-low);
+  --color-supervisor-surface-container: var(--supervisor-surface-container);
+  --color-supervisor-surface-container-high: var(--supervisor-surface-container-high);
+  --color-supervisor-surface-variant: var(--supervisor-surface-variant);
+  --color-supervisor-on-surface: var(--supervisor-on-surface);
+  --color-supervisor-on-surface-variant: var(--supervisor-on-surface-variant);
+  --color-supervisor-outline: var(--supervisor-outline);
+  --color-supervisor-outline-variant: var(--supervisor-outline-variant);
+  --color-supervisor-error: var(--supervisor-error);
+  --color-supervisor-error-container: var(--supervisor-error-container);
+  --color-supervisor-on-error-container: var(--supervisor-on-error-container);
+  --radius-supervisor-sm: var(--supervisor-radius-sm);
+  --radius-supervisor: var(--supervisor-radius);
+  --radius-supervisor-lg: var(--supervisor-radius-lg);
+}
+
+/*
+ * "Academic Precision" tokens — faculty_admin screens only
+ * ───────────────────────────────────────────────
+ * Same palette as the --student-/--coordinator-/--admin-/--examinor- tokens
+ * above, from the same Stitch design project — kept as its own `--faculty-admin-`
+ * prefix so each role's tokens can be told apart/adjusted independently, and
+ * neither role's screens are affected by changes to the other's. Prefix
+ * follows the URL folder name (`faculty_admin`), kebab-cased.
+ */
+
+:root {
+  --faculty-admin-primary: #00236f;
+  --faculty-admin-primary-container: #1e3a8a;
+  --faculty-admin-on-primary: #ffffff;
+  --faculty-admin-on-primary-container: #90a8ff;
+  --faculty-admin-secondary: #505f76;
+  --faculty-admin-secondary-container: #d0e1fb;
+  --faculty-admin-on-secondary-container: #54647a;
+  --faculty-admin-surface: #faf8ff;
+  --faculty-admin-surface-container-lowest: #ffffff;
+  --faculty-admin-surface-container-low: #f4f3fa;
+  --faculty-admin-surface-container: #eeedf4;
+  --faculty-admin-surface-container-high: #e9e7ef;
+  --faculty-admin-surface-variant: #e3e1e9;
+  --faculty-admin-on-surface: #1a1b21;
+  --faculty-admin-on-surface-variant: #444651;
+  --faculty-admin-outline: #757682;
+  --faculty-admin-outline-variant: #c5c5d3;
+  --faculty-admin-error: #ba1a1a;
+  --faculty-admin-error-container: #ffdad6;
+  --faculty-admin-on-error-container: #93000a;
+  --faculty-admin-radius-sm: 2px;
+  --faculty-admin-radius: 4px;
+  --faculty-admin-radius-lg: 8px;
+}
+
+
+@theme inline {
+  --color-faculty-admin-primary: var(--faculty-admin-primary);
+  --color-faculty-admin-primary-container: var(--faculty-admin-primary-container);
+  --color-faculty-admin-on-primary: var(--faculty-admin-on-primary);
+  --color-faculty-admin-on-primary-container: var(--faculty-admin-on-primary-container);
+  --color-faculty-admin-secondary: var(--faculty-admin-secondary);
+  --color-faculty-admin-secondary-container: var(--faculty-admin-secondary-container);
+  --color-faculty-admin-on-secondary-container: var(--faculty-admin-on-secondary-container);
+  --color-faculty-admin-surface: var(--faculty-admin-surface);
+  --color-faculty-admin-surface-container-lowest: var(--faculty-admin-surface-container-lowest);
+  --color-faculty-admin-surface-container-low: var(--faculty-admin-surface-container-low);
+  --color-faculty-admin-surface-container: var(--faculty-admin-surface-container);
+  --color-faculty-admin-surface-container-high: var(--faculty-admin-surface-container-high);
+  --color-faculty-admin-surface-variant: var(--faculty-admin-surface-variant);
+  --color-faculty-admin-on-surface: var(--faculty-admin-on-surface);
+  --color-faculty-admin-on-surface-variant: var(--faculty-admin-on-surface-variant);
+  --color-faculty-admin-outline: var(--faculty-admin-outline);
+  --color-faculty-admin-outline-variant: var(--faculty-admin-outline-variant);
+  --color-faculty-admin-error: var(--faculty-admin-error);
+  --color-faculty-admin-error-container: var(--faculty-admin-error-container);
+  --color-faculty-admin-on-error-container: var(--faculty-admin-on-error-container);
+  --radius-faculty-admin-sm: var(--faculty-admin-radius-sm);
+  --radius-faculty-admin: var(--faculty-admin-radius);
+  --radius-faculty-admin-lg: var(--faculty-admin-radius-lg);
+}
+
+/*
+ * "Academic Precision" tokens — program_head screens only
+ * ───────────────────────────────────────────────
+ * Same palette as the --student-/--coordinator-/--admin-/--examinor- tokens
+ * above, from the same Stitch design project — kept as its own `--program-head-`
+ * prefix so each role's tokens can be told apart/adjusted independently, and
+ * neither role's screens are affected by changes to the other's. Prefix
+ * follows the URL folder name (`program_head`), kebab-cased.
+ */
+
+:root {
+  --program-head-primary: #00236f;
+  --program-head-primary-container: #1e3a8a;
+  --program-head-on-primary: #ffffff;
+  --program-head-on-primary-container: #90a8ff;
+  --program-head-secondary: #505f76;
+  --program-head-secondary-container: #d0e1fb;
+  --program-head-on-secondary-container: #54647a;
+  --program-head-surface: #faf8ff;
+  --program-head-surface-container-lowest: #ffffff;
+  --program-head-surface-container-low: #f4f3fa;
+  --program-head-surface-container: #eeedf4;
+  --program-head-surface-container-high: #e9e7ef;
+  --program-head-surface-variant: #e3e1e9;
+  --program-head-on-surface: #1a1b21;
+  --program-head-on-surface-variant: #444651;
+  --program-head-outline: #757682;
+  --program-head-outline-variant: #c5c5d3;
+  --program-head-error: #ba1a1a;
+  --program-head-error-container: #ffdad6;
+  --program-head-on-error-container: #93000a;
+  --program-head-radius-sm: 2px;
+  --program-head-radius: 4px;
+  --program-head-radius-lg: 8px;
+}
+
+
+@theme inline {
+  --color-program-head-primary: var(--program-head-primary);
+  --color-program-head-primary-container: var(--program-head-primary-container);
+  --color-program-head-on-primary: var(--program-head-on-primary);
+  --color-program-head-on-primary-container: var(--program-head-on-primary-container);
+  --color-program-head-secondary: var(--program-head-secondary);
+  --color-program-head-secondary-container: var(--program-head-secondary-container);
+  --color-program-head-on-secondary-container: var(--program-head-on-secondary-container);
+  --color-program-head-surface: var(--program-head-surface);
+  --color-program-head-surface-container-lowest: var(--program-head-surface-container-lowest);
+  --color-program-head-surface-container-low: var(--program-head-surface-container-low);
+  --color-program-head-surface-container: var(--program-head-surface-container);
+  --color-program-head-surface-container-high: var(--program-head-surface-container-high);
+  --color-program-head-surface-variant: var(--program-head-surface-variant);
+  --color-program-head-on-surface: var(--program-head-on-surface);
+  --color-program-head-on-surface-variant: var(--program-head-on-surface-variant);
+  --color-program-head-outline: var(--program-head-outline);
+  --color-program-head-outline-variant: var(--program-head-outline-variant);
+  --color-program-head-error: var(--program-head-error);
+  --color-program-head-error-container: var(--program-head-error-container);
+  --color-program-head-on-error-container: var(--program-head-on-error-container);
+  --radius-program-head-sm: var(--program-head-radius-sm);
+  --radius-program-head: var(--program-head-radius);
+  --radius-program-head-lg: var(--program-head-radius-lg);
+}
+
+/*
+ * "Academic Precision" tokens — grad_school_head screens only
+ * ───────────────────────────────────────────────
+ * Same palette as the --student-/--coordinator-/--admin-/--examinor- tokens
+ * above, from the same Stitch design project — kept as its own `--grad-school-head-`
+ * prefix so each role's tokens can be told apart/adjusted independently, and
+ * neither role's screens are affected by changes to the other's. Prefix
+ * follows the URL folder name (`grad_school_head`), kebab-cased.
+ */
+
+:root {
+  --grad-school-head-primary: #00236f;
+  --grad-school-head-primary-container: #1e3a8a;
+  --grad-school-head-on-primary: #ffffff;
+  --grad-school-head-on-primary-container: #90a8ff;
+  --grad-school-head-secondary: #505f76;
+  --grad-school-head-secondary-container: #d0e1fb;
+  --grad-school-head-on-secondary-container: #54647a;
+  --grad-school-head-surface: #faf8ff;
+  --grad-school-head-surface-container-lowest: #ffffff;
+  --grad-school-head-surface-container-low: #f4f3fa;
+  --grad-school-head-surface-container: #eeedf4;
+  --grad-school-head-surface-container-high: #e9e7ef;
+  --grad-school-head-surface-variant: #e3e1e9;
+  --grad-school-head-on-surface: #1a1b21;
+  --grad-school-head-on-surface-variant: #444651;
+  --grad-school-head-outline: #757682;
+  --grad-school-head-outline-variant: #c5c5d3;
+  --grad-school-head-error: #ba1a1a;
+  --grad-school-head-error-container: #ffdad6;
+  --grad-school-head-on-error-container: #93000a;
+  --grad-school-head-radius-sm: 2px;
+  --grad-school-head-radius: 4px;
+  --grad-school-head-radius-lg: 8px;
+}
+
+
+@theme inline {
+  --color-grad-school-head-primary: var(--grad-school-head-primary);
+  --color-grad-school-head-primary-container: var(--grad-school-head-primary-container);
+  --color-grad-school-head-on-primary: var(--grad-school-head-on-primary);
+  --color-grad-school-head-on-primary-container: var(--grad-school-head-on-primary-container);
+  --color-grad-school-head-secondary: var(--grad-school-head-secondary);
+  --color-grad-school-head-secondary-container: var(--grad-school-head-secondary-container);
+  --color-grad-school-head-on-secondary-container: var(--grad-school-head-on-secondary-container);
+  --color-grad-school-head-surface: var(--grad-school-head-surface);
+  --color-grad-school-head-surface-container-lowest: var(--grad-school-head-surface-container-lowest);
+  --color-grad-school-head-surface-container-low: var(--grad-school-head-surface-container-low);
+  --color-grad-school-head-surface-container: var(--grad-school-head-surface-container);
+  --color-grad-school-head-surface-container-high: var(--grad-school-head-surface-container-high);
+  --color-grad-school-head-surface-variant: var(--grad-school-head-surface-variant);
+  --color-grad-school-head-on-surface: var(--grad-school-head-on-surface);
+  --color-grad-school-head-on-surface-variant: var(--grad-school-head-on-surface-variant);
+  --color-grad-school-head-outline: var(--grad-school-head-outline);
+  --color-grad-school-head-outline-variant: var(--grad-school-head-outline-variant);
+  --color-grad-school-head-error: var(--grad-school-head-error);
+  --color-grad-school-head-error-container: var(--grad-school-head-error-container);
+  --color-grad-school-head-on-error-container: var(--grad-school-head-on-error-container);
+  --radius-grad-school-head-sm: var(--grad-school-head-radius-sm);
+  --radius-grad-school-head: var(--grad-school-head-radius);
+  --radius-grad-school-head-lg: var(--grad-school-head-radius-lg);
+}
+
+/*
+ * "Academic Precision" tokens — administrative_coordinator screens only
+ * ───────────────────────────────────────────────
+ * Same palette as the --student-/--coordinator-/--admin-/--examinor- tokens
+ * above, from the same Stitch design project — kept as its own `--administrative-coordinator-`
+ * prefix so each role's tokens can be told apart/adjusted independently, and
+ * neither role's screens are affected by changes to the other's. Prefix
+ * follows the URL folder name (`administrative_coordinator`), kebab-cased.
+ */
+
+:root {
+  --administrative-coordinator-primary: #00236f;
+  --administrative-coordinator-primary-container: #1e3a8a;
+  --administrative-coordinator-on-primary: #ffffff;
+  --administrative-coordinator-on-primary-container: #90a8ff;
+  --administrative-coordinator-secondary: #505f76;
+  --administrative-coordinator-secondary-container: #d0e1fb;
+  --administrative-coordinator-on-secondary-container: #54647a;
+  --administrative-coordinator-surface: #faf8ff;
+  --administrative-coordinator-surface-container-lowest: #ffffff;
+  --administrative-coordinator-surface-container-low: #f4f3fa;
+  --administrative-coordinator-surface-container: #eeedf4;
+  --administrative-coordinator-surface-container-high: #e9e7ef;
+  --administrative-coordinator-surface-variant: #e3e1e9;
+  --administrative-coordinator-on-surface: #1a1b21;
+  --administrative-coordinator-on-surface-variant: #444651;
+  --administrative-coordinator-outline: #757682;
+  --administrative-coordinator-outline-variant: #c5c5d3;
+  --administrative-coordinator-error: #ba1a1a;
+  --administrative-coordinator-error-container: #ffdad6;
+  --administrative-coordinator-on-error-container: #93000a;
+  --administrative-coordinator-radius-sm: 2px;
+  --administrative-coordinator-radius: 4px;
+  --administrative-coordinator-radius-lg: 8px;
+}
+
+
+@theme inline {
+  --color-administrative-coordinator-primary: var(--administrative-coordinator-primary);
+  --color-administrative-coordinator-primary-container: var(--administrative-coordinator-primary-container);
+  --color-administrative-coordinator-on-primary: var(--administrative-coordinator-on-primary);
+  --color-administrative-coordinator-on-primary-container: var(--administrative-coordinator-on-primary-container);
+  --color-administrative-coordinator-secondary: var(--administrative-coordinator-secondary);
+  --color-administrative-coordinator-secondary-container: var(--administrative-coordinator-secondary-container);
+  --color-administrative-coordinator-on-secondary-container: var(--administrative-coordinator-on-secondary-container);
+  --color-administrative-coordinator-surface: var(--administrative-coordinator-surface);
+  --color-administrative-coordinator-surface-container-lowest: var(--administrative-coordinator-surface-container-lowest);
+  --color-administrative-coordinator-surface-container-low: var(--administrative-coordinator-surface-container-low);
+  --color-administrative-coordinator-surface-container: var(--administrative-coordinator-surface-container);
+  --color-administrative-coordinator-surface-container-high: var(--administrative-coordinator-surface-container-high);
+  --color-administrative-coordinator-surface-variant: var(--administrative-coordinator-surface-variant);
+  --color-administrative-coordinator-on-surface: var(--administrative-coordinator-on-surface);
+  --color-administrative-coordinator-on-surface-variant: var(--administrative-coordinator-on-surface-variant);
+  --color-administrative-coordinator-outline: var(--administrative-coordinator-outline);
+  --color-administrative-coordinator-outline-variant: var(--administrative-coordinator-outline-variant);
+  --color-administrative-coordinator-error: var(--administrative-coordinator-error);
+  --color-administrative-coordinator-error-container: var(--administrative-coordinator-error-container);
+  --color-administrative-coordinator-on-error-container: var(--administrative-coordinator-on-error-container);
+  --radius-administrative-coordinator-sm: var(--administrative-coordinator-radius-sm);
+  --radius-administrative-coordinator: var(--administrative-coordinator-radius);
+  --radius-administrative-coordinator-lg: var(--administrative-coordinator-radius-lg);
+}
+
+/*
  * "Academic Precision" tokens — AI chatbot overlay only
  * ────────────────────────────────────────────────────────
  * Same palette/source as the --student-/--coordinator-/--admin- tokens

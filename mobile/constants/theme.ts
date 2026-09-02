@@ -652,25 +652,25 @@ export const supervisorStyles = StyleSheet.create({
 
   // Project card
   projectCard: {
-    backgroundColor: palette.bgWhite, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.md,
-    borderLeftWidth: 4, borderWidth: 1, borderColor: palette.borderLight, ...shadows.xs,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.md,
+    borderLeftWidth: 4, borderWidth: 1, borderColor: ap.outlineVariant, ...shadows.xs,
   },
-  cardTitle:  { fontSize: fontSize.lg, fontWeight: fontWeight.bold,  color: palette.textPrimary },
-  cardMeta:   { fontSize: fontSize.xs, color: palette.textSecondary },
+  cardTitle:  { fontSize: fontSize.lg, fontWeight: fontWeight.bold,  color: ap.onSurface },
+  cardMeta:   { fontSize: fontSize.xs, color: ap.onSurfaceVariant },
 
   // Application card
   appCard: {
-    backgroundColor: palette.bgWhite, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
-    borderWidth: 1, borderColor: palette.borderLight, ...shadows.xs,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
+    borderWidth: 1, borderColor: ap.outlineVariant, ...shadows.xs,
   },
-  appProjectLabel:   { fontSize: fontSize.sm, color: palette.textSecondary, marginBottom: spacing.xxs },
-  studentAvatar:     { width: 38, height: 38, borderRadius: 19, backgroundColor: palette.borderLight, justifyContent: 'center', alignItems: 'center' },
-  studentAvatarText: { fontWeight: fontWeight.bold, color: palette.primary, fontSize: fontSize.xl },
-  studentName:       { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: palette.textPrimary },
-  studentEmail:      { fontSize: fontSize.sm, color: palette.textSecondary },
+  appProjectLabel:   { fontSize: fontSize.sm, color: ap.onSurfaceVariant, marginBottom: spacing.xxs },
+  studentAvatar:     { width: 38, height: 38, borderRadius: 19, backgroundColor: ap.outlineVariant, justifyContent: 'center', alignItems: 'center' },
+  studentAvatarText: { fontWeight: fontWeight.bold, color: ap.primary, fontSize: fontSize.xl },
+  studentName:       { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: ap.onSurface },
+  studentEmail:      { fontSize: fontSize.sm, color: ap.onSurfaceVariant },
 
-  coverNote:     { backgroundColor: palette.bgSubtle, borderRadius: radius.md, padding: spacing.sm + 2, marginVertical: spacing.sm, borderLeftWidth: 3, borderLeftColor: palette.borderMid },
-  coverNoteText: { fontSize: fontSize.md, color: palette.textBody, fontStyle: 'italic', lineHeight: 18 },
+  coverNote:     { backgroundColor: ap.surfaceContainerLow, borderRadius: radius.md, padding: spacing.sm + 2, marginVertical: spacing.sm, borderLeftWidth: 3, borderLeftColor: ap.outlineVariant },
+  coverNoteText: { fontSize: fontSize.md, color: ap.onSurface, fontStyle: 'italic', lineHeight: 18 },
 
   docsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
 
@@ -678,24 +678,30 @@ export const supervisorStyles = StyleSheet.create({
 
   // Grade card
   gradeCard: {
-    backgroundColor: palette.bgWhite, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.md,
-    borderLeftWidth: 4, borderWidth: 1, borderColor: palette.borderLight,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.xl, padding: spacing.base, marginBottom: spacing.md,
+    borderLeftWidth: 4, borderWidth: 1, borderColor: ap.outlineVariant,
   },
   gradeMilestoneType: { fontSize: fontSize.md, fontWeight: fontWeight.heavy, marginBottom: spacing.xxs, letterSpacing: 0.3 },
-  gradeProjectTitle:  { fontSize: fontSize.base, fontWeight: fontWeight.semi, color: palette.textPrimary, marginBottom: spacing.xxs },
-  gradeStudents:      { fontSize: fontSize.sm, color: palette.textSecondary, marginBottom: spacing.xxs },
-  gradeDate:          { fontSize: fontSize.sm, color: palette.textSecondary, marginBottom: spacing.xxs },
-  filesNote:          { fontSize: fontSize.sm, color: palette.textBlue, marginBottom: spacing.xxs },
-  submissionNote:     { fontSize: fontSize.sm, color: palette.textBody, fontStyle: 'italic', marginBottom: spacing.sm + 2 },
+  gradeProjectTitle:  { fontSize: fontSize.base, fontWeight: fontWeight.semi, color: ap.onSurface, marginBottom: spacing.xxs },
+  gradeStudents:      { fontSize: fontSize.sm, color: ap.onSurfaceVariant, marginBottom: spacing.xxs },
+  gradeDate:          { fontSize: fontSize.sm, color: ap.onSurfaceVariant, marginBottom: spacing.xxs },
+  filesNote:          { fontSize: fontSize.sm, color: ap.onSurfaceVariant, marginBottom: spacing.xxs },
+  submissionNote:     { fontSize: fontSize.sm, color: ap.onSurfaceVariant, fontStyle: 'italic', marginBottom: spacing.sm + 2 },
 
   // Grade modal context box
-  gradeContext:      { backgroundColor: palette.bgBlueTint, borderRadius: radius.lg, padding: spacing.base, marginBottom: spacing.lg, borderLeftWidth: 3, borderLeftColor: palette.primary },
-  gradeContextTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.heavy, color: palette.textPrimary, marginBottom: spacing.xxs },
-  gradeContextSub:   { fontSize: fontSize.md, color: palette.textBlue, marginBottom: 2 },
+  gradeContext:      { backgroundColor: ap.surfaceContainerLow, borderRadius: radius.lg, padding: spacing.base, marginBottom: spacing.lg, borderLeftWidth: 3, borderLeftColor: ap.primary },
+  gradeContextTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.heavy, color: ap.onSurface, marginBottom: spacing.xxs },
+  gradeContextSub:   { fontSize: fontSize.md, color: ap.onSurfaceVariant, marginBottom: 2 },
 
   // Faculty dot (shared)
   facultyDot: { width: 10, height: 10, borderRadius: 5, marginRight: spacing.sm },
-  facultyOption: { backgroundColor: palette.bgWhite, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+  facultyOption: { backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.xl, padding: spacing.base, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+  // NOTE: left on palette.adminRed rather than migrated — this whole
+  // `supervisorStyles` export has no importers anywhere in the app (verified
+  // via grep), and this particular key already looks like a copy/paste leak
+  // of the *admin* role's brand accent into a supervisor-named style block,
+  // not an intentional supervisor color. Flagging instead of guessing which
+  // color it was actually meant to be.
   facultyOptionActive: { backgroundColor: palette.adminRed },
 });
 
@@ -727,83 +733,86 @@ export const browseStyles = StyleSheet.create({
 // ─── Admin panel screen ───────────────────────────────────────────────────────
 
 export const adminStyles = StyleSheet.create({
-  hero:         { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: 18, backgroundColor: palette.bgWhite },
-  heroTitle:    { fontSize: fontSize.h1, fontWeight: fontWeight.black, color: palette.textPrimary },
-  heroSub:      { marginTop: spacing.xs, fontSize: fontSize.md, color: palette.textSecondary },
+  hero:         { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: 18, backgroundColor: ap.surfaceContainerLowest },
+  heroTitle:    { fontSize: fontSize.h1, fontWeight: fontWeight.black, color: ap.onSurface },
+  heroSub:      { marginTop: spacing.xs, fontSize: fontSize.md, color: ap.onSurfaceVariant },
 
   statsGrid:    { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.md },
 
-  sectionCard:  { backgroundColor: palette.bgWhite, borderRadius: radius.card, padding: spacing.lg, marginTop: 18 },
-  sectionTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.heavy, color: palette.textPrimary, marginBottom: spacing.lg },
+  sectionCard:  { backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.card, padding: spacing.lg, marginTop: 18 },
+  sectionTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.heavy, color: ap.onSurface, marginBottom: spacing.lg },
 
   // Faculty bar chart
   facultyRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
   facultyDot:   { width: 10, height: 10, borderRadius: 5, marginRight: spacing.sm },
-  facultyText:  { width: 90, fontWeight: fontWeight.bold, color: palette.textPrimary, fontSize: fontSize.sm },
-  facultyBar:   { flex: 1, height: 8, backgroundColor: palette.borderBase, borderRadius: radius.full, overflow: 'hidden' },
+  facultyText:  { width: 90, fontWeight: fontWeight.bold, color: ap.onSurface, fontSize: fontSize.sm },
+  facultyBar:   { flex: 1, height: 8, backgroundColor: ap.surfaceVariant, borderRadius: radius.full, overflow: 'hidden' },
   facultyFill:  { height: '100%', borderRadius: radius.full },
-  facultyCount: { width: 40, textAlign: 'right', fontWeight: fontWeight.heavy, color: palette.textPrimary },
+  facultyCount: { width: 40, textAlign: 'right', fontWeight: fontWeight.heavy, color: ap.onSurface },
 
   // User card
-  userCard:   { backgroundColor: palette.bgWhite, borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base },
+  userCard:   { backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base },
   userTop:    { flexDirection: 'row', alignItems: 'center' },
-  userName:   { fontSize: fontSize.lg, fontWeight: fontWeight.heavy, color: palette.textPrimary },
-  userEmail:  { marginTop: 2, color: palette.textSecondary, fontSize: fontSize.sm },
+  userName:   { fontSize: fontSize.lg, fontWeight: fontWeight.heavy, color: ap.onSurface },
+  userEmail:  { marginTop: 2, color: ap.onSurfaceVariant, fontSize: fontSize.sm },
   userBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.base },
 
   // Project card (admin)
-  projectCard:   { backgroundColor: palette.bgWhite, borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base },
+  projectCard:   { backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base },
   projectHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  projectTitle:  { fontSize: fontSize.lg, fontWeight: fontWeight.heavy, color: palette.textPrimary, marginBottom: spacing.sm },
-  projectMeta:   { color: palette.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.xxs },
+  projectTitle:  { fontSize: fontSize.lg, fontWeight: fontWeight.heavy, color: ap.onSurface, marginBottom: spacing.sm },
+  projectMeta:   { color: ap.onSurfaceVariant, fontSize: fontSize.sm, marginBottom: spacing.xxs },
 
-  // Milestone card (admin)
-  milestoneCard: { backgroundColor: palette.bgWhite, borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base, borderLeftWidth: 5, borderLeftColor: palette.warning },
+  // Milestone card (admin) — bg migrated to chrome; borderLeftColor/
+  // milestoneType stay the semantic warning amber (palette.warning).
+  milestoneCard: { backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base, borderLeftWidth: 5, borderLeftColor: palette.warning },
   milestoneType: { fontSize: fontSize.md, fontWeight: fontWeight.black, color: palette.warning },
 
   // Add student modal header
-  addStudentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: spacing.xl, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: palette.borderBase },
-  addStudentTitle:    { fontSize: fontSize.xxl, fontWeight: fontWeight.black, color: palette.textPrimary },
-  addStudentSubtitle: { fontSize: fontSize.sm, color: palette.textSecondary, marginTop: spacing.xxs, maxWidth: 260 },
-  addStudentSearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.bgWhite, marginHorizontal: spacing.lg, marginVertical: spacing.md, borderRadius: radius.xl, paddingHorizontal: spacing.base, borderWidth: 1, borderColor: palette.borderLight, height: 52 },
+  addStudentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: spacing.xl, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: ap.outlineVariant },
+  addStudentTitle:    { fontSize: fontSize.xxl, fontWeight: fontWeight.black, color: ap.onSurface },
+  addStudentSubtitle: { fontSize: fontSize.sm, color: ap.onSurfaceVariant, marginTop: spacing.xxs, maxWidth: 260 },
+  addStudentSearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: ap.surfaceContainerLowest, marginHorizontal: spacing.lg, marginVertical: spacing.md, borderRadius: radius.xl, paddingHorizontal: spacing.base, borderWidth: 1, borderColor: ap.outlineVariant, height: 52 },
   addStudentSearchIcon:  { fontSize: fontSize.xl, marginRight: spacing.sm },
-  addStudentSearchInput: { flex: 1, fontSize: fontSize.base, color: palette.textPrimary },
+  addStudentSearchInput: { flex: 1, fontSize: fontSize.base, color: ap.onSurface },
 
   // Student picker card
-  studentPickerCard:  { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.bgWhite, borderRadius: radius.xxl, padding: spacing.base, marginBottom: spacing.sm, borderWidth: 1, borderColor: palette.borderBase },
-  studentPickerName:  { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: palette.textPrimary },
-  studentPickerEmail: { fontSize: fontSize.sm, color: palette.textSecondary, marginTop: 2 },
-  studentPickerArrow: { fontSize: 22, color: '#D1D5DB', fontWeight: fontWeight.regular },
+  studentPickerCard:  { flexDirection: 'row', alignItems: 'center', backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.xxl, padding: spacing.base, marginBottom: spacing.sm, borderWidth: 1, borderColor: ap.outlineVariant },
+  studentPickerName:  { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: ap.onSurface },
+  studentPickerEmail: { fontSize: fontSize.sm, color: ap.onSurfaceVariant, marginTop: 2 },
+  studentPickerArrow: { fontSize: 22, color: ap.outlineVariant, fontWeight: fontWeight.regular },
 
   // Faculty picker grid
   facultyGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
-  facultyPickerBtn:  { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.bgWhite, borderRadius: radius.lg, paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: palette.borderLight, marginBottom: spacing.xxs },
+  facultyPickerBtn:  { flexDirection: 'row', alignItems: 'center', backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.lg, paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: ap.outlineVariant, marginBottom: spacing.xxs },
   facultyPickerDot:  { width: 10, height: 10, borderRadius: 5, marginRight: spacing.sm },
-  facultyPickerText: { fontSize: fontSize.sm, fontWeight: fontWeight.semi, color: palette.textGray },
+  facultyPickerText: { fontSize: fontSize.sm, fontWeight: fontWeight.semi, color: ap.onSurfaceVariant },
 
   // Supervisor pill picker
-  supOption: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.full, backgroundColor: '#f0f0f0', marginRight: spacing.sm + 2, borderWidth: 1, borderColor: '#ddd', minWidth: 100, alignItems: 'center', justifyContent: 'center' },
-  supOptionActive: { backgroundColor: palette.bgWhite, borderColor: '#ff4444', borderWidth: 2, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2 },
+  supOption: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.full, backgroundColor: ap.surfaceContainer, marginRight: spacing.sm + 2, borderWidth: 1, borderColor: ap.outlineVariant, minWidth: 100, alignItems: 'center', justifyContent: 'center' },
+  // Selected-state border kept red (admin role-brand accent), not migrated.
+  supOptionActive: { backgroundColor: ap.surfaceContainerLowest, borderColor: '#ff4444', borderWidth: 2, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2 },
 
   // User preview
-  userPreview:      { backgroundColor: '#F8FAFF', borderRadius: radius.xl, padding: spacing.base, marginTop: spacing.lg, borderWidth: 1, borderColor: palette.borderLight },
-  userPreviewTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: palette.textMuted, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  userPreviewRow:   { fontSize: fontSize.md, color: palette.textGray, marginBottom: spacing.xxs, fontWeight: fontWeight.medium },
+  userPreview:      { backgroundColor: ap.surfaceContainerLow, borderRadius: radius.xl, padding: spacing.base, marginTop: spacing.lg, borderWidth: 1, borderColor: ap.outlineVariant },
+  userPreviewTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: ap.outline, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+  userPreviewRow:   { fontSize: fontSize.md, color: ap.onSurfaceVariant, marginBottom: spacing.xxs, fontWeight: fontWeight.medium },
 
-  // Role / major options
-  roleOption:           { backgroundColor: palette.bgWhite, borderRadius: radius.xl, paddingVertical: spacing.base, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
+  // Role / major options — roleOptionActive red kept as the admin
+  // role-brand accent (palette.adminRed), not migrated.
+  roleOption:           { backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.xl, paddingVertical: spacing.base, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   roleOptionActive:     { backgroundColor: palette.adminRed },
-  roleOptionText:       { color: palette.textPrimary, fontWeight: fontWeight.bold },
+  roleOptionText:       { color: ap.onSurface, fontWeight: fontWeight.bold },
   roleOptionTextActive: { color: palette.bgWhite },
 
-  majorOption:          { backgroundColor: palette.bgWhite, borderRadius: radius.lg, padding: spacing.base, borderWidth: 1, borderColor: palette.borderLight },
-  majorOptionActive:    { backgroundColor: palette.bgBlueTint, borderColor: palette.primaryDark, borderWidth: 1.5 },
+  majorOption:          { backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.lg, padding: spacing.base, borderWidth: 1, borderColor: ap.outlineVariant },
+  majorOptionActive:    { backgroundColor: ap.secondaryContainer, borderColor: ap.primary, borderWidth: 1.5 },
   majorOptionInner:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  majorOptionText:      { fontSize: fontSize.base, fontWeight: fontWeight.semi, color: palette.textGray },
-  majorOptionTextActive:{ color: palette.primaryDark },
-  majorOptionSub:       { fontSize: fontSize.xs, color: palette.textMuted, marginTop: 3 },
-  majorOptionSubActive: { color: '#93C5FD' },
-  majorCheckmark:       { color: palette.primaryDark, fontWeight: fontWeight.heavy, fontSize: fontSize.xl },
+  majorOptionText:      { fontSize: fontSize.base, fontWeight: fontWeight.semi, color: ap.onSurfaceVariant },
+  majorOptionTextActive:{ color: ap.primary },
+  majorOptionSub:       { fontSize: fontSize.xs, color: ap.outline, marginTop: 3 },
+  majorOptionSubActive: { color: ap.onSecondaryContainer },
+  majorCheckmark:       { color: ap.primary, fontWeight: fontWeight.heavy, fontSize: fontSize.xl },
 });
 
 // ─── Examiner screen specifics ────────────────────────────────────────────────

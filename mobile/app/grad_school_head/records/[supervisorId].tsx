@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
+import { ap } from '@/constants/theme';
 
 interface RecordProject {
   id: string; titleHe: string; titleEn: string; status: string | null;
@@ -43,7 +44,7 @@ export default function GradSchoolHeadSupervisorRecordsScreen() {
   }, [supervisorId, lang]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F8FA' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: ap.surface }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/grad_school_head/records', params: { lang } } as any))}
@@ -55,7 +56,7 @@ export default function GradSchoolHeadSupervisorRecordsScreen() {
           </Text>
         </Pressable>
 
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827' }}>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: ap.onSurface }}>
           📜 {lang === 'he' ? 'הפרויקטים של המנחה' : "Supervisor's Projects"}
         </Text>
 
@@ -70,7 +71,7 @@ export default function GradSchoolHeadSupervisorRecordsScreen() {
         {!loading && !error && projects.length === 0 && (
           <View style={{ marginTop: 30, alignItems: 'center' }}>
             <Text style={{ fontSize: 32 }}>📭</Text>
-            <Text style={{ marginTop: 8, fontSize: 13, color: '#6B7280', textAlign: 'center' }}>
+            <Text style={{ marginTop: 8, fontSize: 13, color: ap.onSurfaceVariant, textAlign: 'center' }}>
               {lang === 'he'
                 ? 'למנחה זה אין עדיין פרויקטים עם סטודנטים רשומים.'
                 : 'This supervisor has no projects with enrolled students yet.'}
@@ -82,13 +83,13 @@ export default function GradSchoolHeadSupervisorRecordsScreen() {
           <Pressable
             key={p.id}
             onPress={() => router.push({ pathname: '/records/[projectId]', params: { projectId: p.id, lang } } as any)}
-            style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB' }}
+            style={{ backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: ap.outlineVariant }}
             accessibilityRole="link"
           >
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827', textAlign: isRtl ? 'right' : 'left' }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: ap.onSurface, textAlign: isRtl ? 'right' : 'left' }}>
               {lang === 'he' ? p.titleHe : p.titleEn}
             </Text>
-            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
+            <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
               {p.status ? `${p.status} · ` : ''}
               👥 {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'students'}
             </Text>

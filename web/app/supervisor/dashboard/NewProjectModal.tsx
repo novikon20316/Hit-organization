@@ -123,7 +123,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none';
   const facultyColor = getFacultyColor(facultyId);
 
   return (
@@ -133,42 +133,42 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
             ✕
           </button>
         </div>
 
         <div className="mt-4 grid gap-3">
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}</span>
             <input dir="rtl" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}</span>
             <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'}</span>
             <textarea dir="rtl" rows={3} value={descHe} onChange={(e) => setDescHe(e.target.value)} className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור באנגלית' : 'English Description'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תיאור באנגלית' : 'English Description'}</span>
             <textarea dir="ltr" rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} className={inputCls} />
           </label>
 
           <div>
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
             <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium" style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}>
               🔒 {facultyLabel(facultyId, lang)}
             </span>
           </div>
 
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
               {lang === 'he' ? `מגמה / תוכנית${isMajorRestricted ? ' *' : ' (אופציונלי)'}` : `Major/Program${isMajorRestricted ? ' *' : ' (optional)'}`}
             </span>
             <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} required={isMajorRestricted}>
@@ -183,7 +183,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
               ))}
             </select>
             {isMajorRestricted && (
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-xs text-supervisor-on-surface-variant">
                 {lang === 'he' ? 'אתה מוגבל למגמות מסוימות בפקולטה שלך.' : "You're restricted to specific majors in your faculty."}
               </p>
             )}
@@ -193,35 +193,35 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תואר' : 'Degree'}</span>
               <div className="flex gap-3">
                 {degreeOptions.includes('bachelors') && (
-                  <label className="flex items-center gap-1.5 text-sm text-ink">
+                  <label className="flex items-center gap-1.5 text-sm text-supervisor-on-surface">
                     <input type="checkbox" checked={degreeTypes.includes('bachelors')} onChange={() => toggleDegreeType('bachelors')} className="h-4 w-4" />
                     {t('bachelors')}
                   </label>
                 )}
                 {degreeOptions.includes('masters') && (
-                  <label className="flex items-center gap-1.5 text-sm text-ink">
+                  <label className="flex items-center gap-1.5 text-sm text-supervisor-on-surface">
                     <input type="checkbox" checked={degreeTypes.includes('masters')} onChange={() => toggleDegreeType('masters')} className="h-4 w-4" />
                     {t('masters')}
                   </label>
                 )}
               </div>
               {degreeOptions.length === 1 && (
-                <p className="mt-1 text-xs text-muted">
+                <p className="mt-1 text-xs text-supervisor-on-surface-variant">
                   {lang === 'he' ? 'לפקולטה שלך יש רק תואר אחד' : 'Your faculty only offers one degree level'}
                 </p>
               )}
             </div>
             <div>
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג' : 'Type'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'סוג' : 'Type'}</span>
               <div className="flex gap-3">
-                <label className="flex items-center gap-1.5 text-sm text-ink">
+                <label className="flex items-center gap-1.5 text-sm text-supervisor-on-surface">
                   <input type="checkbox" checked={projectTypes.includes('project')} onChange={() => toggleProjectType('project')} className="h-4 w-4" />
                   {lang === 'he' ? 'פרויקט' : 'Project'}
                 </label>
-                <label className="flex items-center gap-1.5 text-sm text-ink">
+                <label className="flex items-center gap-1.5 text-sm text-supervisor-on-surface">
                   <input type="checkbox" checked={projectTypes.includes('thesis')} onChange={() => toggleProjectType('thesis')} className="h-4 w-4" />
                   {lang === 'he' ? 'תזה' : 'Thesis'}
                 </label>
@@ -232,7 +232,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
           <WorkflowTemplatePreview facultyIds={[facultyId]} degreeTypes={degreeTypes} projectTypes={projectTypes} major={major || undefined} />
 
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כישורים נדרשים (מופרדים בפסיק)' : 'Required Skills (comma-separated)'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כישורים נדרשים (מופרדים בפסיק)' : 'Required Skills (comma-separated)'}</span>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder="React, Python, ..." />
           </label>
 
@@ -242,14 +242,14 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-supervisor-outline-variant px-3.5 py-2 text-sm font-medium text-supervisor-on-surface hover:bg-supervisor-surface-container-low">
             {t('cancel')}
           </button>
           <button
             type="button"
             onClick={handleCreate}
             disabled={saving}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-supervisor-primary px-3.5 py-2 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
           >
             {saving ? '…' : lang === 'he' ? 'פרסם פרויקט' : 'Publish Project'}
           </button>

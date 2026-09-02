@@ -162,8 +162,8 @@ export default function StudentDetailPage() {
 
   if (guardLoading || !isAllowed) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper">
-        <p className="text-sm text-muted">…</p>
+      <div className="flex min-h-screen items-center justify-center bg-administrative-coordinator-surface">
+        <p className="text-sm text-administrative-coordinator-on-surface-variant">…</p>
       </div>
     );
   }
@@ -179,19 +179,19 @@ export default function StudentDetailPage() {
       title={lang === 'he' ? 'פרטי סטודנט' : 'Student Detail'}
       subtitle={student?.name || ''}
     >
-      <Link href="/administrative_coordinator/dashboard?tab=students" className="text-sm font-medium text-primary hover:underline">
+      <Link href="/administrative_coordinator/dashboard?tab=students" className="text-sm font-medium text-administrative-coordinator-primary hover:underline">
         {lang === 'he' ? '← חזרה לדוח הסטודנטים' : '← Back to Students Report'}
       </Link>
 
-      {loadingData && <p className="mt-4 text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+      {loadingData && <p className="mt-4 text-sm text-administrative-coordinator-on-surface-variant" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
       {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       {!loadingData && !error && student && (
         <div className="mt-4 grid gap-4">
           {/* Student profile */}
-          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-            <p className="text-lg font-semibold text-ink">👤 {student.name}</p>
-            <div className="mt-2 grid gap-1 text-sm text-muted sm:grid-cols-2">
+          <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+            <p className="text-lg font-semibold text-administrative-coordinator-on-surface">👤 {student.name}</p>
+            <div className="mt-2 grid gap-1 text-sm text-administrative-coordinator-on-surface-variant sm:grid-cols-2">
               <span>🏛️ {lang === 'he' ? 'פקולטה:' : 'Faculty:'} {student.facultyId ? facultyLabel(student.facultyId as FacultyId, lang) : '—'}</span>
               <span>🎓 {lang === 'he' ? 'תואר:' : 'Degree:'} {student.degreeType ? (student.degreeType === 'masters' ? (lang === 'he' ? 'תואר שני' : "Master's") : (lang === 'he' ? 'תואר ראשון' : "Bachelor's")) : '—'}</span>
               <span>📚 {lang === 'he' ? 'מגמה:' : 'Major:'} {majorCellText(student, lang)}</span>
@@ -208,17 +208,17 @@ export default function StudentDetailPage() {
           </div>
 
           {/* Thesis/project track — see server/src/config/studentTrack.ts */}
-          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-            <p className="text-sm font-semibold text-ink">🧭 {lang === 'he' ? 'מסלול (תזה/פרויקט)' : 'Track (Thesis/Project)'}</p>
+          <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+            <p className="text-sm font-semibold text-administrative-coordinator-on-surface">🧭 {lang === 'he' ? 'מסלול (תזה/פרויקט)' : 'Track (Thesis/Project)'}</p>
             {student.trackPolicy === 'coordinator_gated' ? (
               <>
-                <p className="mt-1 text-sm text-muted">
+                <p className="mt-1 text-sm text-administrative-coordinator-on-surface-variant">
                   {lang === 'he' ? 'זכאות לתזה כרגע:' : 'Currently thesis-eligible:'}{' '}
                   <span className={student.thesisEligibility?.eligible ? 'text-success' : 'text-danger'}>
                     {student.thesisEligibility?.eligible ? (lang === 'he' ? 'כן' : 'Yes') : (lang === 'he' ? 'לא' : 'No')}
                   </span>
                   {student.thesisEligibility?.method === 'average' && student.thesisEligibility.average != null && (
-                    <span className="text-muted">
+                    <span className="text-administrative-coordinator-on-surface-variant">
                       {' '}
                       ({lang === 'he' ? 'ממוצע' : 'average'} {student.thesisEligibility.average} {student.thesisEligibility.eligible ? '≥' : '<'} {student.thesisEligibility.threshold ?? ''})
                     </span>
@@ -226,11 +226,11 @@ export default function StudentDetailPage() {
                 </p>
 
                 {canSetAverage && (
-                  <div className="mt-3 rounded-lg border border-line bg-paper p-3">
-                    <p className="text-xs font-medium text-ink">
+                  <div className="mt-3 rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low p-3">
+                    <p className="text-xs font-medium text-administrative-coordinator-on-surface">
                       {lang === 'he' ? '📊 ממוצע ציונים' : '📊 Grade average'}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-muted">
+                    <p className="mt-0.5 text-[11px] text-administrative-coordinator-on-surface-variant">
                       {lang === 'he'
                         ? 'מוזן ידנית כרגע — בעתיד יגיע אוטומטית מהמכלול. מעל הסף הסטודנט/ית זכאי/ת לבחור בין תזה לפרויקט; מתחתיו נשאר/ת קבוע/ה על פרויקט.'
                         : "Entered manually for now — will come automatically from Michlol in the future. At or above the threshold the student may choose thesis or project; below it, they stay fixed on project."}
@@ -244,13 +244,13 @@ export default function StudentDetailPage() {
                         value={averageInput}
                         onChange={(e) => setAverageInput(e.target.value)}
                         placeholder={lang === 'he' ? 'ממוצע (0-100)' : 'Average (0-100)'}
-                        className="w-32 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none"
+                        className="w-32 rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest px-3 py-1.5 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none"
                       />
                       <button
                         type="button"
                         disabled={savingAverage}
                         onClick={handleSetAverage}
-                        className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                        className="rounded-lg bg-administrative-coordinator-primary px-3 py-1.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
                       >
                         {savingAverage ? '…' : lang === 'he' ? 'שמור' : 'Save'}
                       </button>
@@ -258,7 +258,7 @@ export default function StudentDetailPage() {
                   </div>
                 )}
 
-                <p className="mt-3 text-sm text-muted">
+                <p className="mt-3 text-sm text-administrative-coordinator-on-surface-variant">
                   {lang === 'he' ? 'מסלול שנבחר:' : 'Chosen track:'}{' '}
                   {student.track
                     ? `${student.track === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')}${student.trackLocked ? ' 🔒' : ''}`
@@ -268,7 +268,7 @@ export default function StudentDetailPage() {
                   value={eligibilityReason}
                   onChange={(e) => setEligibilityReason(e.target.value)}
                   placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
-                  className="mt-2 w-full rounded-lg border border-line bg-paper px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none"
+                  className="mt-2 w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-1.5 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none"
                 />
                 <div className="mt-2 flex gap-2">
                   <button
@@ -290,7 +290,7 @@ export default function StudentDetailPage() {
                 </div>
               </>
             ) : (
-              <p className="mt-1 text-sm text-muted">
+              <p className="mt-1 text-sm text-administrative-coordinator-on-surface-variant">
                 {student.trackPolicy === 'signup_choice'
                   ? (lang === 'he'
                     ? `מסלול: ${student.track === 'thesis' ? 'תזה' : 'פרויקט'} (נבחר בהרשמה, נעול)`
@@ -301,57 +301,57 @@ export default function StudentDetailPage() {
           </div>
 
           {/* Communication */}
-          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-            <p className="text-sm font-semibold text-ink">☎️ {lang === 'he' ? 'פרטי התקשרות' : 'Communication'}</p>
+          <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+            <p className="text-sm font-semibold text-administrative-coordinator-on-surface">☎️ {lang === 'he' ? 'פרטי התקשרות' : 'Communication'}</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {student.email ? (
-                <a href={`mailto:${student.email}`} dir="ltr" className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink hover:border-primary hover:text-primary">
+                <a href={`mailto:${student.email}`} dir="ltr" className="flex items-center gap-1.5 rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm text-administrative-coordinator-on-surface hover:border-administrative-coordinator-primary hover:text-administrative-coordinator-primary">
                   ✉️ {student.email}
                 </a>
               ) : (
-                <p className="text-sm italic text-muted">{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</p>
+                <p className="text-sm italic text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</p>
               )}
               {student.phoneNumber ? (
-                <a href={`tel:${student.phoneNumber}`} dir="ltr" className="flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink hover:border-primary hover:text-primary">
+                <a href={`tel:${student.phoneNumber}`} dir="ltr" className="flex items-center gap-1.5 rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm text-administrative-coordinator-on-surface hover:border-administrative-coordinator-primary hover:text-administrative-coordinator-primary">
                   📞 {student.phoneNumber}
                 </a>
               ) : (
-                <p className="text-sm italic text-muted">{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</p>
+                <p className="text-sm italic text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</p>
               )}
             </div>
           </div>
 
           {/* Project */}
-          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-            <p className="text-sm font-semibold text-ink">📁 {lang === 'he' ? 'הפרויקט/התזה' : 'Project/Thesis'}</p>
+          <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+            <p className="text-sm font-semibold text-administrative-coordinator-on-surface">📁 {lang === 'he' ? 'הפרויקט/התזה' : 'Project/Thesis'}</p>
             {project ? (
               <>
-                <p className="mt-1 text-sm text-ink">{lang === 'he' ? project.titleHe : project.titleEn}</p>
-                <p className="mt-1 text-xs text-muted">👨‍🏫 {project.supervisorName || (lang === 'he' ? 'ללא מנחה' : 'No supervisor')}</p>
-                <p className="mt-1 text-xs text-muted">
+                <p className="mt-1 text-sm text-administrative-coordinator-on-surface">{lang === 'he' ? project.titleHe : project.titleEn}</p>
+                <p className="mt-1 text-xs text-administrative-coordinator-on-surface-variant">👨‍🏫 {project.supervisorName || (lang === 'he' ? 'ללא מנחה' : 'No supervisor')}</p>
+                <p className="mt-1 text-xs text-administrative-coordinator-on-surface-variant">
                   📆 {lang === 'he' ? 'שנת לימודים (תחילת הפרויקט):' : 'Study year (project start):'} {academicYearLabel(project.academicYear, lang)}
                 </p>
               </>
             ) : (
-              <p className="mt-1 text-sm text-muted">{lang === 'he' ? 'הסטודנט אינו רשום כרגע לפרויקט/תזה' : 'Student is not currently enrolled in a project/thesis'}</p>
+              <p className="mt-1 text-sm text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'הסטודנט אינו רשום כרגע לפרויקט/תזה' : 'Student is not currently enrolled in a project/thesis'}</p>
             )}
           </div>
 
           {/* Current milestone */}
           {project && (
-            <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-              <p className="text-sm font-semibold text-ink">📍 {lang === 'he' ? 'אבן דרך נוכחית' : 'Current Milestone'}</p>
+            <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+              <p className="text-sm font-semibold text-administrative-coordinator-on-surface">📍 {lang === 'he' ? 'אבן דרך נוכחית' : 'Current Milestone'}</p>
               {currentMilestone ? (
                 <>
-                  <p className="mt-1 text-sm text-ink">{lang === 'he' ? currentMilestone.nameHe : currentMilestone.nameEn}</p>
-                  <p className="mt-1 text-xs text-muted">
+                  <p className="mt-1 text-sm text-administrative-coordinator-on-surface">{lang === 'he' ? currentMilestone.nameHe : currentMilestone.nameEn}</p>
+                  <p className="mt-1 text-xs text-administrative-coordinator-on-surface-variant">
                     {statusLabel(currentMilestone.status, lang)}
                     {' · '}
                     📅 {lang === 'he' ? 'תאריך יעד:' : 'Due:'} {formatDate(currentMilestone.dueDate, lang)}
                   </p>
                 </>
               ) : (
-                <p className="mt-1 text-sm text-muted">{lang === 'he' ? 'אין אבן דרך פעילה' : 'No active milestone'}</p>
+                <p className="mt-1 text-sm text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'אין אבן דרך פעילה' : 'No active milestone'}</p>
               )}
             </div>
           )}
@@ -364,7 +364,7 @@ export default function StudentDetailPage() {
               render here. */}
           {project && milestoneRoadmap.length > 0 && (
             <div>
-              <p className="mb-2 text-sm font-semibold text-ink">🗺️ {lang === 'he' ? 'מסלול אבני הדרך' : 'Milestone Roadmap'}</p>
+              <p className="mb-2 text-sm font-semibold text-administrative-coordinator-on-surface">🗺️ {lang === 'he' ? 'מסלול אבני הדרך' : 'Milestone Roadmap'}</p>
               <MilestoneTimeline
                 milestones={milestoneRoadmap as unknown as MilestoneData[]}
                 viewerRole="coordinator_readonly"
@@ -375,15 +375,15 @@ export default function StudentDetailPage() {
           )}
 
           {/* Submitted milestones + grades */}
-          <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-            <p className="text-sm font-semibold text-ink">📤 {lang === 'he' ? 'אבני דרך שהוגשו' : 'Submitted Milestones'}</p>
+          <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+            <p className="text-sm font-semibold text-administrative-coordinator-on-surface">📤 {lang === 'he' ? 'אבני דרך שהוגשו' : 'Submitted Milestones'}</p>
             {submittedMilestones.length === 0 ? (
-              <p className="mt-2 text-sm text-muted">{lang === 'he' ? 'הסטודנט טרם הגיש אבני דרך' : 'The student has not submitted any milestones yet'}</p>
+              <p className="mt-2 text-sm text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'הסטודנט טרם הגיש אבני דרך' : 'The student has not submitted any milestones yet'}</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[560px] text-start text-sm">
                   <thead>
-                    <tr className="border-b border-line text-xs text-muted">
+                    <tr className="border-b border-administrative-coordinator-outline-variant text-xs text-administrative-coordinator-on-surface-variant">
                       <th className="px-2 py-1.5 text-start font-medium">{lang === 'he' ? 'אבן דרך' : 'Milestone'}</th>
                       <th className="px-2 py-1.5 text-start font-medium">{lang === 'he' ? 'הוגש בתאריך' : 'Submitted'}</th>
                       <th className="px-2 py-1.5 text-start font-medium">{lang === 'he' ? 'סטטוס' : 'Status'}</th>
@@ -392,11 +392,11 @@ export default function StudentDetailPage() {
                   </thead>
                   <tbody>
                     {submittedMilestones.map((m) => (
-                      <tr key={m.id} className="border-b border-line last:border-b-0">
-                        <td className="px-2 py-1.5 text-ink">{lang === 'he' ? m.nameHe : m.nameEn}</td>
-                        <td className="px-2 py-1.5 text-ink">{formatDate(m.submittedAt, lang)}</td>
-                        <td className="px-2 py-1.5 text-ink">{statusLabel(m.status, lang)}</td>
-                        <td className="px-2 py-1.5 font-semibold text-ink">
+                      <tr key={m.id} className="border-b border-administrative-coordinator-outline-variant last:border-b-0">
+                        <td className="px-2 py-1.5 text-administrative-coordinator-on-surface">{lang === 'he' ? m.nameHe : m.nameEn}</td>
+                        <td className="px-2 py-1.5 text-administrative-coordinator-on-surface">{formatDate(m.submittedAt, lang)}</td>
+                        <td className="px-2 py-1.5 text-administrative-coordinator-on-surface">{statusLabel(m.status, lang)}</td>
+                        <td className="px-2 py-1.5 font-semibold text-administrative-coordinator-on-surface">
                           {m.finalGrade !== null ? `${m.finalGrade}${m.gradeApproved ? ' ✅' : ''}` : '—'}
                         </td>
                       </tr>
@@ -410,7 +410,7 @@ export default function StudentDetailPage() {
       )}
 
       {!loadingData && !error && !student && (
-        <p className="mt-4 text-sm text-muted">{lang === 'he' ? 'הסטודנט לא נמצא' : 'Student not found'}</p>
+        <p className="mt-4 text-sm text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'הסטודנט לא נמצא' : 'Student not found'}</p>
       )}
     </DashboardShell>
   );

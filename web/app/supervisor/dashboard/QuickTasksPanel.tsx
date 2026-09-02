@@ -90,7 +90,7 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
     ...pendingApps.map((a) => ({
       key: `a-${a.id}`,
       icon: '📨',
-      color: '#505f76',
+      color: 'var(--supervisor-secondary)',
       label: lang === 'he' ? 'מועמדות ממתינה' : 'New Applicant',
       title: a.studentName || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable'),
       sub: lang === 'he' ? a.projectTitleHe : a.projectTitleEn,
@@ -99,12 +99,12 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
   ].slice(0, 3);
 
   return (
-    <div className="rounded-[8px] border border-[#c5c5d3] bg-white p-4">
-      <h4 className="mb-3 border-b border-[#c5c5d3] pb-2 text-sm font-semibold text-[#1a1b21]">
+    <div className="rounded-supervisor-lg border border-supervisor-outline-variant bg-supervisor-surface-container-lowest p-4">
+      <h4 className="mb-3 border-b border-supervisor-outline-variant pb-2 text-sm font-semibold text-supervisor-on-surface">
         {lang === 'he' ? 'משימות מהירות' : 'Quick Tasks'}
       </h4>
       {items.length === 0 ? (
-        <p className="text-xs text-[#444651]">{lang === 'he' ? 'אין משימות דחופות כרגע' : 'Nothing urgent right now'}</p>
+        <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'אין משימות דחופות כרגע' : 'Nothing urgent right now'}</p>
       ) : (
         <div className="grid gap-3">
           {items.map((item, i) => {
@@ -115,13 +115,13 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
                   <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: item.color }}>
                     {item.label}
                   </p>
-                  <p className="truncate text-sm font-medium leading-tight text-[#1a1b21]">{item.title}</p>
-                  {item.sub && <p className="truncate text-xs leading-tight text-[#444651]">{item.sub}</p>}
+                  <p className="truncate text-sm font-medium leading-tight text-supervisor-on-surface">{item.title}</p>
+                  {item.sub && <p className="truncate text-xs leading-tight text-supervisor-on-surface-variant">{item.sub}</p>}
                 </div>
               </div>
             );
-            const wrapperClassName = `-m-1 rounded-md p-1 text-start transition-colors hover:bg-[#f4f3fa] ${
-              i > 0 ? 'border-t border-dashed border-[#c5c5d3] pt-3' : ''
+            const wrapperClassName = `-m-1 rounded-md p-1 text-start transition-colors hover:bg-supervisor-surface-container-low ${
+              i > 0 ? 'border-t border-dashed border-supervisor-outline-variant pt-3' : ''
             }`;
             return (
               <div key={item.key}>

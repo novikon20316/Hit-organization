@@ -95,7 +95,7 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -104,27 +104,27 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'המלצת בוחנים' : 'Examiner Recommendation'}</h2>
-            <p className="mt-0.5 text-sm text-muted">{lang === 'he' ? project.titleHe : project.titleEn}</p>
+            <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'המלצת בוחנים' : 'Examiner Recommendation'}</h2>
+            <p className="mt-0.5 text-sm text-supervisor-on-surface-variant">{lang === 'he' ? project.titleHe : project.titleEn}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
             ✕
           </button>
         </div>
 
         {examiners.length > 0 && (
           <div className="mt-4">
-            <p className="mb-1.5 text-sm font-medium text-ink">{lang === 'he' ? 'בוחנים שנוספו:' : 'Added Examiners:'}</p>
+            <p className="mb-1.5 text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'בוחנים שנוספו:' : 'Added Examiners:'}</p>
             <div className="grid gap-1.5">
               {examiners.map((ex, i) => (
-                <div key={i} className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2">
+                <div key={i} className="flex items-center justify-between rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2">
                   <div>
-                    <p className="text-sm font-semibold text-ink">{ex.name}</p>
-                    <p className="text-xs text-muted">
+                    <p className="text-sm font-semibold text-supervisor-on-surface">{ex.name}</p>
+                    <p className="text-xs text-supervisor-on-surface-variant">
                       {ex.type === 'internal' ? (lang === 'he' ? 'בוחן פנימי' : 'Internal') : `${lang === 'he' ? 'בוחן חיצוני' : 'External'} · ${ex.institution}`}
                       {' · '}
                       {lang === 'he' ? 'עדיפות' : 'Priority'} {ex.priority}
@@ -139,7 +139,7 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
           </div>
         )}
 
-        <p className="mb-1.5 mt-4 text-sm font-medium text-ink">{lang === 'he' ? 'חפש בוחן פנימי' : 'Search Internal Examiner'}</p>
+        <p className="mb-1.5 mt-4 text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'חפש בוחן פנימי' : 'Search Internal Examiner'}</p>
         <div className="grid gap-1.5">
           {internalExaminers.map((u) => {
             const added = examiners.some((e) => e.internalUserId === u.id);
@@ -149,7 +149,7 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
                 type="button"
                 disabled={added}
                 onClick={() => addInternal(u)}
-                className={`rounded-lg border px-3 py-2 text-start text-sm ${added ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'}`}
+                className={`rounded-lg border px-3 py-2 text-start text-sm ${added ? 'border-supervisor-primary bg-supervisor-primary text-supervisor-on-primary' : 'border-supervisor-outline-variant bg-supervisor-surface-container-low text-supervisor-on-surface'}`}
               >
                 {added ? '✓ ' : ''}
                 {u.displayName} · {u.email}
@@ -158,7 +158,7 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
           })}
         </div>
 
-        <p className="mb-1.5 mt-4 text-sm font-medium text-ink">{lang === 'he' ? 'הוסף בוחן חיצוני' : 'Add External Examiner'}</p>
+        <p className="mb-1.5 mt-4 text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'הוסף בוחן חיצוני' : 'Add External Examiner'}</p>
         <div className="grid gap-2">
           <input placeholder={lang === 'he' ? 'שם מלא' : 'Full Name'} value={extName} onChange={(e) => setExtName(e.target.value)} className={inputCls} />
           <input placeholder={lang === 'he' ? 'דוא"ל' : 'Email'} dir="ltr" value={extEmail} onChange={(e) => setExtEmail(e.target.value)} className={inputCls} />
@@ -185,7 +185,7 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
           type="button"
           onClick={handleSubmit}
           disabled={submitting}
-          className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
         >
           {submitting ? '…' : lang === 'he' ? 'שלח המלצה לרכז' : 'Send Recommendation to Coordinator'}
         </button>

@@ -48,7 +48,7 @@ export function DefenseLogisticsModal({ group, onClose, onSaved }: DefenseLogist
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:bg-administrative-coordinator-surface-container-lowest focus:outline-none';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -57,42 +57,42 @@ export function DefenseLogisticsModal({ group, onClose, onSaved }: DefenseLogist
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-administrative-coordinator-lg bg-administrative-coordinator-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-administrative-coordinator-on-surface">🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-administrative-coordinator-on-surface-variant hover:text-administrative-coordinator-on-surface">
             ✕
           </button>
         </div>
 
-        <div className="mt-3 rounded-lg bg-paper p-3">
-          <p className="text-sm font-semibold text-ink">{group.projectTitle}</p>
-          <p className="mt-0.5 text-xs text-muted">👥 {group.members.map((m) => m.name).join(', ')}</p>
+        <div className="mt-3 rounded-lg bg-administrative-coordinator-surface-container-low p-3">
+          <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{group.projectTitle}</p>
+          <p className="mt-0.5 text-xs text-administrative-coordinator-on-surface-variant">👥 {group.members.map((m) => m.name).join(', ')}</p>
           {group.defenseDate && (
-            <p className="mt-0.5 text-xs text-muted">
+            <p className="mt-0.5 text-xs text-administrative-coordinator-on-surface-variant">
               📅 {t('defenseDate')} {new Date(group.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
             </p>
           )}
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{t('defenseTime')}</span>
+          <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{t('defenseTime')}</span>
           <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="HH:MM" className={inputCls} />
         </label>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{t('defenseRoom')}</span>
+          <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{t('defenseRoom')}</span>
           <input value={room} onChange={(e) => setRoom(e.target.value)} placeholder={lang === 'he' ? 'חדר 101' : 'Room 101'} className={inputCls} />
         </label>
 
         <div className="mt-4">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'בניין' : 'Building'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'בניין' : 'Building'}</span>
           <DefenseBuildingPicker value={building} onChange={setBuilding} />
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
             {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
           </span>
           <input
@@ -109,7 +109,7 @@ export function DefenseLogisticsModal({ group, onClose, onSaved }: DefenseLogist
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-administrative-coordinator-primary py-2.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
         >
           {saving ? '…' : lang === 'he' ? 'שמור' : 'Save'}
         </button>

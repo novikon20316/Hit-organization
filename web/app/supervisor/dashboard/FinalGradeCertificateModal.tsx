@@ -59,43 +59,43 @@ export function FinalGradeCertificateModal({ project, students, onClose }: Final
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="w-full max-w-lg rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">
+          <h2 className="text-lg font-semibold text-supervisor-on-surface">
             {lang === 'he' ? '📜 תעודת ציון סופי — פרויקט גמר' : '📜 Final Grade Certificate — Final Project'}
           </h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">✕</button>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">✕</button>
         </div>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-supervisor-on-surface-variant">
           {lang === 'he' ? 'תואר שני במדעי הנתונים, M.Sc.' : "Master's in Data Science, M.Sc."}
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-xs text-muted">{lang === 'he' ? 'שנה״ל' : 'Academic year'}</p>
-            <p className="font-medium text-ink">{hebrewYear ?? '—'}</p>
+            <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'שנה״ל' : 'Academic year'}</p>
+            <p className="font-medium text-supervisor-on-surface">{hebrewYear ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted">{lang === 'he' ? 'תאריך תחילת פרויקט' : 'Project start date'}</p>
-            <p className="font-medium text-ink">{formatDate(project.projectStartDate, lang)}</p>
+            <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'תאריך תחילת פרויקט' : 'Project start date'}</p>
+            <p className="font-medium text-supervisor-on-surface">{formatDate(project.projectStartDate, lang)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted">{lang === 'he' ? 'תאריך ההגנה' : 'Defense date'}</p>
-            <p className="font-medium text-ink">{formatDate(defenseDate, lang)}</p>
+            <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'תאריך ההגנה' : 'Defense date'}</p>
+            <p className="font-medium text-supervisor-on-surface">{formatDate(defenseDate, lang)}</p>
           </div>
           <div className="col-span-2">
-            <p className="text-xs text-muted">{lang === 'he' ? 'שם הפרויקט' : 'Project name'}</p>
-            <p className="font-medium text-ink">{(lang === 'he' ? project.titleHe : project.titleEn) || '—'}</p>
+            <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'שם הפרויקט' : 'Project name'}</p>
+            <p className="font-medium text-supervisor-on-surface">{(lang === 'he' ? project.titleHe : project.titleEn) || '—'}</p>
           </div>
         </div>
 
         <div className="mt-4">
-          <p className="mb-1.5 text-xs font-semibold text-muted">{lang === 'he' ? 'פרטי הסטודנט/ית/ים' : 'Student details'}</p>
-          <div className="overflow-hidden rounded-lg border border-line">
+          <p className="mb-1.5 text-xs font-semibold text-supervisor-on-surface-variant">{lang === 'he' ? 'פרטי הסטודנט/ית/ים' : 'Student details'}</p>
+          <div className="overflow-hidden rounded-lg border border-supervisor-outline-variant">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-paper text-xs text-muted">
+                <tr className="bg-supervisor-surface-container-low text-xs text-supervisor-on-surface-variant">
                   <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'שם ומשפחה' : 'Full name'}</th>
                   <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'ת.ז.' : 'ID'}</th>
                   <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'ציון' : 'Grade'}</th>
@@ -106,10 +106,10 @@ export function FinalGradeCertificateModal({ project, students, onClose }: Final
                   const defenseGrade = s.milestones.find((m) => m.type === 'defense')?.finalGrade ?? null;
                   const idNumber = project.enrolledStudents?.find((e) => e.id === s.studentId)?.studentIdNumber;
                   return (
-                    <tr key={s.studentId} className="border-t border-line">
-                      <td className="px-3 py-2 text-ink">{s.studentName}</td>
-                      <td className="px-3 py-2 text-ink" dir="ltr">{idNumber ?? '—'}</td>
-                      <td className="px-3 py-2 font-semibold text-ink">{defenseGrade ?? '—'}</td>
+                    <tr key={s.studentId} className="border-t border-supervisor-outline-variant">
+                      <td className="px-3 py-2 text-supervisor-on-surface">{s.studentName}</td>
+                      <td className="px-3 py-2 text-supervisor-on-surface" dir="ltr">{idNumber ?? '—'}</td>
+                      <td className="px-3 py-2 font-semibold text-supervisor-on-surface">{defenseGrade ?? '—'}</td>
                     </tr>
                   );
                 })}
@@ -118,14 +118,14 @@ export function FinalGradeCertificateModal({ project, students, onClose }: Final
           </div>
         </div>
 
-        <div className="mt-4 rounded-lg bg-paper p-4 text-center">
-          <p className="text-xs text-muted">{lang === 'he' ? 'ציון סופי לפרויקט גמר' : 'Final grade for the final project'}</p>
+        <div className="mt-4 rounded-lg bg-supervisor-surface-container-low p-4 text-center">
+          <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'ציון סופי לפרויקט גמר' : 'Final grade for the final project'}</p>
           {allSameOverallGrade ? (
-            <p className="mt-1 text-3xl font-bold text-ink">{overallGrades[0] ?? '—'}</p>
+            <p className="mt-1 text-3xl font-bold text-supervisor-on-surface">{overallGrades[0] ?? '—'}</p>
           ) : (
             <div className="mt-1 grid gap-1">
               {students.map((s) => (
-                <p key={s.studentId} className="text-sm font-semibold text-ink">
+                <p key={s.studentId} className="text-sm font-semibold text-supervisor-on-surface">
                   {s.studentName}: {s.overallFinalGrade ?? '—'}
                 </p>
               ))}

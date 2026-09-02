@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { apiClient } from '@/src/api/apiClient';
 import { tx, type Lang } from '../../components/i18n';
+import { ap } from '@/constants/theme';
 
 interface InfoFile {
   id: string;
@@ -91,7 +92,10 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
       contentContainerStyle={{ padding: 20 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Not-eligible banner */}
+      {/* Not-eligible banner — amber notice, left as-is (not migrated to
+          `ap`): same semantic amber family as the web equivalent's
+          bg-[#FBF3E3] notice card (web/app/student/home/InfoScreen.tsx),
+          not plain chrome. */}
       <View style={{
         backgroundColor: '#FFFBEB', borderRadius: 16, padding: 20,
         borderWidth: 1, borderColor: '#FDE68A', marginBottom: 20,
@@ -122,16 +126,16 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
 
       {/* Info card: track-specific */}
       <View style={{
-        backgroundColor: '#EFF6FF', borderRadius: 16, padding: 20,
-        borderWidth: 1, borderColor: '#BFDBFE', marginBottom: 16,
+        backgroundColor: ap.surfaceContainerLow, borderRadius: 16, padding: 20,
+        borderWidth: 1, borderColor: ap.outlineVariant, marginBottom: 16,
       }}>
         <Text style={{ fontSize: 18, marginBottom: 8 }}>📘</Text>
-        <Text style={{ fontSize: 15, fontWeight: '700', color: '#1E3A5F', marginBottom: 4, textAlign: isRtl ? 'right' : 'left' }}>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: ap.onSurface, marginBottom: 4, textAlign: isRtl ? 'right' : 'left' }}>
           {isBachelor
             ? tx('bachelorProjectInfo', lang)
             : tx('masterThesisInfo', lang)}
         </Text>
-        <Text style={{ fontSize: 13, color: '#374151', lineHeight: 20, textAlign: isRtl ? 'right' : 'left' }}>
+        <Text style={{ fontSize: 13, color: ap.onSurfaceVariant, lineHeight: 20, textAlign: isRtl ? 'right' : 'left' }}>
           {isBachelor
             ? (lang === 'he'
                 ? 'פרויקט הגמר הוא פרויקט קבוצתי או אישי המשלב יישום מעשי של הנלמד בתואר. הוא כולל בחירת נושא, אישור מנחה, הגשות ביניים, תוצר סופי והצגה.'
@@ -144,10 +148,10 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
 
       {/* Info section: key steps */}
       <View style={{
-        backgroundColor: '#fff', borderRadius: 16, padding: 20,
-        borderWidth: 1, borderColor: '#E0E8FF',
+        backgroundColor: ap.surfaceContainerLowest, borderRadius: 16, padding: 20,
+        borderWidth: 1, borderColor: ap.outlineVariant,
       }}>
-        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111', marginBottom: 14, textAlign: isRtl ? 'right' : 'left' }}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: ap.onSurface, marginBottom: 14, textAlign: isRtl ? 'right' : 'left' }}>
           {lang === 'he' ? '📋 שלבים עיקריים בתהליך:' : '📋 Main Process Steps:'}
         </Text>
         {(isBachelor
@@ -168,12 +172,12 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
           <View key={i} style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 10 }}>
             <View style={{
               width: 24, height: 24, borderRadius: 12,
-              backgroundColor: '#2E86FF', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: ap.primary, alignItems: 'center', justifyContent: 'center',
               marginRight: isRtl ? 0 : 10, marginLeft: isRtl ? 10 : 0,
             }}>
-              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>{i + 1}</Text>
+              <Text style={{ color: ap.onPrimary, fontSize: 11, fontWeight: '800' }}>{i + 1}</Text>
             </View>
-            <Text style={{ fontSize: 14, color: '#374151', flex: 1, textAlign: isRtl ? 'right' : 'left' }}>
+            <Text style={{ fontSize: 14, color: ap.onSurfaceVariant, flex: 1, textAlign: isRtl ? 'right' : 'left' }}>
               {lang === 'he' ? step.he : step.en}
             </Text>
           </View>
@@ -182,17 +186,17 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
 
       {/* Documents & guidance files */}
       <View style={{
-        backgroundColor: '#fff', borderRadius: 16, padding: 20,
-        borderWidth: 1, borderColor: '#E0E8FF', marginTop: 16,
+        backgroundColor: ap.surfaceContainerLowest, borderRadius: 16, padding: 20,
+        borderWidth: 1, borderColor: ap.outlineVariant, marginTop: 16,
       }}>
-        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111', marginBottom: 14, textAlign: isRtl ? 'right' : 'left' }}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: ap.onSurface, marginBottom: 14, textAlign: isRtl ? 'right' : 'left' }}>
           {lang === 'he' ? '📎 מסמכים והסברים' : '📎 Documents & Guidance'}
         </Text>
 
         {filesLoading ? (
-          <ActivityIndicator size="small" color="#2E86FF" />
+          <ActivityIndicator size="small" color={ap.primary} />
         ) : files.length === 0 ? (
-          <Text style={{ fontSize: 13, color: '#8899BB', textAlign: isRtl ? 'right' : 'left' }}>
+          <Text style={{ fontSize: 13, color: ap.onSurfaceVariant, textAlign: isRtl ? 'right' : 'left' }}>
             {lang === 'he' ? 'אין קבצים זמינים כרגע' : 'No files available yet'}
           </Text>
         ) : (
@@ -202,13 +206,13 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
               onPress={() => handleOpen(f.fileUrl)}
               style={{
                 flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center',
-                backgroundColor: '#F8FAFF', borderRadius: 10, padding: 12,
-                borderWidth: 1, borderColor: '#E0E8FF', marginBottom: 8,
+                backgroundColor: ap.surfaceContainerLow, borderRadius: 10, padding: 12,
+                borderWidth: 1, borderColor: ap.outlineVariant, marginBottom: 8,
               }}
               accessibilityRole="link"
             >
               <Text style={{ fontSize: 18, marginRight: isRtl ? 0 : 10, marginLeft: isRtl ? 10 : 0 }}>📄</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#111', flex: 1, textAlign: isRtl ? 'right' : 'left' }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: ap.onSurface, flex: 1, textAlign: isRtl ? 'right' : 'left' }}>
                 {lang === 'he' ? (f.titleHe || f.titleEn) : (f.titleEn || f.titleHe)}
               </Text>
               <Text style={{ fontSize: 14 }}>⬇️</Text>
@@ -219,18 +223,18 @@ export default function InfoScreen({ lang, isRtl, studentDegree }: Props) {
 
       {procedures.length > 0 && (
         <View style={{
-          backgroundColor: '#fff', borderRadius: 16, padding: 20,
-          borderWidth: 1, borderColor: '#E0E8FF', marginTop: 16,
+          backgroundColor: ap.surfaceContainerLowest, borderRadius: 16, padding: 20,
+          borderWidth: 1, borderColor: ap.outlineVariant, marginTop: 16,
         }}>
-          <Text style={{ fontSize: 14, fontWeight: '800', color: '#111', marginBottom: 14, textAlign: isRtl ? 'right' : 'left' }}>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: ap.onSurface, marginBottom: 14, textAlign: isRtl ? 'right' : 'left' }}>
             {lang === 'he' ? '📘 נהלים' : '📘 Procedures'}
           </Text>
           {procedures.map((p) => (
             <View key={p.id} style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#111', textAlign: isRtl ? 'right' : 'left' }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: ap.onSurface, textAlign: isRtl ? 'right' : 'left' }}>
                 {lang === 'he' ? (p.titleHe || p.titleEn) : (p.titleEn || p.titleHe)}
               </Text>
-              <Text style={{ fontSize: 13, color: '#374151', lineHeight: 19, marginTop: 2, textAlign: isRtl ? 'right' : 'left' }}>
+              <Text style={{ fontSize: 13, color: ap.onSurfaceVariant, lineHeight: 19, marginTop: 2, textAlign: isRtl ? 'right' : 'left' }}>
                 {lang === 'he' ? (p.bodyHe || p.bodyEn) : (p.bodyEn || p.bodyHe)}
               </Text>
             </View>

@@ -20,19 +20,7 @@ import { useRouter } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
 import { TopBar } from '@/components/shared';
 import type { Lang } from '@/components/i18n';
-
-// Same hex values as web's --admin-* tokens (app/globals.css), matching
-// app/admin/overview.tsx.
-const C = {
-  primary: '#00236f',
-  secondary: '#505f76',
-  surface: '#faf8ff',
-  surfaceContainerLowest: '#ffffff',
-  surfaceContainer: '#eeedf4',
-  onSurface: '#1a1b21',
-  onSurfaceVariant: '#444651',
-  outlineVariant: '#c5c5d3',
-};
+import { ap } from '@/constants/theme';
 
 interface MenuItem {
   key: string;
@@ -111,7 +99,7 @@ export default function AdminMenuScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingRoot}>
-        <ActivityIndicator size="large" color={C.primary} />
+        <ActivityIndicator size="large" color={ap.primary} />
       </SafeAreaView>
     );
   }
@@ -134,30 +122,30 @@ export default function AdminMenuScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.surface },
-  loadingRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface },
+  root: { flex: 1, backgroundColor: ap.surface },
+  loadingRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: ap.surface },
   scrollContent: { padding: 16, gap: 20 },
   section: { gap: 8 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: C.onSurfaceVariant, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', color: ap.onSurfaceVariant, textTransform: 'uppercase', letterSpacing: 0.5 },
   textRight: { textAlign: 'right' },
   card: {
-    backgroundColor: C.surfaceContainerLowest,
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: C.outlineVariant,
+    borderColor: ap.outlineVariant,
     overflow: 'hidden',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
   rowReverse: { flexDirection: 'row-reverse' },
-  rowDivider: { borderTopWidth: 1, borderTopColor: C.surfaceContainer },
+  rowDivider: { borderTopWidth: 1, borderTopColor: ap.surfaceContainer },
   rowIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#d0e1fb',
+    backgroundColor: ap.secondaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowLabel: { flex: 1, fontSize: 14, fontWeight: '500', color: C.onSurface },
-  chevron: { fontSize: 18, color: C.secondary },
+  rowLabel: { flex: 1, fontSize: 14, fontWeight: '500', color: ap.onSurface },
+  chevron: { fontSize: 18, color: ap.secondary },
 });

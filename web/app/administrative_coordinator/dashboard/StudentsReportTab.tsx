@@ -124,7 +124,7 @@ export function StudentsReportTab() {
     });
   }, [rows, search, filterStatus]);
 
-  if (loading) return <p className="text-sm text-muted">…</p>;
+  if (loading) return <p className="text-sm text-administrative-coordinator-on-surface-variant">…</p>;
   if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>;
   if (noScopeAssigned) {
     return (
@@ -142,7 +142,7 @@ export function StudentsReportTab() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder={lang === 'he' ? 'חיפוש לפי שם...' : 'Search by name...'}
-        className="mb-3 w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+        className="mb-3 w-full max-w-sm rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest px-3.5 py-2 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none"
       />
       <div className="mb-4 flex flex-wrap gap-1.5">
         {(['all', 'not_in_project', 'applied', 'in_project', 'awaiting_defense', 'finished'] as const).map((s) => (
@@ -151,7 +151,7 @@ export function StudentsReportTab() {
             type="button"
             onClick={() => setFilterStatus(s)}
             className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-              filterStatus === s ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'
+              filterStatus === s ? 'border-administrative-coordinator-primary bg-administrative-coordinator-primary text-administrative-coordinator-on-primary' : 'border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest text-administrative-coordinator-on-surface'
             }`}
           >
             {s === 'all' ? (lang === 'he' ? 'הכל' : 'All') : STATUS_LABEL[s][lang]}
@@ -159,10 +159,10 @@ export function StudentsReportTab() {
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-[var(--radius)] border border-line">
+      <div className="overflow-x-auto rounded-administrative-coordinator border border-administrative-coordinator-outline-variant">
         <table className="w-full min-w-[900px] text-start text-sm">
           <thead>
-            <tr className="border-b border-line bg-paper text-xs text-muted">
+            <tr className="border-b border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low text-xs text-administrative-coordinator-on-surface-variant">
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'שם' : 'Name'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'פקולטה' : 'Faculty'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'מגמה' : 'Major'}</th>
@@ -187,19 +187,19 @@ export function StudentsReportTab() {
                 <tr
                   key={r.id}
                   onClick={() => router.push(`/administrative_coordinator/dashboard/students/${r.id}`)}
-                  className="cursor-pointer border-b border-line last:border-b-0 hover:bg-paper"
+                  className="cursor-pointer border-b border-administrative-coordinator-outline-variant last:border-b-0 hover:bg-administrative-coordinator-surface-container-low"
                 >
-                  <td className="px-3 py-2 font-medium text-primary">{r.name}</td>
-                  <td className="px-3 py-2 text-ink">{r.facultyId ? facultyLabel(r.facultyId as FacultyId, lang) : '—'}</td>
-                  <td className="px-3 py-2 text-ink">{majorCellText(r, lang)}</td>
+                  <td className="px-3 py-2 font-medium text-administrative-coordinator-primary">{r.name}</td>
+                  <td className="px-3 py-2 text-administrative-coordinator-on-surface">{r.facultyId ? facultyLabel(r.facultyId as FacultyId, lang) : '—'}</td>
+                  <td className="px-3 py-2 text-administrative-coordinator-on-surface">{majorCellText(r, lang)}</td>
                   <td className="px-3 py-2">
                     <span className="font-medium" style={{ color: STATUS_COLOR[r.status] }}>
                       {statusText(r, lang)}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-ink">{projectTitle ?? '—'}</td>
-                  <td className="px-3 py-2 text-ink">{r.supervisorName ?? '—'}</td>
-                  <td className="px-3 py-2 text-ink">{milestoneName ?? '—'}</td>
+                  <td className="px-3 py-2 text-administrative-coordinator-on-surface">{projectTitle ?? '—'}</td>
+                  <td className="px-3 py-2 text-administrative-coordinator-on-surface">{r.supervisorName ?? '—'}</td>
+                  <td className="px-3 py-2 text-administrative-coordinator-on-surface">{milestoneName ?? '—'}</td>
                   <td className="px-3 py-2 font-semibold" style={{ color: r.days !== null && r.days < 0 ? 'var(--danger)' : undefined }}>
                     {daysLabel}
                   </td>
@@ -208,7 +208,7 @@ export function StudentsReportTab() {
             })}
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-sm text-muted">
+                <td colSpan={8} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
                   📭 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}
                 </td>
               </tr>

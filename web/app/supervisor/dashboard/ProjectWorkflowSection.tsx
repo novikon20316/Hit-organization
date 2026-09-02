@@ -425,22 +425,22 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                           {m.type === 'research_proposal' && m.id && (
                             m.finalGrade == null && m.status === 'submitted' ? (
                               signingId === m.id ? (
-                                <div className="mt-1 rounded-md border border-line bg-paper p-2">
+                                <div className="mt-1 rounded-md border border-supervisor-outline-variant bg-supervisor-surface-container-low p-2">
                                   {m.studentFormFields && m.studentFormFields.length > 0 && (
                                     <div className="mb-2 grid max-h-64 gap-1.5 overflow-y-auto">
                                       {m.studentFormFields.filter((f) => !f.locked).map((f) => {
                                         const v = m.studentFormData?.[f.key];
                                         return (
                                           <div key={f.key}>
-                                            <p className="text-[11px] font-medium text-muted">{lang === 'he' ? f.labelHe : f.labelEn}</p>
+                                            <p className="text-[11px] font-medium text-supervisor-on-surface-variant">{lang === 'he' ? f.labelHe : f.labelEn}</p>
                                             {f.type === 'table' ? (
                                               (Array.isArray(v) ? v : []).map((row: Record<string, unknown>, i: number) => (
-                                                <p key={i} className="text-xs text-ink">
+                                                <p key={i} className="text-xs text-supervisor-on-surface">
                                                   {(f.tableColumns ?? []).map((c) => String(row[c.key] ?? '')).join(' · ')}
                                                 </p>
                                               ))
                                             ) : (
-                                              <p className="whitespace-pre-wrap text-xs text-ink">{v != null && v !== '' ? String(v) : '—'}</p>
+                                              <p className="whitespace-pre-wrap text-xs text-supervisor-on-surface">{v != null && v !== '' ? String(v) : '—'}</p>
                                             )}
                                           </div>
                                         );
@@ -454,9 +454,9 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                 {m.fileUrls.length > 0 && (
                                   <div className="mb-2 grid gap-1.5">
                                     {m.fileUrls.map((url, i) => (
-                                      <div key={i} className="overflow-hidden rounded-md border border-line">
-                                        <div className="flex items-center justify-between border-b border-line bg-surface px-2 py-1">
-                                          <span className="min-w-0 truncate text-[11px] font-medium text-ink">📄 {fileNameFromUrl(url, i, lang)}</span>
+                                      <div key={i} className="overflow-hidden rounded-md border border-supervisor-outline-variant">
+                                        <div className="flex items-center justify-between border-b border-supervisor-outline-variant bg-supervisor-surface-container-lowest px-2 py-1">
+                                          <span className="min-w-0 truncate text-[11px] font-medium text-supervisor-on-surface">📄 {fileNameFromUrl(url, i, lang)}</span>
                                         </div>
                                         <FilePreviewFrame url={url} index={i} />
                                       </div>
@@ -481,11 +481,11 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                       setSigningId(null);
                                       fetchDetail();
                                     }}
-                                    className="rounded-md bg-primary px-2 py-1 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+                                    className="rounded-md bg-supervisor-primary px-2 py-1 text-xs font-semibold text-supervisor-on-primary hover:opacity-90"
                                   >
                                     {lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}
                                   </button>
-                                  <button type="button" onClick={() => setSigningId(null)} className="text-xs text-muted hover:text-ink">
+                                  <button type="button" onClick={() => setSigningId(null)} className="text-xs text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
                                     {lang === 'he' ? 'ביטול' : 'Cancel'}
                                   </button>
                                 </div>

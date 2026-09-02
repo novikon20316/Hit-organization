@@ -273,8 +273,8 @@ function ProgramHeadDashboardContent() {
 
   if (guardLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper">
-        <p className="text-sm text-muted">…</p>
+      <div className="flex min-h-screen items-center justify-center bg-program-head-surface">
+        <p className="text-sm text-program-head-on-surface-variant">…</p>
       </div>
     );
   }
@@ -306,14 +306,14 @@ function ProgramHeadDashboardContent() {
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
-        <p className="text-sm text-muted">{t('loading')}</p>
+        <p className="text-sm text-program-head-on-surface-variant">{t('loading')}</p>
       ) : tab === 'students' ? (
         <div>
-          <div className="mb-4 rounded-[var(--radius)] border border-line bg-surface p-4">
-            <p className="text-sm font-semibold text-ink">
+          <div className="mb-4 rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4">
+            <p className="text-sm font-semibold text-program-head-on-surface">
               🎓 {lang === 'he' ? 'בדיקת זכאות לתזה' : 'Thesis Eligibility Lookup'}
             </p>
-            <p className="mt-0.5 text-xs text-muted">
+            <p className="mt-0.5 text-xs text-program-head-on-surface-variant">
               {lang === 'he'
                 ? 'חיפוש סטודנט/ית (גם ללא פרויקט פעיל עדיין) כדי להזין ממוצע או לעדכן זכאות לתזה.'
                 : "Search for a student (even one without an active project yet) to enter an average or update thesis eligibility."}
@@ -324,13 +324,13 @@ function ProgramHeadDashboardContent() {
                 onChange={(e) => setEligibilityQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && runEligibilitySearch()}
                 placeholder={lang === 'he' ? 'שם, אימייל או מספר סטודנט...' : 'Name, email, or student ID...'}
-                className="w-full max-w-sm rounded-lg border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+                className="w-full max-w-sm rounded-lg border border-program-head-outline-variant bg-program-head-surface-container-low px-3.5 py-2 text-sm text-program-head-on-surface focus:border-program-head-primary focus:outline-none"
               />
               <button
                 type="button"
                 onClick={runEligibilitySearch}
                 disabled={eligibilitySearching}
-                className="shrink-0 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                className="shrink-0 rounded-lg bg-program-head-primary px-3.5 py-2 text-sm font-semibold text-program-head-on-primary hover:opacity-90 disabled:opacity-60"
               >
                 {eligibilitySearching ? '…' : lang === 'he' ? 'חפש' : 'Search'}
               </button>
@@ -342,10 +342,10 @@ function ProgramHeadDashboardContent() {
                   <Link
                     key={s.id}
                     href={`/administrative_coordinator/dashboard/students/${s.id}`}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink hover:border-primary hover:text-primary"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-program-head-outline-variant bg-program-head-surface-container-low px-3 py-2 text-sm text-program-head-on-surface hover:border-program-head-primary hover:text-program-head-primary"
                   >
                     <span>{s.displayName || s.email}</span>
-                    <span className="text-xs text-muted">
+                    <span className="text-xs text-program-head-on-surface-variant">
                       {s.thesisEligibility?.eligible ? (lang === 'he' ? '✓ זכאי/ת לתזה' : '✓ Thesis-eligible') : (lang === 'he' ? 'פרויקט בלבד' : 'Project only')}
                     </span>
                   </Link>
@@ -358,7 +358,7 @@ function ProgramHeadDashboardContent() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('searchPlaceholder')}
-            className="mb-3 w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+            className="mb-3 w-full max-w-sm rounded-lg border border-program-head-outline-variant bg-program-head-surface-container-lowest px-3.5 py-2 text-sm text-program-head-on-surface focus:border-program-head-primary focus:outline-none"
           />
           <div className="mb-4 flex flex-wrap gap-1.5">
             {(['all', 'thesis', 'masters_project'] as const).map((track) => (
@@ -367,7 +367,7 @@ function ProgramHeadDashboardContent() {
                 type="button"
                 onClick={() => setFilterTrack(track)}
                 className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                  filterTrack === track ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink'
+                  filterTrack === track ? 'border-program-head-primary bg-program-head-primary text-program-head-on-primary' : 'border-program-head-outline-variant bg-program-head-surface-container-lowest text-program-head-on-surface'
                 }`}
               >
                 {track === 'all' ? t('all') : track === 'thesis' ? t('trackThesis') : t('trackMastersProject')}
@@ -377,7 +377,7 @@ function ProgramHeadDashboardContent() {
               type="button"
               onClick={() => setFilterOverdue((v) => !v)}
               className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                filterOverdue ? 'border-danger bg-danger text-white' : 'border-line bg-surface text-ink'
+                filterOverdue ? 'border-danger bg-danger text-white' : 'border-program-head-outline-variant bg-program-head-surface-container-lowest text-program-head-on-surface'
               }`}
             >
               ⚠️ {lang === 'he' ? 'באיחור' : 'Overdue'}
@@ -388,25 +388,25 @@ function ProgramHeadDashboardContent() {
             {filteredStudents.map((st) => (
               <div
                 key={st.uid}
-                className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4"
+                className="role-rail rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4"
                 style={{ '--rail-color': st.isOverdue ? 'var(--danger)' : facultyColor } as React.CSSProperties}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-ink">👤 {st.studentName}</p>
+                  <p className="text-sm font-semibold text-program-head-on-surface">👤 {st.studentName}</p>
                   {st.isOverdue && (
                     <span className="rounded-full bg-danger-bg px-2 py-0.5 text-xs font-medium text-danger">⚠️ {t('overdue')}</span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-muted">👨‍🏫 {st.supervisorName}</p>
-                <p className="mt-0.5 text-xs text-muted">
+                <p className="mt-1 text-xs text-program-head-on-surface-variant">👨‍🏫 {st.supervisorName}</p>
+                <p className="mt-0.5 text-xs text-program-head-on-surface-variant">
                   📍 {lang === 'he' ? 'שלב:' : 'Stage:'} {st.currentMilestone} · {st.daysInStage} {lang === 'he' ? 'ימים' : 'days'}
                 </p>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="rounded-full bg-paper px-2 py-0.5 text-xs text-ink">
+                  <span className="rounded-full bg-program-head-surface-container-low px-2 py-0.5 text-xs text-program-head-on-surface">
                     {st.trackType === 'thesis' ? t('trackThesis') : t('trackMastersProject')}
                   </span>
                   {st.deadline && (
-                    <span className="text-xs text-muted">
+                    <span className="text-xs text-program-head-on-surface-variant">
                       📅 {t('deadline')}: {new Date(st.deadline).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
                     </span>
                   )}
@@ -415,7 +415,7 @@ function ProgramHeadDashboardContent() {
                 <TrackChangeControl projectId={st.projectId} />
               </div>
             ))}
-            {filteredStudents.length === 0 && <p className="text-sm text-muted">🎓 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}</p>}
+            {filteredStudents.length === 0 && <p className="text-sm text-program-head-on-surface-variant">🎓 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}</p>}
           </div>
         </div>
       ) : tab === 'approvals' ? (
@@ -427,12 +427,12 @@ function ProgramHeadDashboardContent() {
             <ExceptionalActionQueue />
           </div>
           {approvals.map((item) => (
-            <div key={item.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
-              <p className="text-sm font-semibold text-ink">{item.studentName}</p>
+            <div key={item.id} className="role-rail rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-program-head-on-surface">{item.studentName}</p>
               <p className="mt-0.5 text-xs font-semibold text-accent">{APPROVAL_TYPE_LABEL[item.type]?.[lang] ?? item.type}</p>
-              <p className="mt-0.5 text-xs text-muted">{item.description}</p>
+              <p className="mt-0.5 text-xs text-program-head-on-surface-variant">{item.description}</p>
               {item.submittedAt && (
-                <p className="mt-1 text-xs text-muted">{new Date(item.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>
+                <p className="mt-1 text-xs text-program-head-on-surface-variant">{new Date(item.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>
               )}
 
               {item.type === 'examiners' ? (
@@ -461,7 +461,7 @@ function ProgramHeadDashboardContent() {
                       value={templateRejectReason}
                       onChange={(e) => setTemplateRejectReason(e.target.value)}
                       placeholder={lang === 'he' ? 'סיבת הדחייה' : 'Rejection reason'}
-                      className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                      className="mt-2 w-full rounded-md border border-program-head-outline-variant bg-program-head-surface-container-low px-2.5 py-1.5 text-xs text-program-head-on-surface"
                     />
                   )}
                   <div className="mt-3 flex gap-2">
@@ -486,25 +486,25 @@ function ProgramHeadDashboardContent() {
               ) : null}
             </div>
           ))}
-          {approvals.length === 0 && <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין פריטים ממתינים' : 'Nothing pending'}</p>}
+          {approvals.length === 0 && <p className="text-sm text-program-head-on-surface-variant">✅ {lang === 'he' ? 'אין פריטים ממתינים' : 'Nothing pending'}</p>}
         </div>
       ) : tab === 'supervisors' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {supervisorLoads.map((sv, i) => (
-            <div key={i} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
-              <p className="text-sm font-semibold text-ink">👨‍🏫 {sv.supervisorName}</p>
-              <p className="mt-0.5 text-xs text-muted" dir="ltr">
+            <div key={i} className="role-rail rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-program-head-on-surface">👨‍🏫 {sv.supervisorName}</p>
+              <p className="mt-0.5 text-xs text-program-head-on-surface-variant" dir="ltr">
                 {sv.supervisorEmail}
               </p>
               <div className="mt-2">
                 <p className="text-xl font-semibold" style={{ color: facultyColor }}>
                   {sv.activeStudents}
                 </p>
-                <p className="text-xs text-muted">{lang === 'he' ? 'מונחים פעילים' : 'Active advisees'}</p>
+                <p className="text-xs text-program-head-on-surface-variant">{lang === 'he' ? 'מונחים פעילים' : 'Active advisees'}</p>
               </div>
             </div>
           ))}
-          {supervisorLoads.length === 0 && <p className="text-sm text-muted">👨‍🏫 {lang === 'he' ? 'אין מנחים' : 'No supervisors'}</p>}
+          {supervisorLoads.length === 0 && <p className="text-sm text-program-head-on-surface-variant">👨‍🏫 {lang === 'he' ? 'אין מנחים' : 'No supervisors'}</p>}
         </div>
       ) : tab === 'staff' ? (
         <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }} />
@@ -528,7 +528,7 @@ function ProgramHeadDashboardContent() {
               />
             ))}
             {myProjects.length === 0 && (
-              <p className="text-sm text-muted">{lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'}</p>
+              <p className="text-sm text-program-head-on-surface-variant">{lang === 'he' ? 'טרם פרסמת פרויקטים' : 'No projects posted yet'}</p>
             )}
           </div>
           {editingProject && (
@@ -550,7 +550,7 @@ function ProgramHeadDashboardContent() {
 
 export default function ProgramHeadDashboardPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">…</p>}>
+    <Suspense fallback={<p className="text-sm text-program-head-on-surface-variant">…</p>}>
       <ProgramHeadDashboardContent />
     </Suspense>
   );
@@ -562,14 +562,14 @@ function StatCard({ value, label, color, href }: { value: number; label: string;
       <div className="text-2xl font-semibold" style={{ color }}>
         {value}
       </div>
-      <div className="text-xs text-muted">{label}</div>
+      <div className="text-xs text-program-head-on-surface-variant">{label}</div>
     </>
   );
   return href ? (
-    <Link href={href} className="rounded-[var(--radius)] border border-line bg-surface p-4 transition-colors hover:border-primary">
+    <Link href={href} className="rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4 transition-colors hover:border-program-head-primary">
       {content}
     </Link>
   ) : (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">{content}</div>
+    <div className="rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4">{content}</div>
   );
 }

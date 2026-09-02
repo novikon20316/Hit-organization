@@ -34,12 +34,12 @@ export function StudentContactModal({ member, onClose }: StudentContactModalProp
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+        className="w-full max-w-sm rounded-administrative-coordinator bg-administrative-coordinator-surface-container-lowest p-5 shadow-lg outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-base font-semibold text-ink">👤 {member.name}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-base font-semibold text-administrative-coordinator-on-surface">👤 {member.name}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-administrative-coordinator-on-surface-variant hover:text-administrative-coordinator-on-surface">
             ✕
           </button>
         </div>
@@ -48,25 +48,25 @@ export function StudentContactModal({ member, onClose }: StudentContactModalProp
           {member.email ? (
             <a
               href={`mailto:${member.email}`}
-              className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2.5 text-sm text-ink hover:border-primary hover:text-primary"
+              className="flex items-center gap-2 rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2.5 text-sm text-administrative-coordinator-on-surface hover:border-administrative-coordinator-primary hover:text-administrative-coordinator-primary"
               dir="ltr"
             >
               ✉️ {member.email}
             </a>
           ) : (
-            <p className="text-sm italic text-muted">{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</p>
+            <p className="text-sm italic text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'לא הוגדר אימייל' : 'No email on file'}</p>
           )}
 
           {member.phoneNumber ? (
             <a
               href={`tel:${member.phoneNumber}`}
-              className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2.5 text-sm text-ink hover:border-primary hover:text-primary"
+              className="flex items-center gap-2 rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2.5 text-sm text-administrative-coordinator-on-surface hover:border-administrative-coordinator-primary hover:text-administrative-coordinator-primary"
               dir="ltr"
             >
               📞 {member.phoneNumber}
             </a>
           ) : (
-            <p className="text-sm italic text-muted">{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</p>
+            <p className="text-sm italic text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</p>
           )}
         </div>
       </div>

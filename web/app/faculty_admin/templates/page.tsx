@@ -113,7 +113,7 @@ export default function FacultyTemplatesPage() {
       title={lang === 'he' ? 'תבניות פרויקט' : 'Project Templates'}
       subtitle={lang === 'he' ? 'ניהול קטלוג תבניות ואישור הצעות מנחים' : 'Manage the template catalog and supervisor proposals'}
     >
-      <div className="mb-5 flex gap-1 border-b border-line">
+      <div className="mb-5 flex gap-1 border-b border-faculty-admin-outline-variant">
         {([
           { key: 'templates' as const, label: lang === 'he' ? 'תבניות פרויקט' : 'Project Templates', badge: 0 },
           { key: 'pending' as const, label: lang === 'he' ? 'הצעות ממתינות' : 'Pending Proposals', badge: proposals.filter((p) => p.status === 'pending').length },
@@ -123,7 +123,7 @@ export default function FacultyTemplatesPage() {
             type="button"
             onClick={() => setTab(key)}
             className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+              tab === key ? 'border-faculty-admin-primary text-faculty-admin-primary' : 'border-transparent text-faculty-admin-on-surface-variant hover:text-faculty-admin-on-surface'
             }`}
           >
             {label}
@@ -136,7 +136,7 @@ export default function FacultyTemplatesPage() {
       {actionError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{actionError}</p>}
 
       {loading ? (
-        <p className="text-sm text-muted">{t('loading')}</p>
+        <p className="text-sm text-faculty-admin-on-surface-variant">{t('loading')}</p>
       ) : tab === 'templates' ? (
         <div>
           <button
@@ -145,21 +145,21 @@ export default function FacultyTemplatesPage() {
               setEditingTemplate(null);
               setEditorOpen(true);
             }}
-            className="mb-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            className="mb-4 rounded-lg bg-faculty-admin-primary px-4 py-2 text-sm font-semibold text-faculty-admin-on-primary hover:opacity-90"
           >
             ＋ {lang === 'he' ? 'תבנית חדשה' : 'New Template'}
           </button>
 
           {templates.length === 0 ? (
-            <p className="text-sm text-muted">📋 {lang === 'he' ? 'אין תבניות פרויקט לפקולטה זו עדיין.' : 'No project templates for this faculty yet.'}</p>
+            <p className="text-sm text-faculty-admin-on-surface-variant">📋 {lang === 'he' ? 'אין תבניות פרויקט לפקולטה זו עדיין.' : 'No project templates for this faculty yet.'}</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {templates.map((tpl) => (
-                <div key={tpl.id} className="rounded-[var(--radius)] border border-line bg-surface p-4">
+                <div key={tpl.id} className="rounded-faculty-admin border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-lowest p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-ink">{lang === 'he' ? tpl.titleHe : tpl.titleEn}</p>
-                      <p className="mt-0.5 text-xs text-muted">
+                      <p className="truncate text-sm font-semibold text-faculty-admin-on-surface">{lang === 'he' ? tpl.titleHe : tpl.titleEn}</p>
+                      <p className="mt-0.5 text-xs text-faculty-admin-on-surface-variant">
                         {degreeLabel(tpl.degree, lang)} · {typeLabel(tpl.type, lang)}
                       </p>
                     </div>
@@ -170,7 +170,7 @@ export default function FacultyTemplatesPage() {
                           setEditingTemplate(tpl);
                           setEditorOpen(true);
                         }}
-                        className="rounded-md px-1.5 py-1 text-sm hover:bg-paper"
+                        className="rounded-md px-1.5 py-1 text-sm hover:bg-faculty-admin-surface-container-low"
                         aria-label="edit"
                       >
                         ✏️
@@ -179,7 +179,7 @@ export default function FacultyTemplatesPage() {
                         type="button"
                         onClick={() => handleDelete(tpl)}
                         disabled={busyId === tpl.id}
-                        className="rounded-md px-1.5 py-1 text-sm hover:bg-paper disabled:opacity-50"
+                        className="rounded-md px-1.5 py-1 text-sm hover:bg-faculty-admin-surface-container-low disabled:opacity-50"
                         aria-label="delete"
                       >
                         🗑️
@@ -187,22 +187,22 @@ export default function FacultyTemplatesPage() {
                     </div>
                   </div>
                   {(lang === 'he' ? tpl.descriptionHe : tpl.descriptionEn) && (
-                    <p className="mt-2 line-clamp-3 text-xs text-muted">{lang === 'he' ? tpl.descriptionHe : tpl.descriptionEn}</p>
+                    <p className="mt-2 line-clamp-3 text-xs text-faculty-admin-on-surface-variant">{lang === 'he' ? tpl.descriptionHe : tpl.descriptionEn}</p>
                   )}
-                  {tpl.skills && <p className="mt-1.5 text-xs text-muted">🛠️ {tpl.skills}</p>}
+                  {tpl.skills && <p className="mt-1.5 text-xs text-faculty-admin-on-surface-variant">🛠️ {tpl.skills}</p>}
                 </div>
               ))}
             </div>
           )}
         </div>
       ) : proposals.length === 0 ? (
-        <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין הצעות ממתינות לאישור' : 'No pending proposals'}</p>
+        <p className="text-sm text-faculty-admin-on-surface-variant">✅ {lang === 'he' ? 'אין הצעות ממתינות לאישור' : 'No pending proposals'}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {proposals.map((tpl) => (
-            <div key={tpl.id} className="rounded-[var(--radius)] border border-line bg-surface p-4">
+            <div key={tpl.id} className="rounded-faculty-admin border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-lowest p-4">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-ink">{lang === 'he' ? tpl.titleHe : tpl.titleEn}</p>
+                <p className="text-sm font-semibold text-faculty-admin-on-surface">{lang === 'he' ? tpl.titleHe : tpl.titleEn}</p>
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                     tpl.status === 'rejected' ? 'bg-danger-bg text-danger' : 'bg-[#FBF3E3] text-accent'
@@ -211,13 +211,13 @@ export default function FacultyTemplatesPage() {
                   {tpl.status === 'rejected' ? (lang === 'he' ? 'נדחה' : 'Rejected') : lang === 'he' ? 'ממתין' : 'Pending'}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-xs text-faculty-admin-on-surface-variant">
                 🎓 {degreeLabel(tpl.degree, lang)} · {typeLabel(tpl.type, lang)}
               </p>
               {(lang === 'he' ? tpl.descriptionHe : tpl.descriptionEn) && (
-                <p className="mt-1.5 line-clamp-3 text-xs text-muted">{lang === 'he' ? tpl.descriptionHe : tpl.descriptionEn}</p>
+                <p className="mt-1.5 line-clamp-3 text-xs text-faculty-admin-on-surface-variant">{lang === 'he' ? tpl.descriptionHe : tpl.descriptionEn}</p>
               )}
-              {tpl.skills && <p className="mt-1.5 text-xs text-muted">🛠️ {tpl.skills}</p>}
+              {tpl.skills && <p className="mt-1.5 text-xs text-faculty-admin-on-surface-variant">🛠️ {tpl.skills}</p>}
               {tpl.status === 'rejected' && tpl.rejectionReason && (
                 <p className="mt-1.5 text-xs text-danger">
                   {lang === 'he' ? 'סיבת דחייה:' : 'Rejection reason:'} {tpl.rejectionReason}

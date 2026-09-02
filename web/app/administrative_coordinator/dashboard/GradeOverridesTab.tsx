@@ -36,9 +36,9 @@ function FileLinks({ label, urls }: { label: string; urls: string[] }) {
   if (urls.length === 0) return null;
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-      <span className="text-[10px] text-muted">{label}</span>
+      <span className="text-[10px] text-administrative-coordinator-on-surface-variant">{label}</span>
       {urls.map((url, i) => (
-        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-ink hover:border-primary">
+        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest px-2 py-0.5 text-xs text-administrative-coordinator-on-surface hover:border-administrative-coordinator-primary">
           📄 {i + 1}
         </a>
       ))}
@@ -82,32 +82,32 @@ export function GradeOverridesTab() {
     }
   };
 
-  if (loading) return <p className="text-sm text-muted">…</p>;
+  if (loading) return <p className="text-sm text-administrative-coordinator-on-surface-variant">…</p>;
   if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>;
   if (rows.length === 0) {
-    return <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין ציונים סופיים ממתינים לאישור' : 'No final grades pending approval'}</p>;
+    return <p className="text-sm text-administrative-coordinator-on-surface-variant">✅ {lang === 'he' ? 'אין ציונים סופיים ממתינים לאישור' : 'No final grades pending approval'}</p>;
   }
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {rows.map((r) => (
-        <div key={r.milestoneId} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
-          <p className="text-sm font-semibold text-ink">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
-          <p className="mt-0.5 text-xs text-muted">👤 {r.studentNames.join(', ')}</p>
+        <div key={r.milestoneId} className="role-rail rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
+          <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
+          <p className="mt-0.5 text-xs text-administrative-coordinator-on-surface-variant">👤 {r.studentNames.join(', ')}</p>
 
           {(r.supervisorEvaluationTotal != null || r.examinerProjectAvg != null || r.examinerDefenseAvg != null) && (
             <div className="mt-2 flex gap-1.5">
-              <div className="flex-1 rounded-md bg-paper p-1.5 text-center">
-                <p className="text-[10px] text-muted">{lang === 'he' ? 'מנחה' : 'Supervisor'}</p>
-                <p className="text-xs font-semibold text-ink">{r.supervisorEvaluationTotal ?? '—'}</p>
+              <div className="flex-1 rounded-md bg-administrative-coordinator-surface-container-low p-1.5 text-center">
+                <p className="text-[10px] text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'מנחה' : 'Supervisor'}</p>
+                <p className="text-xs font-semibold text-administrative-coordinator-on-surface">{r.supervisorEvaluationTotal ?? '—'}</p>
               </div>
-              <div className="flex-1 rounded-md bg-paper p-1.5 text-center">
-                <p className="text-[10px] text-muted">{lang === 'he' ? 'בוחן — עבודה' : 'Examiner — project'}</p>
-                <p className="text-xs font-semibold text-ink">{r.examinerProjectAvg ?? '—'}</p>
+              <div className="flex-1 rounded-md bg-administrative-coordinator-surface-container-low p-1.5 text-center">
+                <p className="text-[10px] text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'בוחן — עבודה' : 'Examiner — project'}</p>
+                <p className="text-xs font-semibold text-administrative-coordinator-on-surface">{r.examinerProjectAvg ?? '—'}</p>
               </div>
-              <div className="flex-1 rounded-md bg-paper p-1.5 text-center">
-                <p className="text-[10px] text-muted">{lang === 'he' ? 'בוחן — הגנה' : 'Examiner — defense'}</p>
-                <p className="text-xs font-semibold text-ink">{r.examinerDefenseAvg ?? '—'}</p>
+              <div className="flex-1 rounded-md bg-administrative-coordinator-surface-container-low p-1.5 text-center">
+                <p className="text-[10px] text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'בוחן — הגנה' : 'Examiner — defense'}</p>
+                <p className="text-xs font-semibold text-administrative-coordinator-on-surface">{r.examinerDefenseAvg ?? '—'}</p>
               </div>
             </div>
           )}

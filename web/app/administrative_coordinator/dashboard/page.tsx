@@ -91,7 +91,7 @@ function MilestoneMiniProgress({
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
   if (milestones.length === 0) {
-    return <p className="text-[11px] text-muted">{lang === 'he' ? 'לא נוצרו אבני דרך' : 'No milestones yet'}</p>;
+    return <p className="text-[11px] text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'לא נוצרו אבני דרך' : 'No milestones yet'}</p>;
   }
   const firstIncompleteIdx = milestones.findIndex((m) => !isMilestoneDone(m.status));
   const expanded = expandedIdx !== null ? milestones[expandedIdx] : null;
@@ -112,13 +112,13 @@ function MilestoneMiniProgress({
               >
                 <span
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                    isFuture ? 'border-2 bg-surface' : 'text-white'
-                  } ${expandedIdx === idx ? 'ring-2 ring-offset-1 ring-primary' : ''}`}
+                    isFuture ? 'border-2 bg-administrative-coordinator-surface-container-lowest' : 'text-white'
+                  } ${expandedIdx === idx ? 'ring-2 ring-offset-1 ring-administrative-coordinator-primary' : ''}`}
                   style={isFuture ? { borderColor: color, color } : { backgroundColor: color }}
                 >
                   {done ? '✓' : idx + 1}
                 </span>
-                <span className={`mt-1 text-[10px] leading-tight text-ink ${isCurrent ? 'font-bold' : 'font-medium'}`}>
+                <span className={`mt-1 text-[10px] leading-tight text-administrative-coordinator-on-surface ${isCurrent ? 'font-bold' : 'font-medium'}`}>
                   {MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}
                 </span>
                 <span className="text-[9px] font-semibold leading-tight" style={{ color }}>
@@ -137,15 +137,15 @@ function MilestoneMiniProgress({
       </div>
 
       {expanded && (
-        <div className="mt-1.5 rounded-lg bg-paper p-2">
+        <div className="mt-1.5 rounded-lg bg-administrative-coordinator-surface-container-low p-2">
           {expanded.fileUrls.length === 0 ? (
-            <p className="text-[11px] text-muted">{lang === 'he' ? 'לא הוגשו קבצים' : 'No files submitted'}</p>
+            <p className="text-[11px] text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'לא הוגשו קבצים' : 'No files submitted'}</p>
           ) : (
             <div className="flex flex-wrap gap-1">
               {expanded.fileUrls.map((url, i) => {
                 const fileName = fileNameFromUrl(url, i, lang);
                 return (
-                  <span key={i} className="flex items-center overflow-hidden rounded-md border border-line bg-surface text-[10px] text-ink">
+                  <span key={i} className="flex items-center overflow-hidden rounded-md border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest text-[10px] text-administrative-coordinator-on-surface">
                     {/* Same split as the Grades section's file chips below —
                         clicking the name always previews, the separate ⬇
                         button always downloads. */}
@@ -160,7 +160,7 @@ function MilestoneMiniProgress({
                           fileUrls: expanded.fileUrls,
                         })
                       }
-                      className="flex items-center gap-1 px-1.5 py-0.5 hover:text-primary"
+                      className="flex items-center gap-1 px-1.5 py-0.5 hover:text-administrative-coordinator-primary"
                     >
                       📄 <span className="max-w-[8rem] truncate">{fileName}</span>
                     </button>
@@ -168,7 +168,7 @@ function MilestoneMiniProgress({
                       type="button"
                       title={lang === 'he' ? 'הורדה' : 'Download'}
                       onClick={() => downloadFile(url, fileName)}
-                      className="border-s border-line px-1.5 py-0.5 text-muted hover:text-primary"
+                      className="border-s border-administrative-coordinator-outline-variant px-1.5 py-0.5 text-administrative-coordinator-on-surface-variant hover:text-administrative-coordinator-primary"
                     >
                       ⬇
                     </button>

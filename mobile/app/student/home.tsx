@@ -11,6 +11,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { useStudentData } from '../../hooks/useStudentData';
 import { tx, type Lang } from '../../components/i18n';
 import { studentHomeStyles } from '@/constants';
+import { ap } from '@/constants/theme';
 import { TopBar } from '../../components/shared';
 
 // ─── Sub-screens ──────────────────────────────────────────────────────────────
@@ -53,7 +54,7 @@ export default function StudentHome() {
   if (studentState === 'loading') {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2E86FF" />
+        <ActivityIndicator size="large" color={ap.primary} />
         <Text style={styles.loadingText}>{tx('loading', lang)}</Text>
       </View>
     );
@@ -168,10 +169,10 @@ const styles = studentHomeStyles;
 // TEMP-2-ACTIVE-PROJECTS: styles for the project switcher row above — delete
 // alongside the rest of this bypass once reverted.
 const tempStyles = StyleSheet.create({
-  switcherRow:      { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E0E8FF' },
+  switcherRow:      { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: ap.surfaceContainerLowest, borderBottomWidth: 1, borderBottomColor: ap.outlineVariant },
   switcherRowRtl:   { flexDirection: 'row-reverse' },
-  switcherPill:     { flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 20, backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: '#D0DEFF', alignItems: 'center' },
-  switcherPillActive: { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  switcherText:     { fontSize: 12, fontWeight: '600', color: '#445' },
-  switcherTextActive: { color: '#fff' },
+  switcherPill:     { flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 20, backgroundColor: ap.surfaceContainerLow, borderWidth: 1, borderColor: ap.outlineVariant, alignItems: 'center' },
+  switcherPillActive: { backgroundColor: ap.primary, borderColor: ap.primary },
+  switcherText:     { fontSize: 12, fontWeight: '600', color: ap.onSurfaceVariant },
+  switcherTextActive: { color: ap.onPrimary },
 });

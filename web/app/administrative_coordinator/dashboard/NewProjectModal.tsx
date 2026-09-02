@@ -177,9 +177,9 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
         role="dialog"
         aria-modal="true"
         onSubmit={handleSubmit}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-administrative-coordinator-lg bg-administrative-coordinator-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-ink">📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
+        <h2 className="text-lg font-semibold text-administrative-coordinator-on-surface">📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
 
         <div className="mt-4 grid gap-4">
           <Field label={lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}>
@@ -236,20 +236,20 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
             <Field label={lang === 'he' ? 'סוג תואר' : 'Degree Type'}>
               <div className="flex gap-3">
                 {degreeOptions.includes('bachelors') && (
-                  <label className="flex items-center gap-1.5 text-sm text-ink">
+                  <label className="flex items-center gap-1.5 text-sm text-administrative-coordinator-on-surface">
                     <input type="checkbox" checked={degreeTypes.includes('bachelors')} onChange={() => toggleDegreeType('bachelors')} className="h-4 w-4" />
                     {lang === 'he' ? 'תואר ראשון' : "Bachelor's"}
                   </label>
                 )}
                 {degreeOptions.includes('masters') && (
-                  <label className="flex items-center gap-1.5 text-sm text-ink">
+                  <label className="flex items-center gap-1.5 text-sm text-administrative-coordinator-on-surface">
                     <input type="checkbox" checked={degreeTypes.includes('masters')} onChange={() => toggleDegreeType('masters')} className="h-4 w-4" />
                     {lang === 'he' ? 'תואר שני' : "Master's"}
                   </label>
                 )}
               </div>
               {facultyIds.length > 0 && degreeOptions.length === 1 && (
-                <p className="mt-1 text-xs text-muted">
+                <p className="mt-1 text-xs text-administrative-coordinator-on-surface-variant">
                   {lang === 'he' ? 'הפקולטה/ות שנבחרו מציעות תואר אחד בלבד' : 'The selected faculty/ies only offer one degree level'}
                 </p>
               )}
@@ -261,11 +261,11 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
             </Field>
             <Field label={lang === 'he' ? 'סוג פרויקט' : 'Project Type'}>
               <div className="flex gap-3">
-                <label className="flex items-center gap-1.5 text-sm text-ink">
+                <label className="flex items-center gap-1.5 text-sm text-administrative-coordinator-on-surface">
                   <input type="checkbox" checked={projectTypes.includes('project')} onChange={() => toggleProjectType('project')} className="h-4 w-4" />
                   {lang === 'he' ? 'פרויקט' : 'Project'}
                 </label>
-                <label className="flex items-center gap-1.5 text-sm text-ink">
+                <label className="flex items-center gap-1.5 text-sm text-administrative-coordinator-on-surface">
                   <input type="checkbox" checked={projectTypes.includes('thesis')} onChange={() => toggleProjectType('thesis')} className="h-4 w-4" />
                   {lang === 'he' ? 'תזה' : 'Thesis'}
                 </label>
@@ -293,11 +293,11 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
               reset();
               onClose();
             }}
-            className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+            className="rounded-lg border border-administrative-coordinator-outline-variant px-3.5 py-2 text-sm font-medium text-administrative-coordinator-on-surface hover:bg-administrative-coordinator-surface-container-low"
           >
             {lang === 'he' ? 'ביטול' : 'Cancel'}
           </button>
-          <button type="submit" disabled={submitting} className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
+          <button type="submit" disabled={submitting} className="rounded-lg bg-administrative-coordinator-primary px-3.5 py-2 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60">
             {submitting ? '…' : lang === 'he' ? 'פרסם פרויקט' : 'Publish Project'}
           </button>
         </div>
@@ -306,12 +306,12 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
   );
 }
 
-const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none disabled:opacity-60';
+const inputCls = 'w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:bg-administrative-coordinator-surface-container-lowest focus:outline-none disabled:opacity-60';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{label}</span>
       {children}
     </label>
   );

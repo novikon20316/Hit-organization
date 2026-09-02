@@ -35,31 +35,12 @@ import { apiClient } from '@/src/api/apiClient';
 import { TopBar, StatCard } from '@/components/shared';
 import { MaintenanceModal } from '@/components/modals';
 import type { Lang } from '@/components/i18n';
+import { ap } from '@/constants/theme';
 
 // Same "online" definition as web/app/admin/live-transportation/page.tsx —
 // comfortably exceeds usePresenceHeartbeat's send interval so a session
 // isn't flickered offline between two heartbeats.
 const ONLINE_WINDOW_MS = 60_000;
-
-// Same hex values as web's --admin-* tokens (app/globals.css).
-const C = {
-  primary: '#00236f',
-  primaryContainer: '#1e3a8a',
-  onPrimaryContainer: '#90a8ff',
-  secondary: '#505f76',
-  surface: '#faf8ff',
-  surfaceContainerLowest: '#ffffff',
-  surfaceContainerLow: '#f4f3fa',
-  surfaceContainer: '#eeedf4',
-  surfaceVariant: '#e3e1e9',
-  onSurface: '#1a1b21',
-  onSurfaceVariant: '#444651',
-  outlineVariant: '#c5c5d3',
-  error: '#ba1a1a',
-  errorContainer: '#ffdad6',
-  onErrorContainer: '#93000a',
-  success: '#059669',
-};
 
 interface FailedLoginAlert {
   id: string;
@@ -209,7 +190,7 @@ export default function AdminOverviewScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingRoot}>
-        <ActivityIndicator size="large" color={C.primary} />
+        <ActivityIndicator size="large" color={ap.primary} />
       </SafeAreaView>
     );
   }
@@ -236,12 +217,12 @@ export default function AdminOverviewScreen() {
         </View>
 
         <View style={styles.statsRow}>
-          <StatCard emoji="👥" value={totalUsers} label={lang === 'he' ? 'סה"כ משתמשים' : 'Total Users'} color={C.primary} isRtl={isRtl} />
+          <StatCard emoji="👥" value={totalUsers} label={lang === 'he' ? 'סה"כ משתמשים' : 'Total Users'} color={ap.primary} isRtl={isRtl} />
           <StatCard
             emoji="🔑"
             value={failedLoginCount}
             label={lang === 'he' ? 'כניסות שנכשלו' : 'Failed Logins'}
-            color={failedLoginCount > 0 ? C.error : C.secondary}
+            color={failedLoginCount > 0 ? ap.error : ap.secondary}
             isRtl={isRtl}
           />
         </View>
@@ -256,12 +237,12 @@ export default function AdminOverviewScreen() {
               )}
             </View>
             {deactivatingMaintenance ? (
-              <ActivityIndicator size="small" color={C.primary} />
+              <ActivityIndicator size="small" color={ap.primary} />
             ) : (
               <Switch
                 value={!!maintenanceStatus?.isActive}
                 onValueChange={(v) => (v ? setMaintenanceModal(true) : deactivateMaintenance())}
-                trackColor={{ false: C.surfaceVariant, true: C.primary }}
+                trackColor={{ false: ap.surfaceVariant, true: ap.primary }}
                 thumbColor="#fff"
               />
             )}
@@ -337,59 +318,59 @@ export default function AdminOverviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.surface },
-  loadingRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface },
+  root: { flex: 1, backgroundColor: ap.surface },
+  loadingRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: ap.surface },
   scrollContent: { padding: 16, gap: 12 },
   wideTile: {
-    backgroundColor: C.surfaceContainerLowest,
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: C.outlineVariant,
+    borderColor: ap.outlineVariant,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  wideTileLabel: { fontSize: 13, fontWeight: '500', color: C.onSurfaceVariant, marginBottom: 4 },
-  wideTileValue: { fontSize: 28, fontWeight: '700', color: C.primary },
+  wideTileLabel: { fontSize: 13, fontWeight: '500', color: ap.onSurfaceVariant, marginBottom: 4 },
+  wideTileValue: { fontSize: 28, fontWeight: '700', color: ap.primary },
   wideTileIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#d0e1fb',
+    backgroundColor: ap.secondaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
   statsRow: { flexDirection: 'row', gap: 12 },
   card: {
-    backgroundColor: C.surfaceContainerLowest,
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: C.outlineVariant,
+    borderColor: ap.outlineVariant,
     padding: 16,
     gap: 8,
   },
-  cardTitle: { fontSize: 13, fontWeight: '600', color: C.onSurfaceVariant },
+  cardTitle: { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
-  toggleLabel: { fontSize: 14, color: C.onSurface },
-  toggleSubLabel: { fontSize: 12, color: C.onSurfaceVariant, marginTop: 2 },
+  toggleLabel: { fontSize: 14, color: ap.onSurface },
+  toggleSubLabel: { fontSize: 12, color: ap.onSurfaceVariant, marginTop: 2 },
   alertsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  alertsBadge: { backgroundColor: C.errorContainer, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
-  alertsBadgeText: { color: C.error, fontSize: 11, fontWeight: '700' },
-  emptyText: { fontSize: 13, color: C.onSurfaceVariant },
+  alertsBadge: { backgroundColor: ap.errorContainer, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
+  alertsBadgeText: { color: ap.error, fontSize: 11, fontWeight: '700' },
+  emptyText: { fontSize: 13, color: ap.onSurfaceVariant },
   alertItem: {
     flexDirection: 'row',
     gap: 8,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: C.surfaceVariant,
+    borderTopColor: ap.surfaceVariant,
   },
   alertRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  alertName: { fontSize: 13, fontWeight: '600', color: C.onSurface, flexShrink: 1 },
-  alertTime: { fontSize: 11, color: C.onSurfaceVariant },
-  alertDetail: { fontSize: 12, color: C.onSurfaceVariant, marginTop: 2 },
+  alertName: { fontSize: 13, fontWeight: '600', color: ap.onSurface, flexShrink: 1 },
+  alertTime: { fontSize: 11, color: ap.onSurfaceVariant },
+  alertDetail: { fontSize: 12, color: ap.onSurfaceVariant, marginTop: 2 },
   panelButton: {
-    backgroundColor: C.primary,
+    backgroundColor: ap.primary,
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',

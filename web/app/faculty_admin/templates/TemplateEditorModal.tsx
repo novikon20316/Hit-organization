@@ -84,7 +84,7 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-low px-3 py-2 text-sm text-faculty-admin-on-surface focus:border-faculty-admin-primary focus:bg-faculty-admin-surface-container-lowest focus:outline-none';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
@@ -93,13 +93,13 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+        className="w-full max-w-lg rounded-faculty-admin bg-faculty-admin-surface-container-lowest p-5 shadow-lg outline-none"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-ink">
+          <h2 className="text-base font-semibold text-faculty-admin-on-surface">
             {template ? `✏️ ${lang === 'he' ? 'עריכת תבנית' : 'Edit Template'}` : `➕ ${lang === 'he' ? 'תבנית חדשה' : 'New Template'}`}
           </h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-lg text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-lg text-faculty-admin-on-surface-variant hover:text-faculty-admin-on-surface">
             ✕
           </button>
         </div>
@@ -107,7 +107,7 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
         <div className="mt-4 grid gap-3.5">
           {/* Degree chips */}
           <div>
-            <span className="mb-1.5 block text-sm font-medium text-ink">{t('degreeType')}</span>
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{t('degreeType')}</span>
             <div className="flex gap-2">
               {DEGREES.map((d) => (
                 <button
@@ -115,7 +115,7 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
                   type="button"
                   onClick={() => setDegree(d.key)}
                   className={`rounded-full border px-3.5 py-1.5 text-sm font-medium ${
-                    degree === d.key ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                    degree === d.key ? 'border-faculty-admin-primary bg-faculty-admin-primary text-faculty-admin-on-primary' : 'border-faculty-admin-outline-variant bg-faculty-admin-surface-container-low text-faculty-admin-on-surface'
                   }`}
                 >
                   {lang === 'he' ? d.he : d.en}
@@ -126,7 +126,7 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
 
           {/* Type chips */}
           <div>
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג עבודה' : 'Work Type'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'סוג עבודה' : 'Work Type'}</span>
             <div className="flex gap-2">
               {TYPES.map((tp) => (
                 <button
@@ -134,7 +134,7 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
                   type="button"
                   onClick={() => setType(tp.key)}
                   className={`rounded-full border px-3.5 py-1.5 text-sm font-medium ${
-                    type === tp.key ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                    type === tp.key ? 'border-faculty-admin-primary bg-faculty-admin-primary text-faculty-admin-on-primary' : 'border-faculty-admin-outline-variant bg-faculty-admin-surface-container-low text-faculty-admin-on-surface'
                   }`}
                 >
                   {lang === 'he' ? tp.he : tp.en}
@@ -144,31 +144,31 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
           </div>
 
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}</span>
             <input dir="rtl" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} placeholder="כותרת הפרויקט" className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת (אנגלית)' : 'Title (English)'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'כותרת (אנגלית)' : 'Title (English)'}</span>
             <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} placeholder="Project title" className={inputCls} />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}</span>
             <textarea dir="rtl" rows={3} value={descriptionHe} onChange={(e) => setDescriptionHe(e.target.value)} placeholder="תיאור הפרויקט" className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור (אנגלית)' : 'Description (English)'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'תיאור (אנגלית)' : 'Description (English)'}</span>
             <textarea dir="ltr" rows={3} value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} placeholder="Project description" className={inputCls} />
           </label>
 
           {/* Skills tag input */}
           <div>
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כישורים נדרשים' : 'Required Skills'}</span>
-            <div className="flex flex-wrap gap-1.5 rounded-lg border border-line bg-paper p-2">
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'כישורים נדרשים' : 'Required Skills'}</span>
+            <div className="flex flex-wrap gap-1.5 rounded-lg border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-low p-2">
               {skills.map((skill) => (
-                <span key={skill} className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                <span key={skill} className="flex items-center gap-1 rounded-full bg-faculty-admin-primary/10 px-2.5 py-1 text-xs font-medium text-faculty-admin-primary">
                   {skill}
-                  <button type="button" onClick={() => removeSkill(skill)} className="text-primary hover:opacity-70" aria-label={`remove ${skill}`}>
+                  <button type="button" onClick={() => removeSkill(skill)} className="text-faculty-admin-primary hover:opacity-70" aria-label={`remove ${skill}`}>
                     ✕
                   </button>
                 </span>
@@ -186,7 +186,7 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
                 }}
                 onBlur={addSkillFromInput}
                 placeholder={lang === 'he' ? 'הקלד ולחץ Enter...' : 'Type and press Enter...'}
-                className="min-w-[120px] flex-1 bg-transparent px-1 py-1 text-sm text-ink focus:outline-none"
+                className="min-w-[120px] flex-1 bg-transparent px-1 py-1 text-sm text-faculty-admin-on-surface focus:outline-none"
               />
             </div>
           </div>
@@ -194,14 +194,14 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
           {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
           <div className="mt-1 flex justify-end gap-2">
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-faculty-admin-outline-variant px-3.5 py-2 text-sm font-medium text-faculty-admin-on-surface hover:bg-faculty-admin-surface-container-low">
               {t('cancel')}
             </button>
             <button
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              className="rounded-lg bg-faculty-admin-primary px-3.5 py-2 text-sm font-semibold text-faculty-admin-on-primary hover:opacity-90 disabled:opacity-60"
             >
               {saving ? t('saving') : t('save')}
             </button>

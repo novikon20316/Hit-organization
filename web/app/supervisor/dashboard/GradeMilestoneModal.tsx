@@ -124,20 +124,20 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'טופס ציון' : 'Grading Form'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'טופס ציון' : 'Grading Form'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
             ✕
           </button>
         </div>
 
-        <div className="mt-3 rounded-lg bg-paper p-3">
-          <p className="text-sm font-semibold text-ink">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</p>
-          <p className="mt-0.5 text-xs text-muted">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
-          <p className="mt-0.5 text-xs text-muted">👤 {m.studentNames.join(', ')}</p>
-          {m.submissionNote && <p className="mt-2 whitespace-pre-wrap text-sm text-ink">💬 {m.submissionNote}</p>}
+        <div className="mt-3 rounded-lg bg-supervisor-surface-container-low p-3">
+          <p className="text-sm font-semibold text-supervisor-on-surface">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</p>
+          <p className="mt-0.5 text-xs text-supervisor-on-surface-variant">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
+          <p className="mt-0.5 text-xs text-supervisor-on-surface-variant">👤 {m.studentNames.join(', ')}</p>
+          {m.submissionNote && <p className="mt-2 whitespace-pre-wrap text-sm text-supervisor-on-surface">💬 {m.submissionNote}</p>}
         </div>
 
         {/* The actual submitted document, rendered right here rather than
@@ -146,15 +146,15 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
             the file in a separate view first. */}
         {m.fileUrls.length > 0 && (
           <div className="mt-4 grid gap-3">
-            <p className="text-sm font-semibold text-ink">{lang === 'he' ? 'המסמך שהוגש' : 'Submitted document'}</p>
+            <p className="text-sm font-semibold text-supervisor-on-surface">{lang === 'he' ? 'המסמך שהוגש' : 'Submitted document'}</p>
             {m.fileUrls.map((url, i) => (
-              <div key={i} className="overflow-hidden rounded-lg border border-line">
-                <div className="flex items-center justify-between border-b border-line bg-paper px-3 py-2">
-                  <span className="min-w-0 truncate text-xs font-medium text-ink">📄 {fileNameFromUrl(url, i, lang)}</span>
+              <div key={i} className="overflow-hidden rounded-lg border border-supervisor-outline-variant">
+                <div className="flex items-center justify-between border-b border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2">
+                  <span className="min-w-0 truncate text-xs font-medium text-supervisor-on-surface">📄 {fileNameFromUrl(url, i, lang)}</span>
                   <button
                     type="button"
                     onClick={() => downloadFile(url, fileNameFromUrl(url, i, lang))}
-                    className="shrink-0 text-xs font-medium text-primary hover:underline"
+                    className="shrink-0 text-xs font-medium text-supervisor-primary hover:underline"
                   >
                     📥 {lang === 'he' ? 'הורדה' : 'Download'}
                   </button>
@@ -168,7 +168,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         <div className="mt-4 grid gap-3">
           {activeFields.map((field) => (
             <label key={field.key} className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
                 {lang === 'he' ? field.he : field.en} (0–{field.max})
               </span>
               <input
@@ -177,7 +177,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
                 max={field.max}
                 value={criteria[field.key]}
                 onChange={(e) => setCriteria({ ...criteria, [field.key]: clampScoreInput(e.target.value, field.max) })}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
               />
             </label>
           ))}
@@ -188,13 +188,13 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
             the group. */}
         {isGroupProject && (
           <div className="mt-4">
-            <span className="mb-1.5 block text-sm font-medium text-ink">
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
               {lang === 'he' ? 'ציון אישי (לצד הציון הקבוצתי)' : 'Individual grade (on top of the group score)'}
             </span>
             <div className="grid gap-2.5">
               {m.studentIds.map((studentId, idx) => (
                 <label key={studentId} className="block">
-                  <span className="mb-1 block text-xs text-muted">👤 {m.studentNames[idx] ?? studentId}</span>
+                  <span className="mb-1 block text-xs text-supervisor-on-surface-variant">👤 {m.studentNames[idx] ?? studentId}</span>
                   <input
                     type="number"
                     min={0}
@@ -202,7 +202,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
                     placeholder={lang === 'he' ? 'ציון אישי 0–100 (אופציונלי)' : 'Individual score 0–100 (optional)'}
                     value={individualScores[studentId] ?? ''}
                     onChange={(e) => setIndividualScores({ ...individualScores, [studentId]: clampScoreInput(e.target.value, 100) })}
-                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                    className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
                   />
                 </label>
               ))}
@@ -211,16 +211,16 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         )}
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}</span>
           <textarea
             rows={4}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
           />
         </label>
 
-        <p className="mt-3 text-sm font-bold text-ink">Total: {totalScore}/{maxTotal}</p>
+        <p className="mt-3 text-sm font-bold text-supervisor-on-surface">Total: {totalScore}/{maxTotal}</p>
 
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
@@ -228,7 +228,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           type="button"
           onClick={handleSubmit}
           disabled={submitting}
-          className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
         >
           {submitting ? '…' : lang === 'he' ? 'שלח ציון' : t('submit')}
         </button>

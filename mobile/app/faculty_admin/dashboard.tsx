@@ -26,6 +26,7 @@ import {
 import { AppUser, SystemStats, UserRecord, ProjectRecord, MilestoneRecord, StatusOption } from '@/types'
 import { ROLE_LABELS } from '../../constants';
 import { FacultyAdminDashboardStyles } from '../../constants/styles';
+import { ap } from '@/constants/theme';
 
 import {
   NewUserModal,
@@ -501,7 +502,7 @@ export default function PanelScreen() {
 
                     {/* Faculty (only for faculty_admin) */}
                     {d.facultyId ? (
-                      <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+                      <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: ap.outlineVariant }}>
                         <Text style={localStyles.label}>
                           {lang === 'he' ? 'פקולטה:' : 'Faculty:'} <Text style={localStyles.value}>{d.facultyId}</Text>
                         </Text>
@@ -524,9 +525,9 @@ export default function PanelScreen() {
         ) : (
           /* USERS */
           users.map((u) => (
-            <View key={u.id} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+            <View key={u.id} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: ap.outlineVariant }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>{u.displayName}</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: ap.onSurface }}>{u.displayName}</Text>
 
                 <Switch
                   value={u.isActive}

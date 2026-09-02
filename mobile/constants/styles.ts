@@ -60,7 +60,7 @@ export const loginStyles = StyleSheet.create({
 export const sharedStyles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: palette.bgMain,
+    backgroundColor: ap.surface,
   },
   centered: {
     flex: 1,
@@ -94,11 +94,11 @@ export const sharedStyles = StyleSheet.create({
   sectionDivider: {
     marginVertical: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: palette.borderLight,
+    borderBottomColor: ap.outlineVariant,
   },
   modal: {
     flex: 1,
-    backgroundColor: palette.bgMain,
+    backgroundColor: ap.surface,
   },
   modalContent: {
     padding: spacing.lg,
@@ -113,47 +113,47 @@ export const sharedStyles = StyleSheet.create({
   modalTitle: {
     fontSize: fontSize.xl,
     fontWeight: fontWeight.heavy,
-    color: palette.textPrimary,
+    color: ap.onSurface,
   },
   modalClose: {
     fontSize: 22,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
     padding: spacing.xs,
   },
   card: {
-    backgroundColor: palette.bgWhite,
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: radius.xl,
     padding: spacing.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: palette.borderLight,
+    borderColor: ap.outlineVariant,
     ...shadows.xs,
   },
   cardAccent: {
-    backgroundColor: palette.bgWhite,
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: radius.xl,
     padding: spacing.lg,
     marginBottom: spacing.md,
     borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: palette.borderLight,
+    borderColor: ap.outlineVariant,
     ...shadows.xs,
   },
   smallCard: {
-    backgroundColor: palette.bgWhite,
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: radius.card,
     padding: spacing.lg,
     marginBottom: spacing.base,
   },
   input: {
-    backgroundColor: palette.bgWhite,
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     fontSize: fontSize.base,
-    color: palette.textPrimary,
+    color: ap.onSurface,
     borderWidth: 1,
-    borderColor: palette.borderLight,
+    borderColor: ap.outlineVariant,
   },
   textarea: {
     textAlignVertical: 'top',
@@ -162,7 +162,7 @@ export const sharedStyles = StyleSheet.create({
   fieldLabel: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.semi,
-    color: palette.textBody,
+    color: ap.onSurfaceVariant,
     marginBottom: spacing.xs,
     marginTop: spacing.base,
   },
@@ -178,20 +178,20 @@ export const sharedStyles = StyleSheet.create({
     borderRadius: radius.xl,
   },
   primaryButton: {
-    backgroundColor: palette.primary,
+    backgroundColor: ap.primary,
   },
   primaryButtonText: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
     fontSize: fontSize.base,
     fontWeight: fontWeight.bold,
   },
   secondaryButton: {
-    backgroundColor: palette.bgWhite,
+    backgroundColor: ap.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: palette.borderLight,
+    borderColor: ap.outlineVariant,
   },
   secondaryButtonText: {
-    color: palette.textPrimary,
+    color: ap.onSurface,
     fontSize: fontSize.base,
     fontWeight: fontWeight.medium,
   },
@@ -200,9 +200,9 @@ export const sharedStyles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: palette.bgWhite,
+    backgroundColor: ap.surfaceContainerLowest,
     borderBottomWidth: 1,
-    borderBottomColor: palette.borderLight,
+    borderBottomColor: ap.outlineVariant,
     gap: 8,
   },
   // Fixed size (not flex:1) so tabs stay the same size regardless of how
@@ -227,18 +227,18 @@ export const sharedStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   tabActive: {
-    borderBottomColor: palette.primary,
+    borderBottomColor: ap.primary,
   },
   tabText: {
     fontSize: 13,
     fontWeight: fontWeight.semi,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
   },
   tabTextActive: {
-    color: palette.primary,
+    color: ap.primary,
   },
   tabBadge: {
-    backgroundColor: palette.bgBlueTint,
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: radius.sm,
     minWidth: 18,
     height: 18,
@@ -247,12 +247,12 @@ export const sharedStyles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   tabBadgeActive: {
-    backgroundColor: palette.primary,
+    backgroundColor: ap.primary,
   },
   tabBadgeText: {
     fontSize: fontSize.badge,
     fontWeight: fontWeight.heavy,
-    color: palette.bgWhite,
+    color: ap.onPrimary,
   },
   statsRow: {
     flexDirection: 'row',
@@ -263,7 +263,7 @@ export const sharedStyles = StyleSheet.create({
     width: 0,
   },
   addBtn: {
-    backgroundColor: palette.primary,
+    backgroundColor: ap.primary,
     borderRadius: radius.xxl,
     paddingVertical: spacing.lg,
     alignItems: 'center',
@@ -271,7 +271,7 @@ export const sharedStyles = StyleSheet.create({
     ...shadows.blue,
   },
   addBtnText: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
     fontWeight: fontWeight.bold,
     fontSize: fontSize.lg,
   },
@@ -283,11 +283,11 @@ export const sharedStyles = StyleSheet.create({
   cardTitle: {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.bold,
-    color: palette.textPrimary,
+    color: ap.onSurface,
   },
   cardMeta: {
     fontSize: fontSize.xs,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
   },
   appCount: {
     marginTop: spacing.sm,
@@ -308,42 +308,42 @@ export const sharedStyles = StyleSheet.create({
   },
   appProjectLabel: {
     fontSize: fontSize.sm,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
     marginBottom: spacing.xs,
   },
   studentAvatar: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: palette.bgBlueTint,
+    backgroundColor: ap.surfaceContainerLow,
     justifyContent: 'center',
     alignItems: 'center',
   },
   studentAvatarText: {
     fontWeight: fontWeight.bold,
-    color: palette.primary,
+    color: ap.primary,
     fontSize: fontSize.xl,
   },
   studentName: {
     fontSize: fontSize.base,
     fontWeight: fontWeight.bold,
-    color: palette.textPrimary,
+    color: ap.onSurface,
   },
   studentEmail: {
     fontSize: fontSize.sm,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
   },
   coverNote: {
-    backgroundColor: palette.bgSubtle,
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: radius.lg,
     padding: spacing.base,
     marginVertical: spacing.sm,
     borderLeftWidth: 3,
-    borderLeftColor: palette.borderMid,
+    borderLeftColor: ap.outlineVariant,
   },
   coverNoteText: {
     fontSize: fontSize.base,
-    color: palette.textBlue,
+    color: ap.onSurface,
     fontStyle: 'italic',
     lineHeight: 18,
   },
@@ -353,16 +353,16 @@ export const sharedStyles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   docChip: {
-    backgroundColor: palette.bgBlueTint,
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.xs,
     borderWidth: 1,
-    borderColor: palette.borderPurpleLight,
+    borderColor: ap.outlineVariant,
   },
   docChipText: {
     fontSize: fontSize.sm,
-    color: palette.primary,
+    color: ap.onSurface,
     fontWeight: fontWeight.medium,
   },
   decisionRow: {
@@ -416,7 +416,7 @@ export const sharedStyles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
     borderLeftWidth: 4,
-    borderColor: palette.borderLight,
+    borderColor: ap.outlineVariant,
   },
   gradeMilestoneType: {
     fontSize: fontSize.sm,
@@ -427,27 +427,27 @@ export const sharedStyles = StyleSheet.create({
   gradeProjectTitle: {
     fontSize: fontSize.base,
     fontWeight: fontWeight.semi,
-    color: palette.textPrimary,
+    color: ap.onSurface,
     marginBottom: spacing.xs,
   },
   gradeStudents: {
     fontSize: fontSize.sm,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
     marginBottom: spacing.xs,
   },
   gradeDate: {
     fontSize: fontSize.sm,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
     marginBottom: spacing.xs,
   },
   filesNote: {
     fontSize: fontSize.sm,
-    color: palette.textBlue,
+    color: ap.onSurfaceVariant,
     marginBottom: spacing.sm,
   },
   submissionNote: {
     fontSize: fontSize.sm,
-    color: palette.textBody,
+    color: ap.onSurfaceVariant,
     fontStyle: 'italic',
     marginBottom: spacing.sm,
   },
@@ -458,7 +458,7 @@ export const sharedStyles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   gradeBtnText: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
     fontWeight: fontWeight.bold,
     fontSize: fontSize.sm,
   },
@@ -466,7 +466,7 @@ export const sharedStyles = StyleSheet.create({
     fontSize: fontSize.display,
     fontWeight: fontWeight.heavy,
     height: 70,
-    color: palette.primary,
+    color: ap.primary,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -478,43 +478,43 @@ export const sharedStyles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: radius.sm,
     alignItems: 'center',
-    backgroundColor: palette.bgWhite,
+    backgroundColor: ap.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: palette.borderLight,
+    borderColor: ap.outlineVariant,
   },
   toggleBtnActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: ap.primary,
+    borderColor: ap.primary,
   },
   toggleText: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semi,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
   },
   toggleTextActive: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
   },
   gradeContext: {
-    backgroundColor: palette.bgBlueTint,
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: radius.lg,
     padding: spacing.lg,
     marginBottom: spacing.lg,
     borderLeftWidth: 3,
-    borderLeftColor: palette.primary,
+    borderLeftColor: ap.primary,
   },
   gradeContextTitle: {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.heavy,
-    color: palette.textPrimary,
+    color: ap.onSurface,
     marginBottom: spacing.xs,
   },
   gradeContextSub: {
     fontSize: fontSize.sm,
-    color: palette.textBlue,
+    color: ap.onSurfaceVariant,
     marginBottom: spacing.xs,
   },
   submitBtn: {
-    backgroundColor: palette.primary,
+    backgroundColor: ap.primary,
     borderRadius: radius.xxl,
     paddingVertical: spacing.lg,
     alignItems: 'center',
@@ -522,13 +522,13 @@ export const sharedStyles = StyleSheet.create({
     ...shadows.blueLg,
   },
   submitBtnText: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
     fontSize: fontSize.base,
     fontWeight: fontWeight.bold,
   },
   toggleBtnDisabled: {
-    backgroundColor: '#F3F4F6',
-    borderColor: palette.borderBase,
+    backgroundColor: ap.surfaceContainer,
+    borderColor: ap.outlineVariant,
     opacity: 0.4,
   },
   actionRow: {
@@ -543,22 +543,22 @@ export const sharedStyles = StyleSheet.create({
     alignItems: 'center',
   },
   editBtn: {
-    backgroundColor: palette.primaryDark,
+    backgroundColor: ap.primary,
   },
   deleteBtn: {
     backgroundColor: palette.dangerDark,
   },
   actionBtnText: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
     fontWeight: fontWeight.bold,
   },
   modalRoot: {
     flex: 1,
-    backgroundColor: palette.bgAlt,
+    backgroundColor: ap.surface,
   },
   close: {
     fontSize: 24,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
   },
   facultyDot: {
     width: 10,
@@ -567,22 +567,28 @@ export const sharedStyles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   facultyOption: {
-    backgroundColor: palette.bgWhite,
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: radius.xl,
     padding: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: spacing.md,
   },
+  // NOTE: intentionally left on palette.dangerBg rather than migrated to an
+  // `ap` token — this is a "selected" state highlight for the faculty
+  // picker, not a status/semantic color, but it's borrowed danger-red
+  // styling of unclear original intent and dead code (facultyOption/
+  // facultyOptionActive aren't referenced by any of dashboard.tsx/
+  // records.tsx/records/[projectId].tsx today). Flagged rather than guessed.
   facultyOptionActive: {
     backgroundColor: palette.dangerBg,
   },
   editBtnText: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
     fontWeight: fontWeight.bold,
   },
   tag: {
-    backgroundColor: palette.bgMain,
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -590,7 +596,7 @@ export const sharedStyles = StyleSheet.create({
   tagText: {
     fontSize: fontSize.xs,
     fontWeight: fontWeight.medium,
-    color: palette.primary,
+    color: ap.primary,
   },
   badge: {
     backgroundColor: palette.notifRed,
@@ -602,7 +608,7 @@ export const sharedStyles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   badgeText: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
     fontSize: fontSize.badge,
     fontWeight: fontWeight.heavy,
   },
@@ -610,58 +616,58 @@ export const sharedStyles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: radius.full,
-    backgroundColor: palette.primary,
+    backgroundColor: ap.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    color: palette.bgWhite,
+    color: ap.onPrimary,
     fontWeight: fontWeight.bold,
     fontSize: fontSize.xl,
   },
   statusBadge: {
-    backgroundColor: palette.bgSubtle,
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderWidth: 1,
-    borderColor: palette.borderLight,
+    borderColor: ap.outlineVariant,
   },
   statusText: {
     fontSize: fontSize.xs,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
     fontWeight: fontWeight.semi,
   },
   smallText: {
     fontSize: fontSize.sm,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
   },
   bodyText: {
     fontSize: fontSize.base,
-    color: palette.textBody,
+    color: ap.onSurfaceVariant,
   },
   heading: {
     fontSize: fontSize.h3,
     fontWeight: fontWeight.heavy,
-    color: palette.textPrimary,
+    color: ap.onSurface,
   },
   subheading: {
     fontSize: fontSize.xl,
     fontWeight: fontWeight.heavy,
-    color: palette.textPrimary,
+    color: ap.onSurface,
   },
   uploadBtn: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
-    borderColor: '#D0DEFF',
+    borderColor: ap.outlineVariant,
     borderStyle: 'dashed',
     alignItems: 'center',
     marginBottom: 4,
   },
   uploadBtnDone: { borderColor: '#4CAF50', borderStyle: 'solid', backgroundColor: '#F1FFF3' },
-  uploadBtnText: { fontSize: 14, color: '#5577AA', fontWeight: '500' },
+  uploadBtnText: { fontSize: 14, color: ap.onSurfaceVariant, fontWeight: '500' },
 
   // ── Deadline Row Styles ────────────────────────────────────────────────────
   deadlineRow: {
@@ -674,12 +680,12 @@ export const sharedStyles = StyleSheet.create({
   label: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semi,
-    color: palette.textSecondary,
+    color: ap.onSurfaceVariant,
   },
   value: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: palette.textPrimary,
+    color: ap.onSurface,
   },
   daysLeft: {
     fontSize: fontSize.base,
@@ -691,7 +697,7 @@ export const sharedStyles = StyleSheet.create({
 export const studentHomeStyles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F0F4FF',
+    backgroundColor: ap.surface,
   },
   rtl: {
     direction: 'rtl',
@@ -700,11 +706,11 @@ export const studentHomeStyles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F0F4FF',
+    backgroundColor: ap.surface,
   },
   loadingText: {
     marginTop: 12,
-    color: '#666',
+    color: ap.onSurfaceVariant,
     fontSize: 15,
   },
   row: {
@@ -719,15 +725,25 @@ export const studentHomeStyles = StyleSheet.create({
     textAlign: 'right',
   },
 
+  // NOTE: topBar/avatar/avatarText/welcomeText/roleTag/langToggle/langText/
+  // bellBtn/bellIcon/badge/badgeText/signOutBtn/signOutText below are dead
+  // code — verified via grep, nothing references studentHomeStyles.<these
+  // keys> anywhere; the real top bar is components/shared.tsx's <TopBar>,
+  // which every screen using studentHomeStyles renders instead. Migrated the
+  // plain chrome (surfaces/borders/neutral text) for consistency, but left
+  // avatar/roleTag/langText on '#2E86FF' — that's ROLE_ACCENT.student.text
+  // (components/shared.tsx), which the live TopBar itself paints its avatar
+  // background and role-badge text with, so this mirrors intentional
+  // per-role branding rather than ad hoc chrome.
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: ap.surfaceContainerLowest,
     borderBottomWidth: 1,
-    borderBottomColor: '#E8EDF5',
+    borderBottomColor: ap.outlineVariant,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -739,12 +755,12 @@ export const studentHomeStyles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#2E86FF',
+    backgroundColor: '#2E86FF', // ROLE_ACCENT.student.text — see note above
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    color: '#fff',
+    color: ap.onPrimary,
     fontWeight: '700',
     fontSize: 16,
   },
@@ -752,28 +768,28 @@ export const studentHomeStyles = StyleSheet.create({
   welcomeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111',
+    color: ap.onSurface,
   },
   roleTag: {
     fontSize: 11,
-    color: '#2E86FF',
+    color: '#2E86FF', // ROLE_ACCENT.student.text — see note above
     fontWeight: '500',
     marginTop: 1,
   },
 
   langToggle: {
-    backgroundColor: '#F0F4FF',
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#D0DEFF',
+    borderColor: ap.outlineVariant,
   },
   langText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2E86FF',
+    color: '#2E86FF', // ROLE_ACCENT.student.text — see note above
   },
 
   bellBtn: {
@@ -817,12 +833,15 @@ export const studentHomeStyles = StyleSheet.create({
 });
 
 export const coordinatorHomeStyles = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#F5F0FF' },
+  root:        { flex: 1, backgroundColor: ap.surface },
   centered:    { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content:     { padding: 16 },
   textRight:   { textAlign: 'right' },
+  // Purple ('#E8E0FF') tab-bar divider left as-is — part of the same
+  // intentional coordinator-purple design language as tabActive/badge/etc.
+  // below (palette.coordinatorPurple / borderPurple), not plain gray chrome.
   tabBar: {
-    flexDirection: 'row', backgroundColor: '#fff',
+    flexDirection: 'row', backgroundColor: ap.surfaceContainerLowest,
     borderBottomWidth: 1, borderBottomColor: '#E8E0FF',
     gap: 8,
   },
@@ -839,7 +858,7 @@ export const coordinatorHomeStyles = StyleSheet.create({
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   tabActive:      { borderBottomColor: '#8B5CF6' },
-  tabText:        { fontSize: 13, fontWeight: '600', color: '#9CA3AF', textAlign: 'center' },
+  tabText:        { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, textAlign: 'center' },
   tabTextActive:  { color: '#8B5CF6' },
   // Stacked below the label (not inline beside it) — with 5 tabs sharing the
   // screen width, a badge competing for row space with a long label (e.g.
@@ -854,21 +873,21 @@ export const coordinatorHomeStyles = StyleSheet.create({
 
   sortRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   sortChip: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 8,
+    flex: 1, backgroundColor: ap.surfaceContainerLowest, borderRadius: 10, paddingVertical: 8,
     alignItems: 'center', borderWidth: 1, borderColor: '#E0E7FF',
   },
   sortChipActive: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
-  sortChipText: { fontSize: 12, fontWeight: '700', color: '#6B7280' },
+  sortChipText: { fontSize: 12, fontWeight: '700', color: ap.onSurfaceVariant },
   sortChipTextActive: { color: '#fff' },
 
   card: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: 16, padding: 16,
     marginBottom: 12, borderWidth: 1, borderColor: '#EDE9FE',
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   milestoneType: { fontSize: 12, fontWeight: '800', color: '#8B5CF6' },
-  cardTitle:  { fontSize: 15, fontWeight: '700', color: '#111', marginBottom: 6 },
-  cardMeta:   { fontSize: 12, color: '#6B7280', marginBottom: 4 },
+  cardTitle:  { fontSize: 15, fontWeight: '700', color: ap.onSurface, marginBottom: 6 },
+  cardMeta:   { fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 4 },
 
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   approveBtn: {
@@ -895,20 +914,20 @@ export const coordinatorHomeStyles = StyleSheet.create({
 
   empty:      { alignItems: 'center', paddingTop: 60 },
   emptyEmoji: { fontSize: 44, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: '#9CA3AF' },
+  emptyText:  { fontSize: 15, color: ap.onSurfaceVariant },
 
   overlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center', alignItems: 'center',
   },
   dialog: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 24,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: 20, padding: 24,
     width: '80%',
   },
   dialogTitle: { fontSize: 17, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
   dialogBtns:  { flexDirection: 'row', gap: 12 },
   dialogCancel: {
-    flex: 1, backgroundColor: '#F3F4F6', borderRadius: 12,
+    flex: 1, backgroundColor: ap.surfaceContainer, borderRadius: 12,
     paddingVertical: 12, alignItems: 'center',
   },
   dialogConfirm: {
@@ -916,31 +935,34 @@ export const coordinatorHomeStyles = StyleSheet.create({
     paddingVertical: 12, alignItems: 'center',
   },
 
-  modal:        { flex: 1, backgroundColor: '#F5F0FF' },
+  modal:        { flex: 1, backgroundColor: ap.surface },
   modalContent: { padding: 20, paddingBottom: 60 },
   modalHeader: {
     marginBottom: 10,
     alignItems: I18nManager.isRTL ? 'flex-end' : 'flex-start',
   },
 
+  // Same "← Back" pattern as coordinator/records.tsx, which already
+  // migrated its own back-link color to ap.primary — mirrored here for
+  // consistency within the role (this one wasn't touched by that pass).
   backButton: {
     fontSize: 16,
-    color: '#2563eb',
+    color: ap.primary,
     fontWeight: '600',
   },
-  modalTitle:   { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 20 },
-  fieldLabel:   { fontSize: 13, fontWeight: '700', color: '#374151', marginTop: 16, marginBottom: 8 },
+  modalTitle:   { fontSize: 20, fontWeight: '900', color: ap.onSurface, marginBottom: 20 },
+  fieldLabel:   { fontSize: 13, fontWeight: '700', color: ap.onSurfaceVariant, marginTop: 16, marginBottom: 8 },
 
   examinerOption: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, padding: 14,
     marginBottom: 8, borderWidth: 1, borderColor: '#E0E7FF',
   },
   examinerOptionActive: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
-  examinerOptionText:   { fontSize: 13, fontWeight: '600', color: '#374151' },
+  examinerOptionText:   { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant },
 
-  weightLabel: { fontSize: 12, color: '#6B7280', marginTop: 10, marginBottom: 4 },
+  weightLabel: { fontSize: 12, color: ap.onSurfaceVariant, marginTop: 10, marginBottom: 4 },
   weightInput: {
-    backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 14,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: 10, paddingHorizontal: 14,
     height: 48, fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#E0E7FF',
   },
   weightSum: {
@@ -948,7 +970,7 @@ export const coordinatorHomeStyles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, paddingHorizontal: 14,
     height: 52, fontSize: 14, borderWidth: 1, borderColor: '#E0E7FF', marginTop: 4,
   },
 
@@ -973,7 +995,7 @@ export const coordinatorHomeStyles = StyleSheet.create({
     },
 
   expandedBox: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: 14,
     padding: 12,
     },
@@ -981,22 +1003,22 @@ export const coordinatorHomeStyles = StyleSheet.create({
   expandedTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1E293B',
+    color: ap.onSurface,
     marginBottom: 6,
     },
 
   expandedText: {
     fontSize: 14,
-    color: '#475569',
+    color: ap.onSurfaceVariant,
     lineHeight: 20,
     },
 
   fileBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f4f3fa',
+    backgroundColor: ap.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: '#c5c5d3',
+    borderColor: ap.outlineVariant,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -1005,7 +1027,7 @@ export const coordinatorHomeStyles = StyleSheet.create({
     },
 
   fileBtnText: {
-    color: '#00236f',
+    color: ap.primary,
     fontWeight: '600',
     fontSize: 12,
     },
@@ -1015,20 +1037,20 @@ export const coordinatorHomeStyles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F4FF',
+    borderBottomColor: ap.surfaceContainer,
   },
 
   // ── Deadline Styles ────────────────────────────────────────────────────────
   deadlineLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#6B7280',
+    color: ap.onSurfaceVariant,
     marginBottom: 4,
   },
   deadlineValue: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#111827',
+    color: ap.onSurface,
   },
   deadlineDaysLeft: {
     fontSize: 18,
@@ -1039,7 +1061,7 @@ export const coordinatorHomeStyles = StyleSheet.create({
 export const adminPanelStyles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F3F6FF',
+    backgroundColor: ap.surface,
   },
 
   loader: {
@@ -1052,24 +1074,24 @@ export const adminPanelStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 18,
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
   },
 
   heroTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#111827',
+    color: ap.onSurface,
   },
 
   heroSub: {
     marginTop: 6,
     fontSize: 13,
-    color: '#6B7280',
+    color: ap.onSurfaceVariant,
   },
 
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     paddingHorizontal: 10,
     paddingVertical: 10,
     gap: 8,
@@ -1081,7 +1103,7 @@ export const adminPanelStyles = StyleSheet.create({
   tab: {
     width: 110,
     height: 46,
-    backgroundColor: '#F1F5FF',
+    backgroundColor: ap.surfaceContainer,
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 14,
@@ -1090,16 +1112,20 @@ export const adminPanelStyles = StyleSheet.create({
     overflow: 'hidden',
   },
 
+  // Active-tab red kept as the admin role-brand accent (palette.adminRed),
+  // same treatment prior passes gave coordinatorPurple/examinerGreen — not
+  // migrated to `ap`.
   tabActive: {
     backgroundColor: '#EF4444',
   },
 
   tabText: {
-    color: '#64748B',
+    color: ap.onSurfaceVariant,
     fontWeight: '700',
     fontSize: 13,
   },
 
+  // Paired with the brand-red tabActive background above, not plain chrome.
   tabTextActive: {
     color: '#fff',
   },
@@ -1126,7 +1152,7 @@ export const adminPanelStyles = StyleSheet.create({
   },
 
   sectionCard: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 20,
     padding: 16,
     marginTop: 18,
@@ -1135,7 +1161,7 @@ export const adminPanelStyles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#111827',
+    color: ap.onSurface,
     marginBottom: 16,
   },
 
@@ -1155,14 +1181,14 @@ export const adminPanelStyles = StyleSheet.create({
   facultyText: {
     width: 90,
     fontWeight: '700',
-    color: '#111827',
+    color: ap.onSurface,
     fontSize: 12,
   },
 
   facultyBar: {
     flex: 1,
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: ap.surfaceVariant,
     borderRadius: 20,
     overflow: 'hidden',
   },
@@ -1176,11 +1202,11 @@ export const adminPanelStyles = StyleSheet.create({
     width: 40,
     textAlign: 'right',
     fontWeight: '800',
-    color: '#111827',
+    color: ap.onSurface,
   },
 
   searchBox: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 16,
     paddingHorizontal: 16,
     marginHorizontal: 16,
@@ -1207,11 +1233,12 @@ export const adminPanelStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: ap.outlineVariant,
   },
 
+  // Active-filter red kept as the admin role-brand accent, not migrated.
   userFilterChipActive: {
     backgroundColor: '#EF4444',
     borderColor: '#EF4444',
@@ -1220,9 +1247,10 @@ export const adminPanelStyles = StyleSheet.create({
   userFilterChipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
+    color: ap.onSurfaceVariant,
   },
 
+  // Paired with the brand-red userFilterChipActive background above.
   userFilterChipTextActive: {
     color: '#fff',
   },
@@ -1230,12 +1258,12 @@ export const adminPanelStyles = StyleSheet.create({
   userFilterDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: ap.outlineVariant,
     marginHorizontal: 2,
   },
 
   userCard: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 20,
     padding: 16,
     marginBottom: 14,
@@ -1264,12 +1292,12 @@ export const adminPanelStyles = StyleSheet.create({
   userName: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#111827',
+    color: ap.onSurface,
   },
 
   userEmail: {
     marginTop: 2,
-    color: '#64748B',
+    color: ap.onSurfaceVariant,
     fontSize: 12,
   },
 
@@ -1281,18 +1309,19 @@ export const adminPanelStyles = StyleSheet.create({
   },
 
   roleBadge: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: ap.surfaceContainerLow,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
   },
 
   roleBadgeText: {
-    color: '#2563EB',
+    color: ap.primary,
     fontWeight: '700',
     fontSize: 12,
   },
 
+  // Red kept as the admin role-brand accent, not migrated.
   editBtn: {
     backgroundColor: '#EF4444',
     paddingHorizontal: 16,
@@ -1306,7 +1335,7 @@ export const adminPanelStyles = StyleSheet.create({
   },
 
   projectCard: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 20,
     padding: 16,
     marginBottom: 14,
@@ -1327,18 +1356,20 @@ export const adminPanelStyles = StyleSheet.create({
   projectTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#111827',
+    color: ap.onSurface,
     marginBottom: 8,
   },
 
   projectMeta: {
-    color: '#64748B',
+    color: ap.onSurfaceVariant,
     fontSize: 12,
     marginBottom: 4,
   },
 
+  // bg migrated to chrome; borderLeftColor/milestoneType stay the semantic
+  // warning amber (palette.warning), untouched.
   milestoneCard: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 20,
     padding: 16,
     marginBottom: 14,
@@ -1354,7 +1385,7 @@ export const adminPanelStyles = StyleSheet.create({
 
   modalRoot: {
     flex: 1,
-    backgroundColor: '#F3F6FF',
+    backgroundColor: ap.surface,
   },
 
   modalContent: {
@@ -1372,35 +1403,36 @@ export const adminPanelStyles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: '900',
-    color: '#111827',
+    color: ap.onSurface,
   },
 
   close: {
     fontSize: 24,
-    color: '#64748B',
+    color: ap.onSurfaceVariant,
   },
 
   fieldLabel: {
     marginTop: 16,
     marginBottom: 8,
     fontWeight: '700',
-    color: '#111827',
+    color: ap.onSurface,
   },
 
   roleOption: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 10,
   },
 
+  // Red kept as the admin role-brand accent, not migrated.
   roleOptionActive: {
     backgroundColor: '#EF4444',
   },
 
   roleOptionText: {
-    color: '#111827',
+    color: ap.onSurface,
     fontWeight: '700',
   },
 
@@ -1409,17 +1441,20 @@ export const adminPanelStyles = StyleSheet.create({
   },
 
   facultyOption: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 14,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
   },
+  // Red kept as the admin role-brand accent, not migrated.
   facultyOptionActive: {
     backgroundColor: '#EF4444',
   },
 
+  // Red kept as the admin role-brand accent (mirrors buttonStyles.submitRed
+  // in theme.ts), not migrated.
   submitBtn: {
     marginTop: 20,
     backgroundColor: '#EF4444',
@@ -1435,7 +1470,7 @@ export const adminPanelStyles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 54,
@@ -1460,29 +1495,29 @@ export const adminPanelStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  modal:        { flex: 1, backgroundColor: '#F0F4FF' },
-  modalClose:   { fontSize: 22, color: '#888', padding: 4 },
+  modal:        { flex: 1, backgroundColor: ap.surface },
+  modalClose:   { fontSize: 22, color: ap.outline, padding: 4 },
   textarea:    { textAlignVertical: 'top', minHeight: 90 },
   toggleRow:   { flexDirection: 'row', gap: 8, marginBottom: 4 },
   rowReverse:  { flexDirection: 'row-reverse' },
   toggleBtn: {
     flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0E8FF',
+    backgroundColor: ap.surfaceContainerLowest, borderWidth: 1, borderColor: ap.outlineVariant,
   },
-  toggleBtnActive:  { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  toggleText:       { fontSize: 13, fontWeight: '600', color: '#8899BB' },
-  toggleTextActive: { color: '#fff' },
+  toggleBtnActive:  { backgroundColor: ap.primary, borderColor: ap.primary },
+  toggleText:       { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant },
+  toggleTextActive: { color: ap.onPrimary },
   addStudentBtn: {
     marginTop: 10,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: ap.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: ap.outlineVariant,
     paddingVertical: 10,
     borderRadius: 12,
     alignItems: 'center',
   },
   addStudentBtnText: {
-    color: '#2563EB',
+    color: ap.primary,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -1493,29 +1528,29 @@ export const adminPanelStyles = StyleSheet.create({
     padding: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: ap.outlineVariant,
   },
   addStudentTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#111827',
+    color: ap.onSurface,
   },
   addStudentSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: ap.onSurfaceVariant,
     marginTop: 4,
     maxWidth: 260,
   },
   addStudentSearchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     marginHorizontal: 16,
     marginVertical: 12,
     borderRadius: 14,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#E0E8FF',
+    borderColor: ap.outlineVariant,
     height: 52,
   },
   addStudentSearchIcon: {
@@ -1525,31 +1560,31 @@ export const adminPanelStyles = StyleSheet.create({
   addStudentSearchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#111',
+    color: ap.onSurface,
   },
   studentPickerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: ap.outlineVariant,
   },
   studentPickerName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111827',
+    color: ap.onSurface,
   },
   studentPickerEmail: {
     fontSize: 12,
-    color: '#6B7280',
+    color: ap.onSurfaceVariant,
     marginTop: 2,
   },
   studentPickerArrow: {
     fontSize: 22,
-    color: '#D1D5DB',
+    color: ap.outlineVariant,
     fontWeight: '300',
   },
   facultyGrid: {
@@ -1561,12 +1596,12 @@ export const adminPanelStyles = StyleSheet.create({
   facultyPickerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#E0E8FF',
+    borderColor: ap.outlineVariant,
     marginBottom: 4,
   },
   facultyPickerDot: {
@@ -1578,22 +1613,23 @@ export const adminPanelStyles = StyleSheet.create({
   facultyPickerText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: ap.onSurfaceVariant,
   },
   supOption: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: ap.surfaceContainer,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: ap.outlineVariant,
     minWidth: 100,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Selected-state border kept red (admin role-brand accent), not migrated.
   supOptionActive: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderColor: '#ff4444',
     borderWidth: 2,
     elevation: 3,
@@ -1603,54 +1639,54 @@ export const adminPanelStyles = StyleSheet.create({
     shadowRadius: 2,
   },
   userPreview: {
-    backgroundColor: '#F8FAFF',
+    backgroundColor: ap.surfaceContainerLow,
     borderRadius: 14,
     padding: 14,
     marginTop: 16,
     borderWidth: 1,
-    borderColor: '#E0E8FF',
+    borderColor: ap.outlineVariant,
   },
   userPreviewTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#9BA8C0',
+    color: ap.outline,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   userPreviewRow: {
     fontSize: 13,
-    color: '#374151',
+    color: ap.onSurfaceVariant,
     marginBottom: 4,
     fontWeight: '500',
   },
   sectionDivider: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#6B7280',
+    color: ap.onSurfaceVariant,
     marginTop: 24,
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   toggleBtnDisabled: {
-    backgroundColor: '#F3F4F6',
-    borderColor:     '#E5E7EB',
+    backgroundColor: ap.surfaceVariant,
+    borderColor:     ap.outlineVariant,
     opacity:         0.4,
   },
   toggleTextDisabled: {
-    color: '#9CA3AF',
+    color: ap.outline,
   },
   majorOption: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius:    12,
     padding:         14,
     borderWidth:     1,
-    borderColor:     '#E0E8FF',
+    borderColor:     ap.outlineVariant,
   },
   majorOptionActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor:     '#2563EB',
+    backgroundColor: ap.secondaryContainer,
+    borderColor:     ap.primary,
     borderWidth:     1.5,
   },
   majorOptionInner: {
@@ -1661,26 +1697,26 @@ export const adminPanelStyles = StyleSheet.create({
   majorOptionText: {
     fontSize:   14,
     fontWeight: '600',
-    color:      '#374151',
+    color:      ap.onSurfaceVariant,
   },
   majorOptionTextActive: {
-    color: '#2563EB',
+    color: ap.primary,
   },
   majorOptionSub: {
     fontSize:   11,
-    color:      '#9BA8C0',
+    color:      ap.outline,
     marginTop:  3,
   },
   majorOptionSubActive: {
-    color: '#93C5FD',
+    color: ap.onSecondaryContainer,
   },
   majorCheckmark: {
-    color:      '#2563EB',
+    color:      ap.primary,
     fontWeight: '800',
     fontSize:   16,
   },
   projectMilestoneCard: {
-    backgroundColor: '#fff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 24,
     padding: 18,
     marginBottom: 18,
@@ -1694,7 +1730,7 @@ export const adminPanelStyles = StyleSheet.create({
     },
 
     milestoneCounter: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: ap.surfaceContainerLow,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
@@ -1702,7 +1738,7 @@ export const adminPanelStyles = StyleSheet.create({
 
     milestoneCounterText: {
     fontWeight: '700',
-    color: '#4338CA',
+    color: ap.primary,
     },
 
     milestoneStatsRow: {
@@ -1714,7 +1750,7 @@ export const adminPanelStyles = StyleSheet.create({
     milestoneStatBox: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: ap.surfaceContainerLow,
     marginHorizontal: 4,
     paddingVertical: 12,
     borderRadius: 16,
@@ -1733,7 +1769,7 @@ export const adminPanelStyles = StyleSheet.create({
     openProjectText: {
     marginTop: 16,
     textAlign: 'center',
-    color: '#64748B',
+    color: ap.onSurfaceVariant,
     fontWeight: '600',
     },
 });
@@ -2367,7 +2403,7 @@ export const ProjectPageStyles = StyleSheet.create({
   },
   desc: {
     marginTop: 6,
-    color: '#555',
+    color: ap.onSurfaceVariant,
   },
   sectionTitle: {
     fontSize: 18,
@@ -2377,7 +2413,7 @@ export const ProjectPageStyles = StyleSheet.create({
   card: {
     padding: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: ap.outlineVariant,
     borderRadius: 10,
     marginBottom: 12,
   },
@@ -2386,7 +2422,7 @@ export const ProjectPageStyles = StyleSheet.create({
     fontSize: 16,
   },
   mDesc: {
-    color: '#555',
+    color: ap.onSurfaceVariant,
     marginTop: 4,
   },
   deadline: {
@@ -2402,7 +2438,7 @@ export const ProjectPageStyles = StyleSheet.create({
   input: {
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: ap.outlineVariant,
     borderRadius: 8,
     padding: 10,
     minHeight: 60,
@@ -2410,13 +2446,13 @@ export const ProjectPageStyles = StyleSheet.create({
   },
   button: {
     marginTop: 10,
-    backgroundColor: '#2E86FF',
+    backgroundColor: ap.primary,
     padding: 10,
     borderRadius: 8,
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: ap.onPrimary,
     fontWeight: '600',
   },
 });
@@ -3238,55 +3274,55 @@ export const GradeBreakdownStyles = StyleSheet.create({
 // ─── Remaining role dashboard styles ──────────────────────────────────────────
 
 export const FacultyAdminDashboardStyles = StyleSheet.create({
-  tabBar: { padding: 10, backgroundColor: '#F3F4F6' },
+  tabBar: { padding: 10, backgroundColor: ap.surfaceContainer },
   tabLabel: { fontSize: 16, fontWeight: '600' },
   deadlineRow: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderLeftWidth: 4,
     borderLeftColor: '#F59E0B',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: ap.outlineVariant,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
   },
-  studentName: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  label: { fontSize: 13, fontWeight: '600', color: '#6B7280', marginBottom: 4 },
-  value: { fontSize: 13, fontWeight: '500', color: '#111827' },
-  small: { fontSize: 13, color: '#666', marginTop: 2 },
+  studentName: { fontSize: 16, fontWeight: '700', color: ap.onSurface },
+  label: { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 4 },
+  value: { fontSize: 13, fontWeight: '500', color: ap.onSurface },
+  small: { fontSize: 13, color: ap.onSurfaceVariant, marginTop: 2 },
   daysLeft: { fontSize: 18, fontWeight: '700' },
 });
 
 export const AdministrativeCoordinatorDashboardStyles = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: '#FFFBEB' },
+  root:     { flex: 1, backgroundColor: ap.surface },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scroll:   { padding: 16 },
 
   statsStrip: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10,
-                backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+                backgroundColor: ap.surfaceContainerLowest, borderBottomWidth: 1, borderBottomColor: ap.outlineVariant },
   statCard:   { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
   statValue:  { fontSize: 22, fontWeight: '800' },
-  statLabel:  { fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 2 },
+  statLabel:  { fontSize: 10, color: ap.onSurfaceVariant, textAlign: 'center', marginTop: 2 },
 
-  searchInput: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1.5,
-                 borderColor: '#E2E8F0', padding: 12, fontSize: 14, color: '#1E293B', marginBottom: 10 },
+  searchInput: { backgroundColor: ap.surfaceContainerLowest, borderRadius: 10, borderWidth: 1.5,
+                 borderColor: ap.outlineVariant, padding: 12, fontSize: 14, color: ap.onSurface, marginBottom: 10 },
   filterRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   filterChip:  { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-                 backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
-  filterChipText: { fontSize: 12, color: '#475569', fontWeight: '600' },
+                 backgroundColor: ap.surfaceContainer, borderWidth: 1, borderColor: ap.outlineVariant },
+  filterChipText: { fontSize: 12, color: ap.onSurfaceVariant, fontWeight: '600' },
 
-  card:          { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 14,
+  card:          { backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, padding: 14, marginBottom: 14,
                    borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.05,
                    shadowRadius: 6, elevation: 2 },
   cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between',
                    alignItems: 'flex-start', marginBottom: 6, gap: 8 },
-  cardTitle:     { fontSize: 15, fontWeight: '700', color: '#1E293B', flex: 1 },
-  cardSub:       { fontSize: 13, color: '#64748B', marginBottom: 3 },
+  cardTitle:     { fontSize: 15, fontWeight: '700', color: ap.onSurface, flex: 1 },
+  cardSub:       { fontSize: 13, color: ap.onSurfaceVariant, marginBottom: 3 },
   overduePill:   { backgroundColor: '#FEE2E2', borderRadius: 8,
                    paddingHorizontal: 7, paddingVertical: 3 },
   overduePillText:{ color: '#991B1B', fontSize: 11, fontWeight: '700' },
@@ -3294,11 +3330,11 @@ export const AdministrativeCoordinatorDashboardStyles = StyleSheet.create({
   metaRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 6 },
   trackPill:     { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   trackPillText: { fontSize: 11, fontWeight: '600' },
-  milestoneText: { fontSize: 12, color: '#64748B' },
+  milestoneText: { fontSize: 12, color: ap.onSurfaceVariant },
 
   defensePill:     { backgroundColor: '#EFF6FF', borderRadius: 8, padding: 8, marginBottom: 6 },
   defensePillText: { color: '#1D4ED8', fontSize: 12, fontWeight: '600' },
-  noDefenseText:   { fontSize: 12, color: '#94A3B8', marginBottom: 6 },
+  noDefenseText:   { fontSize: 12, color: ap.outline, marginBottom: 6 },
 
   actionRow:     { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' },
   actionBtn:     { flex: 1, borderRadius: 8, padding: 9, alignItems: 'center', minWidth: 90 },
@@ -3306,63 +3342,63 @@ export const AdministrativeCoordinatorDashboardStyles = StyleSheet.create({
 
   empty:      { alignItems: 'center', paddingVertical: 48 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: '#64748B' },
+  emptyText:  { fontSize: 15, color: ap.onSurfaceVariant },
 
   // ── Grade Overrides tab (three-rubric final-grade workflow) ─────────────
   overrideSplit:      { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 8 },
-  overrideBox:        { flex: 1, borderRadius: 8, backgroundColor: '#F1F5F9', padding: 8, alignItems: 'center' },
+  overrideBox:        { flex: 1, borderRadius: 8, backgroundColor: ap.surfaceContainer, padding: 8, alignItems: 'center' },
   overrideBoxProposed:{ backgroundColor: '#FEF3C7' },
-  overrideLabel:      { fontSize: 10, color: '#64748B' },
-  overrideValue:      { fontSize: 18, fontWeight: '800', color: '#1E293B', marginTop: 2 },
-  overrideBreakdownValue: { fontSize: 13, fontWeight: '700', color: '#1E293B', marginTop: 2 },
-  overrideReason:     { fontSize: 12, color: '#1E293B', backgroundColor: '#F8FAFC', borderRadius: 8, padding: 8, marginBottom: 8 },
+  overrideLabel:      { fontSize: 10, color: ap.onSurfaceVariant },
+  overrideValue:      { fontSize: 18, fontWeight: '800', color: ap.onSurface, marginTop: 2 },
+  overrideBreakdownValue: { fontSize: 13, fontWeight: '700', color: ap.onSurface, marginTop: 2 },
+  overrideReason:     { fontSize: 12, color: ap.onSurface, backgroundColor: ap.surfaceContainerLow, borderRadius: 8, padding: 8, marginBottom: 8 },
   overrideActionRow:  { flexDirection: 'row', gap: 8 },
-  btnApproveOverride:     { flex: 1, backgroundColor: '#7C3AED', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-  btnApproveOverrideText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  btnKeepAuto:            { flex: 1, borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-  btnKeepAutoText:        { color: '#1E293B', fontSize: 12, fontWeight: '600' },
+  btnApproveOverride:     { flex: 1, backgroundColor: ap.primary, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  btnApproveOverrideText: { color: ap.onPrimary, fontSize: 12, fontWeight: '700' },
+  btnKeepAuto:            { flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  btnKeepAutoText:        { color: ap.onSurface, fontSize: 12, fontWeight: '600' },
 });
 
 export const AdministrativeCoordinatorModalStyles = StyleSheet.create({
-  modal:        { flex: 1, backgroundColor: '#F8FAFC' },
+  modal:        { flex: 1, backgroundColor: ap.surface },
   modalContent: { padding: 20, paddingBottom: 60 },
-  modalTitle:   { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 16 },
-  contextCard:  { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 12, marginBottom: 16 },
-  contextTitle: { fontSize: 14, fontWeight: '700', color: '#1E3A8A', marginBottom: 4 },
-  contextSub:   { fontSize: 13, color: '#1D4ED8' },
+  modalTitle:   { fontSize: 18, fontWeight: '800', color: ap.onSurface, marginBottom: 16 },
+  contextCard:  { backgroundColor: ap.surfaceContainerLow, borderRadius: 10, padding: 12, marginBottom: 16 },
+  contextTitle: { fontSize: 14, fontWeight: '700', color: ap.onSurface, marginBottom: 4 },
+  contextSub:   { fontSize: 13, color: ap.onSurfaceVariant },
   fieldWrap:    { marginBottom: 14 },
-  fieldLabel:   { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
-  input:        { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-                  padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff' },
+  fieldLabel:   { fontSize: 13, fontWeight: '600', color: ap.onSurface, marginBottom: 6 },
+  input:        { borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8,
+                  padding: 11, fontSize: 14, color: ap.onSurface, backgroundColor: ap.surfaceContainerLow },
   langRow:      { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  langBtn:      { flex: 1, borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-                  padding: 10, alignItems: 'center', backgroundColor: '#fff' },
-  langBtnActive:{ backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
-  langBtnText:  { fontSize: 14, fontWeight: '600', color: '#374151' },
-  langBtnTextActive: { color: '#fff' },
+  langBtn:      { flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8,
+                  padding: 10, alignItems: 'center', backgroundColor: ap.surfaceContainerLow },
+  langBtnActive:{ backgroundColor: ap.primary, borderColor: ap.primary },
+  langBtnText:  { fontSize: 14, fontWeight: '600', color: ap.onSurface },
+  langBtnTextActive: { color: ap.onPrimary },
   linkBox:      { backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, marginBottom: 14 },
   linkLabel:    { fontSize: 13, fontWeight: '700', color: '#065F46', marginBottom: 6 },
-  linkText:     { fontSize: 12, color: '#1E293B', fontFamily: 'monospace' },
-  btnSend:      { backgroundColor: '#F59E0B', borderRadius: 12, padding: 15,
+  linkText:     { fontSize: 12, color: ap.onSurface, fontFamily: 'monospace' },
+  btnSend:      { backgroundColor: ap.primary, borderRadius: 12, padding: 15,
                   alignItems: 'center', marginBottom: 10 },
-  btnSendText:  { color: '#fff', fontSize: 16, fontWeight: '700' },
+  btnSendText:  { color: ap.onPrimary, fontSize: 16, fontWeight: '700' },
   btnCancel:    { padding: 12, alignItems: 'center' },
-  btnCancelText:{ color: '#64748B', fontSize: 15 },
+  btnCancelText:{ color: ap.onSurfaceVariant, fontSize: 15 },
 });
 
 export const GradSchoolHeadDashboardStyles = StyleSheet.create({
-  root:      { flex: 1, backgroundColor: '#F5F3FF' },
+  root:      { flex: 1, backgroundColor: ap.surface },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scroll:    { padding: 16 },
 
   statsStrip:  { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10,
-                 backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+                 backgroundColor: ap.surfaceContainerLowest, borderBottomWidth: 1, borderBottomColor: ap.outlineVariant },
   statCard:    { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
   statValue:   { fontSize: 22, fontWeight: '800' },
-  statLabel:   { fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 2 },
+  statLabel:   { fontSize: 10, color: ap.onSurfaceVariant, textAlign: 'center', marginTop: 2 },
 
-  tabBar:      { flexDirection: 'row', backgroundColor: '#fff',
-                 borderBottomWidth: 1, borderBottomColor: '#E2E8F0', gap: 8 },
+  tabBar:      { flexDirection: 'row', backgroundColor: ap.surfaceContainerLowest,
+                 borderBottomWidth: 1, borderBottomColor: ap.outlineVariant, gap: 8 },
   // Fixed size (not flex:1) — matches admin/panel.tsx's tabsContainer; wrapped
   // in a horizontal ScrollView so extra tabs slide into view.
   // height fixed too — numberOfLines={1} on the label keeps long text from
@@ -3370,18 +3406,18 @@ export const GradSchoolHeadDashboardStyles = StyleSheet.create({
   tab:         { width: 110, height: 46, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', flexDirection: 'row',
                  justifyContent: 'center', gap: 4, overflow: 'hidden' },
   tabActive:   { borderBottomWidth: 2, borderBottomColor: '#7C3AED' },
-  tabText:     { fontSize: 13, color: '#64748B' },
+  tabText:     { fontSize: 13, color: ap.onSurfaceVariant },
   tabTextActive:{ fontSize: 12, color: '#7C3AED', fontWeight: '700' },
   badge:       { backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 5,
                  paddingVertical: 1 },
   badgeText:   { color: '#fff', fontSize: 10, fontWeight: '700' },
 
-  card:        { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12,
+  card:        { backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, padding: 14, marginBottom: 12,
                  borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.05,
                  shadowRadius: 6, elevation: 2 },
-  cardTitle:   { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
-  cardSub:     { fontSize: 13, color: '#64748B', marginBottom: 2 },
-  cardDate:    { fontSize: 12, color: '#94A3B8' },
+  cardTitle:   { fontSize: 15, fontWeight: '700', color: ap.onSurface, marginBottom: 4 },
+  cardSub:     { fontSize: 13, color: ap.onSurfaceVariant, marginBottom: 2 },
+  cardDate:    { fontSize: 12, color: ap.outline },
   row:         { flexDirection: 'row', justifyContent: 'space-between',
                  alignItems: 'center', marginBottom: 6 },
   typePill:    { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
@@ -3398,7 +3434,7 @@ export const GradSchoolHeadDashboardStyles = StyleSheet.create({
   statsRow:    { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 },
   miniStat:    { alignItems: 'center' },
   miniStatValue:{ fontSize: 18, fontWeight: '800' },
-  miniStatLabel:{ fontSize: 10, color: '#64748B', marginTop: 2 },
+  miniStatLabel:{ fontSize: 10, color: ap.onSurfaceVariant, marginTop: 2 },
 
   stuckBadge:     { backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 10,
                     paddingVertical: 4, alignSelf: 'flex-start', marginTop: 8 },
@@ -3406,56 +3442,61 @@ export const GradSchoolHeadDashboardStyles = StyleSheet.create({
 
   empty:     { alignItems: 'center', paddingVertical: 48 },
   emptyEmoji:{ fontSize: 48, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: '#64748B', textAlign: 'center' },
+  emptyText: { fontSize: 15, color: ap.onSurfaceVariant, textAlign: 'center' },
 });
 
 export const ProgramHeadDashboardStyles = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: '#F0F9FF' },
+  root:     { flex: 1, backgroundColor: ap.surface },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scroll:   { padding: 16 },
 
   statsStrip: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10,
-                backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+                backgroundColor: ap.surfaceContainerLowest, borderBottomWidth: 1, borderBottomColor: ap.outlineVariant },
   statCard:   { flex: 1, alignItems: 'center' },
   statValue:  { fontSize: 22, fontWeight: '800' },
-  statLabel:  { fontSize: 10, color: '#64748B', marginTop: 2 },
+  statLabel:  { fontSize: 10, color: ap.onSurfaceVariant, marginTop: 2 },
 
-  tabBar:      { flexDirection: 'row', backgroundColor: '#fff',
-                 borderBottomWidth: 1, borderBottomColor: '#E2E8F0', gap: 8 },
+  tabBar:      { flexDirection: 'row', backgroundColor: ap.surfaceContainerLowest,
+                 borderBottomWidth: 1, borderBottomColor: ap.outlineVariant, gap: 8 },
   // Fixed size (not flex:1) — matches admin/panel.tsx's tabsContainer; wrapped
   // in a horizontal ScrollView so extra tabs slide into view.
   // height fixed too — numberOfLines={1} on the label keeps long text from
   // wrapping and growing this past a single line.
   tab:         { width: 110, height: 46, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center',
                  flexDirection: 'row', justifyContent: 'center', gap: 4, overflow: 'hidden' },
-  tabText:     { fontSize: 13, color: '#64748B' },
+  tabText:     { fontSize: 13, color: ap.onSurfaceVariant },
   badge:       { borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 },
   badgeText:   { color: '#fff', fontSize: 10, fontWeight: '700' },
 
-  searchInput: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1.5,
-                 borderColor: '#E2E8F0', padding: 12, fontSize: 14,
-                 color: '#1E293B', marginBottom: 10 },
+  searchInput: { backgroundColor: ap.surfaceContainerLowest, borderRadius: 10, borderWidth: 1.5,
+                 borderColor: ap.outlineVariant, padding: 12, fontSize: 14,
+                 color: ap.onSurface, marginBottom: 10 },
   filterRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   filterChip:  { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-                 backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
-  filterChipText:{ fontSize: 12, color: '#475569', fontWeight: '600' },
+                 backgroundColor: ap.surfaceContainer, borderWidth: 1, borderColor: ap.outlineVariant },
+  filterChipText:{ fontSize: 12, color: ap.onSurfaceVariant, fontWeight: '600' },
 
-  card:        { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12,
+  card:        { backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, padding: 14, marginBottom: 12,
                  borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.05,
                  shadowRadius: 6, elevation: 2 },
-  cardTitle:   { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
-  cardSub:     { fontSize: 13, color: '#64748B', marginBottom: 2 },
-  cardDate:    { fontSize: 12, color: '#94A3B8', marginTop: 4 },
+  cardTitle:   { fontSize: 15, fontWeight: '700', color: ap.onSurface, marginBottom: 4 },
+  cardSub:     { fontSize: 13, color: ap.onSurfaceVariant, marginBottom: 2 },
+  cardDate:    { fontSize: 12, color: ap.outline, marginTop: 4 },
   row:         { flexDirection: 'row', justifyContent: 'space-between',
                  alignItems: 'center', marginTop: 4 },
 
   overduePill:     { backgroundColor: '#FEE2E2', borderRadius: 8,
                      paddingHorizontal: 8, paddingVertical: 3 },
   overduePillText: { color: '#991B1B', fontSize: 11, fontWeight: '700' },
+  // NOTE: left as-is — this blue is a plain informational "track type" tag
+  // rather than a success/danger/warning status or a role-brand color, so it
+  // was ambiguous whether it should fold into the neutral ap.* surface tokens
+  // (as the web version's equivalent chip did) or stay a distinct accent.
+  // Flagging for review rather than guessing.
   trackPill:       { backgroundColor: '#EFF6FF', borderRadius: 8,
                      paddingHorizontal: 8, paddingVertical: 3 },
   trackPillText:   { color: '#1D4ED8', fontSize: 11, fontWeight: '600' },
-  deadlineText:    { fontSize: 11, color: '#64748B' },
+  deadlineText:    { fontSize: 11, color: ap.onSurfaceVariant },
 
   actionRow:      { flexDirection: 'row', gap: 8, marginTop: 10 },
   btnApprove:     { flex: 1, backgroundColor: '#D1FAE5', borderRadius: 8,
@@ -3468,17 +3509,17 @@ export const ProgramHeadDashboardStyles = StyleSheet.create({
   statsRow:       { flexDirection: 'row', gap: 24, marginTop: 8 },
   miniStat:       { alignItems: 'center' },
   miniStatValue:  { fontSize: 20, fontWeight: '800' },
-  miniStatLabel:  { fontSize: 11, color: '#64748B', marginTop: 2 },
+  miniStatLabel:  { fontSize: 11, color: ap.onSurfaceVariant, marginTop: 2 },
 
   empty:      { alignItems: 'center', paddingVertical: 48 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: '#64748B', textAlign: 'center' },
+  emptyText:  { fontSize: 15, color: ap.onSurfaceVariant, textAlign: 'center' },
 });
 
 export const SupervisorExtraStyles = StyleSheet.create({
   wrap:  { alignItems: 'center', paddingTop: 50 },
   emoji: { fontSize: 44, marginBottom: 12 },
-  text:  { fontSize: 15, color: '#8899BB' },
+  text:  { fontSize: 15, color: ap.onSurfaceVariant },
 });
 
 // ─── Misc app + message screens ───────────────────────────────────────────────

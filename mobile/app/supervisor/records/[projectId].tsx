@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ProjectRecordTimeline } from '@/components/ProjectRecordTimeline';
 import type { Lang } from '@/components/i18n';
+import { ap } from '@/constants/theme';
 
 export default function SupervisorRecordDetailScreen() {
   const router = useRouter();
@@ -18,14 +19,14 @@ export default function SupervisorRecordDetailScreen() {
   const isRtl = lang === 'he';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F8FA' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: ap.surface }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/supervisor/records', params: { lang } } as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
           accessibilityRole="button"
         >
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#2E86FF' }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: ap.primary }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה לרשימת הפרויקטים' : 'Back to projects'}
           </Text>
         </Pressable>

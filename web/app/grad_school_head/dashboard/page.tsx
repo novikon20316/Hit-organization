@@ -311,7 +311,7 @@ function GradSchoolHeadDashboardContent() {
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
-        <p className="text-sm text-muted">{t('loading')}</p>
+        <p className="text-sm text-grad-school-head-on-surface-variant">{t('loading')}</p>
       ) : tab === 'approvals' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
@@ -320,17 +320,17 @@ function GradSchoolHeadDashboardContent() {
           {approvals.map((item) => (
             <div
               key={item.id}
-              className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4"
+              className="role-rail rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4"
               style={{ '--rail-color': URGENCY_COLOR[item.urgency] } as React.CSSProperties}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${URGENCY_COLOR[item.urgency] ?? '#8899BB'}22`, color: URGENCY_COLOR[item.urgency] ?? '#8899BB' }}>
                   {APPROVAL_TYPE_LABEL[item.type]?.[lang] ?? item.type}
                 </span>
-                {item.submittedAt && <span className="text-xs text-muted">{new Date(item.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</span>}
+                {item.submittedAt && <span className="text-xs text-grad-school-head-on-surface-variant">{new Date(item.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</span>}
               </div>
-              <p className="mt-1.5 text-sm font-semibold text-ink">{item.studentName}</p>
-              <p className="mt-0.5 text-xs text-muted">{item.title}</p>
+              <p className="mt-1.5 text-sm font-semibold text-grad-school-head-on-surface">{item.studentName}</p>
+              <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">{item.title}</p>
 
               {item.type === 'final_grade' ? (
                 <>
@@ -339,7 +339,7 @@ function GradSchoolHeadDashboardContent() {
                       value={finalGradeRejectReason}
                       onChange={(e) => setFinalGradeRejectReason(e.target.value)}
                       placeholder={lang === 'he' ? 'סיבת הדחייה' : 'Rejection reason'}
-                      className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                      className="mt-2 w-full rounded-md border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-low px-2.5 py-1.5 text-xs text-grad-school-head-on-surface"
                     />
                   )}
                   <div className="mt-3 flex gap-2">
@@ -363,7 +363,7 @@ function GradSchoolHeadDashboardContent() {
                 </>
               ) : item.type === 'examiners' ? (
                 <>
-                  <p className="mt-2 text-xs text-muted">
+                  <p className="mt-2 text-xs text-grad-school-head-on-surface-variant">
                     {lang === 'he' ? 'רשימת בוחנים לתזת מוסמכים — אושרה ע"י הרכז, ממתינה לאישורך' : 'Master\'s thesis examiner list — coordinator-approved, awaiting your sign-off'}
                   </p>
                   {examinerRejectTargetId === item.id && (
@@ -371,7 +371,7 @@ function GradSchoolHeadDashboardContent() {
                       value={examinerRejectReason}
                       onChange={(e) => setExaminerRejectReason(e.target.value)}
                       placeholder={lang === 'he' ? 'סיבת הדחייה' : 'Rejection reason'}
-                      className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                      className="mt-2 w-full rounded-md border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-low px-2.5 py-1.5 text-xs text-grad-school-head-on-surface"
                     />
                   )}
                   <div className="mt-2 flex gap-2">
@@ -400,7 +400,7 @@ function GradSchoolHeadDashboardContent() {
                       value={templateRejectReason}
                       onChange={(e) => setTemplateRejectReason(e.target.value)}
                       placeholder={lang === 'he' ? 'סיבת הדחייה' : 'Rejection reason'}
-                      className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                      className="mt-2 w-full rounded-md border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-low px-2.5 py-1.5 text-xs text-grad-school-head-on-surface"
                     />
                   )}
                   <div className="mt-2 flex gap-2">
@@ -423,13 +423,13 @@ function GradSchoolHeadDashboardContent() {
                   </div>
                 </>
               ) : (
-                <p className="mt-3 text-xs italic text-muted">
+                <p className="mt-3 text-xs italic text-grad-school-head-on-surface-variant">
                   {lang === 'he' ? 'לצפייה ואישור, יש לפתוח את פאנל הניהול' : 'View and act on this from the admin panel'}
                 </p>
               )}
             </div>
           ))}
-          {approvals.length === 0 && <p className="text-sm text-muted">✅ {lang === 'he' ? 'אין פריטים הממתינים לאישורך' : 'Nothing pending your approval'}</p>}
+          {approvals.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">✅ {lang === 'he' ? 'אין פריטים הממתינים לאישורך' : 'Nothing pending your approval'}</p>}
         </div>
       ) : tab === 'overview' ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -440,8 +440,8 @@ function GradSchoolHeadDashboardContent() {
             <MyProjectsWidget />
           </div>
           {processSummaries.map((f) => (
-            <div key={f.facultyId} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': '#6E5A99' } as React.CSSProperties}>
-              <p className="text-sm font-semibold text-ink">{lang === 'he' ? f.facultyNameHe : f.facultyNameEn}</p>
+            <div key={f.facultyId} className="role-rail rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4" style={{ '--rail-color': '#6E5A99' } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-grad-school-head-on-surface">{lang === 'he' ? f.facultyNameHe : f.facultyNameEn}</p>
               <div className="mt-2 grid grid-cols-5 gap-1 text-center">
                 <MiniStat value={f.total} label={lang === 'he' ? 'סה"כ' : 'Total'} />
                 <MiniStat value={f.active} label={lang === 'he' ? 'פעילים' : 'Active'} color="#3E6C8C" />
@@ -451,15 +451,15 @@ function GradSchoolHeadDashboardContent() {
               </div>
             </div>
           ))}
-          {processSummaries.length === 0 && <p className="text-sm text-muted">📊 {lang === 'he' ? 'אין נתוני פקולטות' : 'No faculty data'}</p>}
+          {processSummaries.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">📊 {lang === 'he' ? 'אין נתוני פקולטות' : 'No faculty data'}</p>}
         </div>
       ) : tab === 'stuck' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {stuckStudents.map((st, i) => (
-            <div key={i} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--danger)' } as React.CSSProperties}>
-              <p className="text-sm font-semibold text-ink">👤 {st.studentName}</p>
-              <p className="mt-0.5 text-xs text-muted">👨‍🏫 {st.supervisorName}</p>
-              <p className="mt-0.5 text-xs text-muted">
+            <div key={i} className="role-rail rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4" style={{ '--rail-color': 'var(--danger)' } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-grad-school-head-on-surface">👤 {st.studentName}</p>
+              <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">👨‍🏫 {st.supervisorName}</p>
+              <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">
                 📍 {lang === 'he' ? 'שלב נוכחי:' : 'Current stage:'} {st.currentMilestone}
               </p>
               <span className="mt-2 inline-block rounded-full bg-danger-bg px-2.5 py-1 text-xs font-medium text-danger">
@@ -467,7 +467,7 @@ function GradSchoolHeadDashboardContent() {
               </span>
             </div>
           ))}
-          {stuckStudents.length === 0 && <p className="text-sm text-muted">🎉 {lang === 'he' ? 'אין סטודנטים תקועים' : 'No stuck students'}</p>}
+          {stuckStudents.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">🎉 {lang === 'he' ? 'אין סטודנטים תקועים' : 'No stuck students'}</p>}
         </div>
       ) : tab === 'examiners' ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -477,11 +477,11 @@ function GradSchoolHeadDashboardContent() {
           {examinerLoad.map((ex, i) => (
             <div
               key={i}
-              className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4"
+              className="role-rail rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4"
               style={{ '--rail-color': ex.overdue > 0 ? 'var(--danger)' : 'var(--success)' } as React.CSSProperties}
             >
-              <p className="text-sm font-semibold text-ink">{ex.examinerName}</p>
-              <p className="mt-0.5 text-xs text-muted">{ex.institution}</p>
+              <p className="text-sm font-semibold text-grad-school-head-on-surface">{ex.examinerName}</p>
+              <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">{ex.institution}</p>
               <div className="mt-2 grid grid-cols-3 gap-1 text-center">
                 <MiniStat value={ex.activeReviews} label={lang === 'he' ? 'פעילים' : 'Active'} color="#3E6C8C" />
                 <MiniStat value={ex.pending} label={lang === 'he' ? 'ממתינים' : 'Pending'} color="var(--accent)" />
@@ -489,16 +489,16 @@ function GradSchoolHeadDashboardContent() {
               </div>
             </div>
           ))}
-          {examinerLoad.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין בוחנים פעילים' : 'No active examiners'}</p>}
+          {examinerLoad.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">📭 {lang === 'he' ? 'אין בוחנים פעילים' : 'No active examiners'}</p>}
         </div>
       ) : tab === 'grades' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {approvedFinalGrades.map((g) => (
-            <div key={g.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': 'var(--success)' } as React.CSSProperties}>
-              <p className="text-sm font-semibold text-ink">{g.studentName}</p>
-              <p className="mt-0.5 text-xs text-muted">{g.title}</p>
-              <p className="mt-1 text-xs text-muted">
-                {lang === 'he' ? 'ציון סופי:' : 'Final grade:'} <span className="font-semibold text-ink">{g.finalGrade}</span>
+            <div key={g.id} className="role-rail rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4" style={{ '--rail-color': 'var(--success)' } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-grad-school-head-on-surface">{g.studentName}</p>
+              <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">{g.title}</p>
+              <p className="mt-1 text-xs text-grad-school-head-on-surface-variant">
+                {lang === 'he' ? 'ציון סופי:' : 'Final grade:'} <span className="font-semibold text-grad-school-head-on-surface">{g.finalGrade}</span>
                 {g.approvedAt && ` · ${new Date(g.approvedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}`}
               </p>
               {g.michlolTransferStatus === 'transferred' && (
@@ -512,7 +512,7 @@ function GradSchoolHeadDashboardContent() {
                     value={unlockReason}
                     onChange={(e) => setUnlockReason(e.target.value)}
                     placeholder={lang === 'he' ? 'סיבת פתיחת הציון לתיקון (חובה)' : 'Reason for unlocking this grade (required)'}
-                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                    className="w-full rounded-lg border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-low px-3 py-2 text-sm text-grad-school-head-on-surface focus:border-grad-school-head-primary focus:bg-grad-school-head-surface-container-lowest focus:outline-none"
                   />
                   <div className="flex gap-2">
                     <button
@@ -526,7 +526,7 @@ function GradSchoolHeadDashboardContent() {
                     <button
                       type="button"
                       onClick={() => { setUnlockTargetId(null); setUnlockReason(''); }}
-                      className="flex-1 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-muted hover:bg-paper"
+                      className="flex-1 rounded-lg border border-grad-school-head-outline-variant px-3 py-2 text-xs font-semibold text-grad-school-head-on-surface-variant hover:bg-grad-school-head-surface-container-low"
                     >
                       {lang === 'he' ? 'ביטול' : 'Cancel'}
                     </button>
@@ -543,7 +543,7 @@ function GradSchoolHeadDashboardContent() {
               )}
             </div>
           ))}
-          {approvedFinalGrades.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'}</p>}
+          {approvedFinalGrades.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">📭 {lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'}</p>}
         </div>
       ) : tab === 'students' ? (
         <StudentsListTab />
@@ -571,25 +571,25 @@ function StatCard({ value, label, color, href }: { value: number; label: string;
       <div className="text-2xl font-semibold" style={{ color }}>
         {value}
       </div>
-      <div className="text-xs text-muted">{label}</div>
+      <div className="text-xs text-grad-school-head-on-surface-variant">{label}</div>
     </>
   );
   return href ? (
-    <Link href={href} className="rounded-[var(--radius)] border border-line bg-surface p-4 transition-colors hover:border-primary">
+    <Link href={href} className="rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4 transition-colors hover:border-grad-school-head-primary">
       {content}
     </Link>
   ) : (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">{content}</div>
+    <div className="rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4">{content}</div>
   );
 }
 
 function MiniStat({ value, label, color }: { value: number; label: string; color?: string }) {
   return (
     <div>
-      <div className="text-sm font-semibold" style={{ color: color ?? 'var(--ink)' }}>
+      <div className="text-sm font-semibold" style={{ color: color ?? 'var(--grad-school-head-on-surface)' }}>
         {value}
       </div>
-      <div className="text-[10px] leading-tight text-muted">{label}</div>
+      <div className="text-[10px] leading-tight text-grad-school-head-on-surface-variant">{label}</div>
     </div>
   );
 }

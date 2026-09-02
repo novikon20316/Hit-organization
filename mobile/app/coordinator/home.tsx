@@ -30,6 +30,7 @@ import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import { TourTarget } from '@/components/onboarding/TourTarget';
+import { ap } from '@/constants/theme';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -99,59 +100,63 @@ const apStyles = StyleSheet.create({
   metricCard: {
     flex: 1,
     minWidth: 150,
-    backgroundColor: '#ffffff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#c5c5d3',
+    borderColor: ap.outlineVariant,
     padding: 14,
   },
-  metricCardAlert: { borderColor: '#ffdad6', backgroundColor: 'rgba(186,26,26,0.05)' },
-  metricLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4, color: '#505f76', marginBottom: 8 },
-  metricLabelAlert: { color: '#ba1a1a' },
-  metricValue: { fontSize: 28, fontWeight: '700', color: '#1a1b21' },
-  metricValueAlert: { color: '#ba1a1a' },
+  // Alert state stays on the semantic error tokens (matches web's --danger
+  // family) rather than ap.* — a status color, not chrome.
+  metricCardAlert: { borderColor: ap.errorContainer, backgroundColor: 'rgba(186,26,26,0.05)' },
+  metricLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4, color: ap.secondary, marginBottom: 8 },
+  metricLabelAlert: { color: ap.error },
+  metricValue: { fontSize: 28, fontWeight: '700', color: ap.onSurface },
+  metricValueAlert: { color: ap.error },
   sectionCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#c5c5d3',
+    borderColor: ap.outlineVariant,
     padding: 14,
     marginTop: 14,
   },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#1a1b21', marginBottom: 10 },
-  feedItem: { borderWidth: 1, borderColor: '#c5c5d3', borderRadius: 4, padding: 10, marginBottom: 8 },
-  feedItemAlert: { borderColor: '#ffdad6' },
-  feedBadge: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, color: '#54647a', backgroundColor: '#d0e1fb', alignSelf: 'flex-start', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 },
-  feedBadgeAlert: { color: '#ba1a1a', backgroundColor: '#ffdad6' },
-  feedTitle: { fontSize: 13, fontWeight: '600', color: '#1a1b21' },
-  emptyText: { fontSize: 13, color: '#444651' },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: ap.onSurface, marginBottom: 10 },
+  feedItem: { borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 4, padding: 10, marginBottom: 8 },
+  feedItemAlert: { borderColor: ap.errorContainer },
+  feedBadge: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, color: ap.onSecondaryContainer, backgroundColor: ap.secondaryContainer, alignSelf: 'flex-start', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 },
+  feedBadgeAlert: { color: ap.error, backgroundColor: ap.errorContainer },
+  feedTitle: { fontSize: 13, fontWeight: '600', color: ap.onSurface },
+  emptyText: { fontSize: 13, color: ap.onSurfaceVariant },
   trackerCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#c5c5d3',
+    borderColor: ap.outlineVariant,
     borderLeftWidth: 4,
     padding: 14,
     marginBottom: 10,
   },
-  trackerTitle: { fontSize: 14, fontWeight: '700', color: '#1a1b21', flexShrink: 1, marginRight: 8 },
+  trackerTitle: { fontSize: 14, fontWeight: '700', color: ap.onSurface, flexShrink: 1, marginRight: 8 },
   trackerPctBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   trackerPctBadgeText: { fontSize: 10, fontWeight: '700' },
-  trackerBarTrack: { height: 6, borderRadius: 999, backgroundColor: '#eeedf4', overflow: 'hidden', marginTop: 10, marginBottom: 8 },
-  trackerBarFill: { height: '100%', borderRadius: 999, backgroundColor: '#00236f' },
-  trackerMeta: { fontSize: 11, color: '#444651' },
+  trackerBarTrack: { height: 6, borderRadius: 999, backgroundColor: ap.surfaceContainer, overflow: 'hidden', marginTop: 10, marginBottom: 8 },
+  trackerBarFill: { height: '100%', borderRadius: 999, backgroundColor: ap.primary },
+  trackerMeta: { fontSize: 11, color: ap.onSurfaceVariant },
 
   // ── Pending-milestone card (Pending tab) — same visual language as
   // components/MilestoneRoadmap.tsx's cards. Additive overrides layered on
   // top of the shared coordinatorHomeStyles.card/cardHeader/etc (those stay
   // untouched — they're also used by the Defense/Deadlines/Recommendations
   // tabs, out of scope here).
+  // '#b8862e'/'#fbf3e3' are the semantic "pending/warning" amber (matches
+  // web's --accent), not ap.* — left as literals, not chrome.
   pendingCardAccent: { borderRadius: 14, borderLeftWidth: 4, borderLeftColor: '#b8862e' },
   pendingBadge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#fbf3e3', marginBottom: 6 },
   pendingBadgeText: { fontSize: 10, fontWeight: '700', color: '#b8862e', textTransform: 'uppercase' },
-  statRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#e3e1e9' },
-  statLabel: { fontSize: 9, fontWeight: '700', color: '#444651', textTransform: 'uppercase', marginBottom: 2 },
-  statValue: { fontSize: 12, color: '#1a1b21' },
+  statRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: ap.surfaceVariant },
+  statLabel: { fontSize: 9, fontWeight: '700', color: ap.onSurfaceVariant, textTransform: 'uppercase', marginBottom: 2 },
+  statValue: { fontSize: 12, color: ap.onSurface },
 });
 
 
@@ -1150,7 +1155,7 @@ export default function CoordinatorHome() {
                 const overallProgress = students.length > 0
                   ? Math.round(students.reduce((sum: number, s: any) => sum + (s.progress ?? 0), 0) / students.length)
                   : 0;
-                const accentColor = overallProgress >= 100 ? '#3f6b4c' : '#00236f';
+                const accentColor = overallProgress >= 100 ? '#3f6b4c' : ap.primary;
                 return (
                   <View key={p.id} style={[apStyles.trackerCard, { borderLeftColor: accentColor }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1705,13 +1710,13 @@ export default function CoordinatorHome() {
                       style={[{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }]}
                       accessibilityRole="button"
                     >
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', width: 80, textAlign: isRtl ? 'right' : 'left' }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: ap.onSurface, width: 80, textAlign: isRtl ? 'right' : 'left' }}>
                         {student.name}
                       </Text>
-                      
+
                       <View style={{ flex: 1, marginHorizontal: 10 }}>
                         <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Text style={{ fontSize: 10, color: '#8899BB' }}>
+                          <Text style={{ fontSize: 10, color: ap.onSurfaceVariant }}>
                             {lang === 'he' ? 'התקדמות' : 'Progress'}
                           </Text>
                           <Text style={{ fontSize: 10, fontWeight: '700', color: '#2E86FF' }}>
@@ -1729,7 +1734,7 @@ export default function CoordinatorHome() {
                         </View>
                       </View>
 
-                      <Text style={{ color: '#C0CCDD', fontSize: 10 }}>
+                      <Text style={{ color: ap.outlineVariant, fontSize: 10 }}>
                         {isStudentExpanded ? '▲' : '▼'}
                       </Text>
                     </Pressable>
@@ -1746,7 +1751,7 @@ export default function CoordinatorHome() {
                       // empty state.
                       const milestones = student.milestones ?? [];
                       return (
-                      <View style={[styles.expandedBox, { marginTop: 8, padding: 10, backgroundColor: '#FAFAFA', borderRadius: 6 }]}>
+                      <View style={[styles.expandedBox, { marginTop: 8, padding: 10, backgroundColor: ap.surfaceContainerLow, borderRadius: 6 }]}>
                         {milestones.length === 0 ? (
                           <Text style={styles.expandedText}>
                             {lang === 'he' ? 'לא נוצרו אבני דרך לסטודנט זה' : 'No milestones created for this student'}
@@ -1769,7 +1774,7 @@ export default function CoordinatorHome() {
                               statusColor = '#F59E0B';
                             } else {
                               displayStatus = lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
-                              statusColor = '#8899BB';
+                              statusColor = ap.onSurfaceVariant;
                             }
 
                             return (
@@ -1781,10 +1786,10 @@ export default function CoordinatorHome() {
                                   alignItems: 'center',
                                   paddingVertical: 6,
                                   borderBottomWidth: mIdx < milestones.length - 1 ? 1 : 0,
-                                  borderBottomColor: '#F0F4FF',
+                                  borderBottomColor: ap.surfaceContainer,
                                 }]}
                               >
-                                <Text style={[{ fontSize: 13, fontWeight: '500', color: '#333' }, !isRtl && styles.textRight]}>
+                                <Text style={[{ fontSize: 13, fontWeight: '500', color: ap.onSurface }, !isRtl && styles.textRight]}>
                                   {MILESTONE_LABEL[m.type]?.[lang] ?? m.type}
                                 </Text>
                                 
@@ -1823,7 +1828,7 @@ export default function CoordinatorHome() {
             accessibilityRole="button"
             accessibilityLabel={lang === 'he' ? 'הצג/הסתר פרטי פרויקט' : 'Toggle project details'}
           >
-            <Text style={{ textAlign: 'center', color: '#C0CCDD', fontSize: 11, marginTop: 6 }}>
+            <Text style={{ textAlign: 'center', color: ap.outlineVariant, fontSize: 11, marginTop: 6 }}>
               {expandedCards[p.id] ? '▲' : '▼'}
             </Text>
           </Pressable>
@@ -1901,7 +1906,7 @@ export default function CoordinatorHome() {
 
                     {/* Class (for coordinator) */}
                     {d.class ? (
-                      <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+                      <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: ap.outlineVariant }}>
                         <Text style={styles.deadlineLabel}>
                           {lang === 'he' ? 'קבוצה:' : 'Class:'} <Text style={styles.deadlineValue}>{d.class}</Text>
                         </Text>
@@ -2160,8 +2165,8 @@ export default function CoordinatorHome() {
           </Pressable>
 
           {selectedMilestone?.facultyId === 'data_science' && selectedMilestone?.type === 'defense' ? (
-            <View style={{ backgroundColor: '#F3F4F6', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-              <Text style={{ fontSize: 12, color: '#4B5563' }}>
+            <View style={{ backgroundColor: ap.surfaceContainer, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: ap.onSurfaceVariant }}>
                 {lang === 'he'
                   ? 'ציון סופי: מנחה 40% · הערכת עבודה 30% (ממוצע בין הבוחנים) · הערכת הגנה 30% (ממוצע בין הבוחנים) — המשקלות קבועות ואינן תלויות במספר הבוחנים.'
                   : 'Final grade: Supervisor 40% · Project evaluation 30% (averaged across examiners) · Defense evaluation 30% (averaged across examiners) — fixed regardless of how many examiners are on the panel.'}

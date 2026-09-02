@@ -49,18 +49,18 @@ export function RequestErasureModal({ project, onClose, onSubmitted }: RequestEr
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+        className="w-full max-w-sm rounded-supervisor bg-supervisor-surface-container-lowest p-5 shadow-lg outline-none"
       >
-        <h2 className="text-base font-semibold text-ink">{t('requestErasureTitle')}</h2>
-        <p className="mt-1 text-sm font-medium text-ink">{lang === 'he' ? project.titleHe : project.titleEn}</p>
-        <p className="mt-2 text-sm text-muted">{t('requestErasureMessage')}</p>
+        <h2 className="text-base font-semibold text-supervisor-on-surface">{t('requestErasureTitle')}</h2>
+        <p className="mt-1 text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? project.titleHe : project.titleEn}</p>
+        <p className="mt-2 text-sm text-supervisor-on-surface-variant">{t('requestErasureMessage')}</p>
 
         <textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder={t('requestErasureReason')}
           rows={3}
-          className="mt-3 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+          className="mt-3 w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:outline-none"
         />
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
 
@@ -69,7 +69,7 @@ export function RequestErasureModal({ project, onClose, onSubmitted }: RequestEr
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+            className="rounded-lg border border-supervisor-outline-variant px-3.5 py-2 text-sm font-medium text-supervisor-on-surface hover:bg-supervisor-surface-container-low"
           >
             {t('cancel')}
           </button>

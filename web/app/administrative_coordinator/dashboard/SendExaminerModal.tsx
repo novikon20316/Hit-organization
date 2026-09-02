@@ -73,7 +73,7 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:bg-administrative-coordinator-surface-container-lowest focus:outline-none';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -82,36 +82,36 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-administrative-coordinator-lg bg-administrative-coordinator-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">📧 {lang === 'he' ? 'שלח בוחן חיצוני' : 'Send External Examiner'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-administrative-coordinator-on-surface">📧 {lang === 'he' ? 'שלח בוחן חיצוני' : 'Send External Examiner'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-administrative-coordinator-on-surface-variant hover:text-administrative-coordinator-on-surface">
             ✕
           </button>
         </div>
 
-        <div className="mt-3 rounded-lg bg-paper p-3">
-          <p className="text-sm font-semibold text-ink">{group.projectTitle}</p>
-          <p className="mt-0.5 text-xs text-muted">👥 {group.members.map((m) => m.name).join(', ')}</p>
+        <div className="mt-3 rounded-lg bg-administrative-coordinator-surface-container-low p-3">
+          <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{group.projectTitle}</p>
+          <p className="mt-0.5 text-xs text-administrative-coordinator-on-surface-variant">👥 {group.members.map((m) => m.name).join(', ')}</p>
         </div>
 
         <div className="mt-4 grid gap-3">
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שם הבוחן *' : 'Examiner name *'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'שם הבוחן *' : 'Examiner name *'}</span>
             <input value={examinerName} onChange={(e) => setExaminerName(e.target.value)} className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'דוא"ל *' : 'Email *'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'דוא"ל *' : 'Email *'}</span>
             <input dir="ltr" value={examinerEmail} onChange={(e) => setExaminerEmail(e.target.value)} className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מוסד' : 'Institution'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'מוסד' : 'Institution'}</span>
             <input value={examinerInstitution} onChange={(e) => setExaminerInstitution(e.target.value)} className={inputCls} />
           </label>
 
           <div>
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שפה מועדפת' : 'Preferred Language'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'שפה מועדפת' : 'Preferred Language'}</span>
             <div className="flex gap-1.5">
               {(['he', 'en'] as const).map((l) => (
                 <button
@@ -119,7 +119,7 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
                   type="button"
                   onClick={() => setExaminerLanguage(l)}
                   className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                    examinerLanguage === l ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                    examinerLanguage === l ? 'border-administrative-coordinator-primary bg-administrative-coordinator-primary text-administrative-coordinator-on-primary' : 'border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low text-administrative-coordinator-on-surface'
                   }`}
                 >
                   {l === 'he' ? 'עברית' : 'English'}
@@ -141,7 +141,7 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
           type="button"
           onClick={handleSend}
           disabled={sending}
-          className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-administrative-coordinator-primary py-2.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
         >
           {sending ? '…' : sent ? (lang === 'he' ? 'שלח שוב' : 'Send again') : lang === 'he' ? '📧 שלח בקשה' : '📧 Send Request'}
         </button>

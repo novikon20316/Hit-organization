@@ -17,6 +17,7 @@ import { apiClient } from '../../src/api/apiClient';
 import { getHomeRoute } from '@/firebase/roles';
 import type { Lang } from '../../components/i18n';
 import { ChangePasswordStyles } from '../../constants/styles';
+import { ap } from '@/constants/theme';
 
 export default function ChooseTrackScreen() {
   const router = useRouter();
@@ -66,7 +67,7 @@ export default function ChooseTrackScreen() {
         disabled={choosing !== null}
         accessibilityRole="button"
       >
-        {choosing === 'thesis' ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{lang === 'he' ? 'תזה' : 'Thesis'}</Text>}
+        {choosing === 'thesis' ? <ActivityIndicator color={ap.onPrimary} /> : <Text style={styles.buttonText}>{lang === 'he' ? 'תזה' : 'Thesis'}</Text>}
       </Pressable>
 
       <Pressable
@@ -75,10 +76,13 @@ export default function ChooseTrackScreen() {
         disabled={choosing !== null}
         accessibilityRole="button"
       >
-        {choosing === 'project' ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{lang === 'he' ? 'פרויקט גמר' : 'Final Project'}</Text>}
+        {choosing === 'project' ? <ActivityIndicator color={ap.onPrimary} /> : <Text style={styles.buttonText}>{lang === 'he' ? 'פרויקט גמר' : 'Final Project'}</Text>}
       </Pressable>
     </View>
   );
 }
 
+// NOTE: ChangePasswordStyles' own colors (button/input/langToggle chrome)
+// are left unmigrated here — it's a shared cross-role style block also used
+// by app/(auth)/changePassword.tsx, outside this student-only AP pass.
 const styles = ChangePasswordStyles;

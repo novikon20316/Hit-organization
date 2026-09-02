@@ -106,20 +106,20 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
   const screening = app.aiScreening ? SCREENING_STYLE[app.aiScreening.verdict] : null;
 
   return (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
+    <div className="rounded-supervisor border border-supervisor-outline-variant bg-supervisor-surface-container-lowest p-4">
       <button type="button" onClick={() => setExpanded((v) => !v)} className="w-full text-start">
-        <p className="text-sm font-semibold text-ink">📁 {lang === 'he' ? app.projectTitleHe : app.projectTitleEn}</p>
+        <p className="text-sm font-semibold text-supervisor-on-surface">📁 {lang === 'he' ? app.projectTitleHe : app.projectTitleEn}</p>
         <div className="mt-2 flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-ink">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-supervisor-primary text-xs font-semibold text-supervisor-on-primary">
             {app.studentName?.charAt(0)?.toUpperCase() ?? 'S'}
           </span>
           <div className="flex-1">
-            <p className="text-sm text-ink">{app.studentName || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable')}</p>
-            <p className="text-xs text-muted" dir="ltr">
+            <p className="text-sm text-supervisor-on-surface">{app.studentName || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable')}</p>
+            <p className="text-xs text-supervisor-on-surface-variant" dir="ltr">
               {app.studentEmail}
             </p>
           </div>
-          <span className="rounded-full bg-paper px-2 py-0.5 text-xs font-medium text-ink">
+          <span className="rounded-full bg-supervisor-surface-container-low px-2 py-0.5 text-xs font-medium text-supervisor-on-surface">
             {STATUS_LABEL[app.status]?.[lang] ?? app.status}
           </span>
         </div>
@@ -134,23 +134,23 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
       )}
 
       {expanded && (
-        <div className="mt-3 grid gap-2.5 border-t border-line pt-3">
+        <div className="mt-3 grid gap-2.5 border-t border-supervisor-outline-variant pt-3">
           {submittedDate && (
-            <p className="text-xs text-muted">
+            <p className="text-xs text-supervisor-on-surface-variant">
               🗓 {lang === 'he' ? 'הוגש ב:' : 'Submitted:'} {submittedDate}
             </p>
           )}
 
           {reviewedDate && reviewedLabel && !app.autoClosedReason && (
-            <p className="text-xs text-muted">
+            <p className="text-xs text-supervisor-on-surface-variant">
               ✅ {reviewedLabel[lang]} {reviewedDate}
             </p>
           )}
 
           {app.coverNote ? (
-            <p className="rounded-lg bg-paper p-2.5 text-xs text-ink">{app.coverNote}</p>
+            <p className="rounded-lg bg-supervisor-surface-container-low p-2.5 text-xs text-supervisor-on-surface">{app.coverNote}</p>
           ) : (
-            <p className="text-xs italic text-muted">{lang === 'he' ? 'אין מכתב מוטיבציה' : 'No cover note provided'}</p>
+            <p className="text-xs italic text-supervisor-on-surface-variant">{lang === 'he' ? 'אין מכתב מוטיבציה' : 'No cover note provided'}</p>
           )}
 
           <div className="flex flex-wrap gap-1.5">
@@ -159,7 +159,7 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
                 href={app.transcriptUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-full border border-line bg-paper px-2.5 py-1 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+                className="rounded-full border border-supervisor-outline-variant bg-supervisor-surface-container-low px-2.5 py-1 text-xs font-medium text-supervisor-on-surface hover:border-supervisor-primary hover:text-supervisor-primary"
               >
                 📄 {lang === 'he' ? 'גיליון ציונים' : 'Transcript'}
               </a>
@@ -169,7 +169,7 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
                 href={app.cvUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-full border border-line bg-paper px-2.5 py-1 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+                className="rounded-full border border-supervisor-outline-variant bg-supervisor-surface-container-low px-2.5 py-1 text-xs font-medium text-supervisor-on-surface hover:border-supervisor-primary hover:text-supervisor-primary"
               >
                 📋 {lang === 'he' ? 'קורות חיים' : 'CV'}
               </a>
@@ -178,7 +178,7 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
               type="button"
               onClick={messageStudent}
               disabled={messaging}
-              className="rounded-full border border-line bg-paper px-2.5 py-1 text-xs font-medium text-ink hover:border-primary hover:text-primary disabled:opacity-60"
+              className="rounded-full border border-supervisor-outline-variant bg-supervisor-surface-container-low px-2.5 py-1 text-xs font-medium text-supervisor-on-surface hover:border-supervisor-primary hover:text-supervisor-primary disabled:opacity-60"
             >
               💬 {messaging ? '…' : lang === 'he' ? 'שלח הודעה' : 'Message'}
             </button>
@@ -189,7 +189,7 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
               <p className="text-xs font-semibold" style={{ color: screening.text }}>
                 🤖 {lang === 'he' ? 'התאמת קורות חיים לדרישות:' : 'CV-vs-prerequisites fit:'} {SCREENING_LABEL[app.aiScreening.verdict][lang]}
               </p>
-              <p className="mt-1 text-xs text-ink">{app.aiScreening.reasoning}</p>
+              <p className="mt-1 text-xs text-supervisor-on-surface">{app.aiScreening.reasoning}</p>
             </div>
           )}
 
@@ -200,7 +200,7 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
               </p>
               <div className="mt-1.5 grid gap-1">
                 {app.aiReview.checks.map((c) => (
-                  <p key={c.id} className="text-xs text-ink">
+                  <p key={c.id} className="text-xs text-supervisor-on-surface">
                     {c.passed === true ? '✅' : c.passed === false ? '❌' : '❓'} {lang === 'he' ? c.labelHe : c.labelEn}
                     {c.reasoning ? ` — ${c.reasoning}` : ''}
                   </p>

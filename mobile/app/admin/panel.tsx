@@ -36,6 +36,7 @@ import {
   FACULTY_COLORS,
 } from '../../components/shared';
 import { adminPanelStyles } from '../../constants/styles';
+import { ap } from '../../constants/theme';
 import {ROLE_LABELS} from '../../constants';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal} from '@/components/modals';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
@@ -1323,6 +1324,11 @@ export default function PanelScreen() {
       >
         {activeTab === 'overview' && (
           <>
+            {/* Each tile's `color` is a distinct per-category accent (red/
+                blue/amber/purple), same multi-hue pattern already kept
+                as-is on the supervisor dashboard's StatCard row (amber for
+                Pending Applications, purple for Need Grading) — not plain
+                chrome, so left untouched here too. */}
             <View style={styles.statsGrid}>
               <StatCard
                 emoji="👥"
@@ -1408,6 +1414,11 @@ export default function PanelScreen() {
 
         {activeTab === 'users' && (
           <>
+            {/* Locked-accounts card is a self-contained semantic-danger
+                block (red bg/border/text throughout, including the plain
+                display-name text inside it) — left entirely untouched, same
+                treatment already-migrated examinerHomeStyles gave its own
+                green "context" box. */}
             {(loadingLocked || lockedUsers.length > 0) && (
               <View style={{ backgroundColor: '#FEF2F2', borderRadius: 14, borderWidth: 1, borderColor: '#FECACA', padding: 14, marginBottom: 14 }}>
                 <Text style={{ fontSize: 14, fontWeight: '800', color: '#991B1B', marginBottom: 4 }}>
@@ -1482,7 +1493,7 @@ export default function PanelScreen() {
                         </Text>
                       </View>
                       {u.role !== 'student' && u.role !== 'system_admin' && (
-                        <Text style={{ marginTop: 2, marginStart: 4, fontSize: 11, color: '#64748B' }}>
+                        <Text style={{ marginTop: 2, marginStart: 4, fontSize: 11, color: ap.onSurfaceVariant }}>
                           {staffFacultyMajorLabel(u.facultyId, u.assignedMajors, lang, (id) => facultyLabel(id as FacultyId, lang))}
                         </Text>
                       )}
@@ -1490,7 +1501,9 @@ export default function PanelScreen() {
 
                     {/* Student Primary/Secondary status badge — students
                         with a status set only (see server/src/services/
-                        studentStatuses.ts). */}
+                        studentStatuses.ts). Magenta bg/text left as-is: a
+                        distinct category-tag color (like the multi-hue
+                        StatCard row above), not plain chrome. */}
                     {u.role === 'student' && u.primaryStatus && (
                       <View style={[styles.roleBadge, { backgroundColor: '#FDF4FF' }]}>
                         <Text style={[styles.roleBadgeText, { color: '#A21CAF' }]} numberOfLines={1}>
@@ -1596,7 +1609,7 @@ export default function PanelScreen() {
 
                 {/* Footer — separated from the metadata above like every
                     other role's project card (Fresh Project Card Designs) */}
-                <View style={{ marginTop: 4, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                <View style={{ marginTop: 4, paddingTop: 10, borderTopWidth: 1, borderTopColor: ap.outlineVariant }}>
                   <Pressable
                     style={styles.addStudentBtn}
                     onPress={() => {
@@ -1751,6 +1764,10 @@ export default function PanelScreen() {
                 ? 'בוחנים חיצוניים שהחמיצו את חלון הגישה ביום ההגנה'
                 : 'External examiners who missed their defense-day access window'}
             </Text>
+            {/* Purple spinner/button below (#8B5CF6, also in the Student
+                Roster tab and its Reopen button) left as its pre-existing
+                color — not the admin-red brand accent and not clearly
+                plain chrome either; flagging rather than guessing. */}
             {loadingDefenseGrants ? (
               <ActivityIndicator size="large" color="#8B5CF6" />
             ) : defenseGrants.length === 0 ? (
@@ -1791,7 +1808,7 @@ export default function PanelScreen() {
                         }
                       </Pressable>
                       <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setExtendGrantCode(null)} accessibilityRole="button">
-                        <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                        <Text style={{ color: ap.outline, fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                       </Pressable>
                     </View>
                   ) : (
@@ -1962,7 +1979,7 @@ export default function PanelScreen() {
                         }
                       </Pressable>
                       <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setEditingRosterId(null)} accessibilityRole="button">
-                        <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                        <Text style={{ color: ap.outline, fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                       </Pressable>
                     </View>
                   ) : confirmDeleteRosterId === entry.id ? (
@@ -1982,7 +1999,7 @@ export default function PanelScreen() {
                         }
                       </Pressable>
                       <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setConfirmDeleteRosterId(null)} accessibilityRole="button">
-                        <Text style={{ color: '#8899BB', fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                        <Text style={{ color: ap.outline, fontSize: 14 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                       </Pressable>
                     </View>
                   ) : (
@@ -2042,7 +2059,7 @@ export default function PanelScreen() {
             </View>
 
             {loadingFeedback ? (
-              <ActivityIndicator size="large" color="#2E86FF" />
+              <ActivityIndicator size="large" color={ap.primary} />
             ) : feedbackMessages.length === 0 ? (
               <Text style={styles.projectMeta}>
                 {lang === 'he' ? 'אין משוב להצגה' : 'No feedback to show'}
@@ -2086,8 +2103,8 @@ export default function PanelScreen() {
       {activeTab === 'users' && (
         <View style={{
           position: 'absolute', left: 0, right: 0, bottom: 0,
-          backgroundColor: '#fff', padding: 16,
-          borderTopWidth: 1, borderTopColor: '#E5E7EB',
+          backgroundColor: ap.surfaceContainerLowest, padding: 16,
+          borderTopWidth: 1, borderTopColor: ap.outlineVariant,
         }}>
           <Pressable style={styles.submitBtn} onPress={() => setShowNewUser(true)} accessibilityRole="button">
             <Text style={styles.submitBtnText}>
@@ -2100,8 +2117,8 @@ export default function PanelScreen() {
       {activeTab === 'projects' && (
         <View style={{
           position: 'absolute', left: 0, right: 0, bottom: 0,
-          backgroundColor: '#fff', padding: 16,
-          borderTopWidth: 1, borderTopColor: '#E5E7EB',
+          backgroundColor: ap.surfaceContainerLowest, padding: 16,
+          borderTopWidth: 1, borderTopColor: ap.outlineVariant,
         }}>
           <Pressable style={styles.submitBtn} onPress={() => setShowNewProject(true)} accessibilityRole="button">
             <Text style={styles.submitBtnText}>
@@ -2131,9 +2148,9 @@ export default function PanelScreen() {
           server/src/services/accountDeletion.ts). Summer's start/end are
           fixed, not configurable here — see that file's comments. */}
       <Modal visible={academicCalendarModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setAcademicCalendarModal(false)}>
-        <View style={{ flex: 1, backgroundColor: '#fff', padding: 20 }}>
+        <View style={{ flex: 1, backgroundColor: ap.surfaceContainerLowest, padding: 20 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: ap.onSurface }}>
               📅 {lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar'}
             </Text>
             <Pressable
@@ -2141,33 +2158,33 @@ export default function PanelScreen() {
               accessibilityRole="button"
               accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
             >
-              <Text style={{ fontSize: 20, color: '#64748B' }}>✕</Text>
+              <Text style={{ fontSize: 20, color: ap.onSurfaceVariant }}>✕</Text>
             </Pressable>
           </View>
 
           {academicCalendarLoading ? (
-            <ActivityIndicator size="large" color="#2E86FF" />
+            <ActivityIndicator size="large" color={ap.primary} />
           ) : (
             <>
-              <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, color: ap.onSurfaceVariant, marginBottom: 16 }}>
                 {lang === 'he'
                   ? 'סמסטר הקיץ קבוע (יולי–ספטמבר). התאריכים הבאים משמשים גם לחישוב מחיקת חשבון אוטומטית לסטודנטים שסיימו את משך הלימודים.'
                   : "Summer semester is fixed (July–September). These dates also feed the automatic graduation-based account-deletion check."}
               </Text>
 
-              <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 6, color: ap.onSurface }}>
                 {lang === 'he' ? 'תחילת סמסטר סתיו' : 'Fall semester start'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
                 <TextInput
-                  style={{ flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12 }}
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, color: ap.onSurface }}
                   value={fallMonth}
                   onChangeText={setFallMonth}
                   keyboardType="numeric"
                   placeholder={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'}
                 />
                 <TextInput
-                  style={{ flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12 }}
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, color: ap.onSurface }}
                   value={fallDay}
                   onChangeText={setFallDay}
                   keyboardType="numeric"
@@ -2175,19 +2192,19 @@ export default function PanelScreen() {
                 />
               </View>
 
-              <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 6, color: ap.onSurface }}>
                 {lang === 'he' ? 'תחילת סמסטר אביב' : 'Spring semester start'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
                 <TextInput
-                  style={{ flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12 }}
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, color: ap.onSurface }}
                   value={springMonth}
                   onChangeText={setSpringMonth}
                   keyboardType="numeric"
                   placeholder={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'}
                 />
                 <TextInput
-                  style={{ flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12 }}
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, color: ap.onSurface }}
                   value={springDay}
                   onChangeText={setSpringDay}
                   keyboardType="numeric"
@@ -2196,11 +2213,11 @@ export default function PanelScreen() {
               </View>
 
               <Pressable
-                style={{ backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                style={{ backgroundColor: ap.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
                 onPress={saveAcademicCalendar}
                 accessibilityRole="button"
               >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
+                <Text style={{ color: ap.onPrimary, fontWeight: '700', fontSize: 15 }}>
                   {lang === 'he' ? 'שמור' : 'Save'}
                 </Text>
               </Pressable>
@@ -2446,16 +2463,20 @@ export default function PanelScreen() {
           }}
         >
           <View style={{
-            backgroundColor: '#fff', borderRadius: 20, paddingVertical: 28, paddingHorizontal: 32,
+            backgroundColor: ap.surfaceContainerLowest, borderRadius: 20, paddingVertical: 28, paddingHorizontal: 32,
             alignItems: 'center', minWidth: 220,
           }}>
+            {/* Spinner left as its pre-existing purple (#7C3AED) — not the
+                admin-red brand accent and not clearly plain chrome either
+                (a leftover ad hoc color, possibly copied from the
+                coordinator role); flagging rather than guessing. */}
             <ActivityIndicator size="large" color="#7C3AED" />
-            <Text style={{ marginTop: 14, fontSize: 15, fontWeight: '700', color: '#111' }}>
+            <Text style={{ marginTop: 14, fontSize: 15, fontWeight: '700', color: ap.onSurface }}>
               {importProgress.stage === 'uploading'
                 ? (lang === 'he' ? `מעלה קובץ... ${importProgress.percent ?? 0}%` : `Uploading file... ${importProgress.percent ?? 0}%`)
                 : (lang === 'he' ? 'מעבד ויוצר משתמשים...' : 'Processing & creating users...')}
             </Text>
-            <Text style={{ marginTop: 6, fontSize: 12, color: '#8899BB', textAlign: 'center' }}>
+            <Text style={{ marginTop: 6, fontSize: 12, color: ap.outline, textAlign: 'center' }}>
               {lang === 'he' ? 'נא לא לסגור את האפליקציה' : 'Please don’t close the app'}
             </Text>
           </View>

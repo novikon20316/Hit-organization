@@ -77,7 +77,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-low px-3 py-2 text-sm text-faculty-admin-on-surface focus:border-faculty-admin-primary focus:bg-faculty-admin-surface-container-lowest focus:outline-none';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -86,16 +86,16 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="w-full max-w-sm rounded-faculty-admin bg-faculty-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'עריכת משתמש' : 'Edit User'}</h2>
-        <p className="mt-1 text-sm text-muted">
+        <h2 className="text-lg font-semibold text-faculty-admin-on-surface">{lang === 'he' ? 'עריכת משתמש' : 'Edit User'}</h2>
+        <p className="mt-1 text-sm text-faculty-admin-on-surface-variant">
           {user.displayName} — {user.email}
         </p>
 
         <div className="mt-4 grid gap-3">
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תפקיד' : 'Role'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'תפקיד' : 'Role'}</span>
             <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
               {VALID_ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -105,7 +105,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
             <select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls}>
               {VALID_FACULTY_IDS.map((id) => (
                 <option key={id} value={id}>
@@ -118,7 +118,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
           {isStudent && (
             <>
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}</span>
+                <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}</span>
                 <select value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.primary.map((o) => (
@@ -129,7 +129,7 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
                 </select>
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}</span>
+                <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}</span>
                 <select value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.secondary.map((o) => (
@@ -146,14 +146,14 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-faculty-admin-outline-variant px-3.5 py-2 text-sm font-medium text-faculty-admin-on-surface hover:bg-faculty-admin-surface-container-low">
             {t('cancel')}
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-faculty-admin-primary px-3.5 py-2 text-sm font-semibold text-faculty-admin-on-primary hover:opacity-90 disabled:opacity-60"
           >
             {saving ? '…' : t('save')}
           </button>

@@ -44,16 +44,16 @@ export default function FacultyAdminSupervisorRecordsPage() {
   return (
     <DashboardShell title={lang === 'he' ? 'רישומי הפרויקטים של המנחה' : 'Supervisor Project Records'}>
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <p className="mb-4 text-sm text-muted">
+        <p className="mb-4 text-sm text-faculty-admin-on-surface-variant">
           {lang === 'he'
             ? 'רישום קבוע וקריאה בלבד לכל פרויקט של המנחה שכבר יש בו סטודנטים.'
             : 'A permanent, read-only record for every project of this supervisor that already has students.'}
         </p>
 
         {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
-        {!error && projects === null && <p className="text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+        {!error && projects === null && <p className="text-sm text-faculty-admin-on-surface-variant" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
         {!error && projects !== null && projects.length === 0 && (
-          <p className="text-sm text-muted">
+          <p className="text-sm text-faculty-admin-on-surface-variant">
             {lang === 'he' ? 'אין עדיין פרויקטים עם רישום.' : 'No projects have a record yet.'}
           </p>
         )}
@@ -63,10 +63,10 @@ export default function FacultyAdminSupervisorRecordsPage() {
             <Link
               key={p.id}
               href={`/faculty_admin/records/${supervisorId}/${p.id}`}
-              className="rounded-[var(--radius)] border border-line bg-surface px-4 py-3 transition-colors hover:border-primary"
+              className="rounded-faculty-admin border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-lowest px-4 py-3 transition-colors hover:border-faculty-admin-primary"
             >
-              <p className="text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
-              <p className="mt-0.5 text-xs text-muted">
+              <p className="text-sm font-semibold text-faculty-admin-on-surface">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
+              <p className="mt-0.5 text-xs text-faculty-admin-on-surface-variant">
                 {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}
               </p>
             </Link>

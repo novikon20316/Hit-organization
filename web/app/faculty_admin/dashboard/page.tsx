@@ -133,7 +133,7 @@ function FacultyAdminDashboardContent() {
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
-        <p className="text-sm text-muted">{t('loading')}</p>
+        <p className="text-sm text-faculty-admin-on-surface-variant">{t('loading')}</p>
       ) : tab === 'overview' ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard emoji="👥" value={users.length} label={lang === 'he' ? 'משתמשים' : 'Users'} href="/faculty_admin/dashboard?tab=users" />
@@ -162,7 +162,7 @@ function FacultyAdminDashboardContent() {
             {projects.map((p) => (
               <ProjectCard key={p.id} project={p} onEnroll={setEnrollingProject} />
             ))}
-            {projects.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'אין פרויקטים בפקולטה' : 'No projects in this faculty'}</p>}
+            {projects.length === 0 && <p className="text-sm text-faculty-admin-on-surface-variant">📭 {lang === 'he' ? 'אין פרויקטים בפקולטה' : 'No projects in this faculty'}</p>}
           </div>
         </div>
       ) : tab === 'deadlines' ? (
@@ -201,15 +201,15 @@ function StatCard({ emoji, value, label, href }: { emoji: string; value: number;
   const content = (
     <>
       <div className="text-2xl">{emoji}</div>
-      <div className="mt-1 text-2xl font-semibold text-ink">{value}</div>
-      <div className="text-xs text-muted">{label}</div>
+      <div className="mt-1 text-2xl font-semibold text-faculty-admin-on-surface">{value}</div>
+      <div className="text-xs text-faculty-admin-on-surface-variant">{label}</div>
     </>
   );
   return href ? (
-    <Link href={href} className="rounded-[var(--radius)] border border-line bg-surface p-4 transition-colors hover:border-primary">
+    <Link href={href} className="rounded-faculty-admin border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-lowest p-4 transition-colors hover:border-faculty-admin-primary">
       {content}
     </Link>
   ) : (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">{content}</div>
+    <div className="rounded-faculty-admin border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-lowest p-4">{content}</div>
   );
 }

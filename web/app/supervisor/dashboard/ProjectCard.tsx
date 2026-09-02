@@ -41,7 +41,7 @@ const PROJECT_STATUS_LABEL: Record<string, { he: string; en: string }> = {
 // else stays a neutral badge so it doesn't compete with the urgency border.
 const PROJECT_STATUS_BADGE_CLASS: Record<string, string> = {
   active: 'bg-success-bg text-success',
-  in_progress: 'bg-[#eeedf4] text-[#1a1b21]',
+  in_progress: 'bg-supervisor-surface-container text-supervisor-on-surface',
 };
 
 interface ProjectCardProps {
@@ -89,7 +89,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
 
   return (
     <div className="rounded-[12px] p-1" style={{ border: `2px solid ${urgencyColor}` }}>
-    <div className="role-rail rounded-[8px] border border-[#c5c5d3] bg-white p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+    <div className="role-rail rounded-supervisor-lg border border-supervisor-outline-variant bg-supervisor-surface-container-lowest p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
@@ -101,16 +101,16 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
             {facultyLabel(p.facultyId as FacultyId, lang)}
           </span>
           <span
-            className={`rounded-[4px] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            className={`rounded-supervisor px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
               PROJECT_STATUS_BADGE_CLASS[p.status] ?? PROJECT_STATUS_BADGE_CLASS.in_progress
             }`}
           >
             {PROJECT_STATUS_LABEL[p.status]?.[lang] ?? p.status}
           </span>
-          <span className="ml-auto text-xs text-[#757682]">{expanded ? '▲' : '▼'}</span>
+          <span className="ml-auto text-xs text-supervisor-outline">{expanded ? '▲' : '▼'}</span>
         </div>
-        <p className="mt-2 text-sm font-semibold text-[#1a1b21]">{lang === 'he' ? p.titleHe : p.titleEn}</p>
-        <p className="mt-1 text-xs text-[#444651]">
+        <p className="mt-2 text-sm font-semibold text-supervisor-on-surface">{lang === 'he' ? p.titleHe : p.titleEn}</p>
+        <p className="mt-1 text-xs text-supervisor-on-surface-variant">
           {p.degreeType === 'bachelors' ? t('bachelors') : t('masters')} ·{' '}
           {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'} ·{' '}
           {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}
@@ -123,7 +123,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         <div className="mt-1.5 grid gap-0.5">
           {p.enrolledStudents!.map((s) => (
             <div key={s.id} className="flex items-center justify-between gap-2">
-              <p className="text-xs text-[#444651]">
+              <p className="text-xs text-supervisor-on-surface-variant">
                 👤 {s.name || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable')}
                 {s.degreeType ? ` · ${s.degreeType === 'bachelors' ? t('bachelors') : t('masters')}` : ''}
                 {s.yearOfStudy ? ` · ${lang === 'he' ? 'שנה' : 'Year'} ${s.yearOfStudy}` : ''}
@@ -132,7 +132,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
                 type="button"
                 onClick={() => messageStudent(s.id, s.name)}
                 disabled={messagingId === s.id}
-                className="shrink-0 text-xs font-medium text-[#00236f] hover:underline disabled:opacity-60"
+                className="shrink-0 text-xs font-medium text-supervisor-primary hover:underline disabled:opacity-60"
               >
                 💬 {messagingId === s.id ? '…' : lang === 'he' ? 'הודעה' : 'Message'}
               </button>
@@ -171,11 +171,11 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         </p>
       )}
 
-      <div className="mt-3 flex gap-2 border-t border-[#c5c5d3] pt-3">
+      <div className="mt-3 flex gap-2 border-t border-supervisor-outline-variant pt-3">
         <button
           type="button"
           onClick={() => onEdit(p)}
-          className="flex-1 rounded-[4px] border border-[#c5c5d3] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[#505f76] hover:border-[#00236f] hover:text-[#00236f]"
+          className="flex-1 rounded-supervisor border border-supervisor-outline-variant px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-supervisor-secondary hover:border-supervisor-primary hover:text-supervisor-primary"
         >
           {lang === 'he' ? 'עריכה' : 'Edit'}
         </button>
@@ -183,7 +183,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
           <button
             type="button"
             onClick={() => onRecommendExaminers(p)}
-            className="flex-1 rounded-[4px] border border-[#c5c5d3] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[#505f76] hover:border-[#00236f] hover:text-[#00236f]"
+            className="flex-1 rounded-supervisor border border-supervisor-outline-variant px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-supervisor-secondary hover:border-supervisor-primary hover:text-supervisor-primary"
           >
             🧑‍⚖️ {lang === 'he' ? 'המלצת בוחנים' : 'Recommend Examiners'}
           </button>
@@ -191,7 +191,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         <button
           type="button"
           onClick={() => setShowRequestErasure(true)}
-          className="flex-1 rounded-[4px] border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger-bg"
+          className="flex-1 rounded-supervisor border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger-bg"
         >
           {t('requestErasure')}
         </button>

@@ -51,22 +51,22 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
   };
 
   return (
-    <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
+    <div className="rounded-faculty-admin border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-lowest p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ backgroundColor: roleColor }}>
           {user.displayName.charAt(0).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-ink">{user.displayName}</p>
-          <p className="truncate text-xs text-muted" dir="ltr">
+          <p className="truncate text-sm font-semibold text-faculty-admin-on-surface">{user.displayName}</p>
+          <p className="truncate text-xs text-faculty-admin-on-surface-variant" dir="ltr">
             {user.email}
           </p>
         </div>
         <label className="inline-flex shrink-0 cursor-pointer items-center gap-2">
-          <span className="text-xs text-muted">{user.isActive ? (lang === 'he' ? 'פעיל' : 'Active') : lang === 'he' ? 'מושבת' : 'Suspended'}</span>
+          <span className="text-xs text-faculty-admin-on-surface-variant">{user.isActive ? (lang === 'he' ? 'פעיל' : 'Active') : lang === 'he' ? 'מושבת' : 'Suspended'}</span>
           <span className="relative inline-block h-5 w-9">
             <input type="checkbox" checked={user.isActive} disabled={toggling} onChange={handleToggle} className="peer absolute h-0 w-0 opacity-0" />
-            <span className="absolute inset-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-disabled:opacity-60" />
+            <span className="absolute inset-0 rounded-full bg-faculty-admin-outline-variant transition-colors peer-checked:bg-faculty-admin-primary peer-disabled:opacity-60" />
             <span className="absolute top-0.5 start-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4 rtl:peer-checked:-translate-x-4" />
           </span>
         </label>
@@ -77,9 +77,9 @@ export function UserRow({ user, statusConfig, onChanged, onEdit }: UserRowProps)
           <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: withAlpha(roleColor, 0.12), color: roleColor }}>
             {roleLabel(user.role as AppRole, lang)}
           </span>
-          {facultyMajorLine && <span className="px-2.5 text-[11px] text-muted">{facultyMajorLine}</span>}
+          {facultyMajorLine && <span className="px-2.5 text-[11px] text-faculty-admin-on-surface-variant">{facultyMajorLine}</span>}
         </div>
-        <button type="button" onClick={() => onEdit(user)} className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary">
+        <button type="button" onClick={() => onEdit(user)} className="rounded-full border border-faculty-admin-outline-variant px-3 py-1.5 text-xs font-medium text-faculty-admin-on-surface hover:border-faculty-admin-primary hover:text-faculty-admin-primary">
           ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
         </button>
       </div>

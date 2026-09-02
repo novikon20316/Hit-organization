@@ -157,21 +157,21 @@ function SupervisorDashboardContent() {
     >
       {/* Academic Precision overview strip — real counts, no new fetches */}
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Link href="/supervisor/dashboard?tab=projects" className="rounded-[8px] border border-[#c5c5d3] bg-white p-4 transition-colors hover:border-[#00236f]">
-          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#505f76]">
+        <Link href="/supervisor/dashboard?tab=projects" className="rounded-supervisor-lg border border-supervisor-outline-variant bg-supervisor-surface-container-lowest p-4 transition-colors hover:border-supervisor-primary">
+          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-supervisor-secondary">
             {lang === 'he' ? 'הפרויקטים שלי' : 'Active Projects'}
           </h4>
           <div className="flex items-end justify-between">
-            <span className="text-4xl font-bold leading-none text-[#1a1b21]">{myProjects.length}</span>
+            <span className="text-4xl font-bold leading-none text-supervisor-on-surface">{myProjects.length}</span>
             <span className="text-2xl">📁</span>
           </div>
         </Link>
-        <Link href="/supervisor/dashboard?tab=applications" className="rounded-[8px] border border-[#c5c5d3] bg-white p-4 transition-colors hover:border-[#00236f]">
-          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#505f76]">
+        <Link href="/supervisor/dashboard?tab=applications" className="rounded-supervisor-lg border border-supervisor-outline-variant bg-supervisor-surface-container-lowest p-4 transition-colors hover:border-supervisor-primary">
+          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-supervisor-secondary">
             {lang === 'he' ? 'מועמדויות ממתינות' : 'Pending Applications'}
           </h4>
           <div className="flex items-end justify-between">
-            <span className="text-4xl font-bold leading-none text-[#1a1b21]">{pendingApplicationsCount}</span>
+            <span className="text-4xl font-bold leading-none text-supervisor-on-surface">{pendingApplicationsCount}</span>
             <span className="text-2xl">📨</span>
           </div>
         </Link>
@@ -181,12 +181,12 @@ function SupervisorDashboardContent() {
             there, not to `signoffs` (an unrelated final-grade-signoff
             widget) — that mismatch was why clicking this card never took a
             supervisor anywhere they could actually grade something. */}
-        <Link href="/supervisor/dashboard?tab=projects" className="rounded-[8px] border border-l-4 border-[#c5c5d3] border-l-[#00236f] bg-white p-4 transition-colors hover:border-[#00236f]">
-          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#00236f]">
+        <Link href="/supervisor/dashboard?tab=projects" className="rounded-supervisor-lg border border-l-4 border-supervisor-outline-variant border-l-supervisor-primary bg-supervisor-surface-container-lowest p-4 transition-colors hover:border-supervisor-primary">
+          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-supervisor-primary">
             {lang === 'he' ? 'ציונים לבדיקה' : 'Milestones to Review'}
           </h4>
           <div className="flex items-end justify-between">
-            <span className="text-4xl font-bold leading-none text-[#1a1b21]">{pendingGrades.length}</span>
+            <span className="text-4xl font-bold leading-none text-supervisor-on-surface">{pendingGrades.length}</span>
             <span className="text-2xl">⏰</span>
           </div>
         </Link>
@@ -197,7 +197,7 @@ function SupervisorDashboardContent() {
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
-        <p className="text-sm text-muted">{t('loading')}</p>
+        <p className="text-sm text-supervisor-on-surface-variant">{t('loading')}</p>
       ) : (
         <>
           {tab === 'applications' && (
@@ -208,10 +208,10 @@ function SupervisorDashboardContent() {
                     key={key}
                     type="button"
                     onClick={() => setApplicationFilter(key)}
-                    className={`shrink-0 rounded-[4px] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    className={`shrink-0 rounded-supervisor px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
                       applicationFilter === key
-                        ? 'bg-[#00236f] text-white'
-                        : 'bg-[#eeedf4] text-[#505f76] hover:text-[#1a1b21]'
+                        ? 'bg-supervisor-primary text-supervisor-on-primary'
+                        : 'bg-supervisor-surface-container text-supervisor-secondary hover:text-supervisor-on-surface'
                     }`}
                   >
                     {lang === 'he' ? he : en}
@@ -223,7 +223,7 @@ function SupervisorDashboardContent() {
                   <ApplicationCard key={app.id} application={app} onDecided={fetchDashboard} />
                 ))}
                 {filteredApplications.length === 0 && (
-                  <p className="text-sm text-muted">
+                  <p className="text-sm text-supervisor-on-surface-variant">
                     📬{' '}
                     {applicationFilter === 'all'
                       ? lang === 'he'
@@ -246,10 +246,10 @@ function SupervisorDashboardContent() {
                     key={key}
                     type="button"
                     onClick={() => setProjectFilter(key)}
-                    className={`shrink-0 rounded-[4px] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    className={`shrink-0 rounded-supervisor px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
                       projectFilter === key
-                        ? 'bg-[#00236f] text-white'
-                        : 'bg-[#eeedf4] text-[#505f76] hover:text-[#1a1b21]'
+                        ? 'bg-supervisor-primary text-supervisor-on-primary'
+                        : 'bg-supervisor-surface-container text-supervisor-secondary hover:text-supervisor-on-surface'
                     }`}
                   >
                     {lang === 'he' ? he : en}
@@ -269,7 +269,7 @@ function SupervisorDashboardContent() {
                   />
                 ))}
                 {filteredProjects.length === 0 && (
-                  <p className="text-sm text-muted">
+                  <p className="text-sm text-supervisor-on-surface-variant">
                     📭{' '}
                     {myProjects.length === 0
                       ? lang === 'he'
@@ -319,12 +319,12 @@ function SupervisorDashboardContent() {
       )}
 
       {tab === 'projects' && (
-        <div className="fixed start-0 end-0 bottom-0 z-30 border-t border-[#c5c5d3] bg-white px-4 py-3 lg:start-64">
+        <div className="fixed start-0 end-0 bottom-0 z-30 border-t border-supervisor-outline-variant bg-supervisor-surface-container-lowest px-4 py-3 lg:start-64">
           <div className="mx-auto max-w-6xl">
             <button
               type="button"
               onClick={() => setShowNewProject(true)}
-              className="w-full rounded-[4px] bg-[#00236f] py-3 text-sm font-semibold uppercase tracking-wide text-white hover:bg-[#1e3a8a]"
+              className="w-full rounded-supervisor bg-supervisor-primary py-3 text-sm font-semibold uppercase tracking-wide text-supervisor-on-primary hover:opacity-90"
             >
               + {lang === 'he' ? 'פרסם פרויקט חדש' : 'Post New Project'}
             </button>

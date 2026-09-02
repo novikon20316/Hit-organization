@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
+import { ap } from '@/constants/theme';
 
 interface SupervisorRow { id: string; displayName: string; email: string; facultyId: string; }
 
@@ -39,26 +40,26 @@ export default function ProgramHeadRecordsScreen() {
   }, [lang]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F8FA' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: ap.surface }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/program_head/program_head_dashboard' as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
           accessibilityRole="button"
         >
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#2E86FF' }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: ap.primary }}>
             {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה' : 'Back'}
           </Text>
         </Pressable>
 
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827' }}>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: ap.onSurface }}>
           📜 {lang === 'he' ? 'רישומי פרויקטים' : 'Project Records'}
         </Text>
-        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+        <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4 }}>
           {lang === 'he' ? 'בחר/י מנחה כדי לצפות בפרויקטים שלו/שלה.' : "Choose a supervisor to see their projects."}
         </Text>
 
-        {loading && <ActivityIndicator size="large" color="#2E86FF" style={{ marginTop: 30 }} />}
+        {loading && <ActivityIndicator size="large" color={ap.primary} style={{ marginTop: 30 }} />}
 
         {!loading && !!error && (
           <View style={{ marginTop: 20, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 14 }}>
@@ -69,7 +70,7 @@ export default function ProgramHeadRecordsScreen() {
         {!loading && !error && supervisors.length === 0 && (
           <View style={{ marginTop: 30, alignItems: 'center' }}>
             <Text style={{ fontSize: 32 }}>📭</Text>
-            <Text style={{ marginTop: 8, fontSize: 13, color: '#6B7280', textAlign: 'center' }}>
+            <Text style={{ marginTop: 8, fontSize: 13, color: ap.onSurfaceVariant, textAlign: 'center' }}>
               {lang === 'he' ? 'אין מנחים בהיקף שלך.' : 'No supervisors in your scope.'}
             </Text>
           </View>
@@ -79,13 +80,13 @@ export default function ProgramHeadRecordsScreen() {
           <Pressable
             key={sup.id}
             onPress={() => router.push({ pathname: '/program_head/records/[supervisorId]', params: { supervisorId: sup.id, lang } } as any)}
-            style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB' }}
+            style={{ backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: ap.outlineVariant }}
             accessibilityRole="link"
           >
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827', textAlign: isRtl ? 'right' : 'left' }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: ap.onSurface, textAlign: isRtl ? 'right' : 'left' }}>
               {sup.displayName}
             </Text>
-            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
+            <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
               {sup.email}
             </Text>
           </Pressable>

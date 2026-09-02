@@ -77,23 +77,23 @@ export function FinalGradeDecisionModal({ milestoneId, autoCalculatedFinalGrade,
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="w-full max-w-md rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'ציון סופי מחושב' : 'Computed Final Grade'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">✕</button>
+          <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'ציון סופי מחושב' : 'Computed Final Grade'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">✕</button>
         </div>
 
-        <div className="mt-4 rounded-lg bg-paper p-4 text-center">
-          <p className="text-xs text-muted">{lang === 'he' ? 'הציון המחושב אוטומטית' : 'Automatically calculated grade'}</p>
-          <p className="mt-1 text-3xl font-bold text-ink">{autoCalculatedFinalGrade}</p>
+        <div className="mt-4 rounded-lg bg-supervisor-surface-container-low p-4 text-center">
+          <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'הציון המחושב אוטומטית' : 'Automatically calculated grade'}</p>
+          <p className="mt-1 text-3xl font-bold text-supervisor-on-surface">{autoCalculatedFinalGrade}</p>
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
             {lang === 'he' ? 'קובץ מצורף (אופציונלי — למשל טופס הציון הסופי החתום)' : 'Attached file (optional — e.g. the signed final-grade form)'}
           </span>
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink" />
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface" />
         </label>
 
         {mode === 'choose' ? (
@@ -102,14 +102,14 @@ export function FinalGradeDecisionModal({ milestoneId, autoCalculatedFinalGrade,
               type="button"
               onClick={handleApprove}
               disabled={submitting}
-              className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              className="w-full rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
             >
               {submitting ? '…' : lang === 'he' ? '✓ אשר את הציון המחושב' : '✓ Approve the computed grade'}
             </button>
             <button
               type="button"
               onClick={() => setMode('override')}
-              className="w-full rounded-lg border border-line px-3.5 py-2.5 text-sm font-medium text-ink hover:bg-paper"
+              className="w-full rounded-lg border border-supervisor-outline-variant px-3.5 py-2.5 text-sm font-medium text-supervisor-on-surface hover:bg-supervisor-surface-container-low"
             >
               {lang === 'he' ? 'שנה את הציון' : 'Change the grade'}
             </button>
@@ -117,39 +117,39 @@ export function FinalGradeDecisionModal({ milestoneId, autoCalculatedFinalGrade,
         ) : (
           <div className="mt-4 grid gap-3">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'ציון חדש' : 'New grade'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'ציון חדש' : 'New grade'}</span>
               <input
                 type="number"
                 min={0}
                 max={100}
                 value={overrideGrade}
                 onChange={(e) => setOverrideGrade(e.target.value)}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'נימוק לשינוי (חובה)' : 'Reason for the change (required)'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'נימוק לשינוי (חובה)' : 'Reason for the change (required)'}</span>
               <textarea
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
               />
             </label>
-            <p className="text-xs text-muted">
+            <p className="text-xs text-supervisor-on-surface-variant">
               {lang === 'he'
                 ? 'השינוי יישלח לאישור הרכז/ת — עד להחלטתו/ה הציון לא ייכנס לתוקף.'
                 : "This change will be sent to the coordinator for approval — it won't take effect until they decide."}
             </p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setMode('choose')} className="flex-1 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+              <button type="button" onClick={() => setMode('choose')} className="flex-1 rounded-lg border border-supervisor-outline-variant px-3.5 py-2 text-sm font-medium text-supervisor-on-surface hover:bg-supervisor-surface-container-low">
                 {lang === 'he' ? 'חזרה' : 'Back'}
               </button>
               <button
                 type="button"
                 onClick={handleOverride}
                 disabled={submitting}
-                className="flex-1 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                className="flex-1 rounded-lg bg-supervisor-primary px-3.5 py-2 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
               >
                 {submitting ? '…' : lang === 'he' ? 'שלח לאישור' : 'Submit for approval'}
               </button>

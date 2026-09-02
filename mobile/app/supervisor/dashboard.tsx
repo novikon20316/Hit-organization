@@ -10,7 +10,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
-import { sharedStyles } from '@/constants';
+import { sharedStyles, ap } from '@/constants';
 import { SupervisorExtraStyles } from '../../constants/styles';
 import { NewProjectModal, RecommendedExaminerModal } from '@/components/modals';
 import ProjectWorkflowSection from '@/components/ProjectWorkflowSection';
@@ -838,7 +838,7 @@ export default function SupervisorHome() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2E86FF" />
+        <ActivityIndicator size="large" color={ap.primary} />
       </View>
     );
   }
@@ -896,7 +896,7 @@ export default function SupervisorHome() {
           so a supervisor never has to go hunting for where a stat came from. */}
       <View style={[styles.statsRow, isRtl && styles.rowReverse]}>
         <StatCard emoji="📁" value={myProjects.length}
-          label={lang === 'he' ? 'הפרויקטים שלי' : 'My Projects'} color="#2E86FF" isRtl={isRtl}
+          label={lang === 'he' ? 'הפרויקטים שלי' : 'My Projects'} color={ap.primary} isRtl={isRtl}
           onPress={() => setActiveTab('projects')} />
         <View style={styles.statGap} />
         <StatCard emoji="📨" value={pendingApplicationsCount}
@@ -976,12 +976,12 @@ export default function SupervisorHome() {
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 20,
-                    backgroundColor: projectFilter === f.key ? '#2E86FF' : '#F0F4FF',
+                    backgroundColor: projectFilter === f.key ? ap.primary : ap.surfaceContainerLow,
                     borderWidth: 1,
-                    borderColor: projectFilter === f.key ? '#2E86FF' : '#D0DEFF',
+                    borderColor: projectFilter === f.key ? ap.primary : ap.outlineVariant,
                   }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: projectFilter === f.key ? '#fff' : '#475569' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: projectFilter === f.key ? ap.onPrimary : ap.onSurfaceVariant }}>
                     {lang === 'he' ? f.he : f.en}
                   </Text>
                 </Pressable>
@@ -1091,12 +1091,12 @@ export default function SupervisorHome() {
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 20,
-                    backgroundColor: applicationFilter === f.key ? '#2E86FF' : '#F0F4FF',
+                    backgroundColor: applicationFilter === f.key ? ap.primary : ap.surfaceContainerLow,
                     borderWidth: 1,
-                    borderColor: applicationFilter === f.key ? '#2E86FF' : '#D0DEFF',
+                    borderColor: applicationFilter === f.key ? ap.primary : ap.outlineVariant,
                   }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: applicationFilter === f.key ? '#fff' : '#475569' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: applicationFilter === f.key ? ap.onPrimary : ap.onSurfaceVariant }}>
                     {lang === 'he' ? f.he : f.en}
                   </Text>
                 </Pressable>
@@ -1126,7 +1126,7 @@ export default function SupervisorHome() {
                       <Text style={[styles.appProjectLabel, isRtl && styles.textRight, { flex: 1 }]}>
                         📁 {lang === 'he' ? app.projectTitleHe : app.projectTitleEn}
                       </Text>
-                      <Text style={{ fontSize: 18, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
+                      <Text style={{ fontSize: 18, color: ap.onSurfaceVariant }}>{isExpanded ? '▲' : '▼'}</Text>
                     </View>
 
                     <View style={[styles.row, isRtl && styles.rowReverse, { marginVertical: 8 }]}>
@@ -1324,7 +1324,7 @@ export default function SupervisorHome() {
                 const submitTime = m.submittedAt ? new Date(m.submittedAt).getTime() : null;
                 
                 let targetDaysText = '';
-                let targetDaysColor = '#8899BB';
+                let targetDaysColor: string = ap.onSurfaceVariant;
 
                 if (dueTime && submitTime) {
                   const diffMs = dueTime - submitTime;
@@ -1359,7 +1359,7 @@ export default function SupervisorHome() {
                             📤 {lang === 'he' ? 'הוגש' : 'Submitted'}
                           </Text>
                         </View>
-                        <Text style={{ fontSize: 16, color: '#8899BB' }}>{isExpanded ? '▲' : '▼'}</Text>
+                        <Text style={{ fontSize: 16, color: ap.onSurfaceVariant }}>{isExpanded ? '▲' : '▼'}</Text>
                       </View>
                     </View>
 
@@ -1383,7 +1383,7 @@ export default function SupervisorHome() {
                         </Text>
                       )
                     ) : (
-                      <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 10 }}>
+                      <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: ap.outlineVariant, paddingTop: 10 }}>
                         {/* 1. Days info / Status logic */}
                         {targetDaysText ? (
                           <Text style={[isRtl && styles.textRight, { color: targetDaysColor, fontWeight: '600', marginBottom: 8, fontSize: 13 }]}>
@@ -1434,7 +1434,7 @@ export default function SupervisorHome() {
                             </View>
                           </View>
                         ) : (
-                          <Text style={[isRtl && styles.textRight, { fontStyle: 'italic', color: '#8899BB', marginBottom: 12, fontSize: 12 }]}>
+                          <Text style={[isRtl && styles.textRight, { fontStyle: 'italic', color: ap.onSurfaceVariant, marginBottom: 12, fontSize: 12 }]}>
                             {lang === 'he' ? 'אין קבצים מצורפים להורדה' : 'No attached files available'}
                           </Text>
                         )}
@@ -1476,7 +1476,7 @@ export default function SupervisorHome() {
                                 <Text style={styles.gradeBtnText}>{lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}</Text>
                               </Pressable>
                               <Pressable onPress={(e) => { e.stopPropagation(); setSigningId(null); }} accessibilityRole="button">
-                                <Text style={{ color: '#8899BB', fontSize: 12 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                                <Text style={{ color: ap.onSurfaceVariant, fontSize: 12 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                               </Pressable>
                             </View>
                           ) : (
@@ -1586,8 +1586,8 @@ export default function SupervisorHome() {
       {activeTab === 'projects' && (
         <View style={{
           position: 'absolute', left: 0, right: 0, bottom: 0,
-          backgroundColor: '#fff', padding: 16,
-          borderTopWidth: 1, borderTopColor: '#E5E7EB',
+          backgroundColor: ap.surfaceContainerLowest, padding: 16,
+          borderTopWidth: 1, borderTopColor: ap.outlineVariant,
         }}>
           <Pressable style={styles.addBtn} onPress={() => setShowNewProject(true)} accessibilityRole="button">
             <Text style={styles.addBtnText}>
@@ -1697,7 +1697,7 @@ export default function SupervisorHome() {
               accessibilityRole="button"
             >
               {uploadingProjectFile ? (
-                <ActivityIndicator color="#2E86FF" />
+                <ActivityIndicator color={ap.primary} />
               ) : (
                 <Text style={styles.uploadBtnText}>
                   {editProjectFile
@@ -1708,7 +1708,7 @@ export default function SupervisorHome() {
             </Pressable>
             <Pressable style={styles.submitBtn} onPress={() => handleEditProject(editProject)} disabled={saving} accessibilityRole="button">
               {saving
-                ? <ActivityIndicator color="#fff" />
+                ? <ActivityIndicator color={ap.onPrimary} />
                 : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שמור שינויים' : 'Save Changes'}</Text>
               }
             </Pressable>
@@ -1735,33 +1735,33 @@ export default function SupervisorHome() {
       />
 
       <Modal visible={!!erasureProject} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setErasureProject(null)}>
-        <View style={{ flex: 1, padding: 20, backgroundColor: '#fff' }}>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: '#111' }}>{tx('requestErasureTitle', lang)}</Text>
+        <View style={{ flex: 1, padding: 20, backgroundColor: ap.surfaceContainerLowest }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: ap.onSurface }}>{tx('requestErasureTitle', lang)}</Text>
           {erasureProject && (
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', marginTop: 6 }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: ap.onSurface, marginTop: 6 }}>
               {lang === 'he' ? erasureProject.titleHe : erasureProject.titleEn}
             </Text>
           )}
-          <Text style={{ fontSize: 13, color: '#8899BB', marginTop: 8 }}>{tx('requestErasureMessage', lang)}</Text>
+          <Text style={{ fontSize: 13, color: ap.onSurfaceVariant, marginTop: 8 }}>{tx('requestErasureMessage', lang)}</Text>
 
           <TextInput
             value={erasureReason}
             onChangeText={setErasureReason}
             placeholder={tx('requestErasureReason', lang)}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={ap.onSurfaceVariant}
             multiline
             numberOfLines={3}
-            style={{ borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 8, padding: 10, marginTop: 16, fontSize: 14, minHeight: 80, textAlignVertical: 'top' }}
+            style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 10, marginTop: 16, fontSize: 14, minHeight: 80, textAlignVertical: 'top' }}
           />
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
             <Pressable
               onPress={() => { setErasureProject(null); setErasureReason(''); }}
               disabled={submittingErasure}
-              style={{ flex: 1, borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
+              style={{ flex: 1, borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
               accessibilityRole="button"
             >
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#111' }}>{tx('cancel', lang)}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: ap.onSurface }}>{tx('cancel', lang)}</Text>
             </Pressable>
             <Pressable
               onPress={submitErasureRequest}
@@ -1770,8 +1770,8 @@ export default function SupervisorHome() {
               accessibilityRole="button"
             >
               {submittingErasure
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{tx('requestErasure', lang)}</Text>}
+                ? <ActivityIndicator size="small" color={ap.onPrimary} />
+                : <Text style={{ fontSize: 14, fontWeight: '700', color: ap.onPrimary }}>{tx('requestErasure', lang)}</Text>}
             </Pressable>
           </View>
         </View>

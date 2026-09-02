@@ -43,16 +43,16 @@ export default function SupervisorRecordsPage() {
   return (
     <DashboardShell title={lang === 'he' ? 'רישומי הפרויקטים שלי' : 'My Project Records'} showBackButton={false}>
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <p className="mb-4 text-sm text-muted">
+        <p className="mb-4 text-sm text-supervisor-on-surface-variant">
           {lang === 'he'
             ? 'רישום קבוע וקריאה בלבד לכל פרויקט שכבר יש בו סטודנטים. פרויקטים ריקים אינם מוצגים כאן.'
             : 'A permanent, read-only record for every project that already has students. Empty projects aren’t shown here.'}
         </p>
 
         {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
-        {!error && projects === null && <p className="text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+        {!error && projects === null && <p className="text-sm text-supervisor-on-surface-variant" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
         {!error && projects !== null && projects.length === 0 && (
-          <p className="text-sm text-muted">
+          <p className="text-sm text-supervisor-on-surface-variant">
             {lang === 'he' ? 'אין עדיין פרויקטים עם רישום.' : 'No projects have a record yet.'}
           </p>
         )}
@@ -62,10 +62,10 @@ export default function SupervisorRecordsPage() {
             <Link
               key={p.id}
               href={`/supervisor/records/${p.id}`}
-              className="rounded-[var(--radius)] border border-line bg-surface px-4 py-3 transition-colors hover:border-primary"
+              className="rounded-supervisor border border-supervisor-outline-variant bg-supervisor-surface-container-lowest px-4 py-3 transition-colors hover:border-supervisor-primary"
             >
-              <p className="text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
-              <p className="mt-0.5 text-xs text-muted">
+              <p className="text-sm font-semibold text-supervisor-on-surface">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
+              <p className="mt-0.5 text-xs text-supervisor-on-surface-variant">
                 {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}
               </p>
             </Link>

@@ -65,7 +65,7 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -74,47 +74,47 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'עריכת פרויקט' : 'Edit Project'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'עריכת פרויקט' : 'Edit Project'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
             ✕
           </button>
         </div>
 
         <div className="mt-4 grid gap-3">
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}</span>
             <input dir="rtl" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}</span>
             <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'}</span>
             <textarea dir="rtl" rows={3} value={descHe} onChange={(e) => setDescHe(e.target.value)} className={inputCls} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תיאור באנגלית' : 'English Description'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תיאור באנגלית' : 'English Description'}</span>
             <textarea dir="ltr" rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} className={inputCls} />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תואר' : 'Degree'}</span>
               <select value={degreeType} onChange={(e) => setDegreeType(e.target.value)} className={inputCls} disabled={degreeOptions.length === 1}>
                 {degreeOptions.includes('bachelors') && <option value="bachelors">{t('bachelors')}</option>}
                 {degreeOptions.includes('masters') && <option value="masters">{t('masters')}</option>}
               </select>
               {degreeOptions.length === 1 && (
-                <p className="mt-1 text-xs text-muted">
+                <p className="mt-1 text-xs text-supervisor-on-surface-variant">
                   {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
                 </p>
               )}
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג' : 'Type'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'סוג' : 'Type'}</span>
               <select value={projectType} onChange={(e) => setProjectType(e.target.value)} className={inputCls}>
                 <option value="project">{lang === 'he' ? 'פרויקט' : 'Project'}</option>
                 <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>
@@ -122,7 +122,7 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
             </label>
           </div>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'כישורים נדרשים (מופרדים בפסיק)' : 'Required Skills (comma-separated)'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כישורים נדרשים (מופרדים בפסיק)' : 'Required Skills (comma-separated)'}</span>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder="React, Python, ..." />
           </label>
         </div>
@@ -130,14 +130,14 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-supervisor-outline-variant px-3.5 py-2 text-sm font-medium text-supervisor-on-surface hover:bg-supervisor-surface-container-low">
             {t('cancel')}
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || !titleHe.trim() || !titleEn.trim()}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-supervisor-primary px-3.5 py-2 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
           >
             {saving ? '…' : t('save')}
           </button>

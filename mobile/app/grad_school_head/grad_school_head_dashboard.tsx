@@ -15,6 +15,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { TopBar, FACULTY_COLORS } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { GradSchoolHeadDashboardStyles, adminPanelStyles } from '../../constants/styles';
+import { ap } from '../../constants/theme';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
 import StudentsListSection from '@/components/StudentsListSection';
@@ -546,7 +547,7 @@ export default function GradSchoolHeadDashboard() {
                           onChangeText={setFinalGradeRejectReason}
                           placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
                           multiline
-                          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
+                          style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
                         />
                         <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                           <Pressable
@@ -600,7 +601,7 @@ export default function GradSchoolHeadDashboard() {
                           onChangeText={setExaminerRejectReason}
                           placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
                           multiline
-                          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
+                          style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
                         />
                         <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                           <Pressable
@@ -652,7 +653,7 @@ export default function GradSchoolHeadDashboard() {
                           onChangeText={setTemplateRejectReason}
                           placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
                           multiline
-                          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
+                          style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 8, minHeight: 50, fontSize: 13, textAlignVertical: 'top' }}
                         />
                         <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                           <Pressable
@@ -727,7 +728,7 @@ export default function GradSchoolHeadDashboard() {
                   <Text style={s.cardTitle}>{lang === 'he' ? f.facultyNameHe : f.facultyNameEn}</Text>
                   <View style={s.statsRow}>
                     {[
-                      { label: lang === 'he' ? 'סה"כ' : 'Total',     value: f.total,     color: '#1E293B' },
+                      { label: lang === 'he' ? 'סה"כ' : 'Total',     value: f.total,     color: ap.onSurface },
                       { label: lang === 'he' ? 'פעילים' : 'Active',   value: f.active,    color: '#2E86FF' },
                       { label: lang === 'he' ? 'תקועים' : 'Stuck',    value: f.stuck,     color: '#EF4444' },
                       { label: lang === 'he' ? 'סיימו' : 'Done',      value: f.completed, color: '#10B981' },
@@ -819,7 +820,7 @@ export default function GradSchoolHeadDashboard() {
                         onChangeText={setUnlockReason}
                         placeholder={lang === 'he' ? 'סיבת פתיחת הציון לתיקון (חובה)' : 'Reason for unlocking (required)'}
                         multiline
-                        style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, minHeight: 60, fontSize: 13, textAlignVertical: 'top' }}
+                        style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 8, minHeight: 60, fontSize: 13, textAlignVertical: 'top' }}
                       />
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                         <Pressable
