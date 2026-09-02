@@ -53,7 +53,7 @@ function gradeStatusColor(m: MemberMilestoneGrade): string {
 function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
   if (m.finalGrade !== null) {
     const approved = m.gradeApproved ? (lang === 'he' ? 'מאושר' : 'Approved') : lang === 'he' ? 'טרם אושר' : 'Not yet approved';
-    return `${m.finalGrade}/100 · ${approved}`;
+    return `${m.finalGrade} · ${approved}`;
   }
   if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') {
     return lang === 'he' ? 'הוגש, בבדיקה' : 'Submitted, grading';

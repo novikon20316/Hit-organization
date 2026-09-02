@@ -32,21 +32,32 @@ const GRADING_CRITERIA = [
 // a plain sum, exactly matching today's behavior. See
 // server/src/services/milestoneRouting.ts's computeGradingComponentsScore
 // for the server-side twin of this formula.
-interface ActiveGradingField { key: string; maxScore: number; weight: number; heLabel: string; enLabel: string }
+interface ActiveGradingField {
+  key: string; maxScore: number; weight: number; heLabel: string; enLabel: string;
+  groupHe?: string; groupEn?: string;
+  // True means this field is scored/validated like any other but excluded
+  // from the rubric's total — e.g. a poster score recorded independently
+  // alongside a presentation rubric. See workflowTemplates.ts's excludeFromTotal.
+  excludeFromTotal?: boolean;
+}
 
 function activeGradingFields(m: AssignedMilestone | null): ActiveGradingField[] {
   if (m?.gradingComponents?.length) {
-    return m.gradingComponents.map((c) => ({ key: c.key, maxScore: c.maxScore, weight: c.weight, heLabel: c.labelHe, enLabel: c.labelEn }));
+    return m.gradingComponents.map((c) => ({ key: c.key, maxScore: c.maxScore, weight: c.weight, heLabel: c.labelHe, enLabel: c.labelEn, groupHe: c.groupHe, groupEn: c.groupEn, excludeFromTotal: c.excludeFromTotal }));
   }
   return GRADING_CRITERIA.map((c) => ({ ...c, weight: c.maxScore }));
 }
- 
+
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
   progress_report:   { he: 'דו"ח התקדמות', en: 'Progress Report'   },
   final_report:      { he: 'דו"ח מסכם',    en: 'Final Report'      },
   defense:           { he: 'הגנה',          en: 'Defense'           },
   poster:            { he: 'פוסטר',        en: 'Poster Session'    },
+  presentation_1:    { he: 'מצגת 1',        en: 'Presentation 1'    },
+  presentation_2:    { he: 'מצגת 2',        en: 'Presentation 2'    },
+  presentation_3:    { he: 'מצגת 3',        en: 'Presentation 3'    },
+  project_book:      { he: 'ספר פרויקט',    en: 'Project Book'      },
 };
  
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -108,6 +119,15 @@ export default function ExaminerHome() {
   const [evalComment,    setEvalComment]    = useState('');
   const [evalFile,       setEvalFile]       = useState<{ uri: string; name: string; mimeType?: string } | null>(null);
   const [evalSubmitting, setEvalSubmitting] = useState(false);
+
+  // ── Non-scored examiner Q&A workflow (see workflowTemplates.ts's
+  //    examinerFormFields), e.g. the Industrial Engineering & Management
+  //    "Presentation 1" yes/no form. Kept inline, same convention as the
+  //    grade/eval modals above. ─────────────────────────────────────────
+  const [formModal,      setFormModal]      = useState(false);
+  const [formTarget,     setFormTarget]     = useState<AssignedMilestone | null>(null);
+  const [formAnswers,    setFormAnswers]    = useState<Record<string, { value: 'yes' | 'no' | ''; comment: string }>>({});
+  const [formSubmitting, setFormSubmitting] = useState(false);
   // Shown instead of auto-closing the modal, only for the data_science
   // document flow — see isDataScienceDocument below.
   const [evalSubmittedAt, setEvalSubmittedAt] = useState<Date | null>(null);
@@ -179,6 +199,14 @@ export default function ExaminerHome() {
       const ev = m.examinerEvaluations?.[uid ?? ''];
       return !!ev?.project && !!ev?.defense;
     }
+    // Non-scored examiner Q&A milestones (see workflowTemplates.ts's
+    // examinerFormFields) track completion via examinerFormAnswers instead
+    // of examinerScores — every requiresExaminers milestone gets an (empty)
+    // examinerScores map at enrollment regardless of shape, so checking
+    // examinerScores alone can't tell these two apart.
+    if ((m.examinerFormFields?.length ?? 0) > 0) {
+      return m.examinerFormAnswers?.[uid ?? ''] != null;
+    }
     // Generic chain-routing milestones (see server/src/services/
     // milestoneRouting.ts's isChainDriven — e.g. the examiner-only 'poster'
     // type) carry neither examinerScores nor finalGradeComponents. Without
@@ -216,7 +244,13 @@ export default function ExaminerHome() {
   };
 
   const totalScore = () =>
-    Math.round(activeGradingFields(selected).reduce((sum, c) => sum + ((parseFloat(scores[c.key] || '0')) / c.maxScore) * c.weight, 0));
+    Math.round(activeGradingFields(selected).filter((c) => !c.excludeFromTotal).reduce((sum, c) => sum + ((parseFloat(scores[c.key] || '0')) / c.maxScore) * c.weight, 0));
+
+  // Dynamic denominator — every existing rubric happens to sum its weights
+  // to 100, so this is a no-op everywhere except a rubric that legitimately
+  // sums higher (e.g. Industrial Engineering & Management's 1-105 rubric).
+  const maxTotalScore = () =>
+    activeGradingFields(selected).filter((c) => !c.excludeFromTotal).reduce((sum, c) => sum + c.weight, 0);
 
   // ── Examiner evaluation (three-rubric workflow) ───────────────────────────
   const evalRubric: GradingComponentSpec[] = evalTarget
@@ -410,6 +444,57 @@ export default function ExaminerHome() {
     }
   };
  
+  // ── Non-scored examiner Q&A form (see workflowTemplates.ts's
+  //    examinerFormFields) ──────────────────────────────────────────────
+  const openFormModal = (m: AssignedMilestone) => {
+    const initial: Record<string, { value: 'yes' | 'no' | ''; comment: string }> = {};
+    (m.examinerFormFields ?? []).forEach((f) => { initial[f.key] = { value: '', comment: '' }; });
+    setFormTarget(m);
+    setFormAnswers(initial);
+    setFormModal(true);
+  };
+
+  const setFormAnswerValue = (fieldKey: string, value: 'yes' | 'no') => {
+    setFormAnswers((prev) => {
+      const field = (formTarget?.examinerFormFields ?? []).find((f) => f.key === fieldKey);
+      const keepComment = field?.commentRequiredOn === value ? prev[fieldKey]?.comment ?? '' : '';
+      return { ...prev, [fieldKey]: { value, comment: keepComment } };
+    });
+  };
+
+  const handleSubmitForm = async () => {
+    if (!formTarget) return;
+    const fields = formTarget.examinerFormFields ?? [];
+    for (const f of fields) {
+      const a = formAnswers[f.key];
+      if (a?.value !== 'yes' && a?.value !== 'no') {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש לבחור כן/לא עבור "${f.labelHe}"` : `Choose yes/no for "${f.labelEn}"`);
+        return;
+      }
+      if (f.commentRequiredOn === a.value && !a.comment.trim()) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `יש להוסיף הסבר עבור "${f.labelHe}"` : `An explanation is required for "${f.labelEn}"`);
+        return;
+      }
+    }
+    try {
+      setFormSubmitting(true);
+      const answers = Object.fromEntries(fields.map((f) => {
+        const a = formAnswers[f.key];
+        const comment = a.comment.trim();
+        return [f.key, comment ? { value: a.value, comment } : { value: a.value }];
+      }));
+      await apiClient.post(`/api/projects/milestones/${formTarget.id}/examiner-form`, { answers });
+      Alert.alert(lang === 'he' ? '✅ הצלחה' : '✅ Success', lang === 'he' ? 'הטופס נשלח בהצלחה' : 'Form submitted successfully');
+      setFormModal(false);
+      await fetchDashboardData();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', String(e));
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -480,6 +565,7 @@ export default function ExaminerHome() {
                 const fc            = getFacultyColor(m.facultyId);
                 const examinerIndex = m.examinerIds[0] === uid ? 1 : 2;
                 const isIdentityKeyed = m.examinerScores != null;
+                const isFormOnly = (m.examinerFormFields?.length ?? 0) > 0;
                 // Panel size is configurable per faculty/degree (see
                 // workflowTemplates.ts's examinerCount) — every OTHER
                 // examiner on the panel, not just a single assumed peer.
@@ -488,7 +574,7 @@ export default function ExaminerHome() {
                   .map((otherUid) => ({
                     uid: otherUid,
                     name: (m.defensePanel ?? []).find((p) => p.ref === otherUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown'),
-                    graded: m.examinerScores?.[otherUid] != null,
+                    graded: isFormOnly ? m.examinerFormAnswers?.[otherUid] != null : m.examinerScores?.[otherUid] != null,
                   }));
 
                 return (
@@ -667,7 +753,7 @@ export default function ExaminerHome() {
                                   {lang === 'he' ? 'ציון מנחה' : 'Supervisor score'}
                                 </Text>
                                 <Text style={[styles.scoreValue, { color: isGraded ? '#3F6B4C' : '#9CA3AF' }]}>
-                                  🏆 {isGraded ? `${mg.supervisorScore}/100` : (lang === 'he' ? 'טרם ניתן' : 'Not yet')}
+                                  🏆 {isGraded ? `${mg.supervisorScore}` : (lang === 'he' ? 'טרם ניתן' : 'Not yet')}
                                 </Text>
                               </View>
 
@@ -754,6 +840,16 @@ export default function ExaminerHome() {
                           </Text>
                         </Pressable>
                       </View>
+                    ) : isFormOnly ? (
+                      <Pressable
+                        style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
+                        onPress={() => openFormModal(m)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.gradeBtnText}>
+                          📝 {lang === 'he' ? 'מלא/י טופס הערכה' : 'Fill Evaluation Form'}
+                        </Text>
+                      </Pressable>
                     ) : (
                       <Pressable
                         style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
@@ -789,13 +885,16 @@ export default function ExaminerHome() {
                 const days      = isValid ? daysUntil(defDate) : null;
                 const fc        = getFacultyColor(m.facultyId);
 
+                // Matches web's equivalent ladder (app/examinor/home/page.tsx) —
+                // days===0/<=7/else use the base --danger/--accent/--success
+                // hex so both platforms render the identical urgency color.
                 const urgencyColor =
                   days === null ? '#6B7280' :
                   days < 0      ? '#9CA3AF' :
-                  days === 0    ? '#EF4444' :
+                  days === 0    ? '#A8433A' :
                   days <= 3     ? '#F97316' :
-                  days <= 7     ? '#F59E0B' :
-                                  '#10B981';
+                  days <= 7     ? '#B8862E' :
+                                  '#3F6B4C';
 
                 const urgencyLabel = lang === 'he'
                   ? (days === null ? '—' : days < 0 ? 'עברה' : days === 0 ? 'היום!' : days === 1 ? 'מחר!' : `בעוד ${days} ימים`)
@@ -896,32 +995,66 @@ export default function ExaminerHome() {
             </View>
           )}
  
-          {activeGradingFields(selected).map((c) => (
-            <View key={c.key} style={styles.criterionRow}>
-              <View style={styles.criterionHeader}>
-                <Text style={styles.criterionLabel}>
-                  {lang === 'he' ? c.heLabel : c.enLabel}
-                </Text>
-                <Text style={styles.criterionMax}>/ {c.maxScore}</Text>
+          {activeGradingFields(selected).filter((c) => !c.excludeFromTotal).map((c, idx, arr) => {
+            const group = lang === 'he' ? c.groupHe : c.groupEn;
+            const prevGroup = idx > 0 ? (lang === 'he' ? arr[idx - 1]!.groupHe : arr[idx - 1]!.groupEn) : undefined;
+            const showGroupHeader = !!group && group !== prevGroup;
+            return (
+              <View key={c.key} style={styles.criterionRow}>
+                {showGroupHeader && (
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', marginBottom: 4 }}>{group}</Text>
+                )}
+                <View style={styles.criterionHeader}>
+                  <Text style={styles.criterionLabel}>
+                    {lang === 'he' ? c.heLabel : c.enLabel}
+                  </Text>
+                  <Text style={styles.criterionMax}>/ {c.maxScore}</Text>
+                </View>
+                <TextInput
+                  style={styles.scoreInput}
+                  value={scores[c.key] || ''}
+                  onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: v }))}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
-              <TextInput
-                style={styles.scoreInput}
-                value={scores[c.key] || ''}
-                onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: v }))}
-                keyboardType="numeric"
-                placeholder="0"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-          ))}
- 
+            );
+          })}
+
+          {activeGradingFields(selected).filter((c) => c.excludeFromTotal).length > 0 && (
+            <>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', marginTop: 8, marginBottom: 4 }}>
+                {lang === 'he' ? 'ציונים נפרדים (לא נכללים בסיכום)' : 'Separate scores (not included in the total)'}
+              </Text>
+              {activeGradingFields(selected).filter((c) => c.excludeFromTotal).map((c) => (
+                <View key={c.key} style={styles.criterionRow}>
+                  <View style={styles.criterionHeader}>
+                    <Text style={styles.criterionLabel}>
+                      {lang === 'he' ? c.heLabel : c.enLabel}
+                    </Text>
+                    <Text style={styles.criterionMax}>/ {c.maxScore}</Text>
+                  </View>
+                  <TextInput
+                    style={styles.scoreInput}
+                    value={scores[c.key] || ''}
+                    onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: v }))}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+              ))}
+            </>
+          )}
+
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
               {lang === 'he' ? 'סה"כ' : 'Total'}
             </Text>
             <Text style={[styles.totalScore,
-              { color: totalScore() >= 60 ? '#10B981' : '#EF4444' }]}>
-              {totalScore()} / 100
+              { color: totalScore() >= maxTotalScore() * 0.6 ? '#10B981' : '#EF4444' }]}>
+              {totalScore()} / {maxTotalScore()}
             </Text>
           </View>
  
@@ -953,6 +1086,103 @@ export default function ExaminerHome() {
           </Pressable>
  
           <Pressable style={styles.cancelBtn} onPress={() => setGradeModal(false)} accessibilityRole="button">
+            <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+          </Pressable>
+        </ScrollView>
+      </Modal>
+
+      {/* ════════ EXAMINER FORM-ANSWERS MODAL — non-scored Q&A workflow ════════
+          Generic (not faculty-specific) renderer for a milestone's
+          examinerFormFields (see workflowTemplates.ts) — e.g. the Industrial
+          Engineering & Management "Presentation 1" form: yes/no questions,
+          each with a comment that becomes mandatory only for a specific
+          answer (see each field's own commentRequiredOn). */}
+      <Modal visible={formModal} animationType="slide" presentationStyle="pageSheet">
+        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          <Text style={styles.modalTitle}>
+            📝 {formTarget ? (MILESTONE_LABEL[formTarget.type]?.[lang] ?? '') : ''}
+          </Text>
+
+          {formTarget && (
+            <View style={styles.context}>
+              <Text style={styles.contextTitle}>
+                {lang === 'he' ? formTarget.projectTitleHe : formTarget.projectTitleEn}
+              </Text>
+              <Text style={styles.contextSub}>👤 {formTarget.studentNames.join(', ')}</Text>
+              <Text style={styles.contextSub}>👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {formTarget.supervisorName}</Text>
+              <Text style={styles.contextSub}>🖊 {lang === 'he' ? 'מעריך:' : 'Evaluator:'} {examinerName}</Text>
+              <Text style={styles.contextSub}>📅 {new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</Text>
+            </View>
+          )}
+
+          {(formTarget?.examinerFormFields ?? []).map((f, idx) => {
+            const a = formAnswers[f.key] ?? { value: '' as const, comment: '' };
+            const commentEnabled = f.commentRequiredOn ? a.value === f.commentRequiredOn : a.value !== '';
+            const commentRequired = f.commentRequiredOn ? a.value === f.commentRequiredOn : false;
+            return (
+              <View key={f.key} style={[styles.criterionRow, { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 10 }]}>
+                <Text style={styles.criterionLabel}>{idx + 1}. {lang === 'he' ? f.labelHe : f.labelEn}</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <Pressable
+                    onPress={() => setFormAnswerValue(f.key, 'yes')}
+                    style={{
+                      flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                      borderWidth: 1, borderColor: a.value === 'yes' ? '#10B981' : '#E5E7EB',
+                      backgroundColor: a.value === 'yes' ? '#10B981' : 'transparent',
+                    }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ fontWeight: '700', color: a.value === 'yes' ? '#fff' : '#111827' }}>{lang === 'he' ? 'כן' : 'Yes'}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setFormAnswerValue(f.key, 'no')}
+                    style={{
+                      flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                      borderWidth: 1, borderColor: a.value === 'no' ? '#10B981' : '#E5E7EB',
+                      backgroundColor: a.value === 'no' ? '#10B981' : 'transparent',
+                    }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ fontWeight: '700', color: a.value === 'no' ? '#fff' : '#111827' }}>{lang === 'he' ? 'לא' : 'No'}</Text>
+                  </Pressable>
+                </View>
+                <TextInput
+                  style={[styles.textarea, !commentEnabled && { opacity: 0.5 }]}
+                  value={a.comment}
+                  editable={commentEnabled}
+                  onChangeText={(v) => setFormAnswers((prev) => ({ ...prev, [f.key]: { ...prev[f.key], value: prev[f.key]?.value ?? '', comment: v } }))}
+                  multiline
+                  numberOfLines={2}
+                  placeholder={
+                    !commentEnabled
+                      ? (lang === 'he' ? 'אין צורך בהסבר עבור תשובה זו' : 'No explanation needed for this answer')
+                      : (lang === 'he' ? 'הסבר במשפט אחד...' : 'One-sentence explanation...')
+                  }
+                  placeholderTextColor="#9CA3AF"
+                  textAlign={isRtl ? 'right' : 'left'}
+                />
+                {commentRequired && (
+                  <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                    {lang === 'he' ? '* הסבר חובה עבור תשובה זו' : '* An explanation is required for this answer'}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+
+          <Pressable
+            style={[styles.submitBtn, formSubmitting && { opacity: 0.6 }]}
+            onPress={handleSubmitForm}
+            disabled={formSubmitting}
+            accessibilityRole="button"
+          >
+            {formSubmitting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שלח' : 'Submit'}</Text>
+            }
+          </Pressable>
+
+          <Pressable style={styles.cancelBtn} onPress={() => setFormModal(false)} accessibilityRole="button">
             <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
           </Pressable>
         </ScrollView>

@@ -330,6 +330,70 @@ select:not(:disabled):hover {
 }
 
 /*
+ * "Academic Precision" tokens — examinor screens only
+ * ────────────────────────────────────────────────────────
+ * Same palette as the --student-/--coordinator-/--admin- tokens above, from
+ * the same Stitch design project — kept as its own `--examinor-` prefix for
+ * the same reason as --coordinator-/--admin-: each role's tokens can be told
+ * apart/adjusted independently, and neither role's screens are affected by
+ * changes to the other's. Prefix follows the URL folder name (`examinor`),
+ * matching how the `admin` folder's prefix is `--admin-` rather than
+ * `--system-admin-`. Every other role keeps the existing "official paper and
+ * a seal" palette untouched until it migrates too.
+ */
+:root {
+  --examinor-primary: #00236f;
+  --examinor-primary-container: #1e3a8a;
+  --examinor-on-primary: #ffffff;
+  --examinor-on-primary-container: #90a8ff;
+  --examinor-secondary: #505f76;
+  --examinor-secondary-container: #d0e1fb;
+  --examinor-on-secondary-container: #54647a;
+  --examinor-surface: #faf8ff;
+  --examinor-surface-container-lowest: #ffffff;
+  --examinor-surface-container-low: #f4f3fa;
+  --examinor-surface-container: #eeedf4;
+  --examinor-surface-container-high: #e9e7ef;
+  --examinor-surface-variant: #e3e1e9;
+  --examinor-on-surface: #1a1b21;
+  --examinor-on-surface-variant: #444651;
+  --examinor-outline: #757682;
+  --examinor-outline-variant: #c5c5d3;
+  --examinor-error: #ba1a1a;
+  --examinor-error-container: #ffdad6;
+  --examinor-on-error-container: #93000a;
+  --examinor-radius-sm: 2px;
+  --examinor-radius: 4px;
+  --examinor-radius-lg: 8px;
+}
+
+@theme inline {
+  --color-examinor-primary: var(--examinor-primary);
+  --color-examinor-primary-container: var(--examinor-primary-container);
+  --color-examinor-on-primary: var(--examinor-on-primary);
+  --color-examinor-on-primary-container: var(--examinor-on-primary-container);
+  --color-examinor-secondary: var(--examinor-secondary);
+  --color-examinor-secondary-container: var(--examinor-secondary-container);
+  --color-examinor-on-secondary-container: var(--examinor-on-secondary-container);
+  --color-examinor-surface: var(--examinor-surface);
+  --color-examinor-surface-container-lowest: var(--examinor-surface-container-lowest);
+  --color-examinor-surface-container-low: var(--examinor-surface-container-low);
+  --color-examinor-surface-container: var(--examinor-surface-container);
+  --color-examinor-surface-container-high: var(--examinor-surface-container-high);
+  --color-examinor-surface-variant: var(--examinor-surface-variant);
+  --color-examinor-on-surface: var(--examinor-on-surface);
+  --color-examinor-on-surface-variant: var(--examinor-on-surface-variant);
+  --color-examinor-outline: var(--examinor-outline);
+  --color-examinor-outline-variant: var(--examinor-outline-variant);
+  --color-examinor-error: var(--examinor-error);
+  --color-examinor-error-container: var(--examinor-error-container);
+  --color-examinor-on-error-container: var(--examinor-on-error-container);
+  --radius-examinor-sm: var(--examinor-radius-sm);
+  --radius-examinor: var(--examinor-radius);
+  --radius-examinor-lg: var(--examinor-radius-lg);
+}
+
+/*
  * "Academic Precision" tokens — AI chatbot overlay only
  * ────────────────────────────────────────────────────────
  * Same palette/source as the --student-/--coordinator-/--admin- tokens

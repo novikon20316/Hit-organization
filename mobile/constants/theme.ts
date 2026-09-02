@@ -105,6 +105,38 @@ export const palette = {
   borderPurpleInput: '#E0E7FF',  // coordinator inputs
 } as const;
 
+// ─── "Academic Precision" tokens ──────────────────────────────────────────────
+// Ported 1:1 from web/app/globals.css's --student-/--coordinator-/--admin-
+// blocks (same Stitch source, same values). Referenced directly by role
+// screens as they migrate off `palette`; unlike `palette`, this is meant to
+// be identical across every role — any role-specific distinction belongs in
+// FACULTY_COLORS/ROLE_ACCENT (components/shared.tsx), never a fork of this.
+
+export const ap = {
+  primary:               '#00236F',
+  primaryContainer:      '#1E3A8A',
+  onPrimary:              '#FFFFFF',
+  onPrimaryContainer:    '#90A8FF',
+  secondary:             '#505F76',
+  secondaryContainer:    '#D0E1FB',
+  onSecondaryContainer:  '#54647A',
+  surface:               '#FAF8FF',
+  surfaceContainerLowest:'#FFFFFF',
+  surfaceContainerLow:   '#F4F3FA',
+  surfaceContainer:      '#EEEDF4',
+  surfaceContainerHigh:  '#E9E7EF',
+  surfaceVariant:        '#E3E1E9',
+  onSurface:             '#1A1B21',
+  onSurfaceVariant:      '#444651',
+  outline:               '#757682',
+  outlineVariant:        '#C5C5D3',
+  error:                 '#BA1A1A',
+  errorContainer:        '#FFDAD6',
+  onErrorContainer:      '#93000A',
+} as const;
+
+export const apRadius = { sm: 2, md: 4, lg: 8 } as const;
+
 // ─── Spacing ──────────────────────────────────────────────────────────────────
 
 export const spacing = {
@@ -781,14 +813,14 @@ export const examinerStyles = StyleSheet.create({
   criterionHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
   criterionLabel: { fontSize: fontSize.base, fontWeight: fontWeight.semi, color: palette.textGray },
   criterionMax:   { fontSize: fontSize.sm, color: '#9CA3AF' },
-  totalRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: spacing.lg, paddingVertical: spacing.base, backgroundColor: palette.bgWhite, borderRadius: radius.lg, paddingHorizontal: spacing.lg },
+  totalRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: spacing.lg, paddingVertical: spacing.base, backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.lg, paddingHorizontal: spacing.lg },
   totalLabel:     { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: palette.textGray },
   totalScore:     { fontSize: fontSize.display, fontWeight: fontWeight.black },
   context:        { backgroundColor: palette.successBg, borderRadius: radius.lg, padding: spacing.base, marginBottom: spacing.xl, borderLeftWidth: 3, borderLeftColor: palette.examinerGreen },
   contextTitle:   { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: palette.textPrimary, marginBottom: spacing.xxs },
   contextSub:     { fontSize: fontSize.md, color: palette.examinerGreenDark, marginBottom: 2 },
   fieldLabel:     { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: palette.textGray, marginBottom: spacing.sm },
-  textarea:       { backgroundColor: palette.bgWhite, borderRadius: radius.lg, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: palette.textPrimary, borderWidth: 1, borderColor: palette.borderGreen, textAlignVertical: 'top', minHeight: 100 },
+  textarea:       { backgroundColor: ap.surfaceContainerLowest, borderRadius: radius.lg, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: palette.textPrimary, borderWidth: 1, borderColor: palette.borderGreen, textAlignVertical: 'top', minHeight: 100 },
 });
 
 // ─── Coordinator screen specifics ─────────────────────────────────────────────

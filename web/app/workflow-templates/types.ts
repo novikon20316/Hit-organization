@@ -27,6 +27,14 @@ export interface GradingComponentSpec {
   weight: number;
   hasComment: boolean;
   visibleToStudent: boolean;
+  /** Cosmetic category heading shown above this component when it differs
+   *  from the previous one's group — purely a rendering grouping. */
+  groupHe?: string;
+  groupEn?: string;
+  /** True means this component is scored/stored like any other but its
+   *  score is NOT summed into the rubric's total (e.g. a poster score
+   *  recorded independently alongside a presentation rubric). */
+  excludeFromTotal?: boolean;
 }
 
 // Mirrors ChainRole/RejectionTarget/ChainStage/MilestoneRoutingSpec in
@@ -83,9 +91,12 @@ export interface FormFieldSpec {
   key: string;
   labelHe: string;
   labelEn: string;
-  type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno';
   required: boolean;
   tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+  /** Only meaningful when type === 'yesno' — which answer makes this field's
+   *  paired comment mandatory. Omitted means the comment is always optional. */
+  commentRequiredOn?: 'yes' | 'no';
 }
 
 export interface FinalGradeRubric {
@@ -167,9 +178,20 @@ export interface MilestoneSpec {
    *  default of 2. See AssignExaminersModal.tsx and
    *  server/src/services/defenseScheduling.ts. */
   examinerCount?: number;
+  /** True means this milestone has NO supervisor grading stage at all — it
+   *  finalizes once every assigned examiner has independently submitted
+   *  their score (or form answers). Only meaningful when requiresExaminers
+   *  is true. Mirrors server/src/services/workflowTemplates.ts. */
+  examinerOnlyGrading?: boolean;
   /** Optional — omitted/empty means the grading form falls back to its
    *  hardcoded default rubric. */
   gradingComponents?: GradingComponentSpec[];
+  /** A set of fields every ASSIGNED EXAMINER fills independently — a non-
+   *  scored sibling of gradingComponents (e.g. yes/no screening questions).
+   *  Only meaningful when requiresExaminers && examinerOnlyGrading are both
+   *  true. No editor UI yet (script-only), same as studentFormFields.
+   *  Mirrors server/src/services/workflowTemplates.ts. */
+  examinerFormFields?: FormFieldSpec[];
   /** Per-milestone override of the template's defaultRouting. Omitted means
    *  this milestone inherits defaultRouting (or DEFAULT_ROUTING). */
   routing?: MilestoneRoutingSpec;

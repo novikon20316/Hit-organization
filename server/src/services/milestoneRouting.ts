@@ -34,6 +34,16 @@ export function isIdentityKeyedDefense(milestone: { type?: string; examinerScore
   return milestone.type === 'defense' && milestone.examinerScores !== undefined;
 }
 
+/** An examiner-only milestone (see workflowTemplates.ts's examinerOnlyGrading)
+ *  — no supervisor stage at all, finalizes once every assigned examiner has
+ *  independently submitted a score. Deliberately a separate check from
+ *  isIdentityKeyedDefense above rather than a broadened one, so the existing
+ *  defense grading path (which requires a supervisor score) is never at risk
+ *  of being reached by a milestone that has none. */
+export function isIdentityKeyedExaminerOnly(milestone: { examinerOnlyGrading?: boolean; examinerScores?: unknown }): boolean {
+  return milestone.examinerOnlyGrading === true && milestone.examinerScores !== undefined;
+}
+
 /** The coarse legacy `status` value a chain position maps to — reused
  *  (rather than introducing new vocabulary) so the ~20 existing dashboard/
  *  report/notification read sites keyed on today's status strings keep
@@ -99,7 +109,11 @@ export function computeGradingComponentsScore(
       throw new Error(`Score for "${c.labelEn}" must be between 0 and ${c.maxScore}.`);
     }
     breakdown[c.key] = { score: raw, maxScore: c.maxScore, weight: c.weight };
-    total += (raw / c.maxScore) * c.weight;
+    // excludeFromTotal components (e.g. a poster score recorded alongside a
+    // presentation rubric) are validated and stored like any other, just
+    // never summed into the rubric's own total — see the field's doc comment
+    // in workflowTemplates.ts.
+    if (!c.excludeFromTotal) total += (raw / c.maxScore) * c.weight;
   }
   return { total: Math.round(total), breakdown };
 }

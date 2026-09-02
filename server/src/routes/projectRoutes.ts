@@ -8,6 +8,7 @@ import {
   submitIndividualGrade,
   submitSupervisorEvaluation,
   submitExaminerEvaluation,
+  submitExaminerFormAnswers,
   getProjects,
   getActiveProjects
 } from '../controllers/projectController.js';
@@ -23,6 +24,9 @@ router.post('/milestones/:milestoneId/individual-grade', verifyToken, submitIndi
 // attach a file.
 router.post('/milestones/:milestoneId/supervisor-evaluation', verifyToken, uploadMiddleware, submitSupervisorEvaluation);
 router.post('/milestones/:milestoneId/examiner-evaluation', verifyToken, uploadMiddleware, submitExaminerEvaluation);
+// Non-scored examiner Q&A (see workflowTemplates.ts's examinerFormFields) —
+// e.g. the Industrial Engineering & Management "Presentation 1" yes/no form.
+router.post('/milestones/:milestoneId/examiner-form', verifyToken, submitExaminerFormAnswers);
 router.get('/ActiveProjects', verifyToken, getActiveProjects);
 // Student Interfaces
 router.get('/student/projects/:id', verifyToken, getStudentProject);

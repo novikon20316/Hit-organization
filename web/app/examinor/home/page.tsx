@@ -15,6 +15,7 @@ import type { AppRole } from '@/lib/roles';
 import { AssignmentCard } from './AssignmentCard';
 import { GradeExaminerModal } from './GradeExaminerModal';
 import { ExaminerEvaluationModal } from './ExaminerEvaluationModal';
+import { ExaminerFormFieldsModal } from './ExaminerFormFieldsModal';
 import type { AssignedMilestone } from './types';
 
 const EXAMINER_ROLES: AppRole[] = ['internal_examiner', 'system_admin'];
@@ -42,6 +43,7 @@ function ExaminerHomeContent() {
   const [loadError, setLoadError] = useState('');
   const [gradingTarget, setGradingTarget] = useState<AssignedMilestone | null>(null);
   const [evaluationTarget, setEvaluationTarget] = useState<{ milestone: AssignedMilestone; kind: 'project' | 'defense' } | null>(null);
+  const [formTarget, setFormTarget] = useState<AssignedMilestone | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -79,7 +81,7 @@ function ExaminerHomeContent() {
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loadingData ? (
-        <p className="text-sm text-muted">{t('loading')}</p>
+        <p className="text-sm text-examinor-on-surface-variant">{t('loading')}</p>
       ) : tab === 'defenses' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {assignments.map((m) => (
@@ -90,9 +92,10 @@ function ExaminerHomeContent() {
               onChanged={fetchDashboard}
               onGrade={setGradingTarget}
               onGradeKind={(milestone, kind) => setEvaluationTarget({ milestone, kind })}
+              onGradeForm={setFormTarget}
             />
           ))}
-          {assignments.length === 0 && <p className="text-sm text-muted">📭 {lang === 'he' ? 'לא הוקצו לך הגנות לבחינה' : 'No defenses assigned to you'}</p>}
+          {assignments.length === 0 && <p className="text-sm text-examinor-on-surface-variant">📭 {lang === 'he' ? 'לא הוקצו לך הגנות לבחינה' : 'No defenses assigned to you'}</p>}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -125,43 +128,44 @@ function ExaminerHomeContent() {
                         : `In ${days} days`;
 
             return (
-              <div key={m.id} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+              <div key={m.id} className="role-rail rounded-examinor border border-examinor-outline-variant bg-examinor-surface-container-lowest p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
                 <span className="rounded-full px-2.5 py-1 text-xs font-semibold text-white" style={{ backgroundColor: urgencyColor }}>
                   {urgencyLabel}
                 </span>
-                <p className="mt-2 text-sm font-semibold text-ink">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
-                <p className="mt-0.5 text-xs text-muted">👤 {m.studentNames.length > 0 ? m.studentNames.join(', ') : lang === 'he' ? 'לא ידוע' : 'Unknown'}</p>
-                <p className="mt-0.5 text-xs text-muted">
+                <p className="mt-2 text-sm font-semibold text-examinor-on-surface">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
+                <p className="mt-0.5 text-xs text-examinor-on-surface-variant">👤 {m.studentNames.length > 0 ? m.studentNames.join(', ') : lang === 'he' ? 'לא ידוע' : 'Unknown'}</p>
+                <p className="mt-0.5 text-xs text-examinor-on-surface-variant">
                   👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                  <span className="rounded-lg bg-paper px-2.5 py-1.5">
-                    <span className="block text-[10px] text-muted">{lang === 'he' ? 'תאריך' : 'Date'}</span>
-                    <span className="font-medium text-ink">
+                  <span className="rounded-lg bg-examinor-surface-container-low px-2.5 py-1.5">
+                    <span className="block text-[10px] text-examinor-on-surface-variant">{lang === 'he' ? 'תאריך' : 'Date'}</span>
+                    <span className="font-medium text-examinor-on-surface">
                       {isValid ? defDate.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
                     </span>
                   </span>
                   {isValid && (
-                    <span className="rounded-lg bg-paper px-2.5 py-1.5">
-                      <span className="block text-[10px] text-muted">{t('time')}</span>
-                      <span className="font-medium text-ink">{defDate.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                    <span className="rounded-lg bg-examinor-surface-container-low px-2.5 py-1.5">
+                      <span className="block text-[10px] text-examinor-on-surface-variant">{t('time')}</span>
+                      <span className="font-medium text-examinor-on-surface">{defDate.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
                     </span>
                   )}
                   {m.defenseRoom && (
-                    <span className="rounded-lg bg-paper px-2.5 py-1.5">
-                      <span className="block text-[10px] text-muted">{lang === 'he' ? 'חדר' : 'Room'}</span>
-                      <span className="font-medium text-ink">{m.defenseRoom}</span>
+                    <span className="rounded-lg bg-examinor-surface-container-low px-2.5 py-1.5">
+                      <span className="block text-[10px] text-examinor-on-surface-variant">{lang === 'he' ? 'חדר' : 'Room'}</span>
+                      <span className="font-medium text-examinor-on-surface">{m.defenseRoom}</span>
                     </span>
                   )}
                 </div>
               </div>
             );
           })}
-          {scheduled.length === 0 && <p className="text-sm text-muted">📅 {lang === 'he' ? 'אין הגנות מתוכננות עדיין' : 'No defenses scheduled yet'}</p>}
+          {scheduled.length === 0 && <p className="text-sm text-examinor-on-surface-variant">📅 {lang === 'he' ? 'אין הגנות מתוכננות עדיין' : 'No defenses scheduled yet'}</p>}
         </div>
       )}
 
       {gradingTarget && <GradeExaminerModal key={gradingTarget.id} milestone={gradingTarget} onClose={() => setGradingTarget(null)} onGraded={fetchDashboard} />}
+      {formTarget && <ExaminerFormFieldsModal key={formTarget.id} milestone={formTarget} onClose={() => setFormTarget(null)} onSubmitted={fetchDashboard} />}
       {evaluationTarget && (
         <ExaminerEvaluationModal
           key={`${evaluationTarget.milestone.id}-${evaluationTarget.kind}`}

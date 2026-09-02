@@ -96,7 +96,11 @@ export function GradeMilestoneModal({
 }: Props) {
   const router = useRouter();
   const isGroupProject = (milestone?.studentIds.length ?? 0) > 1;
-  const pct = Math.max(0, Math.min(100, totalScore));
+  // Dynamic denominator — every existing rubric happens to sum its weights
+  // to 100, so this is a no-op everywhere except a rubric that legitimately
+  // sums higher (e.g. Industrial Engineering & Management's 1-105 rubric).
+  const maxTotal = activeFields.reduce((sum, f) => sum + f.weight, 0) || 100;
+  const pct = Math.max(0, Math.min(100, (totalScore / maxTotal) * 100));
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="formSheet">
@@ -193,7 +197,7 @@ export function GradeMilestoneModal({
 
             <View style={[s.totalRow, isRtl && s.rowReverse]}>
               <Text style={s.totalLabel}>{lang === 'he' ? 'ציון כולל' : 'Total Score'}</Text>
-              <Text style={s.totalValue}>{totalScore}/100</Text>
+              <Text style={s.totalValue}>{totalScore}/{maxTotal}</Text>
             </View>
             <View style={s.progressTrack}>
               <View style={[s.progressFill, { width: `${pct}%` }]} />

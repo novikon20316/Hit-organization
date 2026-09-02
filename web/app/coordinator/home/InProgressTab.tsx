@@ -86,8 +86,8 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
     if (isMilestoneDone(m.status)) {
       return m.supervisorScore !== null
         ? lang === 'he'
-          ? `אושר (${m.supervisorScore}/100)`
-          : `Approved (${m.supervisorScore}/100)`
+          ? `אושר (${m.supervisorScore})`
+          : `Approved (${m.supervisorScore})`
         : lang === 'he'
           ? 'אושר'
           : 'Approved';

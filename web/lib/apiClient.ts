@@ -1367,6 +1367,18 @@ export const apiClient = {
     return request<{ success: boolean; total: number }>(`/api/projects/milestones/${milestoneId}/examiner-evaluation`, { method: 'POST', body: payload });
   },
 
+  /** POST /api/projects/milestones/:id/examiner-form — non-scored examiner
+   *  Q&A (see workflowTemplates.ts's examinerFormFields), e.g. the Industrial
+   *  Engineering & Management "Presentation 1" yes/no form. Keyed by
+   *  FormFieldSpec.key, each answer optionally carrying a comment (required
+   *  server-side per that field's commentRequiredOn rule). */
+  async submitExaminerFormAnswers(milestoneId: string, answers: Record<string, { value: 'yes' | 'no'; comment?: string }>) {
+    return request<{ success: boolean; status: string; isFinalized: boolean }>(
+      `/api/projects/milestones/${milestoneId}/examiner-form`,
+      { method: 'POST', body: { answers } }
+    );
+  },
+
   /** decision: 'approve' finalizes autoCalculatedFinalGrade directly; 'override'
    *  requires grade+reason and routes to the coordinator's grade-override
    *  queue instead (see decideGradeOverride below). `files` is optional —
@@ -1598,7 +1610,7 @@ export const apiClient = {
       routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
       /** research_proposal/progress_report only — see workflowTemplates.ts's staffRecordMode. */
       staffRecordMode?: 'none' | 'upload_or_form';
-      staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }> }>;
+      staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean; commentRequiredOn?: 'yes' | 'no'; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }> }>;
       /** 'defense' only — see workflowTemplates.ts's finalGradeComponents. */
       finalGradeComponents?: {
         supervisorEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };
@@ -1648,7 +1660,7 @@ export const apiClient = {
       gradingComponents?: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>;
       routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
       staffRecordMode?: 'none' | 'upload_or_form';
-      staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }> }>;
+      staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean; commentRequiredOn?: 'yes' | 'no'; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }> }>;
       finalGradeComponents?: {
         supervisorEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };
         examinerProjectEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>; weight: number };

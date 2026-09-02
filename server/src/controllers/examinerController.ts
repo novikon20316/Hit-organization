@@ -124,6 +124,16 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           // — see AssignmentCard.tsx's `graded` computation.
           stageScores: milestoneData.stageScores ?? null,
           routing: milestoneData.routing ?? null,
+          // No-supervisor-stage milestones (see workflowTemplates.ts's
+          // examinerOnlyGrading) plus their non-scored yes/no Q&A form, if
+          // configured — see ExaminerFormFieldsModal.tsx.
+          examinerOnlyGrading: milestoneData.examinerOnlyGrading ?? false,
+          examinerFormFields: milestoneData.examinerFormFields ?? [],
+          // Only this examiner's own answers, same "no peeking at a
+          // co-examiner's submission" reasoning as examinerEvaluations below.
+          examinerFormAnswers: milestoneData.examinerFormAnswers?.[examinerId]
+            ? { [examinerId]: milestoneData.examinerFormAnswers[examinerId] }
+            : {},
           // Only this examiner's own entry — a co-examiner's rubric
           // scores/comments are examiner-only content too, not just
           // off-limits to the student/supervisor.

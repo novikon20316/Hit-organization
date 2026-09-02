@@ -583,6 +583,15 @@ export interface AssignedMilestone {
   // 'pending' is actually next up, since every milestone (including
   // defense) starts at 'pending' the moment the project is created.
   order?: number;
+  // True means this milestone has NO supervisor grading stage at all — see
+  // server/src/services/workflowTemplates.ts's examinerOnlyGrading.
+  examinerOnlyGrading?: boolean;
+  // A non-scored Q&A form every assigned examiner fills independently (e.g.
+  // yes/no screening questions) — a sibling of gradingComponents, rendered
+  // inline in mobile/app/examinor/home.tsx's form-answers modal instead of
+  // the numeric-rubric grade modal.
+  examinerFormFields?: FormFieldSpec[];
+  examinerFormAnswers?: Record<string, Record<string, { value: 'yes' | 'no'; comment?: string }>>;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -594,6 +603,20 @@ export interface GradingComponentSpec {
   weight: number;
   hasComment: boolean;
   visibleToStudent: boolean;
+  groupHe?: string;
+  groupEn?: string;
+  excludeFromTotal?: boolean;
+}
+
+// Mirrors FormFieldSpec in server/src/services/workflowTemplates.ts (only
+// the 'yesno' shape is actually used by mobile/app/examinor/home.tsx today).
+export interface FormFieldSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno';
+  required: boolean;
+  commentRequiredOn?: 'yes' | 'no';
 }
 
 

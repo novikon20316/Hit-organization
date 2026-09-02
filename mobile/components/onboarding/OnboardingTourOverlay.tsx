@@ -7,13 +7,20 @@
 // the target isn't currently on screen (the user is on a different route
 // than the one that owns this step's tab), the step still shows as a plain
 // centered-card explanation instead of silently breaking or skipping.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, Modal, Pressable, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import { useOnboardingTourTargets } from '@/contexts/OnboardingTourContext';
 import { ONBOARDING_TOURS } from '@/constants/onboardingTours';
 import { OnboardingTourStyles as s } from '@/constants/styles';
 import { apiClient } from '@/src/api/apiClient';
+
+// Matches web's spotlight glide exactly (see OnboardingTour.tsx's
+// `transition-all duration-200`) — only the spotlight geometry animates,
+// never the tooltip card, which web also repositions instantly with no
+// CSS transition.
+const SPOTLIGHT_DURATION = 200;
 
 interface MeasuredRect {
   x: number;
@@ -33,6 +40,18 @@ export function OnboardingTourOverlay() {
 
   const step = steps[stepIndex];
 
+  // Spotlight geometry as shared values, animated with withTiming to glide
+  // between steps instead of snapping — `rect` state above still drives the
+  // tooltip's (un-animated, matching web) position and the "no target"
+  // fallback branch. hasRect tracks whether we've ever had a real target so
+  // the very first spotlight appears immediately rather than growing in
+  // from (0,0,0,0).
+  const rectX = useSharedValue(0);
+  const rectY = useSharedValue(0);
+  const rectW = useSharedValue(0);
+  const rectH = useSharedValue(0);
+  const hasHadRect = useRef(false);
+
   // A fresh sign-in / role change should always restart at step 0 rather
   // than carrying over whatever index a previous user/role left behind.
   useEffect(() => {
@@ -51,12 +70,54 @@ export function OnboardingTourOverlay() {
       return;
     }
     view.measureInWindow((x, y, width, height) => {
-      setRect(width > 0 && height > 0 ? { x, y, width, height } : null);
+      const next = width > 0 && height > 0 ? { x, y, width, height } : null;
+      setRect(next);
+      if (next) {
+        if (hasHadRect.current) {
+          rectX.value = withTiming(next.x, { duration: SPOTLIGHT_DURATION });
+          rectY.value = withTiming(next.y, { duration: SPOTLIGHT_DURATION });
+          rectW.value = withTiming(next.width, { duration: SPOTLIGHT_DURATION });
+          rectH.value = withTiming(next.height, { duration: SPOTLIGHT_DURATION });
+        } else {
+          rectX.value = next.x;
+          rectY.value = next.y;
+          rectW.value = next.width;
+          rectH.value = next.height;
+          hasHadRect.current = true;
+        }
+      }
     });
     // targetVersion changes whenever any screen registers/unregisters a
     // target — re-measure then, since the step's own target may have just
     // mounted (e.g. the user happened to already be on the right screen).
-  }, [step, targetVersion, getTarget]);
+  }, [step, targetVersion, getTarget, rectX, rectY, rectW, rectH]);
+
+  const { width: screenW, height: screenH } = Dimensions.get('window');
+
+  const topMaskStyle = useAnimatedStyle(() => ({
+    top: 0, left: 0, width: screenW, height: Math.max(rectY.value - 4, 0),
+  }));
+  const bottomMaskStyle = useAnimatedStyle(() => ({
+    top: rectY.value + rectH.value + 4,
+    left: 0,
+    width: screenW,
+    height: Math.max(screenH - (rectY.value + rectH.value + 4), 0),
+  }));
+  const leftMaskStyle = useAnimatedStyle(() => ({
+    top: Math.max(rectY.value - 4, 0),
+    left: 0,
+    width: Math.max(rectX.value - 4, 0),
+    height: rectH.value + 8,
+  }));
+  const rightMaskStyle = useAnimatedStyle(() => ({
+    top: Math.max(rectY.value - 4, 0),
+    left: rectX.value + rectW.value + 4,
+    width: Math.max(screenW - (rectX.value + rectW.value + 4), 0),
+    height: rectH.value + 8,
+  }));
+  const ringStyle = useAnimatedStyle(() => ({
+    top: rectY.value - 4, left: rectX.value - 4, width: rectW.value + 8, height: rectH.value + 8,
+  }));
 
   const finish = useCallback(() => {
     setDismissed(true);
@@ -70,7 +131,6 @@ export function OnboardingTourOverlay() {
     return null;
   }
 
-  const { width: screenW, height: screenH } = Dimensions.get('window');
   const isLast = stepIndex === steps.length - 1;
   const isHe = language === 'he';
 
@@ -79,45 +139,11 @@ export function OnboardingTourOverlay() {
       <View style={s.root} pointerEvents="box-none">
         {rect ? (
           <>
-            <View
-              pointerEvents="none"
-              style={[s.mask, { top: 0, left: 0, width: screenW, height: Math.max(rect.y - 4, 0) }]}
-            />
-            <View
-              pointerEvents="none"
-              style={[
-                s.mask,
-                {
-                  top: rect.y + rect.height + 4,
-                  left: 0,
-                  width: screenW,
-                  height: Math.max(screenH - (rect.y + rect.height + 4), 0),
-                },
-              ]}
-            />
-            <View
-              pointerEvents="none"
-              style={[
-                s.mask,
-                { top: Math.max(rect.y - 4, 0), left: 0, width: Math.max(rect.x - 4, 0), height: rect.height + 8 },
-              ]}
-            />
-            <View
-              pointerEvents="none"
-              style={[
-                s.mask,
-                {
-                  top: Math.max(rect.y - 4, 0),
-                  left: rect.x + rect.width + 4,
-                  width: Math.max(screenW - (rect.x + rect.width + 4), 0),
-                  height: rect.height + 8,
-                },
-              ]}
-            />
-            <View
-              pointerEvents="none"
-              style={[s.ring, { top: rect.y - 4, left: rect.x - 4, width: rect.width + 8, height: rect.height + 8 }]}
-            />
+            <Animated.View pointerEvents="none" style={[s.mask, topMaskStyle]} />
+            <Animated.View pointerEvents="none" style={[s.mask, bottomMaskStyle]} />
+            <Animated.View pointerEvents="none" style={[s.mask, leftMaskStyle]} />
+            <Animated.View pointerEvents="none" style={[s.mask, rightMaskStyle]} />
+            <Animated.View pointerEvents="none" style={[s.ring, ringStyle]} />
           </>
         ) : (
           <View pointerEvents="none" style={[s.mask, { top: 0, left: 0, width: screenW, height: screenH }]} />

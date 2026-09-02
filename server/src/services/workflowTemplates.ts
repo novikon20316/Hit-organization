@@ -49,6 +49,19 @@ export interface GradingComponentSpec {
   weight: number;
   hasComment: boolean;
   visibleToStudent: boolean;
+  /** Cosmetic category heading shown above this component when it differs
+   *  from the previous component's group (e.g. "מטרות פרויקט") — purely a
+   *  rendering grouping, ignored by computeGradingComponentsScore. Omitted
+   *  renders today's flat, ungrouped list. */
+  groupHe?: string;
+  groupEn?: string;
+  /** True means this component is scored and stored like any other, but its
+   *  score is NOT summed into the rubric's total (e.g. a poster score
+   *  recorded alongside a presentation rubric, entered independently rather
+   *  than contributing to the presentation's own point total). Omitted
+   *  (false) keeps today's behavior of every component counting toward the
+   *  total. See computeGradingComponentsScore in milestoneRouting.ts. */
+  excludeFromTotal?: boolean;
 }
 
 /** A single field in a staff-fillable online form (see WorkflowMilestoneSpec's
@@ -60,10 +73,17 @@ export interface FormFieldSpec {
   key: string;
   labelHe: string;
   labelEn: string;
-  type: 'text' | 'textarea' | 'date' | 'number' | 'table';
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno';
   required: boolean;
   /** Only meaningful when type === 'table' — the columns of each row. */
   tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+  /** Only meaningful when type === 'yesno' — which answer makes this field's
+   *  paired comment mandatory (the comment box is disabled/optional for the
+   *  other answer). E.g. "is the topic suitable? yes/no" where only a "no"
+   *  answer requires an explanation. Omitted means the comment is always
+   *  optional. See ExaminerFormFieldsModal (web + mobile) for the renderer
+   *  and submitExaminerFormAnswers for the server-side re-validation. */
+  commentRequiredOn?: 'yes' | 'no';
   /** Marks this field as system-derived rather than freely typed — the
    *  renderer shows the resolved value read-only instead of an input, and
    *  submitMilestone/submitStaffRecord skip it when checking "did the actor
@@ -320,6 +340,14 @@ export interface WorkflowMilestoneSpec {
    *  coordinatorController.ts's assignExaminers and
    *  defenseScheduling.ts's openDefenseSchedulingIfPanelReady. */
   examinerCount?: number;
+  /** True means this milestone has NO supervisor grading stage at all — it
+   *  finalizes once every assigned examiner has independently submitted
+   *  their score (or form answers), with no supervisor score ever required
+   *  or factored in. See milestoneRouting.ts's isIdentityKeyedExaminerOnly
+   *  and projectController.ts's submitMilestoneGrade. Only meaningful when
+   *  requiresExaminers is true; omitted (false) keeps every existing
+   *  milestone's supervisor(+examiner) grading behavior unchanged. */
+  examinerOnlyGrading?: boolean;
   /** Optional — omitted/empty means this milestone still uses the hardcoded
    *  default rubric until the grading endpoints are wired to read this.
    *  Ignored on a 'defense' milestone that has finalGradeComponents set —
@@ -346,6 +374,15 @@ export interface WorkflowMilestoneSpec {
    *  only populated for data_science's research_proposal milestone — see
    *  addResearchProposalStudentForm.ts. */
   studentFormFields?: FormFieldSpec[];
+  /** A set of fields every ASSIGNED EXAMINER fills independently — a non-
+   *  scored sibling of gradingComponents, for milestones that need a Q&A-
+   *  style evaluation (e.g. yes/no screening questions) rather than a
+   *  numeric rubric. Only meaningful when requiresExaminers && examinerOnlyGrading
+   *  are both true. Stored per-examiner in the milestone's examinerFormAnswers
+   *  map (see submitExaminerFormAnswers); the milestone finalizes (status
+   *  'graded', no finalGrade) once every assigned examiner has answered. Like
+   *  studentFormFields, this has no template-editor UI yet — script-only. */
+  examinerFormFields?: FormFieldSpec[];
   /** Only meaningful for the 'defense' milestone type. Replaces the single
    *  shared gradingComponents rubric with three independent ones — one each
    *  for the supervisor, the examiner's evaluation of the written project,

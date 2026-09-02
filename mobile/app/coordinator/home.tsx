@@ -1233,7 +1233,7 @@ export default function CoordinatorHome() {
                           </Text>
                           {m.supervisorScore !== null && (
                             <Text style={styles.expandedText}>
-                              {lang === 'he' ? 'ציון:' : 'Score:'} {m.supervisorScore}/100
+                              {lang === 'he' ? 'ציון:' : 'Score:'} {m.supervisorScore}
                             </Text>
                           )}
                           {m.supervisorComment ? (
@@ -1433,7 +1433,7 @@ export default function CoordinatorHome() {
                             styles.expandedText,
                             { fontWeight: '700', color: mg.score !== null ? '#10B981' : '#8899BB' }
                           ]}>
-                            {mg.score !== null ? `${mg.score}/100` : (lang === 'he' ? 'טרם נוקד' : 'Not graded')}
+                            {mg.score !== null ? `${mg.score}` : (lang === 'he' ? 'טרם נוקד' : 'Not graded')}
                           </Text>
                         </View>
                       ))}
@@ -1760,8 +1760,8 @@ export default function CoordinatorHome() {
                               const grade = m.finalGrade ?? m.supervisorScore;
                               displayStatus =  grade !== null && grade !== undefined
                                 ? (lang === 'he'
-                                    ? `אושר (${grade}/100)`
-                                    : `Approved (${grade}/100)`)
+                                    ? `אושר (${grade})`
+                                    : `Approved (${grade})`)
                                 : (lang === 'he' ? 'אושר' : 'Approved');
                               statusColor = '#10B981';
                             } else if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') {

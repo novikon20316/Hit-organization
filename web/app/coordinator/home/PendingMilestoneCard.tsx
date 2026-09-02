@@ -136,7 +136,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
               <p className="text-xs font-semibold text-ink">{lang === 'he' ? '💬 מנחה' : '💬 Supervisor'}</p>
               {m.supervisorScore !== null && (
                 <p className="text-xs text-muted">
-                  {lang === 'he' ? 'ציון:' : 'Score:'} {m.supervisorScore}/100
+                  {lang === 'he' ? 'ציון:' : 'Score:'} {m.supervisorScore}
                 </p>
               )}
               {m.supervisorComment && <p className="text-xs text-muted">{m.supervisorComment}</p>}

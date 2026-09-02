@@ -6,8 +6,11 @@
 // values below are the same ones, so the two platforms visually match.
 //
 // The full CRUD console (users/projects/milestones management) that used to
-// be the system_admin home stays exactly as-is at app/admin/panel.tsx —
-// reachable from the "Open Admin Panel" button below.
+// be the system_admin home is reachable via app/admin/menu.tsx — a sectioned
+// nav screen mirroring web's sidebar (web/app/admin/navConfig.ts) — from the
+// "Open Admin Panel" button below. Its individual sections still live at
+// app/admin/panel.tsx?tab=..., but that screen's own old-style in-page tab
+// strip is gone now that admin/menu.tsx is the way to switch between them.
 //
 // Every tile here is backed by real data already used elsewhere in the app,
 // not fabricated placeholder metrics:
@@ -296,7 +299,7 @@ export default function AdminOverviewScreen() {
           )}
         </View>
 
-        <Pressable style={styles.panelButton} onPress={() => router.push('/admin/panel')} accessibilityRole="button">
+        <Pressable style={styles.panelButton} onPress={() => router.push('/admin/menu' as any)} accessibilityRole="button">
           <Text style={styles.panelButtonText}>{lang === 'he' ? 'פתח פאנל ניהול מלא' : 'Open Admin Panel'}</Text>
         </Pressable>
       </ScrollView>

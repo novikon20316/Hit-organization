@@ -61,6 +61,10 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   const totalScore = Math.round(
     activeFields.reduce((sum, f) => sum + ((Number(criteria[f.key]) || 0) / f.max) * f.weight, 0)
   );
+  // Dynamic denominator — every existing rubric happens to sum its weights
+  // to 100, so this is a no-op everywhere except a rubric that legitimately
+  // sums higher (e.g. Industrial Engineering & Management's 1-105 rubric).
+  const maxTotal = activeFields.reduce((sum, f) => sum + f.weight, 0);
   const isGroupProject = m.studentIds.length > 1;
 
   const handleSubmit = async () => {
@@ -216,7 +220,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           />
         </label>
 
-        <p className="mt-3 text-sm font-bold text-ink">Total: {totalScore}/100</p>
+        <p className="mt-3 text-sm font-bold text-ink">Total: {totalScore}/{maxTotal}</p>
 
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 

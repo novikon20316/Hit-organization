@@ -7,11 +7,11 @@ import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
-import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
+import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeExaminerOnlyGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
-import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense } from '../services/milestoneRouting.js';
+import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense, isIdentityKeyedExaminerOnly } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec, FormFieldSpec, MilestoneFileType } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
@@ -114,8 +114,16 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid milestoneId' });
   }
-  if (Number.isNaN(Number(finalScore)) || Number(finalScore) < 0 || Number(finalScore) > 100) {
-    return res.status(400).json({ message: 'Grade must be a number between 0 and 100.' });
+  // A generous sanity ceiling, not the real bound — most rubrics sum to 100,
+  // but a gradingComponents rubric can legitimately sum higher (e.g. the
+  // Industrial Engineering & Management presentation rubric sums to 105).
+  // The real per-rubric bound is enforced later: per-component range checks
+  // inside computeGradingComponentsScore for any milestone with
+  // gradingComponents configured, or this same 0-100 expectation implicitly
+  // for the legacy positional branch (no rubric) at the bottom of this
+  // function, which trusts givenScore directly.
+  if (Number.isNaN(Number(finalScore)) || Number(finalScore) < 0 || Number(finalScore) > 1000) {
+    return res.status(400).json({ message: 'Grade must be a valid non-negative number.' });
   }
 
   try {
@@ -410,6 +418,122 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           }).catch((err) => console.error(`submitMilestoneGrade: student notify failed for ${studentId} on ${milestoneId}:`, err))
         ));
       }
+
+      return res.status(200).json({ success: true, status: responseStatus, isFinalized });
+    }
+
+    // Examiner-only milestone (see workflowTemplates.ts's examinerOnlyGrading)
+    // — no supervisor stage at all; finalizes once every assigned examiner
+    // has independently submitted their own score. Deliberately a separate
+    // branch from the identity-keyed defense one above (not a broadened
+    // version of it) so that branch's supervisor-score requirement can never
+    // apply to a milestone that has no supervisor stage.
+    if (isIdentityKeyedExaminerOnly(data)) {
+      if (!examinerIds.includes(uid)) {
+        return res.status(403).json({ message: 'Not authorized to grade this milestone' });
+      }
+
+      // Same "reason required to overwrite" guard as the identity-keyed
+      // defense branch above.
+      const existingScore = data.examinerScores?.[uid]?.score ?? null;
+      if (existingScore != null && !reason?.trim()) {
+        return res.status(400).json({ message: 'A reason is required when updating an existing grade.' });
+      }
+
+      let scoreValue: number;
+      let criteriaBreakdown: Record<string, { score: number; maxScore: number; weight: number }> | undefined;
+      const gradingComponents: GradingComponentSpec[] = data.gradingComponents ?? [];
+      if (gradingComponents.length > 0) {
+        try {
+          const computed = computeGradingComponentsScore(gradingComponents, criteria ?? {});
+          scoreValue = computed.total;
+          criteriaBreakdown = computed.breakdown;
+        } catch (err: any) {
+          return res.status(400).json({ message: err.message || 'Invalid grading criteria.' });
+        }
+      } else {
+        scoreValue = Number(givenScore);
+      }
+
+      const gradesRef = db.collection('grades').doc();
+      let responseStatus = '';
+      let previousScore: number | null = null;
+      let isFinalized = false;
+
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        if (!freshSnap.exists) throw new Error('Milestone not found.');
+        const fresh = freshSnap.data()!;
+        if (fresh.gradeApproved) {
+          throw new Error('This grade has already been approved by the grad school head and cannot be edited directly.');
+        }
+
+        const freshExaminerIds: string[] = fresh.examinerIds ?? [];
+        const freshExaminerScores: Record<string, { score: number; comments: string; criteria?: Record<string, { score: number; maxScore: number; weight: number }> }> = fresh.examinerScores ?? {};
+        previousScore = freshExaminerScores[uid]?.score ?? null;
+
+        const nextExaminerScores: typeof freshExaminerScores = {
+          ...freshExaminerScores,
+          [uid]: {
+            score: scoreValue,
+            comments: comments?.trim() ?? '',
+            ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}),
+          },
+        };
+
+        const update: Record<string, any> = {
+          examinerScores: nextExaminerScores,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        const allDone = freshExaminerIds.length > 0 && freshExaminerIds.every((id) => nextExaminerScores[id] != null);
+
+        if (allDone) {
+          update.status     = 'graded';
+          update.gradedAt   = admin.firestore.FieldValue.serverTimestamp();
+          update.finalGrade = computeExaminerOnlyGrade(nextExaminerScores);
+
+          const studentIds: string[] = fresh.studentIds ?? [];
+          update.finalGradeByStudent = computeFinalGradeByStudent(
+            studentIds,
+            update.finalGrade,
+            fresh.individualScores ?? null,
+            fresh.individualWeight ?? DEFAULT_INDIVIDUAL_WEIGHT,
+          );
+        } else {
+          update.status = 'submitted';
+        }
+
+        isFinalized     = allDone;
+        responseStatus  = update.status;
+
+        transaction.update(milestoneRef, update);
+        transaction.set(gradesRef, {
+          milestoneId, projectId, graderId: uid, graderRole: 'examiner',
+          comments: comments?.trim() ?? '',
+          isFinalized: allDone,
+          submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+          grading: { total: Math.round(scoreValue), ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}) },
+          ...(reason?.trim() ? { changeReason: reason.trim() } : {}),
+        });
+      });
+
+      await logAuditEvent({
+        userId: uid,
+        userRole: req.user?.role ?? 'examiner',
+        action: previousScore !== null ? 'grade_changed' : 'grade_entered',
+        entityType: 'milestone',
+        entityId: milestoneId,
+        oldValue: { score: previousScore },
+        newValue: { score: scoreValue, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+      });
+      await logProjectRecordEntry({
+        projectId,
+        type: previousScore !== null ? 'grade_changed' : 'grade_submitted',
+        actorId: uid,
+        actorRole: req.user?.role ?? 'examiner',
+        data: { milestoneId, score: scoreValue, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+      });
 
       return res.status(200).json({ success: true, status: responseStatus, isFinalized });
     }
@@ -815,6 +939,114 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
   } catch (error: any) {
     console.error('submitExaminerEvaluation error:', error);
     return res.status(500).json({ message: 'Failed to submit evaluation.' });
+  }
+};
+
+// ─── Submit examiner form answers — non-scored Q&A (see workflowTemplates.ts's
+// examinerFormFields) ──────────────────────────────────────────────────────
+// Sibling of submitExaminerEvaluation, for milestones whose examiners fill in
+// a set of yes/no screening questions instead of a numeric rubric (e.g. the
+// Industrial Engineering & Management "Presentation 1" evaluation — see
+// server/src/scripts/seedIEMWorkflowTemplate.ts). Every assigned examiner
+// answers independently; the milestone finalizes (status 'graded', no
+// finalGrade — this milestone type never produces a score) once every
+// assigned examiner has answered.
+export const submitExaminerFormAnswers = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { milestoneId } = req.params;
+  const { answers } = req.body as { answers?: Record<string, { value?: string; comment?: string }> };
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
+  if (!answers || typeof answers !== 'object') return res.status(400).json({ message: 'Invalid answers.' });
+
+  try {
+    const milestoneRef = db.collection('milestones').doc(milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    const data = milestoneSnap.data()!;
+
+    const fields: FormFieldSpec[] = data.examinerFormFields ?? [];
+    if (fields.length === 0) {
+      return res.status(400).json({ message: 'This milestone does not use the examiner form-answers workflow.' });
+    }
+    const examinerIds: string[] = data.examinerIds ?? [];
+    if (!examinerIds.includes(uid)) {
+      return res.status(403).json({ message: 'Only an examiner assigned to this milestone may submit this form.' });
+    }
+    if (data.gradeApproved) {
+      return res.status(409).json({ message: 'This evaluation has already been finalized.' });
+    }
+
+    // Server-side re-validation of every field's yes/no answer and its
+    // commentRequiredOn rule — never trust the client's own enabled/disabled
+    // comment-box state.
+    const cleanAnswers: Record<string, { value: 'yes' | 'no'; comment?: string }> = {};
+    for (const f of fields) {
+      const raw = answers[f.key];
+      const value = raw?.value;
+      if (value !== 'yes' && value !== 'no') {
+        return res.status(400).json({ message: `A yes/no answer is required for "${f.labelEn}".` });
+      }
+      const comment = (raw?.comment ?? '').toString().trim();
+      if (f.commentRequiredOn === value && !comment) {
+        return res.status(400).json({ message: `A comment is required for "${f.labelEn}".` });
+      }
+      cleanAnswers[f.key] = comment ? { value, comment } : { value };
+    }
+
+    const wasAlreadyAnswered = data.examinerFormAnswers?.[uid] != null;
+    let responseStatus = '';
+    let isFinalized = false;
+
+    await db.runTransaction(async (transaction) => {
+      const freshSnap = await transaction.get(milestoneRef);
+      if (!freshSnap.exists) throw new Error('Milestone not found.');
+      const fresh = freshSnap.data()!;
+      if (fresh.gradeApproved) {
+        throw new Error('This evaluation has already been finalized.');
+      }
+
+      const freshExaminerIds: string[] = fresh.examinerIds ?? [];
+      const freshAnswers: Record<string, Record<string, { value: string; comment?: string }>> = fresh.examinerFormAnswers ?? {};
+      const nextAnswers = { ...freshAnswers, [uid]: cleanAnswers };
+
+      const update: Record<string, any> = {
+        examinerFormAnswers: nextAnswers,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      const allDone = freshExaminerIds.length > 0 && freshExaminerIds.every((id) => nextAnswers[id] != null);
+      update.status = allDone ? 'graded' : 'submitted';
+      if (allDone) update.gradedAt = admin.firestore.FieldValue.serverTimestamp();
+
+      isFinalized    = allDone;
+      responseStatus = update.status;
+
+      transaction.update(milestoneRef, update);
+    });
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? 'internal_examiner',
+      action: wasAlreadyAnswered ? 'grade_changed' : 'grade_entered',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      newValue: { answers: cleanAnswers },
+    });
+    if (data.projectId) {
+      await logProjectRecordEntry({
+        projectId: data.projectId,
+        type: wasAlreadyAnswered ? 'grade_changed' : 'grade_submitted',
+        actorId: uid,
+        actorRole: req.user?.role ?? 'internal_examiner',
+        data: { milestoneId },
+      });
+    }
+
+    return res.status(200).json({ success: true, status: responseStatus, isFinalized });
+  } catch (error: any) {
+    console.error('submitExaminerFormAnswers error:', error);
+    return res.status(500).json({ message: 'Failed to submit examiner form.' });
   }
 };
 

@@ -20,50 +20,67 @@ import {
   StatusBadgeStyles, SecurityModalStyles,
 } from '../constants/styles';
 
+// #RRGGBB -> rgba(...) — used for tinted badge backgrounds. Mirrors
+// web/lib/facultyColors.ts's helper of the same name, since both platforms
+// now derive their tint the same way instead of hand-picking a pastel.
+function withAlpha(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 // ─── Faculty / Department color palette ───────────────────────────────────────
+// `primary` values are ported verbatim from web/lib/facultyColors.ts's
+// FACULTY_COLORS so faculty color-coding reads identically on both
+// platforms; `light` is derived (12% alpha, matching the tint web computes
+// for its rail/badge backgrounds) rather than a separately hand-picked
+// pastel. `default` has no web equivalent (web only has `all`) and stays a
+// mobile-only fallback for an unrecognized facultyId.
 export const FACULTY_COLORS: Record<string, {
   primary: string;
   light:   string;
   label:   { he: string; en: string };
 }> = {
   sciences: {
-    primary: '#2E86FF',
-    light:   '#EFF6FF',
+    primary: '#3E6C8C',
+    light:   withAlpha('#3E6C8C', 0.12),
     label:   { he: 'הפקולטה למדעים', en: 'Faculty of Sciences' },
   },
   electrical: {
-    primary: '#F59E0B',
-    light:   '#FFFBEB',
+    primary: '#8A6A3B',
+    light:   withAlpha('#8A6A3B', 0.12),
     label:   { he: 'הפקולטה להנדסת חשמל ואלקטרוניקה', en: 'Faculty of Electrical & Electronics Engineering' },
   },
   industrial: {
-    primary: '#8B5CF6',
-    light:   '#F5F3FF',
+    primary: '#736B8C',
+    light:   withAlpha('#736B8C', 0.12),
     label:   { he: 'הפקולטה להנדסת תעשייה וניהול טכנולוגיה', en: 'Faculty of Industrial Engineering & Technology Management' },
   },
   learning_tech: {
-    primary: '#10B981',
-    light:   '#ECFDF5',
+    primary: '#3F7A73',
+    light:   withAlpha('#3F7A73', 0.12),
     label:   { he: 'הפקולטה לטכנולוגיות למידה', en: 'Faculty of Learning Technologies' },
   },
   medical_tech: {
-    primary: '#EF4444',
-    light:   '#FEF2F2',
+    primary: '#8C4F6B',
+    light:   withAlpha('#8C4F6B', 0.12),
     label:   { he: 'הפקולטה לטכנולוגיות רפואיות', en: 'Faculty of Medical Technologies' },
   },
   design: {
-    primary: '#EC4899',
-    light:   '#FDF2F8',
+    primary: '#6E5A99',
+    light:   withAlpha('#6E5A99', 0.12),
     label:   { he: 'הפקולטה לעיצוב', en: 'Faculty of Design' },
   },
   data_science: {
-    primary: '#0EA5E9',
-    light:   '#F0F9FF',
+    primary: '#5C7A3F',
+    light:   withAlpha('#5C7A3F', 0.12),
     label:   { he: 'המחלקה למדעי הנתונים', en: 'Department of Data Science' },
   },
   all: {
-    primary: '#334155',
-    light:   '#F8FAFC',
+    primary: '#5A6472',
+    light:   withAlpha('#5A6472', 0.12),
     label:   { he: 'כל הפקולטות', en: 'All Faculties' },
   },
   default: {

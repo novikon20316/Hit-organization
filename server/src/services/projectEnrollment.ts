@@ -322,7 +322,22 @@ export async function enrollStudentInProject(
         // (defense) milestones keep running their own separate engine
         // untouched (see milestoneRouting.ts's isChainDriven).
         ...(t.requiresExaminers
-          ? { examinerIds: [], examinerScores: {}, examinerCount: t.examinerCount ?? 2 }
+          ? {
+              examinerIds: [], examinerScores: {}, examinerCount: t.examinerCount ?? 2,
+              // No supervisor stage at all for this milestone — see
+              // workflowTemplates.ts's examinerOnlyGrading and
+              // milestoneRouting.ts's isIdentityKeyedExaminerOnly. Omitted
+              // (the default) keeps every existing milestone's supervisor(+examiner)
+              // grading behavior unchanged.
+              ...(t.examinerOnlyGrading ? { examinerOnlyGrading: true } : {}),
+              // Non-scored examiner Q&A config (e.g. the Industrial Engineering
+              // & Management "Presentation 1" yes/no form) — same snapshot-at-
+              // enrollment reasoning as gradingComponents/staffFormFields above.
+              // examinerFormAnswers only initialized when the template actually
+              // configures examinerFormFields, same as examinerEvaluations above
+              // only appearing for finalGradeComponents milestones.
+              ...(t.examinerFormFields?.length ? { examinerFormFields: t.examinerFormFields, examinerFormAnswers: {} } : {}),
+            }
           : {
               routing: resolveMilestoneRouting(t, templateDefaultRouting),
               currentStageIndex: 0,

@@ -15,6 +15,10 @@ interface AssignmentCardProps {
   /** Three-rubric workflow only (see workflowTemplates.ts's finalGradeComponents) —
    *  opens ExaminerEvaluationModal for this examiner's own project/defense rubric. */
   onGradeKind: (m: AssignedMilestone, kind: 'project' | 'defense') => void;
+  /** Non-scored examiner Q&A workflow (see workflowTemplates.ts's
+   *  examinerFormFields) — opens ExaminerFormFieldsModal instead of the
+   *  numeric-rubric GradeExaminerModal. */
+  onGradeForm: (m: AssignedMilestone) => void;
 }
 
 function toDateSafe(val: unknown): Date | null {
@@ -32,7 +36,7 @@ function toDateInputValue(d: Date | null): string | undefined {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeKind }: AssignmentCardProps) {
+export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeKind, onGradeForm }: AssignmentCardProps) {
   const { lang } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   // Dates the examiner has picked so far (chips), plus whatever's currently
@@ -64,13 +68,21 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   // before this examiner ever submitted anything.
   const isChainDriven = m.stageScores != null;
   const gradedViaChain = Object.values(m.stageScores ?? {}).some((entry) => entry?.gradedBy === uid);
+  // Non-scored examiner Q&A milestones (see workflowTemplates.ts's
+  // examinerFormFields) track completion via examinerFormAnswers instead of
+  // examinerScores — every requiresExaminers milestone gets an (empty)
+  // examinerScores map at enrollment regardless of shape, so isIdentityKeyed
+  // alone can't tell these two apart.
+  const isFormOnly = (m.examinerFormFields?.length ?? 0) > 0;
   const graded = isThreeRubric
     ? projectDone && defenseDone
-    : isChainDriven
-      ? gradedViaChain
-      : isIdentityKeyed
-        ? m.examinerScores?.[uid] != null
-        : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
+    : isFormOnly
+      ? m.examinerFormAnswers?.[uid] != null
+      : isChainDriven
+        ? gradedViaChain
+        : isIdentityKeyed
+          ? m.examinerScores?.[uid] != null
+          : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
   // Panel size is configurable per faculty/degree (see workflowTemplates.ts's
   // examinerCount) — every OTHER examiner on the panel, not just a single
   // assumed peer.
@@ -79,7 +91,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
     .map((otherUid) => ({
       uid: otherUid,
       name: (m.defensePanel ?? []).find((p) => p.ref === otherUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown'),
-      graded: m.examinerScores?.[otherUid] != null,
+      graded: isFormOnly ? m.examinerFormAnswers?.[otherUid] != null : m.examinerScores?.[otherUid] != null,
     }));
   const isMyDefensePanel = (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
   const isBeforeDefense = m.defenseDate ? new Date() < new Date(m.defenseDate) : false;
@@ -112,17 +124,17 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   };
 
   return (
-    <div className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+    <div className="role-rail rounded-examinor border border-examinor-outline-variant bg-examinor-surface-container-lowest p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
       <button type="button" onClick={() => setExpanded((v) => !v)} className="w-full text-start">
-        <p className="text-sm font-semibold text-ink">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
+        <p className="text-sm font-semibold text-examinor-on-surface">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
         <div className="mt-1.5 grid gap-1">
-          <p className="text-xs text-muted">👤 {m.studentNames.join(', ')}</p>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-examinor-on-surface-variant">👤 {m.studentNames.join(', ')}</p>
+          <p className="text-xs text-examinor-on-surface-variant">
             👨‍🏫 {lang === 'he' ? 'מנחה:' : 'Supervisor:'} {m.supervisorName}
           </p>
           {isIdentityKeyed ? (
             otherExaminers.length > 0 && (
-              <p className="text-xs text-muted">
+              <p className="text-xs text-examinor-on-surface-variant">
                 🤝 {lang === 'he' ? (otherExaminers.length > 1 ? 'בוחנים נוספים:' : 'בוחן/ת נוסף/ת:') : otherExaminers.length > 1 ? 'Co-examiners:' : 'Co-examiner:'}{' '}
                 {otherExaminers
                   .map((oe) => `${oe.name} (${oe.graded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : lang === 'he' ? 'טרם הוגש' : 'pending'})`)
@@ -130,11 +142,11 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
               </p>
             )
           ) : (
-            <p className="text-xs text-muted">🔢 {lang === 'he' ? `אני בוחן #${examinerIndex}` : `I am Examiner #${examinerIndex}`}</p>
+            <p className="text-xs text-examinor-on-surface-variant">🔢 {lang === 'he' ? `אני בוחן #${examinerIndex}` : `I am Examiner #${examinerIndex}`}</p>
           )}
         </div>
         {m.defenseDate && (
-          <p className="mt-1.5 inline-block rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-ink">
+          <p className="mt-1.5 inline-block rounded-full bg-examinor-surface-container-low px-2.5 py-1 text-xs font-medium text-examinor-on-surface">
             📅 {new Date(m.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
             {m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
           </p>
@@ -226,7 +238,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
           ).map((wt) => (
             <span
               key={wt.label}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${wt.hl ? 'bg-primary text-primary-ink' : 'bg-paper text-ink'}`}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium ${wt.hl ? 'bg-examinor-primary text-examinor-on-primary' : 'bg-examinor-surface-container-low text-examinor-on-surface'}`}
             >
               {wt.label} {Math.round(wt.w * 100)}%
             </span>
@@ -235,19 +247,19 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       )}
 
       {expanded && (
-        <div className="mt-3 grid gap-2 border-t border-line pt-3">
-          <p className="text-xs font-semibold text-ink">📊 {lang === 'he' ? 'ציונים ומסמכים לפי אבן דרך' : 'Grades & Files by Milestone'}</p>
+        <div className="mt-3 grid gap-2 border-t border-examinor-outline-variant pt-3">
+          <p className="text-xs font-semibold text-examinor-on-surface">📊 {lang === 'he' ? 'ציונים ומסמכים לפי אבן דרך' : 'Grades & Files by Milestone'}</p>
           {m.milestoneHistory.map((mg) => {
             const isGraded = mg.supervisorScore !== null;
             const railColor = isGraded ? 'var(--success)' : facultyColor;
             return (
               <div
                 key={mg.type}
-                className="role-rail rounded-lg border border-line bg-surface p-3"
+                className="role-rail rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-lowest p-3"
                 style={{ '--rail-color': railColor } as React.CSSProperties}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold text-ink">{MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}</p>
+                  <p className="text-sm font-semibold text-examinor-on-surface">{MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}</p>
                   <span
                     className="shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
                     style={{ backgroundColor: isGraded ? 'var(--success-bg)' : '#FBF3E3', color: isGraded ? 'var(--success)' : '#B8862E' }}
@@ -256,18 +268,18 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
                   </span>
                 </div>
 
-                <div className="mt-2 flex items-center justify-between border-t border-line/60 pt-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'ציון מנחה' : 'Supervisor score'}</span>
+                <div className="mt-2 flex items-center justify-between border-t border-examinor-outline-variant/60 pt-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-examinor-on-surface-variant">{lang === 'he' ? 'ציון מנחה' : 'Supervisor score'}</span>
                   <span className="text-xs font-bold" style={{ color: isGraded ? 'var(--success)' : 'var(--muted)' }}>
-                    🏆 {isGraded ? `${mg.supervisorScore}/100` : lang === 'he' ? 'טרם ניתן' : 'Not yet'}
+                    🏆 {isGraded ? `${mg.supervisorScore}` : lang === 'he' ? 'טרם ניתן' : 'Not yet'}
                   </span>
                 </div>
 
-                {mg.supervisorComment && <p className="mt-2 text-xs text-ink">💬 {mg.supervisorComment}</p>}
+                {mg.supervisorComment && <p className="mt-2 text-xs text-examinor-on-surface">💬 {mg.supervisorComment}</p>}
 
                 {mg.fileUrls.length > 0 ? (
                   <div className="mt-2">
-                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-examinor-on-surface-variant">
                       {lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
@@ -277,7 +289,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1 text-xs text-ink hover:border-primary hover:text-primary"
+                          className="flex items-center gap-1 rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-2 py-1 text-xs text-examinor-on-surface hover:border-examinor-primary hover:text-examinor-primary"
                         >
                           📄 {lang === 'he' ? `קובץ ${i + 1}` : `File ${i + 1}`}
                         </a>
@@ -285,7 +297,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs text-muted">{lang === 'he' ? 'לא הועלו קבצים' : 'No files uploaded'}</p>
+                  <p className="mt-2 text-xs text-examinor-on-surface-variant">{lang === 'he' ? 'לא הועלו קבצים' : 'No files uploaded'}</p>
                 )}
               </div>
             );
@@ -324,6 +336,15 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
               {defenseDone ? `✅ ${lang === 'he' ? 'ההגנה' : 'The Defense'}` : `🛡 ${lang === 'he' ? 'הערך הגנה' : 'Grade the Defense'}`}
             </button>
           </div>
+        ) : isFormOnly ? (
+          <button
+            type="button"
+            onClick={() => onGradeForm(m)}
+            className="w-full rounded-lg px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+            style={{ backgroundColor: facultyColor }}
+          >
+            📝 {lang === 'he' ? 'מלא/י טופס הערכה' : 'Fill Evaluation Form'}
+          </button>
         ) : (
           <button
             type="button"

@@ -251,7 +251,7 @@ export default function StudentMilestones() {
                         {isApprovedOrDone && (
                           <View style={[mt.cardFooterRow, isRtl && styles.rowReverse]}>
                             <Text style={mt.gradeText}>
-                              ✓ {m.finalGrade != null ? `${m.finalGrade}/100` : (lang === 'he' ? 'ציון לא זמין' : 'Grade unavailable')}
+                              ✓ {m.finalGrade != null ? `${m.finalGrade}` : (lang === 'he' ? 'ציון לא זמין' : 'Grade unavailable')}
                             </Text>
                             {m.coordinatorComment && (
                               <Text style={[mt.feedbackText, isRtl && styles.textRight]} numberOfLines={2}>

@@ -96,6 +96,16 @@ export interface AssignedMilestone {
   // graded" apart from "not yet" for this examiner.
   stageScores?: Record<string, { score: number; gradedBy: string }> | null;
   routing?: Array<{ id: string; role: string; action: string }> | null;
+  // True means this milestone has NO supervisor grading stage at all — see
+  // server/src/services/workflowTemplates.ts's examinerOnlyGrading. Used by
+  // AssignmentCard.tsx to skip showing a "Supervisor" weight badge, and to
+  // dispatch to ExaminerFormFieldsModal when examinerFormFields is set.
+  examinerOnlyGrading?: boolean;
+  // A non-scored Q&A form every assigned examiner fills independently (e.g.
+  // yes/no screening questions) — a sibling of gradingComponents, rendered by
+  // ExaminerFormFieldsModal.tsx instead of GradeExaminerModal.tsx.
+  examinerFormFields?: FormFieldSpec[];
+  examinerFormAnswers?: Record<string, Record<string, { value: 'yes' | 'no'; comment?: string }>>;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -107,6 +117,20 @@ export interface GradingComponentSpec {
   weight: number;
   hasComment: boolean;
   visibleToStudent: boolean;
+  groupHe?: string;
+  groupEn?: string;
+  excludeFromTotal?: boolean;
+}
+
+// Mirrors FormFieldSpec in server/src/services/workflowTemplates.ts (only the
+// 'yesno' shape is actually used on this screen today).
+export interface FormFieldSpec {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno';
+  required: boolean;
+  commentRequiredOn?: 'yes' | 'no';
 }
 
 export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
@@ -115,6 +139,10 @@ export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   final_report: { he: 'דו"ח מסכם', en: 'Final Report' },
   defense: { he: 'הגנה', en: 'Defense' },
   poster: { he: 'פוסטר', en: 'Poster Session' },
+  presentation_1: { he: 'מצגת 1', en: 'Presentation 1' },
+  presentation_2: { he: 'מצגת 2', en: 'Presentation 2' },
+  presentation_3: { he: 'מצגת 3', en: 'Presentation 3' },
+  project_book: { he: 'ספר פרויקט', en: 'Project Book' },
 };
 
 // Ported from the local GRADING_CRITERIA const in mobile/app/examinor/home.tsx —

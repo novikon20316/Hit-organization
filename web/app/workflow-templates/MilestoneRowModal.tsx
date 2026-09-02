@@ -264,8 +264,15 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
           setError(lang === 'he' ? 'יש להזין שם לכל מרכיב ציון (עברית ואנגלית)' : 'Enter a name for every grading component (Hebrew and English)');
           return;
         }
-        if (weightSum !== 100) {
-          setError(lang === 'he' ? `סכום המשקלים חייב להיות 100 (כרגע ${weightSum})` : `Component weights must sum to 100 (currently ${weightSum})`);
+        // Most rubrics are a 0-100 percentage split, but a rubric doesn't
+        // HAVE to sum to 100 — e.g. a department's real paper form scoring
+        // 15 criteria 1-7 each (max 105). A milestone's own score is
+        // whatever its rubric produces; only the PROJECT's overall final
+        // grade (combining every milestone) is ever capped at 100 — see
+        // gradeEngine.ts's computeProjectFinalGrade. Only reject a rubric
+        // with no real points at all.
+        if (weightSum <= 0) {
+          setError(lang === 'he' ? 'סכום המשקלים חייב להיות גדול מ-0' : 'Component weights must sum to more than 0');
           return;
         }
       }
@@ -663,7 +670,7 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-ink">
                   {lang === 'he' ? 'מרכיבי ציון' : 'Grading components'}
-                  {components.length > 0 && <span className="ms-1 text-xs text-muted">({weightSum}/100)</span>}
+                  {components.length > 0 && <span className="ms-1 text-xs text-muted">({weightSum} {lang === 'he' ? 'נק\'' : 'pts'})</span>}
                 </span>
                 <button
                   type="button"
@@ -673,6 +680,14 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
                   ＋ {t('add')}
                 </button>
               </div>
+
+              {components.length > 0 && weightSum !== 100 && (
+                <p className="mt-2 rounded-md bg-accent/10 px-2 py-1.5 text-xs text-ink">
+                  {lang === 'he'
+                    ? `ℹ️ המרכיבים מסתכמים ל-${weightSum} נקודות, לא 100 — ${weightSum} יהיה הציון המרבי של אבן דרך זו, והוא ייכלל כפי שהוא (בונוס/גירעון) בציון הפרויקט הכולל, שתמיד מוגבל ל-100.`
+                    : `ℹ️ These components sum to ${weightSum} points, not 100 — ${weightSum} will be this milestone's own maximum score, and it counts as-is (a genuine bonus/shortfall) toward the project's overall grade, which is always capped at 100.`}
+                </p>
+              )}
 
               {components.length === 0 ? (
                 <p className="mt-2 text-xs text-muted">

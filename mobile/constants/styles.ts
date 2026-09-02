@@ -1,5 +1,5 @@
 import { StyleSheet, I18nManager, Platform, Dimensions } from 'react-native';
-import { palette, spacing, radius, shadows, fontSize, fontWeight, cardStyles } from './theme';
+import { palette, ap, spacing, radius, shadows, fontSize, fontWeight, cardStyles } from './theme';
 
 // Used by NewMessageStyles.sheet (moved here from app/message/new.tsx, which
 // had its own local `const { height: SCREEN_H } = Dimensions.get('window');`).
@@ -1929,19 +1929,19 @@ export const browseProjectsStyles = StyleSheet.create({
 });
 
 export const examinerHomeStyles = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: '#F0FDF9' },
+  root:     { flex: 1, backgroundColor: ap.surface },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content:  { padding: 16 },
 
-  pageTitle: { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 16 },
+  pageTitle: { fontSize: 20, fontWeight: '900', color: ap.onSurface, marginBottom: 16 },
 
   card: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: 16, padding: 16,
     marginBottom: 12, borderLeftWidth: 4,
-    borderWidth: 1, borderColor: '#D1FAE5',
+    borderWidth: 1, borderColor: ap.outlineVariant,
   },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#111', marginBottom: 6 },
-  cardMeta:  { fontSize: 12, color: '#6B7280', marginBottom: 4 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: ap.onSurface, marginBottom: 6 },
+  cardMeta:  { fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 4 },
 
   dateChip: {
     backgroundColor: '#ECFDF5', borderRadius: 8, padding: 8,
@@ -1964,11 +1964,11 @@ export const examinerHomeStyles = StyleSheet.create({
 
   empty:      { alignItems: 'center', paddingTop: 80 },
   emptyEmoji: { fontSize: 44, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: '#9CA3AF' },
+  emptyText:  { fontSize: 15, color: ap.outline },
 
-  modal:        { flex: 1, backgroundColor: '#F0FDF9' },
+  modal:        { flex: 1, backgroundColor: ap.surface },
   modalContent: { padding: 20, paddingBottom: 60 },
-  modalTitle:   { fontSize: 20, fontWeight: '900', color: '#111', marginBottom: 16 },
+  modalTitle:   { fontSize: 20, fontWeight: '900', color: ap.onSurface, marginBottom: 16 },
 
   context: {
     backgroundColor: '#ECFDF5', borderRadius: 12, padding: 14,
@@ -1979,23 +1979,23 @@ export const examinerHomeStyles = StyleSheet.create({
 
   criterionRow:   { marginBottom: 16 },
   criterionHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  criterionLabel: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  criterionMax:   { fontSize: 12, color: '#9CA3AF' },
+  criterionLabel: { fontSize: 14, fontWeight: '600', color: ap.onSurfaceVariant },
+  criterionMax:   { fontSize: 12, color: ap.outline },
   scoreInput: {
     backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 14,
     height: 48, fontSize: 20, fontWeight: '800', color: '#10B981',
     borderWidth: 1, borderColor: '#D1FAE5', textAlign: 'center',
   },
 
-  totalRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 16, paddingVertical: 14, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16 },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: '#374151' },
+  totalRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 16, paddingVertical: 14, backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, paddingHorizontal: 16 },
+  totalLabel: { fontSize: 16, fontWeight: '700', color: ap.onSurface },
   totalScore: { fontSize: 28, fontWeight: '900' },
 
-  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8 },
+  fieldLabel: { fontSize: 13, fontWeight: '700', color: ap.onSurfaceVariant, marginBottom: 8 },
   textarea: {
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14,
-    paddingVertical: 12, fontSize: 14, color: '#111',
-    borderWidth: 1, borderColor: '#D1FAE5', textAlignVertical: 'top', minHeight: 100,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, paddingHorizontal: 14,
+    paddingVertical: 12, fontSize: 14, color: ap.onSurface,
+    borderWidth: 1, borderColor: ap.outlineVariant, textAlignVertical: 'top', minHeight: 100,
   },
 
   submitBtn: {
@@ -2005,63 +2005,63 @@ export const examinerHomeStyles = StyleSheet.create({
   submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   cancelBtn:     { borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   cancelBtnText: { color: '#10B981', fontSize: 14, fontWeight: '600' },
-  tabBar:        { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5EAFF', gap: 8 },
+  tabBar:        { flexDirection: 'row', backgroundColor: ap.surfaceContainerLowest, borderBottomWidth: 1, borderBottomColor: ap.outlineVariant, gap: 8 },
   // Fixed size (not flex:1) — matches admin/panel.tsx's tabsContainer; wrap
   // the row in a horizontal ScrollView so extra tabs slide into view.
   // height fixed too — numberOfLines={1} on the label keeps long text from
   // wrapping and growing this past a single line.
   tab:           { width: 110, height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 18, gap: 6, overflow: 'hidden' },
   tabActive:     { borderBottomWidth: 3, borderBottomColor: '#10B981' },
-  tabText:       { fontSize: 13, color: '#8899BB', fontWeight: '500' },
+  tabText:       { fontSize: 13, color: ap.onSurfaceVariant, fontWeight: '500' },
   tabTextActive: { color: '#10B981', fontWeight: '700' },
   badge:         { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   badgeText:     { color: '#fff', fontSize: 10, fontWeight: '700' },
  
   // Card
   cardExpanded:  { shadowOpacity: 0.14 },
-  expandHint:    { textAlign: 'center', color: '#C0CCDD', fontSize: 11, marginTop: 6, marginBottom: 2 },
- 
+  expandHint:    { textAlign: 'center', color: ap.outline, fontSize: 11, marginTop: 6, marginBottom: 2 },
+
   // Defense date pill
   defensePill:     { marginTop: 8, backgroundColor: '#ECFDF5', borderRadius: 8, paddingVertical: 5, paddingHorizontal: 10, alignSelf: 'flex-start' },
   defensePillText: { fontSize: 12, color: '#059669', fontWeight: '600' },
- 
+
   // Weight chips
   weightsRow:      { flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap' },
-  weightChip:      { backgroundColor: '#F3F4F6', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignItems: 'center' },
+  weightChip:      { backgroundColor: ap.surfaceContainer, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignItems: 'center' },
   weightChipHL:    { backgroundColor: '#10B981' },
-  weightChipLabel: { fontSize: 10, color: '#6B7280' },
-  weightChipValue: { fontSize: 13, fontWeight: '700', color: '#111827' },
+  weightChipLabel: { fontSize: 10, color: ap.onSurfaceVariant },
+  weightChipValue: { fontSize: 13, fontWeight: '700', color: ap.onSurface },
  
   // Expanded milestone history — "Mobile Milestone Tracker with Files" card
   // language (see mobile/components/MilestoneRoadmap.tsx): rail-colored left
   // border, title + status badge header row, a small stat grid, file chips.
   // Dynamic colors (rail/badge, keyed off graded-vs-not) are applied inline
   // in examinor/home.tsx — StyleSheet values here are shape-only.
-  expandedSection: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#F0F4FF', paddingTop: 14 },
-  sectionTitle:    { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 10 },
-  milestoneBlock:  { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#E3E1E9', borderLeftWidth: 4, padding: 12, marginBottom: 10 },
+  expandedSection: { marginTop: 14, borderTopWidth: 1, borderTopColor: ap.outlineVariant, paddingTop: 14 },
+  sectionTitle:    { fontSize: 13, fontWeight: '700', color: ap.onSurface, marginBottom: 10 },
+  milestoneBlock:  { backgroundColor: ap.surfaceContainerLowest, borderRadius: 14, borderWidth: 1, borderColor: ap.outlineVariant, borderLeftWidth: 4, padding: 12, marginBottom: 10 },
   milestoneHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
-  milestoneName:   { fontSize: 13, fontWeight: '700', color: '#1A1B21', flexShrink: 1 },
+  milestoneName:   { fontSize: 13, fontWeight: '700', color: ap.onSurface, flexShrink: 1 },
   milestoneBadge:      { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   milestoneBadgeText:  { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
-  scoreRow:        { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#EEEDF4' },
-  scoreLabel:      { fontSize: 9, fontWeight: '700', color: '#444651', textTransform: 'uppercase' },
+  scoreRow:        { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: ap.surfaceContainer },
+  scoreLabel:      { fontSize: 9, fontWeight: '700', color: ap.onSurfaceVariant, textTransform: 'uppercase' },
   scoreValue:      { fontSize: 13, fontWeight: '700', marginTop: 2 },
-  commentText:     { fontSize: 12, color: '#4B5563', fontStyle: 'italic', marginTop: 6 },
-  filesLabel:      { fontSize: 9, fontWeight: '700', color: '#444651', textTransform: 'uppercase', marginTop: 8, marginBottom: 4 },
+  commentText:     { fontSize: 12, color: ap.onSurfaceVariant, fontStyle: 'italic', marginTop: 6 },
+  filesLabel:      { fontSize: 9, fontWeight: '700', color: ap.onSurfaceVariant, textTransform: 'uppercase', marginTop: 8, marginBottom: 4 },
   filesRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  fileBtn:         { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F4F3FA', borderRadius: 8, borderWidth: 1, borderColor: '#E3E1E9', paddingVertical: 6, paddingHorizontal: 10 },
-  fileBtnText:     { fontSize: 12, color: '#1A1B21', fontWeight: '600' },
-  noFiles:         { fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', marginTop: 4 },
- 
+  fileBtn:         { flexDirection: 'row', alignItems: 'center', backgroundColor: ap.surfaceContainerLow, borderRadius: 8, borderWidth: 1, borderColor: ap.outlineVariant, paddingVertical: 6, paddingHorizontal: 10 },
+  fileBtnText:     { fontSize: 12, color: ap.onSurface, fontWeight: '600' },
+  noFiles:         { fontSize: 12, color: ap.outline, fontStyle: 'italic', marginTop: 4 },
+
   // Schedule cards
-  scheduleCard:      { backgroundColor: '#fff', borderRadius: 16, padding: 18, marginBottom: 14, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  scheduleCard:      { backgroundColor: ap.surfaceContainerLowest, borderRadius: 16, padding: 18, marginBottom: 14, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   countdownBadge:    { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5, marginBottom: 10 },
   countdownText:     { color: '#fff', fontWeight: '800', fontSize: 14 },
-  scheduleTitle:     { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 6 },
+  scheduleTitle:     { fontSize: 16, fontWeight: '700', color: ap.onSurface, marginBottom: 6 },
   scheduleRow:       { flexDirection: 'row', gap: 10, marginTop: 12, flexWrap: 'wrap' },
   scheduleChip:      { backgroundColor: '#F0FDF4', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
-  scheduleChipLabel: { fontSize: 10, color: '#6B7280', marginBottom: 2 },
+  scheduleChipLabel: { fontSize: 10, color: ap.onSurfaceVariant, marginBottom: 2 },
   scheduleChipValue: { fontSize: 14, fontWeight: '700', color: '#065F46' },
 });
 

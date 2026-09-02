@@ -107,6 +107,16 @@ export function computeIdentityWeightedFinalGrade(
   return Math.round(supervisorScore * weights.supervisorWeight + examinerTotal);
 }
 
+/** Final grade for an examiner-only milestone (see workflowTemplates.ts's
+ *  examinerOnlyGrading) — no supervisor score exists at all, so unlike
+ *  computeIdentityWeightedFinalGrade this is simply every submitted
+ *  examiner's score weighted equally. */
+export function computeExaminerOnlyGrade(examinerScores: Record<string, { score: number }>): number {
+  const scores = Object.values(examinerScores).map((e) => e.score);
+  if (scores.length === 0) return 0;
+  return Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length);
+}
+
 // Group-project defense grades (research_proposal/progress_report/final_report
 // stay one score for the whole group — the spec only calls out a personal
 // component at the oral defense, e.g. "ציון אישי במבחן בעל פה"). How much a
@@ -163,9 +173,19 @@ export function computeProjectFinalGrade(
     if (pct === 0) continue;
     const actual = actualMilestones.find((m) => m.type === tm.type);
     if (actual?.finalGrade == null) return null;
+    // A milestone's own finalGrade can legitimately exceed 100 (e.g. a
+    // rubric whose GradingComponentSpec weights sum above 100 — see
+    // workflowTemplates.ts's GradingComponentSpec) — used here AS-IS, so a
+    // strong performance on that milestone can offset a weaker one
+    // elsewhere, exactly like any other weighted component. Only the
+    // combined project-wide total below is ever capped.
     weightedSum += actual.finalGrade * (pct / 100);
   }
-  return Math.round(weightedSum);
+  // The one and only cap: the project's OVERALL grade never exceeds 100,
+  // regardless of how any single milestone's own (possibly >100) score
+  // contributed to weightedSum above. A no-op for every template whose
+  // milestones all cap at 100, which is every one but the above.
+  return Math.min(100, Math.round(weightedSum));
 }
 
 /**

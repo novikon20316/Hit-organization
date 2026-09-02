@@ -181,12 +181,15 @@ function validateGradingComponents(input: any): GradingComponentSpec[] | null {
       weight,
       hasComment: !!c.hasComment,
       visibleToStudent: !!c.visibleToStudent,
+      ...(typeof c.groupHe === 'string' && c.groupHe.trim() ? { groupHe: c.groupHe.trim() } : {}),
+      ...(typeof c.groupEn === 'string' && c.groupEn.trim() ? { groupEn: c.groupEn.trim() } : {}),
+      ...(c.excludeFromTotal ? { excludeFromTotal: true } : {}),
     });
   }
   return cleaned;
 }
 
-const FORM_FIELD_TYPES = ['text', 'textarea', 'date', 'number', 'table'];
+const FORM_FIELD_TYPES = ['text', 'textarea', 'date', 'number', 'table', 'yesno'];
 
 function validateFormFields(input: any): FormFieldSpec[] | null {
   if (input === undefined || input === null) return [];
@@ -203,6 +206,9 @@ function validateFormFields(input: any): FormFieldSpec[] | null {
       type: f.type,
       required: !!f.required,
     };
+    if (f.type === 'yesno' && (f.commentRequiredOn === 'yes' || f.commentRequiredOn === 'no')) {
+      spec.commentRequiredOn = f.commentRequiredOn;
+    }
     if (f.type === 'table') {
       if (!Array.isArray(f.tableColumns) || f.tableColumns.length === 0) return null;
       const columns: NonNullable<FormFieldSpec['tableColumns']> = [];
@@ -288,6 +294,25 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     const staffFormFields = validateFormFields(m.staffFormFields);
     if (staffFormFields === null) return null;
 
+    // Non-scored examiner Q&A form (see workflowTemplates.ts's
+    // examinerFormFields) — same validator as staffFormFields, just a
+    // different slot on the spec. Only meaningful alongside requiresExaminers.
+    const examinerFormFields = validateFormFields(m.examinerFormFields);
+    if (examinerFormFields === null) return null;
+
+    // How many examiner slots this milestone needs, and whether it has no
+    // supervisor stage at all — both previously dropped by this function
+    // entirely (never round-tripped through a template edit), which would
+    // silently reset every re-proposed milestone back to the 2-examiner/
+    // supervisor-required default. See workflowTemplates.ts's examinerCount/
+    // examinerOnlyGrading.
+    let examinerCount: number | undefined;
+    if (m.examinerCount !== undefined) {
+      examinerCount = Number(m.examinerCount);
+      if (!Number.isFinite(examinerCount) || examinerCount < 1) return null;
+    }
+    const examinerOnlyGrading = !!m.examinerOnlyGrading;
+
     // Only meaningful for the 'defense' milestone type — omitted keeps
     // today's single shared gradingComponents/hardcoded-criteria rubric.
     const finalGradeComponents = validateFinalGradeComponents(m.finalGradeComponents);
@@ -341,6 +366,11 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     if (finalGradeComponents.value) spec.finalGradeComponents = finalGradeComponents.value;
     if (percentOfFinalGrade !== undefined) spec.percentOfFinalGrade = percentOfFinalGrade;
     if (syncDueDateWith) spec.syncDueDateWith = syncDueDateWith;
+    if (spec.requiresExaminers) {
+      if (examinerCount !== undefined) spec.examinerCount = examinerCount;
+      if (examinerOnlyGrading) spec.examinerOnlyGrading = true;
+      if (examinerFormFields.length > 0) spec.examinerFormFields = examinerFormFields;
+    }
     cleaned.push(spec);
   }
 

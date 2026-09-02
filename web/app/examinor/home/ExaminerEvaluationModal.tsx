@@ -102,21 +102,21 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
           tabIndex={-1}
           role="dialog"
           aria-modal="true"
-          className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-6 text-center shadow-lg outline-none"
+          className="w-full max-w-lg rounded-examinor bg-examinor-surface-container-lowest p-6 text-center shadow-lg outline-none"
         >
-          <h2 className="text-lg font-semibold text-ink">✅ {lang === 'he' ? 'ההערכה נשלחה' : 'Evaluation submitted'}</h2>
-          <div className="mt-5 rounded-lg border border-line bg-paper p-4">
-            <p className="text-xs text-muted">{lang === 'he' ? 'שם הבוחן' : 'Examiner name'}</p>
-            <p className="mt-0.5 text-sm font-semibold text-ink">{examinerName}</p>
-            <p className="mt-3 text-xs text-muted">{lang === 'he' ? 'תאריך' : 'Date'}</p>
-            <p className="mt-0.5 text-sm text-ink">{submittedAt.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>
-            <p className="mt-3 text-xs text-muted">{lang === 'he' ? 'חתימה' : 'Signature'}</p>
+          <h2 className="text-lg font-semibold text-examinor-on-surface">✅ {lang === 'he' ? 'ההערכה נשלחה' : 'Evaluation submitted'}</h2>
+          <div className="mt-5 rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low p-4">
+            <p className="text-xs text-examinor-on-surface-variant">{lang === 'he' ? 'שם הבוחן' : 'Examiner name'}</p>
+            <p className="mt-0.5 text-sm font-semibold text-examinor-on-surface">{examinerName}</p>
+            <p className="mt-3 text-xs text-examinor-on-surface-variant">{lang === 'he' ? 'תאריך' : 'Date'}</p>
+            <p className="mt-0.5 text-sm text-examinor-on-surface">{submittedAt.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>
+            <p className="mt-3 text-xs text-examinor-on-surface-variant">{lang === 'he' ? 'חתימה' : 'Signature'}</p>
             <p className="mt-1 text-2xl" style={{ fontFamily: signature.fontFamily, color: signature.color }}>{examinerName}</p>
           </div>
           <button
             type="button"
             onClick={() => { onSubmitted(); onClose(); }}
-            className="mt-5 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            className="mt-5 w-full rounded-lg bg-examinor-primary py-2.5 text-sm font-semibold text-examinor-on-primary hover:opacity-90"
           >
             {lang === 'he' ? 'סגור' : 'Close'}
           </button>
@@ -132,27 +132,27 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-examinor bg-examinor-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-ink">
+        <h2 className="text-lg font-semibold text-examinor-on-surface">
           {kind === 'project'
             ? (lang === 'he' ? '📄 הערכת בוחן — עבודת הגמר' : '📄 Examiner Evaluation — The Project')
             : (lang === 'he' ? '🛡 הערכת בוחן — בחינת ההגנה' : '🛡 Examiner Evaluation — The Defense Exam')}
         </h2>
 
-        <div className="mt-3 rounded-lg bg-paper p-3">
-          <p className="text-sm font-semibold text-ink">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
-          <p className="mt-0.5 text-xs text-muted">👤 {m.studentNames.join(', ')}</p>
+        <div className="mt-3 rounded-lg bg-examinor-surface-container-low p-3">
+          <p className="text-sm font-semibold text-examinor-on-surface">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
+          <p className="mt-0.5 text-xs text-examinor-on-surface-variant">👤 {m.studentNames.join(', ')}</p>
           {isDataScienceDocument && (
-            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-line/60 pt-2 text-xs text-muted">
-              <span>{lang === 'he' ? 'שנה"ל:' : 'Academic year:'} <b className="text-ink">{m.academicYearHebrew ?? '—'}</b></span>
+            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-examinor-outline-variant/60 pt-2 text-xs text-examinor-on-surface-variant">
+              <span>{lang === 'he' ? 'שנה"ל:' : 'Academic year:'} <b className="text-examinor-on-surface">{m.academicYearHebrew ?? '—'}</b></span>
               <span>
                 {lang === 'he' ? 'תאריך תחילת פרויקט:' : 'Project start date:'}{' '}
-                <b className="text-ink">{m.projectStartDate ? new Date(m.projectStartDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
+                <b className="text-examinor-on-surface">{m.projectStartDate ? new Date(m.projectStartDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
               </span>
               <span>
                 {lang === 'he' ? 'תאריך ההגנה:' : 'Defense date:'}{' '}
-                <b className="text-ink">{m.defenseDate ? new Date(m.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
+                <b className="text-examinor-on-surface">{m.defenseDate ? new Date(m.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
               </span>
             </div>
           )}
@@ -161,7 +161,7 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
         <div className="mt-4 grid gap-3">
           {rubric.map((c) => (
             <label key={c.key} className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">
+              <span className="mb-1.5 block text-sm font-medium text-examinor-on-surface">
                 {lang === 'he' ? c.labelHe : c.labelEn} (0–{c.maxScore})
               </span>
               <input
@@ -170,49 +170,49 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
                 max={c.maxScore}
                 value={scores[c.key]}
                 onChange={(e) => setScores({ ...scores, [c.key]: e.target.value })}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3 py-2 text-sm text-examinor-on-surface focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none"
               />
             </label>
           ))}
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-examinor-on-surface">
             {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}{isDataScienceDocument ? ' *' : ''}
           </span>
           <textarea
             rows={4}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            className="w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3 py-2 text-sm text-examinor-on-surface focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none"
           />
         </label>
 
-        <div className="mt-4 flex items-center justify-between rounded-lg bg-paper px-3 py-2">
-          <span className="text-sm font-semibold text-ink">{lang === 'he' ? 'סה"כ' : 'Total'}</span>
+        <div className="mt-4 flex items-center justify-between rounded-lg bg-examinor-surface-container-low px-3 py-2">
+          <span className="text-sm font-semibold text-examinor-on-surface">{lang === 'he' ? 'סה"כ' : 'Total'}</span>
           <span className="text-sm font-bold" style={{ color: total >= 60 ? 'var(--success)' : 'var(--danger)' }}>
             {total} / 100
           </span>
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-examinor-on-surface">
             {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
           </span>
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink" />
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3 py-2 text-sm text-examinor-on-surface" />
         </label>
 
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-4 flex gap-2">
-          <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-line px-3.5 py-2.5 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-examinor-outline-variant px-3.5 py-2.5 text-sm font-medium text-examinor-on-surface hover:bg-examinor-surface-container-low">
             {t('cancel')}
           </button>
           <button
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="flex-1 rounded-lg bg-examinor-primary py-2.5 text-sm font-semibold text-examinor-on-primary hover:opacity-90 disabled:opacity-60"
           >
             {submitting ? '…' : t('submit')}
           </button>

@@ -72,9 +72,24 @@ export default function PanelScreen() {
   // web dashboard already supports.
   type AdminPanelTab = 'overview' | 'users' | 'projects' | 'milestones' | 'defenseAccess' | 'feedback' | 'studentRoster' | 'signoffs' | 'archived';
   const ADMIN_PANEL_TABS: AdminPanelTab[] = ['overview', 'users', 'projects', 'milestones', 'defenseAccess', 'feedback', 'studentRoster', 'signoffs', 'archived'];
-  const [activeTab, setActiveTab] = useState<AdminPanelTab>(
+  const [activeTab] = useState<AdminPanelTab>(
     ADMIN_PANEL_TABS.includes(tabParam as AdminPanelTab) ? (tabParam as AdminPanelTab) : 'overview'
   );
+  // Section switching now happens on app/admin/menu.tsx (each row pushes
+  // this screen with a different `tab` param) — this screen just displays
+  // whichever tab it was opened with, so the header reflects that tab
+  // instead of the old in-page pill strip.
+  const ADMIN_TAB_META: Record<AdminPanelTab, { icon: string; label: Record<Lang, string> }> = {
+    overview: { icon: '📊', label: { he: 'סקירה', en: 'Overview' } },
+    users: { icon: '👥', label: { he: 'ניהול משתמשים', en: 'User Management' } },
+    projects: { icon: '📁', label: { he: 'פרויקטים', en: 'Projects' } },
+    milestones: { icon: '🏁', label: { he: 'אבני דרך', en: 'Milestones' } },
+    defenseAccess: { icon: '🔑', label: { he: 'גישת הגנה', en: 'Defense Access' } },
+    feedback: { icon: '💬', label: { he: 'משוב', en: 'Feedback' } },
+    studentRoster: { icon: '📋', label: { he: 'רשימת סטודנטים', en: 'Student Roster' } },
+    signoffs: { icon: '✅', label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' } },
+    archived: { icon: '🗄️', label: { he: 'ארכיון', en: 'Archived' } },
+  };
 
   // ── Real feedback awaiting review — one-way (see feedbackController.ts);
   //    system_admin reviews/resolves here instead of replying in-thread ──────
@@ -1206,90 +1221,9 @@ export default function PanelScreen() {
 
       <View style={styles.hero}>
         <Text style={[styles.heroTitle, isRtl && styles.textRight]}>
-          🚀 {lang === 'he' ? 'פאנל ניהול מערכת' : 'System Control Panel'}
-        </Text>
-
-        <Text style={[styles.heroSub, isRtl && styles.textRight]}>
-          {lang === 'he'
-            ? 'ניהול משתמשים, פרויקטים ואבני דרך במקום אחד'
-            : 'Manage users, projects and milestones in one place'}
+          {ADMIN_TAB_META[activeTab].icon} {ADMIN_TAB_META[activeTab].label[lang]}
         </Text>
       </View>
-
-      {/* Explicit height — without it, this horizontal ScrollView's own frame
-          can measure much taller than its visible pills on Android when it
-          sits directly next to another scrollable sibling (the main content
-          ScrollView below) with nothing fixed-height in between. The result:
-          a big blank area below the pills that's still part of this
-          ScrollView's own hit-test region (drag it and the pills scroll),
-          painted with tabsContainer's own white background. Height = tab
-          height (46) + tabsContainer's paddingVertical (10) * 2. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ height: 66 }}
-        contentContainerStyle={styles.tabsContainer}
-      >
-        {[
-          {
-            key: 'overview',
-            label: lang === 'he' ? 'סקירה' : 'Overview',
-          },
-          {
-            key: 'users',
-            label: lang === 'he' ? 'משתמשים' : 'Users',
-          },
-          {
-            key: 'projects',
-            label: lang === 'he' ? 'פרויקטים' : 'Projects',
-          },
-          {
-            key: 'milestones',
-            label: lang === 'he' ? 'אבני דרך' : 'Milestones',
-          },
-          {
-            key: 'defenseAccess',
-            label: lang === 'he' ? 'גישת הגנה' : 'Defense Access',
-          },
-          {
-            key: 'feedback',
-            label: lang === 'he' ? 'משוב' : 'Feedback',
-          },
-          {
-            key: 'studentRoster',
-            label: lang === 'he' ? 'רשימת סטודנטים' : 'Student Roster',
-          },
-          {
-            key: 'signoffs',
-            label: lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval',
-          },
-          {
-            key: 'archived',
-            label: lang === 'he' ? 'ארכיון' : 'Archived',
-          },
-        ].map((tab) => (
-          <Pressable
-            key={tab.key}
-            style={[
-              styles.tab,
-              activeTab === tab.key && styles.tabActive,
-            ]}
-            onPress={() => setActiveTab(tab.key as any)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTab === tab.key }}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab.key && styles.tabTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {tab.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
 
       {activeTab === 'users' && (
         <>
