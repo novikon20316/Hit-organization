@@ -127,8 +127,23 @@ export async function createExternalExaminerAccess(
     examinerInstitution: params.examinerInstitution,
     examinerLanguage: params.examinerLanguage,
     status: 'pending',
-    createdAt: new Date().toISOString(),
-    expiresAt: expiresAt.toISOString(),
+    // CRITICAL FIX: these were plain ISO strings (new Date().toISOString()),
+    // but web/lib/examinerTokens.ts's ExaminerTokenDoc type — and every
+    // client read of this doc (isTokenExpired/daysUntilExpiry, both called
+    // from effectiveStatus() on every single loadToken() in
+    // app/examiner-access/page.tsx) — treats createdAt/expiresAt as
+    // Firestore Timestamp objects and calls .toDate() on them. A string has
+    // no .toDate() method, so this threw a TypeError on the very first
+    // client read after otpVerified flips to true, on EVERY external
+    // examiner's token, always landing on the generic "link expired or
+    // invalid" screen (the catch-all for any non-permission-denied error —
+    // see page.tsx's loadToken) instead of ever reaching the real
+    // pending/accepted view. Use real Timestamps, matching every other
+    // write to this collection (acceptExaminerToken/declineExaminerToken/
+    // submitExaminerOpinion in lib/examinerTokens.ts already use
+    // serverTimestamp() correctly).
+    createdAt: admin.firestore.Timestamp.now(),
+    expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
     opinionVisible: true,
     opinionAnonymous: false,
     accessLog: [],
