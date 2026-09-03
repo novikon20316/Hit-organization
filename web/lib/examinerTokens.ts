@@ -135,10 +135,17 @@ export function effectiveStatus(tokenDoc: ExaminerTokenDoc): ExaminerTokenStatus
 
 // ─── Write ────────────────────────────────────────────────────────────────────
 
-/** Log an access action to the token's accessLog array. */
+/** Log an access action to the token's accessLog array.
+ *  CRITICAL FIX: serverTimestamp() is a sentinel Firestore can only resolve
+ *  on a direct field write (update()/set()) — nested inside an arrayUnion()
+ *  element it throws "Function arrayUnion() called with invalid data",
+ *  which previously made this (and every other write below) fail on every
+ *  single call. Timestamp.now() is a real, immediately-known value, so it's
+ *  fine inside an array element; only client-clock accuracy is traded away,
+ *  which doesn't matter for an access-log entry. */
 async function appendAccessLog(token: string, action: ExaminerTokenDoc['accessLog'][number]['action']) {
   await updateDoc(doc(db, 'examinerTokens', token), {
-    accessLog: arrayUnion({ action, timestamp: serverTimestamp() }),
+    accessLog: arrayUnion({ action, timestamp: Timestamp.now() }),
   });
 }
 
@@ -165,7 +172,7 @@ export async function acceptExaminerToken(token: string): Promise<void> {
   await updateDoc(doc(db, 'examinerTokens', token), {
     status: 'accepted' satisfies ExaminerTokenStatus,
     acceptedAt: serverTimestamp(),
-    accessLog: arrayUnion({ action: 'accepted', timestamp: serverTimestamp() }),
+    accessLog: arrayUnion({ action: 'accepted', timestamp: Timestamp.now() }),
   });
 }
 
@@ -178,7 +185,7 @@ export async function declineExaminerToken(token: string, reason: string): Promi
     status: 'declined' satisfies ExaminerTokenStatus,
     declinedAt: serverTimestamp(),
     declineReason: reason,
-    accessLog: arrayUnion({ action: 'declined', timestamp: serverTimestamp() }),
+    accessLog: arrayUnion({ action: 'declined', timestamp: Timestamp.now() }),
   });
 }
 
@@ -191,6 +198,6 @@ export async function submitExaminerOpinion(token: string, opinion: Record<strin
     status: 'submitted' satisfies ExaminerTokenStatus,
     submittedAt: serverTimestamp(),
     opinion,
-    accessLog: arrayUnion({ action: 'submitted_opinion', timestamp: serverTimestamp() }),
+    accessLog: arrayUnion({ action: 'submitted_opinion', timestamp: Timestamp.now() }),
   });
 }
