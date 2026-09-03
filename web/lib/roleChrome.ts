@@ -42,6 +42,44 @@ import { SUPERVISOR_NAV_SECTIONS } from '@/app/supervisor/navSections';
 import { EXAMINOR_NAV_SECTIONS } from '@/app/examinor/navSections';
 import { STUDENT_NAV_SECTIONS } from '@/app/student/navSections';
 
+// A multi-role user whose PRIMARY role outranks internal_examiner (i.e.
+// everyone except student — see roles.ts's ROLE_RANK, where internal_examiner
+// sits second-to-last) never lands on the examiner sidebar/dashboard at all:
+// resolveActiveRole always picks their highest-ranked role, and the examiner
+// tabs (including "submit the dates you're available for") only exist under
+// that role's own chrome. Without this, such a user has no in-app way to even
+// discover that they hold the role, let alone reach /examinor/home — the
+// route itself is still reachable (useRequireRole checks the full roles[]
+// array), but nothing links to it.
+//
+// This appends one extra sidebar link, present on every dashboard for anyone
+// who holds internal_examiner as a secondary role, pointing at their real
+// examiner assignments. Being an ordinary SidebarSection item (not a bolted-on
+// banner), it's picked up by OnboardingTour the same as every other tab —
+// see SidebarShell's `<OnboardingTour sections={sections} .../>` — so a
+// first-login walkthrough teaches these users it exists, not just this one
+// session's dashboard.
+function withExaminerAssignmentsLink(sections: SidebarSection[], role: AppRole, roles: AppRole[]): SidebarSection[] {
+  if (role === 'internal_examiner' || !roles.includes('internal_examiner')) return sections;
+  const examinerSection: SidebarSection = {
+    title: { he: 'תפקיד נוסף', en: 'Additional Role' },
+    items: [
+      {
+        key: 'examiner_assignments',
+        icon: '🎓',
+        href: '/examinor/home',
+        label: { he: 'בוחן פנימי', en: 'Internal Examiner' },
+        description: {
+          he: 'יש לך גם תפקיד בוחן פנימי. כאן תמצא/י את ההגנות שהוקצו לך לבחינה, ואת המקום להגיש בו את התאריכים שבהם את/ה פנוי/ה.',
+          en: "You also hold the internal examiner role. Find the defenses assigned to you to examine here, and submit the dates you're available for.",
+        },
+        isActive: (pathname) => pathname.startsWith('/examinor'),
+      },
+    ],
+  };
+  return [...sections, examinerSection];
+}
+
 export interface RoleChrome {
   brand: { name: string; subtitle: { he: string; en: string } };
   sections: SidebarSection[];
@@ -54,6 +92,12 @@ export interface RoleChrome {
  *  without a sidebar rather than guess one). `roles` is the user's full
  *  role set, needed only for program_head's role-gated "My Projects" item. */
 export function getChromeForRole(role: AppRole | undefined, roles: AppRole[]): RoleChrome | null {
+  const chrome = getBaseChromeForRole(role, roles);
+  if (!chrome || !role) return chrome;
+  return { ...chrome, sections: withExaminerAssignmentsLink(chrome.sections, role, roles) };
+}
+
+function getBaseChromeForRole(role: AppRole | undefined, roles: AppRole[]): RoleChrome | null {
   switch (role) {
     case 'system_admin':
       return {
