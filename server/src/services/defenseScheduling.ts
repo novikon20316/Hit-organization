@@ -204,29 +204,34 @@ export async function initDefenseScheduling(projectId: string, panel: DefensePan
 
 async function notifyPanelToSubmitDates(panel: DefensePanelMember[], projectId: string): Promise<void> {
   for (const member of panel) {
-    if (member.type === 'internal') {
-      await db.collection('notifications').add({
-        recipientId: member.ref,
-        type: 'defense_dates_requested',
-        priority: 'normal',
-        titleHe: 'נדרשת בחירת תאריכים להגנה',
-        titleEn: 'Defense date selection required',
-        bodyHe: 'שובצת כבוחן/ת בהגנה. יש לבחור תאריכים אפשריים באפליקציה.',
-        bodyEn: 'You have been assigned as a defense examiner. Please submit your available dates in the app.',
-        isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        relatedProjectId: projectId,
-        relatedMilestoneId: null,
-        chatId: null,
-      });
-    } else if (member.email) {
-      await sendNotificationEmail({
-        toEmail: member.email,
-        type: 'defense_dates_requested',
-        lang: 'he',
-        data: { name: member.displayName },
-      }).catch((err) => console.error(`Failed to email defense-dates request to ${member.email}:`, err));
-    }
+    // External members are deliberately skipped here — they have no in-app
+    // notification bell to reach, and the only other channel (email) was
+    // firing a SEPARATE "submit your dates" email immediately at assignment
+    // time, before the examiner had even opened their invitation or
+    // accepted (DefenseDateSection only renders post-acceptance — see
+    // app/examiner-access/page.tsx). That email also never actually
+    // included the access link itself, so a recipient without their
+    // original invitation email handy had no way to act on it at all. The
+    // examiner_access_link template (createExternalExaminerAccess) now
+    // mentions defense-date submission as part of accepting, so external
+    // members need no separate notification here — internal examiners
+    // still get their own in-app one below, since they have no equivalent
+    // invitation email to fold this into.
+    if (member.type !== 'internal') continue;
+    await db.collection('notifications').add({
+      recipientId: member.ref,
+      type: 'defense_dates_requested',
+      priority: 'normal',
+      titleHe: 'נדרשת בחירת תאריכים להגנה',
+      titleEn: 'Defense date selection required',
+      bodyHe: 'שובצת כבוחן/ת בהגנה. יש לבחור תאריכים אפשריים באפליקציה.',
+      bodyEn: 'You have been assigned as a defense examiner. Please submit your available dates in the app.',
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      relatedProjectId: projectId,
+      relatedMilestoneId: null,
+      chatId: null,
+    });
   }
 }
 

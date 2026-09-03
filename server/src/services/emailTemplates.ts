@@ -308,13 +308,13 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>שלום ${d.name || ''},</p>
       <p>הוזמנת לשמש כבוחן חיצוני עבור העבודה <strong>"${d.thesisTitle || ''}"</strong>${d.studentName ? ` של ${d.studentName}` : ''}.</p>
       <p><a href="${d.link || ''}">לחץ כאן לצפייה בפרטים ולמענה</a></p>
-      <p>הקישור אישי וחד-פעמי — אין צורך בהרשמה, סיסמה או חשבון במערכת.</p>
+      <p>הקישור אישי וחד-פעמי — אין צורך בהרשמה, סיסמה או חשבון במערכת. לאחר אישור ההשתתפות, תתבקש/י גם לבחור תאריכים אפשריים להגנה — הכל דרך אותו קישור, אין צורך בקישור נוסף.</p>
     `,
     bodyEn: (d) => `
       <p>Hello ${d.name || ''},</p>
       <p>You have been invited to serve as an external examiner for <strong>"${d.thesisTitle || ''}"</strong>${d.studentName ? ` by ${d.studentName}` : ''}.</p>
       <p><a href="${d.link || ''}">Tap here to view details and respond</a></p>
-      <p>This link is personal and one-time — no signup, password, or account is required.</p>
+      <p>This link is personal and one-time — no signup, password, or account is required. After accepting, you'll also be asked to choose your available dates for the defense — all through this same link, no separate one needed.</p>
     `,
   },
 
