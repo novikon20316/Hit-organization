@@ -11,7 +11,7 @@
 // Only rendered by page.tsx when tokenDoc.facultyId === 'data_science' AND
 // tokenDoc.finalGradeComponents is set.
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '@/lib/apiClient';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
@@ -135,8 +135,49 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
   const [projectDone, setProjectDone] = useState(!!opinion.project);
   const [defenseDone, setDefenseDone] = useState(!!opinion.defense);
 
+  // The server (submitExternalExaminerEvaluation) enforces this regardless —
+  // this is purely so a premature attempt sees a clear explanation instead
+  // of a raw 403. tokenDoc.defenseDate is a one-time snapshot from when the
+  // examiner was assigned, taken before date-matching resolves a real date
+  // and never updated afterward, so it can't be trusted here — re-fetch the
+  // live agreed date via the same status endpoint DefenseDateSection uses.
+  const [dateLoaded, setDateLoaded] = useState(false);
+  const [agreedDate, setAgreedDate] = useState<string | null>(null);
+
+  const loadDate = useCallback(async () => {
+    try {
+      const res = await apiClient.getExaminerAccessDefenseDateStatus(token);
+      setAgreedDate(res.matchedDate ?? null);
+    } catch (e) {
+      console.error('examiner-evaluation: defense-date status load error', e);
+    } finally {
+      setDateLoaded(true);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot load on mount; loadDate()'s setState calls happen after its awaited network call resolves, not synchronously in this effect
+    loadDate();
+  }, [loadDate]);
+
   const components = tokenDoc.finalGradeComponents;
   if (!components) return null;
+
+  const isOpen = !!agreedDate && new Date() >= new Date(`${agreedDate}T00:00:00`);
+  if (!dateLoaded) return null;
+  if (!isOpen) {
+    return (
+      <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-sm text-muted">
+        {agreedDate
+          ? (lang === 'he'
+              ? `טופס ההערכה ייפתח ביום ההגנה שנקבע — ${new Date(agreedDate).toLocaleDateString('he-IL')}.`
+              : `The evaluation form opens on the agreed defense date — ${new Date(agreedDate).toLocaleDateString('en-GB')}.`)
+          : (lang === 'he'
+              ? 'טופס ההערכה ייפתח לאחר שייקבע מועד הגנה מוסכם.'
+              : 'The evaluation form opens once a defense date has been agreed and set.')}
+      </div>
+    );
+  }
 
   const submit = async (kind: 'project' | 'defense', scores: Record<string, number>, comment: string) => {
     await apiClient.submitExaminerAccessEvaluation(token, { kind, scores, comment });

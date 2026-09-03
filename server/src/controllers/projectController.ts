@@ -5,6 +5,14 @@ import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+// Institution is in Israel — matches defenseScheduling.ts/examinerAccessController.ts's own TZ.
+const TZ = 'Asia/Jerusalem';
 import { logAuditEvent } from '../services/auditLog.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeExaminerOnlyGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
@@ -881,6 +889,24 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
     }
     if (data.gradeApproved) {
       return res.status(409).json({ message: 'This grade has already been finalized.' });
+    }
+
+    // CRITICAL FIX: no examiner (internal or external — see the identical
+    // check in examinerAccessController.ts's submitExternalExaminerEvaluation)
+    // could previously be stopped from submitting a score before the
+    // defense had even happened — this was only ever a cosmetic client-side
+    // gate (AssignmentCard.tsx's isBeforeDefense), never enforced here, so
+    // anyone calling this endpoint directly could grade a defense that
+    // hasn't occurred yet. Evaluation opens once a date has actually been
+    // agreed (dueDate set by defenseScheduling.ts's finalizeMatchedDate) AND
+    // only from that calendar day onward (Asia/Jerusalem), not the moment
+    // it's scheduled for some future date.
+    if (!data.dueDate) {
+      return res.status(403).json({ message: 'Evaluation opens once a defense date has been agreed and set.' });
+    }
+    const defenseDay = dayjs(data.dueDate.toDate()).tz(TZ).startOf('day');
+    if (dayjs().tz(TZ).isBefore(defenseDay)) {
+      return res.status(403).json({ message: `Evaluation opens on the agreed defense date (${defenseDay.format('DD/MM/YYYY')}).` });
     }
 
     // Project_examiner.docx (data_science's digitized paper form) makes

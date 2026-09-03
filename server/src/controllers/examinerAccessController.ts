@@ -209,6 +209,31 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
     if (tokenDoc.facultyId !== 'data_science' || !tokenDoc.finalGradeComponents) {
       return res.status(400).json({ message: 'This token does not use the digitized examiner evaluation form.' });
     }
+    if (!tokenDoc.milestoneId) {
+      return res.status(400).json({ message: 'This token has no associated milestone.' });
+    }
+
+    // CRITICAL FIX: identical gate to projectController.ts's
+    // submitExaminerEvaluation (the internal-examiner equivalent) — an
+    // external examiner could previously submit a score at any time,
+    // including before the defense had even happened, since this was never
+    // checked here at all (only the internal side had even a cosmetic
+    // client-side "grading opens after the defense" hint, and that wasn't
+    // enforced server-side either). Re-fetches the milestone fresh rather
+    // than trusting tokenDoc.defenseDate, which is a one-time snapshot taken
+    // when the examiner was assigned — before date-matching resolves a real
+    // date, and never updated afterward.
+    const milestoneRef = db.collection('milestones').doc(tokenDoc.milestoneId);
+    const milestoneSnap = await milestoneRef.get();
+    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Associated milestone not found.' });
+    const milestone = milestoneSnap.data()!;
+    if (!milestone.dueDate) {
+      return res.status(403).json({ message: 'Evaluation opens once a defense date has been agreed and set.' });
+    }
+    const defenseDay = dayjs(milestone.dueDate.toDate()).tz(TZ).startOf('day');
+    if (dayjs().tz(TZ).isBefore(defenseDay)) {
+      return res.status(403).json({ message: `Evaluation opens on the agreed defense date (${defenseDay.format('DD/MM/YYYY')}).` });
+    }
 
     if (kind === 'project' && !comment?.trim()) {
       return res.status(400).json({ message: 'A written comment is required.' });
@@ -245,19 +270,19 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
       accessLog: admin.firestore.FieldValue.arrayUnion({ action: 'submitted_opinion', timestamp: new Date().toISOString() }),
     });
 
-    if (tokenDoc.milestoneId) {
-      const milestoneRef = db.collection('milestones').doc(tokenDoc.milestoneId);
-      await milestoneRef.update({
-        [`examinerEvaluations.${token}.${kind}`]: {
-          scores: computed.breakdown,
-          total: computed.total,
-          comment: comment?.trim() ?? '',
-          submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      await maybeFinalizeAutoCalculatedGrade(milestoneRef);
-    }
+    // milestoneRef already fetched above for the defense-date gate — reused
+    // here rather than re-declared (tokenDoc.milestoneId was already
+    // validated non-empty there too).
+    await milestoneRef.update({
+      [`examinerEvaluations.${token}.${kind}`]: {
+        scores: computed.breakdown,
+        total: computed.total,
+        comment: comment?.trim() ?? '',
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await maybeFinalizeAutoCalculatedGrade(milestoneRef);
 
     await logAuditEvent({
       userId: token,
