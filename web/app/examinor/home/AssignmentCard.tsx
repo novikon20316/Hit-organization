@@ -133,14 +133,31 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   const removePickedDate = (d: string) => setPickedDates((prev) => prev.filter((x) => x !== d));
 
   const handleSubmitDates = async () => {
-    if (pickedDates.length === 0) {
+    // A date sitting in the native picker but never explicitly added (the
+    // examiner picked a date and hit Submit directly, without noticing "+
+    // Add" is a separate step) previously vanished silently — pickedDates
+    // stayed empty, and Submit showed "add at least one date" even though
+    // they'd clearly selected one. Fold it in here instead of requiring a
+    // second explicit action.
+    let datesToSubmit = pickedDates;
+    if (dateInput && !pickedDates.includes(dateInput)) {
+      const validationError = validatePickedDate(dateInput);
+      if (validationError) {
+        setDateMessage(validationError);
+        return;
+      }
+      datesToSubmit = [...pickedDates, dateInput].sort();
+      setPickedDates(datesToSubmit);
+      setDateInput('');
+    }
+    if (datesToSubmit.length === 0) {
       setDateMessage(lang === 'he' ? 'יש להוסיף לפחות תאריך אחד' : 'Add at least one date');
       return;
     }
     setSubmittingDates(true);
     setDateMessage('');
     try {
-      const res = await apiClient.submitExaminerDefenseDates(m.id, pickedDates);
+      const res = await apiClient.submitExaminerDefenseDates(m.id, datesToSubmit);
       if (res.matched) setDateMessage(lang === 'he' ? `✅ נמצא תאריך משותף: ${res.matchedDate}` : `✅ Common date found: ${res.matchedDate}`);
       else if (res.conflict) setDateMessage(lang === 'he' ? 'לא נמצא תאריך משותף — הרכז/ת יפתור/תפתור' : 'No common date — the coordinator will resolve this');
       else setDateMessage(lang === 'he' ? '✅ התאריכים נשלחו — ממתין לשאר הבוחנים' : '✅ Dates submitted — waiting on the other examiners');

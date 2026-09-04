@@ -18,8 +18,30 @@ interface OtpGateProps {
   onVerified: () => void;
 }
 
+// examinerAccessController.ts / examinerAccess.ts return a small, fixed set
+// of plain-English reason strings as the HTTP error `message` — never
+// localized server-side, and apiClient.ts's request() always throws with
+// that exact text as `Error.message` (an ApiError, which `instanceof
+// Error`), so displaying err.message directly always showed English
+// regardless of the page's language. Mapped here instead of changing the
+// server's response shape, since the set of possible reasons is small and
+// stable; anything unrecognized (network failure, an unexpected 500, etc.)
+// falls through to a generic localized message rather than raw text.
+function localizeOtpError(message: string, lang: 'he' | 'en'): string {
+  const known: Record<string, { he: string; en: string }> = {
+    'Incorrect code.': { he: 'קוד שגוי. נסה/י שוב.', en: 'Incorrect code. Please try again.' },
+    'Too many attempts. Request a new code.': { he: 'יותר מדי ניסיונות — יש לבקש קוד חדש.', en: 'Too many attempts — request a new code.' },
+    'Code expired. Request a new one.': { he: 'הקוד פג תוקף — יש לבקש קוד חדש.', en: 'Code expired — request a new one.' },
+    'No code has been requested yet.': { he: 'טרם נשלח קוד — יש ללחוץ על "שלח קוד למייל".', en: 'No code has been requested yet — tap "Send code to email".' },
+    'Invalid or unknown token.': { he: 'הקישור אינו תקין. פנה/י לרכז/ת הפקולטה לקבלת קישור חדש.', en: 'This link is invalid. Contact the faculty coordinator for a new link.' },
+    'Failed to send the verification code. Please try again.': { he: 'שליחת קוד האימות נכשלה. נסה/י שוב.', en: 'Failed to send the verification code. Please try again.' },
+    'Verification failed.': { he: 'האימות נכשל. נסה/י שוב.', en: 'Verification failed. Please try again.' },
+  };
+  return known[message]?.[lang] ?? (lang === 'he' ? 'משהו השתבש. נסה/י שוב.' : 'Something went wrong. Please try again.');
+}
+
 export function OtpGate({ token, onVerified }: OtpGateProps) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const [otpCode, setOtpCode] = useState('');
   const [sending, setSending] = useState(false);
@@ -34,7 +56,7 @@ export function OtpGate({ token, onVerified }: OtpGateProps) {
       await apiClient.requestExaminerOtp(token);
       setSent(true);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : t('examinerOtpSendError'));
+      setErrorMsg(err instanceof Error ? localizeOtpError(err.message, lang) : t('examinerOtpSendError'));
     } finally {
       setSending(false);
     }
@@ -49,7 +71,7 @@ export function OtpGate({ token, onVerified }: OtpGateProps) {
       setOtpCode('');
       onVerified();
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : t('examinerOtpInvalidCode'));
+      setErrorMsg(err instanceof Error ? localizeOtpError(err.message, lang) : t('examinerOtpInvalidCode'));
     } finally {
       setVerifying(false);
     }

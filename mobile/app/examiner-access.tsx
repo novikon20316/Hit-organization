@@ -69,6 +69,26 @@ function activeGradingFields(doc: ExaminerTokenDoc | null): ActiveGradingField[]
   return OPINION_CRITERIA.map((c) => ({ key: c.key, max: c.max, weight: c.max, he: c.he, en: c.en }));
 }
 
+// examinerAccessController.ts / examinerAccess.ts return a small, fixed set
+// of plain-English reason strings as the HTTP error response's `message` —
+// never localized server-side. Mapped here instead of changing the
+// server's response shape, since the set of possible reasons is small and
+// stable; anything unrecognized (network failure, an unexpected 500, etc.)
+// falls through to `fallback` rather than raw English text.
+function localizeOtpError(rawMessage: string | undefined, L: (he: string, en: string) => string, fallback: string): string {
+  const known: Record<string, [string, string]> = {
+    'Incorrect code.': ['קוד שגוי. נסה שוב.', 'Incorrect code. Please try again.'],
+    'Too many attempts. Request a new code.': ['יותר מדי ניסיונות — יש לבקש קוד חדש.', 'Too many attempts — request a new code.'],
+    'Code expired. Request a new one.': ['הקוד פג תוקף — יש לבקש קוד חדש.', 'Code expired — request a new one.'],
+    'No code has been requested yet.': ['טרם נשלח קוד — יש ללחוץ על "שלח קוד למייל".', 'No code has been requested yet — tap "Send code to email".'],
+    'Invalid or unknown token.': ['הקישור אינו תקין. פנה לרכז הפקולטה לקבלת קישור חדש.', 'This link is invalid. Contact the faculty coordinator for a new link.'],
+    'Failed to send the verification code. Please try again.': ['שליחת קוד האימות נכשלה. נסה שוב.', 'Failed to send the verification code. Please try again.'],
+    'Verification failed.': ['האימות נכשל. נסה שוב.', 'Verification failed. Please try again.'],
+  };
+  const entry = rawMessage ? known[rawMessage] : undefined;
+  return entry ? L(entry[0], entry[1]) : fallback;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ExaminerAccessScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -249,8 +269,11 @@ export default function ExaminerAccessScreen() {
       setOtpSent(true);
     } catch (e: any) {
       setOtpErrorMsg(
-        e.response?.data?.message ||
-        L('שליחת הקוד נכשלה. נסה שוב.', 'Failed to send the code. Please try again.')
+        localizeOtpError(
+          e.response?.data?.message,
+          L,
+          L('שליחת הקוד נכשלה. נסה שוב.', 'Failed to send the code. Please try again.')
+        )
       );
     } finally {
       setOtpSending(false);
@@ -269,8 +292,11 @@ export default function ExaminerAccessScreen() {
       await loadToken();
     } catch (e: any) {
       setOtpErrorMsg(
-        e.response?.data?.message ||
-        L('קוד שגוי. נסה שוב.', 'Incorrect code. Please try again.')
+        localizeOtpError(
+          e.response?.data?.message,
+          L,
+          L('קוד שגוי. נסה שוב.', 'Incorrect code. Please try again.')
+        )
       );
     } finally {
       setOtpVerifying(false);

@@ -96,14 +96,31 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
   const removePickedDate = (d: string) => setPickedDates((prev) => prev.filter((x) => x !== d));
 
   const handleSubmit = async () => {
-    if (pickedDates.length === 0) {
+    // A date sitting in the native picker but never explicitly added (the
+    // examiner picked a date and hit Submit directly, without noticing "+
+    // Add" is a separate step) previously vanished silently — pickedDates
+    // stayed empty, and Submit showed "add at least one date" even though
+    // they'd clearly selected one. Fold it in here instead of requiring a
+    // second explicit action.
+    let datesToSubmit = pickedDates;
+    if (dateInput && !pickedDates.includes(dateInput)) {
+      const validationError = validatePickedDate(dateInput);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+      datesToSubmit = [...pickedDates, dateInput].sort();
+      setPickedDates(datesToSubmit);
+      setDateInput('');
+    }
+    if (datesToSubmit.length === 0) {
       setError(t('examinerDefenseDateEmpty'));
       return;
     }
     setError('');
     setSubmitting(true);
     try {
-      const res = await apiClient.submitExaminerAccessDefenseDates(token, pickedDates);
+      const res = await apiClient.submitExaminerAccessDefenseDates(token, datesToSubmit);
       if (res.matched) {
         setStatus('matched');
         setMatchedDate(res.matchedDate ?? null);
