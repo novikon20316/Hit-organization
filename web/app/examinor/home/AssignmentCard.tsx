@@ -94,7 +94,15 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       graded: isFormOnly ? m.examinerFormAnswers?.[otherUid] != null : m.examinerScores?.[otherUid] != null,
     }));
   const isMyDefensePanel = (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
-  const isBeforeDefense = m.defenseDate ? new Date() < new Date(m.defenseDate) : false;
+  // BUG FIX: the ternary's false branch previously meant "no defense date
+  // set yet" was treated as "NOT before the defense" — i.e. grading was
+  // shown as OPEN while the panel was still mid-way through picking a date,
+  // let alone having reached it. Server-side (submitExaminerEvaluation)
+  // already rejects this regardless, but the button was still visible and
+  // clickable, opening the grading modal before bouncing on submit. Now
+  // blocks whenever there's no agreed date at all, not just when there is
+  // one and it's still in the future.
+  const isBeforeDefense = !m.defenseDate || new Date() < new Date(m.defenseDate);
 
   // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
   // deliberately duplicated rather than trusted-away, so a rejected date is
@@ -365,8 +373,9 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
           </span>
         ) : isBeforeDefense ? (
           <span className="block rounded-lg bg-[#FFF7ED] px-3 py-2 text-center text-xs font-semibold text-[#F97316]">
-            🕐 {lang === 'he' ? 'ניתן לציין רק לאחר ההגנה' : 'Grading opens after the defense'} ·{' '}
-            {new Date(m.defenseDate!).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'long' })}
+            🕐 {m.defenseDate
+              ? `${lang === 'he' ? 'ניתן לציין רק לאחר ההגנה' : 'Grading opens after the defense'} · ${new Date(m.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'long' })}`
+              : (lang === 'he' ? 'ניתן לציין רק לאחר שייקבע מועד הגנה מוסכם' : 'Grading opens once a defense date has been agreed')}
           </span>
         ) : isThreeRubric ? (
           <div className="grid grid-cols-2 gap-1.5">

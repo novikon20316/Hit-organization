@@ -228,10 +228,17 @@ export default function ExaminerHome() {
   const examinerEvaluationDone = (m: AssignedMilestone, kind: 'project' | 'defense'): boolean =>
     !!m.examinerEvaluations?.[uid ?? '']?.[kind];
 
+  // BUG FIX: previously returned false ("not before the defense") when no
+  // defense date had been agreed at all yet — i.e. grading showed as OPEN
+  // while the panel was still mid-way through picking a date. Server-side
+  // (submitExaminerEvaluation) already rejects this regardless, but the
+  // button was still visible and clickable, opening the grading modal
+  // before bouncing on submit. Now blocks whenever there's no agreed date,
+  // not just when there is one and it's still in the future.
   function isBeforeDefense(defenseDate: string | null): boolean {
-    if (!defenseDate) return false;
+    if (!defenseDate) return true;
     const date = new Date(defenseDate);
-    return isNaN(date.getTime()) ? false : new Date() < date;
+    return isNaN(date.getTime()) ? true : new Date() < date;
   }
  
   const openGradeModal = (m: AssignedMilestone) => {
@@ -854,9 +861,11 @@ export default function ExaminerHome() {
                     ) : isBeforeDefense(m.defenseDate) ? (
                       <View style={[styles.gradedBadge, { backgroundColor: '#FFF7ED', borderColor: '#F97316' }]}>
                         <Text style={[styles.gradedBadgeText, { color: '#F97316' }]}>
-                          🕐 {lang === 'he'
-                            ? `ניתן לציין רק לאחר ההגנה · ${new Date(m.defenseDate!).toLocaleDateString('he-IL', { day: 'numeric', month: 'long' })}`
-                            : `Grading opens after the defense · ${new Date(m.defenseDate!).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`}
+                          🕐 {m.defenseDate
+                            ? (lang === 'he'
+                                ? `ניתן לציין רק לאחר ההגנה · ${new Date(m.defenseDate).toLocaleDateString('he-IL', { day: 'numeric', month: 'long' })}`
+                                : `Grading opens after the defense · ${new Date(m.defenseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`)
+                            : (lang === 'he' ? 'ניתן לציין רק לאחר שייקבע מועד הגנה מוסכם' : 'Grading opens once a defense date has been agreed')}
                         </Text>
                       </View>
                     ) : m.finalGradeComponents ? (
