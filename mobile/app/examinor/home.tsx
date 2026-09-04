@@ -366,6 +366,16 @@ export default function ExaminerHome() {
   // (e.g. "Date 2026-09-05 falls on a weekend...") after a round-trip.
   const isMyDefensePanel = (m: AssignedMilestone) =>
     (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
+  // BUG FIX: the date-picking form was gated only on m.status ===
+  // 'awaiting_defense_date' — which stays true until EVERY panel member has
+  // submitted, not just this one. An examiner who'd already submitted their
+  // own dates (waiting on their co-examiner) still saw the fully editable
+  // add/remove form with no indication they'd already acted, and nothing
+  // stopped them from submitting again — silently overwriting their own
+  // prior submission for the round (submitCandidateDatesAndResolve just
+  // replaces submissions[examinerKey] unconditionally).
+  const hasSubmittedThisRound = (m: AssignedMilestone) =>
+    m.dateMatching?.submissions?.[`internal:${uid}`]?.roundIndex === m.dateMatching?.currentRound;
 
   const toDateSafe = (val: unknown): Date | null => {
     if (!val) return null;
@@ -682,7 +692,15 @@ export default function ExaminerHome() {
 
                     {/* Defense date submission — only while a window is open
                         and this examiner hasn't been resolved out of the round */}
-                    {m.status === 'awaiting_defense_date' && isMyDefensePanel(m) && (
+                    {m.status === 'awaiting_defense_date' && isMyDefensePanel(m) && hasSubmittedThisRound(m) && (
+                      <View style={{ marginTop: 10, padding: 12, borderRadius: 10, backgroundColor: '#FFFBEB' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309' }}>
+                          ✅ {lang === 'he' ? 'התאריכים נשלחו — ממתין לשאר הבוחנים' : 'Dates submitted — waiting on the other examiners'}
+                        </Text>
+                      </View>
+                    )}
+
+                    {m.status === 'awaiting_defense_date' && isMyDefensePanel(m) && !hasSubmittedThisRound(m) && (
                       <View style={{ marginTop: 10, padding: 12, borderRadius: 10, backgroundColor: '#FFFBEB' }}>
                         <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309', marginBottom: 6 }}>
                           📅 {lang === 'he' ? 'בחר תאריכים אפשריים להגנה' : 'Choose your available defense dates'}

@@ -27,6 +27,10 @@ export interface DefenseDateMatching {
   windowEnd: unknown;
   currentRound: number;
   finalDate: unknown | null;
+  // Keyed by examinerKey ("internal:<uid>" / "external:<token>") — used to
+  // tell "I've already submitted my dates this round, just waiting on the
+  // rest of the panel" apart from "I still need to submit."
+  submissions?: Record<string, { roundIndex: number; candidateDates?: string[] }>;
 }
 
 export interface MilestoneHistoryEntry {

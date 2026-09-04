@@ -94,6 +94,18 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       graded: isFormOnly ? m.examinerFormAnswers?.[otherUid] != null : m.examinerScores?.[otherUid] != null,
     }));
   const isMyDefensePanel = (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
+  // BUG FIX: the date-picking form was gated only on m.status ===
+  // 'awaiting_defense_date' — which stays true until EVERY panel member has
+  // submitted, not just this one. An examiner who'd already submitted their
+  // own dates (waiting on their co-examiner) still saw the fully editable
+  // add/remove form with no indication they'd already acted, and nothing
+  // stopped them from submitting again — silently overwriting their own
+  // prior submission for the round (submitCandidateDatesAndResolve just
+  // replaces submissions[examinerKey] unconditionally). Mirrors
+  // DefenseDateSection.tsx's 'awaiting_other_examiners' state for the
+  // external-examiner equivalent.
+  const myExaminerKey = `internal:${uid}`;
+  const hasSubmittedThisRound = m.dateMatching?.submissions?.[myExaminerKey]?.roundIndex === m.dateMatching?.currentRound;
   // BUG FIX: the ternary's false branch previously meant "no defense date
   // set yet" was treated as "NOT before the defense" — i.e. grading was
   // shown as OPEN while the panel was still mid-way through picking a date,
@@ -214,7 +226,13 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
         )}
       </button>
 
-      {m.status === 'awaiting_defense_date' && isMyDefensePanel && (
+      {m.status === 'awaiting_defense_date' && isMyDefensePanel && hasSubmittedThisRound && (
+        <p className="mt-3 rounded-lg bg-[#FBF3E3] p-3 text-xs font-semibold text-accent">
+          ✅ {lang === 'he' ? 'התאריכים נשלחו — ממתין לשאר הבוחנים' : 'Dates submitted — waiting on the other examiners'}
+        </p>
+      )}
+
+      {m.status === 'awaiting_defense_date' && isMyDefensePanel && !hasSubmittedThisRound && (
         <div className="mt-3 rounded-lg bg-[#FBF3E3] p-3">
           <p className="mb-1.5 text-xs font-semibold text-accent">📅 {lang === 'he' ? 'בחר תאריכים אפשריים להגנה' : 'Choose your available defense dates'}</p>
           <p className="mb-1.5 text-xs text-accent">
