@@ -143,13 +143,22 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
   // live agreed date via the same status endpoint DefenseDateSection uses.
   const [dateLoaded, setDateLoaded] = useState(false);
   const [agreedDate, setAgreedDate] = useState<string | null>(null);
+  // A failed fetch here fails closed (isOpen stays false, matching the
+  // server's own "reject unless proven open" default) — safe, but silently
+  // indistinguishable from "no date agreed yet" even when a date genuinely
+  // has been set and the form should be usable. Surface it separately so
+  // that case is retryable instead of looking like normal not-yet-agreed
+  // copy — same fix as DefenseDateSection.tsx's identical gap.
+  const [loadError, setLoadError] = useState(false);
 
   const loadDate = useCallback(async () => {
+    setLoadError(false);
     try {
       const res = await apiClient.getExaminerAccessDefenseDateStatus(token);
       setAgreedDate(res.matchedDate ?? null);
     } catch (e) {
       console.error('examiner-evaluation: defense-date status load error', e);
+      setLoadError(true);
     } finally {
       setDateLoaded(true);
     }
@@ -165,6 +174,24 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
 
   const isOpen = !!agreedDate && new Date() >= new Date(`${agreedDate}T00:00:00`);
   if (!dateLoaded) return null;
+
+  if (loadError) {
+    return (
+      <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-sm">
+        <p className="text-danger" role="alert">
+          {lang === 'he' ? 'טעינת סטטוס מועד ההגנה נכשלה.' : 'Failed to load defense-date status.'}
+        </p>
+        <button
+          type="button"
+          onClick={loadDate}
+          className="mt-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+        >
+          {lang === 'he' ? 'נסה שוב' : 'Retry'}
+        </button>
+      </div>
+    );
+  }
+
   if (!isOpen) {
     return (
       <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-sm text-muted">

@@ -192,8 +192,19 @@ export async function createExternalExaminerAccess(
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OTP_LENGTH = 6;
-const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes — how long an unused CODE stays valid
 const OTP_MAX_ATTEMPTS = 5;
+// How long a SUCCESSFUL verification grants read/write access for, from the
+// moment the code was accepted — a completely separate concept from
+// OTP_TTL_MS above (that one bounds the unused code itself). Previously
+// otpVerified was a permanent one-way flag with no expiry at all: link
+// possession plus one successful code entry, ever, granted access forever —
+// closing the tab and coming back a day later skipped the second factor
+// entirely. Exported so examinerAccessController.ts's Express handlers
+// (which re-check this themselves, since Admin SDK calls bypass
+// firestore.rules) and firestore.rules' own time-math enforce the same
+// window.
+export const OTP_SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function generateNumericOtp(): string {
   const bytes = crypto.randomBytes(OTP_LENGTH);
@@ -247,12 +258,26 @@ export interface VerifyExaminerOtpResult {
   reason?: string;
 }
 
+/** True iff `otpVerified` is set AND the verification happened within
+ *  OTP_SESSION_TTL_MS of now — the single source of truth for "is this
+ *  examiner's second factor still current," shared by every Express handler
+ *  in examinerAccessController.ts that re-checks otpVerified itself (Admin
+ *  SDK bypasses firestore.rules, so each one must). A token verified before
+ *  this field existed (otpVerifiedAt missing) is treated as stale rather
+ *  than perpetually valid, so old links don't get grandfathered in. */
+export function isOtpSessionFresh(tokenDoc: FirebaseFirestore.DocumentData): boolean {
+  if (tokenDoc.otpVerified !== true || !tokenDoc.otpVerifiedAt) return false;
+  const verifiedAtMs = tokenDoc.otpVerifiedAt.toDate?.().getTime?.() ?? 0;
+  return Date.now() - verifiedAtMs < OTP_SESSION_TTL_MS;
+}
+
 /**
  * Verifies a submitted code against the stored hash. On success, flips
- * `otpVerified: true` (admin SDK) — the field the Firestore rule checks —
- * and clears the OTP fields so a stale hash can't be reused. Attempts are
- * capped per-token (not per-IP) so this can't be brute-forced by rotating
- * source IPs the way a pure rate-limiter could be.
+ * `otpVerified: true` and stamps `otpVerifiedAt` (admin SDK) — the fields
+ * firestore.rules' `allow get`/`allow update` check together — and clears
+ * the OTP fields so a stale hash can't be reused. Attempts are capped
+ * per-token (not per-IP) so this can't be brute-forced by rotating source
+ * IPs the way a pure rate-limiter could be.
  */
 export async function verifyExaminerOtp(token: string, code: string): Promise<VerifyExaminerOtpResult> {
   const tokenRef = db.collection('examinerTokens').doc(token);
@@ -262,7 +287,12 @@ export async function verifyExaminerOtp(token: string, code: string): Promise<Ve
   }
   const tokenDoc = tokenSnap.data()!;
 
-  if (tokenDoc.otpVerified === true) {
+  // Only short-circuits for a session that's genuinely still fresh — a
+  // stale otpVerified (past OTP_SESSION_TTL_MS) falls through to the real
+  // code check below instead of trivially succeeding on any input, so
+  // re-verification after a timeout actually re-proves inbox control
+  // rather than being a rubber-stamp formality.
+  if (isOtpSessionFresh(tokenDoc)) {
     return { verified: true };
   }
   if (!tokenDoc.otpHash || !tokenDoc.otpExpiresAt) {
@@ -282,6 +312,7 @@ export async function verifyExaminerOtp(token: string, code: string): Promise<Ve
 
   await tokenRef.update({
     otpVerified: true,
+    otpVerifiedAt: admin.firestore.FieldValue.serverTimestamp(),
     otpHash: admin.firestore.FieldValue.delete(),
     otpExpiresAt: admin.firestore.FieldValue.delete(),
     otpAttempts: admin.firestore.FieldValue.delete(),

@@ -10,7 +10,7 @@ import timezone from 'dayjs/plugin/timezone.js';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { submitCandidateDatesAndResolve, examinerKeyOf } from '../services/defenseScheduling.js';
-import { requestExaminerOtp, verifyExaminerOtp } from '../services/examinerAccess.js';
+import { requestExaminerOtp, verifyExaminerOtp, isOtpSessionFresh } from '../services/examinerAccess.js';
 import { computeGradingComponentsScore } from '../services/milestoneRouting.js';
 import type { GradingComponentSpec } from '../services/workflowTemplates.js';
 import { maybeFinalizeAutoCalculatedGrade } from './projectController.js';
@@ -92,7 +92,7 @@ export const getDefenseDateStatus = async (req: Request, res: Response) => {
     // the raw token (leaked via email forwarding, a mail-security link
     // scanner, browser history sync, etc.) could check status without ever
     // proving control of the examiner's inbox — defeating the OTP step.
-    if (!tokenDoc.otpVerified) {
+    if (!isOtpSessionFresh(tokenDoc)) {
       return res.status(403).json({ message: 'Please verify your access code first.' });
     }
 
@@ -149,7 +149,7 @@ export const submitExternalDefenseDates = async (req: Request, res: Response) =>
     // MEDIUM FIX: same OTP gap as getDefenseDateStatus above — this Express
     // endpoint bypasses firestore.rules entirely via the Admin SDK, so it
     // must re-check otpVerified itself rather than relying on the rule.
-    if (!tokenDoc.otpVerified) {
+    if (!isOtpSessionFresh(tokenDoc)) {
       return res.status(403).json({ message: 'Please verify your access code first.' });
     }
 
@@ -203,7 +203,7 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
     const tokenDoc = tokenSnap.data()!;
     // Same OTP re-check every other Express endpoint in this controller does
     // — this bypasses firestore.rules entirely via the Admin SDK.
-    if (!tokenDoc.otpVerified) {
+    if (!isOtpSessionFresh(tokenDoc)) {
       return res.status(403).json({ message: 'Please verify your access code first.' });
     }
     if (tokenDoc.facultyId !== 'data_science' || !tokenDoc.finalGradeComponents) {

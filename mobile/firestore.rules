@@ -355,7 +355,18 @@ service cloud.firestore {
     	// link possession alone no longer reveals the document's contents.
     	// Staff can still always read directly. List must stay denied, or
     	// anyone could enumerate every issued token with an unfiltered collection scan.
-    	allow get: if resource.data.otpVerified == true ||
+    	//
+    	// CRITICAL FIX: otpVerified used to be a permanent one-way flag with no
+    	// expiry — one successful code entry, ever, granted access forever, so
+    	// closing the tab and returning a day (or a week) later skipped the
+    	// second factor entirely. Now also requires otpVerifiedAt to be within
+    	// the last 10 minutes (verifyExaminerOtp's OTP_SESSION_TTL_MS) — a
+    	// token verified before this field existed (otpVerifiedAt missing) has
+    	// nothing to compare against and correctly falls through to requiring
+    	// fresh verification rather than being grandfathered in.
+    	allow get: if (resource.data.otpVerified == true &&
+        'otpVerifiedAt' in resource.data &&
+        request.time < resource.data.otpVerifiedAt + duration.value(10, 'm')) ||
         (isSignedIn() &&
           role(userDoc()) in [
             'coordinator', 'faculty_admin', 'program_head',
@@ -402,6 +413,8 @@ service cloud.firestore {
         ) ||
         (
           resource.data.otpVerified == true &&
+          'otpVerifiedAt' in resource.data &&
+          request.time < resource.data.otpVerifiedAt + duration.value(10, 'm') &&
           resource.data.status in ['pending', 'accepted'] &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
             ['status', 'acceptedAt', 'declinedAt', 'declineReason', 'submittedAt', 'opinion', 'accessLog']

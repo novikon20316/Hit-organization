@@ -180,6 +180,8 @@ export const t = {
   examinerDefenseDateWaiting:      { he: 'התאריכים נשלחו — ממתין לשאר הבוחנים', en: 'Dates submitted — waiting on the other examiners' },
   examinerDefenseDateMatched:      { he: 'נמצא תאריך משותף:',           en: 'Common date found:' },
   examinerDefenseDateConflict:     { he: 'לא נמצא תאריך משותף — הרכז/ת פותר/ת', en: 'No common date found — coordinator resolving' },
+  examinerDefenseDateLoadError:    { he: 'טעינת מועדי ההגנה נכשלה.',      en: 'Failed to load defense-date status.' },
+  examinerDefenseDateRetry:        { he: 'נסה שוב',                       en: 'Retry' },
 
   // ══════════════════════════════════════════════════════════════════════════
   // DEFENSE-DAY ACCESS (public, unauthenticated — see /defense-access)

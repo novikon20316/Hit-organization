@@ -31,8 +31,18 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
   const [dateInput, setDateInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // A failed initial load previously left `status` stuck at its 'not_open'
+  // default, which this component then correctly (per its own logic)
+  // rendered as nothing at all — a network blip, a slow cold-start, or the
+  // OTP session having just expired all looked identical to "there's
+  // nothing to submit," with no error and no way to retry short of
+  // reloading the whole page. Track it separately so a genuine failure is
+  // visible and retryable instead of silently indistinguishable from
+  // "not open yet."
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const res = await apiClient.getExaminerAccessDefenseDateStatus(token);
       setStatus(res.status);
@@ -40,6 +50,7 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
       if (res.matchedDate) setMatchedDate(res.matchedDate);
     } catch (e) {
       console.error('examiner-access: defense-date status load error', e);
+      setLoadError(true);
     } finally {
       setLoaded(true);
     }
@@ -81,7 +92,26 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
     }
   };
 
-  if (!loaded || status === 'not_open') return null;
+  if (!loaded) return null;
+
+  if (loadError) {
+    return (
+      <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-start shadow-sm">
+        <p className="text-sm text-danger" role="alert">
+          {t('examinerDefenseDateLoadError')}
+        </p>
+        <button
+          type="button"
+          onClick={load}
+          className="mt-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+        >
+          {t('examinerDefenseDateRetry')}
+        </button>
+      </div>
+    );
+  }
+
+  if (status === 'not_open') return null;
 
   return (
     <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-start shadow-sm">
