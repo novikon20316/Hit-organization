@@ -140,12 +140,37 @@ export default function ExaminerAccessScreen() {
   const removeDateRow = (idx: number) =>
     setDateDraftRows((prev) => { const rows = prev.filter((_, i) => i !== idx); return rows.length > 0 ? rows : ['']; });
 
+  // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
+  // deliberately duplicated rather than trusted-away, so a rejected date is
+  // explained immediately in the examiner's own selected language, rather
+  // than only surfacing as the server's raw, always-English message (e.g.
+  // "Date 2026-09-05 falls on a weekend...") after a round-trip.
+  const validateCandidateDate = (raw: string): string | null => {
+    const d = new Date(`${raw}T00:00:00`);
+    if (isNaN(d.getTime())) return null; // format already checked by the caller's regex
+    const day = d.getDay(); // 0=Sun .. 6=Sat
+    if (day === 5 || day === 6) return L('יש לבחור תאריכים בימים ראשון עד חמישי בלבד', 'Dates must be Sunday through Thursday');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (d < today) return L('לא ניתן לבחור תאריך שכבר עבר', 'Cannot pick a date that has already passed');
+    if (dateWindow?.start && raw < dateWindow.start) return L('התאריך מחוץ לטווח האפשרי', 'This date is outside the allowed window');
+    if (dateWindow?.end && raw > dateWindow.end) return L('התאריך מחוץ לטווח האפשרי', 'This date is outside the allowed window');
+    return null;
+  };
+
   const handleSubmitDefenseDates = async () => {
     if (!token) return;
     const raw = dateDraftRows.map((s) => s.trim()).filter(Boolean);
     if (raw.length === 0 || raw.some((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d))) {
       Alert.alert(L('שגיאה', 'Error'), L('יש להזין תאריכים בפורמט YYYY-MM-DD', 'Enter dates as YYYY-MM-DD'));
       return;
+    }
+    for (const d of raw) {
+      const validationError = validateCandidateDate(d);
+      if (validationError) {
+        Alert.alert(L('שגיאה', 'Error'), validationError);
+        return;
+      }
     }
     setSubmittingDates(true);
     try {
@@ -159,7 +184,15 @@ export default function ExaminerAccessScreen() {
         setDateStatus('awaiting_other_examiners');
       }
     } catch (e: any) {
-      Alert.alert(L('שגיאה', 'Error'), e.response?.data?.message || String(e));
+      // Deliberately NOT displaying e.response?.data?.message — that's the
+      // server's raw, always-English validation text (see
+      // validateCandidateDate's own comment above for why). The cases it
+      // would normally explain (weekend, past, outside window) are now
+      // caught client-side before ever reaching the server, so a rejection
+      // here is almost always something generic (network, session expired,
+      // already resolved) that this covers fine.
+      console.error('examiner-access: submit defense dates error', e);
+      Alert.alert(L('שגיאה', 'Error'), L('שליחת התאריכים נכשלה — נסה/י שוב', 'Failed to submit dates — please try again'));
     } finally {
       setSubmittingDates(false);
     }

@@ -61,8 +61,35 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
     load();
   }, [load]);
 
+  // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
+  // deliberately duplicated rather than trusted-away, so a rejected date is
+  // explained the moment it's picked, in the examiner's own selected
+  // language, instead of only surfacing as a raw English string from the
+  // server after a round-trip on Submit (e.g. "Date 2026-09-05 falls on a
+  // weekend..." shown verbatim regardless of whether the page was in
+  // Hebrew). The server re-validates independently regardless — this is
+  // purely a client-side UX improvement, not the source of truth.
+  const validatePickedDate = (raw: string): string | null => {
+    const d = new Date(`${raw}T00:00:00`);
+    if (isNaN(d.getTime())) return t('examinerDefenseDateInvalidFormat');
+    const day = d.getDay(); // 0=Sun .. 6=Sat
+    if (day === 5 || day === 6) return t('examinerDefenseDateWeekendError');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (d < today) return t('examinerDefenseDatePastError');
+    if (dateWindow?.start && raw < dateWindow.start) return t('examinerDefenseDateOutsideWindowError');
+    if (dateWindow?.end && raw > dateWindow.end) return t('examinerDefenseDateOutsideWindowError');
+    return null;
+  };
+
   const addPickedDate = () => {
     if (!dateInput) return;
+    const validationError = validatePickedDate(dateInput);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError('');
     setPickedDates((prev) => (prev.includes(dateInput) ? prev : [...prev, dateInput].sort()));
     setDateInput('');
   };
@@ -86,7 +113,16 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
         setStatus('awaiting_other_examiners');
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      // Deliberately NOT displaying e.message — that's the server's raw,
+      // always-English validation text (see validatePickedDate's own
+      // comment above for why), which would silently defeat the whole
+      // point of this section respecting the examiner's language. The
+      // cases that message would normally explain (weekend, past, outside
+      // window) are now caught client-side before ever reaching the
+      // server, so a rejection here is almost always something generic
+      // (network, session expired) that this covers fine.
+      console.error('examiner-access: submit defense dates error', e);
+      setError(t('examinerDefenseDateSubmitError'));
     } finally {
       setSubmitting(false);
     }

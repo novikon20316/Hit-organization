@@ -96,8 +96,37 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   const isMyDefensePanel = (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
   const isBeforeDefense = m.defenseDate ? new Date() < new Date(m.defenseDate) : false;
 
+  // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
+  // deliberately duplicated rather than trusted-away, so a rejected date is
+  // explained the moment it's picked, in the examiner's own selected
+  // language, instead of only surfacing as a raw English string from the
+  // server after a round-trip on Submit (e.g. "Date 2026-09-05 falls on a
+  // weekend..." shown verbatim regardless of whether the page is in
+  // Hebrew). The server re-validates independently regardless — this is
+  // purely a client-side UX improvement, not the source of truth.
+  const validatePickedDate = (raw: string): string | null => {
+    const d = new Date(`${raw}T00:00:00`);
+    if (isNaN(d.getTime())) return lang === 'he' ? 'פורמט תאריך לא תקין' : 'Invalid date format';
+    const day = d.getDay(); // 0=Sun .. 6=Sat
+    if (day === 5 || day === 6) return lang === 'he' ? 'יש לבחור תאריכים בימים ראשון עד חמישי בלבד' : 'Dates must be Sunday through Thursday';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (d < today) return lang === 'he' ? 'לא ניתן לבחור תאריך שכבר עבר' : 'Cannot pick a date that has already passed';
+    const windowStartStr = toDateInputValue(toDateSafe(m.dateMatching?.windowStart));
+    const windowEndStr = toDateInputValue(toDateSafe(m.dateMatching?.windowEnd));
+    if (windowStartStr && raw < windowStartStr) return lang === 'he' ? 'התאריך מחוץ לטווח האפשרי' : 'This date is outside the allowed window';
+    if (windowEndStr && raw > windowEndStr) return lang === 'he' ? 'התאריך מחוץ לטווח האפשרי' : 'This date is outside the allowed window';
+    return null;
+  };
+
   const addPickedDate = () => {
     if (!dateInput) return;
+    const validationError = validatePickedDate(dateInput);
+    if (validationError) {
+      setDateMessage(validationError);
+      return;
+    }
+    setDateMessage('');
     setPickedDates((prev) => (prev.includes(dateInput) ? prev : [...prev, dateInput].sort()));
     setDateInput('');
   };
@@ -117,7 +146,14 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       else setDateMessage(lang === 'he' ? '✅ התאריכים נשלחו — ממתין לשאר הבוחנים' : '✅ Dates submitted — waiting on the other examiners');
       onChanged();
     } catch (err) {
-      setDateMessage(err instanceof Error ? err.message : 'Failed to submit candidate dates');
+      // Deliberately NOT displaying err.message — that's the server's raw,
+      // always-English validation text (see validatePickedDate's own
+      // comment above for why). The cases it would normally explain
+      // (weekend, past, outside window) are now caught client-side before
+      // ever reaching the server, so a rejection here is almost always
+      // something generic (network, already resolved) that this covers fine.
+      console.error('examinor: submit defense dates error', err);
+      setDateMessage(lang === 'he' ? 'שליחת התאריכים נכשלה — נסה/י שוב' : 'Failed to submit dates — please try again');
     } finally {
       setSubmittingDates(false);
     }

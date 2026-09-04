@@ -182,6 +182,10 @@ export const t = {
   examinerDefenseDateConflict:     { he: 'לא נמצא תאריך משותף — הרכז/ת פותר/ת', en: 'No common date found — coordinator resolving' },
   examinerDefenseDateLoadError:    { he: 'טעינת מועדי ההגנה נכשלה.',      en: 'Failed to load defense-date status.' },
   examinerDefenseDateRetry:        { he: 'נסה שוב',                       en: 'Retry' },
+  examinerDefenseDateWeekendError: { he: 'יש לבחור תאריכים בימים ראשון עד חמישי בלבד', en: 'Dates must be Sunday through Thursday' },
+  examinerDefenseDatePastError:    { he: 'לא ניתן לבחור תאריך שכבר עבר',  en: 'Cannot pick a date that has already passed' },
+  examinerDefenseDateOutsideWindowError: { he: 'התאריך מחוץ לטווח האפשרי', en: 'This date is outside the allowed window' },
+  examinerDefenseDateSubmitError:  { he: 'שליחת התאריכים נכשלה — נסה/י שוב', en: 'Failed to submit dates — please try again' },
 
   // ══════════════════════════════════════════════════════════════════════════
   // DEFENSE-DAY ACCESS (public, unauthenticated — see /defense-access)

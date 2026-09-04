@@ -352,10 +352,39 @@ export default function ExaminerHome() {
   };
 
   // ── Submit candidate defense dates ────────────────────────────────────────
-  // Window/Sun-Thu validation is enforced server-side too — this is just a
-  // fast client-side check so typos don't round-trip needlessly.
+  // Window/Sun-Thu validation is enforced server-side too — this mirrors it
+  // client-side (day-of-week, window bounds, not-in-the-past) so a rejected
+  // date is explained immediately in the examiner's own selected language,
+  // rather than only surfacing as the server's raw, always-English message
+  // (e.g. "Date 2026-09-05 falls on a weekend...") after a round-trip.
   const isMyDefensePanel = (m: AssignedMilestone) =>
     (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
+
+  const toDateSafe = (val: unknown): Date | null => {
+    if (!val) return null;
+    if (typeof val === 'object' && val !== null && '_seconds' in (val as any)) return new Date((val as any)._seconds * 1000);
+    const d = new Date(val as string);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const toDateInputValue = (d: Date | null): string | undefined =>
+    d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : undefined;
+
+  const validateCandidateDate = (raw: string, m: AssignedMilestone): string | null => {
+    const d = new Date(`${raw}T00:00:00`);
+    if (isNaN(d.getTime()) || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      return lang === 'he' ? `פורמט לא תקין: ${raw} (YYYY-MM-DD)` : `Invalid format: ${raw} (YYYY-MM-DD)`;
+    }
+    const day = d.getDay(); // 0=Sun .. 6=Sat
+    if (day === 5 || day === 6) return lang === 'he' ? 'יש לבחור תאריכים בימים ראשון עד חמישי בלבד' : 'Dates must be Sunday through Thursday';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (d < today) return lang === 'he' ? 'לא ניתן לבחור תאריך שכבר עבר' : 'Cannot pick a date that has already passed';
+    const windowStartStr = toDateInputValue(toDateSafe(m.dateMatching?.windowStart));
+    const windowEndStr = toDateInputValue(toDateSafe(m.dateMatching?.windowEnd));
+    if (windowStartStr && raw < windowStartStr) return lang === 'he' ? 'התאריך מחוץ לטווח האפשרי' : 'This date is outside the allowed window';
+    if (windowEndStr && raw > windowEndStr) return lang === 'he' ? 'התאריך מחוץ לטווח האפשרי' : 'This date is outside the allowed window';
+    return null;
+  };
 
   const handleSubmitDates = async (m: AssignedMilestone) => {
     const raw = dateRowsFor(m.id).map((s) => s.trim()).filter(Boolean);
@@ -363,13 +392,12 @@ export default function ExaminerHome() {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש להזין לפחות תאריך אחד' : 'Enter at least one date');
       return;
     }
-    const invalid = raw.filter((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d));
-    if (invalid.length > 0) {
-      Alert.alert(
-        lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? `פורמט לא תקין: ${invalid.join(', ')} (YYYY-MM-DD)` : `Invalid format: ${invalid.join(', ')} (YYYY-MM-DD)`
-      );
-      return;
+    for (const d of raw) {
+      const validationError = validateCandidateDate(d, m);
+      if (validationError) {
+        Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', validationError);
+        return;
+      }
     }
     try {
       setSubmittingDates((prev) => ({ ...prev, [m.id]: true }));
@@ -386,7 +414,18 @@ export default function ExaminerHome() {
       }
       await fetchDashboardData();
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to submit candidate dates');
+      // Deliberately NOT displaying err.response?.data?.message — that's the
+      // server's raw, always-English validation text (see
+      // validateCandidateDate's own comment above for why). The cases it
+      // would normally explain (weekend, past, outside window, bad format)
+      // are now caught client-side before ever reaching the server, so a
+      // rejection here is almost always something generic (network,
+      // already resolved) that this covers fine.
+      console.error('examinor: submit defense dates error', err);
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        lang === 'he' ? 'שליחת התאריכים נכשלה — נסה/י שוב' : 'Failed to submit dates — please try again'
+      );
     } finally {
       setSubmittingDates((prev) => ({ ...prev, [m.id]: false }));
     }
