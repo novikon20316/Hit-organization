@@ -1,4 +1,7 @@
 // app/(auth)/login.tsx
+// Restyled to match web's app/(auth)/login/page.tsx design (same paper/
+// surface/ink palette, card with a primary-colored role-rail, labeled
+// inputs, bordered secondary buttons) — auth logic below is unchanged.
 import {
   View,
   Text,
@@ -8,11 +11,12 @@ import {
   ActivityIndicator,
   Pressable,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   Alert,
   Modal,
+  StyleSheet,
 } from "react-native";
-import { PRIMARY, loginStyles } from '../../constants';
 import { useState, useEffect } from "react";
 import { useRouter } from 'expo-router';
 import { doc, getDoc } from "firebase/firestore";
@@ -33,6 +37,22 @@ import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
 import { apiClient } from '@/src/api/apiClient';
 
+// Same tokens as web's app/globals.css (--paper/--surface/--ink/--muted/
+// --line/--primary/--danger*) — kept local to this screen since mobile's
+// dashboards draw from a separate palette (constants/theme.ts's `ap`/
+// `palette`), and this login screen exists purely to visually match web's.
+const colors = {
+  paper: '#f7f6f2',
+  surface: '#ffffff',
+  ink: '#1c2333',
+  muted: '#6b7280',
+  line: '#e4e1d8',
+  primary: '#1e3a5f',
+  primaryInk: '#ffffff',
+  dangerText: '#a8433a',
+  dangerBg: '#f7e9e7',
+};
+
 export default function LoginScreen() {
   const router = useRouter();
   const [email,        setEmail]        = useState('');
@@ -40,6 +60,8 @@ export default function LoginScreen() {
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [emailFocused,    setEmailFocused]    = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   // "Sign in with Google" — a Google account whose email already has an
   // existing password-based account throws auth/account-exists-with-
@@ -357,43 +379,48 @@ export default function LoginScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.container}>
-
-        <View style={styles.logoContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.headerBlock}>
           <Image
             source={require('../../assets/hit-logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.title}>HIT System</Text>
+          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.subtitle}>Enter your credentials</Text>
         </View>
 
-        <View style={styles.form}>
+        <View style={styles.card}>
+          <Text style={styles.label}>Email Address</Text>
           <TextInput
-            placeholder="Email"
-            placeholderTextColor="#999"
+            placeholder="you@hit.ac.il"
+            placeholderTextColor={colors.muted}
             value={email}
             onChangeText={(t) => { setEmail(t); setError(''); }}
-            style={styles.input}
+            onFocus={() => setEmailFocused(true)}
+            onBlur={() => setEmailFocused(false)}
+            style={[styles.input, emailFocused && styles.inputFocused]}
             keyboardType="email-address"
             autoCapitalize="none"
             accessibilityLabel="Email"
           />
 
-          {/* ── Password row with show/hide toggle ── */}
-          <View style={{ position: 'relative', justifyContent: 'center', marginBottom: 12 }}>
+          <Text style={[styles.label, styles.labelSpaced]}>Password</Text>
+          <View style={styles.passwordRow}>
             <TextInput
-              placeholder="Password"
-              placeholderTextColor="#999"
+              placeholder="••••••••"
+              placeholderTextColor={colors.muted}
               value={password}
               onChangeText={(t) => { setPassword(t); setError(''); }}
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
               secureTextEntry={!showPassword}
-              style={[styles.input, { marginBottom: 0, paddingRight: 48 }]}
+              style={[styles.input, styles.passwordInput, passwordFocused && styles.inputFocused]}
               accessibilityLabel="Password"
             />
             <Pressable
               onPress={() => setShowPassword(prev => !prev)}
-              style={{ position: 'absolute', right: 14, padding: 4 }}
+              style={styles.eyeButton}
               accessibilityRole="button"
               accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -402,38 +429,38 @@ export default function LoginScreen() {
           </View>
 
           {error ? (
-            <Text style={{ color: 'red', marginBottom: 8, textAlign: 'center' }}>
+            <Text style={styles.errorText} accessibilityRole="alert">
               {error}
             </Text>
           ) : null}
 
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, styles.primaryButton, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading}
             accessibilityRole="button"
           >
             {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.buttonText}>Login</Text>
+              ? <ActivityIndicator color={colors.primaryInk} />
+              : <Text style={styles.primaryButtonText}>Sign In</Text>
             }
           </TouchableOpacity>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 14 }}>
-            <View style={{ flex: 1, height: 1, backgroundColor: '#e5e5e5' }} />
-            <Text style={{ marginHorizontal: 8, color: '#999', fontSize: 12 }}>or</Text>
-            <View style={{ flex: 1, height: 1, backgroundColor: '#e5e5e5' }} />
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
           </View>
 
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e5e5' }]}
+            style={[styles.button, styles.secondaryButton, googleSubmitting && styles.buttonDisabled]}
             onPress={handleGoogleSignIn}
             disabled={googleSubmitting}
             accessibilityRole="button"
           >
             {googleSubmitting
-              ? <ActivityIndicator color={PRIMARY} />
-              : <Text style={[styles.buttonText, { color: '#333' }]}>Continue with Google</Text>
+              ? <ActivityIndicator color={colors.primary} />
+              : <Text style={styles.secondaryButtonText}>Continue with Google</Text>
             }
           </TouchableOpacity>
 
@@ -447,39 +474,38 @@ export default function LoginScreen() {
                 onPress={handleAppleSignIn}
               />
               {appleSubmitting && (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={styles.appleOverlay}>
                   <ActivityIndicator color="#fff" />
                 </View>
               )}
             </View>
           )}
 
-          <Pressable onPress={() => router.push('/(auth)/signup')} accessibilityRole="link">
-            <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
-              Don&#39;t have an account? Sign Up.
-            </Text>
-          </Pressable>
-
-          <Pressable onPress={() => router.push('/(auth)/resetPass')} accessibilityRole="link">
-            <Text style={{ color: PRIMARY, textAlign: 'center', marginTop: 10 }}>
-              Don&#39;t remember your password? Reset It.
-            </Text>
-          </Pressable>
+          <View style={styles.linksBlock}>
+            <Pressable onPress={() => router.push('/(auth)/signup')} accessibilityRole="link">
+              <Text style={styles.linkText}>Don&#39;t have an account? Sign Up</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/(auth)/resetPass')} accessibilityRole="link">
+              <Text style={styles.linkText}>Forgot Password</Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+
+        <Text style={styles.footer}>{`All rights reserved to HIT ${new Date().getFullYear()}`}</Text>
+      </ScrollView>
 
       <Modal visible={!!linkingPrompt} transparent animationType="fade" onRequestClose={() => setLinkingPrompt(null)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 6 }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalDialog}>
+            <Text style={styles.modalTitle}>
               An account with this email already exists
             </Text>
-            <Text style={{ fontSize: 13, color: '#666', marginBottom: 14 }}>
+            <Text style={styles.modalSubtitle}>
               Enter the password for {linkingPrompt?.email} to link this sign-in to your existing account.
             </Text>
             <TextInput
               placeholder="Password"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.muted}
               value={linkingPassword}
               onChangeText={(t) => { setLinkingPassword(t); setLinkingError(''); }}
               secureTextEntry
@@ -487,25 +513,25 @@ export default function LoginScreen() {
               accessibilityLabel="Password"
             />
             {linkingError ? (
-              <Text style={{ color: 'red', marginBottom: 8, fontSize: 13 }}>{linkingError}</Text>
+              <Text style={styles.errorText}>{linkingError}</Text>
             ) : null}
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+            <View style={styles.modalButtonRow}>
               <TouchableOpacity
-                style={[styles.button, { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e5e5' }]}
+                style={[styles.button, styles.secondaryButton, { flex: 1 }]}
                 onPress={() => { setLinkingPrompt(null); setLinkingPassword(''); setLinkingError(''); }}
                 accessibilityRole="button"
               >
-                <Text style={[styles.buttonText, { color: '#333' }]}>Cancel</Text>
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.button, { flex: 1 }]}
+                style={[styles.button, styles.primaryButton, { flex: 1 }, linkingSubmitting && styles.buttonDisabled]}
                 onPress={handleLinkSubmit}
                 disabled={linkingSubmitting}
                 accessibilityRole="button"
               >
                 {linkingSubmitting
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.buttonText}>Link account</Text>
+                  ? <ActivityIndicator color={colors.primaryInk} />
+                  : <Text style={styles.primaryButtonText}>Link account</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -516,4 +542,175 @@ export default function LoginScreen() {
   );
 }
 
-const styles = loginStyles;
+const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    backgroundColor: colors.paper,
+    padding: 20,
+  },
+  headerBlock: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: 64,
+    height: 40,
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 13,
+    color: colors.muted,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    padding: 20,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.ink,
+    marginBottom: 6,
+  },
+  labelSpaced: {
+    marginTop: 16,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.paper,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  passwordRow: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    paddingRight: 44,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 10,
+    padding: 4,
+  },
+  errorText: {
+    marginTop: 12,
+    backgroundColor: colors.dangerBg,
+    color: colors.dangerText,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  button: {
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
+    marginTop: 16,
+  },
+  primaryButtonText: {
+    color: colors.primaryInk,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  secondaryButtonText: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.line,
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 12,
+    color: colors.muted,
+  },
+  linksBlock: {
+    marginTop: 18,
+    alignItems: 'center',
+    gap: 8,
+  },
+  linkText: {
+    color: colors.primary,
+    fontSize: 13,
+  },
+  footer: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 24,
+  },
+  appleOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalDialog: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.ink,
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: colors.muted,
+    marginBottom: 14,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+});
