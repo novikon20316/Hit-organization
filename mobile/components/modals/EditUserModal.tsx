@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   ActivityIndicator,
+  Switch,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { FACULTY_COLORS, getRoleAccent } from '../../components/shared';
@@ -98,6 +99,14 @@ type Props = {
   secondaryStatus?:    string | null;
   setSecondaryStatus?: (v: string | null) => void;
 
+  // The only way to discard this specific user from an active 2FA-
+  // enforcement policy (see server/src/services/twoFactorEnforcement.ts) —
+  // system_admin only, so optional the same way permissionRules is above:
+  // callers that don't wire this up (faculty_admin/supervisor dashboards)
+  // simply don't get the checkbox.
+  twoFactorExempt?:    boolean;
+  setTwoFactorExempt?: (v: boolean) => void;
+
   // Narrows this modal for a delegate (faculty_admin/program_head/
   // grad_school_head) instead of system_admin: hides the Faculty section
   // entirely (state stays fixed at whatever the caller initialized `faculty`
@@ -124,6 +133,7 @@ export default function EditUserModal({
   facultyIdsByField, setFacultyIdsByField,
   primaryStatus, setPrimaryStatus,
   secondaryStatus, setSecondaryStatus,
+  twoFactorExempt, setTwoFactorExempt,
   lockedFacultyId,
   restrictedActions,
   styles,
@@ -131,6 +141,7 @@ export default function EditUserModal({
   const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
   const [scopesModalVisible, setScopesModalVisible] = useState(false);
   const showPermissions = permissionRules !== undefined && !!setPermissionRules;
+  const showTwoFactorExempt = twoFactorExempt !== undefined && !!setTwoFactorExempt;
   // Same generic scope field also used to assign an administrative coordinator
   // to one or more specific subjects (facultyId+major) — "keep a separation
   // between degrees" for the workflow-templates screen. See
@@ -490,6 +501,22 @@ export default function EditUserModal({
                   : '›'}
               </Text>
             </Pressable>
+          )}
+
+          {showTwoFactorExempt && (
+            <View style={[editStyles.additionalRoleBtn, { marginTop: 12, justifyContent: 'space-between', alignItems: 'center' }]}>
+              <View style={{ flex: 1, marginEnd: 12 }}>
+                <Text style={editStyles.additionalRoleText}>
+                  🚫 {lang === 'he' ? 'פטור מחובת אימות דו-שלבי (2FA)' : 'Exempt from 2FA enforcement'}
+                </Text>
+                <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>
+                  {lang === 'he'
+                    ? 'המשתמש לא יחסם גם אם המערכת מחייבת 2FA לכולם. ניתן לבטל בכל עת.'
+                    : "This user won't be blocked even while system-wide 2FA enforcement is active. Reversible any time."}
+                </Text>
+              </View>
+              <Switch value={!!twoFactorExempt} onValueChange={setTwoFactorExempt} />
+            </View>
           )}
 
           {/* ── Coordinator Scope / Subject Responsibility — coordinator or

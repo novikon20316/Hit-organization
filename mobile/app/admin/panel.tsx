@@ -167,6 +167,11 @@ export default function PanelScreen() {
   // separate endpoint (see handleSaveUser). null = "— none —".
   const [editPrimaryStatus, setEditPrimaryStatus] = useState<string | null>(null);
   const [editSecondaryStatus, setEditSecondaryStatus] = useState<string | null>(null);
+  // The only way to discard a specific user from an active 2FA-enforcement
+  // policy (see server/src/services/twoFactorEnforcement.ts) — saved via its
+  // own dedicated endpoint in handleSaveUser, same pattern as
+  // editPrimaryStatus/editSecondaryStatus above.
+  const [editTwoFactorExempt, setEditTwoFactorExempt] = useState(false);
   const [saving, setSaving] = useState(false);
   // ── New user modal state ───────────────────────────────────────────────────
   const [newUserName,    setNewUserName]    = useState('');
@@ -994,6 +999,7 @@ export default function PanelScreen() {
     // user doc, same as assignedMajors above.
     setEditPrimaryStatus(user.primaryStatus ?? null);
     setEditSecondaryStatus(user.secondaryStatus ?? null);
+    setEditTwoFactorExempt((user as any).twoFactorExempt ?? false);
     setUserModal(true);
   };
 
@@ -1027,6 +1033,10 @@ export default function PanelScreen() {
           primaryStatus:   editPrimaryStatus,
           secondaryStatus: editSecondaryStatus,
         });
+      }
+
+      if (editTwoFactorExempt !== ((editUser as any).twoFactorExempt ?? false)) {
+        await apiClient.post(`/api/admin/users/${editUser.id}/2fa-exempt`, { exempt: editTwoFactorExempt });
       }
 
       Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
@@ -1193,11 +1203,6 @@ export default function PanelScreen() {
         onMaintenance={() => { setMaintenanceModal(true); fetchMaintenanceStatus(); }}
         extraMenuItems={[
           {
-            key: 'enforce-2fa', icon: '🔐',
-            label: lang === 'he' ? 'אכיפת אימות דו-שלבי (2FA)' : 'Enforce 2FA',
-            onPress: () => setEnforce2FAModal(true),
-          },
-          {
             key: 'manage-files', icon: '📎',
             label: lang === 'he' ? 'ניהול מסמכים לסטודנטים' : 'Manage Student Info Files',
             onPress: () => router.push('/Info-files' as any),
@@ -1250,6 +1255,16 @@ export default function PanelScreen() {
             style={styles.userFilterRow}
             contentContainerStyle={styles.userFilterRowContent}
           >
+            <Pressable
+              style={[styles.userFilterChip, { backgroundColor: '#1a1a2e', borderColor: '#1a1a2e' }]}
+              onPress={() => setEnforce2FAModal(true)}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.userFilterChipText, { color: '#FFFFFF' }]}>
+                🔐 {lang === 'he' ? 'אכיפת 2FA' : 'Enforce 2FA'}
+              </Text>
+            </Pressable>
+            <View style={styles.userFilterDivider} />
             {(
               [
                 { key: 'all', label: lang === 'he' ? 'הכל' : 'All' },
@@ -1534,44 +1549,36 @@ export default function PanelScreen() {
                       </Text>
                     </View>
 
-                    {/* Personal grace-period exemption badge (see
-                        server/src/services/twoFactorEnforcement.ts) — raw
-                        Firestore Timestamp shape ({_seconds}) since this
-                        comes straight off the dashboard-summary user doc. */}
-                    {(() => {
-                      const graceUntilMs = (u as any).twoFactorGraceUntil?._seconds ? (u as any).twoFactorGraceUntil._seconds * 1000 : null;
-                      if (!graceUntilMs || graceUntilMs <= Date.now()) return null;
-                      const daysLeft = Math.ceil((graceUntilMs - Date.now()) / (24 * 60 * 60 * 1000));
-                      return (
+                    {/* Discarded from the 2FA rule by a system_admin (see
+                        server/src/services/twoFactorEnforcement.ts) — the
+                        discard itself happens in Edit User; this badge +
+                        quick "re-enforce" button is the only per-row 2FA
+                        control, and only ever shown for an already-exempted
+                        user. */}
+                    {(u as any).twoFactorExempt && (
+                      <>
                         <View style={[styles.roleBadge, { backgroundColor: '#FEF3C7' }]}>
                           <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }}>
-                            ⏳ {lang === 'he' ? `הארכת חסד: עוד ${daysLeft} ימים` : `Grace: ${daysLeft}d left`}
+                            🚫 {lang === 'he' ? 'פטור מחובת 2FA' : 'Exempt from 2FA rule'}
                           </Text>
                         </View>
-                      );
-                    })()}
-
-                    {/* Grant a 7-day 2FA grace period — lets a straggler keep
-                        using the app past the global enforcement deadline
-                        (see twoFactorEnforcementController.ts) while they
-                        sort out their authenticator app. */}
-                    {!(u as any).totp_enabled && (
-                      <Pressable
-                        style={[styles.editBtn, { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }]}
-                        accessibilityRole="button"
-                        onPress={async () => {
-                          try {
-                            await apiClient.post(`/api/admin/users/${u.id}/extend-2fa-grace`, { days: 7 });
-                            fetchAllDashboardData();
-                          } catch {
-                            Alert.alert('Error', lang === 'he' ? 'הענקת ימי החסד נכשלה' : 'Failed to grant grace period');
-                          }
-                        }}
-                      >
-                        <Text style={[styles.editBtnText, { color: '#B45309' }]}>
-                          ⏳ {lang === 'he' ? 'הענק 7 ימי חסד' : 'Grant 7-day grace'}
-                        </Text>
-                      </Pressable>
+                        <Pressable
+                          style={[styles.editBtn, { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }]}
+                          accessibilityRole="button"
+                          onPress={async () => {
+                            try {
+                              await apiClient.post(`/api/admin/users/${u.id}/2fa-exempt`, { exempt: false });
+                              fetchAllDashboardData();
+                            } catch {
+                              Alert.alert('Error', lang === 'he' ? 'אכיפת 2FA מחדש נכשלה' : 'Failed to re-enforce 2FA');
+                            }
+                          }}
+                        >
+                          <Text style={[styles.editBtnText, { color: '#B45309' }]}>
+                            🔐 {lang === 'he' ? 'אכוף 2FA מחדש' : 'Re-enforce 2FA'}
+                          </Text>
+                        </Pressable>
+                      </>
                     )}
 
                     {/* Disable 2FA button — only shown when enabled */}
@@ -2368,6 +2375,9 @@ export default function PanelScreen() {
         setPrimaryStatus={setEditPrimaryStatus}
         secondaryStatus={editSecondaryStatus}
         setSecondaryStatus={setEditSecondaryStatus}
+
+        twoFactorExempt={editTwoFactorExempt}
+        setTwoFactorExempt={setEditTwoFactorExempt}
 
         styles={styles}
       />

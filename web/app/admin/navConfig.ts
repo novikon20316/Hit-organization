@@ -168,7 +168,6 @@ export const ADMIN_QUICK_ACTIONS: SidebarSection = {
   items: [
     { key: 'academicCalendar', icon: '📅', modal: 'academicCalendar', label: { he: 'לוח שנה', en: 'Academic Calendar' } },
     { key: 'maintenance', icon: '🛠️', modal: 'maintenance', label: { he: 'תחזוקה', en: 'Maintenance' } },
-    { key: 'enforce2fa', icon: '🔐', modal: 'enforce2fa', label: { he: 'אכיפת 2FA', en: 'Enforce 2FA' } },
     { key: 'studentStatuses', icon: '🏷️', modal: 'studentStatuses', label: { he: 'סטטוסי סטודנטים', en: 'Student Statuses' } },
     { key: 'bulkImport', icon: '📥', modal: 'bulkImport', label: { he: 'ייבוא/ייצוא', en: 'Import/Export' } },
   ].map(({ key, icon, modal, label }) => ({

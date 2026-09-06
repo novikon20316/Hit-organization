@@ -16,7 +16,7 @@ import {
   readTwoFactorEnforcementStatus,
   activateTwoFactorEnforcement,
   deactivateTwoFactorEnforcement,
-  extendUserGrace,
+  setTwoFactorExempt,
 } from '../services/twoFactorEnforcement.js';
 
 const DEFAULT_GRACE_DAYS = 7;
@@ -138,29 +138,29 @@ export const deactivateTwoFactorEnforcementHandler = async (req: AuthenticatedRe
   }
 };
 
-// ─── POST /api/admin/users/:id/extend-2fa-grace ──────────────────────────────
-// Body: { days?: number } — defaults to 7 more days for this one user, so a
-// straggler (lost phone, no smartphone yet, etc.) isn't hard-blocked while
-// they sort it out, without lifting enforcement for everyone else. days<=0
-// revokes an existing override.
-export const extendUserTwoFactorGrace = async (req: AuthenticatedRequest, res: Response) => {
+// ─── POST /api/admin/users/:id/2fa-exempt ────────────────────────────────────
+// Body: { exempt: boolean } — the ONLY way a specific user can be spared from
+// an active enforcement policy. Persists until a system_admin explicitly
+// flips it back (no automatic expiry) — see EditUserModal (web/mobile) for
+// where this is set, and UserRow/panel.tsx for the quick "re-enforce" action
+// shown only on users currently exempted.
+export const setTwoFactorExemptHandler = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
   const { id } = req.params;
   if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing userId.' });
 
-  const daysRaw = req.body?.days;
-  const days = Number.isFinite(daysRaw) ? Math.floor(daysRaw) : DEFAULT_GRACE_DAYS;
+  const exempt = req.body?.exempt === true;
 
   try {
     const userSnap = await db.collection('users').doc(id).get();
     if (!userSnap.exists) return res.status(404).json({ message: 'User not found.' });
 
-    const graceUntil = await extendUserGrace(id, days);
-    return res.status(200).json({ success: true, graceUntil: graceUntil?.toDate().toISOString() ?? null });
+    await setTwoFactorExempt(id, exempt);
+    return res.status(200).json({ success: true, exempt });
   } catch (error: any) {
-    console.error('extendUserTwoFactorGrace error:', error);
-    return res.status(500).json({ message: 'Failed to update grace period.' });
+    console.error('setTwoFactorExemptHandler error:', error);
+    return res.status(500).json({ message: 'Failed to update 2FA exemption.' });
   }
 };

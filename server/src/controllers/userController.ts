@@ -61,7 +61,7 @@ export const getFullFirestore = async (req: AuthenticatedRequest, res: Response)
     if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
 
     const data = userDoc.data()!;
-    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorGraceUntil ?? null);
+    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorExempt === true);
     return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /me error:', error);
@@ -80,7 +80,7 @@ export const getUserProfile = async (req: AuthenticatedRequest, res: Response) =
     if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
 
     const data = userDoc.data()!;
-    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorGraceUntil ?? null);
+    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorExempt === true);
     return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /profile error:', error);

@@ -586,13 +586,13 @@ export const apiClient = {
     return request<{ success: boolean }>('/api/admin/system/enforce-2fa', { method: 'DELETE' });
   },
 
-  /** POST /api/admin/users/:id/extend-2fa-grace — grants (days>0) or revokes
-   *  (days<=0) one user's personal exemption from the global deadline, so a
-   *  straggler isn't hard-blocked while they sort out their authenticator. */
-  async extendUserTwoFactorGrace(userId: string, days: number) {
-    return request<{ success: boolean; graceUntil: string | null }>(
-      `/api/admin/users/${userId}/extend-2fa-grace`,
-      { method: 'POST', body: { days } },
+  /** POST /api/admin/users/:id/2fa-exempt — the only way one specific user
+   *  can be spared from an active 2FA-enforcement policy. Persists until
+   *  explicitly flipped back; no automatic expiry. */
+  async setUserTwoFactorExempt(userId: string, exempt: boolean) {
+    return request<{ success: boolean; exempt: boolean }>(
+      `/api/admin/users/${userId}/2fa-exempt`,
+      { method: 'POST', body: { exempt } },
     );
   },
 

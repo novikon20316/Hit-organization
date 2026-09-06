@@ -12,7 +12,7 @@
 // that question.
 
 import { db } from '../config/firebase.js';
-import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const ENFORCEMENT_DOC = db.collection('system').doc('twoFactorEnforcement');
 
@@ -65,38 +65,27 @@ export async function deactivateTwoFactorEnforcement(): Promise<void> {
  * (middleware/auth.ts) and by GET /api/users/me's computed
  * `twoFactorSetupRequired` field, which each client's own routing gate reads
  * to decide whether to force the setup screen. Deliberately applies to every
- * role, including system_admin — the same forced setup screen (not a
- * lockout, since /api/auth/2fa/* stays reachable) is how a system_admin
- * would catch up too, and exempting the role that manages this feature would
- * quietly contradict "every user" in the policy this implements.
- *
- * `graceUntil` is an optional per-user override (users/{uid}.twoFactorGraceUntil)
- * a system_admin can grant to a specific straggler (see
- * extendUserTwoFactorGrace) — someone who needs more time (lost phone, no
- * smartphone yet, etc.) without having to cancel the policy for everyone
- * else.
+ * role, including system_admin, UNLESS a system_admin has explicitly
+ * exempted this specific account (users/{uid}.twoFactorExempt — see
+ * setTwoFactorExempt) — enforcement itself never spares anyone on its own;
+ * only a deliberate admin action does.
  */
 export async function isTwoFactorSetupRequired(
   totpEnabled: boolean,
-  graceUntil: Timestamp | null | undefined,
+  exempt: boolean,
 ): Promise<boolean> {
   if (totpEnabled) return false;
+  if (exempt) return false;
   const status = await readTwoFactorEnforcementStatus();
   if (!status.active || !status.deadline) return false;
   if (Date.now() < status.deadline.toMillis()) return false;
-  if (graceUntil && graceUntil.toMillis() > Date.now()) return false;
   return true;
 }
 
-/** Grants (or revokes, with days<=0) one user extra time past the global
- *  deadline — the system_admin's way to rescue a straggler without lifting
- *  enforcement for everyone else. */
-export async function extendUserGrace(uid: string, days: number): Promise<Timestamp | null> {
-  if (days <= 0) {
-    await db.collection('users').doc(uid).update({ twoFactorGraceUntil: FieldValue.delete() });
-    return null;
-  }
-  const graceUntil = Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
-  await db.collection('users').doc(uid).update({ twoFactorGraceUntil: graceUntil });
-  return graceUntil;
+/** system_admin-only: discards (exempt=true) or re-enforces (exempt=false)
+ *  the 2FA requirement for one specific user — persists until explicitly
+ *  changed again, no automatic expiry. This is the ONLY way a user can be
+ *  spared from an active enforcement policy. */
+export async function setTwoFactorExempt(uid: string, exempt: boolean): Promise<void> {
+  await db.collection('users').doc(uid).update({ twoFactorExempt: exempt });
 }

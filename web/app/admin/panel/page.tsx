@@ -315,6 +315,17 @@ function AdminPanelContent() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => {
+                const qs = new URLSearchParams(searchParams);
+                qs.set('modal', 'enforce2fa');
+                router.push(`/admin/panel?${qs.toString()}`, { scroll: false });
+              }}
+              className="ms-auto rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:border-primary"
+            >
+              🔐 {lang === 'he' ? 'אכיפת 2FA' : 'Enforce 2FA'}
+            </button>
           </div>
 
           {(loadingLocked || lockedUsers.length > 0) && (

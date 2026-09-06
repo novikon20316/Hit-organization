@@ -93,6 +93,14 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [scopesModalOpen, setScopesModalOpen] = useState(false);
 
+  // The only way to discard a specific user from an active 2FA-enforcement
+  // policy (see server/src/services/twoFactorEnforcement.ts) — system_admin
+  // only, hence gated on `!scope` (a delegate caller like faculty_admin
+  // always passes `scope`). Saved via its own dedicated endpoint, same
+  // "separate call alongside the main save" pattern as the student
+  // primary/secondary status fields below.
+  const [twoFactorExempt, setTwoFactorExempt] = useState(user.twoFactorExempt ?? false);
+
   // Same generic scope field also used to assign an administrative coordinator
   // to one or more specific subjects (facultyId+major) — "keep a separation
   // between degrees" for the workflow-templates screen. See
@@ -170,6 +178,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             secondaryStatus: secondaryStatus || null,
           });
         }
+      }
+
+      if (!scope && twoFactorExempt !== (user.twoFactorExempt ?? false)) {
+        await apiClient.setUserTwoFactorExempt(user.id, twoFactorExempt);
       }
 
       onSaved();
@@ -347,6 +359,20 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
               })}
             </div>
           </div>
+
+          {!scope && (
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-line bg-paper px-3.5 py-2.5">
+              <span>
+                <span className="block text-sm font-medium text-ink">🚫 {lang === 'he' ? 'פטור מחובת אימות דו-שלבי (2FA)' : 'Exempt from 2FA enforcement'}</span>
+                <span className="block text-xs text-muted">
+                  {lang === 'he'
+                    ? 'המשתמש לא יחסם גם אם המערכת מחייבת 2FA לכולם. ניתן לבטל בכל עת.'
+                    : "This user won't be blocked even while system-wide 2FA enforcement is active. Reversible any time."}
+                </span>
+              </span>
+              <input type="checkbox" checked={twoFactorExempt} onChange={(e) => setTwoFactorExempt(e.target.checked)} className="h-5 w-5 shrink-0" />
+            </label>
+          )}
 
           {/* ── Granular Permissions ── */}
           <button

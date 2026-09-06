@@ -60,7 +60,7 @@ import {
   getTwoFactorEnforcementStatusAdmin,
   activateTwoFactorEnforcementHandler,
   deactivateTwoFactorEnforcementHandler,
-  extendUserTwoFactorGrace,
+  setTwoFactorExemptHandler,
 } from '../controllers/twoFactorEnforcementController.js';
 
 const router = Router();
@@ -115,7 +115,7 @@ router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);
 // inside the controller, not here, matching createAdminProject's pattern.
 router.post('/users/:id/status', verifyToken, setStudentStatus);
 router.post('/system/enforce-2fa', verifyToken, activateTwoFactorEnforcementHandler);
-router.post('/users/:id/extend-2fa-grace', verifyToken, extendUserTwoFactorGrace);
+router.post('/users/:id/2fa-exempt', verifyToken, setTwoFactorExemptHandler);
 
 // PUT routes
 router.put('/academic-calendar', verifyToken, updateAcademicCalendarConfig);

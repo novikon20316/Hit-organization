@@ -16,10 +16,10 @@ export interface AdminUserRecord {
   facultyId: FacultyId;
   isActive: boolean;
   totp_enabled?: boolean;
-  /** Admin-granted personal exemption from the global 2FA-enforcement
-   *  deadline (see server/src/services/twoFactorEnforcement.ts) — raw
-   *  Firestore Timestamp shape ({_seconds}) when present. */
-  twoFactorGraceUntil?: { _seconds: number } | null;
+  /** system_admin-only discard from the global 2FA-enforcement policy (see
+   *  server/src/services/twoFactorEnforcement.ts) — persists until an admin
+   *  explicitly re-enforces it for this user. */
+  twoFactorExempt?: boolean;
   mustChangePassword?: boolean;
   /** Restricts a supervisor/secondary_supervisor to specific majors within
    *  their faculty. Empty/unset means unrestricted (all majors in their
