@@ -151,24 +151,6 @@ export default function ReportsPage() {
 
   return (
     <DashboardShell title={lang === 'he' ? 'דוחות' : 'Reports'} subtitle={lang === 'he' ? 'מעקב תהליכים והנחיה בפקולטה' : 'Process and supervision tracking'}>
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {REPORTS.map((r) => (
-          <button
-            key={r.key}
-            type="button"
-            onClick={() => setActiveReport(r.key)}
-            className={`rounded-[var(--radius)] border p-3.5 text-start transition-colors ${
-              activeReport === r.key ? 'border-primary bg-primary/5' : 'border-line bg-surface hover:border-primary/40'
-            }`}
-          >
-            <p className={`text-sm font-semibold ${activeReport === r.key ? 'text-primary' : 'text-ink'}`}>
-              {lang === 'he' ? r.he : r.en}
-            </p>
-            <p className="mt-1 text-xs text-muted">{lang === 'he' ? r.heDesc : r.enDesc}</p>
-          </button>
-        ))}
-      </div>
-
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
           value={startYear}
@@ -288,6 +270,24 @@ export default function ReportsPage() {
           ))}
         </div>
       )}
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {REPORTS.map((r) => (
+          <button
+            key={r.key}
+            type="button"
+            onClick={() => setActiveReport(r.key)}
+            className={`rounded-[var(--radius)] border p-3.5 text-start transition-colors ${
+              activeReport === r.key ? 'border-primary bg-primary/5' : 'border-line bg-surface hover:border-primary/40'
+            }`}
+          >
+            <p className={`text-sm font-semibold ${activeReport === r.key ? 'text-primary' : 'text-ink'}`}>
+              {lang === 'he' ? r.he : r.en}
+            </p>
+            <p className="mt-1 text-xs text-muted">{lang === 'he' ? r.heDesc : r.enDesc}</p>
+          </button>
+        ))}
+      </div>
 
       {meta?.threshold != null && (
         <p className="mb-3 text-xs text-muted">{lang === 'he' ? `סף "תקוע": ${meta.threshold} ימים` : `"Stuck" threshold: ${meta.threshold} days`}</p>
