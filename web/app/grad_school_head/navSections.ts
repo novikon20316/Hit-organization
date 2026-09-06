@@ -32,6 +32,7 @@ export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
           en: 'Decisions waiting on you at the grad-school level — supervisors, examiners, proposals, and grades.',
         },
         isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'approvals',
+        badgeTargetScreens: ['grad_school_head_approvals'],
       },
       {
         key: 'stuck',
@@ -54,6 +55,7 @@ export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
           en: "Each examiner's current workload, to help balance new assignments.",
         },
         isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'examiners',
+        badgeTargetScreens: ['grad_school_head_examiners'],
       },
       {
         key: 'grades',

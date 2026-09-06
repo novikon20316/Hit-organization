@@ -174,6 +174,53 @@ export const markAllNotificationsAsRead = async (req: AuthenticatedRequest, res:
 };
 
 /**
+ * POST /api/notifications/mark-read
+ * Bulk-clears unread notifications scoped to one or more targetScreen keys —
+ * used to clear a tab's badge count as soon as the user opens that tab,
+ * without touching unrelated unread notifications.
+ */
+export const markNotificationsReadForScreens = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'Unauthorized user context.' });
+
+    const { targetScreens } = req.body;
+    if (!Array.isArray(targetScreens) || targetScreens.length === 0 || targetScreens.some((s) => typeof s !== 'string')) {
+      return res.status(400).json({ error: 'targetScreens must be a non-empty array of strings.' });
+    }
+    // Firestore 'in' caps at 10 values — every tab maps to at most a
+    // couple of targetScreen keys today, so this is generous headroom.
+    if (targetScreens.length > 10) {
+      return res.status(400).json({ error: 'targetScreens accepts at most 10 values.' });
+    }
+
+    const unreadSnap = await db.collection('notifications')
+      .where('recipientId', '==', uid)
+      .where('isRead', '==', false)
+      .where('targetScreen', 'in', targetScreens)
+      .get();
+
+    if (unreadSnap.empty) {
+      return res.status(200).json({ success: true, message: 'No matching unread notifications found.' });
+    }
+
+    const batch = db.batch();
+    unreadSnap.docs.forEach((doc) => {
+      batch.update(db.collection('notifications').doc(doc.id), { isRead: true });
+    });
+    await batch.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully marked ${unreadSnap.size} notifications as read.`,
+    });
+
+  } catch (error: any) {
+    return softError(res, 'Failed to mark notifications as read.', error);
+  }
+};
+
+/**
  * PATCH /api/notifications/:notificationId/read
  */
 export const markNotificationRead = async (req: AuthenticatedRequest, res: Response) => {

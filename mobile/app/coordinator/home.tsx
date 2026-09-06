@@ -28,6 +28,7 @@ import { ClockPauseControl } from '@/components/ClockPauseControl';
 import ProjectStageChain from '@/components/ProjectStageChain';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
+import { useNotifications } from '@/src/context/NotificationsContext';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import { TourTarget } from '@/components/onboarding/TourTarget';
@@ -180,6 +181,29 @@ export default function CoordinatorHome() {
   const [activeTab, setActiveTab] = useState<CoordinatorTab>(
     COORDINATOR_TABS.includes(tabParam as CoordinatorTab) ? (tabParam as CoordinatorTab) : 'overview'
   );
+  // "New since last opened" badges (separate from the queue-length badges
+  // above, e.g. Pending Approval's count of everything currently pending) —
+  // driven by unread notifications bucketed by targetScreen, same mechanism
+  // as web's SidebarShell.tsx. Only wired for tabs that had no live badge
+  // yet (signoffs/deadlines/archived); pending/defense/inProgress/
+  // recommendations already show their own always-on queue-size count.
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const TAB_BADGE_TARGET_SCREENS: Partial<Record<CoordinatorTab, string>> = {
+    signoffs: 'coordinator_signoffs',
+    deadlines: 'coordinator_deadlines',
+    archived: 'coordinator_archived',
+  };
+  const newItemBadgeFor = (tab: CoordinatorTab) => {
+    const targetScreen = TAB_BADGE_TARGET_SCREENS[tab];
+    return targetScreen ? (unreadByTargetScreen[targetScreen] ?? 0) : 0;
+  };
+  useEffect(() => {
+    const targetScreen = TAB_BADGE_TARGET_SCREENS[activeTab];
+    if (targetScreen && (unreadByTargetScreen[targetScreen] ?? 0) > 0) {
+      markTabSeen([targetScreen]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TAB_BADGE_TARGET_SCREENS is a stable literal, re-declared each render but never changing shape
+  }, [activeTab, unreadByTargetScreen, markTabSeen]);
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
@@ -1118,7 +1142,7 @@ export default function CoordinatorHome() {
           { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: sortedDefenseCards.length },
           { key: 'milestones', heLabel: 'אבני דרך', enLabel: 'Milestones', badge: 0 },
           { key: 'recommendations', heLabel: 'המלצות בוחנים', enLabel: 'Examiner Recs', badge: examinerRecs.length },
-          { key: 'signoffs', heLabel: 'ממתין לאישור ציונים ובוחנים', enLabel: 'Awaiting Grade/Examiner Approval', badge: 0 },
+          { key: 'signoffs', heLabel: 'ממתין לאישור ציונים ובוחנים', enLabel: 'Awaiting Grade/Examiner Approval', badge: newItemBadgeFor('signoffs') },
         ] as const).map((tab) => (
           <TourTarget key={tab.key} tourKey={tab.key}>
             <Pressable
@@ -1144,6 +1168,11 @@ export default function CoordinatorHome() {
             accessibilityRole="button"
           >
             <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
+            {newItemBadgeFor('deadlines') > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{newItemBadgeFor('deadlines')}</Text>
+              </View>
+            )}
           </Pressable>
         </TourTarget>
         {activeRole !== 'administrative_secretary' && (
@@ -1154,6 +1183,11 @@ export default function CoordinatorHome() {
               accessibilityRole="button"
             >
               <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'ארכיון' : 'Archived'}</Text>
+              {newItemBadgeFor('archived') > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{newItemBadgeFor('archived')}</Text>
+                </View>
+              )}
             </Pressable>
           </TourTarget>
         )}

@@ -112,6 +112,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   admin_panel_signoffs: '/admin/panel?tab=signoffs',
   admin_panel_feedback: '/admin/panel?tab=feedback',
   login_security: '/login-security',
+  student_grades: '/student/home?tab=grades',
 };
 
 // Shared by handleTapNotif below and the [id] detail screen's own

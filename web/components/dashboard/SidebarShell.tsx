@@ -24,11 +24,12 @@
 //    (same route, different accent) since it reads the signed-in user's
 //    own activeRole rather than taking a hardcoded prop.
 
-import { Suspense, type CSSProperties, type ReactNode } from 'react';
+import { Suspense, useEffect, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useNotifications } from '@/contexts/NotificationsContext';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { deriveSidebarTones } from '@/lib/colorTones';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -49,6 +50,12 @@ export interface SidebarNavItem {
    *  tabs — see SidebarShell's own render below. Items without this are
    *  simply skipped by the tour, not a hard requirement for every item. */
   description?: { he: string; en: string };
+  /** targetScreen key(s) (see server/src/services/notificationTargets.ts)
+   *  whose unread notification count feeds this item's badge — e.g. the
+   *  student's "grades" item declares ['student_grades']. Omit for tabs
+   *  with no notification concept (they simply show no badge). Opening
+   *  this item (isActive) bulk-marks those as read, clearing the badge. */
+  badgeTargetScreens?: string[];
 }
 
 export interface SidebarSection {
@@ -87,6 +94,27 @@ function SidebarNavSections({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const resolveHref = (href: SidebarNavItem['href']) => (typeof href === 'function' ? href(searchParams) : href);
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+
+  const badgeCountFor = (item: SidebarNavItem) =>
+    (item.badgeTargetScreens ?? []).reduce((sum, ts) => sum + (unreadByTargetScreen[ts] ?? 0), 0);
+
+  // Whichever item is currently open gets its badge cleared — as soon as
+  // the count goes from 0 to >0 while already sitting on that tab (a new
+  // notification streaming in live) it clears right back to 0 too, same as
+  // reading a chat that's already open.
+  const allItems = [...sections.flatMap((s) => s.items), ...(quickActions?.items ?? [])];
+  const activeItem = allItems.find((item) => item.isActive(pathname, searchParams));
+  const activeBadgeCount = activeItem ? badgeCountFor(activeItem) : 0;
+  const activeBadgeScreensKey = activeItem?.badgeTargetScreens?.join(',') ?? '';
+  const searchParamsKey = searchParams.toString();
+
+  useEffect(() => {
+    if (activeItem?.badgeTargetScreens?.length && activeBadgeCount > 0) {
+      markTabSeen(activeItem.badgeTargetScreens);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on primitives (path/params/badge identity/count), not the sections array itself, since role-specific builders (e.g. buildCoordinatorNavSections) return a new array every render
+  }, [pathname, searchParamsKey, activeBadgeScreensKey, activeBadgeCount]);
 
   const renderSection = (section: SidebarSection) => (
     <div key={section.title.en} className="mb-4 px-3">
@@ -94,6 +122,7 @@ function SidebarNavSections({
       <ul className="flex flex-col gap-1">
         {section.items.map((item) => {
           const active = item.isActive(pathname, searchParams);
+          const badgeCount = badgeCountFor(item);
           return (
             <li key={item.key}>
               <Link
@@ -104,7 +133,12 @@ function SidebarNavSections({
                 }`}
               >
                 <span className="text-base leading-none">{item.icon}</span>
-                {item.label[lang]}
+                <span className="flex-1">{item.label[lang]}</span>
+                {badgeCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+                    {badgeCount > 9 ? '9+' : badgeCount}
+                  </span>
+                )}
               </Link>
             </li>
           );

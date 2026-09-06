@@ -14,6 +14,8 @@ import { apiClient } from '../../src/api/apiClient';
 import SubmitMilestoneModal from '../../components/modals/SubmitMilestoneModal';
 import ResearchProposalFormModal from '../../components/modals/ResearchProposalFormModal';
 import ProgressReportFormModal from '../../components/modals/ProgressReportFormModal';
+import { TabBadge } from '../../components/TabBadge';
+import { useNotifications } from '../../src/context/NotificationsContext';
 
 interface Props {
   project:       ActiveProject;
@@ -67,6 +69,17 @@ export default function ActiveDashboard({
 }: Props) {
   const [activeTab,       setActiveTab]       = useState<'overview' | 'grades'>('overview');
   const [expandedGrades,   setExpandedGrades]   = useState<Record<string, boolean>>({});
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const gradesBadgeCount = unreadByTargetScreen['student_grades'] ?? 0;
+
+  // Clears the "Grades" badge as soon as the tab is opened (or a new grade
+  // notification streams in while it's already open) — same idiom as web's
+  // SidebarShell.tsx effect.
+  useEffect(() => {
+    if (activeTab === 'grades' && gradesBadgeCount > 0) {
+      markTabSeen(['student_grades']);
+    }
+  }, [activeTab, gradesBadgeCount, markTabSeen]);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [announcements, setAnnouncements] = useState<Array<{ id: string; titleHe: string; titleEn: string; bodyHe: string; bodyEn: string; createdAt?: string | null }>>([]);
   // The single milestone currently targeted by the shared submit modal — null
@@ -263,7 +276,7 @@ export default function ActiveDashboard({
         ] as const).map((tab) => (
           <Pressable
             key={tab.key}
-            style={[styles.tab, activeTab === tab.key && ov.tabActive]}
+            style={[styles.tab, { flexDirection: 'row', alignItems: 'center' }, activeTab === tab.key && ov.tabActive]}
             onPress={() => setActiveTab(tab.key)}
             accessibilityRole="button"
             accessibilityState={{ selected: activeTab === tab.key }}
@@ -271,6 +284,7 @@ export default function ActiveDashboard({
             <Text style={[styles.tabText, activeTab === tab.key && ov.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? tab.labelHe : tab.labelEn}
             </Text>
+            {tab.key === 'grades' && <TabBadge count={gradesBadgeCount} />}
           </Pressable>
         ))}
       </ScrollView>

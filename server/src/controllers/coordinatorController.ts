@@ -704,6 +704,7 @@ async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.Docu
         relatedProjectId: projectId ?? null,
         relatedMilestoneId: milestoneId,
         emailData: { milestoneTitle, grade: grade != null ? String(grade) : '' },
+        taskKind: 'grade_published',
       });
     } catch (notifyError) {
       console.error(`notifyMilestoneApprovalComplete: student notify failed for ${studentId} on milestone ${milestoneId}:`, notifyError);

@@ -21,6 +21,7 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
           en: 'Every project you supervise — enrolled students, milestone progress, and grading.',
         },
         isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && (!sp.get('tab') || sp.get('tab') === 'projects'),
+        badgeTargetScreens: ['supervisor_projects'],
       },
       {
         key: 'applications',
@@ -32,6 +33,7 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
           en: 'Student applications to your open projects — review, approve, or decline them here.',
         },
         isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'applications',
+        badgeTargetScreens: ['supervisor_applications'],
       },
       {
         key: 'signoffs',
@@ -43,6 +45,7 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
           en: "Grades and examiner assignments you've submitted that are still waiting on coordinator or grad-school approval.",
         },
         isActive: (pathname, sp) => pathname === '/supervisor/dashboard' && sp.get('tab') === 'signoffs',
+        badgeTargetScreens: ['supervisor_signoffs'],
       },
       {
         key: 'records',

@@ -43,6 +43,7 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
           en: 'Final grades waiting for your approval before they get transferred to Maklol.',
         },
         isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'overrides',
+        badgeTargetScreens: ['admin_coordinator_overrides'],
       },
       {
         key: 'ungraded',

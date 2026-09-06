@@ -42,6 +42,7 @@ export function buildProgramHeadNavSections(roles: string[]): SidebarSection[] {
             en: "Decisions waiting on you — project, supervisor, or grade approvals.",
           },
           isActive: (pathname, sp) => pathname === DASHBOARD && sp.get('tab') === 'approvals',
+          badgeTargetScreens: ['program_head_approvals'],
         },
         {
           key: 'supervisors',

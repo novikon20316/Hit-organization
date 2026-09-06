@@ -428,6 +428,7 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
         relatedProjectId: milestone.projectId ?? null,
         relatedMilestoneId: milestoneId,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        targetScreen: 'student_grades',
       })));
     } catch (notifyErr) {
       console.error('decideGradeOverride: failed to notify students:', notifyErr);

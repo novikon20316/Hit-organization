@@ -38,6 +38,7 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         href: '/admin/panel?tab=milestones',
         label: { he: 'אבני דרך', en: 'Milestones' },
         isActive: (pathname, sp) => pathname === '/admin/panel' && sp.get('tab') === 'milestones',
+        badgeTargetScreens: ['admin_panel_milestones'],
       },
       {
         key: 'defenseAccess',
@@ -59,6 +60,7 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         href: '/admin/panel?tab=signoffs',
         label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' },
         isActive: (pathname, sp) => pathname === '/admin/panel' && sp.get('tab') === 'signoffs',
+        badgeTargetScreens: ['admin_panel_signoffs'],
       },
       {
         key: 'statistics',
@@ -80,6 +82,7 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         href: '/admin/panel?tab=feedback',
         label: { he: 'משוב', en: 'Feedback' },
         isActive: (pathname, sp) => pathname === '/admin/panel' && sp.get('tab') === 'feedback',
+        badgeTargetScreens: ['admin_panel_feedback'],
       },
       {
         key: 'health',

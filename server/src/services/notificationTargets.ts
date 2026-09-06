@@ -27,7 +27,9 @@ export type NotificationTaskKind =
   // Project erasure request queue (coordinator-only workflow).
   | 'archived_erasure'
   // Supervisor's incoming project applications.
-  | 'applications';
+  | 'applications'
+  // A grade was just published/approved for this student.
+  | 'grade_published';
 
 /**
  * Resolves (role, kind) to a semantic screen key, or null if this role has
@@ -91,6 +93,8 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
       return role === 'coordinator' ? 'coordinator_archived' : null;
     case 'applications':
       return role === 'supervisor' || role === 'secondary_supervisor' ? 'supervisor_applications' : null;
+    case 'grade_published':
+      return role === 'student' ? 'student_grades' : null;
     default:
       return null;
   }

@@ -43,6 +43,7 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
           en: 'Every project posted in your faculty, across every status.',
         },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'projects',
+        badgeTargetScreens: ['faculty_admin_projects'],
       },
       {
         key: 'students',
@@ -65,6 +66,7 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
           en: 'Upcoming and overdue milestone deadlines across your faculty.',
         },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'deadlines',
+        badgeTargetScreens: ['faculty_admin_deadlines'],
       },
       {
         key: 'signoffs',
@@ -76,6 +78,7 @@ export const FACULTY_ADMIN_NAV_SECTIONS: SidebarSection[] = [
           en: 'Grades and examiner assignments waiting for your final approval.',
         },
         isActive: (pathname, sp) => pathname === '/faculty_admin/dashboard' && sp.get('tab') === 'signoffs',
+        badgeTargetScreens: ['faculty_admin_signoffs'],
       },
       {
         key: 'projectTemplates',

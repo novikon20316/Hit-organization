@@ -216,6 +216,13 @@ class ApiClient {
     return response.data;
   }
 
+  /** Clears the unread count for one tab's badge — bulk-marks read every
+   *  unread notification whose targetScreen is one of `targetScreens`. */
+  async markNotificationsRead(targetScreens: string[]) {
+    const response = await this.api.post('/api/notifications/mark-read', { targetScreens });
+    return response.data;
+  }
+
   // ─── 4. LOGIN SECURITY ENDPOINTS ─────────────────────────────────────────
   // All three are public/unauthenticated server-side (see server/src/routes/
   // loginSecurity.ts) — a failed login has no token to attach.

@@ -282,6 +282,15 @@ export const apiClient = {
     return request<{ success: boolean; updatedCount: number }>('/api/notifications/mark-all-read', { method: 'POST' });
   },
 
+  /** Clears the unread count for one tab's badge — bulk-marks read every
+   *  unread notification whose targetScreen is one of `targetScreens`. */
+  async markNotificationsRead(targetScreens: string[]) {
+    return request<{ success: boolean; message: string }>('/api/notifications/mark-read', {
+      method: 'POST',
+      body: { targetScreens },
+    });
+  },
+
   // ─── 3b. CHAT ───────────────────────────────────────────────────────────────
   async getChatDashboard() {
     return request<{ chats: Array<Record<string, unknown> & { chatId: string }>; unreadTotal: number }>('/api/chats/dashboard', {

@@ -65,6 +65,7 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
             en: 'Submissions (proposals, reports, and more) waiting for your review and approval.',
           },
           isActive: (pathname, sp) => pathname === '/coordinator/home' && sp.get('tab') === 'pending',
+          badgeTargetScreens: ['coordinator_pending'],
         },
         {
           key: 'defense',
@@ -76,6 +77,7 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
             en: "Projects that have reached their defense stage — assign examiners and confirm the panel.",
           },
           isActive: (pathname, sp) => pathname === '/coordinator/home' && sp.get('tab') === 'defense',
+          badgeTargetScreens: ['coordinator_defense'],
         },
         {
           key: 'deadlines',
@@ -87,6 +89,7 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
             en: 'Upcoming and overdue milestone deadlines across your faculty.',
           },
           isActive: (pathname, sp) => pathname === '/coordinator/home' && sp.get('tab') === 'deadlines',
+          badgeTargetScreens: ['coordinator_deadlines'],
         },
         {
           key: 'recommendations',
@@ -109,6 +112,7 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
             en: 'Grades and examiner assignments already graded that still need your final approval.',
           },
           isActive: (pathname, sp) => pathname === '/coordinator/home' && sp.get('tab') === 'signoffs',
+          badgeTargetScreens: ['coordinator_signoffs'],
         },
         {
           key: 'statistics',
@@ -135,6 +139,7 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
                   en: 'Projects that were erased or archived — restore one if it was removed by mistake.',
                 },
                 isActive: (pathname: string, sp: URLSearchParams) => pathname === '/coordinator/home' && sp.get('tab') === 'archived',
+                badgeTargetScreens: ['coordinator_archived'],
               } satisfies SidebarNavItem,
             ]
           : []),

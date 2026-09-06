@@ -423,6 +423,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
             relatedProjectId: projectId ?? null,
             relatedMilestoneId: milestoneId,
             emailData: { milestoneTitle, grade: String(scoreValue) },
+            taskKind: 'grade_published',
           }).catch((err) => console.error(`submitMilestoneGrade: student notify failed for ${studentId} on ${milestoneId}:`, err))
         ));
       }
@@ -772,6 +773,7 @@ export async function maybeFinalizeAutoCalculatedGrade(milestoneRef: FirebaseFir
         isRead: false,
         relatedMilestoneId: milestoneRef.id,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        targetScreen: 'supervisor_signoffs',
       });
     } catch (notifyErr) {
       console.error('maybeFinalizeAutoCalculatedGrade: failed to notify supervisor:', notifyErr);

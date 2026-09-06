@@ -43,6 +43,7 @@ export const STUDENT_NAV_SECTIONS: SidebarSection[] = [
           en: 'Your grades, milestone by milestone, as they get entered and approved.',
         },
         isActive: (pathname, sp) => pathname === '/student/home' && sp.get('tab') === 'grades',
+        badgeTargetScreens: ['student_grades'],
       },
     ],
   },

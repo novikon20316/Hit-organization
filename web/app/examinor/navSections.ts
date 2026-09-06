@@ -21,6 +21,7 @@ export const EXAMINOR_NAV_SECTIONS: SidebarSection[] = [
           en: "Defenses you've been assigned to examine — grade the written work and the defense itself here.",
         },
         isActive: (pathname, sp) => pathname === '/examinor/home' && (!sp.get('tab') || sp.get('tab') === 'defenses'),
+        badgeTargetScreens: ['examiner_defenses'],
       },
       {
         key: 'schedule',
@@ -32,6 +33,7 @@ export const EXAMINOR_NAV_SECTIONS: SidebarSection[] = [
           en: "Your upcoming defense dates, and where to submit the dates you're available for.",
         },
         isActive: (pathname, sp) => pathname === '/examinor/home' && sp.get('tab') === 'schedule',
+        badgeTargetScreens: ['examiner_schedule'],
       },
     ],
   },

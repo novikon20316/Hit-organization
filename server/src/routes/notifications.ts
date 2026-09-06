@@ -4,6 +4,7 @@ import {
   triggerNotificationDispatch,
   getUserNotificationFeed,
   markAllNotificationsAsRead,
+  markNotificationsReadForScreens,
   markNotificationRead,
   getNotificationBadgeCount,
 } from '../controllers/notificationController.js'
@@ -22,5 +23,6 @@ router.post('/trigger', verifyToken, triggerNotificationDispatch);
 
 // 💡 The missing link! Maps the route to your batch controller function
 router.post('/mark-all-read', verifyToken, markAllNotificationsAsRead);
+router.post('/mark-read', verifyToken, markNotificationsReadForScreens);
 
 export default router;

@@ -113,6 +113,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   admin_panel_feedback: '/admin/panel?tab=feedback',
   committees: '/committees',
   login_security: '/login-security',
+  student_grades: '/student/home?tab=grades',
 };
 
 // Shared by app/notifications/page.tsx's tap handler and the [id] detail
