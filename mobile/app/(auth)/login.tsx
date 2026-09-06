@@ -36,6 +36,7 @@ import { auth, db } from "@/src/firebase/firebase";
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
 import { apiClient } from '@/src/api/apiClient';
+import type { Lang } from '@/components/i18n';
 
 // Same tokens as web's app/globals.css (--paper/--surface/--ink/--muted/
 // --line/--primary/--danger*) — kept local to this screen since mobile's
@@ -62,6 +63,11 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailFocused,    setEmailFocused]    = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  // Same pre-login toggle as signup.tsx/completeProfile.tsx — no Firestore
+  // userData.language to read yet at this point, so it's local UI-only
+  // state (defaults to 'he', matching those screens and web's own default).
+  const [lang,         setLang]         = useState<Lang>('he');
+  const isRtl = lang === 'he';
 
   // "Sign in with Google" — a Google account whose email already has an
   // existing password-based account throws auth/account-exists-with-
@@ -165,13 +171,13 @@ export default function LoginScreen() {
         if (pendingCredential && linkEmail) {
           setLinkingPrompt({ email: linkEmail, pendingCredential });
         } else {
-          setError('Login failed. Please try again.');
+          setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
         }
       } else if (isErrorWithCode(err) && err.code === statusCodes.SIGN_IN_CANCELLED) {
         // User cancelled — not an error worth surfacing.
       } else {
         console.error('Google sign-in failed:', err.code, err.message);
-        setError('Login failed. Please try again.');
+        setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
       }
     } finally {
       setGoogleSubmitting(false);
@@ -212,13 +218,13 @@ export default function LoginScreen() {
         if (pendingCredential && linkEmail) {
           setLinkingPrompt({ email: linkEmail, pendingCredential });
         } else {
-          setError('Login failed. Please try again.');
+          setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
         }
       } else if (err.code === 'ERR_REQUEST_CANCELED') {
         // User cancelled — not an error worth surfacing.
       } else {
         console.error('Apple sign-in failed:', err.code, err.message);
-        setError('Login failed. Please try again.');
+        setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
       }
     } finally {
       setAppleSubmitting(false);
@@ -237,9 +243,9 @@ export default function LoginScreen() {
       await proceedAfterOAuthSignIn(cred.user.uid);
     } catch (err: any) {
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-        setLinkingError('Incorrect email or password.');
+        setLinkingError(lang === 'he' ? 'דוא"ל או סיסמה שגויים.' : 'Incorrect email or password.');
       } else {
-        setLinkingError('Login failed. Please try again.');
+        setLinkingError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
       }
     } finally {
       setLinkingSubmitting(false);
@@ -283,7 +289,9 @@ export default function LoginScreen() {
       if (isStudent && !firebaseUser.user.emailVerified) {
         await auth.signOut();
         setError(
-          'Please verify your email before logging in. Check your inbox (and spam folder) for the verification link we sent during signup.'
+          lang === 'he'
+            ? 'יש לאמת את כתובת הדוא"ל לפני ההתחברות. בדוק את תיבת הדואר (וגם את הספאם) בעבור קישור האימות שנשלח בהרשמה.'
+            : 'Please verify your email before logging in. Check your inbox (and spam folder) for the verification link we sent during signup.'
         );
         return;
       }
@@ -294,7 +302,11 @@ export default function LoginScreen() {
         // email/password will detect the verified pending account and finish
         // the sync instead of creating a duplicate.
         await auth.signOut();
-        setError('Your email is verified, but your profile setup didn\'t finish. Please sign up again to complete it.');
+        setError(
+          lang === 'he'
+            ? 'הדוא"ל אומת, אך הגדרת הפרופיל לא הושלמה. הירשם שוב כדי להשלים אותה.'
+            : 'Your email is verified, but your profile setup didn\'t finish. Please sign up again to complete it.'
+        );
         return;
       }
 
@@ -331,15 +343,17 @@ export default function LoginScreen() {
       router.replace(getHomeRoute(role as any) as any);
 
       // ── 2FA not enabled — nudge the user, don't block them ────────────────
-      const lang = userData?.language === 'en' ? 'en' : 'he';
+      // Uses the ACCOUNT's stored language preference, not this screen's
+      // pre-login UI toggle above — by this point userData is authoritative.
+      const accountLang = userData?.language === 'en' ? 'en' : 'he';
       Alert.alert(
-        lang === 'he' ? '🔐 מומלץ להפעיל אימות דו-שלבי' : '🔐 Enable Two-Factor Authentication',
-        lang === 'he'
+        accountLang === 'he' ? '🔐 מומלץ להפעיל אימות דו-שלבי' : '🔐 Enable Two-Factor Authentication',
+        accountLang === 'he'
           ? 'לאבטחת החשבון שלך, קריטי להפעיל אימות דו-שלבי (2FA) בהקדם האפשרי.'
           : "For your account's security, it's crucial to enable two-factor authentication (2FA) as soon as possible.",
         [
-          { text: lang === 'he' ? 'מאוחר יותר' : 'Later', style: 'cancel' },
-          { text: lang === 'he' ? 'הפעל עכשיו' : 'Enable Now', onPress: () => router.push('/(auth)/setup2fa') },
+          { text: accountLang === 'he' ? 'מאוחר יותר' : 'Later', style: 'cancel' },
+          { text: accountLang === 'he' ? 'הפעל עכשיו' : 'Enable Now', onPress: () => router.push('/(auth)/setup2fa') },
         ]
       );
 
@@ -356,18 +370,26 @@ export default function LoginScreen() {
           const { locked } = await apiClient.reportFailedLogin(email, password);
           setError(
             locked
-              ? 'Too many incorrect attempts. Check your email to verify this was you.'
-              : 'Incorrect email or password.'
+              ? lang === 'he'
+                ? 'יותר מדי ניסיונות שגויים. בדוק את הדוא"ל כדי לאמת שזה אתה.'
+                : 'Too many incorrect attempts. Check your email to verify this was you.'
+              : lang === 'he'
+                ? 'דוא"ל או סיסמה שגויים.'
+                : 'Incorrect email or password.'
           );
         } catch {
-          setError('Incorrect email or password.');
+          setError(lang === 'he' ? 'דוא"ל או סיסמה שגויים.' : 'Incorrect email or password.');
         }
       } else if (err.code === 'auth/user-disabled') {
-        setError('This account is temporarily locked pending a security check. Check your email for next steps.');
+        setError(
+          lang === 'he'
+            ? 'חשבון זה נעול זמנית לבדיקת אבטחה. בדוק את הדוא"ל להמשך.'
+            : 'This account is temporarily locked pending a security check. Check your email for next steps.'
+        );
       } else if (err.code === 'auth/user-not-found') {
-        setError('No account found with this email.');
+        setError(lang === 'he' ? 'לא נמצא חשבון עם דוא"ל זה.' : 'No account found with this email.');
       } else {
-        setError('Login failed. Please try again.');
+        setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -380,18 +402,29 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={[styles.langRow, isRtl && styles.rowReverse]}>
+          <Pressable
+            style={styles.langBtn}
+            onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
+          >
+            <Text style={styles.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.headerBlock}>
           <Image
             source={require('../../assets/hit-logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Enter your credentials</Text>
+          <Text style={styles.title}>{lang === 'he' ? 'ברוך שובך' : 'Welcome Back'}</Text>
+          <Text style={styles.subtitle}>{lang === 'he' ? 'הזן את פרטי ההתחברות שלך' : 'Enter your credentials'}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Email Address</Text>
+          <Text style={[styles.label, isRtl && styles.textRight]}>{lang === 'he' ? 'כתובת דוא"ל' : 'Email Address'}</Text>
           <TextInput
             placeholder="you@hit.ac.il"
             placeholderTextColor={colors.muted}
@@ -399,13 +432,13 @@ export default function LoginScreen() {
             onChangeText={(t) => { setEmail(t); setError(''); }}
             onFocus={() => setEmailFocused(true)}
             onBlur={() => setEmailFocused(false)}
-            style={[styles.input, emailFocused && styles.inputFocused]}
+            style={[styles.input, styles.ltrInput, emailFocused && styles.inputFocused]}
             keyboardType="email-address"
             autoCapitalize="none"
-            accessibilityLabel="Email"
+            accessibilityLabel={lang === 'he' ? 'דוא"ל' : 'Email'}
           />
 
-          <Text style={[styles.label, styles.labelSpaced]}>Password</Text>
+          <Text style={[styles.label, styles.labelSpaced, isRtl && styles.textRight]}>{lang === 'he' ? 'סיסמה' : 'Password'}</Text>
           <View style={styles.passwordRow}>
             <TextInput
               placeholder="••••••••"
@@ -415,14 +448,18 @@ export default function LoginScreen() {
               onFocus={() => setPasswordFocused(true)}
               onBlur={() => setPasswordFocused(false)}
               secureTextEntry={!showPassword}
-              style={[styles.input, styles.passwordInput, passwordFocused && styles.inputFocused]}
-              accessibilityLabel="Password"
+              style={[styles.input, styles.ltrInput, styles.passwordInput, passwordFocused && styles.inputFocused]}
+              accessibilityLabel={lang === 'he' ? 'סיסמה' : 'Password'}
             />
             <Pressable
               onPress={() => setShowPassword(prev => !prev)}
               style={styles.eyeButton}
               accessibilityRole="button"
-              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+              accessibilityLabel={
+                showPassword
+                  ? (lang === 'he' ? 'הסתר סיסמה' : 'Hide password')
+                  : (lang === 'he' ? 'הצג סיסמה' : 'Show password')
+              }
             >
               <Text style={{ fontSize: 18 }}>{showPassword ? '🙈' : '👁️'}</Text>
             </Pressable>
@@ -442,13 +479,13 @@ export default function LoginScreen() {
           >
             {loading
               ? <ActivityIndicator color={colors.primaryInk} />
-              : <Text style={styles.primaryButtonText}>Sign In</Text>
+              : <Text style={styles.primaryButtonText}>{lang === 'he' ? 'התחבר' : 'Sign In'}</Text>
             }
           </TouchableOpacity>
 
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
+            <Text style={styles.dividerText}>{lang === 'he' ? 'או' : 'or'}</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -460,7 +497,7 @@ export default function LoginScreen() {
           >
             {googleSubmitting
               ? <ActivityIndicator color={colors.primary} />
-              : <Text style={styles.secondaryButtonText}>Continue with Google</Text>
+              : <Text style={styles.secondaryButtonText}>{lang === 'he' ? 'המשך עם Google' : 'Continue with Google'}</Text>
             }
           </TouchableOpacity>
 
@@ -483,34 +520,40 @@ export default function LoginScreen() {
 
           <View style={styles.linksBlock}>
             <Pressable onPress={() => router.push('/(auth)/signup')} accessibilityRole="link">
-              <Text style={styles.linkText}>Don&#39;t have an account? Sign Up</Text>
+              <Text style={styles.linkText}>{lang === 'he' ? 'אין לך חשבון? הירשם' : "Don't have an account? Sign Up"}</Text>
             </Pressable>
             <Pressable onPress={() => router.push('/(auth)/resetPass')} accessibilityRole="link">
-              <Text style={styles.linkText}>Forgot Password</Text>
+              <Text style={styles.linkText}>{lang === 'he' ? 'שכחת סיסמה' : 'Forgot Password'}</Text>
             </Pressable>
           </View>
         </View>
 
-        <Text style={styles.footer}>{`All rights reserved to HIT ${new Date().getFullYear()}`}</Text>
+        <Text style={styles.footer}>
+          {lang === 'he'
+            ? `כל הזכויות שמורות ל-HIT ${new Date().getFullYear()}`
+            : `All rights reserved to HIT ${new Date().getFullYear()}`}
+        </Text>
       </ScrollView>
 
       <Modal visible={!!linkingPrompt} transparent animationType="fade" onRequestClose={() => setLinkingPrompt(null)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalDialog}>
-            <Text style={styles.modalTitle}>
-              An account with this email already exists
+            <Text style={[styles.modalTitle, isRtl && styles.textRight]}>
+              {lang === 'he' ? 'חשבון עם דוא"ל זה כבר קיים' : 'An account with this email already exists'}
             </Text>
-            <Text style={styles.modalSubtitle}>
-              Enter the password for {linkingPrompt?.email} to link this sign-in to your existing account.
+            <Text style={[styles.modalSubtitle, isRtl && styles.textRight]}>
+              {lang === 'he'
+                ? `הזן/י את הסיסמה של ${linkingPrompt?.email} כדי לחבר את ההתחברות הזו לחשבון הקיים שלך.`
+                : `Enter the password for ${linkingPrompt?.email} to link this sign-in to your existing account.`}
             </Text>
             <TextInput
-              placeholder="Password"
+              placeholder={lang === 'he' ? 'סיסמה' : 'Password'}
               placeholderTextColor={colors.muted}
               value={linkingPassword}
               onChangeText={(t) => { setLinkingPassword(t); setLinkingError(''); }}
               secureTextEntry
-              style={styles.input}
-              accessibilityLabel="Password"
+              style={[styles.input, styles.ltrInput]}
+              accessibilityLabel={lang === 'he' ? 'סיסמה' : 'Password'}
             />
             {linkingError ? (
               <Text style={styles.errorText}>{linkingError}</Text>
@@ -521,7 +564,7 @@ export default function LoginScreen() {
                 onPress={() => { setLinkingPrompt(null); setLinkingPassword(''); setLinkingError(''); }}
                 accessibilityRole="button"
               >
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
+                <Text style={styles.secondaryButtonText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.button, styles.primaryButton, { flex: 1 }, linkingSubmitting && styles.buttonDisabled]}
@@ -531,7 +574,7 @@ export default function LoginScreen() {
               >
                 {linkingSubmitting
                   ? <ActivityIndicator color={colors.primaryInk} />
-                  : <Text style={styles.primaryButtonText}>Link account</Text>
+                  : <Text style={styles.primaryButtonText}>{lang === 'he' ? 'חבר חשבון' : 'Link account'}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -549,6 +592,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper,
     padding: 20,
   },
+  langRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 },
+  langBtn: {
+    backgroundColor: colors.surface, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: colors.line,
+  },
+  langText: { fontSize: 12, fontWeight: '700', color: colors.primary },
+  ltrInput: { textAlign: 'left', writingDirection: 'ltr' },
+  rowReverse: { flexDirection: 'row-reverse' },
+  textRight: { textAlign: 'right' },
   headerBlock: {
     alignItems: 'center',
     marginBottom: 24,
