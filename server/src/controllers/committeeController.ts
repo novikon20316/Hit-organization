@@ -19,7 +19,7 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest, getUserRoles, hasAnyRole } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 
 export type CommitteeType = 'thesis' | 'final_project';
 
@@ -64,10 +64,20 @@ export const listCommittees = async (req: AuthenticatedRequest, res: Response) =
     if (typeof facultyId !== 'string' || !facultyId) {
       return res.status(400).json({ message: 'facultyId is required.' });
     }
-    const roles = getUserRoles(req.user);
+    // administrative_secretary (also in TEMPLATE_AUTHOR_ROLES) is provisioned
+    // with facultyId 'all' (see CROSS_FACULTY_ROLES in userController.ts) —
+    // her real scope lives in coordinatorScopes, same as 'coordinator'. The
+    // old check only consulted coordinatorScopes when role included
+    // 'coordinator', so an administrative_secretary always fell through to
+    // comparing the literal 'all' against a real facultyId and always lost —
+    // 403ing her out of every faculty's committee list. Checking
+    // coordinatorScopes regardless of role (harmless for roles that never
+    // populate it) fixes that; the plain-facultyId fallback still covers
+    // faculty_admin/program_head/grad_school_head, who each hold a real
+    // single facultyId.
     const ownsFaculty =
-      (roles.includes('coordinator') && (req.user?.coordinatorScopes ?? []).some((s) => s.facultyId === facultyId)) ||
-      req.user?.facultyId === facultyId;
+      (req.user?.coordinatorScopes ?? []).some((s) => s.facultyId === facultyId) ||
+      (!!req.user?.facultyId && req.user.facultyId !== 'all' && req.user.facultyId === facultyId);
     if (!ownsFaculty) return res.status(403).json({ message: 'Access denied for this faculty.' });
   }
   try {

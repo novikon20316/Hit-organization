@@ -272,20 +272,36 @@ export const getCoordinatorExaminerRecommendations = async (req: AuthenticatedRe
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
-  const facultyId = req.user?.facultyId;
-  if (!facultyId) return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
+  if (!req.user.facultyId && req.user.coordinatorScopes.length === 0) {
+    return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
+  }
 
   try {
+    const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
     // Narrow to the coordinator's assigned coordinatorScopes' faculties when
     // configured (see scopeAuthorization.ts) — otherwise falls back to their
-    // own facultyId, same as before. A scope covering 'all' faculties means
-    // no facultyId filter at all.
-    const scopeFacultyIds = req.user.coordinatorScopes.length
-      ? Array.from(new Set(req.user.coordinatorScopes.map((s) => s.facultyId)))
-      : [facultyId];
+    // own real facultyId. WIDENING BUG FIX: only a genuine system_admin
+    // (whose facultyId is 'all' because they legitimately see everything)
+    // skips the filter below. administrative_secretary's facultyId is ALSO
+    // the literal string 'all' (see CROSS_FACULTY_ROLES in
+    // userController.ts) but that's a provisioning sentinel, not a grant —
+    // her real scope lives in coordinatorScopes. With none assigned yet, the
+    // old code fell back to `[facultyId]` = `['all']`, which then satisfied
+    // the `!scopeFacultyIds.includes('all')` check below and skipped the
+    // filter entirely — silently handing her every faculty's pending
+    // recommendations instead of none.
+    const scopeFacultyIds = [...new Set(
+      req.user.coordinatorScopes.length > 0
+        ? req.user.coordinatorScopes.map((s) => s.facultyId)
+        : (req.user.facultyId && req.user.facultyId !== 'all' ? [req.user.facultyId] : [])
+    )];
 
     let query: FirebaseFirestore.Query = db.collection('examinerRecommendations').where('status', '==', 'pending');
-    if (!scopeFacultyIds.includes('all')) {
+    if (!isSystemAdmin) {
+      if (scopeFacultyIds.length === 0) {
+        // No scope assigned yet — nothing to see, not "everything".
+        return res.status(200).json({ recommendations: [] });
+      }
       query = query.where('facultyId', 'in', scopeFacultyIds.slice(0, 10));
     }
     const snap = await query.get();

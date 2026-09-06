@@ -443,7 +443,18 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
           degreeLevel: degreeTypes[0]!,
           processType: projectTypes[0]!,
         };
-        const withinOwnFaculty = facultyId === req.user?.facultyId;
+        // administrative_secretary (also in PROJECT_CREATOR_ROLES) is
+        // provisioned with facultyId 'all' (see CROSS_FACULTY_ROLES in
+        // userController.ts) — a plain facultyId equality check here always
+        // failed for her, since a real project faculty is never the literal
+        // string 'all'. That silently forced her onto the hasActionGrant
+        // fallback for every faculty, including the degree she's actually
+        // assigned to via coordinatorScopes — she'd 403 creating a project in
+        // her own scope unless someone had separately configured an explicit
+        // permissionRule. withinCoordinatorScope covers both cases: a real
+        // single facultyId (faculty_admin/grad_school_head, unchanged) or a
+        // coordinatorScopes match (administrative_secretary/coordinator).
+        const withinOwnFaculty = withinCoordinatorScope(req.user, requestedScope);
         if (!withinOwnFaculty && !hasActionGrant(req.user, 'add_projects', requestedScope)) {
           return res.status(403).json({ message: `Cannot create a project in faculty "${facultyId}" — outside your assigned scope.` });
         }

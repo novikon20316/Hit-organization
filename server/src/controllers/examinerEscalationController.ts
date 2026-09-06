@@ -42,10 +42,30 @@ export const getExaminerEscalations = async (req: AuthenticatedRequest, res: Res
     // faculty_admin/grad_school_head: own faculty plus any extras granted for
     // that specific role (see effectiveFacultyIds) — grad_school_head used
     // to be unconditionally cross-faculty via the plain facultyId==='all'
-    // check alone; coordinator/administrative_secretary/system_admin keep
-    // that original comparison unchanged (no extras field of their own here).
+    // check alone.
     const escalationField = ESCALATION_FACULTY_FIELD[matchedRole(req.user, COORDINATOR_ROLES) ?? req.user.role];
-    const escalationScope = escalationField ? effectiveFacultyIds(req.user, escalationField) : req.user.facultyId;
+    let escalationScope: 'all' | string[];
+    if (escalationField) {
+      escalationScope = effectiveFacultyIds(req.user, escalationField);
+    } else if (hasAnyRole(req.user, ['system_admin'])) {
+      escalationScope = 'all';
+    } else {
+      // WIDENING BUG FIX: coordinator/administrative_secretary used to fall
+      // back to the plain `req.user.facultyId` comparison here. That's a
+      // real single faculty for 'coordinator', but administrative_secretary
+      // is provisioned with the literal sentinel string 'all' (see
+      // CROSS_FACULTY_ROLES in userController.ts) — comparing escalationScope
+      // === 'all' against the withinScope check below then always evaluated
+      // to "unrestricted", silently exposing every faculty's examiner
+      // escalations to her rather than just her assigned coordinatorScopes.
+      // Resolve her real scope instead, and fail closed (empty scope, not
+      // 'all') when none is assigned yet.
+      escalationScope = [...new Set(
+        req.user.coordinatorScopes.length > 0
+          ? req.user.coordinatorScopes.map((s) => s.facultyId)
+          : (req.user.facultyId && req.user.facultyId !== 'all' ? [req.user.facultyId] : [])
+      )];
+    }
 
     const now = Date.now();
     const rows = await Promise.all(snap.docs.map(async (doc) => {
