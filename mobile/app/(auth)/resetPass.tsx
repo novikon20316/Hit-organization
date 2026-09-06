@@ -1,17 +1,34 @@
+// app/(auth)/resetPass.tsx
+// Restyled to match web's app/(auth)/reset-password/page.tsx design (same
+// paper/surface/ink palette, role-rail card holding both the form and the
+// success state) — the Firebase call and security posture (auth/user-not-
+// found still shows success) are unchanged.
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, Pressable,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
-import { ResetPassStyles } from '../../constants/styles';
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const s = ResetPassStyles;
+// Same tokens as web's app/globals.css (--paper/--surface/--ink/--muted/
+// --line/--primary/--danger*) — kept local to this screen since mobile's
+// dashboards draw from a separate palette (constants/theme.ts's `ap`/
+// `palette`), and this screen exists purely to visually match web's.
+const colors = {
+  paper: '#f7f6f2',
+  surface: '#ffffff',
+  ink: '#1c2333',
+  muted: '#6b7280',
+  line: '#e4e1d8',
+  primary: '#1e3a5f',
+  primaryInk: '#ffffff',
+  danger: '#a8433a',
+  dangerBg: '#f7e9e7',
+};
 
 // Without this, the reset-password email link opens Firebase's own default
 // hosted page (only enforces Firebase Auth's 6-character minimum, none of
@@ -24,7 +41,6 @@ const s = ResetPassStyles;
 // guessed, since a wrong guess would silently send users to a broken link.
 const WEB_APP_BASE_URL = '';
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
 export default function ResetPassword() {
   const router = useRouter();
   const [lang,      setLang]      = useState<Lang>('he');
@@ -94,87 +110,140 @@ export default function ResetPassword() {
   };
 
   return (
-    <SafeAreaView style={s.root}>
-      <View style={s.content}>
+    <SafeAreaView style={styles.root}>
+      <View style={styles.content}>
 
-        {/* Lang toggle */}
-        <View style={[s.langRow, isRtl && s.langRowRtl]}>
+        <View style={[styles.langRow, isRtl && styles.rowReverse]}>
           <Pressable
-            style={s.langBtn}
+            style={styles.langBtn}
             onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
             accessibilityRole="button"
             accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
           >
-            <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
+            <Text style={styles.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
         </View>
 
-        {/* Hero */}
-        <View style={s.hero}>
-          <Text style={s.heroEmoji}>🔐</Text>
-          <Text style={s.heroTitle}>{t.title}</Text>
-          <Text style={s.heroSub}>{t.sub}</Text>
+        <View style={styles.hero}>
+          <Text style={styles.heroEmoji}>🔐</Text>
+          <Text style={styles.title}>{t.title}</Text>
+          <Text style={styles.subtitle}>{t.sub}</Text>
         </View>
 
-        {/* Success banner */}
-        {sent && (
-          <View style={s.successBox}>
-            <Text style={s.successEmoji}>✅</Text>
-            <Text style={s.successTitle}>{t.successTitle}</Text>
-            <Text style={s.successSub}>{t.successSub}</Text>
-          </View>
-        )}
+        <View style={styles.card}>
+          {sent ? (
+            <View style={styles.successWrap}>
+              <Text style={styles.successEmoji}>✅</Text>
+              <Text style={styles.successTitle}>{t.successTitle}</Text>
+              <Text style={styles.successSub}>{t.successSub}</Text>
+            </View>
+          ) : (
+            <>
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.ltrInput,
+                  focused && styles.inputFocused,
+                  showError && styles.inputError,
+                ]}
+                placeholder={t.placeholder}
+                placeholderTextColor={colors.muted}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                editable={!loading}
+                accessibilityLabel={t.placeholder}
+              />
 
-        {/* Email input — hide after sent */}
-        {!sent && (
-          <>
-            <TextInput
-              style={[
-                s.input,
-                focused   && s.inputFocused,
-                showError && s.inputError,
-                isValidEmail && email.length > 0 && s.inputSuccess,
-                isRtl && { textAlign: 'right' },
-              ]}
-              placeholder={t.placeholder}
-              placeholderTextColor="#9BA8C0"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              editable={!loading}
-              accessibilityLabel={t.placeholder}
-            />
+              {showError && (
+                <Text style={[styles.errorText, isRtl && styles.textRight]}>
+                  {t.emailErr}
+                </Text>
+              )}
 
-            {showError && (
-              <Text style={[s.errorText, isRtl && s.errorTextRtl]}>
-                {t.emailErr}
-              </Text>
-            )}
+              <Pressable
+                style={[styles.button, (!isValidEmail || loading) && styles.buttonDisabled]}
+                onPress={handleSend}
+                disabled={!isValidEmail || loading}
+                accessibilityRole="button"
+              >
+                {loading
+                  ? <ActivityIndicator color={colors.primaryInk} />
+                  : <Text style={styles.buttonText}>{t.btnSend}</Text>
+                }
+              </Pressable>
+            </>
+          )}
+        </View>
 
-            <Pressable
-              style={[s.btn, (!isValidEmail || loading) && s.btnDisabled]}
-              onPress={handleSend}
-              disabled={!isValidEmail || loading}
-              accessibilityRole="button"
-            >
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={s.btnText}>{t.btnSend}</Text>
-              }
-            </Pressable>
-          </>
-        )}
-
-        {/* Back to login */}
-        <Pressable style={s.backBtn} onPress={() => router.replace('/(auth)/login')} accessibilityRole="link">
-          <Text style={s.backText}>{t.back}</Text>
+        <Pressable style={styles.backLink} onPress={() => router.replace('/(auth)/login')} accessibilityRole="link">
+          <Text style={styles.backLinkText}>{t.back}</Text>
         </Pressable>
 
       </View>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.paper },
+  content: { flex: 1, padding: 20, justifyContent: 'center' },
+
+  langRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 },
+  langBtn: {
+    backgroundColor: colors.surface, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: colors.line,
+  },
+  langText: { fontSize: 12, fontWeight: '700', color: colors.primary },
+
+  hero: { alignItems: 'center', marginBottom: 20 },
+  heroEmoji: { fontSize: 32, marginBottom: 8 },
+  title: { fontSize: 22, fontWeight: '600', color: colors.ink, textAlign: 'center' },
+  subtitle: { fontSize: 13, color: colors.muted, marginTop: 4, textAlign: 'center' },
+
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    padding: 20,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.paper,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  ltrInput: { textAlign: 'left', writingDirection: 'ltr' },
+  inputFocused: { borderColor: colors.primary, backgroundColor: colors.surface },
+  inputError: { borderColor: colors.danger },
+
+  errorText: { color: colors.danger, fontSize: 12, marginTop: 6 },
+
+  button: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 16 },
+  buttonText: { color: colors.primaryInk, fontSize: 14, fontWeight: '600' },
+  buttonDisabled: { opacity: 0.6 },
+
+  successWrap: { alignItems: 'center' },
+  successEmoji: { fontSize: 24, marginBottom: 6 },
+  successTitle: { fontSize: 15, fontWeight: '600', color: colors.ink },
+  successSub: { fontSize: 13, color: colors.muted, marginTop: 4, textAlign: 'center', lineHeight: 19 },
+
+  backLink: { marginTop: 16, alignItems: 'center' },
+  backLinkText: { color: colors.primary, fontSize: 13 },
+
+  rowReverse: { flexDirection: 'row-reverse' },
+  textRight: { textAlign: 'right' },
+});
