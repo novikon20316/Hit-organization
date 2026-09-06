@@ -56,6 +56,14 @@ export interface SidebarNavItem {
    *  with no notification concept (they simply show no badge). Opening
    *  this item (isActive) bulk-marks those as read, clearing the badge. */
   badgeTargetScreens?: string[];
+  /** Optional extra gate beyond "this role sees this sidebar at all" — e.g.
+   *  a tab scoped to a narrower population than the role itself (see
+   *  lib/permissions.ts's withinCoordinatorScope). Omit for items every
+   *  holder of this role's chrome should see. Takes the signed-in user's
+   *  AuthContext userData; returning false hides the item from the sidebar
+   *  (the destination page must independently guard itself too — hiding the
+   *  link is not an access control). */
+  visible?: (userData: ReturnType<typeof useAuth>['userData']) => boolean;
 }
 
 export interface SidebarSection {
@@ -95,15 +103,23 @@ function SidebarNavSections({
   const searchParams = useSearchParams();
   const resolveHref = (href: SidebarNavItem['href']) => (typeof href === 'function' ? href(searchParams) : href);
   const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const { userData } = useAuth();
 
   const badgeCountFor = (item: SidebarNavItem) =>
     (item.badgeTargetScreens ?? []).reduce((sum, ts) => sum + (unreadByTargetScreen[ts] ?? 0), 0);
+
+  // Items with a `visible` gate (e.g. a tab scoped narrower than the role
+  // itself) are dropped from both the rendered list and the tour/badge
+  // bookkeeping below — same visibility rule everywhere, not just the menu.
+  const isVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData);
+  const visibleSections = sections.map((s) => ({ ...s, items: s.items.filter(isVisible) })).filter((s) => s.items.length > 0);
+  const visibleQuickActions = quickActions ? { ...quickActions, items: quickActions.items.filter(isVisible) } : undefined;
 
   // Whichever item is currently open gets its badge cleared — as soon as
   // the count goes from 0 to >0 while already sitting on that tab (a new
   // notification streaming in live) it clears right back to 0 too, same as
   // reading a chat that's already open.
-  const allItems = [...sections.flatMap((s) => s.items), ...(quickActions?.items ?? [])];
+  const allItems = [...visibleSections.flatMap((s) => s.items), ...(visibleQuickActions?.items ?? [])];
   const activeItem = allItems.find((item) => item.isActive(pathname, searchParams));
   const activeBadgeCount = activeItem ? badgeCountFor(activeItem) : 0;
   const activeBadgeScreensKey = activeItem?.badgeTargetScreens?.join(',') ?? '';
@@ -149,8 +165,8 @@ function SidebarNavSections({
 
   return (
     <>
-      {sections.map((section) => renderSection(section))}
-      {quickActions && renderSection(quickActions)}
+      {visibleSections.map((section) => renderSection(section))}
+      {visibleQuickActions && renderSection(visibleQuickActions)}
     </>
   );
 }
@@ -200,6 +216,13 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
         };
 
   const initial = (userData?.displayName || '?').charAt(0).toUpperCase();
+
+  // Same visibility gate SidebarNavSections applies to the rendered menu —
+  // computed here too so the onboarding tour never walks a first-time user
+  // through a tab their scope keeps hidden from them.
+  const isItemVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData);
+  const tourSections = sections.map((s) => ({ ...s, items: s.items.filter(isItemVisible) })).filter((s) => s.items.length > 0);
+  const tourQuickActions = quickActions ? { ...quickActions, items: quickActions.items.filter(isItemVisible) } : undefined;
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -259,7 +282,7 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
        *  role uses 'accent', which doubles as "not system_admin" here
        *  without a separate role check. */}
       {theme.mode === 'accent' && userData && !userData.hasSeenOnboardingTour && (
-        <OnboardingTour sections={sections} quickActions={quickActions} />
+        <OnboardingTour sections={tourSections} quickActions={tourQuickActions} />
       )}
     </div>
   );

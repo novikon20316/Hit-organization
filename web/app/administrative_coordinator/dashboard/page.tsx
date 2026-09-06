@@ -21,6 +21,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import type { AppRole } from '@/lib/roles';
+import { withinCoordinatorScope, CS_MASTERS_SCOPE } from '@/lib/permissions';
 import { BulkDueDateModal } from '@/components/BulkDueDateModal';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { SendExaminerModal } from './SendExaminerModal';
@@ -184,8 +185,15 @@ function MilestoneMiniProgress({
 }
 
 function AdministrativeCoordinatorDashboardContent() {
-  const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_COORDINATOR_ROLES);
+  const { loading: guardLoading, isAllowed, userData } = useRequireRole(ADMIN_COORDINATOR_ROLES);
   const { firebaseUser, activeRole } = useAuth();
+  // "Students Without a Grade Average" only ever lists computer_science
+  // master's students (UngradedCsMastersTab.tsx) — an administrative
+  // coordinator scoped to a different faculty/major (e.g. data_science) has
+  // no business with that population. The sidebar link is already hidden for
+  // her (navSections.ts's `visible`), but this re-checks server-equivalent
+  // scope here too so a direct/typed ?tab=ungraded URL can't bypass it.
+  const canSeeUngraded = withinCoordinatorScope(userData, CS_MASTERS_SCOPE);
   const { lang, t } = useLanguage();
   const searchParams = useSearchParams();
 
@@ -198,7 +206,9 @@ function AdministrativeCoordinatorDashboardContent() {
   // Groups.
   const paramTab = searchParams.get('tab');
   const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' | 'ungraded' =
-    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' || paramTab === 'ungraded' ? paramTab : 'groups';
+    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' || (paramTab === 'ungraded' && canSeeUngraded)
+      ? paramTab
+      : 'groups';
   const [facultyId, setFacultyId] = useState('');
   const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [stats, setStats] = useState({ totalGroups: 0, activeGroups: 0, scheduledDefenses: 0, overdueGroups: 0 });

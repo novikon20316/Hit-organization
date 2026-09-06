@@ -208,6 +208,32 @@ export function hasActionGrant(
   );
 }
 
+/** True if `resource` falls within `userData`'s coordinator scope. Client-side
+ *  mirror of server/src/services/scopeAuthorization.ts's withinCoordinatorScope
+ *  — kept hand-synced with the server copy, same convention as scopeMatches
+ *  above. Used to decide whether to even show a coordinator-scoped tab/nav
+ *  item, not just whether the server would accept the request. */
+export function withinCoordinatorScope(
+  userData: { role?: string; roles?: string[]; facultyId?: string; coordinatorScopes?: CoordinatorScope[] } | null | undefined,
+  resource: ResourceScope
+): boolean {
+  if (!userData) return false;
+  if (userData.role === 'system_admin' || userData.roles?.includes('system_admin')) return true;
+  if (userData.coordinatorScopes?.length) {
+    return userData.coordinatorScopes.some((scope) => scopeMatches(scope, resource));
+  }
+  return userData.facultyId !== 'all' && userData.facultyId === resource.facultyId;
+}
+
+/** The one resource this college's "ungraded" thesis-average tab operates on
+ *  — computer_science (lib/faculties.ts's 'sciences' faculty) master's
+ *  students are the only program a grade average applies to (see
+ *  components/students/UngradedCsMastersTab.tsx and server/src/config/
+ *  studentTrack.ts's MASTERS_TRACK_POLICY). Only an administrative
+ *  coordinator or grad_school_head actually scoped to this population (or
+ *  system_admin) should ever see or reach that tab. */
+export const CS_MASTERS_SCOPE: ResourceScope = { facultyId: 'sciences', major: 'computer_science', degreeLevel: 'masters' };
+
 /** Human-readable one-line summary of a scope, e.g. "Sciences · Computer Science · Master's · Thesis track". */
 export function scopeLabel(scope: ScopeDescriptor, lang: Lang, facultyLabelFn: (facultyId: string) => string): string {
   const parts: string[] = [facultyLabelFn(scope.facultyId)];

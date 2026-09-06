@@ -6,6 +6,7 @@
 // import — same split as app/coordinator/navSections.ts.
 
 import type { SidebarSection } from '@/components/dashboard/SidebarShell';
+import { withinCoordinatorScope, CS_MASTERS_SCOPE } from '@/lib/permissions';
 
 export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
   {
@@ -100,6 +101,11 @@ export const GRAD_SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
           en: 'Students without a computed grade average — review or resolve them here.',
         },
         isActive: (pathname, sp) => pathname === '/grad_school_head/dashboard' && sp.get('tab') === 'ungraded',
+        // Only ever lists computer_science master's students (see
+        // UngradedCsMastersTab.tsx) — a grad_school_head not scoped to that
+        // population (e.g. a different faculty) shouldn't see the link.
+        // Mirrors the CS_MASTERS_SCOPE check the page itself re-verifies.
+        visible: (userData) => withinCoordinatorScope(userData, CS_MASTERS_SCOPE),
       },
       {
         key: 'workflowTemplates',

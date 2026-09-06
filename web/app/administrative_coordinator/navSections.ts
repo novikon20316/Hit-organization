@@ -6,6 +6,7 @@
 // comment) without a layout-to-layout circular import.
 
 import type { SidebarSection } from '@/components/dashboard/SidebarShell';
+import { withinCoordinatorScope, CS_MASTERS_SCOPE } from '@/lib/permissions';
 
 export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
   {
@@ -55,6 +56,13 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
           en: "Students who don't yet have a computed grade average — review or resolve them here.",
         },
         isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'ungraded',
+        // This tab only ever shows computer_science master's students (see
+        // UngradedCsMastersTab.tsx) — an administrative coordinator scoped to
+        // a different faculty/major (e.g. data_science) has no business with
+        // that population, so the link itself must not be dangled in front
+        // of them. Mirrors the same CS_MASTERS_SCOPE check the page itself
+        // re-verifies before rendering the tab.
+        visible: (userData) => withinCoordinatorScope(userData, CS_MASTERS_SCOPE),
       },
       {
         key: 'statistics',

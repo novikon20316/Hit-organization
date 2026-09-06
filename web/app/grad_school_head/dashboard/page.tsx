@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
+import { withinCoordinatorScope, CS_MASTERS_SCOPE } from '@/lib/permissions';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
@@ -101,8 +102,14 @@ const URGENCY_COLOR: Record<PendingApproval['urgency'], string> = {
 };
 
 function GradSchoolHeadDashboardContent() {
-  const { loading: guardLoading, isAllowed } = useRequireRole(GRAD_SCHOOL_HEAD_ROLES);
+  const { loading: guardLoading, isAllowed, userData } = useRequireRole(GRAD_SCHOOL_HEAD_ROLES);
   const { firebaseUser } = useAuth();
+  // "Students Without a Grade Average" only ever lists computer_science
+  // master's students (UngradedCsMastersTab.tsx) — a grad_school_head not
+  // scoped to that population has no business with it. The sidebar link is
+  // already hidden for her (navSections.ts's `visible`), but this re-checks
+  // scope here too so a direct/typed ?tab=ungraded URL can't bypass it.
+  const canSeeUngraded = withinCoordinatorScope(userData, CS_MASTERS_SCOPE);
   const { lang, t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -123,7 +130,7 @@ function GradSchoolHeadDashboardContent() {
   // no separate mirrored state — same pattern as app/admin/panel/page.tsx.
   // Tab switching now happens via GradSchoolHeadLayout's sidebar links.
   const paramTab = searchParams.get('tab');
-  const tab: GradSchoolHeadTab = isGradSchoolHeadTab(paramTab) ? paramTab : 'overview';
+  const tab: GradSchoolHeadTab = isGradSchoolHeadTab(paramTab) && (paramTab !== 'ungraded' || canSeeUngraded) ? paramTab : 'overview';
   const [headName, setHeadName] = useState('');
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [processSummaries, setProcessSummaries] = useState<ProcessSummary[]>([]);
