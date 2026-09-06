@@ -15,7 +15,7 @@ import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMil
 import { deriveProcessType, resolveExaminerSignoffRole, type ChainStage } from '../services/workflowTemplates.js';
 import { authorizeStageActor, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
-import { notifyUser } from '../services/notify.js';
+import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
 
 // Matches the Firestore project document shape exactly
@@ -824,6 +824,11 @@ async function approveChainMilestone(
       transaction.update(milestoneRef, update);
     });
 
+    // The stage that just approved is no longer "awaiting review" for
+    // anyone else who was fanned a notification about it — see
+    // clearStaleMilestoneNotifications's own doc comment.
+    await clearStaleMilestoneNotifications(milestoneId, [targetScreenFor(stage.role, 'milestone_action')]);
+
     await logAuditEvent({
       userId: actorId,
       userRole: req.user?.role ?? stage.role,
@@ -974,6 +979,11 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
         ...(comment ? { coordinatorComment: comment } : {}),
       });
     });
+
+    // See clearStaleMilestoneNotifications's doc comment — this milestone's
+    // notification fanned out to every coordinator/administrative_secretary
+    // in scope, not just this one; the others' copies are now stale.
+    await clearStaleMilestoneNotifications(milestoneId, [targetScreenFor('coordinator', 'milestone_action')]);
 
     await logAuditEvent({
       userId: coordinatorId,
@@ -1153,6 +1163,11 @@ async function rejectChainMilestone(
       }
     });
 
+    // The stage being left (rejected to student, or silently rerouted
+    // elsewhere) is no longer "awaiting review" for anyone else who was
+    // fanned a notification about it — see clearStaleMilestoneNotifications.
+    await clearStaleMilestoneNotifications(milestoneId, [targetScreenFor(stage.role, 'milestone_action')]);
+
     await logAuditEvent({
       userId: actorId,
       userRole: req.user?.role ?? stage.role,
@@ -1320,6 +1335,11 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
         });
       }
     });
+
+    // See clearStaleMilestoneNotifications's doc comment — this milestone's
+    // notification fanned out to every coordinator/administrative_secretary
+    // in scope, not just this one; the others' copies are now stale.
+    await clearStaleMilestoneNotifications(milestoneId, [targetScreenFor('coordinator', 'milestone_action')]);
 
     await logAuditEvent({
       userId: coordinatorId,

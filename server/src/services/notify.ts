@@ -228,3 +228,35 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
     });
   }
 }
+
+/**
+ * A milestone_action notification fans out to EVERY staff member in scope
+ * (see resolveStaffForScope) — e.g. every coordinator in a faculty, not just
+ * one. Once the milestone leaves the state that made it "awaiting your
+ * review" for that targetScreen (approved/rejected/rerouted by whoever got
+ * to it first), every OTHER recipient's own copy of that notification is
+ * left unread forever: their sidebar badge (SidebarShell.tsx /
+ * TAB_BADGE_TARGET_SCREENS) still shows a count, but the item that count
+ * pointed at is no longer in their pending list. Call this right after any
+ * transaction that resolves/advances a milestone off a stage, scoped to
+ * that stage's own targetScreen(s) — never the milestone's whole
+ * notification history, so a just-created notification for the SAME
+ * milestone (e.g. telling the student their grade posted) is untouched.
+ */
+export async function clearStaleMilestoneNotifications(milestoneId: string, targetScreens: (string | null | undefined)[]): Promise<void> {
+  const screens = [...new Set(targetScreens.filter((s): s is string => !!s))];
+  if (!milestoneId || screens.length === 0) return;
+  try {
+    const snap = await db.collection('notifications')
+      .where('relatedMilestoneId', '==', milestoneId)
+      .where('isRead', '==', false)
+      .where('targetScreen', 'in', screens)
+      .get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((doc) => batch.update(doc.ref, { isRead: true }));
+    await batch.commit();
+  } catch (err) {
+    console.error(`clearStaleMilestoneNotifications: failed for milestone ${milestoneId} [${screens.join(',')}]:`, err);
+  }
+}
