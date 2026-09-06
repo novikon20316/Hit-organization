@@ -170,6 +170,40 @@ export const REPORTS: ReportDef[] = [
   },
 ];
 
+// Report rows carrying a per-student field also carry the project it belongs
+// to (see server/src/services/reports.ts's EngagementRecord/ExaminerTrackingRow
+// — every row already has both), under a per-report key since the field
+// isn't named consistently everywhere (examiner-tracking's ExaminerTrackingRow
+// uses the single already-localized 'projectTitle', everything else uses the
+// He/En pair and this picks 'projectTitleHe' same as the repository/
+// grade-export report defs above already do).
+const PROJECT_FIELD_KEY: Partial<Record<ReportType, string>> = {
+  'examiner-tracking': 'projectTitle',
+};
+
+/**
+ * The administrative coordinator manages projects, not individual students —
+ * a group project's several students would otherwise show as identical rows
+ * differing only by name. So for her, every report's "Student" column is
+ * replaced by the project's name instead (she can still narrow to one
+ * student/advisor via the existing filters when she needs that). Reports
+ * with no student concept at all (e.g. 'load', which is one row per advisor/
+ * examiner) are returned unchanged, as are reports that already show a
+ * project-name column alongside the student's (repository, grade-export) —
+ * those just drop the now-redundant student column.
+ */
+export function fieldsForAdministrativeCoordinator(def: ReportDef): ReportField[] {
+  if (!def.fields.some((f) => f.key === 'studentName')) return def.fields;
+
+  const projectKey = PROJECT_FIELD_KEY[def.key] ?? 'projectTitleHe';
+  if (def.fields.some((f) => f.key === projectKey)) {
+    return def.fields.filter((f) => f.key !== 'studentName');
+  }
+
+  const projectField: ReportField = { key: projectKey, he: 'פרויקט/תזה', en: 'Project/Thesis' };
+  return def.fields.map((f) => (f.key === 'studentName' ? projectField : f));
+}
+
 export function displayValue(v: unknown): string {
   if (v == null) return '—';
   if (typeof v === 'boolean') return v ? '✓' : '—';

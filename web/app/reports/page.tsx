@@ -12,7 +12,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { FACULTY_LABELS, type FacultyId } from '@/lib/i18n';
-import { REPORTS, displayValue, type ReportType } from './types';
+import { REPORTS, displayValue, fieldsForAdministrativeCoordinator, type ReportType } from './types';
 import { downloadReportExport } from './downloadExport';
 
 const REPORT_ROLES: AppRole[] = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
@@ -49,7 +49,7 @@ const PROCESS_STATUS_LABEL: Record<string, { he: string; en: string }> = {
 
 export default function ReportsPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(REPORT_ROLES);
-  const { userData } = useAuth();
+  const { userData, activeRole } = useAuth();
   const { lang, t } = useLanguage();
 
   const [activeReport, setActiveReport] = useState<ReportType>('full-status');
@@ -148,6 +148,9 @@ export default function ReportsPage() {
   }
 
   const def = REPORTS.find((r) => r.key === activeReport)!;
+  // Administrative coordinator manages projects, not individual students —
+  // see fieldsForAdministrativeCoordinator's own doc comment.
+  const displayFields = activeRole === 'administrative_secretary' ? fieldsForAdministrativeCoordinator(def) : def.fields;
 
   return (
     <DashboardShell title={lang === 'he' ? 'דוחות' : 'Reports'} subtitle={lang === 'he' ? 'מעקב תהליכים והנחיה בפקולטה' : 'Process and supervision tracking'}>
@@ -303,7 +306,7 @@ export default function ReportsPage() {
         <div className="grid gap-2 sm:grid-cols-2">
           {rows.map((row, idx) => (
             <div key={idx} className="rounded-[var(--radius)] border border-line bg-surface p-3.5">
-              {def.fields.map((f) => (
+              {displayFields.map((f) => (
                 <div key={f.key} className="flex items-center justify-between gap-2 py-0.5">
                   <span className="text-xs text-muted">{lang === 'he' ? f.he : f.en}</span>
                   <span className="text-end text-sm font-medium text-ink">{displayValue(row[f.key])}</span>
