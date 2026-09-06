@@ -33,6 +33,7 @@ import { DefenseAccessTab } from './DefenseAccessTab';
 import { FeedbackTab } from './FeedbackTab';
 import { StudentRosterTab } from './StudentRosterTab';
 import { MaintenanceModal } from './MaintenanceModal';
+import { Enforce2FAModal } from './Enforce2FAModal';
 import { AcademicCalendarModal } from './AcademicCalendarModal';
 import { StudentStatusesModal } from './StudentStatusesModal';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
@@ -54,8 +55,8 @@ const isAdminTab = (v: string | null): v is AdminTab => !!v && (ADMIN_TABS as st
 // instead, via this same "URL is the source of truth" pattern as `tab`
 // above, so they open correctly from any admin page, not just when this
 // one happens to already be mounted.
-type AdminModal = 'maintenance' | 'academicCalendar' | 'studentStatuses' | 'bulkImport';
-const ADMIN_MODALS: AdminModal[] = ['maintenance', 'academicCalendar', 'studentStatuses', 'bulkImport'];
+type AdminModal = 'maintenance' | 'academicCalendar' | 'studentStatuses' | 'bulkImport' | 'enforce2fa';
+const ADMIN_MODALS: AdminModal[] = ['maintenance', 'academicCalendar', 'studentStatuses', 'bulkImport', 'enforce2fa'];
 const isAdminModal = (v: string | null): v is AdminModal => !!v && (ADMIN_MODALS as string[]).includes(v);
 
 function AdminPanelContent() {
@@ -388,6 +389,7 @@ function AdminPanelContent() {
         />
       )}
       {activeModal === 'maintenance' && <MaintenanceModal onClose={closeModal} />}
+      {activeModal === 'enforce2fa' && <Enforce2FAModal onClose={closeModal} />}
       {activeModal === 'academicCalendar' && <AcademicCalendarModal onClose={closeModal} />}
       {activeModal === 'studentStatuses' && (
         <StudentStatusesModal

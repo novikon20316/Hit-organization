@@ -157,6 +157,16 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
     window.location.href = `/maintenance?${params.toString()}`;
   }
 
+  // 2FA-enforcement deadline passed (services/twoFactorEnforcement.ts) and
+  // this account still hasn't set it up — bounce to the same QR-setup screen
+  // the optional nudge already points at (see DashboardShell.tsx), same
+  // mid-session-flip reasoning as the maintenance redirect above. The setup
+  // screen's own calls (2fa/setup, 2fa/verify) are server-side allowlisted,
+  // so they never trigger this and there's no redirect loop.
+  if (res.status === 403 && data && typeof data === 'object' && (data as { error?: string }).error === 'TWO_FACTOR_REQUIRED' && typeof window !== 'undefined') {
+    window.location.href = '/setup-2fa';
+  }
+
   if (!res.ok) {
     const message =
       (data && typeof data === 'object' && ('error' in data || 'message' in data) &&
@@ -540,6 +550,41 @@ export const apiClient = {
 
   async disableUser2FA(userId: string) {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${userId}/disable-2fa`, { method: 'POST' });
+  },
+
+  /** GET /api/admin/system/2fa-enforcement-status — current state of the
+   *  "enforce 2FA for everyone" policy (see Enforce2FAModal). */
+  async getTwoFactorEnforcementStatus() {
+    return request<{ active: boolean; announcedAt: string | null; deadline: string | null; createdBy: string | null }>(
+      '/api/admin/system/2fa-enforcement-status',
+      { method: 'GET' },
+    );
+  },
+
+  /** POST /api/admin/system/enforce-2fa — announces the deadline and
+   *  bulk-notifies every user (in-app + email, bilingual instructions).
+   *  graceDays defaults server-side to 7. */
+  async activateTwoFactorEnforcement(graceDays?: number) {
+    return request<{ success: boolean; deadline: string; notified: number; failed: number }>(
+      '/api/admin/system/enforce-2fa',
+      { method: 'POST', body: graceDays ? { graceDays } : {} },
+    );
+  },
+
+  /** DELETE /api/admin/system/enforce-2fa — cancels the policy outright;
+   *  nobody gets hard-blocked regardless of their individual deadline. */
+  async deactivateTwoFactorEnforcement() {
+    return request<{ success: boolean }>('/api/admin/system/enforce-2fa', { method: 'DELETE' });
+  },
+
+  /** POST /api/admin/users/:id/extend-2fa-grace — grants (days>0) or revokes
+   *  (days<=0) one user's personal exemption from the global deadline, so a
+   *  straggler isn't hard-blocked while they sort out their authenticator. */
+  async extendUserTwoFactorGrace(userId: string, days: number) {
+    return request<{ success: boolean; graceUntil: string | null }>(
+      `/api/admin/users/${userId}/extend-2fa-grace`,
+      { method: 'POST', body: { days } },
+    );
   },
 
   async eraseUserBySystemAdmin(userId: string) {

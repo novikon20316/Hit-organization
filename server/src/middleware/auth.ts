@@ -6,6 +6,7 @@ import { Request, Response, NextFunction } from 'express';
 import { auth, db } from '../config/firebase.js';
 import type { ScopeRule, CoordinatorScope } from '../config/permissionScopes.js';
 import { resolvePlatform, readMaintenanceStatus } from '../services/maintenanceStatus.js';
+import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
 
 // Routes an account with a forced temp-password change must still be able to
 // reach — everything else 403s until they change it. This is the real gate:
@@ -42,6 +43,22 @@ const MAINTENANCE_ALLOWED_PATHS = new Set([
   '/api/system/maintenance-status',
 ]);
 const MAINTENANCE_BYPASS_ROLES = new Set(['system_admin']);
+
+// Same allowlist reasoning as PASSWORD_CHANGE_ALLOWED_PATHS above, plus the
+// 2FA setup/verify/recovery endpoints themselves — a user hard-blocked by
+// the 2FA-enforcement deadline (see services/twoFactorEnforcement.ts) must
+// still be able to reach the QR-setup flow that gets them unblocked, or
+// discover the block/sign out in the first place. Deliberately has NO role
+// exemption (unlike maintenance) — the setup flow itself is how any role,
+// including system_admin, catches up.
+const TWO_FACTOR_ALLOWED_PATHS = new Set([
+  ...PASSWORD_CHANGE_ALLOWED_PATHS,
+  '/api/auth/2fa/setup',
+  '/api/auth/2fa/verify',
+  '/api/auth/2fa/validate',
+  '/api/auth/2fa/recovery/request',
+  '/api/auth/2fa/recovery/verify',
+]);
 
 // Firestore's gRPC client throws this (code 8) when a project's read/write
 // quota is exhausted — a project-wide outage, not anything wrong with the
@@ -148,6 +165,16 @@ export const verifyToken = async (
 
     if (userData?.mustChangePassword && !PASSWORD_CHANGE_ALLOWED_PATHS.has(requestPath)) {
       return res.status(403).json({ error: 'PASSWORD_CHANGE_REQUIRED' });
+    }
+
+    if (!TWO_FACTOR_ALLOWED_PATHS.has(requestPath)) {
+      const twoFactorRequired = await isTwoFactorSetupRequired(
+        userData?.totp_enabled ?? false,
+        userData?.twoFactorGraceUntil ?? null,
+      );
+      if (twoFactorRequired) {
+        return res.status(403).json({ error: 'TWO_FACTOR_REQUIRED' });
+      }
     }
 
     req.user = {

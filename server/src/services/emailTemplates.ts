@@ -54,6 +54,7 @@ export type NotificationType =
   | 'login_security_alert'
   | 'temp_password_issued'
   | 'suspicious_login_admin_alert'
+  | 'two_factor_enforcement_notice'
   | 'general';
 
 interface EmailTemplate {
@@ -467,6 +468,36 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
         ${d.location ? `<li>Approximate location: ${d.location}</li>` : ''}
       </ul>
       <p>The account remains disabled pending manual review. Open the admin panel for further detail and to restore access if needed.</p>
+    `,
+  },
+
+  two_factor_enforcement_notice: {
+    subjectHe: '🔐 אימות דו-שלבי יהפוך לחובה בעוד 7 ימים',
+    subjectEn: '🔐 Two-Factor Authentication Becomes Mandatory in 7 Days',
+    bilingual: true,
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p><strong>החל מתאריך ${d.deadlineDate || ''}, המערכת תחייב אימות דו-שלבי (2FA) עבור כל המשתמשים.</strong></p>
+      <p>מומלץ להגדיר זאת כבר עכשיו, לפני שהדבר יהפוך לחובה, כדי להימנע מהפרעה בגישה לחשבונך.</p>
+      <p><strong>איך להפעיל אימות דו-שלבי:</strong></p>
+      <ol>
+        <li>היכנסו למערכת ופתחו את מסך "אימות דו-שלבי" (<a href="${WEBSITE_URL}/setup-2fa">לחצו כאן</a>).</li>
+        <li>סרקו את קוד ה-QR המוצג באמצעות אפליקציית Google Authenticator (או כל אפליקציית אימות תואמת אחרת).</li>
+        <li>הזינו את הקוד בן 6 הספרות המופיע באפליקציה כדי לאשר.</li>
+      </ol>
+      <p>זהו — בכניסות הבאות תתבקשו להזין קוד מהאפליקציה לצד הסיסמה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p><strong>Starting ${d.deadlineDate || ''}, the system will require two-factor authentication (2FA) for every user.</strong></p>
+      <p>We recommend setting it up now, before it becomes mandatory, to avoid any interruption accessing your account.</p>
+      <p><strong>How to enable two-factor authentication:</strong></p>
+      <ol>
+        <li>Log in and open the "Two-Factor Authentication" screen (<a href="${WEBSITE_URL}/setup-2fa">click here</a>).</li>
+        <li>Scan the QR code shown using the Google Authenticator app (or any compatible authenticator app).</li>
+        <li>Enter the 6-digit code shown in the app to confirm.</li>
+      </ol>
+      <p>That's it — on future logins you'll be asked for a code from the app alongside your password.</p>
     `,
   },
 

@@ -13,6 +13,7 @@ import { hashPassword, getTempPasswordHash, clearTempPasswordHash } from '../ser
 import { logAuditEvent } from '../services/auditLog.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { uploadStudentPhoto, resolveStudentPhotoUrl } from '../services/studentPhoto.js';
+import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
 import multer from 'multer';
 
 const ALLOWED_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg']);
@@ -59,7 +60,9 @@ export const getFullFirestore = async (req: AuthenticatedRequest, res: Response)
     const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
 
-    return res.status(200).json(withRecomputedEligibility(userDoc.data()!));
+    const data = userDoc.data()!;
+    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorGraceUntil ?? null);
+    return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /me error:', error);
     return res.status(500).json({ error: error.message });
@@ -76,7 +79,9 @@ export const getUserProfile = async (req: AuthenticatedRequest, res: Response) =
     const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
 
-    return res.status(200).json(withRecomputedEligibility(userDoc.data()!));
+    const data = userDoc.data()!;
+    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorGraceUntil ?? null);
+    return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /profile error:', error);
     return res.status(500).json({ error: error.message });

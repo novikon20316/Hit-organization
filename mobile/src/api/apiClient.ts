@@ -114,6 +114,19 @@ class ApiClient {
             console.error('Failed to redirect to /maintenance:', navError);
           }
         }
+
+        // 2FA-enforcement deadline passed (server/src/services/
+        // twoFactorEnforcement.ts) and this account still hasn't set it up —
+        // bounce to the same forced QR-setup screen app/_layout.tsx's own
+        // re-check effect uses. /(auth)/setup2fa's own calls (2fa/setup,
+        // 2fa/verify) are server-side allowlisted, so this never loops.
+        if (error.response?.status === 403 && error.response?.data?.error === 'TWO_FACTOR_REQUIRED') {
+          try {
+            router.replace('/(auth)/setup2fa' as any);
+          } catch (navError) {
+            console.error('Failed to redirect to /setup2fa:', navError);
+          }
+        }
         // Real HTTP errors (4xx / 5xx / network timeout) — let them propagate
         // so the app can handle auth failures, redirects, etc. as before.
         return Promise.reject(error);

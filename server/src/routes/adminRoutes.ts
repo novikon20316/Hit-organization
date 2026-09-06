@@ -56,6 +56,12 @@ import {
 } from '../controllers/studentStatusController.js';
 import { overrideStudentTrack } from '../controllers/studentTrackController.js';
 import { listStudentsForScope } from '../controllers/studentsListController.js';
+import {
+  getTwoFactorEnforcementStatusAdmin,
+  activateTwoFactorEnforcementHandler,
+  deactivateTwoFactorEnforcementHandler,
+  extendUserTwoFactorGrace,
+} from '../controllers/twoFactorEnforcementController.js';
 
 const router = Router();
 
@@ -82,6 +88,7 @@ router.get('/student-roster', verifyToken, listStudentRosterAdmin);
 router.get('/staff', verifyToken, listManagedStaff);
 router.get('/students-list', verifyToken, listStudentsForScope);
 router.get('/login-security/locked', verifyToken, getLockedUsers);
+router.get('/system/2fa-enforcement-status', verifyToken, getTwoFactorEnforcementStatusAdmin);
 
 // POST routes
 router.post('/projects', verifyToken, createAdminProject);
@@ -107,6 +114,8 @@ router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);
 // system_admin (any student) or faculty_admin (own faculty only) — gated
 // inside the controller, not here, matching createAdminProject's pattern.
 router.post('/users/:id/status', verifyToken, setStudentStatus);
+router.post('/system/enforce-2fa', verifyToken, activateTwoFactorEnforcementHandler);
+router.post('/users/:id/extend-2fa-grace', verifyToken, extendUserTwoFactorGrace);
 
 // PUT routes
 router.put('/academic-calendar', verifyToken, updateAcademicCalendarConfig);
@@ -127,4 +136,5 @@ router.delete('/info-files/:id', verifyToken, deleteInfoFile);
 router.delete('/faculty-content/:id', verifyToken, deleteFacultyContent);
 router.delete('/projects/:id', verifyToken, deleteAdminProject);
 router.delete('/student-roster/:docId', verifyToken, deleteStudentRosterAdmin);
+router.delete('/system/enforce-2fa', verifyToken, deactivateTwoFactorEnforcementHandler);
 export default router;

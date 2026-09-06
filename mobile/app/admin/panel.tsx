@@ -38,7 +38,7 @@ import {
 import { adminPanelStyles } from '../../constants/styles';
 import { ap } from '../../constants/theme';
 import {ROLE_LABELS} from '../../constants';
-import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal} from '@/components/modals';
+import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal, Enforce2FAModal} from '@/components/modals';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
@@ -186,6 +186,7 @@ export default function PanelScreen() {
   const [newUserAssignedMajors, setNewUserAssignedMajors] = useState<string[]>([]);
 // -----------------------------------------------------------------------------
   const [maintenanceModal, setMaintenanceModal] = useState(false);
+  const [enforce2FAModal, setEnforce2FAModal] = useState(false);
   const [studentStatusesModal, setStudentStatusesModal] = useState(false);
   // Resolved once per screen load (not per user row) — used to render each
   // student row's status badge and to know which keys are currently valid.
@@ -1192,6 +1193,11 @@ export default function PanelScreen() {
         onMaintenance={() => { setMaintenanceModal(true); fetchMaintenanceStatus(); }}
         extraMenuItems={[
           {
+            key: 'enforce-2fa', icon: '🔐',
+            label: lang === 'he' ? 'אכיפת אימות דו-שלבי (2FA)' : 'Enforce 2FA',
+            onPress: () => setEnforce2FAModal(true),
+          },
+          {
             key: 'manage-files', icon: '📎',
             label: lang === 'he' ? 'ניהול מסמכים לסטודנטים' : 'Manage Student Info Files',
             onPress: () => router.push('/Info-files' as any),
@@ -1527,6 +1533,46 @@ export default function PanelScreen() {
                           : (lang === 'he' ? '🔓 2FA כבוי' : '🔓 2FA Off')}
                       </Text>
                     </View>
+
+                    {/* Personal grace-period exemption badge (see
+                        server/src/services/twoFactorEnforcement.ts) — raw
+                        Firestore Timestamp shape ({_seconds}) since this
+                        comes straight off the dashboard-summary user doc. */}
+                    {(() => {
+                      const graceUntilMs = (u as any).twoFactorGraceUntil?._seconds ? (u as any).twoFactorGraceUntil._seconds * 1000 : null;
+                      if (!graceUntilMs || graceUntilMs <= Date.now()) return null;
+                      const daysLeft = Math.ceil((graceUntilMs - Date.now()) / (24 * 60 * 60 * 1000));
+                      return (
+                        <View style={[styles.roleBadge, { backgroundColor: '#FEF3C7' }]}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }}>
+                            ⏳ {lang === 'he' ? `הארכת חסד: עוד ${daysLeft} ימים` : `Grace: ${daysLeft}d left`}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+
+                    {/* Grant a 7-day 2FA grace period — lets a straggler keep
+                        using the app past the global enforcement deadline
+                        (see twoFactorEnforcementController.ts) while they
+                        sort out their authenticator app. */}
+                    {!(u as any).totp_enabled && (
+                      <Pressable
+                        style={[styles.editBtn, { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }]}
+                        accessibilityRole="button"
+                        onPress={async () => {
+                          try {
+                            await apiClient.post(`/api/admin/users/${u.id}/extend-2fa-grace`, { days: 7 });
+                            fetchAllDashboardData();
+                          } catch {
+                            Alert.alert('Error', lang === 'he' ? 'הענקת ימי החסד נכשלה' : 'Failed to grant grace period');
+                          }
+                        }}
+                      >
+                        <Text style={[styles.editBtnText, { color: '#B45309' }]}>
+                          ⏳ {lang === 'he' ? 'הענק 7 ימי חסד' : 'Grant 7-day grace'}
+                        </Text>
+                      </Pressable>
+                    )}
 
                     {/* Disable 2FA button — only shown when enabled */}
                     {(u as any).totp_enabled && (
@@ -2337,6 +2383,12 @@ export default function PanelScreen() {
             .then((res) => setStudentStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] }))
             .catch((err) => console.error('Failed to refresh student status options:', err));
         }}
+        lang={lang}
+      />
+
+      <Enforce2FAModal
+        visible={enforce2FAModal}
+        onClose={() => setEnforce2FAModal(false)}
         lang={lang}
       />
 

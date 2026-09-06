@@ -152,6 +152,7 @@ function RootLayoutInner() {
     trackLocked?: boolean;
     thesisEligibility?: { eligible?: boolean } | null;
     hasActiveProject?: boolean;
+    twoFactorSetupRequired?: boolean;
   } | null>(null);
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
@@ -308,6 +309,20 @@ function RootLayoutInner() {
           return;
         }
 
+        // ── Mandatory 2FA setup (enforcement deadline passed) ────────────────
+        // Server-computed (services/twoFactorEnforcement.ts, via GET
+        // /api/users/me's twoFactorSetupRequired field) so the client never
+        // has to independently fetch/compare the global deadline — it can
+        // only be true when totpEnabled is false, so this never fights the
+        // totpEnabled branch above. Unconditional (not gated by
+        // authRoutes.has(latestPathname)) like the password-change/track
+        // gates, since this is a security requirement, not a UX nicety.
+        if (userData.twoFactorSetupRequired && !alreadyOnSetup) {
+          redirect('/(auth)/setup2fa' as any);
+          setLoading(false);
+          return;
+        }
+
         // ── Mandatory thesis-vs-project decision ─────────────────────────────
         // A computer_science masters student whose grade average qualified
         // them for the thesis track (see server's config/studentTrack.ts,
@@ -395,6 +410,22 @@ function RootLayoutInner() {
     const onChangePasswordScreen = pathname === '/changePassword' || pathname === '/(auth)/changePassword';
     if (!onChangePasswordScreen) {
       router.replace('/(auth)/changePassword' as any);
+    }
+  }, [pathname, router]);
+
+  // ── Re-check the mandatory 2FA setup gate on every navigation ──────────────
+  // Same belt-and-suspenders reasoning as the password-change re-check above
+  // — stops in-app navigation (or the Android hardware back button) from
+  // escaping /setup2fa once the enforcement deadline has passed for this
+  // user. The server independently rejects every other API call in this
+  // state too (see server/src/middleware/auth.ts) — this just stops the
+  // screen itself from rendering.
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    if (!lastUserDataRef.current?.twoFactorSetupRequired) return;
+    const onSetupScreen = pathname === '/setup2fa' || pathname === '/(auth)/setup2fa';
+    if (!onSetupScreen) {
+      router.replace('/(auth)/setup2fa' as any);
     }
   }, [pathname, router]);
 

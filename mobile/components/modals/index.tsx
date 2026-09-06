@@ -13,6 +13,7 @@ import StudentStatusesModal from './StudentStatusesModal';
 import StaffRecordModal from './StaffRecordModal';
 import SupervisorEvaluationModal from './SupervisorEvaluationModal';
 import FinalGradeDecisionModal from './FinalGradeDecisionModal';
+import Enforce2FAModal from './Enforce2FAModal';
 
 export {
     NewUserModal,
@@ -30,4 +31,5 @@ export {
     StaffRecordModal,
     SupervisorEvaluationModal,
     FinalGradeDecisionModal,
+    Enforce2FAModal,
 }

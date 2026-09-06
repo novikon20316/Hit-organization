@@ -61,6 +61,11 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
   const [resetTempPassword, setResetTempPassword] = useState<string | null>(null);
   const [copiedResetPassword, setCopiedResetPassword] = useState(false);
   const [impersonating, setImpersonating] = useState(false);
+  const [grantingGrace, setGrantingGrace] = useState(false);
+
+  const graceUntilMs = user.twoFactorGraceUntil?._seconds ? user.twoFactorGraceUntil._seconds * 1000 : null;
+  const graceActive = !!graceUntilMs && graceUntilMs > Date.now();
+  const graceDaysLeft = graceActive ? Math.ceil((graceUntilMs! - Date.now()) / (24 * 60 * 60 * 1000)) : null;
 
   const handleToggleActive = async () => {
     setTogglingActive(true);
@@ -85,6 +90,19 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
       setRowError(err instanceof Error ? err.message : 'Failed to disable 2FA');
     } finally {
       setDisabling2fa(false);
+    }
+  };
+
+  const handleGrantGrace = async () => {
+    setGrantingGrace(true);
+    setRowError('');
+    try {
+      await apiClient.extendUserTwoFactorGrace(user.id, 7);
+      onChanged();
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : 'Failed to grant grace period');
+    } finally {
+      setGrantingGrace(false);
     }
   };
 
@@ -208,6 +226,11 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
         >
           {user.totp_enabled ? (lang === 'he' ? '🔐 2FA פעיל' : '🔐 2FA On') : lang === 'he' ? '🔓 2FA כבוי' : '🔓 2FA Off'}
         </span>
+        {graceActive && (
+          <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: 'var(--warning-bg, #FEF3C7)', color: 'var(--warning, #92400E)' }}>
+            ⏳ {lang === 'he' ? `הארכת חסד: עוד ${graceDaysLeft} ימים` : `Grace: ${graceDaysLeft}d left`}
+          </span>
+        )}
 
         <div className="ms-auto flex gap-1.5">
           {canImpersonate && (
@@ -227,6 +250,17 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
               className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-accent hover:text-accent"
             >
               🔓 {lang === 'he' ? 'בטל 2FA' : 'Disable 2FA'}
+            </button>
+          )}
+          {!user.totp_enabled && (
+            <button
+              type="button"
+              onClick={handleGrantGrace}
+              disabled={grantingGrace}
+              title={lang === 'he' ? 'מעניק 7 ימים נוספים לפני שהמשתמש ייחסם עקב אכיפת 2FA' : 'Grants 7 more days before this user is blocked by 2FA enforcement'}
+              className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-accent hover:text-accent disabled:opacity-60"
+            >
+              ⏳ {grantingGrace ? '…' : lang === 'he' ? 'הענק 7 ימי חסד' : 'Grant 7-day grace'}
             </button>
           )}
           <button
