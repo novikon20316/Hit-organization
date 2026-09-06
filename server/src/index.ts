@@ -42,7 +42,7 @@ import committeesRoutes from './routes/committees.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
-import { getFacultyContent } from './controllers/facultyContentController.js';
+import { getFacultyContent, dismissFacultyContent } from './controllers/facultyContentController.js';
 import { getStudentStatusOptions } from './controllers/studentStatusController.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
@@ -122,6 +122,10 @@ app.get('/api/info-files', verifyToken, getInfoFiles);
 // Same reasoning — free-text faculty procedures/announcements (requirements
 // doc section 15), companion to info-files' file attachments.
 app.get('/api/faculty-content', verifyToken, getFacultyContent);
+// Any authenticated user can dismiss a piece of faculty content from their
+// own dashboard banner — ownership is enforced inside the handler (it only
+// ever adds the caller's own uid), not by role.
+app.post('/api/faculty-content/:id/dismiss', verifyToken, dismissFacultyContent);
 // Same reasoning as info-files above — any authenticated user needs to be
 // able to resolve a status key to a label wherever it's displayed, not just
 // whoever can edit the option lists (that's /api/admin/student-statuses).

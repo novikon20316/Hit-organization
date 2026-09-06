@@ -1096,6 +1096,11 @@ export const apiClient = {
     return request<{ success: boolean; message: string }>(`/api/admin/faculty-content/${id}`, { method: 'DELETE' });
   },
 
+  /** Hides one announcement from the caller's own dashboard banner going forward. */
+  async dismissFacultyContent(id: string) {
+    return request<{ success: boolean }>(`/api/faculty-content/${id}/dismiss`, { method: 'POST' });
+  },
+
   /** system_admin or administrative coordinator only (checked server-side). */
   async searchStudents(q: string) {
     return request<{

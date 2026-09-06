@@ -88,6 +88,11 @@ export default function ActiveDashboard({
     return () => { cancelled = true; };
   }, []);
 
+  const dismissAnnouncement = (id: string) => {
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+    apiClient.post(`/api/faculty-content/${id}/dismiss`).catch(() => {});
+  };
+
   // Only masters students writing an actual thesis (not a masters project) see
   // the thesis template download — driven off the project doc's own
   // degreeType/projectType rather than a separately-threaded student profile
@@ -280,7 +285,15 @@ export default function ActiveDashboard({
                 backgroundColor: '#FFFBEB', borderRadius: 16, padding: 16,
                 borderWidth: 1, borderColor: '#FDE68A', marginBottom: 12,
               }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: '#92400E', marginBottom: 4, textAlign: isRtl ? 'right' : 'left' }}>
+                <Pressable
+                  onPress={() => dismissAnnouncement(a.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={lang === 'he' ? 'סגור הודעה' : 'Dismiss announcement'}
+                  style={{ position: 'absolute', top: 10, [isRtl ? 'left' : 'right']: 10, padding: 4 }}
+                >
+                  <Text style={{ fontSize: 14, color: '#92400E' }}>✕</Text>
+                </Pressable>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#92400E', marginBottom: 4, paddingEnd: 20, textAlign: isRtl ? 'right' : 'left' }}>
                   📣 {lang === 'he' ? (a.titleHe || a.titleEn) : (a.titleEn || a.titleHe)}
                 </Text>
                 <Text style={{ fontSize: 13, color: '#78350F', lineHeight: 19, textAlign: isRtl ? 'right' : 'left' }}>

@@ -119,10 +119,12 @@ export const getFacultyContent = async (req: AuthenticatedRequest, res: Response
     if (req.user && hasAnyRole(req.user, ['student'])) {
       const studentSnap = await db.collection('users').doc(req.user.uid).get();
       const student = studentSnap.data() ?? {};
+      const dismissedByUid = new Map(snap.docs.map((d) => [d.id, (d.data().dismissedBy ?? []) as string[]]));
       items = items.filter((f) =>
         (f.facultyIds.length === 0  || f.facultyIds.includes(req.user!.facultyId)) &&
         (f.majors.length === 0      || f.majors.includes(student.major)) &&
-        (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType))
+        (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType)) &&
+        !(dismissedByUid.get(f.id) ?? []).includes(req.user!.uid)
       );
     }
 
@@ -130,6 +132,31 @@ export const getFacultyContent = async (req: AuthenticatedRequest, res: Response
   } catch (error: any) {
     console.error('getFacultyContent error:', error);
     return res.status(500).json({ message: 'Failed to load faculty content.' });
+  }
+};
+
+// ─── POST /api/faculty-content/:id/dismiss ───────────────────────────────────
+// Lets a student permanently hide one running announcement from their own
+// dashboard banner without affecting anyone else — the banner has no other
+// concept of "read", so once posted an announcement would otherwise sit
+// there forever. Procedures aren't dismissible from the client, but nothing
+// stops the same mechanism from applying to them too.
+export const dismissFacultyContent = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { id } = req.params;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid content id.' });
+
+  try {
+    const ref = db.collection('facultyContent').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Content not found.' });
+
+    await ref.update({ dismissedBy: admin.firestore.FieldValue.arrayUnion(uid) });
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('dismissFacultyContent error:', error);
+    return res.status(500).json({ message: 'Failed to dismiss content.' });
   }
 };
 

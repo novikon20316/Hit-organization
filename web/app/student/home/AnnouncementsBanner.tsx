@@ -35,13 +35,26 @@ export function AnnouncementsBanner() {
     };
   }, []);
 
+  const dismiss = (id: string) => {
+    setItems((prev) => prev.filter((a) => a.id !== id));
+    apiClient.dismissFacultyContent(id).catch(() => {});
+  };
+
   if (items.length === 0) return null;
 
   return (
     <div className="grid gap-2">
       {items.map((a) => (
-        <div key={a.id} className="rounded-[var(--radius)] border border-accent bg-[#FBF3E3] p-4">
-          <p className="text-sm font-semibold text-ink">📣 {lang === 'he' ? a.titleHe || a.titleEn : a.titleEn || a.titleHe}</p>
+        <div key={a.id} className="relative rounded-[var(--radius)] border border-accent bg-[#FBF3E3] p-4">
+          <button
+            type="button"
+            onClick={() => dismiss(a.id)}
+            aria-label={lang === 'he' ? 'סגור הודעה' : 'Dismiss announcement'}
+            className="absolute end-3 top-3 text-muted hover:text-ink"
+          >
+            ✕
+          </button>
+          <p className="pe-6 text-sm font-semibold text-ink">📣 {lang === 'he' ? a.titleHe || a.titleEn : a.titleEn || a.titleHe}</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{lang === 'he' ? a.bodyHe || a.bodyEn : a.bodyEn || a.bodyHe}</p>
         </div>
       ))}
