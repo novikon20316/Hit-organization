@@ -108,7 +108,11 @@ export function AdminCoordinatorReportsFlow() {
     setExporting(true);
     setError('');
     try {
-      await downloadReportExport(selectedReportType, { projectId: selectedProject.id });
+      // Matches whichever language she's currently viewing the page in —
+      // the exported file's headers/values follow suit (see
+      // reportsController.ts's flattenForExport; every other role's export
+      // stays English-only, unaffected by this ?lang= param).
+      await downloadReportExport(selectedReportType, { projectId: selectedProject.id, lang });
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'הייצוא נכשל' : 'Export failed');
     } finally {

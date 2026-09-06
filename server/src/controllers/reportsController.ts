@@ -200,7 +200,12 @@ export const exportReport = async (req: AuthenticatedRequest, res: Response) => 
   try {
     const filters = parseFilters(req, scope.facultyId);
     const data = await runReport(reportType as ReportType, filters);
-    const rows = flattenForExport(reportType as ReportType, data);
+    // Excel export defaults to English (the original behavior for every
+    // role); the administrative coordinator's project-first flow
+    // (AdminCoordinatorReportsFlow.tsx) sends ?lang=he alongside its Hebrew
+    // on-page preview so the downloaded file matches what she already sees.
+    const lang: 'he' | 'en' = req.query.lang === 'he' ? 'he' : 'en';
+    const rows = flattenForExport(reportType as ReportType, data, lang);
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
     if (rows.length > 0) {
@@ -208,6 +213,7 @@ export const exportReport = async (req: AuthenticatedRequest, res: Response) => 
       worksheet['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 2, 14) }));
     }
     const workbook = XLSX.utils.book_new();
+    if (lang === 'he') workbook.Workbook = { Views: [{ RTL: true }] };
     XLSX.utils.book_append_sheet(workbook, worksheet, reportType.slice(0, 31));
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 
@@ -220,56 +226,129 @@ export const exportReport = async (req: AuthenticatedRequest, res: Response) => 
   }
 };
 
-/** Per-report-type flattening — each report's shape differs, Excel needs flat rows. */
-function flattenForExport(type: ReportType, data: any): Record<string, any>[] {
+// Hebrew labels for the handful of raw enum-ish values these reports carry
+// (degreeType/projectType/projectStatus/examinerType/opinionStatus/
+// exceptionLevel) — mirrors the label maps already defined client-side in
+// web/app/reports/page.tsx (DEGREE_TYPE_LABEL etc.), duplicated here since
+// the server can't import from web/. Falls back to the raw value for
+// anything unmapped rather than dropping it.
+const HE_LABELS: Record<string, string> = {
+  bachelors: 'תואר ראשון', masters: 'תואר שני',
+  project: 'פרויקט', thesis: 'תזה',
+  active: 'פעיל', in_progress: 'בתהליך', completed: 'הושלם', withdrawn: 'פרש/ה', admin_closed: 'נסגר מנהלתית',
+  internal: 'פנימי', external: 'חיצוני',
+  pending: 'ממתין', accepted: 'התקבל', declined: 'נדחה', submitted: 'הוגש',
+  none: 'ללא', warning: 'אזהרה', overdue: 'חריגה',
+  advisor: 'מנחה', examiner: 'בוחן',
+};
+const he = (v: unknown): unknown => (typeof v === 'string' ? HE_LABELS[v] ?? v : v);
+
+/** Per-report-type flattening — each report's shape differs, Excel needs flat
+ *  rows. `lang` picks which language's column headers AND values to use;
+ *  'en' (the default, everyone else's export) keeps the original English-only
+ *  behavior byte-for-byte. */
+function flattenForExport(type: ReportType, data: any, lang: 'he' | 'en' = 'en'): Record<string, any>[] {
+  if (lang === 'en') {
+    switch (type) {
+      case 'full-status':
+      case 'no-advisor':
+      case 'proposal-delay':
+        return (data as any[]).map((r) => ({
+          Student: r.studentName, Faculty: r.facultyNameEn, Degree: r.degreeType, Track: r.projectType,
+          Major: r.major, Year: r.yearOfStudy, Advisor: r.advisorName, SecondaryAdvisor: r.secondaryAdvisorName ?? '',
+          Topic: r.projectTitleEn || r.projectTitleHe, Status: r.projectStatus,
+          CurrentMilestone: r.currentMilestoneNameEn || r.currentMilestoneType, DaysInStage: r.daysInStage,
+          Overdue: r.isOverdue ? 'Yes' : 'No', StartYear: r.startYear ?? '',
+        }));
+      case 'examiner-tracking':
+        return (data as any[]).map((r) => ({
+          Examiner: r.examinerName, Type: r.examinerType, Student: r.studentName, Project: r.projectTitle,
+          InvitedAt: r.invitedAt ?? '', AcceptedAt: r.acceptedAt ?? '', SubmittedAt: r.submittedAt ?? '',
+          DaysElapsed: r.daysElapsed ?? '', Status: r.opinionStatus, Exception: r.exceptionLevel,
+        }));
+      case 'missing-closure':
+        return (data as any[]).map((r) => ({
+          Student: r.studentName, Faculty: r.facultyNameEn, Advisor: r.advisorName,
+          Topic: r.projectTitleEn || r.projectTitleHe, Missing: (r.missing as string[]).join(', '),
+        }));
+      case 'stuck-students': {
+        const d = data as { threshold: number; byMilestone: any[]; students: any[] };
+        return d.students.map((r) => ({
+          Student: r.studentName, Faculty: r.facultyNameEn, CurrentMilestone: r.currentMilestoneNameEn || r.currentMilestoneType,
+          DaysInStage: r.daysInStage, ThresholdDays: d.threshold,
+        }));
+      }
+      case 'statute-exceedance':
+        return (data as any[]).map((r) => ({
+          Student: r.studentName, Faculty: r.facultyNameEn, Degree: r.degreeType,
+          ProgramStart: r.programStartDate ?? '', ExpectedCompletion: r.expectedCompletionDate,
+          YearsOverdue: r.yearsOverdue, Advisor: r.advisorName,
+        }));
+      case 'load':
+        return (data as any[]).map((r) => ({
+          Name: r.personName, Role: r.role, Active: r.activeCount, Pending: r.pendingReviewCount,
+        }));
+      case 'repository':
+        return (data as any[]).map((r) => ({
+          TitleHe: r.projectTitleHe, TitleEn: r.projectTitleEn, Student: r.studentName, Advisor: r.advisorName,
+          Faculty: r.facultyNameEn, FinalGrade: r.finalGrade ?? '', CompletedAt: r.completedAt ?? '',
+        }));
+      case 'grade-export':
+        return (data as any[]).map((r) => ({
+          FullName: r.studentName, ID: r.studentIdNumber ?? '', ProjectTitle: r.projectTitleEn || r.projectTitleHe,
+          Supervisor: r.advisorName, Year: r.startYearHebrew ?? '', Status: r.projectStatus, Grade: r.finalGrade ?? '',
+        }));
+    }
+  }
+
   switch (type) {
     case 'full-status':
     case 'no-advisor':
     case 'proposal-delay':
       return (data as any[]).map((r) => ({
-        Student: r.studentName, Faculty: r.facultyNameEn, Degree: r.degreeType, Track: r.projectType,
-        Major: r.major, Year: r.yearOfStudy, Advisor: r.advisorName, SecondaryAdvisor: r.secondaryAdvisorName ?? '',
-        Topic: r.projectTitleEn || r.projectTitleHe, Status: r.projectStatus,
-        CurrentMilestone: r.currentMilestoneNameEn || r.currentMilestoneType, DaysInStage: r.daysInStage,
-        Overdue: r.isOverdue ? 'Yes' : 'No', StartYear: r.startYear ?? '',
+        'סטודנט': r.studentName, 'פקולטה': r.facultyNameHe, 'תואר': he(r.degreeType), 'מסלול': he(r.projectType),
+        'חוג': r.major, 'שנת לימודים': r.yearOfStudy, 'מנחה': r.advisorName, 'מנחה משנה': r.secondaryAdvisorName ?? '',
+        'נושא/פרויקט': r.projectTitleHe || r.projectTitleEn, 'סטטוס': he(r.projectStatus),
+        'אבן דרך נוכחית': r.currentMilestoneNameHe || r.currentMilestoneType, 'ימים בשלב': r.daysInStage,
+        'חריגה': r.isOverdue ? 'כן' : 'לא', 'שנת התחלה': r.startYear ?? '',
       }));
     case 'examiner-tracking':
       return (data as any[]).map((r) => ({
-        Examiner: r.examinerName, Type: r.examinerType, Student: r.studentName, Project: r.projectTitle,
-        InvitedAt: r.invitedAt ?? '', AcceptedAt: r.acceptedAt ?? '', SubmittedAt: r.submittedAt ?? '',
-        DaysElapsed: r.daysElapsed ?? '', Status: r.opinionStatus, Exception: r.exceptionLevel,
+        'בוחן': r.examinerName, 'סוג': he(r.examinerType), 'סטודנט': r.studentName, 'פרויקט/תזה': r.projectTitle,
+        'תאריך הזמנה': r.invitedAt ?? '', 'תאריך אישור': r.acceptedAt ?? '', 'תאריך הגשה': r.submittedAt ?? '',
+        'ימים שחלפו': r.daysElapsed ?? '', 'סטטוס חוו"ד': he(r.opinionStatus), 'רמת חריגה': he(r.exceptionLevel),
       }));
     case 'missing-closure':
       return (data as any[]).map((r) => ({
-        Student: r.studentName, Faculty: r.facultyNameEn, Advisor: r.advisorName,
-        Topic: r.projectTitleEn || r.projectTitleHe, Missing: (r.missing as string[]).join(', '),
+        'סטודנט': r.studentName, 'פקולטה': r.facultyNameHe, 'מנחה': r.advisorName,
+        'נושא/פרויקט': r.projectTitleHe || r.projectTitleEn, 'חסר': (r.missing as string[]).join(', '),
       }));
     case 'stuck-students': {
       const d = data as { threshold: number; byMilestone: any[]; students: any[] };
       return d.students.map((r) => ({
-        Student: r.studentName, Faculty: r.facultyNameEn, CurrentMilestone: r.currentMilestoneNameEn || r.currentMilestoneType,
-        DaysInStage: r.daysInStage, ThresholdDays: d.threshold,
+        'סטודנט': r.studentName, 'פקולטה': r.facultyNameHe, 'אבן דרך': r.currentMilestoneNameHe || r.currentMilestoneType,
+        'ימים בשלב': r.daysInStage, 'סף ימים': d.threshold,
       }));
     }
     case 'statute-exceedance':
       return (data as any[]).map((r) => ({
-        Student: r.studentName, Faculty: r.facultyNameEn, Degree: r.degreeType,
-        ProgramStart: r.programStartDate ?? '', ExpectedCompletion: r.expectedCompletionDate,
-        YearsOverdue: r.yearsOverdue, Advisor: r.advisorName,
+        'סטודנט': r.studentName, 'פקולטה': r.facultyNameHe, 'תואר': he(r.degreeType),
+        'תחילת לימודים': r.programStartDate ?? '', 'תאריך סיום צפוי': r.expectedCompletionDate,
+        'שנות חריגה': r.yearsOverdue, 'מנחה': r.advisorName,
       }));
     case 'load':
       return (data as any[]).map((r) => ({
-        Name: r.personName, Role: r.role, Active: r.activeCount, Pending: r.pendingReviewCount,
+        'שם': r.personName, 'תפקיד': he(r.role), 'פעילים': r.activeCount, 'ממתינים': r.pendingReviewCount,
       }));
     case 'repository':
       return (data as any[]).map((r) => ({
-        TitleHe: r.projectTitleHe, TitleEn: r.projectTitleEn, Student: r.studentName, Advisor: r.advisorName,
-        Faculty: r.facultyNameEn, FinalGrade: r.finalGrade ?? '', CompletedAt: r.completedAt ?? '',
+        'כותרת': r.projectTitleHe || r.projectTitleEn, 'סטודנט': r.studentName, 'מנחה': r.advisorName,
+        'פקולטה': r.facultyNameHe, 'ציון סופי': r.finalGrade ?? '', 'תאריך סיום': r.completedAt ?? '',
       }));
     case 'grade-export':
       return (data as any[]).map((r) => ({
-        FullName: r.studentName, ID: r.studentIdNumber ?? '', ProjectTitle: r.projectTitleEn || r.projectTitleHe,
-        Supervisor: r.advisorName, Year: r.startYearHebrew ?? '', Status: r.projectStatus, Grade: r.finalGrade ?? '',
+        'שם מלא': r.studentName, 'ת.ז.': r.studentIdNumber ?? '', 'שם פרויקט/תזה': r.projectTitleHe || r.projectTitleEn,
+        'שם המנחה': r.advisorName, 'שנה': r.startYearHebrew ?? '', 'סטטוס': he(r.projectStatus), 'ציון': r.finalGrade ?? '',
       }));
   }
 }
