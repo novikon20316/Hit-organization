@@ -1,10 +1,15 @@
+// app/(auth)/signup.tsx
+// Restyled to match web's app/(auth)/signup/page.tsx design (same paper/
+// surface/ink palette, role-rail card, labeled fields) — validation/
+// registration logic below is unchanged. The faculty/program/year/track
+// pickers stay as native grids and a modal (there's no equivalent to a
+// web <select> here), just re-skinned with the same tokens.
 import React, { useState, useRef } from 'react';
 import * as Notifications from 'expo-notifications'
-import axios from 'axios';
 import {
-  View, Text, Pressable, ScrollView,Modal,
+  View, Text, Pressable, ScrollView, Modal,
   ActivityIndicator, Alert, TextInput,
-  Keyboard, TextInputProps
+  Keyboard, StyleSheet,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import {
@@ -26,11 +31,27 @@ import {
 } from '@/constants/faculties';
 import type { DegreeLevel, Program } from '@/types';
 import { resolveTrackPolicy, type StudentTrack } from '@/constants/studentTrack';
-import { SignupStyles } from '../../constants/styles';
 
-type FloatingInputProps = TextInputProps & {
-  placeholder: string;
-  isRtl: boolean;
+// Same tokens as web's app/globals.css (--paper/--surface/--ink/--muted/
+// --line/--primary/--success*/--danger*/--accent) — kept local to this
+// screen since mobile's dashboards draw from a separate palette
+// (constants/theme.ts's `ap`/`palette`), and this signup screen exists
+// purely to visually match web's.
+const colors = {
+  paper: '#f7f6f2',
+  surface: '#ffffff',
+  ink: '#1c2333',
+  muted: '#6b7280',
+  line: '#e4e1d8',
+  primary: '#1e3a5f',
+  primaryTint: 'rgba(30,58,95,0.08)',
+  primaryInk: '#ffffff',
+  success: '#3f6b4c',
+  successBg: '#eaf1ec',
+  danger: '#a8433a',
+  dangerBg: '#f7e9e7',
+  accent: '#b8862e',
+  accentBg: 'rgba(184,134,46,0.12)',
 };
 
 // Creates the Firebase Auth account, or — if the email is already registered
@@ -74,59 +95,23 @@ function isAllowedStudentEmailDomain(value: string): boolean {
   return STUDENT_ALLOWED_EMAIL_DOMAINS.includes(domain);
 }
 
-const s = SignupStyles;
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      {children}
+    </View>
+  );
+}
 
-  const FloatingInput = ({ placeholder, isRtl, ...props }: FloatingInputProps) => {
-    const [isFocused, setIsFocused] = useState(false);
-    const showPlaceholder = !isFocused && !props.value;
-
-    return (
-      <View style={{ position: 'relative', marginBottom: 12 }}>
-        {showPlaceholder && (
-          <Text
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              top: 16,
-              left: !isRtl ? undefined : 16,
-              right: !isRtl ? 16 : undefined,
-              fontSize: 16,
-              color: '#9BA8C0',
-              zIndex: 1,
-            }}
-          >
-            {placeholder}
-          </Text>
-        )}
-        <TextInput
-          accessibilityLabel={placeholder}
-          {...props}
-          placeholder=""
-          onFocus={(e) => { setIsFocused(true); props.onFocus?.(e); }}
-          onBlur={(e)  => { setIsFocused(false); props.onBlur?.(e); }}
-          style={[s.input, { marginBottom: 0 }, isRtl && s.textRight, props.style]}
-        />
-      </View>
-    );
-  };
-
-// Red border override for FloatingInput/Pressable fields once a field is
-// flagged as missing/invalid after a failed save attempt.
-const missingFieldStyle = { borderColor: '#EF4444' };
-
-// Small red helper line shown under a field once `attemptedSubmit` is true
-// and that field is still empty/invalid — the same red used for the
-// email-domain and password-strength errors elsewhere on this form.
-const RequiredNote = ({ isRtl, children }: { isRtl: boolean; children: React.ReactNode }) => (
-  <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
-    {children}
-  </Text>
-);
+function ErrorNote({ isRtl, children }: { isRtl: boolean; children: React.ReactNode }) {
+  return <Text style={[styles.errorText, isRtl && styles.textRight]}>{children}</Text>;
+}
 
 export default function ProfileSetup() {
   const router = useRouter();
-  const passwordRef = useRef<TextInput>(null); // ← add with other state declarations
-  const [showPassword, setShowPassword] = useState(false); // ← add with other state declarations
+  const passwordRef = useRef<TextInput>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [lang,        setLang]        = useState<Lang>('he');
   const [displayName, setDisplayName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -135,8 +120,11 @@ export default function ProfileSetup() {
   const [studentId, setStudentId] = useState('');
   const [faculty, setFaculty] = useState<string | null>(null);
   const [showFacultyModal, setShowFacultyModal] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [phoneFocused, setPhoneFocused] = useState(false);
+  const [studentIdFocused, setStudentIdFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-  // const [studentId,   setStudentId]   = useState(''); // For future use
   // Which specific program ROW was picked (e.g. 'msc_cs') — used only to
   // drive the UI (highlighting, degree level, year count). The value actually
   // sent to the server is selectedProgram.slug, not this key — see handleSave.
@@ -166,9 +154,6 @@ export default function ProfileSetup() {
     const years = PROGRAM_DEGREE_LENGTHS[selectedProgram.slug] ?? PROGRAM_DEGREE_LENGTHS.default;
     return Array.from({ length: years }, (_, i) => i + 1);
   })();
-
-  // Validation: Ensure Name and Phone are filled along with academic details
- 
 
   // Writes the Firestore profile — only ever called once the account's email
   // is verified (either just now, or found already-verified on a resumed
@@ -366,8 +351,8 @@ export default function ProfileSetup() {
     displayName.trim().length > 1 &&
     isValidPhoneNumber(phoneNumber) &&
     isAllowedStudentEmailDomain(email) &&
-    isValidStudentId(studentId) &&      // ← added
-    passwordCheck.valid &&              // ← added
+    isValidStudentId(studentId) &&
+    passwordCheck.valid &&
     faculty &&
     programKey &&
     yearOfStudy &&
@@ -375,25 +360,25 @@ export default function ProfileSetup() {
 
   if (stage === 'verify') {
     return (
-      <SafeAreaView style={s.root}>
-        <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-          <View style={[s.langRow, isRtl && s.rowReverse]}>
+      <SafeAreaView style={styles.root}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={[styles.langRow, isRtl && styles.rowReverse]}>
             <Pressable
-              style={s.langBtn}
+              style={styles.langBtn}
               onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
               accessibilityRole="button"
               accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
             >
-              <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
+              <Text style={styles.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
             </Pressable>
           </View>
 
-          <View style={s.hero}>
-            <Text style={s.heroEmoji}>📧</Text>
-            <Text style={[s.heroTitle, s.textCenter]}>
+          <View style={styles.hero}>
+            <Text style={styles.heroEmoji}>📧</Text>
+            <Text style={styles.title}>
               {lang === 'he' ? 'אמת את כתובת האימייל שלך' : 'Verify your email'}
             </Text>
-            <Text style={[s.heroSub, s.textCenter]}>
+            <Text style={styles.subtitle}>
               {lang === 'he'
                 ? `שלחנו קישור אימות לכתובת ${email}. לחץ על הקישור ואז חזור לכאן.`
                 : `We sent a verification link to ${email}. Click the link, then come back here.`}
@@ -401,26 +386,26 @@ export default function ProfileSetup() {
           </View>
 
           <Pressable
-            style={[s.saveBtn, saving && { opacity: 0.5 }]}
+            style={[styles.saveBtn, saving && styles.buttonDisabled]}
             onPress={handleContinueAfterVerify}
             disabled={saving}
             accessibilityRole="button"
           >
             {saving
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={s.saveBtnText}>
+              ? <ActivityIndicator color={colors.primaryInk} />
+              : <Text style={styles.saveBtnText}>
                   {lang === 'he' ? "אימתתי — המשך" : "I've verified — Continue"}
                 </Text>
             }
           </Pressable>
 
           <Pressable
-            style={{ marginTop: 18, alignItems: 'center' }}
+            style={styles.resendLink}
             onPress={handleResendEmail}
             disabled={resending}
             accessibilityRole="button"
           >
-            <Text style={{ color: '#2E86FF', fontWeight: '700', fontSize: 14 }}>
+            <Text style={styles.resendLinkText}>
               {resending
                 ? (lang === 'he' ? 'שולח...' : 'Sending...')
                 : (lang === 'he' ? 'שלח שוב את מייל האימות' : 'Resend verification email')}
@@ -428,11 +413,11 @@ export default function ProfileSetup() {
           </Pressable>
 
           <Pressable
-            style={{ marginTop: 24, alignItems: 'center' }}
+            style={styles.backLink}
             onPress={() => setStage('form')}
             accessibilityRole="button"
           >
-            <Text style={{ color: '#8899BB', fontSize: 13 }}>
+            <Text style={styles.backLinkText}>
               {lang === 'he' ? '← חזור לטופס' : '← Back to form'}
             </Text>
           </Pressable>
@@ -442,390 +427,355 @@ export default function ProfileSetup() {
   }
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={styles.root}>
       <ScrollView
-        contentContainerStyle={s.content}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={Keyboard.dismiss}
       >
 
-        <View style={[s.langRow, isRtl && s.rowReverse]}>
+        <View style={[styles.langRow, isRtl && styles.rowReverse]}>
           <Pressable
-            style={s.langBtn}
+            style={styles.langBtn}
             onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
             accessibilityRole="button"
             accessibilityLabel={lang === 'he' ? 'החלף שפה לאנגלית' : 'Switch language to Hebrew'}
           >
-            <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
+            <Text style={styles.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
         </View>
 
-        <View style={s.hero}>
-          <Text style={s.heroEmoji}>🎓</Text>
-          <Text style={[s.heroTitle, isRtl && s.textCenter]}>
-            {lang === 'he' ? 'ברוך הבא!' : 'Welcome!'}
+        <View style={styles.headerBlock}>
+          <Text style={styles.title}>
+            {lang === 'he' ? 'הרשמת סטודנט' : 'Student Sign Up'}
           </Text>
-          <Text style={[s.heroSub, isRtl && s.textCenter]}>
+          <Text style={styles.subtitle}>
             {lang === 'he'
-              ? 'נשמח להכיר אותך טוב יותר כדי להתאים לך את הפרויקט המושלם.'
-              : "Let's get to know you better to find your perfect project."}
+              ? 'ליצירת חשבון יש להיות ברשימת הסטודנטים המאושרים של הפקולטה'
+              : "You'll need to be on your faculty's approved students list"}
           </Text>
         </View>
 
-        {/* --- Personal Info Section --- */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, isRtl && s.textRight]}>
-            {lang === 'he' ? 'פרטים אישיים' : 'Personal Details'}
-          </Text>
-          
-          <FloatingInput
-            placeholder={lang === 'he' ? 'שם מלא' : 'Full Name'}
-            value={displayName}
-            onChangeText={setDisplayName}
-            isRtl={isRtl}
-            style={attemptedSubmit && displayName.trim().length <= 1 ? missingFieldStyle : undefined}
-          />
+        <View style={styles.card}>
+          <Field label={lang === 'he' ? 'שם מלא' : 'Full Name'}>
+            <TextInput
+              value={displayName}
+              onChangeText={setDisplayName}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setNameFocused(false)}
+              style={[
+                styles.input,
+                isRtl && styles.textRight,
+                nameFocused && styles.inputFocused,
+                attemptedSubmit && displayName.trim().length <= 1 && styles.inputError,
+              ]}
+              accessibilityLabel={lang === 'he' ? 'שם מלא' : 'Full Name'}
+            />
+          </Field>
           {attemptedSubmit && displayName.trim().length <= 1 && (
-            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
+            <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</ErrorNote>
           )}
 
-          <FloatingInput
-            placeholder={lang === 'he' ? 'כתובת אימייל' : 'Email Address'}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            isRtl={isRtl}
-            style={(attemptedSubmit && email.length === 0) || (email.length > 0 && !isAllowedStudentEmailDomain(email)) ? missingFieldStyle : undefined}
-          />
+          <Field label={lang === 'he' ? 'דוא"ל' : 'Email'}>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              onFocus={() => setEmailFocused(true)}
+              onBlur={() => setEmailFocused(false)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={[
+                styles.input,
+                styles.ltrInput,
+                emailFocused && styles.inputFocused,
+                ((attemptedSubmit && email.length === 0) || (email.length > 0 && !isAllowedStudentEmailDomain(email))) && styles.inputError,
+              ]}
+              accessibilityLabel={lang === 'he' ? 'דוא"ל' : 'Email'}
+            />
+          </Field>
           {attemptedSubmit && email.length === 0 ? (
-            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
+            <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</ErrorNote>
           ) : email.length > 0 && !isAllowedStudentEmailDomain(email) ? (
-            <RequiredNote isRtl={isRtl}>
+            <ErrorNote isRtl={isRtl}>
               {lang === 'he'
                 ? `יש להשתמש בכתובת ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' או ')} בלבד`
                 : `Must be an ${STUDENT_ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ')} address`}
-            </RequiredNote>
+            </ErrorNote>
           ) : null}
 
-          <FloatingInput
-            placeholder={lang === 'he' ? 'מספר טלפון' : 'Phone Number'}
-            value={phoneNumber}
-            onChangeText={(t) => setPhoneNumber(t.replace(/\D/g, '').slice(0, 10))}
-            keyboardType="phone-pad"
-            maxLength={10}
-            isRtl={isRtl}
-            style={attemptedSubmit && !isValidPhoneNumber(phoneNumber) ? missingFieldStyle : undefined}
-          />
+          <Field label={lang === 'he' ? 'טלפון (10 ספרות)' : 'Phone (10 digits)'}>
+            <TextInput
+              value={phoneNumber}
+              onChangeText={(t) => setPhoneNumber(t.replace(/\D/g, '').slice(0, 10))}
+              onFocus={() => setPhoneFocused(true)}
+              onBlur={() => setPhoneFocused(false)}
+              keyboardType="phone-pad"
+              maxLength={10}
+              style={[
+                styles.input,
+                styles.ltrInput,
+                phoneFocused && styles.inputFocused,
+                attemptedSubmit && !isValidPhoneNumber(phoneNumber) && styles.inputError,
+              ]}
+              accessibilityLabel={lang === 'he' ? 'טלפון' : 'Phone'}
+            />
+          </Field>
           {attemptedSubmit && !isValidPhoneNumber(phoneNumber) && (
-            <RequiredNote isRtl={isRtl}>
+            <ErrorNote isRtl={isRtl}>
               {phoneNumber.length === 0
                 ? (lang === 'he' ? 'שדה חובה' : 'Required field')
                 : (lang === 'he' ? 'מספר טלפון חייב להכיל בדיוק 10 ספרות' : 'Phone number must be exactly 10 digits')}
-            </RequiredNote>
+            </ErrorNote>
           )}
 
-          <View style={{ position: 'relative', justifyContent: 'center', marginBottom: 12 }}>
-          {!showPassword && !password && !passwordFocused && (    // ← add passwordFocused state
-            <Text
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                top: 16,
-                left: !isRtl ? undefined : 16,
-                right: isRtl ? 16 : undefined,
-                fontSize: 16,
-                color: '#9BA8C0',
-                zIndex: 1,
-              }}
-            >
-              {lang === 'he' ? 'סיסמה' : 'Password'}
-            </Text>
-          )}
-          <TextInput
-            ref={passwordRef}
-            style={[
-              s.input,
-              { marginBottom: 0, paddingRight: 48 },
-              !isRtl && s.textRight,
-              password.length > 0 && {
-                borderColor: getPasswordStrength(password).valid ? '#10B981' : '#EF4444'
-              },
-              attemptedSubmit && password.length === 0 && missingFieldStyle,
-            ]}
-            placeholder=""                                        // ← clear real placeholder
-            placeholderTextColor="#9BA8C0"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            onFocus={() => setPasswordFocused(true)}              // ← add these
-            onBlur={() => setPasswordFocused(false)}              // ← add these
-            accessibilityLabel={lang === 'he' ? 'סיסמה' : 'Password'}
-          />
-          <Pressable
-            onPress={() => setShowPassword(prev => !prev)}
-            style={{ position: 'absolute', right: 14, padding: 4 }}
-            accessibilityRole="button"
-            accessibilityLabel={showPassword
-              ? (lang === 'he' ? 'הסתר סיסמה' : 'Hide password')
-              : (lang === 'he' ? 'הצג סיסמה' : 'Show password')}
-          >
-            <Text style={{ fontSize: 18 }}>{showPassword ? '🙈' : '👁️'}</Text>
-          </Pressable>
-        </View>
-
+          <Field label={lang === 'he' ? 'סיסמה' : 'Password'}>
+            <View style={styles.passwordRow}>
+              <TextInput
+                ref={passwordRef}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+                style={[
+                  styles.input,
+                  styles.ltrInput,
+                  styles.passwordInput,
+                  passwordFocused && styles.inputFocused,
+                  password.length > 0 && (passwordCheck.valid ? styles.inputSuccess : styles.inputError),
+                  attemptedSubmit && password.length === 0 && styles.inputError,
+                ]}
+                accessibilityLabel={lang === 'he' ? 'סיסמה' : 'Password'}
+              />
+              <Pressable
+                onPress={() => setShowPassword(prev => !prev)}
+                style={styles.eyeButton}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword
+                  ? (lang === 'he' ? 'הסתר סיסמה' : 'Hide password')
+                  : (lang === 'he' ? 'הצג סיסמה' : 'Show password')}
+              >
+                <Text style={{ fontSize: 18 }}>{showPassword ? '🙈' : '👁️'}</Text>
+              </Pressable>
+            </View>
+          </Field>
           {attemptedSubmit && password.length === 0 ? (
-            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
-          ) : password.length > 0 && !getPasswordStrength(password).valid && (
-            <View style={{ marginTop: -8, marginBottom: 8 }}>
-              {getPasswordStrength(password).errors.map((err) => (
-                <Text key={err} style={{ color: '#EF4444', fontSize: 12, textAlign: isRtl ? 'right' : 'left' }}>
-                  {'• '}{err}
-                </Text>
+            <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</ErrorNote>
+          ) : password.length > 0 && !passwordCheck.valid && (
+            <View style={styles.passwordErrorList}>
+              {passwordCheck.errors.map((err) => (
+                <ErrorNote key={err} isRtl={isRtl}>{'• '}{err}</ErrorNote>
               ))}
             </View>
           )}
 
-
-          <FloatingInput
-            placeholder={lang === 'he' ? 'תעודת זהות' : 'Student ID'}
-            value={studentId}
-            onChangeText={setStudentId}
-            keyboardType="numeric"
-            maxLength={9}
-            isRtl={isRtl}
-            style={studentId.length > 0 ? {
-              borderColor: isValidStudentId(studentId) ? '#10B981' : '#EF4444'
-            } : attemptedSubmit ? missingFieldStyle : {}}
-          />
+          <Field label={lang === 'he' ? 'מספר תעודת זהות (9 ספרות)' : 'Student ID (9 digits)'}>
+            <TextInput
+              value={studentId}
+              onChangeText={(t) => setStudentId(t.replace(/\D/g, '').slice(0, 9))}
+              keyboardType="numeric"
+              maxLength={9}
+              onFocus={() => setStudentIdFocused(true)}
+              onBlur={() => setStudentIdFocused(false)}
+              style={[
+                styles.input,
+                styles.ltrInput,
+                studentIdFocused && styles.inputFocused,
+                studentId.length > 0
+                  ? (isValidStudentId(studentId) ? styles.inputSuccess : styles.inputError)
+                  : (attemptedSubmit && styles.inputError),
+              ]}
+              accessibilityLabel={lang === 'he' ? 'מספר תעודת זהות' : 'Student ID'}
+            />
+          </Field>
           {attemptedSubmit && studentId.length === 0 ? (
-            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</RequiredNote>
+            <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</ErrorNote>
           ) : studentId.length > 0 && !isValidStudentId(studentId) && (
-            <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
+            <ErrorNote isRtl={isRtl}>
               {lang === 'he' ? 'מספר תעודת הזהות אינו תקין. בדוק את הספרות שהזנת' : 'Invalid ID number. Please check the digits you entered'}
-            </Text>
+            </ErrorNote>
           )}
-          
-        </View>
-          <Text style={[s.label, { marginTop: 15 }, !isRtl && s.textRight]}>
-            {lang === 'he' ? 'בחר פקולטה / מחלקה:' : 'Select Faculty / Department:'}
-          </Text>
 
-          <Pressable
-            style={({ pressed }) => [
-              s.input,
-              {
-                justifyContent: 'center',
-                backgroundColor: pressed ? '#F0F4FF' : '#fff',
-                borderColor: showFacultyModal ? '#2E86FF' : (attemptedSubmit && !faculty ? '#EF4444' : '#E0E8FF'),
-                minHeight: 50,
-              }
-            ]}
-            onPress={() => setShowFacultyModal(true)}
-            accessibilityRole="button"
-          >
-            <View style={{
-              flexDirection: isRtl ? 'row-reverse' : 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <Text style={{
-                fontSize: 16,
-                color: '#333',
-              }}>
+          <Field label={lang === 'he' ? 'פקולטה' : 'Faculty'}>
+            <Pressable
+              style={[
+                styles.selectInput,
+                showFacultyModal && styles.inputFocused,
+                attemptedSubmit && !faculty && styles.inputError,
+              ]}
+              onPress={() => setShowFacultyModal(true)}
+              accessibilityRole="button"
+            >
+              <Text style={selectedFacultyData ? styles.selectValue : styles.selectPlaceholder}>
                 {selectedFacultyData ? selectedFacultyData.label[lang] : (lang === 'he' ? 'בחר פקולטה' : 'Select a faculty')}
               </Text>
-              <Text style={{ fontSize: 12, color: '#8899BB' }}>▼</Text>
-            </View>
-          </Pressable>
+              <Text style={styles.selectChevron}>▾</Text>
+            </Pressable>
+          </Field>
           {attemptedSubmit && !faculty && (
-            <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty'}</RequiredNote>
+            <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור פקולטה' : 'Please select a faculty'}</ErrorNote>
           )}
 
-        {/* --- Degree / program (the faculty determines which programs show up; each
-             program already carries its own bachelors/masters level) --- */}
-        {faculty && (
-          <View style={s.section}>
-            <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
-              {lang === 'he' ? '1. תואר / מגמה' : '1. Degree / Program'}
-            </Text>
-            <View style={s.majorGrid}>
-              {facultyPrograms.map((p) => (
-                <Pressable
-                  key={p.key}
-                  style={[s.majorOption, programKey === p.key && s.majorOptionActive]}
-                  onPress={() => { setProgramKey(p.key); setYearOfStudy(null); setChosenTrack(null); }}
-                  accessibilityRole="button"
-                >
-                  <Text style={[s.majorText, programKey === p.key && s.majorTextActive, isRtl && s.textRight]}>
-                    {p.label[lang]}
-                  </Text>
-                  <Text style={[s.majorYears, programKey === p.key && s.majorYearsActive]}>
-                    {p.level === 'masters'
-                      ? (lang === 'he' ? 'תואר שני' : "Master's")
-                      : (lang === 'he' ? 'תואר ראשון' : "Bachelor's")}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            {attemptedSubmit && !programKey && (
-              <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור תוכנית לימודים' : 'Please select a program'}</RequiredNote>
-            )}
-          </View>
-        )}
-
-        {/* --- Year of study --- */}
-        {programKey && (
-          <View style={s.section}>
-            <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
-              {lang === 'he' ? '2. שנת לימוד נוכחית' : '2. Current Year of Study'}
-            </Text>
-
-            <View style={[s.yearRow, isRtl && s.rowReverse]}>
-              {yearOptions.map((yr) => {
-                const totalYears = yearOptions.length;
-                const isFinalYear = degreeType === 'masters'
-                  ? yr === 1
-                  : yr >= (totalYears === 4 ? 3 : totalYears);
-                return (
+          {/* --- Degree / program (the faculty determines which programs show up; each
+               program already carries its own bachelors/masters level) --- */}
+          {faculty && (
+            <Field label={lang === 'he' ? 'תוכנית לימודים' : 'Program'}>
+              <View style={styles.majorGrid}>
+                {facultyPrograms.map((p) => (
                   <Pressable
-                    key={yr}
-                    style={[
-                      s.yearOption,
-                      yearOfStudy === yr && s.yearOptionActive,
-                      isFinalYear && s.yearOptionFinal,
-                      yearOfStudy === yr && isFinalYear && s.yearOptionFinalActive,
-                    ]}
-                    onPress={() => setYearOfStudy(yr)}
+                    key={p.key}
+                    style={[styles.majorOption, programKey === p.key && styles.majorOptionActive]}
+                    onPress={() => { setProgramKey(p.key); setYearOfStudy(null); setChosenTrack(null); }}
                     accessibilityRole="button"
                   >
-                    <Text style={[
-                      s.yearNum,
-                      yearOfStudy === yr && s.yearNumActive,
-                    ]}>
-                      {lang === 'he' ? `שנה ${['א׳','ב׳','ג׳','ד׳'][yr-1]}` : `Year ${yr}`}
+                    <Text style={[styles.majorText, programKey === p.key && styles.majorTextActive, isRtl && styles.textRight]}>
+                      {p.label[lang]}
+                    </Text>
+                    <Text style={[styles.majorYears, programKey === p.key && styles.majorYearsActive]}>
+                      {p.level === 'masters'
+                        ? (lang === 'he' ? 'תואר שני' : "Master's")
+                        : (lang === 'he' ? 'תואר ראשון' : "Bachelor's")}
                     </Text>
                   </Pressable>
-                );
-              })}
-            </View>
-            {attemptedSubmit && !yearOfStudy && (
-              <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור שנת לימוד' : 'Please select a year of study'}</RequiredNote>
-            )}
-          </View>
-        )}
+                ))}
+              </View>
+              {attemptedSubmit && !programKey && (
+                <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור תוכנית לימודים' : 'Please select a program'}</ErrorNote>
+              )}
+            </Field>
+          )}
 
-        {/* --- Track (thesis vs. project) — only for programs where the
-             student picks at signup and it locks immediately; a
-             coordinator-gated program (e.g. M.Sc Computer Science) has no
-             choice here at all, and everything else is project-only. --- */}
-        {trackPolicy === 'signup_choice' && (
-          <View style={s.section}>
-            <Text style={[s.sectionTitle, !isRtl && s.textRight]}>
-              {lang === 'he' ? '3. מסלול' : '3. Track'}
-            </Text>
-            <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 10, textAlign: isRtl ? 'right' : 'left' }}>
-              {lang === 'he'
-                ? 'בחירה זו סופית ולא ניתן לשנותה בעצמך לאחר ההרשמה.'
-                : 'This choice is final — you will not be able to change it yourself after signing up.'}
-            </Text>
-            <View style={[s.yearRow, isRtl && s.rowReverse]}>
-              {(['thesis', 'project'] as const).map((track) => (
-                <Pressable
-                  key={track}
-                  style={[s.yearOption, chosenTrack === track && s.yearOptionActive]}
-                  onPress={() => setChosenTrack(track)}
-                  accessibilityRole="button"
-                >
-                  <Text style={[s.yearNum, chosenTrack === track && s.yearNumActive]}>
-                    {track === 'thesis'
-                      ? (lang === 'he' ? 'תזה' : 'Thesis')
-                      : (lang === 'he' ? 'פרויקט' : 'Project')}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            {attemptedSubmit && !chosenTrack && (
-              <RequiredNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור מסלול' : 'Please select a track'}</RequiredNote>
-            )}
-          </View>
-        )}
+          {/* --- Year of study --- */}
+          {programKey && (
+            <Field label={lang === 'he' ? 'שנת לימודים' : 'Year of Study'}>
+              <View style={[styles.yearRow, isRtl && styles.rowReverse]}>
+                {yearOptions.map((yr) => {
+                  const totalYears = yearOptions.length;
+                  const isFinalYear = degreeType === 'masters'
+                    ? yr === 1
+                    : yr >= (totalYears === 4 ? 3 : totalYears);
+                  return (
+                    <Pressable
+                      key={yr}
+                      style={[
+                        styles.yearOption,
+                        yearOfStudy === yr && styles.yearOptionActive,
+                        isFinalYear && styles.yearOptionFinal,
+                        yearOfStudy === yr && isFinalYear && styles.yearOptionFinalActive,
+                      ]}
+                      onPress={() => setYearOfStudy(yr)}
+                      accessibilityRole="button"
+                    >
+                      <Text style={[
+                        styles.yearNum,
+                        yearOfStudy === yr && styles.yearNumActive,
+                      ]}>
+                        {lang === 'he' ? `שנה ${['א׳','ב׳','ג׳','ד׳'][yr-1]}` : `Year ${yr}`}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {attemptedSubmit && !yearOfStudy && (
+                <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור שנת לימוד' : 'Please select a year of study'}</ErrorNote>
+              )}
+            </Field>
+          )}
 
-        {/* Save button */}
-        <Pressable
-          style={[s.saveBtn, saving && { opacity: 0.5 }]}
-          onPress={() => {
-            if (!canSave) {
-              setAttemptedSubmit(true);
-              Alert.alert(isRtl ? "חוסר בפרטים" : "Missing Info",
-                          isRtl ? "אנא מלא את כל השדות המסומנים באדום" : "Please fill in the fields marked in red");
-              return;
-            }
-            handleSave();
-          }}
-          disabled={saving}
-          accessibilityRole="button"
-        >
-          {saving
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={s.saveBtnText}>
-                {lang === 'he' ? 'שמור והמשך →' : 'Save & Continue →'}
+          {/* --- Track (thesis vs. project) — only for programs where the
+               student picks at signup and it locks immediately; a
+               coordinator-gated program (e.g. M.Sc Computer Science) has no
+               choice here at all, and everything else is project-only. --- */}
+          {trackPolicy === 'signup_choice' && (
+            <Field label={lang === 'he' ? 'מסלול' : 'Track'}>
+              <Text style={[styles.trackNote, isRtl && styles.textRight]}>
+                {lang === 'he'
+                  ? 'בחירה זו סופית ולא ניתן לשנותה בעצמך לאחר ההרשמה.'
+                  : 'This choice is final — you will not be able to change it yourself after signing up.'}
               </Text>
-          }
-        </Pressable>
+              <View style={[styles.yearRow, isRtl && styles.rowReverse]}>
+                {(['thesis', 'project'] as const).map((track) => (
+                  <Pressable
+                    key={track}
+                    style={[styles.yearOption, chosenTrack === track && styles.yearOptionActive]}
+                    onPress={() => setChosenTrack(track)}
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.yearNum, chosenTrack === track && styles.yearNumActive]}>
+                      {track === 'thesis'
+                        ? (lang === 'he' ? 'תזה' : 'Thesis')
+                        : (lang === 'he' ? 'פרויקט' : 'Project')}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {attemptedSubmit && !chosenTrack && (
+                <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור מסלול' : 'Please select a track'}</ErrorNote>
+              )}
+            </Field>
+          )}
+
+          <Pressable
+            style={styles.privacyLink}
+            onPress={() => router.push('/privacy-policy' as any)}
+            accessibilityRole="link"
+          >
+            <Text style={styles.privacyText}>
+              {lang === 'he'
+                ? 'בהרשמה אתה מסכים למדיניות הפרטיות שלנו'
+                : 'By signing up, you agree to our Privacy Policy'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.saveBtn, saving && styles.buttonDisabled]}
+            onPress={() => {
+              if (!canSave) {
+                setAttemptedSubmit(true);
+                Alert.alert(isRtl ? "חוסר בפרטים" : "Missing Info",
+                            isRtl ? "אנא מלא את כל השדות המסומנים באדום" : "Please fill in the fields marked in red");
+                return;
+              }
+              handleSave();
+            }}
+            disabled={saving}
+            accessibilityRole="button"
+          >
+            {saving
+              ? <ActivityIndicator color={colors.primaryInk} />
+              : <Text style={styles.saveBtnText}>
+                  {lang === 'he' ? 'הרשמה' : 'Sign Up'}
+                </Text>
+            }
+          </Pressable>
+        </View>
 
         <Pressable
-          style={{ marginTop: 16, alignItems: 'center' }}
-          onPress={() => router.push('/privacy-policy' as any)}
+          style={styles.loginLink}
+          onPress={() => router.replace('/(auth)/login' as any)}
           accessibilityRole="link"
         >
-          <Text style={{ color: '#8899BB', fontSize: 12, textAlign: 'center' }}>
-            {lang === 'he'
-              ? 'בהרשמה אתה מסכים למדיניות הפרטיות שלנו'
-              : 'By signing up, you agree to our Privacy Policy'}
+          <Text style={styles.loginLinkText}>
+            {lang === 'he' ? 'כבר יש לך חשבון? התחבר' : 'Already have an account? Log in'}
           </Text>
         </Pressable>
 
         <View style={{ height: 40 }} />
-          
 
-
-        {/* ─── POPUP LIST MODAL ─── */}
+        {/* ─── Faculty picker modal ─── */}
         <Modal
           visible={showFacultyModal}
           transparent={true}
           animationType="fade"
           onRequestClose={() => setShowFacultyModal(false)}
         >
-          <Pressable 
-            style={{ 
-              flex: 1, 
-              backgroundColor: 'rgba(0,0,0,0.4)', 
-              justifyContent: 'center', 
-              alignItems: 'center' 
-            }} 
+          <Pressable
+            style={styles.modalOverlay}
             onPress={() => setShowFacultyModal(false)}
           >
-            <View style={{ 
-              backgroundColor: '#fff', 
-              borderRadius: 20, 
-              padding: 20, 
-              width: '85%', 
-              maxHeight: '70%',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 12,
-              elevation: 5
-            }}>
-              <Text style={{ 
-                fontSize: 18, 
-                fontWeight: '700', 
-                marginBottom: 15, 
-                color: '#111',
-                textAlign: lang === 'he' ? 'right' : 'left'
-              }}>
+            <View style={styles.modalDialog}>
+              <Text style={[styles.modalTitle, isRtl && styles.textRight]}>
                 {lang === 'he' ? 'בחר פקולטה' : 'Select Faculty'}
               </Text>
 
@@ -835,15 +785,7 @@ export default function ProfileSetup() {
                   return (
                     <Pressable
                       key={item.key}
-                      style={{
-                        paddingVertical: 14,
-                        paddingHorizontal: 16,
-                        borderRadius: 10,
-                        backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
-                        borderWidth: 1,
-                        borderColor: isSelected ? '#2E86FF' : 'transparent',
-                        marginBottom: 6,
-                      }}
+                      style={[styles.modalItem, isSelected && styles.modalItemActive]}
                       onPress={() => {
                         setFaculty(item.key);
                         setProgramKey(null);
@@ -852,12 +794,11 @@ export default function ProfileSetup() {
                       }}
                       accessibilityRole="button"
                     >
-                      <Text style={{
-                        fontSize: 15,
-                        fontWeight: isSelected ? '700' : '500',
-                        color: isSelected ? '#2E86FF' : '#444',
-                        textAlign: lang === 'he' ? 'right' : 'left'
-                      }}>
+                      <Text style={[
+                        styles.modalItemText,
+                        isSelected && styles.modalItemTextActive,
+                        isRtl && styles.textRight,
+                      ]}>
                         {item.label[lang]}
                       </Text>
                     </Pressable>
@@ -872,3 +813,126 @@ export default function ProfileSetup() {
   );
 }
 
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.paper },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+
+  langRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 },
+  langBtn: {
+    backgroundColor: colors.surface, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: colors.line,
+  },
+  langText: { fontSize: 12, fontWeight: '700', color: colors.primary },
+
+  headerBlock: { alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 22, fontWeight: '600', color: colors.ink, textAlign: 'center' },
+  subtitle: { fontSize: 13, color: colors.muted, marginTop: 4, textAlign: 'center' },
+
+  hero: { alignItems: 'center', marginBottom: 24 },
+  heroEmoji: { fontSize: 40, marginBottom: 8 },
+
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    padding: 20,
+  },
+
+  field: { marginBottom: 14 },
+  label: { fontSize: 13, fontWeight: '500', color: colors.ink, marginBottom: 6 },
+
+  input: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.paper,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  ltrInput: { textAlign: 'left', writingDirection: 'ltr' },
+  inputFocused: { borderColor: colors.primary, backgroundColor: colors.surface },
+  inputError: { borderColor: colors.danger },
+  inputSuccess: { borderColor: colors.success },
+
+  passwordRow: { position: 'relative', justifyContent: 'center' },
+  passwordInput: { paddingRight: 44 },
+  eyeButton: { position: 'absolute', right: 10, padding: 4 },
+
+  errorText: { color: colors.danger, fontSize: 12, marginTop: 4 },
+  passwordErrorList: { marginTop: 4 },
+
+  selectInput: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.paper,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectValue: { fontSize: 14, color: colors.ink },
+  selectPlaceholder: { fontSize: 14, color: colors.muted },
+  selectChevron: { fontSize: 12, color: colors.muted },
+
+  majorGrid: { gap: 8 },
+  majorOption: {
+    backgroundColor: colors.surface, borderRadius: 10, padding: 14,
+    borderWidth: 1, borderColor: colors.line,
+  },
+  majorOptionActive: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
+  majorText: { fontSize: 14, fontWeight: '600', color: colors.ink, marginBottom: 2 },
+  majorTextActive: { color: colors.primary },
+  majorYears: { fontSize: 11, color: colors.muted },
+  majorYearsActive: { color: colors.primary },
+
+  yearRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  yearOption: {
+    backgroundColor: colors.surface, borderRadius: 10, padding: 14,
+    alignItems: 'center', borderWidth: 1, borderColor: colors.line,
+    minWidth: '45%', flex: 1,
+  },
+  yearOptionActive: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
+  yearOptionFinal: { borderColor: colors.accent, borderStyle: 'dashed' },
+  yearOptionFinalActive: { backgroundColor: colors.accentBg, borderStyle: 'solid' },
+  yearNum: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  yearNumActive: { color: colors.primary },
+
+  trackNote: { fontSize: 12, color: colors.muted, marginBottom: 10 },
+
+  privacyLink: { marginTop: 4, marginBottom: 4, alignItems: 'center' },
+  privacyText: { fontSize: 12, color: colors.muted, textAlign: 'center' },
+
+  saveBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
+  saveBtnText: { color: colors.primaryInk, fontSize: 14, fontWeight: '600' },
+  buttonDisabled: { opacity: 0.6 },
+
+  loginLink: { marginTop: 16, alignItems: 'center' },
+  loginLinkText: { color: colors.primary, fontSize: 13 },
+
+  resendLink: { marginTop: 18, alignItems: 'center' },
+  resendLinkText: { color: colors.primary, fontWeight: '700', fontSize: 14 },
+  backLink: { marginTop: 24, alignItems: 'center' },
+  backLinkText: { color: colors.muted, fontSize: 13 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  modalDialog: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 20,
+    width: '85%', maxHeight: '70%',
+  },
+  modalTitle: { fontSize: 16, fontWeight: '700', marginBottom: 14, color: colors.ink },
+  modalItem: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: 'transparent', marginBottom: 6 },
+  modalItemActive: { backgroundColor: colors.primaryTint, borderColor: colors.primary },
+  modalItemText: { fontSize: 15, fontWeight: '500', color: colors.ink },
+  modalItemTextActive: { fontWeight: '700', color: colors.primary },
+
+  rowReverse: { flexDirection: 'row-reverse' },
+  textRight: { textAlign: 'right' },
+});
