@@ -42,6 +42,8 @@ import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
+import { TabBadge } from '@/components/TabBadge';
+import { useNotifications } from '@/src/context/NotificationsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -67,6 +69,25 @@ export default function PanelScreen() {
   const [activeTab, setActiveTab] = useState<FacultyAdminTab>(
     FACULTY_ADMIN_TABS.includes(tabParam as FacultyAdminTab) ? (tabParam as FacultyAdminTab) : 'overview'
   );
+  // "New since last opened" badges for the tabs with no live queue-count of
+  // their own — driven by unread notifications bucketed by targetScreen,
+  // same mechanism as web's SidebarShell.tsx and mobile's coordinator/home.tsx.
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const TAB_BADGE_TARGET_SCREENS: Partial<Record<FacultyAdminTab, string>> = {
+    deadlines: 'faculty_admin_deadlines',
+    signoffs: 'faculty_admin_signoffs',
+  };
+  const newItemBadgeFor = (tab: FacultyAdminTab) => {
+    const targetScreen = TAB_BADGE_TARGET_SCREENS[tab];
+    return targetScreen ? (unreadByTargetScreen[targetScreen] ?? 0) : 0;
+  };
+  useEffect(() => {
+    const targetScreen = TAB_BADGE_TARGET_SCREENS[activeTab];
+    if (targetScreen && (unreadByTargetScreen[targetScreen] ?? 0) > 0) {
+      markTabSeen([targetScreen]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TAB_BADGE_TARGET_SCREENS is a stable literal, re-declared each render but never changing shape
+  }, [activeTab, unreadByTargetScreen, markTabSeen]);
 
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
@@ -401,8 +422,9 @@ export default function PanelScreen() {
         </Pressable>
       </TourTarget>
       <TourTarget tourKey="deadlines">
-        <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('deadlines')} accessibilityRole="button">
+        <Pressable style={[localStyles.tabBar, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => setActiveTab('deadlines')} accessibilityRole="button">
           <Text style={localStyles.tabLabel}>{lang === 'he' ? 'מועדי הגשה' : 'DeadLines'}</Text>
+          <TabBadge count={newItemBadgeFor('deadlines')} />
         </Pressable>
       </TourTarget>
       <TourTarget tourKey="staff">
@@ -411,8 +433,9 @@ export default function PanelScreen() {
         </Pressable>
       </TourTarget>
       <TourTarget tourKey="signoffs">
-        <Pressable style={localStyles.tabBar} onPress={() => setActiveTab('signoffs')} accessibilityRole="button">
+        <Pressable style={[localStyles.tabBar, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => setActiveTab('signoffs')} accessibilityRole="button">
           <Text style={localStyles.tabLabel}>{lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}</Text>
+          <TabBadge count={newItemBadgeFor('signoffs')} />
         </Pressable>
       </TourTarget>
       <TourTarget tourKey="students">

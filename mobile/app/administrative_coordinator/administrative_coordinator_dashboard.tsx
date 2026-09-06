@@ -26,6 +26,8 @@ import type { AppUser } from '@/types';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { ap } from '@/constants/theme';
+import { TabBadge } from '@/components/TabBadge';
+import { useNotifications } from '@/src/context/NotificationsContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -549,6 +551,16 @@ export default function ProjectCoordinatorDashboard() {
   const [activeTab, setActiveTab] = useState<AdminCoordinatorTab>(
     ADMIN_COORDINATOR_TABS.includes(tabParam as AdminCoordinatorTab) ? (tabParam as AdminCoordinatorTab) : 'groups'
   );
+  // "New since last opened" badge for Final Grade Approvals — driven by
+  // unread notifications bucketed by targetScreen, same mechanism as web's
+  // SidebarShell.tsx and mobile's coordinator/home.tsx.
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const overridesBadgeCount = unreadByTargetScreen['admin_coordinator_overrides'] ?? 0;
+  useEffect(() => {
+    if (activeTab === 'overrides' && overridesBadgeCount > 0) {
+      markTabSeen(['admin_coordinator_overrides']);
+    }
+  }, [activeTab, overridesBadgeCount, markTabSeen]);
   const [studentsReport, setStudentsReport] = useState<StudentReportRow[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
@@ -860,7 +872,7 @@ export default function ProjectCoordinatorDashboard() {
         {(['groups', 'students', 'overrides'] as const).map((key) => (
           <TourTarget key={key} tourKey={key}>
             <Pressable
-              style={[s.filterChip, activeTab === key && { backgroundColor: fc.primary }]}
+              style={[s.filterChip, { flexDirection: 'row', alignItems: 'center' }, activeTab === key && { backgroundColor: fc.primary }]}
               onPress={() => setActiveTab(key)}
               accessibilityRole="button"
             >
@@ -871,6 +883,7 @@ export default function ProjectCoordinatorDashboard() {
                     ? (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')
                     : (lang === 'he' ? 'אישור ציונים סופיים' : 'Final Grade Approvals')}
               </Text>
+              {key === 'overrides' && <TabBadge count={overridesBadgeCount} />}
             </Pressable>
           </TourTarget>
         ))}

@@ -26,6 +26,7 @@ import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import type { AppUser } from '@/types';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
+import { useNotifications } from '@/src/context/NotificationsContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -128,6 +129,15 @@ export default function GradSchoolHeadDashboard() {
   const [activeTab, setActiveTab]  = useState<GradSchoolHeadTab>(
     GRAD_SCHOOL_HEAD_TABS.includes(tabParam as GradSchoolHeadTab) ? (tabParam as GradSchoolHeadTab) : 'overview'
   );
+  // "New since last opened" badge for Examiners (approvals/stuck already show
+  // their own live queue-count below) — driven by unread notifications
+  // bucketed by targetScreen, same mechanism as web's SidebarShell.tsx.
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  useEffect(() => {
+    if (activeTab === 'examiners' && (unreadByTargetScreen['grad_school_head_examiners'] ?? 0) > 0) {
+      markTabSeen(['grad_school_head_examiners']);
+    }
+  }, [activeTab, unreadByTargetScreen, markTabSeen]);
   // Cross-faculty staff this role can now manage directly (see
   // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — this
   // role had zero user-management endpoints of any kind before this.
@@ -424,7 +434,7 @@ export default function GradSchoolHeadDashboard() {
     { key: 'overview'  as const, he: 'סקירה כללית',     en: 'Overview',  badge: 0 },
     { key: 'approvals' as const, he: 'ממתין לאישורי',   en: 'Pending',   badge: data?.pendingApprovals.length ?? 0 },
     { key: 'stuck'     as const, he: 'תקועים',          en: 'Stuck',     badge: data?.stuckStudents.length ?? 0 },
-    { key: 'examiners' as const, he: 'עומס בוחנים',     en: 'Examiners', badge: 0 },
+    { key: 'examiners' as const, he: 'עומס בוחנים',     en: 'Examiners', badge: unreadByTargetScreen['grad_school_head_examiners'] ?? 0 },
     { key: 'grades'    as const, he: 'ציונים מאושרים',  en: 'Approved Grades', badge: 0 },
     { key: 'staff'     as const, he: 'סגל',             en: 'Staff', badge: 0 },
     { key: 'students'  as const, he: 'רשימת סטודנטים',  en: 'Students List', badge: 0 },

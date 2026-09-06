@@ -23,6 +23,7 @@ import { GradeMilestoneModal } from '@/components/GradeMilestoneModal';
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
+import { useNotifications } from '@/src/context/NotificationsContext';
 
 // Derives a human-readable file name from a Cloudinary/Storage URL for the
 // grading-queue "Submitted Files" chips — same approach as web's
@@ -180,6 +181,17 @@ export default function SupervisorHome() {
   const [activeTab,      setActiveTab]      = useState<SupervisorTab>(
     SUPERVISOR_TABS.includes(tabParam as SupervisorTab) ? (tabParam as SupervisorTab) : 'projects'
   );
+  // "New since last opened" badge for Signoffs (applications/grading/projects
+  // already show their own live queue-count above) — driven by unread
+  // notifications bucketed by targetScreen, same mechanism as web's
+  // SidebarShell.tsx and mobile's coordinator/home.tsx.
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const signoffsBadgeCount = unreadByTargetScreen['supervisor_signoffs'] ?? 0;
+  useEffect(() => {
+    if (activeTab === 'signoffs' && signoffsBadgeCount > 0) {
+      markTabSeen(['supervisor_signoffs']);
+    }
+  }, [activeTab, signoffsBadgeCount, markTabSeen]);
   const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'offered'>('all');
   const [unreadCount,    setUnreadCount]    = useState(0);
@@ -941,6 +953,11 @@ export default function SupervisorHome() {
             <Text style={[styles.tabText, activeTab === 'signoffs' && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}
             </Text>
+            {signoffsBadgeCount > 0 && (
+              <View style={[styles.tabBadge, activeTab === 'signoffs' && styles.tabBadgeActive]}>
+                <Text style={styles.tabBadgeText}>{signoffsBadgeCount}</Text>
+              </View>
+            )}
           </Pressable>
         </TourTarget>
         <TourTarget tourKey="projects">

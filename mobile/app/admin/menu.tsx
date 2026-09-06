@@ -21,24 +21,31 @@ import { apiClient } from '@/src/api/apiClient';
 import { TopBar } from '@/components/shared';
 import type { Lang } from '@/components/i18n';
 import { ap } from '@/constants/theme';
+import { TabBadge } from '@/components/TabBadge';
+import { useNotifications } from '@/src/context/NotificationsContext';
 
 interface MenuItem {
   key: string;
   icon: string;
   label: { he: string; en: string };
   href: string;
+  /** targetScreen key(s) (see server/src/services/notificationTargets.ts)
+   *  whose unread notification count feeds this item's badge — mirrors
+   *  web's SidebarNavItem.badgeTargetScreens. Omit for destinations with no
+   *  notification concept. */
+  badgeTargetScreens?: string[];
 }
 
 const NAVIGATION_ITEMS: MenuItem[] = [
   { key: 'overview', icon: '📊', href: '/admin/panel', label: { he: 'סקירה', en: 'Overview' } },
   { key: 'users', icon: '👥', href: '/admin/panel?tab=users', label: { he: 'ניהול משתמשים', en: 'User Management' } },
   { key: 'projects', icon: '📁', href: '/admin/panel?tab=projects', label: { he: 'פרויקטים', en: 'Projects' } },
-  { key: 'milestones', icon: '🏁', href: '/admin/panel?tab=milestones', label: { he: 'אבני דרך', en: 'Milestones' } },
+  { key: 'milestones', icon: '🏁', href: '/admin/panel?tab=milestones', label: { he: 'אבני דרך', en: 'Milestones' }, badgeTargetScreens: ['admin_panel_milestones'] },
   { key: 'defenseAccess', icon: '🔑', href: '/admin/panel?tab=defenseAccess', label: { he: 'גישת הגנה', en: 'Defense Access' } },
   { key: 'studentRoster', icon: '📋', href: '/admin/panel?tab=studentRoster', label: { he: 'רשימת סטודנטים', en: 'Student Roster' } },
-  { key: 'signoffs', icon: '✅', href: '/admin/panel?tab=signoffs', label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' } },
+  { key: 'signoffs', icon: '✅', href: '/admin/panel?tab=signoffs', label: { he: 'ממתין לאישור ציונים ובוחנים', en: 'Awaiting Grade/Examiner Approval' }, badgeTargetScreens: ['admin_panel_signoffs'] },
   { key: 'archived', icon: '🗄️', href: '/admin/panel?tab=archived', label: { he: 'ארכיון', en: 'Archived' } },
-  { key: 'feedback', icon: '💬', href: '/admin/panel?tab=feedback', label: { he: 'משוב', en: 'Feedback' } },
+  { key: 'feedback', icon: '💬', href: '/admin/panel?tab=feedback', label: { he: 'משוב', en: 'Feedback' }, badgeTargetScreens: ['admin_panel_feedback'] },
 ];
 
 const DIRECTORY_ITEMS: MenuItem[] = [
@@ -55,6 +62,9 @@ export default function AdminMenuScreen() {
   const isRtl = lang === 'he';
   const [adminName, setAdminName] = useState('');
   const [loading, setLoading] = useState(true);
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const badgeCountFor = (item: MenuItem) =>
+    (item.badgeTargetScreens ?? []).reduce((sum, ts) => sum + (unreadByTargetScreen[ts] ?? 0), 0);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -80,7 +90,14 @@ export default function AdminMenuScreen() {
           <Pressable
             key={item.key}
             style={[styles.row, i > 0 && styles.rowDivider, isRtl && styles.rowReverse]}
-            onPress={() => router.push(item.href as any)}
+            onPress={() => {
+              // Clears this item's badge as soon as the admin heads to that
+              // tab — panel.tsx has no in-page tab switcher of its own (see
+              // this file's header comment), so navigating here IS "opening
+              // the tab".
+              if (item.badgeTargetScreens?.length) markTabSeen(item.badgeTargetScreens);
+              router.push(item.href as any);
+            }}
             accessibilityRole="button"
           >
             <View style={styles.rowIcon}>
@@ -89,6 +106,7 @@ export default function AdminMenuScreen() {
             <Text style={[styles.rowLabel, isRtl && styles.textRight]} numberOfLines={1}>
               {item.label[lang]}
             </Text>
+            <TabBadge count={badgeCountFor(item)} />
             <Text style={styles.chevron}>{isRtl ? '‹' : '›'}</Text>
           </Pressable>
         ))}
