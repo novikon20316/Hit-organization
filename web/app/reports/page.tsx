@@ -12,8 +12,9 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { FACULTY_LABELS, type FacultyId } from '@/lib/i18n';
-import { REPORTS, displayValue, fieldsForAdministrativeCoordinator, type ReportType } from './types';
+import { REPORTS, displayValue, type ReportType } from './types';
 import { downloadReportExport } from './downloadExport';
+import { AdminCoordinatorReportsFlow } from './AdminCoordinatorReportsFlow';
 
 const REPORT_ROLES: AppRole[] = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
 
@@ -147,10 +148,16 @@ export default function ReportsPage() {
     );
   }
 
+  // She manages a handful of specific projects, not a whole faculty of
+  // students — a project-first flow (pick the project, then which of the 10
+  // reports to run for it) fits her better than this shared report-type-
+  // first + big-filter-bar page. See AdminCoordinatorReportsFlow.tsx.
+  if (activeRole === 'administrative_secretary') {
+    return <AdminCoordinatorReportsFlow />;
+  }
+
   const def = REPORTS.find((r) => r.key === activeReport)!;
-  // Administrative coordinator manages projects, not individual students —
-  // see fieldsForAdministrativeCoordinator's own doc comment.
-  const displayFields = activeRole === 'administrative_secretary' ? fieldsForAdministrativeCoordinator(def) : def.fields;
+  const displayFields = def.fields;
 
   return (
     <DashboardShell title={lang === 'he' ? 'דוחות' : 'Reports'} subtitle={lang === 'he' ? 'מעקב תהליכים והנחיה בפקולטה' : 'Process and supervision tracking'}>

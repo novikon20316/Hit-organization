@@ -29,6 +29,11 @@ export interface ReportFilters {
   examinerId?: string | undefined;
   milestoneType?: string | undefined;
   overdueOnly?: boolean | undefined;
+  /** Narrows to exactly one project — the administrative coordinator's
+   *  project-first Reports flow (web/app/reports/AdminCoordinatorReportsFlow.tsx)
+   *  picks a specific project before picking a report type, rather than
+   *  filtering across her whole scope. */
+  projectId?: string | undefined;
 }
 
 export interface EngagementRecord {
@@ -94,6 +99,9 @@ export async function gatherEngagements(filters: ReportFilters = {}): Promise<En
   if (filters.projectType) {
     const wanted = filters.projectType;
     projects = projects.filter((p) => (p.projectTypes ?? (p.projectType ? [p.projectType] : [])).includes(wanted));
+  }
+  if (filters.projectId) {
+    projects = projects.filter((p) => p.id === filters.projectId);
   }
 
   if (projects.length === 0) return [];
@@ -256,6 +264,7 @@ export async function examinerTrackingReport(filters: ReportFilters): Promise<Ex
   for (const doc of tokensSnap.docs) {
     const t = doc.data();
     if (filters.facultyId && projectFacultyById[t.projectId] !== filters.facultyId) continue;
+    if (filters.projectId && t.projectId !== filters.projectId) continue;
     const invitedAt = t.createdAt ? new Date(t.createdAt) : null;
     const daysElapsed = invitedAt ? Math.floor((now - invitedAt.getTime()) / 86_400_000) : null;
     const expiresAt = t.expiresAt ? new Date(t.expiresAt) : null;
@@ -527,4 +536,37 @@ export async function gradeExportReport(filters: ReportFilters): Promise<GradeEx
       finalGrade: (defenseMs as any)?.finalGrade ?? null,
     };
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project picker — feeds the administrative coordinator's project-first
+// Reports flow (web/app/reports/AdminCoordinatorReportsFlow.tsx): she picks
+// one of her projects first, then which of the 10 reports to run for it.
+// One row per PROJECT, not per enrolled student — gatherEngagements already
+// expands to one row per student, so this just dedupes back down by
+// projectId (first student's record stands in for the project's own
+// scope-relevant fields, which don't vary by student).
+// ─────────────────────────────────────────────────────────────────────────────
+export interface ProjectListRow {
+  id: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  advisorName: string;
+  startYearHebrew: string | null;
+}
+
+export async function projectListReport(filters: ReportFilters): Promise<ProjectListRow[]> {
+  const records = await gatherEngagements(filters);
+  const byProject = new Map<string, ProjectListRow>();
+  for (const r of records) {
+    if (byProject.has(r.projectId)) continue;
+    byProject.set(r.projectId, {
+      id: r.projectId,
+      projectTitleHe: r.projectTitleHe,
+      projectTitleEn: r.projectTitleEn,
+      advisorName: r.advisorName,
+      startYearHebrew: r.startYear != null ? academicYearToHebrew(String(r.startYear)) : null,
+    });
+  }
+  return [...byProject.values()];
 }

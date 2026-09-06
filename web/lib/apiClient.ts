@@ -391,6 +391,15 @@ export const apiClient = {
     });
   },
 
+  /** GET /api/reports/projects — the administrative coordinator's
+   *  project-first Reports flow (AdminCoordinatorReportsFlow.tsx) picks one
+   *  of these before picking a report type. */
+  async getReportProjects() {
+    return request<{ projects: Array<{ id: string; projectTitleHe: string; projectTitleEn: string; advisorName: string; startYearHebrew: string | null }> }>('/api/reports/projects', {
+      method: 'GET',
+    });
+  },
+
   // ─── 4. LOGIN SECURITY — public/unauthenticated, matches loginSecurity.ts ──
   async reportFailedLogin(email: string, password: string): Promise<{ locked: boolean }> {
     return request('/api/auth/report-failed-login', { method: 'POST', body: { email, password } });

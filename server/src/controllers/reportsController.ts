@@ -20,6 +20,7 @@ import {
   loadReport,
   repositoryReport,
   gradeExportReport,
+  projectListReport,
 } from '../services/reports.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
 
@@ -29,9 +30,10 @@ const REPORT_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administr
 // faculty_admin/program_head/grad_school_head can each view reports for
 // their own faculty or any extra one granted for that role (see
 // resolveFacultyScope below). coordinator/administrative_secretary have no
-// entry here and keep their pre-existing "must match own facultyId exactly"
-// behavior — administrative_secretary's real scope lives in
-// coordinatorScopes, not this mechanism (out of scope for this change).
+// entry here — resolveFacultyScope resolves them directly instead: a real
+// single facultyId for 'coordinator', or coordinatorScopes for
+// administrative_secretary (whose own facultyId is always the 'all'
+// sentinel, never a real faculty — see that function).
 const REPORT_ROLE_FACULTY_FIELD: Record<string, RoleFacultyField> = {
   faculty_admin: 'facultyAdminFacultyIds',
   program_head: 'programHeadFacultyIds',
@@ -57,6 +59,7 @@ function parseFilters(req: AuthenticatedRequest, resolvedFacultyId: string | und
     examinerId: q.examinerId || undefined,
     milestoneType: q.milestoneType || undefined,
     overdueOnly: q.overdueOnly === 'true',
+    projectId: q.projectId || undefined,
   };
 }
 
@@ -143,6 +146,26 @@ function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | 
   // (leaking outside her scope), surface it as a limitation.
   return { error: { status: 400, message: 'Your account has more than one assigned faculty/degree scope — pass ?facultyId= to pick which one to report on.' } };
 }
+
+// ─── GET /api/reports/projects ─────────────────────────────────────────────────
+// Feeds the administrative coordinator's project-first Reports flow (see
+// web/app/reports/AdminCoordinatorReportsFlow.tsx): she picks one of her own
+// projects before picking which of the 10 report types to run for it. Scoped
+// identically to every other report endpoint (same resolveFacultyScope), so
+// this can't list a project outside her assigned coordinatorScopes.
+export const getReportProjects = async (req: AuthenticatedRequest, res: Response) => {
+  const scope = resolveFacultyScope(req);
+  if (scope.error) return res.status(scope.error.status).json({ message: scope.error.message });
+
+  try {
+    const filters = parseFilters(req, scope.facultyId);
+    const projects = await projectListReport(filters);
+    return res.status(200).json({ projects });
+  } catch (error) {
+    console.error('getReportProjects error:', error);
+    return res.status(500).json({ message: 'Failed to load projects.' });
+  }
+};
 
 // ─── GET /api/reports/:reportType ──────────────────────────────────────────────
 export const getReport = async (req: AuthenticatedRequest, res: Response) => {
