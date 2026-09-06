@@ -104,13 +104,44 @@ function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | 
     return { facultyId: requested ?? req.user?.facultyId };
   }
 
-  // coordinator/administrative_secretary: unchanged — must match own
-  // facultyId exactly (administrative_secretary's real scope lives in
-  // coordinatorScopes, a separate mechanism not touched here).
-  if (requested && requested !== req.user?.facultyId) {
-    return { error: { status: 403, message: 'You may only view reports for your own faculty.' } };
+  // coordinator/administrative_secretary: administrative_secretary is
+  // provisioned with facultyId 'all' (see CROSS_FACULTY_ROLES in
+  // userController.ts) — her real scope lives in req.user.coordinatorScopes
+  // (same {facultyId, major?} tuples getProjectCoordinatorDashboard already
+  // resolves from). Matching on req.user.facultyId directly (the old
+  // behavior here) meant querying projects for the literal string 'all',
+  // which no real project ever has — so every report silently came back
+  // empty for her regardless of which degree she's actually responsible
+  // for. 'coordinator' has a real single facultyId already, so this only
+  // ever changes behavior for administrative_secretary.
+  const scopeFacultyIds = [...new Set(
+    (req.user?.coordinatorScopes ?? []).length > 0
+      ? req.user!.coordinatorScopes.map((s) => s.facultyId)
+      : req.user?.facultyId && req.user.facultyId !== 'all' ? [req.user.facultyId] : []
+  )];
+
+  if (scopeFacultyIds.length === 0) {
+    // No scope assigned yet — nothing to see, not "everything" (same
+    // fail-closed contract as getProjectCoordinatorDashboard's
+    // noScopeAssigned and withinCoordinatorScope's 'all'-with-no-scopes
+    // fallback).
+    return { error: { status: 403, message: 'No faculty/degree scope is assigned to your account yet.' } };
   }
-  return { facultyId: req.user?.facultyId };
+  if (requested) {
+    if (!scopeFacultyIds.includes(requested)) {
+      return { error: { status: 403, message: 'You may only view reports for your own assigned faculties.' } };
+    }
+    return { facultyId: requested };
+  }
+  if (scopeFacultyIds.length === 1) {
+    return { facultyId: scopeFacultyIds[0] };
+  }
+  // More than one distinct faculty scope with nothing requested — the
+  // Reports UI has no faculty picker for this role, and Firestore's project
+  // query below only takes one facultyId at a time. Rather than silently
+  // pick one (hiding the other scope's data) or fall back to unrestricted
+  // (leaking outside her scope), surface it as a limitation.
+  return { error: { status: 400, message: 'Your account has more than one assigned faculty/degree scope — pass ?facultyId= to pick which one to report on.' } };
 }
 
 // ─── GET /api/reports/:reportType ──────────────────────────────────────────────
