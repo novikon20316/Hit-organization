@@ -11,6 +11,7 @@ import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
 import { getAcademicCalendar } from './academicCalendar.js';
 import { computeGraduationEligibleDate, programLengthYearsFor } from './accountDeletion.js';
 import { examinerScoreFor } from './gradeEngine.js';
+import { academicYearToHebrew } from './hebrewYear.js';
 import {
   computeMilestoneProgress,
   facultyName,
@@ -33,6 +34,7 @@ export interface ReportFilters {
 export interface EngagementRecord {
   studentId: string;
   studentName: string;
+  studentIdNumber: string | null;
   facultyId: string;
   facultyNameHe: string;
   facultyNameEn: string;
@@ -152,6 +154,7 @@ export async function gatherEngagements(filters: ReportFilters = {}): Promise<En
       records.push({
         studentId: studentId ?? '',
         studentName: student?.displayName ?? (studentId ? 'Unknown' : ''),
+        studentIdNumber: student?.studentId ?? null,
         facultyId: project.facultyId ?? '',
         facultyNameHe: fname.he,
         facultyNameEn: fname.en,
@@ -488,4 +491,40 @@ export async function repositoryReport(filters: ReportFilters): Promise<Reposito
         completedAt: defenseMs?.coordinatorApprovedAt ? String(defenseMs.coordinatorApprovedAt) : null,
       };
     });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Grade export report — PLACEHOLDER: name/description not yet supplied by
+// the user (see the project-excel-import-export-scope memory / the "Maklol
+// grade export" note). Fields are finalized per the user's spec: Full Name,
+// ID, Project/Thesis name, Supervisor's Name, Year (Hebrew calendar only —
+// startYear is a plain Gregorian year, converted via academicYearToHebrew,
+// same offset trick it uses for academicYear strings), Status, Grade.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface GradeExportRow {
+  studentName: string;
+  studentIdNumber: string | null;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  advisorName: string;
+  startYearHebrew: string | null;
+  projectStatus: string;
+  finalGrade: number | null;
+}
+
+export async function gradeExportReport(filters: ReportFilters): Promise<GradeExportRow[]> {
+  const records = (await gatherEngagements(filters)).filter((r) => r.studentId);
+  return records.map((r) => {
+    const defenseMs = r.milestones.find((m) => m.type === 'defense');
+    return {
+      studentName: r.studentName,
+      studentIdNumber: r.studentIdNumber,
+      projectTitleHe: r.projectTitleHe,
+      projectTitleEn: r.projectTitleEn,
+      advisorName: r.advisorName,
+      startYearHebrew: r.startYear != null ? academicYearToHebrew(String(r.startYear)) : null,
+      projectStatus: r.projectStatus,
+      finalGrade: (defenseMs as any)?.finalGrade ?? null,
+    };
+  });
 }

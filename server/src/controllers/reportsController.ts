@@ -19,6 +19,7 @@ import {
   statuteYearExceedanceReport,
   loadReport,
   repositoryReport,
+  gradeExportReport,
 } from '../services/reports.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
 
@@ -40,6 +41,7 @@ const REPORT_ROLE_FACULTY_FIELD: Record<string, RoleFacultyField> = {
 export const REPORT_TYPES = [
   'full-status', 'no-advisor', 'proposal-delay', 'examiner-tracking',
   'missing-closure', 'stuck-students', 'statute-exceedance', 'load', 'repository',
+  'grade-export',
 ] as const;
 type ReportType = typeof REPORT_TYPES[number];
 
@@ -69,6 +71,7 @@ async function runReport(type: ReportType, filters: ReportFilters) {
     case 'statute-exceedance': return statuteYearExceedanceReport(filters);
     case 'load':               return loadReport(filters);
     case 'repository':         return repositoryReport(filters);
+    case 'grade-export':       return gradeExportReport(filters);
   }
 }
 
@@ -208,6 +211,11 @@ function flattenForExport(type: ReportType, data: any): Record<string, any>[] {
       return (data as any[]).map((r) => ({
         TitleHe: r.projectTitleHe, TitleEn: r.projectTitleEn, Student: r.studentName, Advisor: r.advisorName,
         Faculty: r.facultyNameEn, FinalGrade: r.finalGrade ?? '', CompletedAt: r.completedAt ?? '',
+      }));
+    case 'grade-export':
+      return (data as any[]).map((r) => ({
+        FullName: r.studentName, ID: r.studentIdNumber ?? '', ProjectTitle: r.projectTitleEn || r.projectTitleHe,
+        Supervisor: r.advisorName, Year: r.startYearHebrew ?? '', Status: r.projectStatus, Grade: r.finalGrade ?? '',
       }));
   }
 }

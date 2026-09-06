@@ -11,7 +11,8 @@ import { auth } from '../firebase/firebase';
 
 export type ReportType =
   | 'full-status' | 'no-advisor' | 'proposal-delay' | 'examiner-tracking'
-  | 'missing-closure' | 'stuck-students' | 'statute-exceedance' | 'load' | 'repository';
+  | 'missing-closure' | 'stuck-students' | 'statute-exceedance' | 'load' | 'repository'
+  | 'grade-export';
 
 export interface ReportFilters {
   facultyId?: string;

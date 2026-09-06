@@ -2,10 +2,11 @@
 //
 // The reports suite (requirements doc section 12) — see
 // server/src/services/reports.ts / reportsController.ts. One screen covering
-// all 9 report types: a selector, a light filter bar, a generic row list
-// (each report shapes its rows differently, so this picks a curated set of
-// display fields per type rather than one fixed table), and an Excel export
-// button that mirrors the same filters.
+// all 10 report types: a block-card selector (name + short description per
+// report, ported from web/app/reports), a light filter bar, a generic row
+// list (each report shapes its rows differently, so this picks a curated set
+// of display fields per type rather than one fixed table), and an Excel
+// export button that mirrors the same filters.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -25,12 +26,17 @@ interface ReportDef {
   key: ReportType;
   he: string;
   en: string;
+  /** Short one-line explanation shown on the report's selector block. */
+  heDesc: string;
+  enDesc: string;
   fields: { key: string; he: string; en: string }[];
 }
 
 const REPORTS: ReportDef[] = [
   {
     key: 'full-status', he: 'דוח סטטוס מלא', en: 'Full Status Report',
+    heDesc: 'כל הסטודנטים הפעילים, השלב הנוכחי שלהם וכמה זמן הם נמצאים בו',
+    enDesc: 'Every active student, their current stage, and how long they’ve been there',
     fields: [
       { key: 'studentName', he: 'סטודנט', en: 'Student' },
       { key: 'facultyNameHe', he: 'פקולטה', en: 'Faculty' },
@@ -42,6 +48,8 @@ const REPORTS: ReportDef[] = [
   },
   {
     key: 'no-advisor', he: 'ללא מנחה/נושא', en: 'No Advisor/Topic',
+    heDesc: 'סטודנטים שעדיין לא שובצו למנחה או נושא מעבר לזמן הסביר',
+    enDesc: 'Students still without an assigned advisor or topic beyond the normal grace period',
     fields: [
       { key: 'studentName', he: 'סטודנט', en: 'Student' },
       { key: 'facultyNameHe', he: 'פקולטה', en: 'Faculty' },
@@ -50,6 +58,8 @@ const REPORTS: ReportDef[] = [
   },
   {
     key: 'proposal-delay', he: 'עיכוב בהצעת מחקר', en: 'Proposal Delay',
+    heDesc: 'סטודנטים שמתעכבים בשלב הצעת המחקר',
+    enDesc: 'Students who are delayed at the research-proposal stage',
     fields: [
       { key: 'studentName', he: 'סטודנט', en: 'Student' },
       { key: 'advisorName', he: 'מנחה', en: 'Advisor' },
@@ -59,6 +69,8 @@ const REPORTS: ReportDef[] = [
   },
   {
     key: 'examiner-tracking', he: 'מעקב בוחנים', en: 'Examiner Tracking',
+    heDesc: 'מעקב אחר בוחנים פנימיים וחיצוניים וסטטוס חוות הדעת שלהם',
+    enDesc: 'Tracks internal and external examiners and the status of their opinions',
     fields: [
       { key: 'examinerName', he: 'בוחן', en: 'Examiner' },
       { key: 'examinerType', he: 'סוג', en: 'Type' },
@@ -70,6 +82,8 @@ const REPORTS: ReportDef[] = [
   },
   {
     key: 'missing-closure', he: 'חוסרים לסגירת תואר', en: 'Missing for Closure',
+    heDesc: 'מה חסר לכל סטודנט כדי לסגור את התואר',
+    enDesc: 'What’s still missing for each student to close out their degree',
     fields: [
       { key: 'studentName', he: 'סטודנט', en: 'Student' },
       { key: 'advisorName', he: 'מנחה', en: 'Advisor' },
@@ -78,6 +92,8 @@ const REPORTS: ReportDef[] = [
   },
   {
     key: 'stuck-students', he: 'סטודנטים תקועים', en: 'Stuck Students',
+    heDesc: 'סטודנטים שחרגו מסף הזמן הסביר בשלב הנוכחי שלהם',
+    enDesc: 'Students who’ve exceeded the normal time threshold at their current stage',
     fields: [
       { key: 'studentName', he: 'סטודנט', en: 'Student' },
       { key: 'facultyNameHe', he: 'פקולטה', en: 'Faculty' },
@@ -87,6 +103,8 @@ const REPORTS: ReportDef[] = [
   },
   {
     key: 'statute-exceedance', he: 'חריגת שנות תקן', en: 'Statute-Year Exceedance',
+    heDesc: 'סטודנטים שחרגו ממשך הלימודים התקני לתואר שלהם',
+    enDesc: 'Students who’ve exceeded the statutory length of their program',
     fields: [
       { key: 'studentName', he: 'סטודנט', en: 'Student' },
       { key: 'advisorName', he: 'מנחה', en: 'Advisor' },
@@ -96,6 +114,8 @@ const REPORTS: ReportDef[] = [
   },
   {
     key: 'load', he: 'עומס הנחיה ובחינה', en: 'Advising/Examining Load',
+    heDesc: 'עומס ההנחיה והבחינה הנוכחי של כל מנחה ובוחן',
+    enDesc: 'Each advisor’s and examiner’s current advising/examining load',
     fields: [
       { key: 'personName', he: 'שם', en: 'Name' },
       { key: 'role', he: 'תפקיד', en: 'Role' },
@@ -105,11 +125,30 @@ const REPORTS: ReportDef[] = [
   },
   {
     key: 'repository', he: 'מאגר עבודות', en: 'Repository',
+    heDesc: 'עבודות שהושלמו והציונים הסופיים שלהן',
+    enDesc: 'Completed works and their final grades',
     fields: [
       { key: 'projectTitleHe', he: 'כותרת', en: 'Title' },
       { key: 'studentName', he: 'סטודנט', en: 'Student' },
       { key: 'advisorName', he: 'מנחה', en: 'Advisor' },
       { key: 'finalGrade', he: 'ציון סופי', en: 'Final Grade' },
+    ],
+  },
+  {
+    // PLACEHOLDER — name/description not yet supplied by the user (they said
+    // they'll provide it separately). Fields mirror web/app/reports/types.ts's
+    // grade-export entry exactly — keep the two in sync if either changes.
+    key: 'grade-export', he: 'דוח חדש (שם בהמתנה)', en: 'New Report (name pending)',
+    heDesc: 'התיאור יתעדכן בהמשך',
+    enDesc: 'Description to be added',
+    fields: [
+      { key: 'studentName', he: 'שם מלא', en: 'Full Name' },
+      { key: 'studentIdNumber', he: 'ת.ז.', en: 'ID' },
+      { key: 'projectTitleHe', he: 'שם פרויקט/תזה', en: 'Project/Thesis Name' },
+      { key: 'advisorName', he: 'שם המנחה', en: 'Supervisor’s Name' },
+      { key: 'startYearHebrew', he: 'שנה', en: 'Year' },
+      { key: 'projectStatus', he: 'סטטוס', en: 'Status' },
+      { key: 'finalGrade', he: 'ציון', en: 'Grade' },
     ],
   },
 ];
@@ -320,26 +359,30 @@ export default function Reports() {
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
       />
 
-      {/* Report type selector */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12, flexGrow: 0 }}>
+      {/* Report type selector — one block per report, name + short description */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 12, gap: 10 }}>
         {REPORTS.map((r) => (
           <Pressable
             key={r.key}
             style={{
+              width: '47%',
               borderWidth: 1.5, borderColor: activeReport === r.key ? '#2E86FF' : '#D0DEFF',
-              backgroundColor: activeReport === r.key ? '#2E86FF' : '#fff',
-              borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
+              backgroundColor: activeReport === r.key ? '#EAF2FF' : '#fff',
+              borderRadius: 14, padding: 12,
             }}
             onPress={() => setActiveReport(r.key)}
             accessibilityRole="button"
             accessibilityState={{ selected: activeReport === r.key }}
           >
-            <Text style={{ color: activeReport === r.key ? '#fff' : '#2E86FF', fontWeight: '600', fontSize: 13 }}>
+            <Text style={{ color: activeReport === r.key ? '#2E86FF' : '#111', fontWeight: '700', fontSize: 13 }}>
               {lang === 'he' ? r.he : r.en}
+            </Text>
+            <Text style={{ color: '#8899BB', fontSize: 11, marginTop: 4 }}>
+              {lang === 'he' ? r.heDesc : r.enDesc}
             </Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
       {/* Filter bar */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
