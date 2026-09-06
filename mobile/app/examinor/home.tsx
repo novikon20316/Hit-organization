@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
-import { auth } from '../../src/firebase/firebase';
+import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
+import { auth, db } from '../../src/firebase/firebase';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, getFacultyColor } from '../../components/shared';
@@ -190,7 +191,57 @@ export default function ExaminerHome() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
- 
+
+  // Live milestone listener — same merge-by-id overlay idiom as
+  // web/app/examinor/home/page.tsx and coordinator/home's listeners: the
+  // REST fetch above stays the source of truth for shell fields (project/
+  // supervisor/student names), this only overlays fast-changing fields
+  // (status, dueDate/defenseDate, scores, panel, dateMatching) onto
+  // whatever's already in assignments by id. Scoped by examinerIds, matching
+  // the same field the milestones Firestore rule and getExaminerDashboard's
+  // REST query already check.
+  const unsubMilestones = useRef<Unsubscribe | null>(null);
+  useEffect(() => {
+    if (unsubMilestones.current) { unsubMilestones.current(); unsubMilestones.current = null; }
+    if (!uid) return;
+
+    const q = query(collection(db, 'milestones'), where('examinerIds', 'array-contains', uid));
+    unsubMilestones.current = onSnapshot(
+      q,
+      (snapshot) => {
+        const liveById = new Map(snapshot.docs.map((d) => [d.id, d.data()]));
+        setAssignments((prev) =>
+          prev.map((m) => {
+            const live = liveById.get(m.id);
+            if (!live) return m;
+            return {
+              ...m,
+              status: live.status,
+              defenseDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
+              defenseRoom: live.defenseRoom ?? null,
+              defenseBuilding: live.defenseBuilding ?? null,
+              defenseTime: live.defenseTime ?? null,
+              defensePanel: live.defensePanel ?? m.defensePanel,
+              dateMatching: live.dateMatching ?? m.dateMatching,
+              supervisorScore: live.supervisorScore ?? null,
+              examinerScores: live.examinerScores ?? m.examinerScores,
+              examiner1Score: live.examiner1Score ?? null,
+              examiner2Score: live.examiner2Score ?? null,
+              examinerEvaluations: live.examinerEvaluations ?? m.examinerEvaluations,
+            };
+          })
+        );
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+        console.warn('examinor/home: live milestones listener error', err);
+      }
+    );
+    return () => {
+      if (unsubMilestones.current) { unsubMilestones.current(); unsubMilestones.current = null; }
+    };
+  }, [uid]);
+
   // ── Helpers (unchanged) ─────────────────────────────────────────────────
   const alreadyGraded = (m: AssignedMilestone): boolean => {
     // Three-rubric final-grade workflow (defense only) — "graded" means both

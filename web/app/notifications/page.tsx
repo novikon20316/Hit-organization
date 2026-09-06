@@ -4,8 +4,10 @@
 // Ported from mobile/app/(tabs)/notifications.tsx — Notifications, Chats,
 // and Feedback tabs in one screen, same as mobile.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { collection, query, where, orderBy, limit, onSnapshot, type Unsubscribe } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -47,18 +49,54 @@ export default function NotificationsPage() {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const unreadChats = chats.filter((c) => c.unreadCount > 0).length;
 
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const res = await apiClient.getNotificationFeed();
-      setNotifications((res ?? []) as unknown as Notif[]);
-      setNotifsError('');
-    } catch (err) {
-      console.error('Failed fetching notifications:', err);
-      setNotifsError(lang === 'he' ? 'טעינת ההתראות נכשלה' : 'Failed to load notifications');
-    } finally {
-      setLoadingNotifs(false);
-    }
-  }, [lang]);
+  // Live listener (replaces the old 30s REST poll of getNotificationFeed) —
+  // same idiom as hooks/useStudentData.ts's milestones listener (ref +
+  // cancel + permission-denied swallowed). `retryTick` exists purely so the
+  // existing "Retry" button has something to do — onSnapshot itself already
+  // auto-reconnects on transient network errors, this just re-attaches from
+  // scratch for a genuine permission/config issue.
+  const [retryTick, setRetryTick] = useState(0);
+  const unsubNotifs = useRef<Unsubscribe | null>(null);
+
+  useEffect(() => {
+    if (authLoading || !userData) return;
+    if (unsubNotifs.current) { unsubNotifs.current(); unsubNotifs.current = null; }
+
+    const q = query(
+      collection(db, 'notifications'),
+      where('recipientId', '==', userData.uid),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+    unsubNotifs.current = onSnapshot(
+      q,
+      (snapshot) => {
+        setNotifications(
+          snapshot.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              ...data,
+              createdAt: data.createdAt?.toDate?.()?.toISOString() ?? data.createdAt ?? null,
+            } as unknown as Notif;
+          })
+        );
+        setNotifsError('');
+        setLoadingNotifs(false);
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+        console.error('notifications: live listener error', err);
+        setNotifsError(lang === 'he' ? 'טעינת ההתראות נכשלה' : 'Failed to load notifications');
+        setLoadingNotifs(false);
+      }
+    );
+    return () => {
+      if (unsubNotifs.current) { unsubNotifs.current(); unsubNotifs.current = null; }
+    };
+  }, [authLoading, userData, lang, retryTick]);
+
+  const fetchNotifications = useCallback(() => setRetryTick((t) => t + 1), []);
 
   const fetchChats = useCallback(async () => {
     try {
@@ -76,20 +114,19 @@ export default function NotificationsPage() {
   useEffect(() => {
     // Wait for AuthContext to resolve Firebase's restored session first — on
     // a hard reload auth.currentUser is briefly null while that restore is
-    // in flight, so firing these before authLoading flips false sends every
+    // in flight, so firing this before authLoading flips false sends the
     // request with no Authorization header at all (apiClient.ts's request()
     // reads auth.currentUser synchronously), which the server correctly
     // rejects as unauthorized rather than this being a real outage.
+    // Notifications no longer need polling here — they're live (see the
+    // onSnapshot effect above); chats still are, until a live chat feed
+    // exists (see this file's own header note).
     if (authLoading) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- polling on mount; both fetch functions' setState calls happen after their awaited network calls resolve, not synchronously in this effect
-    fetchNotifications();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- polling on mount; fetchChats' setState calls happen after its awaited network call resolves, not synchronously in this effect
     fetchChats();
-    const interval = setInterval(() => {
-      fetchNotifications();
-      fetchChats();
-    }, 30_000);
+    const interval = setInterval(fetchChats, 30_000);
     return () => clearInterval(interval);
-  }, [authLoading, fetchNotifications, fetchChats]);
+  }, [authLoading, fetchChats]);
 
   const handleTapNotif = async (notif: Notif) => {
     if (!notif.isRead) {

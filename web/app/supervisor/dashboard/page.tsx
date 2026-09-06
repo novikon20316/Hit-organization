@@ -11,14 +11,16 @@
 // the Suspense boundary during prerendering (Next.js requirement) — wrapped
 // below so the rest of the app shell can still be prerendered.
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { db } from '@/lib/firebase';
 import type { AppRole } from '@/lib/roles';
 import type { FacultyId } from '@/lib/i18n';
 import type { ExaminerUser } from '@/app/coordinator/home/types';
@@ -66,7 +68,7 @@ const PROJECT_FILTERS: { key: ProjectFilter; he: string; en: string }[] = [
 ];
 
 function SupervisorDashboardContent() {
-  const { loading: guardLoading, isAllowed } = useRequireRole(SUPERVISOR_ROLES);
+  const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
   const searchParams = useSearchParams();
 
@@ -129,6 +131,73 @@ function SupervisorDashboardContent() {
       fetchInternalExaminers();
     }
   }, [isAllowed, fetchDashboard, fetchInternalExaminers]);
+
+  // Live milestone listener for pendingGrades. Unlike the coordinator/
+  // examiner dashboards' overlay-by-id (which only ever patches fields onto
+  // milestones already present), pendingGrades is itself defined as "every
+  // milestone with status === 'submitted'" (see supervisorController.ts's
+  // getSupervisorDashboard) — set membership changes over time (a grade
+  // gets submitted, or gets graded and should drop off), not just field
+  // values on a fixed set of rows. So each snapshot rebuilds the array from
+  // scratch off the raw milestone docs, using the exact same field mapping
+  // and status filter as the REST endpoint (milestone docs are already
+  // denormalized with projectTitleHe/studentNames/etc, so this needs no
+  // extra join). Two separate queries (supervisorId / secondarySupervisorId)
+  // since a milestone doc carries either field, mirroring mobile/app/
+  // supervisor/dashboard.tsx's identical primary+secondary split for
+  // projects.
+  const unsubPrimary = useRef<Unsubscribe | null>(null);
+  const unsubSecondary = useRef<Unsubscribe | null>(null);
+  const liveMilestonesRef = useRef<Map<string, any>>(new Map());
+  useEffect(() => {
+    if (unsubPrimary.current) { unsubPrimary.current(); unsubPrimary.current = null; }
+    if (unsubSecondary.current) { unsubSecondary.current(); unsubSecondary.current = null; }
+    liveMilestonesRef.current = new Map();
+    const uid = firebaseUser?.uid;
+    if (!isAllowed || !uid) return;
+
+    const applyOverlay = () => {
+      const rows = Array.from(liveMilestonesRef.current.entries())
+        .filter(([, data]) => data.status === 'submitted')
+        .map(([id, data]) => ({
+          id,
+          projectId: data.projectId ?? '',
+          projectTitleHe: data.projectTitleHe ?? '',
+          projectTitleEn: data.projectTitleEn ?? '',
+          type: data.type ?? '',
+          status: data.status ?? '',
+          studentNames: data.studentNames ?? [],
+          studentIds: data.studentIds ?? [],
+          fileUrls: data.fileUrls ?? [],
+          submissionNote: data.submissionNote ?? '',
+          facultyId: data.facultyId ?? '',
+          gradingComponents: data.gradingComponents ?? [],
+          dueDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
+          submittedAt: data.submittedAt?.toDate?.()?.toISOString() ?? null,
+        }));
+      setPendingGrades(rows);
+    };
+
+    const onSnap = (snapshot: any) => {
+      snapshot.docChanges().forEach((change: any) => {
+        if (change.type === 'removed') liveMilestonesRef.current.delete(change.doc.id);
+        else liveMilestonesRef.current.set(change.doc.id, change.doc.data());
+      });
+      applyOverlay();
+    };
+    const onErr = (err: any) => {
+      if (err?.code === 'permission-denied') return; // expected during sign-out
+      console.warn('supervisor/dashboard: live milestones listener error', err);
+    };
+
+    unsubPrimary.current = onSnapshot(query(collection(db, 'milestones'), where('supervisorId', '==', uid)), onSnap, onErr);
+    unsubSecondary.current = onSnapshot(query(collection(db, 'milestones'), where('secondarySupervisorId', '==', uid)), onSnap, onErr);
+
+    return () => {
+      if (unsubPrimary.current) { unsubPrimary.current(); unsubPrimary.current = null; }
+      if (unsubSecondary.current) { unsubSecondary.current(); unsubSecondary.current = null; }
+    };
+  }, [isAllowed, firebaseUser?.uid]);
 
   if (guardLoading) {
     return (

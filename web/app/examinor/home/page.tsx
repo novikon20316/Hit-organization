@@ -3,13 +3,15 @@
 // app/examinor/home/page.tsx
 // Ported from mobile/app/examinor/home.tsx.
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { db } from '@/lib/firebase';
 import { getFacultyColor } from '@/lib/facultyColors';
 import type { AppRole } from '@/lib/roles';
 import { AssignmentCard } from './AssignmentCard';
@@ -61,6 +63,60 @@ function ExaminerHomeContent() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
   }, [isAllowed, fetchDashboard]);
+
+  // Live milestone listener — same merge-by-id overlay idiom as
+  // app/coordinator/home/page.tsx and hooks/useStudentData.ts: the REST
+  // fetch above stays the source of truth for shell fields (project/
+  // supervisor/student names), this only overlays fast-changing fields
+  // (status, dueDate/defenseDate, scores, panel, dateMatching) onto
+  // whatever's already in assignments by id. Scoped by examinerIds, matching
+  // the same field the milestones Firestore rule and getExaminerDashboard's
+  // REST query already check.
+  const unsubMilestones = useRef<Unsubscribe | null>(null);
+  useEffect(() => {
+    if (unsubMilestones.current) { unsubMilestones.current(); unsubMilestones.current = null; }
+    const uid = firebaseUser?.uid;
+    if (!isAllowed || !uid) return;
+
+    const q = query(collection(db, 'milestones'), where('examinerIds', 'array-contains', uid));
+    unsubMilestones.current = onSnapshot(
+      q,
+      (snapshot) => {
+        const liveById = new Map(snapshot.docs.map((d) => [d.id, d.data()]));
+        setAssignments((prev) =>
+          prev.map((m) => {
+            const live = liveById.get(m.id);
+            if (!live) return m;
+            return {
+              ...m,
+              status: live.status,
+              routing: live.routing ?? null,
+              defenseDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
+              defenseRoom: live.defenseRoom ?? null,
+              defenseBuilding: live.defenseBuilding ?? null,
+              defenseTime: live.defenseTime ?? null,
+              defensePanel: live.defensePanel ?? m.defensePanel,
+              dateMatching: live.dateMatching ?? m.dateMatching,
+              supervisorScore: live.supervisorScore ?? null,
+              examinerScores: live.examinerScores ?? m.examinerScores,
+              examiner1Score: live.examiner1Score ?? null,
+              examiner2Score: live.examiner2Score ?? null,
+              examinerEvaluations: live.examinerEvaluations ?? m.examinerEvaluations,
+              stageScores: live.stageScores ?? m.stageScores,
+              examinerFormAnswers: live.examinerFormAnswers ?? m.examinerFormAnswers,
+            };
+          })
+        );
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+        console.warn('examinor/home: live milestones listener error', err);
+      }
+    );
+    return () => {
+      if (unsubMilestones.current) { unsubMilestones.current(); unsubMilestones.current = null; }
+    };
+  }, [isAllowed, firebaseUser?.uid]);
 
   if (guardLoading) {
     return (

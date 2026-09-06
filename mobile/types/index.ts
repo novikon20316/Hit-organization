@@ -720,6 +720,10 @@ export interface Project {
   status: string;
   facultyId: string;
   supervisorId?: string;
+  // Actually sent by getCoordinatorDashboard (coordinatorController.ts) even
+  // though it was missing from this type until now — resolved server-side
+  // from supervisorId via a usersById join.
+  supervisorName?: string;
   enrolledStudentIds?: string[];
   examinerIds?: string[];
   milestones?: AssignedMilestone[];

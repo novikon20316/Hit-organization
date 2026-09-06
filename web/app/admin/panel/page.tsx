@@ -10,10 +10,12 @@
 // the Suspense boundary during prerendering (Next.js requirement) — wrapped
 // below so the rest of the app shell can still be prerendered.
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, type Unsubscribe } from 'firebase/firestore';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import { db } from '@/lib/firebase';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -133,34 +135,77 @@ function AdminPanelContent() {
     }
   }, []);
 
-  const fetchLockedUsers = useCallback(async () => {
-    try {
-      setLoadingLocked(true);
-      const res = await apiClient.getLockedUsers();
-      setLockedUsers(res.lockouts ?? []);
-      setLockedUsersError('');
-    } catch (err) {
-      // Previously silent (console.error only) — the "Locked Accounts" stat
-      // card would just show 0 on failure, indistinguishable from "actually
-      // zero locked accounts." Confirmed live: a missing Firestore composite
-      // index on loginSecurityIncidents made this fail on every load, so the
-      // count was permanently stuck at 0 no matter how many accounts were
-      // really locked.
-      console.error('Failed to load locked accounts:', err);
-      setLockedUsersError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת חשבונות נעולים נכשלה' : 'Failed to load locked accounts');
-    } finally {
-      setLoadingLocked(false);
-    }
-  }, [lang]);
-
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls all happen after its awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
     if (isAllowed) fetchStatusConfig();
-    // Also needed on the Overview tab's stat tiles (Locked Accounts), not
-    // just when the Users tab is opened — see fetchDashboard above.
-    if (isAllowed) fetchLockedUsers();
-  }, [isAllowed, fetchDashboard, fetchStatusConfig, fetchLockedUsers]);
+  }, [isAllowed, fetchDashboard, fetchStatusConfig]);
+
+  // Live locked-accounts listener — system_admin's live scope is
+  // deliberately narrow (security events only, not general app data), per
+  // the user's own framing. Replaces the old REST poll-on-mount entirely:
+  // this is the exact same query listPendingLockouts() runs server-side
+  // (services/loginSecurity.ts), so it needs the same composite index,
+  // which already exists (confirmed live via the REST endpoint working).
+  // displayName/location aren't stored on the incident doc itself, so each
+  // snapshot re-resolves them per row (small list — at most a handful of
+  // concurrently-locked accounts) to keep parity with the REST shape.
+  const unsubLocked = useRef<Unsubscribe | null>(null);
+  useEffect(() => {
+    if (unsubLocked.current) { unsubLocked.current(); unsubLocked.current = null; }
+    if (!isAllowed) return;
+
+    setLoadingLocked(true);
+    const q = query(collection(db, 'loginSecurityIncidents'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+    unsubLocked.current = onSnapshot(
+      q,
+      async (snapshot) => {
+        try {
+          const rows = await Promise.all(
+            snapshot.docs.map(async (d) => {
+              const data = d.data();
+              let displayName = '';
+              try {
+                const userSnap = await getDoc(doc(db, 'users', data.uid));
+                displayName = (userSnap.data()?.displayName as string) ?? '';
+              } catch {
+                // non-fatal — row just falls back to showing the email
+              }
+              const loc = data.location as { city?: string; region?: string; country?: string } | null | undefined;
+              return {
+                code: d.id,
+                uid: data.uid,
+                email: data.email,
+                displayName,
+                ip: data.ip ?? '',
+                location: loc ? [loc.city, loc.region, loc.country].filter(Boolean).join(', ') : '',
+                createdAt: data.createdAt,
+              };
+            })
+          );
+          setLockedUsers(rows);
+          setLockedUsersError('');
+        } catch (err) {
+          console.error('Failed to resolve locked-account rows:', err);
+          setLockedUsersError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת חשבונות נעולים נכשלה' : 'Failed to load locked accounts');
+        } finally {
+          setLoadingLocked(false);
+        }
+      },
+      (err: any) => {
+        // Previously silent when this failed (console.error only) — the
+        // "Locked Accounts" stat card would just show 0, indistinguishable
+        // from "actually zero locked accounts."
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+        console.error('Failed to load locked accounts:', err);
+        setLockedUsersError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת חשבונות נעולים נכשלה' : 'Failed to load locked accounts');
+        setLoadingLocked(false);
+      }
+    );
+    return () => {
+      if (unsubLocked.current) { unsubLocked.current(); unsubLocked.current = null; }
+    };
+  }, [isAllowed, lang]);
 
   const handleLiftLockout = async (code: string) => {
     if (liftingCode) return;

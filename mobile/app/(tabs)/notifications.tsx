@@ -5,7 +5,8 @@ import {
   ActivityIndicator, Animated, FlatList, Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
-import { auth } from '../../src/firebase/firebase';
+import { collection, query, where, orderBy, limit, onSnapshot, type Unsubscribe } from 'firebase/firestore';
+import { auth, db } from '../../src/firebase/firebase';
 import { useRouter } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import NewChatSheet from '../message/new';
@@ -396,30 +397,50 @@ export default function NotificationsScreen() {
     return () => clearInterval(inboxInterval);
   }, [uid, fetchInboxData]);
 
-  const fetchNotifications = useCallback(async () => {
-    if (!uid) return;
-    try {
-      setLoadingNotifs(true);
-      const response = await apiClient.get('/api/notifications/feed');
-      // API returns array directly (see getUserNotificationFeed controller)
-      setNotifications(Array.isArray(response.data) ? response.data : []);
-      setNotifsError('');
-    } catch (err) {
-      console.error('Failed fetching notifications:', err);
-      setNotifsError(lang === 'he' ? 'טעינת ההתראות נכשלה' : 'Failed to load notifications');
-    } finally {
-      setLoadingNotifs(false);
-    }
-  }, [uid, lang]);
+  // Live listener (replaces the old 30s REST poll of /api/notifications/feed)
+  // — same idiom used across the app's other listeners (ref + cancel +
+  // permission-denied swallowed). `retryTick` exists purely so the existing
+  // "Retry" affordance has something to do — onSnapshot itself already
+  // auto-reconnects on transient network errors, this just re-attaches from
+  // scratch for a genuine permission/config issue.
+  const [retryTick, setRetryTick] = useState(0);
+  const unsubNotifs = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
+    if (unsubNotifs.current) { unsubNotifs.current(); unsubNotifs.current = null; }
     if (!uid) return;
-    fetchNotifications();
+    setLoadingNotifs(true);
 
-    // Poll every 30 seconds — same pattern as your chat polling
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [uid, fetchNotifications]);
+    const q = query(collection(db, 'notifications'), where('recipientId', '==', uid), orderBy('createdAt', 'desc'), limit(100));
+    unsubNotifs.current = onSnapshot(
+      q,
+      (snapshot) => {
+        setNotifications(
+          snapshot.docs.map((d) => {
+            const data: any = d.data();
+            return {
+              id: d.id,
+              ...data,
+              createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt ?? null,
+            } as Notif;
+          })
+        );
+        setNotifsError('');
+        setLoadingNotifs(false);
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+        console.error('notifications: live listener error', err);
+        setNotifsError(lang === 'he' ? 'טעינת ההתראות נכשלה' : 'Failed to load notifications');
+        setLoadingNotifs(false);
+      }
+    );
+    return () => {
+      if (unsubNotifs.current) { unsubNotifs.current(); unsubNotifs.current = null; }
+    };
+  }, [uid, lang, retryTick]);
+
+  const fetchNotifications = useCallback(() => setRetryTick((t) => t + 1), []);
 
   // ── Delete chat (soft delete for this user) ───────────────────────────────
   const handleDeleteChat = (chatId: string) => {

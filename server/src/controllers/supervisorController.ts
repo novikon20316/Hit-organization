@@ -361,10 +361,13 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             status: (m?.status as string | undefined) ?? 'not_created',
             dueDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
             submittedAt: m?.submittedAt?.toDate?.()?.toISOString() ?? null,
-            // The resolved defense date (see defenseScheduling.ts) — only
-            // ever set on 'defense'-type milestones. Used by the data_science
-            // final-grade certificate.
-            defenseDate: m?.defenseDate?.toDate?.()?.toISOString() ?? null,
+            // CRITICAL FIX: was reading m?.defenseDate — that field has
+            // never actually existed on a milestone doc. The resolved
+            // defense date (see defenseScheduling.ts's finalizeMatchedDate)
+            // is written to `dueDate`, the same field every other milestone
+            // type's due date lives in. Used by the data_science final-grade
+            // certificate.
+            defenseDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
             // The student's submitted files/note for this milestone — lets
             // the supervisor preview/download them straight from the
             // project card instead of a separate Grading tab.

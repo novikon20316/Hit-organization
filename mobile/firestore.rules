@@ -522,15 +522,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Failed-login security incidents — server-mediated only. Every step
+    // Failed-login security incidents — server-MUTATED only. Every write
     // (checking status, confirming/denying) goes through the Express API
     // (services/loginSecurity.ts) via the Admin SDK, which bypasses rules
-    // entirely, so denying all client access here doesn't break the feature;
-    // it just stops any signed-in (or, since login can be failing, even
-    // unauthenticated) client from reading or tampering with an incident
-    // directly.
+    // entirely, so denying all client writes here doesn't break the feature.
+    // Reads are opened to system_admin only (same role(userDoc()) ==
+    // 'system_admin' pattern used for `users` above) so the admin panel's
+    // locked-accounts panel can listen live via onSnapshot instead of
+    // polling GET /api/admin/login-security/locked — this doesn't expose
+    // anything system_admin couldn't already fetch through that endpoint,
+    // just a live path to the same data. Still denied to every other
+    // signed-in (or, since login can be failing, unauthenticated) client.
     match /loginSecurityIncidents/{code} {
-      allow read, write: if false;
+      allow read: if isSignedIn() && role(userDoc()) == 'system_admin';
+      allow write: if false;
     }
 
     // Permanent feedback chat (see server/src/controllers/feedbackController.ts).

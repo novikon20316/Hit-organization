@@ -7,7 +7,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { auth, db } from '../../src/firebase/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
+import type { CoordinatorScope } from '@/constants/permissions';
 import ProposalRecommendationModal from '@/components/modals/ProposalRecommendationModal';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
@@ -185,6 +186,16 @@ export default function CoordinatorHome() {
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
   const [pendingMilestones, setPendingMilestones] = useState<PendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  // Kept in sync below purely so the milestones listener's "a milestone
+  // newly qualifies for the Pending queue" branch can read the CURRENT
+  // projects list synchronously inside one onSnapshot callback — reading
+  // `projects` directly there would race a still-in-flight setProjects call
+  // from earlier in the very same callback (state updater functions aren't
+  // guaranteed to run before the next line executes).
+  const projectsRef = React.useRef<Project[]>([]);
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
   const [inProgressProjects, setInProgressProjects] = useState<InProgressProject[]>([]);
   const [inProgressScope, setInProgressScope] = useState<'all' | 'mine'>('all');
   const [defenseSetups,    setDefenseSetups]    = useState<PendingMilestone[]>([]);
@@ -236,14 +247,141 @@ export default function CoordinatorHome() {
   // Own profile, fetched once — needed only for ProposalRecommendationModal's
   // signature preview (name/facultyId/major, same inputs
   // examinerSignatureStyle uses on web).
-  const [coordinatorProfile, setCoordinatorProfile] = useState<{ displayName: string; facultyId: string; major: string | null } | null>(null);
+  const [coordinatorProfile, setCoordinatorProfile] = useState<{ displayName: string; facultyId: string; major: string | null; coordinatorScopes?: CoordinatorScope[] } | null>(null);
   useEffect(() => {
     if (!coordinatorId) return;
     getDoc(doc(db, 'users', coordinatorId)).then((snap) => {
       const u = snap.data();
-      if (u) setCoordinatorProfile({ displayName: u.displayName ?? '', facultyId: u.facultyId ?? '', major: u.major ?? null });
+      if (u) setCoordinatorProfile({ displayName: u.displayName ?? '', facultyId: u.facultyId ?? '', major: u.major ?? null, coordinatorScopes: u.coordinatorScopes ?? [] });
     }).catch(() => {});
   }, [coordinatorId]);
+
+  // Live milestone listener — the REST fetch (fetchCoordinatorDashboard)
+  // stays the source of truth for "shell" fields that don't change in real
+  // time (project/supervisor names, student lists); this only overlays the
+  // fast-changing fields (status, dueDate, scores, examiner panel) onto
+  // whatever's already in pendingMilestones/projects[].milestones by id.
+  // Scoped identically to getCoordinatorDashboard's own facultyId/
+  // coordinatorScopes logic (server/src/controllers/coordinatorController.ts).
+  const unsubMilestones = React.useRef<Unsubscribe | null>(null);
+  useEffect(() => {
+    if (unsubMilestones.current) { unsubMilestones.current(); unsubMilestones.current = null; }
+    if (!coordinatorId || !coordinatorProfile) return;
+
+    const scopeFacultyIds = coordinatorProfile.coordinatorScopes?.length
+      ? [...new Set(coordinatorProfile.coordinatorScopes.map((s) => s.facultyId))]
+      : [coordinatorProfile.facultyId];
+    const isAllFaculties = scopeFacultyIds.includes('all');
+
+    const q = isAllFaculties
+      ? query(collection(db, 'milestones'))
+      : query(collection(db, 'milestones'), where('facultyId', 'in', scopeFacultyIds.slice(0, 10)));
+
+    // Same exclusions fetchCoordinatorDashboard applies client-side when
+    // deriving pendingMilestones from the REST response's raw
+    // pendingMilestones array — needed below to decide whether a milestone
+    // newly ENTERING the base status set (e.g. a student just submitted)
+    // belongs in the live-rendered list, since a pure by-id overlay would
+    // never add it (there's no existing pendingMilestones entry to patch).
+    function belongsInPending(data: any): boolean {
+      if (data.type === 'final_report' && data.status === 'graded') return false;
+      if (data.status === 'coordinator_approved') return false;
+      if (data.routing && data.routing.length > 0 && data.type !== 'defense') {
+        const stage = data.routing[data.currentStageIndex ?? 0];
+        if (!stage || stage.action !== 'approve') return false;
+      }
+      return true;
+    }
+    const PENDING_STATUSES = new Set(['submitted', 'supervisor_graded', 'graded', 'coordinator_approved']);
+
+    unsubMilestones.current = onSnapshot(
+      q,
+      (snapshot) => {
+        const liveById = new Map(snapshot.docs.map((d) => [d.id, d.data()]));
+        function overlay<T extends { id: string }>(m: T): T {
+          const live = liveById.get(m.id);
+          if (!live) return m;
+          return {
+            ...m,
+            status: live.status,
+            routing: live.routing ?? null,
+            currentStageIndex: live.currentStageIndex,
+            dueDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
+            // See useStudentData.ts's/milestoneController.ts's identical
+            // fix — the resolved defense date lives in `dueDate`, not a
+            // separate `defenseDate` field.
+            defenseDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
+            defenseRoom: live.defenseRoom ?? null,
+            supervisorScore: live.supervisorScore ?? null,
+            supervisorComment: live.supervisorComment ?? null,
+            fileUrls: live.fileUrls ?? [],
+            examinerIds: live.examinerIds ?? [],
+          };
+        }
+
+        setProjects((prev: any[]) => prev.map((p: any) => ({ ...p, milestones: (p.milestones ?? []).map(overlay) })));
+
+        setPendingMilestones((prev) => {
+          const overlaid = prev.map(overlay);
+          const knownIds = new Set(overlaid.map((m) => m.id));
+          const additions: PendingMilestone[] = [];
+          liveById.forEach((data, id) => {
+            if (knownIds.has(id) || !PENDING_STATUSES.has(data.status) || !belongsInPending(data)) return;
+            // The raw milestone doc has no projectTitleHe/supervisorName of
+            // its own (those are joined server-side) — reuse an existing
+            // sibling entry for the same project (already carries them,
+            // straight from REST) when there is one, since that's always
+            // in sync with the current render; projectsRef is a fallback
+            // for the rarer case where this is that project's very first
+            // pending milestone (see projectsRef's own comment above for
+            // why this can't just read `projects` state directly here).
+            const sibling = overlaid.find((m) => m.projectId === data.projectId);
+            const project = projectsRef.current.find((p: any) => p.id === data.projectId);
+            if (!sibling && !project) return; // out of scope (or a stale/deleted project) — skip rather than guess
+            const studentNames = sibling?.studentNames?.length
+              ? sibling.studentNames
+              : (project?.milestones?.find((m: any) => m.studentNames?.length)?.studentNames ?? []);
+            additions.push({
+              id,
+              projectId: data.projectId ?? '',
+              projectTitleHe: sibling?.projectTitleHe ?? project?.titleHe ?? '',
+              projectTitleEn: sibling?.projectTitleEn ?? project?.titleEn ?? '',
+              type: data.type ?? '',
+              status: data.status ?? '',
+              routing: data.routing ?? null,
+              currentStageIndex: data.currentStageIndex ?? 0,
+              submittedAt: data.submittedAt?.toDate?.()?.toISOString() ?? null,
+              studentNames,
+              studentIds: data.studentIds ?? project?.enrolledStudentIds ?? [],
+              supervisorId: sibling?.supervisorId ?? project?.supervisorId ?? '',
+              supervisorName: sibling?.supervisorName ?? project?.supervisorName ?? 'Unassigned',
+              supervisorScore: data.supervisorScore ?? null,
+              supervisorComment: data.supervisorComment ?? null,
+              submissionNote: data.submissionNote ?? null,
+              fileUrls: data.fileUrls ?? [],
+              revisionHistory: data.revisionHistory ?? [],
+              facultyId: sibling?.facultyId ?? project?.facultyId ?? data.facultyId ?? '',
+              examinerIds: data.examinerIds ?? [],
+              examiner1Score: data.examiner1Score ?? null,
+              examiner2Score: data.examiner2Score ?? null,
+              gradeWeights: data.gradeWeights ?? null,
+              dueDate: data.dueDate ?? null,
+              defenseDate: data.dueDate ?? null,
+              defenseRoom: data.defenseRoom ?? null,
+            } as PendingMilestone);
+          });
+          return additions.length ? [...overlaid, ...additions] : overlaid;
+        });
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+        console.error('coordinator: live milestones listener error', err);
+      }
+    );
+    return () => {
+      if (unsubMilestones.current) { unsubMilestones.current(); unsubMilestones.current = null; }
+    };
+  }, [coordinatorId, coordinatorProfile]);
   const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
   // Examiner recommendations
   const [examinerRecs,    setExaminerRecs]    = useState<any[]>([]);

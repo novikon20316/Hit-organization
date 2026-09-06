@@ -588,7 +588,12 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         submissionNote: m.submissionNote ?? '',
         finalGrade: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? null,
         supervisorScore: m.supervisorScore ?? null,
-        defenseDate: m.defenseDate?.toDate?.()?.toISOString?.() ?? null,
+        // CRITICAL FIX: was reading m.defenseDate — that field has never
+        // actually existed on a milestone doc. The resolved defense date
+        // (see defenseScheduling.ts's finalizeMatchedDate) is written to
+        // `dueDate`, the same field every other milestone type's due date
+        // lives in (already read above, on line 585).
+        defenseDate: m.dueDate?.toDate?.()?.toISOString?.() ?? null,
         defenseRoom: m.defenseRoom ?? null,
         defenseBuilding: m.defenseBuilding ?? null,
         defenseTime: m.defenseTime ?? null,

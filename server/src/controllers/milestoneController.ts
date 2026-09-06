@@ -770,7 +770,13 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
         dueDate:      data.dueDate?.toDate?.()?.toISOString() ?? null,
         submittedAt:  data.submittedAt?.toDate?.()?.toISOString() ?? null,
         createdAt:    data.createdAt?.toDate?.()?.toISOString() ?? null,
-        defenseDate:  data.defenseDate?.toDate?.()?.toISOString() ?? null,
+        // CRITICAL FIX: was reading data.defenseDate, a field that has
+        // never actually existed on a milestone doc — the real confirmed
+        // defense date lives in `dueDate` (defenseScheduling.ts's
+        // finalizeMatchedDate writes it there). This made every dashboard
+        // consuming this endpoint show "defense not scheduled" forever,
+        // even with a real agreed date.
+        defenseDate:  data.dueDate?.toDate?.()?.toISOString() ?? null,
         coordinatorApprovedAt: data.coordinatorApprovedAt?.toDate?.()?.toISOString() ?? null,
       }, requester.uid, viewerRoles);
     });

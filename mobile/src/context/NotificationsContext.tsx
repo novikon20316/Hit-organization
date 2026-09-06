@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
+import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { apiClient } from '../api/apiClient';
-import { auth } from '../firebase/firebase';
+import { auth, db } from '../firebase/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 // Best-effort — the native app-icon badge (like WhatsApp's unread count) isn't
@@ -28,6 +29,11 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChats, setUnreadChats] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // Total unread MESSAGES (not conversation count) — kept separately from
+  // unreadChats (conversations with >=1 unread) purely to feed the native
+  // badge total below, same split the old single refresh() had.
+  const unreadMessagesRef = useRef(0);
+  const unsubUnread = useRef<Unsubscribe | null>(null);
 
    // Track auth state
   useEffect(() => {
@@ -42,37 +48,57 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     return unsub;
   }, []);
 
+  // Chats only now — notification alerts come from the live listener below.
   const refresh = useCallback(async () => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
     try {
-      const [notifsRes, chatsRes] = await Promise.all([
-        apiClient.get('/api/notifications/feed'),
-        apiClient.get('/api/chats/dashboard'),
-      ]);
-      const notifs = Array.isArray(notifsRes.data) ? notifsRes.data : [];
-      const chats  = chatsRes.data.chats ?? [];
-      // Chat-originated entries are counted via each chat's own unreadCount
-      // below, not double-counted as alerts too.
-      const unreadAlerts = notifs.filter((n: any) => !n.isRead && n.type !== 'new_message').length;
+      const chatsRes = await apiClient.get('/api/chats/dashboard');
+      const chats = chatsRes.data.chats ?? [];
       const unreadMessages = chats.reduce((sum: number, c: any) => sum + (c.unreadCount > 0 ? c.unreadCount : 0), 0);
-      setUnreadCount(unreadAlerts);
+      unreadMessagesRef.current = unreadMessages;
       setUnreadChats(chats.filter((c: any) => c.unreadCount > 0).length);
-      // Native app-icon badge (mobile-only "unread" indicator, like WhatsApp) —
-      // total unread alerts + messages, not just conversation count.
-      setNativeBadge(unreadAlerts + unreadMessages);
+      setNativeBadge(unreadCount + unreadMessages);
     } catch (e) {
-      console.warn('Failed refreshing notification counts', e);
+      console.warn('Failed refreshing chat counts', e);
     }
-  }, []);
+  }, [unreadCount]);
 
-  // ← Only poll when logged in
+  // ← Only poll (chats) when logged in
   useEffect(() => {
     if (!isLoggedIn) return;
     refresh();
     const interval = setInterval(refresh, 30_000);
     return () => clearInterval(interval);
   }, [isLoggedIn, refresh]);
+
+  // Live unread-alert count — same idiom as web's NotificationsContext.tsx /
+  // hooks/useStudentData.ts's listeners (ref + cancel + permission-denied
+  // swallowed). Excludes type 'new_message' client-side (those are counted
+  // via each chat's own unreadCount instead, above) rather than in the
+  // query itself, to avoid needing a composite index for a third filter.
+  useEffect(() => {
+    if (unsubUnread.current) { unsubUnread.current(); unsubUnread.current = null; }
+    const uid = auth.currentUser?.uid;
+    if (!isLoggedIn || !uid) return;
+
+    const q = query(collection(db, 'notifications'), where('recipientId', '==', uid), where('isRead', '==', false));
+    unsubUnread.current = onSnapshot(
+      q,
+      (snapshot) => {
+        const unreadAlerts = snapshot.docs.filter((d) => d.data().type !== 'new_message').length;
+        setUnreadCount(unreadAlerts);
+        setNativeBadge(unreadAlerts + unreadMessagesRef.current);
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+        console.warn('notifications: live unread-count listener error', err);
+      }
+    );
+    return () => {
+      if (unsubUnread.current) { unsubUnread.current(); unsubUnread.current = null; }
+    };
+  }, [isLoggedIn]);
 
   return (
     <NotificationsContext.Provider value={{ unreadCount, unreadChats, refresh }}>
