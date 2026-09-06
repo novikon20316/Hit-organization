@@ -181,14 +181,15 @@ export default function CoordinatorHome() {
   const [activeTab, setActiveTab] = useState<CoordinatorTab>(
     COORDINATOR_TABS.includes(tabParam as CoordinatorTab) ? (tabParam as CoordinatorTab) : 'overview'
   );
-  // "New since last opened" badges (separate from the queue-length badges
-  // above, e.g. Pending Approval's count of everything currently pending) —
-  // driven by unread notifications bucketed by targetScreen, same mechanism
-  // as web's SidebarShell.tsx. Only wired for tabs that had no live badge
-  // yet (signoffs/deadlines/archived); pending/defense/inProgress/
-  // recommendations already show their own always-on queue-size count.
+  // "New since last opened" badges — driven by unread notifications bucketed
+  // by targetScreen, same mechanism as web's SidebarShell.tsx. Visiting a tab
+  // clears its notification badge, independent of any live queue-size count
+  // (e.g. Pending Approval's count of everything currently pending) the tab
+  // may also show.
   const { unreadByTargetScreen, markTabSeen } = useNotifications();
   const TAB_BADGE_TARGET_SCREENS: Partial<Record<CoordinatorTab, string>> = {
+    pending: 'coordinator_pending',
+    defense: 'coordinator_defense',
     signoffs: 'coordinator_signoffs',
     deadlines: 'coordinator_deadlines',
     archived: 'coordinator_archived',

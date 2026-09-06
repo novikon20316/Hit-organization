@@ -181,17 +181,22 @@ export default function SupervisorHome() {
   const [activeTab,      setActiveTab]      = useState<SupervisorTab>(
     SUPERVISOR_TABS.includes(tabParam as SupervisorTab) ? (tabParam as SupervisorTab) : 'projects'
   );
-  // "New since last opened" badge for Signoffs (applications/grading/projects
-  // already show their own live queue-count above) — driven by unread
-  // notifications bucketed by targetScreen, same mechanism as web's
-  // SidebarShell.tsx and mobile's coordinator/home.tsx.
+  // "New since last opened" badges — driven by unread notifications bucketed
+  // by targetScreen, same mechanism as web's SidebarShell.tsx and mobile's
+  // coordinator/home.tsx. Visiting a tab clears its notification badge,
+  // independent of any live queue-count the tab may also show.
   const { unreadByTargetScreen, markTabSeen } = useNotifications();
-  const signoffsBadgeCount = unreadByTargetScreen['supervisor_signoffs'] ?? 0;
+  const TAB_BADGE_TARGET_SCREENS: Partial<Record<SupervisorTab, string>> = {
+    signoffs: 'supervisor_signoffs',
+    projects: 'supervisor_projects',
+  };
   useEffect(() => {
-    if (activeTab === 'signoffs' && signoffsBadgeCount > 0) {
-      markTabSeen(['supervisor_signoffs']);
+    const targetScreen = TAB_BADGE_TARGET_SCREENS[activeTab];
+    if (targetScreen && (unreadByTargetScreen[targetScreen] ?? 0) > 0) {
+      markTabSeen([targetScreen]);
     }
-  }, [activeTab, signoffsBadgeCount, markTabSeen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TAB_BADGE_TARGET_SCREENS is a stable literal, re-declared each render but never changing shape
+  }, [activeTab, unreadByTargetScreen, markTabSeen]);
   const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'offered'>('all');
   const [unreadCount,    setUnreadCount]    = useState(0);
@@ -953,9 +958,9 @@ export default function SupervisorHome() {
             <Text style={[styles.tabText, activeTab === 'signoffs' && styles.tabTextActive]} numberOfLines={1}>
               {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting Grade/Examiner Approval'}
             </Text>
-            {signoffsBadgeCount > 0 && (
+            {(unreadByTargetScreen['supervisor_signoffs'] ?? 0) > 0 && (
               <View style={[styles.tabBadge, activeTab === 'signoffs' && styles.tabBadgeActive]}>
-                <Text style={styles.tabBadgeText}>{signoffsBadgeCount}</Text>
+                <Text style={styles.tabBadgeText}>{unreadByTargetScreen['supervisor_signoffs']}</Text>
               </View>
             )}
           </Pressable>

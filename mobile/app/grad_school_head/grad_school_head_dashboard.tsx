@@ -129,14 +129,21 @@ export default function GradSchoolHeadDashboard() {
   const [activeTab, setActiveTab]  = useState<GradSchoolHeadTab>(
     GRAD_SCHOOL_HEAD_TABS.includes(tabParam as GradSchoolHeadTab) ? (tabParam as GradSchoolHeadTab) : 'overview'
   );
-  // "New since last opened" badge for Examiners (approvals/stuck already show
-  // their own live queue-count below) — driven by unread notifications
-  // bucketed by targetScreen, same mechanism as web's SidebarShell.tsx.
+  // "New since last opened" badges — driven by unread notifications bucketed
+  // by targetScreen, same mechanism as web's SidebarShell.tsx. Visiting a tab
+  // clears its notification badge, independent of any live queue-count the
+  // tab may also show.
   const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const TAB_BADGE_TARGET_SCREENS: Partial<Record<GradSchoolHeadTab, string>> = {
+    examiners: 'grad_school_head_examiners',
+    approvals: 'grad_school_head_approvals',
+  };
   useEffect(() => {
-    if (activeTab === 'examiners' && (unreadByTargetScreen['grad_school_head_examiners'] ?? 0) > 0) {
-      markTabSeen(['grad_school_head_examiners']);
+    const targetScreen = TAB_BADGE_TARGET_SCREENS[activeTab];
+    if (targetScreen && (unreadByTargetScreen[targetScreen] ?? 0) > 0) {
+      markTabSeen([targetScreen]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TAB_BADGE_TARGET_SCREENS is a stable literal, re-declared each render but never changing shape
   }, [activeTab, unreadByTargetScreen, markTabSeen]);
   // Cross-faculty staff this role can now manage directly (see
   // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — this

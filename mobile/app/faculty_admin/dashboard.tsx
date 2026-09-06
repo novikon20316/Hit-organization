@@ -74,6 +74,7 @@ export default function PanelScreen() {
   // same mechanism as web's SidebarShell.tsx and mobile's coordinator/home.tsx.
   const { unreadByTargetScreen, markTabSeen } = useNotifications();
   const TAB_BADGE_TARGET_SCREENS: Partial<Record<FacultyAdminTab, string>> = {
+    projects: 'faculty_admin_projects',
     deadlines: 'faculty_admin_deadlines',
     signoffs: 'faculty_admin_signoffs',
   };
