@@ -230,7 +230,7 @@ export function CoordinatorStatisticsTab() {
           {data.milestoneCompletion.map((row) => (
             <div key={row.type} className="flex items-center justify-between rounded-lg bg-paper px-2.5 py-1.5 text-sm">
               <span className="text-ink">{lang === 'he' ? row.nameHe : row.nameEn}</span>
-              <span className="text-xs text-muted">
+              <span className="text-xs text-muted" dir="ltr">
                 <span className="font-semibold text-ink">{row.completed}</span> / {row.totalReached} ({row.percent}%)
               </span>
             </div>
@@ -291,9 +291,11 @@ export function CoordinatorStatisticsTab() {
             <div key={row.facultyId} className="flex items-center justify-between rounded-lg bg-paper px-2.5 py-1.5 text-sm">
               <span className="text-ink">{facultyLabel(row.facultyId as FacultyId, lang)}</span>
               <span className="text-xs text-muted">
-                <span className="font-semibold" style={{ color: 'var(--success)' }}>{row.onTime}</span>
-                {' / '}
-                <span className="font-semibold" style={{ color: 'var(--danger)' }}>{row.late}</span>
+                <span dir="ltr">
+                  <span className="font-semibold" style={{ color: 'var(--success)' }}>{row.onTime}</span>
+                  {' / '}
+                  <span className="font-semibold" style={{ color: 'var(--danger)' }}>{row.late}</span>
+                </span>
                 {' '}
                 {lang === 'he' ? 'בזמן/באיחור' : 'on-time/late'} ({row.percentOnTime}% {lang === 'he' ? 'בזמן' : 'on time'})
               </span>

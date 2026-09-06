@@ -845,6 +845,11 @@ export default function ProjectCoordinatorDashboard() {
             onPress: () => router.push('/WorkflowTemplateManager' as any),
           },
           {
+            key: 'reports', icon: '📊',
+            label: lang === 'he' ? 'דוחות' : 'Reports',
+            onPress: () => router.push('/Reports' as any),
+          },
+          {
             key: 'project-records', icon: '📜',
             label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
             onPress: () => router.push({ pathname: '/administrative_coordinator/records', params: { lang } } as any),

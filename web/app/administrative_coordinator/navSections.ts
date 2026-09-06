@@ -98,6 +98,17 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname) => pathname === '/academic-year',
       },
       {
+        key: 'reports',
+        icon: '📈',
+        href: '/reports',
+        label: { he: 'דוחות', en: 'Reports' },
+        description: {
+          he: 'הפק וייצא דוחות מפורטים על פרויקטים, סטודנטים וציונים.',
+          en: 'Generate and export detailed reports across projects, students, and grades.',
+        },
+        isActive: (pathname) => pathname === '/reports',
+      },
+      {
         key: 'records',
         icon: '📜',
         href: '/administrative_coordinator/records',

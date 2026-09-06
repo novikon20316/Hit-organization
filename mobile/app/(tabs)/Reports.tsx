@@ -239,8 +239,6 @@ export default function Reports() {
 
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [userFacultyId, setUserFacultyId] = useState<string | null>(null);
-  const [userGradSchoolHeadFacultyIds, setUserGradSchoolHeadFacultyIds] = useState<string[]>([]);
 
   const [activeReport, setActiveReport] = useState<ReportType>('full-status');
   const [startYear, setStartYear] = useState('');
@@ -261,20 +259,12 @@ export default function Reports() {
   const [meta, setMeta] = useState<{ threshold?: number } | null>(null);
 
   const uid = auth.currentUser?.uid;
+  // The faculty filter is system_admin-only — every other report-viewing
+  // role (coordinator, administrative_secretary, faculty_admin,
+  // grad_school_head) is dedicated to a single faculty/scope, so the server
+  // already pins their facultyId itself (see reportsController.ts's
+  // resolveFacultyScope) and there's nothing left for them to filter by.
   const isSystemAdmin = userRole === 'system_admin';
-  const isGradSchoolHead = userRole === 'grad_school_head';
-  const isCrossFaculty = isSystemAdmin || isGradSchoolHead;
-
-  // Mirrors the server's effectiveFacultyIds (scopeAuthorization.ts) —
-  // grad_school_head is no longer automatically cross-faculty, so only offer
-  // faculties the server will actually accept for them: their own faculty
-  // plus any gradSchoolHeadFacultyIds extras, or every faculty if they're
-  // explicitly kept/set to facultyId 'all'. system_admin stays unrestricted.
-  const gradSchoolHeadFacultyOptions: string[] | 'all' = !isGradSchoolHead
-    ? 'all'
-    : userFacultyId === 'all'
-    ? (userGradSchoolHeadFacultyIds.length > 0 ? userGradSchoolHeadFacultyIds : 'all')
-    : [userFacultyId, ...userGradSchoolHeadFacultyIds].filter(Boolean) as string[];
 
   useEffect(() => {
     if (!uid) return;
@@ -283,8 +273,6 @@ export default function Reports() {
         const res = await apiClient.get('/api/users/profile');
         setUserName(res.data.displayName || '');
         setUserRole(res.data.role || null);
-        setUserFacultyId(res.data.facultyId || null);
-        setUserGradSchoolHeadFacultyIds(res.data.gradSchoolHeadFacultyIds || []);
       } catch (err) {
         console.error('Reports: failed to load profile', err);
       }
@@ -307,7 +295,7 @@ export default function Reports() {
     projectType: projectType || undefined,
     milestoneType: milestoneType || undefined,
     processStatus: processStatus || undefined,
-    facultyId: isCrossFaculty && facultyId ? facultyId : undefined,
+    facultyId: isSystemAdmin && facultyId ? facultyId : undefined,
     advisorId: advisorId || undefined,
     examinerId: examinerId || undefined,
   };
@@ -332,7 +320,7 @@ export default function Reports() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, activeReport, startYear, overdueOnly, degreeType, projectType, milestoneType, processStatus, facultyId, advisorId, examinerId, isCrossFaculty, lang]);
+  }, [uid, activeReport, startYear, overdueOnly, degreeType, projectType, milestoneType, processStatus, facultyId, advisorId, examinerId, isSystemAdmin, lang]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -413,9 +401,9 @@ export default function Reports() {
 
       {showMoreFilters && (
         <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-          {isCrossFaculty && (
+          {isSystemAdmin && (
             <FilterPillRow
-              options={gradSchoolHeadFacultyOptions === 'all' ? Object.keys(FACULTY_LABEL) : gradSchoolHeadFacultyOptions}
+              options={Object.keys(FACULTY_LABEL)}
               value={facultyId}
               onChange={setFacultyId}
               labelFor={(v) => FACULTY_LABEL[v]?.[lang] ?? v}

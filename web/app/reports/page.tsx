@@ -64,20 +64,12 @@ export default function ReportsPage() {
   const [examinerId, setExaminerId] = useState('');
   const [examinerOptions, setExaminerOptions] = useState<Array<{ id: string; displayName: string }>>([]);
 
+  // The faculty filter is system_admin-only — every other report-viewing
+  // role (coordinator, administrative_secretary, faculty_admin,
+  // grad_school_head) is dedicated to a single faculty/scope, so the server
+  // already pins their facultyId itself (see reportsController.ts's
+  // resolveFacultyScope) and there's nothing left for them to filter by.
   const isSystemAdmin = userData?.role === 'system_admin';
-  const isGradSchoolHead = userData?.role === 'grad_school_head';
-  const isCrossFaculty = isSystemAdmin || isGradSchoolHead;
-
-  // Mirrors the server's effectiveFacultyIds (scopeAuthorization.ts) —
-  // grad_school_head is no longer automatically cross-faculty, so only offer
-  // faculties the server will actually accept for them: their own faculty
-  // plus any gradSchoolHeadFacultyIds extras, or every faculty if they're
-  // explicitly kept/set to facultyId 'all'. system_admin stays unrestricted.
-  const gradSchoolHeadFacultyOptions: FacultyId[] | 'all' = !isGradSchoolHead
-    ? 'all'
-    : userData?.facultyId === 'all'
-    ? ((userData.gradSchoolHeadFacultyIds?.length ?? 0) > 0 ? (userData.gradSchoolHeadFacultyIds as FacultyId[]) : 'all')
-    : ([userData?.facultyId, ...(userData?.gradSchoolHeadFacultyIds ?? [])].filter(Boolean) as FacultyId[]);
 
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -92,7 +84,7 @@ export default function ReportsPage() {
     projectType: projectType || undefined,
     milestoneType: milestoneType || undefined,
     processStatus: processStatus || undefined,
-    facultyId: isCrossFaculty && facultyId ? facultyId : undefined,
+    facultyId: isSystemAdmin && facultyId ? facultyId : undefined,
     advisorId: advisorId || undefined,
     examinerId: examinerId || undefined,
   };
@@ -128,7 +120,7 @@ export default function ReportsPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeReport, startYear, overdueOnly, degreeType, projectType, milestoneType, processStatus, facultyId, advisorId, examinerId, isCrossFaculty, lang]);
+  }, [activeReport, startYear, overdueOnly, degreeType, projectType, milestoneType, processStatus, facultyId, advisorId, examinerId, isSystemAdmin, lang]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount / report-switch; load's setState calls happen after its awaited network call resolves, not synchronously in this effect
@@ -185,17 +177,14 @@ export default function ReportsPage() {
           className="w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
         />
 
-        {isCrossFaculty && (
+        {isSystemAdmin && (
           <select
             value={facultyId}
             onChange={(e) => setFacultyId(e.target.value)}
             className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
           >
             <option value="">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
-            {(gradSchoolHeadFacultyOptions === 'all'
-              ? (Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all')
-              : gradSchoolHeadFacultyOptions
-            ).map((id) => (
+            {(Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all').map((id) => (
               <option key={id} value={id}>{FACULTY_LABELS[id][lang]}</option>
             ))}
           </select>
