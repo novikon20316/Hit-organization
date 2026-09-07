@@ -997,11 +997,9 @@ export default function WorkflowTemplateEditor() {
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: '#1F1235' }}>
                 {lang === 'he' ? ms.nameHe : ms.nameEn}
-                {typeof ms.percentOfFinalGrade === 'number' && (
-                  <Text style={{ fontWeight: '400', color: '#8899BB' }}>
-                    {lang === 'he' ? `  — ${ms.percentOfFinalGrade}% מהציון הכולל` : `  — ${ms.percentOfFinalGrade}% of final grade`}
-                  </Text>
-                )}
+                <Text style={{ fontWeight: '400', color: '#8899BB' }}>
+                  {lang === 'he' ? `  — ${ms.percentOfFinalGrade ?? 0}% מהציון הכולל` : `  — ${ms.percentOfFinalGrade ?? 0}% of final grade`}
+                </Text>
               </Text>
               <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>
                 📅 {ms.dateMode === 'fixed'

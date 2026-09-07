@@ -479,11 +479,9 @@ function ProposeVersionForm({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-ink">
                   {lang === 'he' ? ms.nameHe || '—' : ms.nameEn || '—'}
-                  {typeof ms.percentOfFinalGrade === 'number' && (
-                    <span className="ms-1.5 font-normal text-muted">
-                      {lang === 'he' ? `— ${ms.percentOfFinalGrade}% מהציון הכולל` : `— ${ms.percentOfFinalGrade}% of final grade`}
-                    </span>
-                  )}
+                  <span className="ms-1.5 font-normal text-muted">
+                    {lang === 'he' ? `— ${ms.percentOfFinalGrade ?? 0}% מהציון הכולל` : `— ${ms.percentOfFinalGrade ?? 0}% of final grade`}
+                  </span>
                 </p>
                 <p className="mt-0.5 text-xs text-muted">
                   📅 {ms.dateMode === 'fixed'

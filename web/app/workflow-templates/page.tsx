@@ -411,11 +411,9 @@ function WorkflowTemplatesContent() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-ink">
                         {lang === 'he' ? m.nameHe : m.nameEn}
-                        {typeof m.percentOfFinalGrade === 'number' && (
-                          <span className="ms-1.5 font-normal text-muted">
-                            {lang === 'he' ? `— ${m.percentOfFinalGrade}% מהציון הכולל` : `— ${m.percentOfFinalGrade}% of final grade`}
-                          </span>
-                        )}
+                        <span className="ms-1.5 font-normal text-muted">
+                          {lang === 'he' ? `— ${m.percentOfFinalGrade ?? 0}% מהציון הכולל` : `— ${m.percentOfFinalGrade ?? 0}% of final grade`}
+                        </span>
                       </p>
                       <p className="text-xs text-muted">
                         📅 {m.dateMode === 'fixed'
