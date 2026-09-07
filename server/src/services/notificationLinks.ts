@@ -111,7 +111,7 @@ const STUDENT_DIRECTED_TYPES = new Set([
   'application_rejected', 'meeting_requested', 'milestone_graded',
   'milestone_deadline_7d', 'milestone_deadline_1d', 'milestone_overdue',
 ]);
-const ANY_ROLE_TYPES = new Set(['application_received', 'account_created', 'milestone_submitted']);
+const ANY_ROLE_TYPES = new Set(['application_received', 'account_created', 'milestone_submitted', 'milestone_submitted_fyi']);
 
 function fallbackRoute(type: string, role: string | null | undefined, homeRoute: (r: string | null | undefined) => string): string {
   if (STUDENT_DIRECTED_TYPES.has(type)) return homeRoute('student');

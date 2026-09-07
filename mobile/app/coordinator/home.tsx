@@ -458,12 +458,24 @@ export default function CoordinatorHome() {
       //    an 'approve' action — its status can still be 'submitted'/
       //    'supervisor_graded' from a stage owned by a different role/action,
       //    so approving/rejecting here would always fail server-side.
+      //  - a chain-driven milestone whose current 'approve' stage is owned by
+      //    a DIFFERENT role than the viewer's — administrative_secretary and
+      //    coordinator share this screen, but a workflow template names one
+      //    specific role per stage, not "coordinator tier" broadly. Mirrors
+      //    web/app/coordinator/home/page.tsx's identical filter.
+      //  - a legacy (pre-chain) milestone, for administrative_secretary only
+      //    — legacy milestones predate per-template role assignment, so (per
+      //    coordinatorController.ts's LEGACY_MILESTONE_APPROVAL_ROLES) she
+      //    isn't an approver on those by default.
       setPendingMilestones(allMilestones.filter((m: PendingMilestone) => {
         if (m.type === 'final_report' && m.status === 'graded') return false;
         if (m.status === 'coordinator_approved') return false;
         if (m.routing && m.routing.length > 0 && m.type !== 'defense') {
           const stage = m.routing[m.currentStageIndex ?? 0];
           if (!stage || stage.action !== 'approve') return false;
+          if (activeRole !== 'system_admin' && stage.role !== activeRole) return false;
+        } else if (activeRole === 'administrative_secretary') {
+          return false;
         }
         return true;
       }));

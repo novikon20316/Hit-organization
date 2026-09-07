@@ -1399,17 +1399,29 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
     // they only ever got an unread in-app bell they had no reason to check.
     // Routed through notifyUser now so they get a real email too; SMS stays
     // off to avoid fanning a paid channel out on every submission.
-    const notifyStaffMilestoneSubmitted = (recipientId: string) => notifyUser({
+    // See the identical fix in milestoneController.ts's submitMilestone —
+    // `actionable` is only true for whoever is genuinely up next (coordinator
+    // for a legacy milestone or a chain stage routed to 'coordinator';
+    // administrative_secretary only when a template routes this milestone
+    // type's first stage to her specifically). Everyone else covering this
+    // scope still gets notified, just framed as a heads-up rather than a
+    // call to action.
+    const notifyStaffMilestoneSubmitted = (recipientId: string, actionable: boolean) => notifyUser({
       recipientId,
-      type: 'milestone_submitted',
-      titleHe: 'הגשה חדשה ממתינה לבדיקה 📤',
-      titleEn: 'New Milestone Submission 📤',
+      // See milestoneController.ts's identical comment — the in-app type
+      // stays 'milestone_submitted' either way; only the email template
+      // (picked by `type`) differs, since emailTemplates.ts's
+      // milestone_submitted body hardcodes "log in to review and grade".
+      type: actionable ? 'milestone_submitted' : 'milestone_submitted_fyi',
+      inAppType: 'milestone_submitted',
+      titleHe: actionable ? 'הגשה חדשה ממתינה לבדיקה 📤' : 'הגשה חדשה בפרויקט שבמעקבך 📤',
+      titleEn: actionable ? 'New Milestone Submission 📤' : 'New Submission in a Project You Track 📤',
       bodyHe:  staffBody.he,
       bodyEn:  staffBody.en,
       relatedProjectId: projectId,
       relatedMilestoneId: milestoneId,
       emailData: { milestoneTitle, projectTitle },
-      taskKind: 'milestone_action',
+      ...(actionable ? { taskKind: 'milestone_action' as const } : {}),
       // Recipients here are matched via resolveStaffForScope('coordinator'/
       // 'administrative_secretary', ...) below — a multi-role staff member
       // can be matched that way while their primary `role` field says
@@ -1426,8 +1438,13 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         resolveStaffForScope('coordinator', projectScope, supervisorId ? [supervisorId] : []),
         resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : []),
       ]);
+      const firstStageRole = isChainDriven(milestoneData) ? milestoneData.routing[0]?.role : 'coordinator';
+      const coordinatorIdSet = new Set(coordinatorIds);
       const staffRecipientIds = [...new Set([...coordinatorIds, ...adminCoordinatorIds])].filter((id) => id !== supervisorId);
-      await Promise.all(staffRecipientIds.map((id) => notifyStaffMilestoneSubmitted(id)));
+      await Promise.all(staffRecipientIds.map((id) => {
+        const actionable = coordinatorIdSet.has(id) ? firstStageRole === 'coordinator' : firstStageRole === 'administrative_secretary';
+        return notifyStaffMilestoneSubmitted(id, actionable);
+      }));
     }
 
     return res.status(200).json({ success: true });

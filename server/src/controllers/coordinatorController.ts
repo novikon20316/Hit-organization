@@ -61,6 +61,20 @@ const COORDINATOR_ROLES = ['coordinator', 'administrative_secretary', 'system_ad
 // coordinator-only actions a program_head has no business reaching.
 const EXAMINER_RECOMMENDATION_APPROVAL_ROLES = [...COORDINATOR_ROLES, 'program_head'];
 
+// coordinatorApproveMilestone/coordinatorRejectMilestone's LEGACY (non-chain)
+// branch only. Legacy milestones predate the configurable per-template
+// approval chain (see milestoneRouting.ts's isChainDriven) and so have no
+// `routing` to check a role against — administrative_secretary approving
+// here used to fall through to the same hardcoded access as `coordinator`
+// regardless of whether any template actually assigns her that
+// responsibility. She's not an approver by default — only a workflow
+// template naming her for a specific milestone type grants that (handled by
+// the chain-driven branch's authorizeStageActor check, which reads the
+// template's own configured role). Legacy milestones have no such config to
+// consult, so they fall back to coordinator/system_admin only, same as
+// before the chain feature existed.
+const LEGACY_MILESTONE_APPROVAL_ROLES = ['coordinator', 'system_admin'];
+
 /**
  * POST /api/coordinator/projects/:projectId/assign-examiners
  * Body: { examiners: ExaminerAssignmentInput[], milestoneId?: string, studentIds?: string[] }
@@ -942,7 +956,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
     return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation);
   }
 
-  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
+  if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
 
@@ -1271,7 +1285,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
     return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason);
   }
 
-  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
+  if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {
     return res.status(403).json({ message: 'Access denied: coordinator only.' });
   }
 

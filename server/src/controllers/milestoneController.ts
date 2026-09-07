@@ -410,17 +410,35 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     // as the supervisor above, so they get a real email too; SMS stays off
     // to avoid fanning a paid channel out to every covering coordinator on
     // every single submission.
-    const notifyStaffMilestoneSubmitted = (recipientId: string) => notifyUser({
+    // `actionable` is true only for a recipient who is genuinely the next
+    // approver right now (coordinator always, since the legacy/chain-driven
+    // approve endpoints both still admit that role — or administrative
+    // secretary specifically when a workflow template routes this milestone
+    // type's first stage to her). Everyone else covering this scope gets the
+    // same body but framed as a heads-up, not a call to action — see the
+    // titleHe/En split below. Without this, administrative_secretary got the
+    // exact same "awaiting review" wording + action routing as whoever is
+    // actually up next, even on milestone types no template ever assigns her
+    // (the common case) — she'd land on /coordinator/home?tab=pending, a
+    // screen not even in her own sidebar (navSections.ts), with Approve/
+    // Reject buttons that would 403 if clicked.
+    const notifyStaffMilestoneSubmitted = (recipientId: string, actionable: boolean) => notifyUser({
       recipientId,
-      type: 'milestone_submitted',
-      titleHe: 'הגשה חדשה ממתינה לבדיקה 📤',
-      titleEn: 'New Milestone Submission 📤',
+      // The stored in-app type stays 'milestone_submitted' either way (so
+      // the client's icon/label lookups don't need a second entry) — only
+      // the EMAIL template differs, via `type` below, since
+      // emailTemplates.ts's milestone_submitted body hardcodes "log in to
+      // review and grade" regardless of the titleHe/En passed here.
+      type: actionable ? 'milestone_submitted' : 'milestone_submitted_fyi',
+      inAppType: 'milestone_submitted',
+      titleHe: actionable ? 'הגשה חדשה ממתינה לבדיקה 📤' : 'הגשה חדשה בפרויקט שבמעקבך 📤',
+      titleEn: actionable ? 'New Milestone Submission 📤' : 'New Submission in a Project You Track 📤',
       bodyHe:  staffBody.he,
       bodyEn:  staffBody.en,
       relatedProjectId: projectId,
       relatedMilestoneId: milestoneId,
       emailData: { milestoneTitle, projectTitle },
-      taskKind: 'milestone_action',
+      ...(actionable ? { taskKind: 'milestone_action' as const } : {}),
       // Recipients here are matched via resolveStaffForScope('coordinator'/
       // 'administrative_secretary', ...) below — a multi-role staff member
       // can be matched that way while their primary `role` field says
@@ -437,8 +455,16 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         resolveStaffForScope('coordinator', projectScope, supervisorId ? [supervisorId] : []),
         resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : []),
       ]);
+      // A fresh submission always restarts a chain-driven milestone at stage
+      // 0 (see the currentStageIndex reset above) — that stage's role is the
+      // only one this specific submission is actually "awaiting review" by.
+      const firstStageRole = isChainDriven(milestoneData) ? milestoneData.routing[0]?.role : 'coordinator';
+      const coordinatorIdSet = new Set(coordinatorIds);
       const staffRecipientIds = [...new Set([...coordinatorIds, ...adminCoordinatorIds])].filter((id) => id !== supervisorId);
-      await Promise.all(staffRecipientIds.map((id) => notifyStaffMilestoneSubmitted(id)));
+      await Promise.all(staffRecipientIds.map((id) => {
+        const actionable = coordinatorIdSet.has(id) ? firstStageRole === 'coordinator' : firstStageRole === 'administrative_secretary';
+        return notifyStaffMilestoneSubmitted(id, actionable);
+      }));
     }
 
     return res.status(200).json({ success: true, message: 'Milestone submitted successfully.' });

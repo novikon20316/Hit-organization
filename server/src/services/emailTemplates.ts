@@ -39,6 +39,12 @@ export type NotificationType =
   | 'meeting_requested'
   | 'milestone_graded'
   | 'milestone_submitted'
+  // Same event as 'milestone_submitted', for a recipient who is NOT the
+  // approver whose turn it currently is (e.g. administrative_secretary on a
+  // milestone type no workflow template routes to her) — a heads-up FYI,
+  // not a call to review/grade. See milestoneController.ts's
+  // notifyStaffMilestoneSubmitted `actionable` flag.
+  | 'milestone_submitted_fyi'
   | 'milestone_deadline_7d'
   | 'milestone_deadline_1d'
   | 'milestone_overdue'
@@ -233,6 +239,23 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>Hello ${d.name || ''},</p>
       <p>A new milestone submission is waiting for review: <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` (project <strong>${d.projectTitle}</strong>)` : ''}.</p>
       <p>Log in to review the submission and enter a grade.</p>
+    `,
+  },
+
+  // Informational counterpart to milestone_submitted above — no "log in and
+  // grade" instruction, since this recipient isn't the one whose turn it is.
+  milestone_submitted_fyi: {
+    subjectHe: '📤 הגשה חדשה בפרויקט שבמעקבך',
+    subjectEn: '📤 New Submission in a Project You Track',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>הוגשה אבן דרך חדשה: <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` בפרויקט <strong>${d.projectTitle}</strong>` : ''}.</p>
+      <p>ניתן לצפות בפרטים במערכת.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>A new milestone submission was made: <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` (project <strong>${d.projectTitle}</strong>)` : ''}.</p>
+      <p>You can view the details in the system.</p>
     `,
   },
 

@@ -273,6 +273,18 @@ function CoordinatorHomeContent() {
   //    'approve' action — its status can still be 'submitted'/
   //    'supervisor_graded' from a stage owned by a different role/action, so
   //    clicking Approve/Reject here would always fail server-side.
+  //  - a chain-driven milestone whose current 'approve' stage is owned by a
+  //    DIFFERENT role than the viewer's — administrative_secretary and
+  //    coordinator share this one page, but a workflow template names one
+  //    specific role per stage (see workflow-templates), not "coordinator
+  //    tier" broadly. Only system_admin sees every stage regardless of role,
+  //    same as authorizeStageActor's server-side check this mirrors.
+  //  - a legacy (pre-chain) milestone, for administrative_secretary only —
+  //    legacy milestones predate per-template role assignment and have no
+  //    config to say she's the approver, so (per coordinatorController.ts's
+  //    LEGACY_MILESTONE_APPROVAL_ROLES) she isn't one by default. She still
+  //    gets her own progress/reports views elsewhere; this is specifically
+  //    the approve/reject action queue.
   const pendingMilestones = useMemo(
     () => allMilestones.filter((m) => {
       if (m.type === 'final_report' && m.status === 'graded') return false;
@@ -280,10 +292,13 @@ function CoordinatorHomeContent() {
       if (m.routing && m.routing.length > 0 && m.type !== 'defense') {
         const stage = m.routing[m.currentStageIndex ?? 0];
         if (!stage || stage.action !== 'approve') return false;
+        if (activeRole !== 'system_admin' && stage.role !== activeRole) return false;
+      } else if (activeRole === 'administrative_secretary') {
+        return false;
       }
       return true;
     }),
-    [allMilestones]
+    [allMilestones, activeRole]
   );
 
   // Defense cards with no confirmed path forward yet — surfaced on the
