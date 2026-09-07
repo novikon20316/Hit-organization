@@ -160,7 +160,19 @@ export default function NotificationDetailScreen() {
         {!!timestamp && <Text style={[s.timestamp, isRtl && s.textRight]}>{timestamp}</Text>}
 
         <View style={s.bodyCard}>
-          <Text style={[s.bodyText, isRtl && s.textRight]}>{body}</Text>
+          <Text style={[s.bodyText, isRtl && s.textRight]}>
+            {body}
+            {/* Same destination as the "Go to dashboard" button below, but
+                reachable from inside the message text itself — so a tap
+                that lands on the body (easy to do by accident, since it's
+                most of the card) still gets you there, not just the
+                button. */}
+            {!!targetRoute && (
+              <Text onPress={() => router.push(targetRoute as any)} style={s.bodyLink}>
+                {'  '}{lang === 'he' ? '→ מעבר למסך הרלוונטי' : '→ Go to relevant screen'}
+              </Text>
+            )}
+          </Text>
         </View>
 
         <View style={s.navRow}>

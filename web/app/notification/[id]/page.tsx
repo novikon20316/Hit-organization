@@ -137,7 +137,25 @@ export default function NotificationDetailPage() {
         </div>
 
         <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-          <p className="whitespace-pre-line text-sm leading-relaxed text-ink">{body}</p>
+          <p className="whitespace-pre-line text-sm leading-relaxed text-ink">
+            {body}
+            {/* Same destination as the "Go to dashboard" button below, but
+                reachable from inside the message text itself — so a click
+                that lands on the body (easy to do by accident, since it's
+                most of the card) still gets you there, not just the button. */}
+            {!!targetRoute && (
+              <>
+                {'  '}
+                <button
+                  type="button"
+                  onClick={() => router.push(targetRoute)}
+                  className="font-semibold text-primary underline hover:no-underline"
+                >
+                  {lang === 'he' ? '→ מעבר למסך הרלוונטי' : '→ Go to relevant screen'}
+                </button>
+              </>
+            )}
+          </p>
         </div>
 
         <div className="flex gap-2.5">

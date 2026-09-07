@@ -2861,6 +2861,7 @@ export const NotificationDetailStyles = StyleSheet.create({
 
   bodyCard: { backgroundColor: '#fff', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#E0E8FF', marginBottom: 24 },
   bodyText: { fontSize: 15, color: '#333', lineHeight: 23 },
+  bodyLink: { fontSize: 15, color: '#2E86FF', fontWeight: '700', textDecorationLine: 'underline' },
 
   actionBtn:     { backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   actionBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
