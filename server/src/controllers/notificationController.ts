@@ -1,10 +1,33 @@
 // src/controllers/notificationController.ts
 import { Response } from 'express';
 import admin from 'firebase-admin';
-import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole, getUserRoles } from '../middleware/auth.js';
 import { softError } from '../middleware/auth.js';
+import { screensForRole } from '../services/notificationTargets.js';
 
 const db = admin.firestore();
+
+/**
+ * Resolves an optional `?role=` query param to a role this caller actually
+ * holds, or undefined if absent/not held — a caller can't ask to see another
+ * role's notifications just by passing its name. Used by the endpoints below
+ * to scope results to whichever role the client is currently viewing the app
+ * as (see web/mobile's ActiveRoleContext), matching the same role filter the
+ * client-side Firestore listeners already apply for their live counts.
+ */
+function resolveRoleFilter(req: AuthenticatedRequest): string | undefined {
+  const role = req.query?.role;
+  if (typeof role !== 'string' || !role) return undefined;
+  return getUserRoles(req.user).includes(role) ? role : undefined;
+}
+
+/** True if `doc` should count for `role` — no targetScreen at all (generic/
+ *  account-level: broadcast, 2FA, new_message) always counts regardless. */
+function matchesRoleFilter(targetScreen: unknown, role: string | undefined): boolean {
+  if (!role) return true;
+  if (typeof targetScreen !== 'string' || !targetScreen) return true;
+  return screensForRole(role).includes(targetScreen);
+}
 
 /**
  * GET /api/notifications/inbox
@@ -14,12 +37,17 @@ export const getNotificationInboxSummary = async (req: AuthenticatedRequest, res
     const uid = req.user?.uid;
     if (!uid) return res.status(401).json({ message: 'Unauthorized access: Missing token context.' });
 
+    const role = resolveRoleFilter(req);
     const snapshot = await db.collection('notifications')
       .where('recipientId', '==', uid)
       .where('isRead', '==', false)
       .get();
 
-    return res.status(200).json({ unreadCount: snapshot.size });
+    const unreadCount = role
+      ? snapshot.docs.filter((doc) => matchesRoleFilter(doc.data().targetScreen, role)).length
+      : snapshot.size;
+
+    return res.status(200).json({ unreadCount });
 
   } catch (error: any) {
     return softError(res, 'Failed to load notification inbox.', error);
@@ -111,6 +139,7 @@ export const getUserNotificationFeed = async (req: AuthenticatedRequest, res: Re
     const uid = req.user?.uid;
     if (!uid) return res.status(401).json({ error: 'Unauthorized user credentials' });
 
+    const role = resolveRoleFilter(req);
     const snapshot = await db.collection('notifications')
       .where('recipientId', '==', uid)
       .orderBy('createdAt', 'desc')
@@ -125,14 +154,16 @@ export const getUserNotificationFeed = async (req: AuthenticatedRequest, res: Re
     // client can't parse — surfacing as "Invalid Date" in the UI. Same
     // toDate()?.toISOString() normalization already used for this exact
     // mismatch elsewhere (see feedbackController.ts, milestoneController.ts).
-    const feedItems = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? data.createdAt ?? null,
-      };
-    });
+    const feedItems = snapshot.docs
+      .filter((doc) => matchesRoleFilter(doc.data().targetScreen, role))
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate?.()?.toISOString() ?? data.createdAt ?? null,
+        };
+      });
     return res.status(200).json(feedItems);
 
   } catch (error: any) {
@@ -259,12 +290,17 @@ export const getNotificationBadgeCount = async (req: AuthenticatedRequest, res: 
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
 
   try {
+    const role = resolveRoleFilter(req);
     const snap = await db.collection('notifications')
       .where('recipientId', '==', uid)
       .where('isRead', '==', false)
       .get();
 
-    return res.status(200).json({ unreadCount: snap.size });
+    const unreadCount = role
+      ? snap.docs.filter((doc) => matchesRoleFilter(doc.data().targetScreen, role)).length
+      : snap.size;
+
+    return res.status(200).json({ unreadCount });
 
   } catch (error: any) {
     return softError(res, 'Failed to fetch badge count.', error);

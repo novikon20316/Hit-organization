@@ -11,7 +11,7 @@ import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
-import { getUserRoles, resolveActiveRole, type AppRole, type UserDoc } from '@/lib/roles';
+import { getUserRoles, resolveActiveRole, isValidRole, type AppRole, type UserDoc } from '@/lib/roles';
 import { resolveTrackPolicy } from '@/lib/studentTrack';
 import { useIdleTimer } from '@/hooks/useIdleTimer';
 import { SessionExpiredModal } from '@/components/SessionExpiredModal';
@@ -55,11 +55,22 @@ interface AuthContextValue {
   /** All distinct roles the signed-in user holds (primary `role` + `roles[]`,
    *  deduped) — see lib/roles.ts's getUserRoles. */
   roles: AppRole[];
-  /** Which role's dashboard this user sees — always their highest-ranked
-   *  role (see lib/roles.ts's resolveActiveRole/highestRankedRole); no
-   *  manual switching. */
+  /** Which role's dashboard/chrome this user currently sees — their
+   *  highest-ranked role (see lib/roles.ts's resolveActiveRole) unless
+   *  they've manually switched via setActiveRole, in which case it's
+   *  whichever role they last picked (persisted in localStorage, reset if
+   *  that role is no longer held). */
   activeRole: AppRole | undefined;
+  /** This user's actual highest-ranked role, regardless of any manual
+   *  switch — the role setActiveRole(mainRole) returns them to. */
+  mainRole: AppRole | undefined;
+  /** Manually switch which of the user's own roles' chrome/dashboard is
+   *  shown. Must be one of `roles`; persists across reloads until changed
+   *  again or the role is revoked. */
+  setActiveRole: (role: AppRole) => void;
 }
+
+const ACTIVE_ROLE_STORAGE_PREFIX = 'activeRole:';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -100,7 +111,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authResolved, setAuthResolved] = useState(false);
   const [profileResolved, setProfileResolved] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
-  const activeRole = useMemo(() => resolveActiveRole(userData), [userData]);
+  const mainRole = useMemo(() => resolveActiveRole(userData), [userData]);
+
+  // A user-picked override of which role's chrome/dashboard is shown,
+  // instead of always mainRole — see setActiveRole below. Loaded per-uid so
+  // switching accounts on the same browser doesn't leak one account's choice
+  // into another's.
+  const [activeRoleOverride, setActiveRoleOverride] = useState<AppRole | null>(null);
+
+  useEffect(() => {
+    if (!firebaseUser) { setActiveRoleOverride(null); return; }
+    try {
+      const stored = localStorage.getItem(ACTIVE_ROLE_STORAGE_PREFIX + firebaseUser.uid);
+      setActiveRoleOverride(isValidRole(stored) ? stored : null);
+    } catch {
+      setActiveRoleOverride(null);
+    }
+  }, [firebaseUser]);
+
+  // Drop the override the moment it names a role this account no longer
+  // holds (e.g. an admin revoked it while the user was switched into it) —
+  // falls back to mainRole rather than showing a dead role's chrome.
+  useEffect(() => {
+    if (!activeRoleOverride || !userData) return;
+    if (!getUserRoles(userData).includes(activeRoleOverride)) {
+      setActiveRoleOverride(null);
+      if (firebaseUser) {
+        try { localStorage.removeItem(ACTIVE_ROLE_STORAGE_PREFIX + firebaseUser.uid); } catch { /* ignore */ }
+      }
+    }
+  }, [activeRoleOverride, userData, firebaseUser]);
+
+  const setActiveRole = (role: AppRole) => {
+    setActiveRoleOverride(role);
+    if (firebaseUser) {
+      try { localStorage.setItem(ACTIVE_ROLE_STORAGE_PREFIX + firebaseUser.uid, role); } catch { /* ignore */ }
+    }
+  };
+
+  const activeRole = activeRoleOverride ?? mainRole;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -154,6 +203,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // the window where clicking "sign out" and immediately pressing back
     // would still find the cookie present and slip past proxy.ts.
     clearSessionCookie();
+    if (firebaseUser) {
+      try { localStorage.removeItem(ACTIVE_ROLE_STORAGE_PREFIX + firebaseUser.uid); } catch { /* ignore */ }
+    }
     await signOut(auth);
   };
 
@@ -188,6 +240,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         registerBeforeSignOut,
         roles: getUserRoles(userData),
         activeRole,
+        mainRole,
+        setActiveRole,
       }}
     >
       {children}

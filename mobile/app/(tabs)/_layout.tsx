@@ -37,9 +37,15 @@ const KNOWN_PREFIXES = [
   '/grad_school_head/',
   '/admin/',
   '/notifications',
+  '/roles',
 ];
 
-const ROLE_ROUTES: Record<string, string> = {
+// Exported so app/(tabs)/roles.tsx (the role-switcher screen) navigates to
+// exactly the same routes login-time redirects use — some of these
+// deliberately differ from firebase/roles.ts's getHomeRoute (e.g.
+// program_head, administrative_secretary, grad_school_head), which is stale
+// for mobile's actual route filenames; this table is the authoritative one.
+export const ROLE_ROUTES: Record<string, string> = {
   student:              '/student/home',
   // The supervisor screen's actual file is app/supervisor/dashboard.tsx —
   // there has never been an app/supervisor/home.tsx (confirmed via git
@@ -113,35 +119,18 @@ const ROLE_TABS: Record<string, Array<{
   ],
 };
 
-// ─── Additional-role tabs ──────────────────────────────────────────────────
-// A user whose primary role outranks a secondary operational role they also
-// hold (e.g. a coordinator who is ALSO a supervisor in roles[]) only ever
-// gets that primary role's 2-tab bar above — there's no tab pointing at the
-// dashboard where their supervisor/examiner work (grading a submitted
-// milestone, submitting examiner availability dates) actually lives. The
-// route itself is still directly reachable (each screen's own guard checks
-// the full roles[] array, not just the active role), but nothing in the tab
-// bar links to it. Mirrors web/lib/roleChrome.ts's ADDITIONAL_ROLE_LINKS —
-// same roles, same target screens — keep the two in sync.
-const ADDITIONAL_ROLE_TABS: Array<{
-  roles: string[]; // any one of these in the user's roles[] qualifies
-  tab: { name: string; iconActive: string; iconInactive: string; labelHe: string; labelEn: string };
-}> = [
-  {
-    roles: ['supervisor', 'secondary_supervisor'],
-    tab: { name: 'supervisor/dashboard', iconActive: '📋', iconInactive: '📋', labelHe: 'מנחה',       labelEn: 'Supervisor' },
-  },
-  {
-    roles: ['internal_examiner'],
-    tab: { name: 'examinor/home',        iconActive: '✏️', iconInactive: '✏️', labelHe: 'בוחן פנימי', labelEn: 'Examiner'   },
-  },
-];
-
-function additionalRoleTabs(role: string, roles: string[]) {
-  return ADDITIONAL_ROLE_TABS
-    .filter((entry) => !entry.roles.includes(role) && entry.roles.some((r) => roles.includes(r)))
-    .map((entry) => entry.tab);
-}
+// ─── Role-switcher tab ──────────────────────────────────────────────────────
+// A multi-role user (e.g. a coordinator who is ALSO a supervisor in roles[])
+// only ever got that primary role's 2-tab bar above — there was no way to
+// reach the dashboard where their supervisor/examiner work (grading a
+// submitted milestone, submitting examiner availability dates) actually
+// lives, short of manually typing a URL. This appends one "Roles" tab
+// whenever the user holds more than one role, opening app/(tabs)/roles.tsx —
+// picking a role there calls setActiveRole (persisted — see
+// ActiveRoleContext.tsx) and navigates to that role's own home route,
+// swapping the ENTIRE tab bar to that role's, not just adding a link. Mirrors
+// web/lib/roleChrome.ts's "Switch Role" sidebar section.
+const ROLE_SWITCHER_TAB = { name: 'roles', iconActive: '🔄', iconInactive: '🔄', labelHe: 'תפקידים', labelEn: 'Roles' };
 
 // ─── Tab icon component ───────────────────────────────────────────────────────
 // accentColor comes from the signed-in user's role (see ROLE_ACCENT in
@@ -293,12 +282,12 @@ export default function TabLayout() {
     pathname.startsWith('/notifications') ||
     !isKnownRoute(pathname);
 
-  // Extra tabs (supervisor/examiner, etc.) go before the trailing
-  // notifications tab, which every role's own list ends with — see
-  // additionalRoleTabs above.
+  // The role-switcher tab goes before the trailing notifications tab, which
+  // every role's own list ends with — see ROLE_SWITCHER_TAB above.
   const baseTabs = role ? (ROLE_TABS[role] ?? []) : [];
+  const roleSwitcherTabs = roles.length > 1 ? [ROLE_SWITCHER_TAB] : [];
   const tabs = role
-    ? [...baseTabs.slice(0, -1), ...additionalRoleTabs(role, roles), ...baseTabs.slice(-1)]
+    ? [...baseTabs.slice(0, -1), ...roleSwitcherTabs, ...baseTabs.slice(-1)]
     : [];
   const roleAccentColor = getRoleAccent(role ?? '').text;
 

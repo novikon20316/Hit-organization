@@ -231,6 +231,12 @@ async function notifyPanelToSubmitDates(panel: DefensePanelMember[], projectId: 
       relatedProjectId: projectId,
       relatedMilestoneId: null,
       chatId: null,
+      // Every recipient here is an internal panel member (see the type
+      // !== 'internal' skip above) — same destination as the "date now set"
+      // reminder below, so a multi-role user switched away from
+      // internal_examiner doesn't see this in their notification list (see
+      // notificationScreens.ts's screensForRole).
+      targetScreen: 'examiner_schedule',
     });
   }
 }

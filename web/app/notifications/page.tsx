@@ -14,6 +14,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { apiClient } from '@/lib/apiClient';
 import { getRoleAccent } from '@/lib/facultyColors';
+import { notifMatchesRole } from '@/lib/notificationScreens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { FeedbackTab } from './FeedbackTab';
@@ -23,7 +24,7 @@ type Tab = 'notifs' | 'chats' | 'feedback';
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { userData, loading: authLoading } = useAuth();
+  const { userData, loading: authLoading, activeRole } = useAuth();
   const { lang, t } = useLanguage();
   const { refresh: refreshBadges } = useNotifications();
 
@@ -46,7 +47,12 @@ export default function NotificationsPage() {
   const [deletingChat, setDeletingChat] = useState<ChatRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  // Scoped to whichever role the user is currently viewing the app as — a
+  // multi-role account switched into supervisor shouldn't see their
+  // grad_school_head queue's notifications mixed in here. Notifications with
+  // no targetScreen (generic/account-level) always pass regardless of role.
+  const roleNotifications = notifications.filter((n) => notifMatchesRole(n.targetScreen, activeRole));
+  const unreadCount = roleNotifications.filter((n) => !n.isRead).length;
   const unreadChats = chats.filter((c) => c.unreadCount > 0).length;
 
   // Live listener (replaces the old 30s REST poll of getNotificationFeed) —
@@ -151,7 +157,7 @@ export default function NotificationsPage() {
     // body) instead of silently jumping straight to a dashboard — that
     // dashboard never showed the notification's actual content anywhere, so
     // the redirect looked like it had no reason behind it.
-    const targetRoute = computeNotifTargetRoute(notif.type, userData?.role, notif.targetScreen);
+    const targetRoute = computeNotifTargetRoute(notif.type, activeRole, notif.targetScreen);
 
     const params = new URLSearchParams({
       type: notif.type,
@@ -184,7 +190,7 @@ export default function NotificationsPage() {
       if (notif.chatId) router.push(`/message/${notif.chatId}?otherName=${encodeURIComponent(notif.senderName ?? '')}`);
       return;
     }
-    const targetRoute = computeNotifTargetRoute(notif.type, userData?.role, notif.targetScreen);
+    const targetRoute = computeNotifTargetRoute(notif.type, activeRole, notif.targetScreen);
     if (targetRoute) router.push(targetRoute);
   };
 
@@ -208,9 +214,17 @@ export default function NotificationsPage() {
   };
 
   const handleMarkAllRead = async () => {
+    // Scoped to exactly what's shown for the active role — the old
+    // markAllNotificationsRead() marked EVERY unread notification for the
+    // account, which would silently clear a multi-role user's OTHER role's
+    // still-pending queue just because they happened to be viewing this one
+    // when they clicked it.
+    const idsToMark = roleNotifications.filter((n) => !n.isRead).map((n) => n.id);
+    if (idsToMark.length === 0) return;
     try {
-      await apiClient.markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await Promise.all(idsToMark.map((id) => apiClient.markNotificationRead(id)));
+      const idSet = new Set(idsToMark);
+      setNotifications((prev) => prev.map((n) => (idSet.has(n.id) ? { ...n, isRead: true } : n)));
       refreshBadges();
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
@@ -218,7 +232,7 @@ export default function NotificationsPage() {
     }
   };
 
-  const displayed = filter === 'unread' ? notifications.filter((n) => !n.isRead) : notifications;
+  const displayed = filter === 'unread' ? roleNotifications.filter((n) => !n.isRead) : roleNotifications;
 
   const grouped = useMemo(() => {
     const groups: Record<string, Notif[]> = {};
@@ -319,7 +333,7 @@ export default function NotificationsPage() {
                       // still needs to show for them whenever a chatId exists.
                       const targetRoute = n.type === 'new_message'
                         ? (n.chatId ? `/message/${n.chatId}` : '')
-                        : computeNotifTargetRoute(n.type, userData?.role, n.targetScreen);
+                        : computeNotifTargetRoute(n.type, activeRole, n.targetScreen);
                       return (
                         <div
                           key={n.id}

@@ -4,6 +4,8 @@ import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase
 import { apiClient } from '../api/apiClient';
 import { auth, db } from '../firebase/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { notifMatchesRole } from '../../firebase/notificationScreens';
+import { useActiveRole } from '../../contexts/ActiveRoleContext';
 
 // Best-effort — the native app-icon badge (like WhatsApp's unread count) isn't
 // available on every platform/build (e.g. Android launchers vary, Expo Go
@@ -36,6 +38,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
 });
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
+  const { activeRole } = useActiveRole();
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChats, setUnreadChats] = useState(0);
   const [unreadByTargetScreen, setUnreadByTargetScreen] = useState<Record<string, number>>({});
@@ -98,8 +101,15 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       q,
       (snapshot) => {
         const alertDocs = snapshot.docs.filter((d) => d.data().type !== 'new_message');
-        setUnreadCount(alertDocs.length);
-        setNativeBadge(alertDocs.length + unreadMessagesRef.current);
+        // The bell/badge count reflects "unread notifications for the role
+        // I'm currently viewing the app as" — a multi-role user switched
+        // into supervisor shouldn't see their grad_school_head queue's
+        // count here. unreadByTargetScreen below stays unfiltered: each
+        // tab's own badge already only cares about that role's own screens,
+        // so it's inherently scoped without needing this.
+        const roleFiltered = alertDocs.filter((d) => notifMatchesRole(d.data().targetScreen, activeRole));
+        setUnreadCount(roleFiltered.length);
+        setNativeBadge(roleFiltered.length + unreadMessagesRef.current);
         const byScreen: Record<string, number> = {};
         for (const doc of alertDocs) {
           const targetScreen = doc.data().targetScreen;
@@ -115,7 +125,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     return () => {
       if (unsubUnread.current) { unsubUnread.current(); unsubUnread.current = null; }
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, activeRole]);
 
   const markTabSeen = useCallback(async (targetScreens: string[]) => {
     try {

@@ -31,8 +31,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getChromeForRole } from '@/lib/roleChrome';
 
 export default function CoordinatorLayout({ children }: { children: React.ReactNode }) {
-  const { activeRole, roles } = useAuth();
-  const chrome = getChromeForRole(activeRole, roles);
+  const { activeRole, roles, setActiveRole, mainRole } = useAuth();
+  const chrome = getChromeForRole(activeRole, roles, setActiveRole, mainRole);
 
   // Briefly true before AuthContext resolves activeRole on first load —
   // render bare rather than guess a role's sidebar.

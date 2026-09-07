@@ -64,6 +64,16 @@ export interface SidebarNavItem {
    *  (the destination page must independently guard itself too — hiding the
    *  link is not an access control). */
   visible?: (userData: ReturnType<typeof useAuth>['userData']) => boolean;
+  /** Fired on click, before the `href` navigation runs — used by the
+   *  role-switcher section (see lib/roleChrome.ts) to call setActiveRole so
+   *  the destination role's chrome is what actually renders once the
+   *  navigation lands. Omit for plain nav items. */
+  onSelect?: () => void;
+  /** Small text pill next to the label — used by the role-switcher section
+   *  to flag which listed role is the user's own main/highest-ranked one
+   *  (the one setActiveRole(mainRole) returns them to). Omit for plain nav
+   *  items, which have no need for it. */
+  badge?: { he: string; en: string };
 }
 
 export interface SidebarSection {
@@ -143,6 +153,7 @@ function SidebarNavSections({
             <li key={item.key}>
               <Link
                 href={resolveHref(item.href)}
+                onClick={item.onSelect}
                 data-tour-id={item.key}
                 className={`flex items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${
                   active ? `border-e-4 font-bold ${cls.itemActive}` : cls.itemInactive
@@ -150,6 +161,11 @@ function SidebarNavSections({
               >
                 <span className="text-base leading-none">{item.icon}</span>
                 <span className="flex-1">{item.label[lang]}</span>
+                {item.badge && (
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${cls.itemInactive}`}>
+                    {item.badge[lang]}
+                  </span>
+                )}
                 {badgeCount > 0 && (
                   <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
                     {badgeCount > 9 ? '9+' : badgeCount}

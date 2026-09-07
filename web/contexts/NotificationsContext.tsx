@@ -13,6 +13,7 @@ import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase
 import { db } from '@/lib/firebase';
 import { useAuth } from './AuthContext';
 import { apiClient } from '@/lib/apiClient';
+import { notifMatchesRole } from '@/lib/notificationScreens';
 
 interface NotificationsContextValue {
   unreadCount: number;
@@ -37,7 +38,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
 });
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, activeRole } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChats, setUnreadChats] = useState(0);
   const [unreadByTargetScreen, setUnreadByTargetScreen] = useState<Record<string, number>>({});
@@ -83,7 +84,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     unsubUnread.current = onSnapshot(
       q,
       (snapshot) => {
-        setUnreadCount(snapshot.size);
+        // The bell count reflects "unread notifications for the role I'm
+        // currently viewing the app as" — a multi-role user switched into
+        // supervisor shouldn't see their grad_school_head queue's count
+        // here. Per-tab badges below stay unfiltered: each sidebar item's
+        // own badgeTargetScreens already only names that role's own
+        // screens (or, for the "Switch Role" section, the OTHER role being
+        // offered), so they're inherently scoped without needing this.
+        const roleFiltered = snapshot.docs.filter((doc) => notifMatchesRole(doc.data().targetScreen, activeRole));
+        setUnreadCount(roleFiltered.length);
         const byScreen: Record<string, number> = {};
         for (const doc of snapshot.docs) {
           const targetScreen = doc.data().targetScreen;
@@ -97,7 +106,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
     );
     return () => cancel(unsubUnread);
-  }, [firebaseUser]);
+  }, [firebaseUser, activeRole]);
 
   const markTabSeen = useCallback(async (targetScreens: string[]) => {
     try {

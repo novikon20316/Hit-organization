@@ -23,8 +23,8 @@ import { SidebarShell } from '@/components/dashboard/SidebarShell';
 import { getChromeForRole } from '@/lib/roleChrome';
 
 export default function ProgramHeadLayout({ children }: { children: React.ReactNode }) {
-  const { activeRole, roles } = useAuth();
-  const chrome = getChromeForRole(activeRole, roles);
+  const { activeRole, roles, setActiveRole, mainRole } = useAuth();
+  const chrome = getChromeForRole(activeRole, roles, setActiveRole, mainRole);
 
   if (!chrome) return <>{children}</>;
 

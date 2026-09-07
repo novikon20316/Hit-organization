@@ -21,8 +21,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getChromeForRole } from '@/lib/roleChrome';
 
 export default function FacultyAdminLayout({ children }: { children: React.ReactNode }) {
-  const { activeRole, roles } = useAuth();
-  const chrome = getChromeForRole(activeRole, roles);
+  const { activeRole, roles, setActiveRole, mainRole } = useAuth();
+  const chrome = getChromeForRole(activeRole, roles, setActiveRole, mainRole);
 
   if (!chrome) return <>{children}</>;
 

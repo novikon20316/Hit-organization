@@ -1,43 +1,22 @@
-// src/services/notificationTargets.ts
+// lib/notificationScreens.ts
 //
-// Maps a (recipient role, task kind) pair to a semantic "targetScreen" key,
-// stored on the notification doc at creation time (see notify.ts's
-// notifyUser and the various raw db.collection('notifications').add calls
-// across the codebase). Each client (web/app/notifications/types.ts,
-// mobile/app/(tabs)/notifications.tsx) resolves that key into its own
-// actual dashboard URL — web and mobile don't always spell the same tab
-// the same way (e.g. the internal examiner's "defenses" tab is called
-// 'defenses' on web but 'projects' on mobile), so the semantic key stays
-// platform-agnostic and each client owns its own lookup table.
-//
-// Call sites declare WHAT KIND of task this is and WHO it's for; this file
-// is the only place that knows which literal screen that combination maps
-// to, so it's the only place that needs updating if a dashboard's tab
-// layout changes.
+// Client-safe mirror of server/src/services/notificationTargets.ts's
+// targetScreenFor/screensForRole — the web notification listeners
+// (contexts/NotificationsContext.tsx, app/notifications/page.tsx) talk to
+// Firestore directly rather than through the API, so they need their own
+// copy of "which targetScreen keys belong to this role" to filter a
+// multi-role user's feed down to whichever role they're currently viewing
+// the app as. Keep in sync with the server copy (and its mobile mirror,
+// mobile/firebase/notificationScreens.ts) by hand — same convention as
+// lib/roles.ts's own header comment.
 
-export type NotificationTaskKind =
-  // A milestone needs this role's review/grading/approval right now.
-  | 'milestone_action'
-  // A second-tier sign-off is pending (examiner list or final grade).
-  | 'signoff'
-  // Deadline override / examiner escalation / exceptional-action queue.
-  | 'deadline_examiner'
-  // Defense scheduling — date submission needed, or a date conflict to resolve.
-  | 'defense'
-  // Project erasure request queue (coordinator-only workflow).
-  | 'archived_erasure'
-  // Supervisor's incoming project applications.
-  | 'applications'
-  // A grade was just published/approved for this student.
-  | 'grade_published';
+import type { AppRole } from './roles';
 
-/**
- * Resolves (role, kind) to a semantic screen key, or null if this role has
- * no defined destination for that kind (the caller should then leave
- * targetScreen unset — the client falls back to that role's plain
- * dashboard home).
- */
-export function targetScreenFor(role: string | undefined | null, kind: NotificationTaskKind): string | null {
+type NotificationTaskKind =
+  | 'milestone_action' | 'signoff' | 'deadline_examiner' | 'defense'
+  | 'archived_erasure' | 'applications' | 'grade_published';
+
+function targetScreenFor(role: string | undefined | null, kind: NotificationTaskKind): string | null {
   switch (kind) {
     case 'milestone_action':
       switch (role) {
@@ -72,10 +51,6 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
         case 'grad_school_head':         return 'grad_school_head_examiners';
         case 'program_head':             return 'program_head_approvals';
         case 'internal_examiner':        return 'examiner_defenses';
-        // No dedicated system_admin screen for this narrower workflow —
-        // they're already permitted onto /coordinator/home (see its own
-        // COORDINATOR_ROLES guard), so land them on the same place the
-        // primary recipient uses instead of a generic admin fallback.
         case 'system_admin':             return 'coordinator_deadlines';
         default: return null;
       }
@@ -96,10 +71,6 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
     case 'grade_published':
       switch (role) {
         case 'student':                  return 'student_grades';
-        // The supervisor also gets a 'milestone_graded' notification when a
-        // coordinator approves their student's grade (informational, not
-        // actionable) — lands them back on the project they're supervising
-        // rather than the client's student-only fallback route.
         case 'supervisor':
         case 'secondary_supervisor':     return 'supervisor_projects';
         default: return null;
@@ -114,20 +85,22 @@ const ALL_TASK_KINDS: NotificationTaskKind[] = [
   'archived_erasure', 'applications', 'grade_published',
 ];
 
-/**
- * Every targetScreen key `role` can ever be notified into — the reverse of
- * targetScreenFor, used to filter a multi-role user's notification feed down
- * to whichever role they're currently viewing the app as (see
- * contexts/AuthContext.tsx's / ActiveRoleContext's setActiveRole). A
- * notification with no targetScreen at all (a generic/account-level one —
- * broadcast, 2FA, new_message) is never covered by this and should always
- * pass a role filter regardless, since it isn't role-specific at all.
- */
-export function screensForRole(role: string | undefined | null): string[] {
+/** Every targetScreen key `role` can ever be notified into — see this
+ *  file's header comment. */
+export function screensForRole(role: AppRole | string | undefined | null): string[] {
   const screens = new Set<string>();
   for (const kind of ALL_TASK_KINDS) {
     const screen = targetScreenFor(role, kind);
     if (screen) screens.add(screen);
   }
   return [...screens];
+}
+
+/** True if `notif` should be shown while viewing the app as `role` — a
+ *  notification with no targetScreen at all (generic/account-level: 2FA,
+ *  broadcast, new_message) is always shown regardless of the active role. */
+export function notifMatchesRole(targetScreen: string | null | undefined, role: AppRole | undefined): boolean {
+  if (!targetScreen) return true;
+  if (!role) return true;
+  return screensForRole(role).includes(targetScreen);
 }

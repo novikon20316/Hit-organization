@@ -12,6 +12,8 @@ import type { Lang } from '../../components/i18n';
 import NewChatSheet from '../message/new';
 import { apiClient } from '../../src/api/apiClient';
 import { useNotifications } from '../../src/context/NotificationsContext';
+import { useActiveRole } from '../../contexts/ActiveRoleContext';
+import { notifMatchesRole } from '../../firebase/notificationScreens';
 import FeedbackChat from '../../components/FeedbackChat';
 import { NotificationsStyles, NotificationsRowStyles, ChatRowStyles } from '../../constants/styles';
 
@@ -67,7 +69,7 @@ export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: strin
   new_message:            { icon: '💬', color: '#2E86FF', bg: '#EFF6FF' },
 };
 
-export function roleHomeRoute(role: string | null): string {
+export function roleHomeRoute(role: string | null | undefined): string {
   switch (role) {
     case 'student':                  return '/student/home';
     case 'supervisor':
@@ -119,7 +121,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
 // next/previous navigation, so a sibling notification opened via those
 // buttons gets the exact same "Go to dashboard" target as one opened fresh
 // from this list.
-export function computeNotifTargetRoute(type: string, role: string | null, targetScreen?: string | null): string {
+export function computeNotifTargetRoute(type: string, role: string | null | undefined, targetScreen?: string | null): string {
   if (targetScreen && TARGET_SCREEN_ROUTE[targetScreen]) return TARGET_SCREEN_ROUTE[targetScreen];
   switch (type) {
     case 'project_published':
@@ -337,34 +339,22 @@ export default function NotificationsScreen() {
   const [chatsError,       setChatsError]       = useState('');
   const [actionError,      setActionError]      = useState('');
   const [filter,           setFilter]           = useState<'all' | 'unread'>('all');
-  const [userRole,         setUserRole]         = useState<string | null>(null);
+  const { activeRole: userRole } = useActiveRole();
   const [chatSheetVisible, setChatSheetVisible] = useState(false);
   const [deletingChatId,   setDeletingChatId]   = useState<string | null>(null);
 
   const isRtl       = lang === 'he';
   // Chat-originated entries belong to the Messages tab, not Alerts — they're
-  // already fully represented there via each chat's own unreadCount, so they're
-  // excluded here rather than double-counted/shown in both places.
-  const alerts      = notifications.filter((n) => n.type !== 'new_message');
+  // already fully represented there via each chat's own unreadCount, so
+  // they're excluded here rather than double-counted/shown in both places.
+  // Also scoped to whichever role the user is currently viewing the app as
+  // (see ActiveRoleContext's setActiveRole) — a multi-role account switched
+  // into supervisor shouldn't see their grad_school_head queue's
+  // notifications mixed in here. A notification with no targetScreen
+  // (generic/account-level) always passes regardless of role.
+  const alerts      = notifications.filter((n) => n.type !== 'new_message' && notifMatchesRole(n.targetScreen, userRole));
   const unreadCount = alerts.filter((n) => !n.isRead).length;
   const unreadChats = chats.filter((c) => c.unreadCount > 0).length;
-
-  // ── 1. Fetch User Role ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-
-    const fetchUserRole = async () => {
-      try {
-        // 🚀 REPLACED: Get current user profile from backend
-        const response = await apiClient.get('/api/users/profile');
-        setUserRole(response.data.role ?? null);
-      } catch (err) {
-        console.error('Failed fetching user role context:', err);
-      }
-    };
-
-    fetchUserRole();
-  }, [uid]);
 
   // ── 1. Fetch Notification Inbox & Active Chats ────────────────────────
   // Lifted out of the effect (was an inline const before) so the "Retry"
@@ -534,12 +524,17 @@ export default function NotificationsScreen() {
   };
 
   const handleMarkAllRead = async () => {
+    // Scoped to exactly what's shown for the active role — the old bulk
+    // mark-all-read endpoint marked EVERY unread notification for the
+    // account, which would silently clear a multi-role user's OTHER role's
+    // still-pending queue just because they happened to be viewing this one
+    // when they tapped it.
+    const idsToMark = alerts.filter((n) => !n.isRead).map((n) => n.id);
+    if (idsToMark.length === 0) return;
     try {
-      // 🚀 Send a bulk update request to your Node.js backend
-      await apiClient.post('/api/notifications/mark-all-read');
-
-      // 💡 Instantly update your local UI state array to set everything to read
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await Promise.all(idsToMark.map((id) => apiClient.markNotificationRead(id)));
+      const idSet = new Set(idsToMark);
+      setNotifications((prev) => prev.map((n) => (idSet.has(n.id) ? { ...n, isRead: true } : n)));
       refresh();
     } catch (err: any) {
       console.error('Failed to mark all notifications as read:', err);

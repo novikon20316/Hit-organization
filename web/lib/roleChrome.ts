@@ -31,7 +31,9 @@
 // as scoped as they were before this file existed.
 
 import type { AppRole } from './roles';
-import type { SidebarSection, SidebarTheme } from '@/components/dashboard/SidebarShell';
+import { getHomeRoute } from './roles';
+import { screensForRole } from './notificationScreens';
+import type { SidebarSection, SidebarNavItem, SidebarTheme } from '@/components/dashboard/SidebarShell';
 import { ADMIN_NAV_SECTIONS, ADMIN_QUICK_ACTIONS } from '@/app/admin/navConfig';
 import { buildCoordinatorNavSections, COORDINATOR_QUICK_ACTIONS } from '@/app/coordinator/navSections';
 import { ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS } from '@/app/administrative_coordinator/navSections';
@@ -42,76 +44,61 @@ import { SUPERVISOR_NAV_SECTIONS } from '@/app/supervisor/navSections';
 import { EXAMINOR_NAV_SECTIONS } from '@/app/examinor/navSections';
 import { STUDENT_NAV_SECTIONS } from '@/app/student/navSections';
 
-// A multi-role user whose PRIMARY role outranks a secondary operational role
-// they also hold (e.g. coordinator/faculty_admin/grad_school_head who is
-// ALSO a supervisor or internal_examiner in roles[] — see roles.ts's
-// ROLE_RANK) never lands on that role's own sidebar/dashboard at all:
-// resolveActiveRole always picks their highest-ranked role, and each role's
-// own tabs (grading a submitted milestone, submitting examiner availability
-// dates, etc.) only exist under that role's own chrome. Without this, such a
-// user has no in-app way to even discover that they hold the extra role, let
-// alone reach its dashboard — the route itself is still reachable
-// (useRequireRole checks the full roles[] array), but nothing links to it.
-// This is exactly the gap a coordinator+supervisor account hits: milestones
-// a student submitted sit waiting for THEM to grade as supervisor, but their
-// coordinator sidebar has no link into /supervisor/dashboard to find them.
-//
-// This appends one combined "Additional Role" sidebar section, with one item
-// per extra operational role the user holds, pointing at that role's own
-// dashboard. Being ordinary SidebarSection items (not a bolted-on banner),
-// they're picked up by OnboardingTour the same as every other tab — see
-// SidebarShell's `<OnboardingTour sections={sections} .../>` — so a
-// first-login walkthrough teaches these users the role/screen exists, not
-// just as a one-time dashboard hint.
-//
-// To add another additional-role link, extend ADDITIONAL_ROLE_LINKS below —
-// everything else (dedup against the active role, combining into one
-// section, tour integration) is generic.
-const ADDITIONAL_ROLE_LINKS: Array<{
-  roles: AppRole[]; // any one of these in the user's roles[] qualifies
-  key: string;
-  icon: string;
-  href: string;
-  label: { he: string; en: string };
-  description: { he: string; en: string };
-  isActive: (pathname: string) => boolean;
-}> = [
-  {
-    roles: ['supervisor', 'secondary_supervisor'],
-    key: 'supervisor_assignments',
-    icon: '📋',
-    href: '/supervisor/dashboard',
-    label: { he: 'מנחה', en: 'Supervisor' },
-    description: {
-      he: 'יש לך גם תפקיד מנחה. כאן תמצא/י את הפרויקטים שבפיקוחך ואת ההגשות הממתינות לבדיקה שלך.',
-      en: 'You also hold the supervisor role. Find your supervised projects and submissions awaiting your grading here.',
-    },
-    isActive: (pathname) => pathname.startsWith('/supervisor'),
-  },
-  {
-    roles: ['internal_examiner'],
-    key: 'examiner_assignments',
-    icon: '🎓',
-    href: '/examinor/home',
-    label: { he: 'בוחן פנימי', en: 'Internal Examiner' },
-    description: {
-      he: 'יש לך גם תפקיד בוחן פנימי. כאן תמצא/י את ההגנות שהוקצו לך לבחינה, ואת המקום להגיש בו את התאריכים שבהם את/ה פנוי/ה.',
-      en: "You also hold the internal examiner role. Find the defenses assigned to you to examine here, and submit the dates you're available for.",
-    },
-    isActive: (pathname) => pathname.startsWith('/examinor'),
-  },
-];
+// A multi-role user (e.g. a grad_school_head who's also a supervisor and an
+// internal_examiner) used to never land on their other roles' dashboards at
+// all: resolveActiveRole always picked their highest-ranked role, and each
+// role's own tabs (grading a submitted milestone, submitting examiner
+// availability dates, etc.) only exist under that role's own chrome. This
+// appends one "Switch Role" sidebar section listing every OTHER role the
+// user holds — clicking one calls setActiveRole (persisted — see
+// AuthContext.tsx) and navigates to that role's own home route, swapping the
+// ENTIRE sidebar (brand, color, and menu) to that role's, not just the page
+// content. The role that got swapped OUT of (including the user's own
+// main/highest-ranked role, if that's not the one currently active) shows up
+// the same way, so switching back is just picking it again. Being ordinary
+// SidebarSection items (not a bolted-on banner), they're picked up by
+// OnboardingTour the same as every other tab.
+const ROLE_SWITCH_META: Record<AppRole, { icon: string; label: { he: string; en: string } }> = {
+  student:                  { icon: '🏠', label: { he: 'סטודנט', en: 'Student' } },
+  supervisor:               { icon: '📋', label: { he: 'מנחה', en: 'Supervisor' } },
+  secondary_supervisor:     { icon: '📋', label: { he: 'מנחה משני', en: 'Secondary Supervisor' } },
+  coordinator:              { icon: '📊', label: { he: 'רכז', en: 'Coordinator' } },
+  faculty_admin:            { icon: '⚙️', label: { he: 'ראש מנהל פקולטה', en: 'Faculty Admin' } },
+  program_head:             { icon: '🎓', label: { he: 'ראש תוכנית', en: 'Program Head' } },
+  administrative_secretary: { icon: '📊', label: { he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' } },
+  grad_school_head:         { icon: '🏛️', label: { he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' } },
+  internal_examiner:        { icon: '✏️', label: { he: 'בוחן פנימי', en: 'Internal Examiner' } },
+  system_admin:             { icon: '🛡️', label: { he: 'מנהל מערכת', en: 'System Admin' } },
+};
 
-function withAdditionalRoleLinks(sections: SidebarSection[], role: AppRole, roles: AppRole[]): SidebarSection[] {
-  const items = ADDITIONAL_ROLE_LINKS
-    .filter((entry) => !entry.roles.includes(role) && entry.roles.some((r) => roles.includes(r)))
-    .map(({ roles: _roles, ...item }) => item);
-  if (items.length === 0) return sections;
-  const additionalRoleSection: SidebarSection = {
-    title: { he: 'תפקיד נוסף', en: 'Additional Role' },
-    items,
-  };
-  return [...sections, additionalRoleSection];
+function buildRoleSwitcherSection(
+  role: AppRole,
+  roles: AppRole[],
+  mainRole: AppRole | undefined,
+  setActiveRole: ((role: AppRole) => void) | undefined
+): SidebarSection | null {
+  const otherRoles = roles.filter((r) => r !== role);
+  if (otherRoles.length === 0) return null;
+
+  const items: SidebarNavItem[] = otherRoles.map((r) => {
+    const meta = ROLE_SWITCH_META[r];
+    return {
+      key: `switch_role_${r}`,
+      icon: meta.icon,
+      href: getHomeRoute(r),
+      label: meta.label,
+      description: {
+        he: `החלף לתצוגת ${meta.label.he} — התפריט והנתונים יוצגו בהתאם לתפקיד זה.`,
+        en: `Switch to your ${meta.label.en} view — the menu and data will show that role's own.`,
+      },
+      isActive: () => false,
+      onSelect: () => setActiveRole?.(r),
+      badgeTargetScreens: screensForRole(r),
+      ...(r === mainRole ? { badge: { he: 'התפקיד הראשי', en: 'Main role' } } : {}),
+    };
+  });
+
+  return { title: { he: 'החלפת תפקיד', en: 'Switch Role' }, items };
 }
 
 export interface RoleChrome {
@@ -124,11 +111,21 @@ export interface RoleChrome {
 /** Chrome for `role`, or null if `role` is undefined/unrecognized (e.g.
  *  activeRole not resolved yet on first load — caller should render
  *  without a sidebar rather than guess one). `roles` is the user's full
- *  role set, needed only for program_head's role-gated "My Projects" item. */
-export function getChromeForRole(role: AppRole | undefined, roles: AppRole[]): RoleChrome | null {
+ *  role set — used both for program_head's role-gated "My Projects" item
+ *  and to build the "Switch Role" section below. `setActiveRole` and
+ *  `mainRole` come straight from useAuth(); omit only for callers that
+ *  can't offer switching (there are none today, but the section simply
+ *  won't be clickable/marked without them). */
+export function getChromeForRole(
+  role: AppRole | undefined,
+  roles: AppRole[],
+  setActiveRole?: (role: AppRole) => void,
+  mainRole?: AppRole
+): RoleChrome | null {
   const chrome = getBaseChromeForRole(role, roles);
   if (!chrome || !role) return chrome;
-  return { ...chrome, sections: withAdditionalRoleLinks(chrome.sections, role, roles) };
+  const switcherSection = buildRoleSwitcherSection(role, roles, mainRole, setActiveRole);
+  return switcherSection ? { ...chrome, sections: [...chrome.sections, switcherSection] } : chrome;
 }
 
 function getBaseChromeForRole(role: AppRole | undefined, roles: AppRole[]): RoleChrome | null {
