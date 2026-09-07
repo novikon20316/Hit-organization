@@ -33,6 +33,26 @@ import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { ap } from '@/constants/theme';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import {
+  ASSIGN_EXAMINERS_FIELD_GUIDE, ASSIGN_EXAMINERS_GUIDE_KEY,
+  DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY,
+  IN_PROGRESS_TAB_FIELD_GUIDE, IN_PROGRESS_TAB_GUIDE_KEY,
+  PENDING_TAB_FIELD_GUIDE, PENDING_TAB_GUIDE_KEY,
+  DEFENSE_TAB_FIELD_GUIDE, DEFENSE_TAB_GUIDE_KEY,
+  DEADLINES_TAB_FIELD_GUIDE, DEADLINES_TAB_GUIDE_KEY,
+  RECOMMENDATIONS_TAB_FIELD_GUIDE, RECOMMENDATIONS_TAB_GUIDE_KEY,
+  SIGNOFFS_TAB_FIELD_GUIDE, SIGNOFFS_TAB_GUIDE_KEY,
+} from '@/constants/coordinatorFieldGuide';
+
+function assignGuideEntry(key: string) {
+  return ASSIGN_EXAMINERS_FIELD_GUIDE.find((s) => s.key === key)!;
+}
+function logisticsGuideEntry(key: string) {
+  return DEFENSE_LOGISTICS_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר',    en: 'Research Proposal' },
@@ -1367,6 +1387,7 @@ export default function CoordinatorHome() {
 
         {activeTab === 'pending' && (
           <>
+            <FieldGuideOverlay guideKey={PENDING_TAB_GUIDE_KEY} steps={PENDING_TAB_FIELD_GUIDE} />
             {pendingMilestones.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>✅</Text>
@@ -1524,6 +1545,7 @@ export default function CoordinatorHome() {
 
         {activeTab === 'defense' && (
   <>
+    <FieldGuideOverlay guideKey={DEFENSE_TAB_GUIDE_KEY} steps={DEFENSE_TAB_FIELD_GUIDE} />
     {/* ── Sort selector ── */}
     <View style={styles.sortRow}>
       {([
@@ -1815,6 +1837,7 @@ export default function CoordinatorHome() {
         )}
         {activeTab === 'inProgress' && (
           <>
+            <FieldGuideOverlay guideKey={IN_PROGRESS_TAB_GUIDE_KEY} steps={IN_PROGRESS_TAB_FIELD_GUIDE} />
             <CreateOwnProjectButton lang={lang} isRtl={isRtl} onCreated={fetchCoordinatorDashboard} />
             {inProgressProjects.length === 0 ? (
               <View style={styles.empty}>
@@ -2026,6 +2049,7 @@ export default function CoordinatorHome() {
 
         {activeTab === 'deadlines' && (
           <>
+            <FieldGuideOverlay guideKey={DEADLINES_TAB_GUIDE_KEY} steps={DEADLINES_TAB_FIELD_GUIDE} />
             <Pressable
               style={[styles.submitBtn, { marginBottom: 14 }]}
               onPress={() => setShowBulkDueDate(true)}
@@ -2106,6 +2130,7 @@ export default function CoordinatorHome() {
 
         {activeTab === 'recommendations' && (
           <>
+            <FieldGuideOverlay guideKey={RECOMMENDATIONS_TAB_GUIDE_KEY} steps={RECOMMENDATIONS_TAB_FIELD_GUIDE} />
             {examinerRecs.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>👥</Text>
@@ -2190,7 +2215,10 @@ export default function CoordinatorHome() {
         )}
 
         {activeTab === 'signoffs' && (
-          <PendingSignoffsWidget lang={lang} showEmptyState />
+          <>
+            <FieldGuideOverlay guideKey={SIGNOFFS_TAB_GUIDE_KEY} steps={SIGNOFFS_TAB_FIELD_GUIDE} />
+            <PendingSignoffsWidget lang={lang} showEmptyState />
+          </>
         )}
 
         {activeTab === 'archived' && (
@@ -2258,6 +2286,12 @@ export default function CoordinatorHome() {
       {/* ── Assign examiners modal ── */}
       <Modal visible={assignModal} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          {assignModal && (
+            <FieldGuideOverlay
+              guideKey={ASSIGN_EXAMINERS_GUIDE_KEY}
+              steps={ASSIGN_EXAMINERS_FIELD_GUIDE.filter((s) => s.key !== 'weights' || !(selectedMilestone?.facultyId === 'data_science' && selectedMilestone?.type === 'defense'))}
+            />
+          )}
           <View style={styles.modalHeader}>
             <Pressable onPress={() => setAssignModal(false)} accessibilityRole="button">
               <Text style={styles.backButton}>
@@ -2265,10 +2299,15 @@ export default function CoordinatorHome() {
               </Text>
             </Pressable>
           </View>
-          <Text style={styles.modalTitle}>
-            {lang === 'he' ? '👥 הקצאת בוחנים ומשקלות' : '👥 Assign Examiners & Weights'}
-          </Text>
+          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
+            <Text style={styles.modalTitle}>
+              {lang === 'he' ? '👥 הקצאת בוחנים ומשקלות' : '👥 Assign Examiners & Weights'}
+            </Text>
+            <InfoTooltip textHe={assignGuideEntry('examinerSlots').description.he} textEn={assignGuideEntry('examinerSlots').description.en} />
+          </View>
 
+          <FieldGuideTarget fieldKey="examinerSlots">
+          <View>
           {examinerSlots.map((slot, idx) => {
             const otherSelectedIds = examinerSlots.filter((_, i) => i !== idx).map((s) => s.id);
             return (
@@ -2348,6 +2387,8 @@ export default function CoordinatorHome() {
           >
             <Text style={{ color: '#7C3AED', fontWeight: '600', fontSize: 13 }}>＋ {lang === 'he' ? 'הוסף בוחן' : 'Add examiner'}</Text>
           </Pressable>
+          </View>
+          </FieldGuideTarget>
 
           {selectedMilestone?.facultyId === 'data_science' && selectedMilestone?.type === 'defense' ? (
             <View style={{ backgroundColor: ap.surfaceContainer, borderRadius: 10, padding: 12, marginBottom: 12 }}>
@@ -2358,10 +2399,14 @@ export default function CoordinatorHome() {
               </Text>
             </View>
           ) : (
+            <FieldGuideTarget fieldKey="weights">
             <>
-              <Text style={styles.fieldLabel}>
-                {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
-              </Text>
+              <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
+                <Text style={styles.fieldLabel}>
+                  {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
+                </Text>
+                <InfoTooltip textHe={assignGuideEntry('weights').description.he} textEn={assignGuideEntry('weights').description.en} />
+              </View>
 
               {[
                 { label: lang === 'he' ? 'משקל מנחה (%)' : 'Supervisor weight (%)', value: weightSupervisor, set: setWeightSupervisor },
@@ -2388,6 +2433,7 @@ export default function CoordinatorHome() {
                 {(parseFloat(weightSupervisor || '0') + examinerSlots.length * parseFloat(weightEachExaminer || '0'))}%
               </Text>
             </>
+            </FieldGuideTarget>
           )}
 
           <Pressable
@@ -2412,6 +2458,7 @@ export default function CoordinatorHome() {
              coordinator sets time/room/building only ── */}
       <Modal visible={defenseModal} animationType="slide" presentationStyle="formSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          {defenseModal && <FieldGuideOverlay guideKey={DEFENSE_LOGISTICS_GUIDE_KEY} steps={DEFENSE_LOGISTICS_FIELD_GUIDE} />}
           <Text style={styles.modalTitle}>
             {lang === 'he' ? '📍 פרטי ההגנה' : '📍 Defense Logistics'}
           </Text>
@@ -2421,34 +2468,60 @@ export default function CoordinatorHome() {
             </Text>
           ) : null}
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'שעה' : 'Time'}
-          </Text>
+          <FieldGuideTarget fieldKey="time">
+          <View>
+          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'שעה' : 'Time'}
+            </Text>
+            <InfoTooltip textHe={logisticsGuideEntry('time').description.he} textEn={logisticsGuideEntry('time').description.en} />
+          </View>
           <TextInput
             style={styles.input}
             value={defenseTime}
             onChangeText={setDefenseTime}
             placeholder="HH:MM"
           />
+          </View>
+          </FieldGuideTarget>
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'חדר' : 'Room'}
-          </Text>
+          <FieldGuideTarget fieldKey="room">
+          <View>
+          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'חדר' : 'Room'}
+            </Text>
+            <InfoTooltip textHe={logisticsGuideEntry('room').description.he} textEn={logisticsGuideEntry('room').description.en} />
+          </View>
           <TextInput
             style={styles.input}
             value={defenseRoom}
             onChangeText={setDefenseRoom}
             placeholder={lang === 'he' ? 'חדר 101' : 'Room 101'}
           />
+          </View>
+          </FieldGuideTarget>
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'בניין' : 'Building'}
-          </Text>
+          <FieldGuideTarget fieldKey="building">
+          <View>
+          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'בניין' : 'Building'}
+            </Text>
+            <InfoTooltip textHe={logisticsGuideEntry('building').description.he} textEn={logisticsGuideEntry('building').description.en} />
+          </View>
           <DefenseBuildingPicker value={defenseBuilding} onChange={setDefenseBuilding} lang={lang} />
+          </View>
+          </FieldGuideTarget>
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
-          </Text>
+          <FieldGuideTarget fieldKey="onlineLink">
+          <View>
+          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
+            </Text>
+            <InfoTooltip textHe={logisticsGuideEntry('onlineLink').description.he} textEn={logisticsGuideEntry('onlineLink').description.en} />
+          </View>
           <TextInput
             style={styles.input}
             value={onlineDefenseLink}
@@ -2456,6 +2529,8 @@ export default function CoordinatorHome() {
             placeholder="https://zoom.us/j/..."
             autoCapitalize="none"
           />
+          </View>
+          </FieldGuideTarget>
 
           <Pressable
             style={[styles.submitBtn, saving && { opacity: 0.6 }]}

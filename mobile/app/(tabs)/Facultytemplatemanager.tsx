@@ -10,6 +10,17 @@ import type { Lang } from '../../components/i18n';
 import { TopBar } from '../../components/shared';
 import {facultyTemplateManager} from '../../constants'
 import { apiClient } from '../../src/api/apiClient';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import {
+  TEMPLATE_EDITOR_FIELD_GUIDE, TEMPLATE_EDITOR_GUIDE_KEY,
+  REJECT_PROPOSAL_FIELD_GUIDE, REJECT_PROPOSAL_GUIDE_KEY,
+} from '@/constants/facultyAdminFieldGuide';
+
+function templateGuideEntry(key: string) {
+  return TEMPLATE_EDITOR_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 // Matches the real backend schema (server/src/controllers/facultyTemplateController.ts)
@@ -503,8 +514,14 @@ export default function FacultyTemplateManager() {
           </View>
 
           <ScrollView contentContainerStyle={s.modalContent}>
+            {editorOpen && <FieldGuideOverlay guideKey={TEMPLATE_EDITOR_GUIDE_KEY} steps={TEMPLATE_EDITOR_FIELD_GUIDE} />}
             {/* Degree selector */}
-            <Text style={s.fieldLabel}>{lang === 'he' ? 'תואר' : 'Degree'}</Text>
+            <FieldGuideTarget fieldKey="degree">
+            <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={s.fieldLabel}>{lang === 'he' ? 'תואר' : 'Degree'}</Text>
+              <InfoTooltip textHe={templateGuideEntry('degree').description.he} textEn={templateGuideEntry('degree').description.en} />
+            </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {DEGREES.map((d) => (
                 <Pressable
@@ -520,9 +537,16 @@ export default function FacultyTemplateManager() {
                 </Pressable>
               ))}
             </View>
+            </View>
+            </FieldGuideTarget>
 
             {/* Type selector */}
-            <Text style={s.fieldLabel}>{lang === 'he' ? 'סוג עבודה' : 'Work Type'}</Text>
+            <FieldGuideTarget fieldKey="type">
+            <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={s.fieldLabel}>{lang === 'he' ? 'סוג עבודה' : 'Work Type'}</Text>
+              <InfoTooltip textHe={templateGuideEntry('type').description.he} textEn={templateGuideEntry('type').description.en} />
+            </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {TYPES.map((t) => (
                 <Pressable
@@ -538,9 +562,16 @@ export default function FacultyTemplateManager() {
                 </Pressable>
               ))}
             </View>
+            </View>
+            </FieldGuideTarget>
 
             {/* Title */}
-            <Text style={s.fieldLabel}>{lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}</Text>
+            <FieldGuideTarget fieldKey="title">
+            <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={s.fieldLabel}>{lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}</Text>
+              <InfoTooltip textHe={templateGuideEntry('title').description.he} textEn={templateGuideEntry('title').description.en} />
+            </View>
             <TextInput
               style={s.input}
               value={tplTitleHe}
@@ -556,9 +587,16 @@ export default function FacultyTemplateManager() {
               onChangeText={setTplTitleEn}
               placeholder="Project title"
             />
+            </View>
+            </FieldGuideTarget>
 
             {/* Description */}
-            <Text style={s.fieldLabel}>{lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}</Text>
+            <FieldGuideTarget fieldKey="description">
+            <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={s.fieldLabel}>{lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}</Text>
+              <InfoTooltip textHe={templateGuideEntry('description').description.he} textEn={templateGuideEntry('description').description.en} />
+            </View>
             <TextInput
               style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
               value={tplDescriptionHe}
@@ -576,11 +614,18 @@ export default function FacultyTemplateManager() {
               placeholder="Project description"
               multiline
             />
+            </View>
+            </FieldGuideTarget>
 
             {/* Skills */}
-            <Text style={s.fieldLabel}>
-              {lang === 'he' ? 'כישורים נדרשים' : 'Required skills'}
-            </Text>
+            <FieldGuideTarget fieldKey="skills">
+            <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={s.fieldLabel}>
+                {lang === 'he' ? 'כישורים נדרשים' : 'Required skills'}
+              </Text>
+              <InfoTooltip textHe={templateGuideEntry('skills').description.he} textEn={templateGuideEntry('skills').description.en} />
+            </View>
             <TextInput
               style={s.input}
               value={tplSkills}
@@ -588,6 +633,8 @@ export default function FacultyTemplateManager() {
               placeholder={lang === 'he' ? 'Python, React, SQL' : 'Python, React, SQL'}
               textAlign={isRtl ? 'right' : 'left'}
             />
+            </View>
+            </FieldGuideTarget>
 
             {/* Save */}
             <Pressable
@@ -628,9 +675,13 @@ export default function FacultyTemplateManager() {
           </View>
 
           <ScrollView contentContainerStyle={s.modalContent}>
-            <Text style={s.fieldLabel}>
-              {lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
-            </Text>
+            {rejectModalOpen && <FieldGuideOverlay guideKey={REJECT_PROPOSAL_GUIDE_KEY} steps={REJECT_PROPOSAL_FIELD_GUIDE} />}
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={s.fieldLabel}>
+                {lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
+              </Text>
+              <InfoTooltip textHe={REJECT_PROPOSAL_FIELD_GUIDE[0]!.description.he} textEn={REJECT_PROPOSAL_FIELD_GUIDE[0]!.description.en} />
+            </View>
             <TextInput
               style={[s.input, { minHeight: 100, textAlignVertical: 'top' }]}
               value={rejectReason}

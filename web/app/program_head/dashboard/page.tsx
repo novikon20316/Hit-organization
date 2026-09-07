@@ -25,6 +25,13 @@ import { TrackChangeControl } from '@/components/TrackChangeControl';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  STUDENTS_TAB_FIELD_GUIDE, STUDENTS_TAB_GUIDE_KEY,
+  APPROVALS_TAB_FIELD_GUIDE, APPROVALS_TAB_GUIDE_KEY,
+  SUPERVISORS_TAB_FIELD_GUIDE, SUPERVISORS_TAB_GUIDE_KEY,
+  STAFF_TAB_FIELD_GUIDE, STAFF_TAB_GUIDE_KEY,
+} from './fieldGuide';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { ProjectCard } from '@/app/supervisor/dashboard/ProjectCard';
@@ -309,7 +316,8 @@ function ProgramHeadDashboardContent() {
         <p className="text-sm text-program-head-on-surface-variant">{t('loading')}</p>
       ) : tab === 'students' ? (
         <div>
-          <div className="mb-4 rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4">
+          <FieldGuideOverlay guideKey={STUDENTS_TAB_GUIDE_KEY} steps={STUDENTS_TAB_FIELD_GUIDE} />
+          <div data-field-guide-id="eligibilityLookup" className="mb-4 rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4">
             <p className="text-sm font-semibold text-program-head-on-surface">
               🎓 {lang === 'he' ? 'בדיקת זכאות לתזה' : 'Thesis Eligibility Lookup'}
             </p>
@@ -354,6 +362,7 @@ function ProgramHeadDashboardContent() {
             )}
           </div>
 
+          <div data-field-guide-id="studentList">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -417,9 +426,11 @@ function ProgramHeadDashboardContent() {
             ))}
             {filteredStudents.length === 0 && <p className="text-sm text-program-head-on-surface-variant">🎓 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}</p>}
           </div>
+          </div>
         </div>
       ) : tab === 'approvals' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="approvalList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={APPROVALS_TAB_GUIDE_KEY} steps={APPROVALS_TAB_FIELD_GUIDE} />
           <div className="sm:col-span-2">
             <PendingSignoffsWidget showEmptyState />
           </div>
@@ -489,7 +500,8 @@ function ProgramHeadDashboardContent() {
           {approvals.length === 0 && <p className="text-sm text-program-head-on-surface-variant">✅ {lang === 'he' ? 'אין פריטים ממתינים' : 'Nothing pending'}</p>}
         </div>
       ) : tab === 'supervisors' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="supervisorList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={SUPERVISORS_TAB_GUIDE_KEY} steps={SUPERVISORS_TAB_FIELD_GUIDE} />
           {supervisorLoads.map((sv, i) => (
             <div key={i} className="role-rail rounded-program-head border border-program-head-outline-variant bg-program-head-surface-container-lowest p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
               <p className="text-sm font-semibold text-program-head-on-surface">👨‍🏫 {sv.supervisorName}</p>
@@ -507,7 +519,10 @@ function ProgramHeadDashboardContent() {
           {supervisorLoads.length === 0 && <p className="text-sm text-program-head-on-surface-variant">👨‍🏫 {lang === 'he' ? 'אין מנחים' : 'No supervisors'}</p>}
         </div>
       ) : tab === 'staff' ? (
-        <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }} />
+        <div data-field-guide-id="staffList">
+          <FieldGuideOverlay guideKey={STAFF_TAB_GUIDE_KEY} steps={STAFF_TAB_FIELD_GUIDE} />
+          <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }} />
+        </div>
       ) : (
         <div>
           <div className="mb-4">

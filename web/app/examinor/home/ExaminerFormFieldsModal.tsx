@@ -18,6 +18,9 @@ import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { AssignedMilestone } from './types';
 import { MILESTONE_LABEL } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { EXAMINER_FORM_FIELDS_FIELD_GUIDE, EXAMINER_FORM_FIELDS_GUIDE_KEY } from './fieldGuide';
 
 interface ExaminerFormFieldsModalProps {
   milestone: AssignedMilestone;
@@ -114,7 +117,11 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-examinor bg-examinor-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-examinor-on-surface">📝 {MILESTONE_LABEL[m.type]?.[lang] ?? (lang === 'he' ? 'טופס הערכה' : 'Evaluation Form')}</h2>
+        <FieldGuideOverlay guideKey={EXAMINER_FORM_FIELDS_GUIDE_KEY} steps={EXAMINER_FORM_FIELDS_FIELD_GUIDE} />
+        <h2 className="flex items-center text-lg font-semibold text-examinor-on-surface">
+          📝 {MILESTONE_LABEL[m.type]?.[lang] ?? (lang === 'he' ? 'טופס הערכה' : 'Evaluation Form')}
+          <InfoTooltip text={EXAMINER_FORM_FIELDS_FIELD_GUIDE[0]!.description} />
+        </h2>
 
         <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-examinor-surface-container-low p-3 text-xs">
           <p className="col-span-2 text-sm font-semibold text-examinor-on-surface">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
@@ -124,7 +131,7 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
           <span className="text-examinor-on-surface-variant">📅 {today.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</span>
         </div>
 
-        <div className="mt-4 grid gap-4">
+        <div data-field-guide-id="formFields" className="mt-4 grid gap-4">
           {fields.map((f, idx) => {
             const a = answers[f.key] ?? { value: '', comment: '' };
             const inputCls = 'mt-2 w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3 py-2 text-sm text-examinor-on-surface focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none';

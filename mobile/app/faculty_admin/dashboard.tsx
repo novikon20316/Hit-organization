@@ -39,6 +39,13 @@ import ManagedStaffSection from '@/components/ManagedStaffSection';
 import StudentsListSection from '@/components/StudentsListSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  USERS_TAB_FIELD_GUIDE, USERS_TAB_GUIDE_KEY,
+  DEADLINES_TAB_FIELD_GUIDE, DEADLINES_TAB_GUIDE_KEY,
+  SIGNOFFS_TAB_FIELD_GUIDE, SIGNOFFS_TAB_GUIDE_KEY,
+  STUDENTS_TAB_FIELD_GUIDE, STUDENTS_TAB_GUIDE_KEY,
+} from '@/constants/facultyAdminFieldGuide';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
@@ -459,6 +466,8 @@ export default function PanelScreen() {
 
       <ScrollView>
         {activeTab === 'staff' ? (
+          <>
+          <FieldGuideOverlay guideKey={USERS_TAB_GUIDE_KEY} steps={USERS_TAB_FIELD_GUIDE} />
           <ManagedStaffSection
             staff={users.filter((u) => DELEGATE_MANAGEABLE_ROLES.includes(u.role as any)) as any}
             onRefresh={fetchAdminDashboard}
@@ -466,8 +475,11 @@ export default function PanelScreen() {
             lang={lang}
             isRtl={isRtl}
           />
+          </>
         ) : activeTab === 'deadlines' ? (
-            loadingDeadlines ? (
+          <>
+          <FieldGuideOverlay guideKey={DEADLINES_TAB_GUIDE_KEY} steps={DEADLINES_TAB_FIELD_GUIDE} />
+          {loadingDeadlines ? (
             <ActivityIndicator size="large" />
           ) : (
             deadlines.length === 0 ? (
@@ -541,11 +553,18 @@ export default function PanelScreen() {
                 </View>
               ))
             )
-          )
+          )}
+          </>
         ) : activeTab === 'signoffs' ? (
+          <>
+          <FieldGuideOverlay guideKey={SIGNOFFS_TAB_GUIDE_KEY} steps={SIGNOFFS_TAB_FIELD_GUIDE} />
           <PendingSignoffsWidget lang={lang} showEmptyState />
+          </>
         ) : activeTab === 'students' ? (
+          <>
+          <FieldGuideOverlay guideKey={STUDENTS_TAB_GUIDE_KEY} steps={STUDENTS_TAB_FIELD_GUIDE} />
           <StudentsListSection lang={lang} isRtl={isRtl} />
+          </>
         ) : (
           /* USERS */
           users.map((u) => (

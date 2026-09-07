@@ -19,6 +19,13 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 import { ChainEditor, emptyStage } from './ChainEditor';
 import { SUBMISSION_REQUIREMENTS, MILESTONE_FILE_TYPES, DEFAULT_ALLOWED_FILE_TYPES } from './types';
 import type { FormFieldSpec, GradingComponentSpec, MilestoneFileType, MilestoneRoutingSpec, MilestoneSpec, SubmissionRequirement } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { MILESTONE_FIELD_GUIDE, MILESTONE_MODAL_GUIDE_KEY } from './fieldGuide';
+
+function milestoneGuideEntry(key: string) {
+  return MILESTONE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 function emptyComponent(): GradingComponentSpec {
   return { key: `c_${Math.random().toString(36).slice(2, 8)}`, labelHe: '', labelEn: '', maxScore: 20, weight: 20, hasComment: true, visibleToStudent: true };
@@ -478,10 +485,14 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
       </div>
 
       <div className="mx-auto max-w-3xl px-4 py-5 sm:px-6">
+        <FieldGuideOverlay guideKey={MILESTONE_MODAL_GUIDE_KEY} steps={MILESTONE_FIELD_GUIDE} />
         <div className="grid gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div data-field-guide-id="name" className="grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}
+                <InfoTooltip text={milestoneGuideEntry('name').description} />
+              </span>
               <input dir="rtl" value={nameHe} onChange={(e) => setNameHe(e.target.value)} placeholder="שם אבן הדרך" className={inputCls} />
             </label>
             <label className="block">
@@ -489,8 +500,11 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
               <input dir="ltr" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="Milestone name" className={inputCls} />
             </label>
           </div>
-          <div className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מועד יעד' : 'Due date'}</span>
+          <div data-field-guide-id="dateMode" className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">
+              {lang === 'he' ? 'מועד יעד' : 'Due date'}
+              <InfoTooltip text={milestoneGuideEntry('dateMode').description} />
+            </span>
             <div className="mb-2 flex gap-1.5">
               <button
                 type="button"
@@ -545,8 +559,11 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
               </div>
             )}
           </div>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'אחוז מהציון הסופי' : '% of final grade'}</span>
+          <label data-field-guide-id="percentOfFinalGrade" className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">
+              {lang === 'he' ? 'אחוז מהציון הסופי' : '% of final grade'}
+              <InfoTooltip text={milestoneGuideEntry('percentOfFinalGrade').description} />
+            </span>
             <p className="mb-1.5 text-xs text-muted">
               {lang === 'he'
                 ? 'כמה אבן דרך זו תורמת לציון הסופי הכולל של הפרויקט. סכום האחוזים של כל אבני הדרך בתבנית חייב להיות 100.'
@@ -554,8 +571,11 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
             </p>
             <input type="number" min={0} max={100} value={percentOfFinalGrade} onChange={(e) => setPercentOfFinalGrade(e.target.value)} placeholder="0" className={inputCls} />
           </label>
-          <label className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
-            <span className="text-sm font-medium text-ink">{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</span>
+          <label data-field-guide-id="requiresExaminers" className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
+            <span className="text-sm font-medium text-ink">
+              {lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}
+              <InfoTooltip text={milestoneGuideEntry('requiresExaminers').description} />
+            </span>
             <input
               type="checkbox"
               checked={requiresExaminers}
@@ -579,9 +599,10 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
                 />
               </label>
 
-              <label className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
+              <label data-field-guide-id="examinerOnlyGrading" className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
                 <span className="text-sm font-medium text-ink">
                   {lang === 'he' ? 'ציון בוחנים בלבד (ללא שלב מנחה)' : 'Examiner-only grading (no supervisor stage)'}
+                  <InfoTooltip text={milestoneGuideEntry('examinerOnlyGrading').description} />
                 </span>
                 <input
                   type="checkbox"
@@ -598,9 +619,10 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
                 </p>
               )}
 
-              <div className="rounded-lg border border-line bg-paper p-3">
+              <div data-field-guide-id="examinerFormFields" className="rounded-lg border border-line bg-paper p-3">
                 <span className="mb-1.5 block text-sm font-medium text-ink">
                   {lang === 'he' ? 'טופס בוחן מקוון (אופציונלי)' : 'Examiner online form (optional)'}
+                  <InfoTooltip text={milestoneGuideEntry('examinerFormFields').description} />
                 </span>
                 <p className="mb-1.5 text-xs text-muted">
                   {lang === 'he'
@@ -754,11 +776,12 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
           )}
 
           {(!isDefense || !useFinalGradeComponents) && (
-            <div className="rounded-lg border border-line bg-paper p-3">
+            <div data-field-guide-id="gradingComponents" className="rounded-lg border border-line bg-paper p-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-ink">
                   {lang === 'he' ? 'מרכיבי ציון' : 'Grading components'}
                   {components.length > 0 && <span className="ms-1 text-xs text-muted">({weightSum} {lang === 'he' ? 'נק\'' : 'pts'})</span>}
+                  <InfoTooltip text={milestoneGuideEntry('gradingComponents').description} />
                 </span>
                 <button
                   type="button"
@@ -851,10 +874,11 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
             </div>
           )}
 
-          <div className="rounded-lg border border-line bg-paper p-3">
+          <div data-field-guide-id="routing" className="rounded-lg border border-line bg-paper p-3">
             <label className="flex items-center justify-between">
               <span className="text-sm font-medium text-ink">
                 {lang === 'he' ? 'שרשרת אישור מותאמת לאבן דרך זו' : 'Override chain for this milestone'}
+                <InfoTooltip text={milestoneGuideEntry('routing').description} />
               </span>
               <input
                 type="checkbox"

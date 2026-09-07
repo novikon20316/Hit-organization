@@ -15,6 +15,13 @@ import { apiClient, ApiError } from '@/lib/apiClient';
 import { ApplicationStatusCard } from './ApplicationStatusCard';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { PendingApplication } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { APPLY_PROJECT_FIELD_GUIDE, APPLY_PROJECT_GUIDE_KEY } from './fieldGuide';
+
+function applyGuideEntry(key: string) {
+  return APPLY_PROJECT_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface BrowseSupervisorProject {
   id: string;
@@ -307,6 +314,10 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
             aria-modal="true"
             className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
           >
+            <FieldGuideOverlay
+              guideKey={APPLY_PROJECT_GUIDE_KEY}
+              steps={APPLY_PROJECT_FIELD_GUIDE.filter((s) => s.key !== 'track' || applyTarget.project.projectTypes.length > 1)}
+            />
             <div className="flex items-start justify-between">
               <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
               <button type="button" onClick={closeApply} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
@@ -316,8 +327,11 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
             <p className="mt-1 text-sm text-muted">{lang === 'he' ? applyTarget.project.titleHe : applyTarget.project.titleEn}</p>
 
             {applyTarget.project.projectTypes.length > 1 && (
-              <div className="mt-4">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מסלול *' : 'Track *'}</span>
+              <div data-field-guide-id="track" className="mt-4">
+                <span className="mb-1.5 block text-sm font-medium text-ink">
+                  {lang === 'he' ? 'מסלול *' : 'Track *'}
+                  <InfoTooltip text={applyGuideEntry('track').description} />
+                </span>
                 <div className="flex gap-3">
                   {applyTarget.project.projectTypes.map((tp) => (
                     <label key={tp} className="flex items-center gap-1.5 text-sm text-ink">
@@ -335,8 +349,11 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
               </div>
             )}
 
-            <label className="mt-4 block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}</span>
+            <label data-field-guide-id="coverNote" className="mt-4 block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">
+                {lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}
+                <InfoTooltip text={applyGuideEntry('coverNote').description} />
+              </span>
               <textarea
                 rows={4}
                 value={coverNote}
@@ -345,22 +362,28 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
               />
             </label>
 
-            <FileField
-              label={`${lang === 'he' ? 'גיליון ציונים' : 'Transcript'} *`}
-              file={transcriptFile}
-              onChange={setTranscriptFile}
-              lang={lang}
-              reuseUrl={lastTranscriptUrl}
-              onClearReuse={() => setLastTranscriptUrl('')}
-            />
-            <FileField
-              label={`${lang === 'he' ? 'קורות חיים' : 'CV'} *`}
-              file={cvFile}
-              onChange={setCvFile}
-              lang={lang}
-              reuseUrl={lastCvUrl}
-              onClearReuse={() => setLastCvUrl('')}
-            />
+            <div data-field-guide-id="transcript">
+              <FileField
+                label={`${lang === 'he' ? 'גיליון ציונים' : 'Transcript'} *`}
+                file={transcriptFile}
+                onChange={setTranscriptFile}
+                lang={lang}
+                reuseUrl={lastTranscriptUrl}
+                onClearReuse={() => setLastTranscriptUrl('')}
+                info={applyGuideEntry('transcript').description}
+              />
+            </div>
+            <div data-field-guide-id="cv">
+              <FileField
+                label={`${lang === 'he' ? 'קורות חיים' : 'CV'} *`}
+                file={cvFile}
+                onChange={setCvFile}
+                lang={lang}
+                reuseUrl={lastCvUrl}
+                onClearReuse={() => setLastCvUrl('')}
+                info={applyGuideEntry('cv').description}
+              />
+            </div>
 
             {applyMessage && (
               <p
@@ -435,6 +458,7 @@ function FileField({
   lang,
   reuseUrl,
   onClearReuse,
+  info,
 }: {
   label: string;
   file: File | null;
@@ -442,6 +466,7 @@ function FileField({
   lang: 'he' | 'en';
   reuseUrl?: string;
   onClearReuse?: () => void;
+  info?: { he: string; en: string };
 }) {
   const [error, setError] = useState(false);
   const reusing = !file && !!reuseUrl;
@@ -460,7 +485,10 @@ function FileField({
 
   return (
     <label className="relative mt-4 block">
-      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-ink">
+        {label}
+        {info && <InfoTooltip text={info} />}
+      </span>
       <div className="relative flex items-center justify-between overflow-hidden rounded-lg border border-dashed border-line bg-paper px-3 py-2.5 text-sm">
         <span className={file || reusing ? 'text-success' : 'text-muted'}>
           {file

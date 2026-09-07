@@ -11,6 +11,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { DEGREES, TYPES, type FacultyTemplate, type TemplateDegree, type TemplateType } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { TEMPLATE_EDITOR_FIELD_GUIDE, TEMPLATE_EDITOR_GUIDE_KEY } from './fieldGuide';
+
+function templateGuideEntry(key: string) {
+  return TEMPLATE_EDITOR_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface TemplateEditorModalProps {
   template: FacultyTemplate | null;
@@ -95,6 +102,7 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
         aria-modal="true"
         className="w-full max-w-lg rounded-faculty-admin bg-faculty-admin-surface-container-lowest p-5 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={TEMPLATE_EDITOR_GUIDE_KEY} steps={TEMPLATE_EDITOR_FIELD_GUIDE} />
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-faculty-admin-on-surface">
             {template ? `✏️ ${lang === 'he' ? 'עריכת תבנית' : 'Edit Template'}` : `➕ ${lang === 'he' ? 'תבנית חדשה' : 'New Template'}`}
@@ -106,8 +114,11 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
 
         <div className="mt-4 grid gap-3.5">
           {/* Degree chips */}
-          <div>
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{t('degreeType')}</span>
+          <div data-field-guide-id="degree">
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+              {t('degreeType')}
+              <InfoTooltip text={templateGuideEntry('degree').description} />
+            </span>
             <div className="flex gap-2">
               {DEGREES.map((d) => (
                 <button
@@ -125,8 +136,11 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
           </div>
 
           {/* Type chips */}
-          <div>
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'סוג עבודה' : 'Work Type'}</span>
+          <div data-field-guide-id="type">
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+              {lang === 'he' ? 'סוג עבודה' : 'Work Type'}
+              <InfoTooltip text={templateGuideEntry('type').description} />
+            </span>
             <div className="flex gap-2">
               {TYPES.map((tp) => (
                 <button
@@ -143,27 +157,40 @@ export function TemplateEditorModal({ template, onClose, onSaved }: TemplateEdit
             </div>
           </div>
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}</span>
-            <input dir="rtl" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} placeholder="כותרת הפרויקט" className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'כותרת (אנגלית)' : 'Title (English)'}</span>
-            <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} placeholder="Project title" className={inputCls} />
-          </label>
+          <div data-field-guide-id="title" className="grid gap-3.5">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+                {lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}
+                <InfoTooltip text={templateGuideEntry('title').description} />
+              </span>
+              <input dir="rtl" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} placeholder="כותרת הפרויקט" className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'כותרת (אנגלית)' : 'Title (English)'}</span>
+              <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} placeholder="Project title" className={inputCls} />
+            </label>
+          </div>
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}</span>
-            <textarea dir="rtl" rows={3} value={descriptionHe} onChange={(e) => setDescriptionHe(e.target.value)} placeholder="תיאור הפרויקט" className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'תיאור (אנגלית)' : 'Description (English)'}</span>
-            <textarea dir="ltr" rows={3} value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} placeholder="Project description" className={inputCls} />
-          </label>
+          <div data-field-guide-id="description" className="grid gap-3.5">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+                {lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}
+                <InfoTooltip text={templateGuideEntry('description').description} />
+              </span>
+              <textarea dir="rtl" rows={3} value={descriptionHe} onChange={(e) => setDescriptionHe(e.target.value)} placeholder="תיאור הפרויקט" className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'תיאור (אנגלית)' : 'Description (English)'}</span>
+              <textarea dir="ltr" rows={3} value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} placeholder="Project description" className={inputCls} />
+            </label>
+          </div>
 
           {/* Skills tag input */}
-          <div>
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'כישורים נדרשים' : 'Required Skills'}</span>
+          <div data-field-guide-id="skills">
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+              {lang === 'he' ? 'כישורים נדרשים' : 'Required Skills'}
+              <InfoTooltip text={templateGuideEntry('skills').description} />
+            </span>
             <div className="flex flex-wrap gap-1.5 rounded-lg border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-low p-2">
               {skills.map((skill) => (
                 <span key={skill} className="flex items-center gap-1 rounded-full bg-faculty-admin-primary/10 px-2.5 py-1 text-xs font-medium text-faculty-admin-primary">

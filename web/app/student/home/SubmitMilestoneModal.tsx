@@ -6,6 +6,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { MILESTONE_LABEL, type Milestone } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { SUBMIT_MILESTONE_FIELD_GUIDE, SUBMIT_MILESTONE_GUIDE_KEY } from './fieldGuide';
+
+function submitGuideEntry(key: string) {
+  return SUBMIT_MILESTONE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 // Mirrors MILESTONE_FILE_TYPES in server/src/services/workflowTemplates.ts —
 // this repo's convention is for each screen to keep its own small copy
@@ -159,6 +166,10 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay
+          guideKey={SUBMIT_MILESTONE_GUIDE_KEY}
+          steps={SUBMIT_MILESTONE_FIELD_GUIDE.filter((s) => (s.key === 'files' && showFile) || (s.key === 'note' && showNote))}
+        />
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">
             {lang === 'he' ? 'הגשת' : 'Submit'} {MILESTONE_LABEL[milestone.type]?.[lang]}
@@ -169,10 +180,11 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
         </div>
 
         {showFile && (
-          <div className="mt-4">
+          <div data-field-guide-id="files" className="mt-4">
             <span className="mb-1.5 block text-sm font-medium text-ink">
               {lang === 'he' ? 'קבצים' : 'Files'}
               {(requirement === 'file' || requirement === 'both') && <span className="text-danger"> *</span>}
+              <InfoTooltip text={submitGuideEntry('files').description} />
             </span>
             {allowedTypesLabel && (
               <p className="mb-1.5 text-xs text-muted">
@@ -197,10 +209,11 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
         )}
 
         {showNote && (
-          <label className="mt-4 block">
+          <label data-field-guide-id="note" className="mt-4 block">
             <span className="mb-1.5 block text-sm font-medium text-ink">
               {lang === 'he' ? 'הערה' : 'Note'}
               {(requirement === 'comment' || requirement === 'both') && <span className="text-danger"> *</span>}
+              <InfoTooltip text={submitGuideEntry('note').description} />
             </span>
             <textarea
               rows={4}

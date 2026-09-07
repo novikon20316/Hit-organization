@@ -25,6 +25,15 @@ import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import type { AppUser } from '@/types';
 import ChatbotFab from '@/components/ChatbotFab';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  APPROVALS_TAB_FIELD_GUIDE, APPROVALS_TAB_GUIDE_KEY,
+  STUCK_TAB_FIELD_GUIDE, STUCK_TAB_GUIDE_KEY,
+  EXAMINERS_TAB_FIELD_GUIDE, EXAMINERS_TAB_GUIDE_KEY,
+  GRADES_TAB_FIELD_GUIDE, GRADES_TAB_GUIDE_KEY,
+  STAFF_TAB_FIELD_GUIDE, STAFF_TAB_GUIDE_KEY,
+  STUDENTS_TAB_FIELD_GUIDE, STUDENTS_TAB_GUIDE_KEY,
+} from '@/constants/gradSchoolHeadFieldGuide';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { useNotifications } from '@/src/context/NotificationsContext';
 
@@ -540,6 +549,7 @@ export default function GradSchoolHeadDashboard() {
         {/* ── PENDING APPROVALS ── */}
         {activeTab === 'approvals' && (
           <>
+            <FieldGuideOverlay guideKey={APPROVALS_TAB_GUIDE_KEY} steps={APPROVALS_TAB_FIELD_GUIDE} />
             <ExceptionalActionQueue lang={lang} />
             {(data?.pendingApprovals.length ?? 0) === 0 ? (
               <EmptyState emoji="✅" text={lang === 'he' ? 'אין פריטים הממתינים לאישורך' : 'Nothing pending your approval'} />
@@ -766,6 +776,7 @@ export default function GradSchoolHeadDashboard() {
         {/* ── STUCK STUDENTS ── */}
         {activeTab === 'stuck' && (
           <>
+            <FieldGuideOverlay guideKey={STUCK_TAB_GUIDE_KEY} steps={STUCK_TAB_FIELD_GUIDE} />
             {(data?.stuckStudents.length ?? 0) === 0 ? (
               <EmptyState emoji="🎉" text={lang === 'he' ? 'אין סטודנטים תקועים' : 'No stuck students'} />
             ) : (
@@ -790,6 +801,7 @@ export default function GradSchoolHeadDashboard() {
         {/* ── EXAMINER LOAD ── */}
         {activeTab === 'examiners' && (
           <>
+            <FieldGuideOverlay guideKey={EXAMINERS_TAB_GUIDE_KEY} steps={EXAMINERS_TAB_FIELD_GUIDE} />
             {(data?.examinerLoad.length ?? 0) === 0 ? (
               <EmptyState emoji="📭" text={lang === 'he' ? 'אין בוחנים פעילים' : 'No active examiners'} />
             ) : (
@@ -818,6 +830,7 @@ export default function GradSchoolHeadDashboard() {
         {/* ── APPROVED FINAL GRADES (unlock for correction) ── */}
         {activeTab === 'grades' && (
           <>
+            <FieldGuideOverlay guideKey={GRADES_TAB_GUIDE_KEY} steps={GRADES_TAB_FIELD_GUIDE} />
             {(data?.approvedFinalGrades.length ?? 0) === 0 ? (
               <EmptyState emoji="📭" text={lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'} />
             ) : (
@@ -872,18 +885,24 @@ export default function GradSchoolHeadDashboard() {
 
         {/* ── STAFF TAB ── */}
         {activeTab === 'staff' && (
-          <ManagedStaffSection
-            staff={staff}
-            onRefresh={fetchStaff}
-            scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }}
-            lang={lang}
-            isRtl={lang === 'he'}
-          />
+          <>
+            <FieldGuideOverlay guideKey={STAFF_TAB_GUIDE_KEY} steps={STAFF_TAB_FIELD_GUIDE} />
+            <ManagedStaffSection
+              staff={staff}
+              onRefresh={fetchStaff}
+              scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }}
+              lang={lang}
+              isRtl={lang === 'he'}
+            />
+          </>
         )}
 
         {/* ── STUDENTS LIST TAB ── */}
         {activeTab === 'students' && (
-          <StudentsListSection lang={lang} isRtl={lang === 'he'} canManageStudents />
+          <>
+            <FieldGuideOverlay guideKey={STUDENTS_TAB_GUIDE_KEY} steps={STUDENTS_TAB_FIELD_GUIDE} />
+            <StudentsListSection lang={lang} isRtl={lang === 'he'} canManageStudents />
+          </>
         )}
 
         <View style={{ height: 60 }} />

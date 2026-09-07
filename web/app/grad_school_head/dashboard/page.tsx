@@ -30,6 +30,16 @@ import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import { StudentsListTab } from '@/components/students/StudentsListTab';
 import { UngradedCsMastersTab } from '@/components/students/UngradedCsMastersTab';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  APPROVALS_TAB_FIELD_GUIDE, APPROVALS_TAB_GUIDE_KEY,
+  STUCK_TAB_FIELD_GUIDE, STUCK_TAB_GUIDE_KEY,
+  EXAMINERS_TAB_FIELD_GUIDE, EXAMINERS_TAB_GUIDE_KEY,
+  GRADES_TAB_FIELD_GUIDE, GRADES_TAB_GUIDE_KEY,
+  STAFF_TAB_FIELD_GUIDE, STAFF_TAB_GUIDE_KEY,
+  STUDENTS_TAB_FIELD_GUIDE, STUDENTS_TAB_GUIDE_KEY,
+  UNGRADED_TAB_FIELD_GUIDE, UNGRADED_TAB_GUIDE_KEY,
+} from './fieldGuide';
 import { NewProjectModal } from './NewProjectModal';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
@@ -320,7 +330,8 @@ function GradSchoolHeadDashboardContent() {
       {loadingData ? (
         <p className="text-sm text-grad-school-head-on-surface-variant">{t('loading')}</p>
       ) : tab === 'approvals' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="approvalList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={APPROVALS_TAB_GUIDE_KEY} steps={APPROVALS_TAB_FIELD_GUIDE} />
           <div className="sm:col-span-2">
             <ExceptionalActionQueue />
           </div>
@@ -461,7 +472,8 @@ function GradSchoolHeadDashboardContent() {
           {processSummaries.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">📊 {lang === 'he' ? 'אין נתוני פקולטות' : 'No faculty data'}</p>}
         </div>
       ) : tab === 'stuck' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="stuckList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={STUCK_TAB_GUIDE_KEY} steps={STUCK_TAB_FIELD_GUIDE} />
           {stuckStudents.map((st, i) => (
             <div key={i} className="role-rail rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4" style={{ '--rail-color': 'var(--danger)' } as React.CSSProperties}>
               <p className="text-sm font-semibold text-grad-school-head-on-surface">👤 {st.studentName}</p>
@@ -477,7 +489,8 @@ function GradSchoolHeadDashboardContent() {
           {stuckStudents.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">🎉 {lang === 'he' ? 'אין סטודנטים תקועים' : 'No stuck students'}</p>}
         </div>
       ) : tab === 'examiners' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="examinerList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={EXAMINERS_TAB_GUIDE_KEY} steps={EXAMINERS_TAB_FIELD_GUIDE} />
           <div className="sm:col-span-2">
             <ExaminerEscalationPanel />
           </div>
@@ -499,7 +512,8 @@ function GradSchoolHeadDashboardContent() {
           {examinerLoad.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">📭 {lang === 'he' ? 'אין בוחנים פעילים' : 'No active examiners'}</p>}
         </div>
       ) : tab === 'grades' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="gradeList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={GRADES_TAB_GUIDE_KEY} steps={GRADES_TAB_FIELD_GUIDE} />
           {approvedFinalGrades.map((g) => (
             <div key={g.id} className="role-rail rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4" style={{ '--rail-color': 'var(--success)' } as React.CSSProperties}>
               <p className="text-sm font-semibold text-grad-school-head-on-surface">{g.studentName}</p>
@@ -553,11 +567,20 @@ function GradSchoolHeadDashboardContent() {
           {approvedFinalGrades.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">📭 {lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'}</p>}
         </div>
       ) : tab === 'students' ? (
-        <StudentsListTab canManageStudents addStudentDegreeType="masters" />
+        <div data-field-guide-id="studentList">
+          <FieldGuideOverlay guideKey={STUDENTS_TAB_GUIDE_KEY} steps={STUDENTS_TAB_FIELD_GUIDE} />
+          <StudentsListTab canManageStudents addStudentDegreeType="masters" />
+        </div>
       ) : tab === 'ungraded' ? (
-        <UngradedCsMastersTab />
+        <div data-field-guide-id="ungradedList">
+          <FieldGuideOverlay guideKey={UNGRADED_TAB_GUIDE_KEY} steps={UNGRADED_TAB_FIELD_GUIDE} />
+          <UngradedCsMastersTab />
+        </div>
       ) : (
-        <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }} />
+        <div data-field-guide-id="staffList">
+          <FieldGuideOverlay guideKey={STAFF_TAB_GUIDE_KEY} steps={STAFF_TAB_FIELD_GUIDE} />
+          <ManagedStaffTab staff={staff} onRefresh={fetchStaff} scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES }} />
+        </div>
       )}
       <NewProjectModal open={showNewProject} onClose={closeNewProject} onCreated={fetchDashboard} />
     </DashboardShell>

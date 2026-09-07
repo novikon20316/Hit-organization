@@ -40,6 +40,20 @@ import {
   type GradingComponentSpec, type FormFieldSpec, type FinalGradeComponents,
   type MilestoneSpec, type ApplyMode, type SubmissionRequirement, type CommitteeOption, type MilestoneFileType,
 } from './WorkflowTemplateManager';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import {
+  WORKFLOW_TEMPLATE_FIELD_GUIDE, WORKFLOW_TEMPLATE_FORM_GUIDE_KEY,
+  MILESTONE_FIELD_GUIDE, MILESTONE_MODAL_GUIDE_KEY,
+} from '@/constants/workflowTemplateFieldGuide';
+
+function guideEntry(key: string) {
+  return WORKFLOW_TEMPLATE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
+function milestoneGuideEntry(key: string) {
+  return MILESTONE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 // ─── Payload passed across the route boundary from WorkflowTemplateManager ──
 
@@ -963,6 +977,10 @@ export default function WorkflowTemplateEditor() {
 
       <ResponsiveScreen>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <FieldGuideOverlay
+          guideKey={WORKFLOW_TEMPLATE_FORM_GUIDE_KEY}
+          steps={WORKFLOW_TEMPLATE_FIELD_GUIDE.filter((s) => s.key !== 'supervisorSelectionRequiresApproval' || editorFirstStepMode === 'choose_supervisor')}
+        />
         <View pointerEvents={isReadOnly ? 'none' : 'auto'}>
         <View style={{ backgroundColor: '#EDE9FE', borderRadius: 10, padding: 12, marginBottom: 16 }}>
           <Text style={{ fontSize: 13, color: '#5B21B6', fontWeight: '600' }}>
@@ -980,14 +998,19 @@ export default function WorkflowTemplateEditor() {
           </View>
         )}
 
+        <FieldGuideTarget fieldKey="milestones">
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
-            {lang === 'he' ? 'אבני דרך' : 'Milestones'} ({editorMilestones.length})
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
+              {lang === 'he' ? 'אבני דרך' : 'Milestones'} ({editorMilestones.length})
+            </Text>
+            <InfoTooltip textHe={guideEntry('milestones').description.he} textEn={guideEntry('milestones').description.en} />
+          </View>
           <Pressable style={{ backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }} onPress={() => openMilestoneEditor(null)} accessibilityRole="button">
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>＋ {lang === 'he' ? 'הוסף' : 'Add'}</Text>
           </Pressable>
         </View>
+        </FieldGuideTarget>
 
         {editorMilestones.sort((a, b) => a.order - b.order).map((ms, idx) => (
           <View key={ms.type} style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#F5F3FF', borderRadius: 12, padding: 12, marginTop: 8, gap: 10 }}>
@@ -1035,19 +1058,31 @@ export default function WorkflowTemplateEditor() {
           </View>
         ))}
 
-        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 20 }}>
-          {lang === 'he' ? 'שרשרת אישור/דחייה ברירת מחדל' : 'Default approval/rejection chain'}
-        </Text>
+        <FieldGuideTarget fieldKey="defaultRouting">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+            {lang === 'he' ? 'שרשרת אישור/דחייה ברירת מחדל' : 'Default approval/rejection chain'}
+          </Text>
+          <InfoTooltip textHe={guideEntry('defaultRouting').description.he} textEn={guideEntry('defaultRouting').description.en} />
+        </View>
         <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 4 }}>
           {lang === 'he'
             ? 'חלה על כל אבן דרך שאין לה שרשרת משלה.'
             : "Applies to every milestone without its own override."}
         </Text>
         <ChainEditor stages={editorDefaultRouting} onChange={setEditorDefaultRouting} lang={lang} committees={committees} />
+        </View>
+        </FieldGuideTarget>
 
-        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 20 }}>
-          {lang === 'he' ? 'אישור נוסף להזמנת בוחנים' : 'Second sign-off before examiner invitations go out'}
-        </Text>
+        <FieldGuideTarget fieldKey="examinerSignoffRole">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+            {lang === 'he' ? 'אישור נוסף להזמנת בוחנים' : 'Second sign-off before examiner invitations go out'}
+          </Text>
+          <InfoTooltip textHe={guideEntry('examinerSignoffRole').description.he} textEn={guideEntry('examinerSignoffRole').description.en} />
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
           <Pressable
             onPress={() => setEditorExaminerSignoffRole('none')}
@@ -1073,10 +1108,17 @@ export default function WorkflowTemplateEditor() {
             </Pressable>
           ))}
         </ScrollView>
+        </View>
+        </FieldGuideTarget>
 
-        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 16 }}>
-          {lang === 'he' ? 'אישור הציון הסופי (הגנה)' : 'Final grade sign-off (defense)'}
-        </Text>
+        <FieldGuideTarget fieldKey="finalGradeSignoffRole">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+            {lang === 'he' ? 'אישור הציון הסופי (הגנה)' : 'Final grade sign-off (defense)'}
+          </Text>
+          <InfoTooltip textHe={guideEntry('finalGradeSignoffRole').description.he} textEn={guideEntry('finalGradeSignoffRole').description.en} />
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
           {SIGNOFF_ROLES.map((r) => (
             <Pressable
@@ -1092,10 +1134,17 @@ export default function WorkflowTemplateEditor() {
             </Pressable>
           ))}
         </ScrollView>
+        </View>
+        </FieldGuideTarget>
 
-        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 16 }}>
-          {lang === 'he' ? 'מה הסטודנט/ית רואה קודם?' : 'What does the student see first?'}
-        </Text>
+        <FieldGuideTarget fieldKey="firstStepMode">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+            {lang === 'he' ? 'מה הסטודנט/ית רואה קודם?' : 'What does the student see first?'}
+          </Text>
+          <InfoTooltip textHe={guideEntry('firstStepMode').description.he} textEn={guideEntry('firstStepMode').description.en} />
+        </View>
         <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 4 }}>
           {lang === 'he'
             ? 'לסטודנט/ית ללא פרויקט פעיל: עיון בפרויקטים בודדים (ברירת המחדל), או בחירת מנחה מתוך רשימה.'
@@ -1119,8 +1168,11 @@ export default function WorkflowTemplateEditor() {
             </Pressable>
           ))}
         </View>
+        </View>
+        </FieldGuideTarget>
 
         {editorFirstStepMode === 'choose_supervisor' && (
+          <FieldGuideTarget fieldKey="supervisorSelectionRequiresApproval">
           <Pressable
             onPress={() => setEditorSupervisorSelectionRequiresApproval((v) => !v)}
             style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, padding: 12, marginTop: 8 }}
@@ -1133,9 +1185,12 @@ export default function WorkflowTemplateEditor() {
               backgroundColor: editorSupervisorSelectionRequiresApproval ? '#7C3AED' : '#fff',
             }} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F1235' }}>
-                {lang === 'he' ? 'בחירת מנחה מצריכה אישור' : 'Choosing a supervisor requires approval'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F1235' }}>
+                  {lang === 'he' ? 'בחירת מנחה מצריכה אישור' : 'Choosing a supervisor requires approval'}
+                </Text>
+                <InfoTooltip textHe={guideEntry('supervisorSelectionRequiresApproval').description.he} textEn={guideEntry('supervisorSelectionRequiresApproval').description.en} />
+              </View>
               <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>
                 {lang === 'he'
                   ? 'כאשר מסומן: הגשת גיליון ציונים וקורות חיים ואישור מהמנחה. כשלא מסומן: הצטרפות מיידית ללא אישור.'
@@ -1143,11 +1198,16 @@ export default function WorkflowTemplateEditor() {
               </Text>
             </View>
           </Pressable>
+          </FieldGuideTarget>
         )}
 
-        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 20 }}>
-          {lang === 'he' ? 'מתי התבנית תיכנס לתוקף?' : 'When should this take effect?'}
-        </Text>
+        <FieldGuideTarget fieldKey="applyMode">
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
+            {lang === 'he' ? 'מתי התבנית תיכנס לתוקף?' : 'When should this take effect?'}
+          </Text>
+          <InfoTooltip textHe={guideEntry('applyMode').description.he} textEn={guideEntry('applyMode').description.en} />
+        </View>
         {([
           { key: 'from_now_on' as const, he: 'מכאן ואילך (רק תהליכים חדשים)', en: 'From now on (new processes only)' },
           { key: 'now' as const, he: 'עכשיו (גם תהליכים בעיצומם)', en: 'Now (also in-progress processes)' },
@@ -1180,10 +1240,15 @@ export default function WorkflowTemplateEditor() {
                 : (lang === 'he' ? 'לא ניתן היה לחשב תצוגה מקדימה' : 'Could not compute a preview')}
           </Text>
         )}
+        </FieldGuideTarget>
 
-        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 8 }}>
-          {lang === 'he' ? 'הערה להצעה (אופציונלי)' : 'Note for this proposal (optional)'}
-        </Text>
+        <FieldGuideTarget fieldKey="note">
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, marginTop: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
+            {lang === 'he' ? 'הערה להצעה (אופציונלי)' : 'Note for this proposal (optional)'}
+          </Text>
+          <InfoTooltip textHe={guideEntry('note').description.he} textEn={guideEntry('note').description.en} />
+        </View>
         <TextInput
           style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, backgroundColor: '#fff', color: '#111', minHeight: 70, textAlignVertical: 'top' }}
           value={editorNote}
@@ -1192,6 +1257,7 @@ export default function WorkflowTemplateEditor() {
           textAlign={isRtl ? 'right' : 'left'}
           multiline
         />
+        </FieldGuideTarget>
 
         {!isReadOnly && (
           <Pressable
@@ -1225,11 +1291,32 @@ export default function WorkflowTemplateEditor() {
             ><Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text></Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}</Text>
+            {/* This screen has no standalone single-rubric "gradingComponents" editor
+                (unlike web's MilestoneRowModal) — only the 3-rubric defense mode via
+                GradingRubricEditor — so that step is dropped from the walkthrough here. */}
+            {msModalOpen && (
+              <FieldGuideOverlay
+                guideKey={MILESTONE_MODAL_GUIDE_KEY}
+                steps={MILESTONE_FIELD_GUIDE.filter((s) => s.key !== 'gradingComponents')}
+              />
+            )}
+            <FieldGuideTarget fieldKey="name">
+            <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}</Text>
+              <InfoTooltip textHe={milestoneGuideEntry('name').description.he} textEn={milestoneGuideEntry('name').description.en} />
+            </View>
             <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msNameHe} onChangeText={setMsNameHe} placeholder="שם אבן הדרך" textAlign="right" />
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}</Text>
             <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msNameEn} onChangeText={setMsNameEn} placeholder="Milestone name" />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'מועד יעד' : 'Due date'}</Text>
+            </View>
+            </FieldGuideTarget>
+            <FieldGuideTarget fieldKey="dateMode">
+            <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'מועד יעד' : 'Due date'}</Text>
+              <InfoTooltip textHe={milestoneGuideEntry('dateMode').description.he} textEn={milestoneGuideEntry('dateMode').description.en} />
+            </View>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
               <Pressable
                 onPress={() => setMsDateMode('offset')}
@@ -1310,10 +1397,17 @@ export default function WorkflowTemplateEditor() {
                 )}
               </>
             )}
+            </View>
+            </FieldGuideTarget>
 
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12, marginBottom: 6 }}>
-              {lang === 'he' ? 'אחוז מהציון הסופי' : '% of final grade'}
-            </Text>
+            <FieldGuideTarget fieldKey="percentOfFinalGrade">
+            <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>
+                {lang === 'he' ? 'אחוז מהציון הסופי' : '% of final grade'}
+              </Text>
+              <InfoTooltip textHe={milestoneGuideEntry('percentOfFinalGrade').description.he} textEn={milestoneGuideEntry('percentOfFinalGrade').description.en} />
+            </View>
             <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 6 }}>
               {lang === 'he'
                 ? 'כמה אבן דרך זו תורמת לציון הסופי הכולל של הפרויקט. סכום האחוזים של כל אבני הדרך בתבנית חייב להיות 100.'
@@ -1326,10 +1420,17 @@ export default function WorkflowTemplateEditor() {
               keyboardType="numeric"
               placeholder="0"
             />
+            </View>
+            </FieldGuideTarget>
+            <FieldGuideTarget fieldKey="requiresExaminers">
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>{lang === 'he' ? 'דורש בוחנים' : 'Requires examiners'}</Text>
+                <InfoTooltip textHe={milestoneGuideEntry('requiresExaminers').description.he} textEn={milestoneGuideEntry('requiresExaminers').description.en} />
+              </View>
               <Switch value={msExaminers} onValueChange={setMsExaminers} trackColor={{ true: '#7C3AED' }} />
             </View>
+            </FieldGuideTarget>
 
             {msExaminers && (
               <>
@@ -1344,10 +1445,15 @@ export default function WorkflowTemplateEditor() {
                   placeholder="2"
                 />
 
+                <FieldGuideTarget fieldKey="examinerOnlyGrading">
+                <View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', flex: 1, marginEnd: 8 }}>
-                    {lang === 'he' ? 'ציון בוחנים בלבד (ללא שלב מנחה)' : 'Examiner-only grading (no supervisor stage)'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginEnd: 8 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
+                      {lang === 'he' ? 'ציון בוחנים בלבד (ללא שלב מנחה)' : 'Examiner-only grading (no supervisor stage)'}
+                    </Text>
+                    <InfoTooltip textHe={milestoneGuideEntry('examinerOnlyGrading').description.he} textEn={milestoneGuideEntry('examinerOnlyGrading').description.en} />
+                  </View>
                   <Switch value={msExaminerOnlyGrading} onValueChange={setMsExaminerOnlyGrading} trackColor={{ true: '#7C3AED' }} />
                 </View>
                 {msExaminerOnlyGrading && (
@@ -1357,11 +1463,17 @@ export default function WorkflowTemplateEditor() {
                       : 'The milestone finalizes once every assigned examiner has submitted, with no supervisor grade at all.'}
                   </Text>
                 )}
+                </View>
+                </FieldGuideTarget>
 
+                <FieldGuideTarget fieldKey="examinerFormFields">
                 <View style={{ marginTop: 12, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, padding: 12 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
-                    {lang === 'he' ? 'טופס בוחן מקוון (אופציונלי)' : 'Examiner online form (optional)'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+                      {lang === 'he' ? 'טופס בוחן מקוון (אופציונלי)' : 'Examiner online form (optional)'}
+                    </Text>
+                    <InfoTooltip textHe={milestoneGuideEntry('examinerFormFields').description.he} textEn={milestoneGuideEntry('examinerFormFields').description.en} />
+                  </View>
                   <Text style={{ fontSize: 11, color: '#8899BB', marginBottom: 8 }}>
                     {lang === 'he'
                       ? 'כל בוחן/ת שהוקצה/תה ימלא/תמלא טופס זה בנפרד, במקום (או בנוסף ל)מד הציון המספרי.'
@@ -1374,6 +1486,7 @@ export default function WorkflowTemplateEditor() {
                     lang={lang}
                   />
                 </View>
+                </FieldGuideTarget>
               </>
             )}
 
@@ -1523,10 +1636,15 @@ export default function WorkflowTemplateEditor() {
               </View>
             )}
 
+            <FieldGuideTarget fieldKey="routing">
+            <View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
-                {lang === 'he' ? 'שרשרת אישור מותאמת לאבן דרך זו' : 'Override chain for this milestone'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
+                  {lang === 'he' ? 'שרשרת אישור מותאמת לאבן דרך זו' : 'Override chain for this milestone'}
+                </Text>
+                <InfoTooltip textHe={milestoneGuideEntry('routing').description.he} textEn={milestoneGuideEntry('routing').description.en} />
+              </View>
               <Switch value={msOverrideChain} onValueChange={setMsOverrideChain} trackColor={{ true: '#7C3AED' }} />
             </View>
             {msOverrideChain ? (
@@ -1538,6 +1656,8 @@ export default function WorkflowTemplateEditor() {
                 {lang === 'he' ? 'ללא שינוי — ישתמש בשרשרת ברירת המחדל של התבנית.' : "Unchanged — inherits the template's default chain."}
               </Text>
             )}
+            </View>
+            </FieldGuideTarget>
 
             <Pressable style={{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 }} onPress={saveMilestoneRow} accessibilityRole="button">
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{lang === 'he' ? 'שמור אבן דרך' : 'Save Milestone'}</Text>

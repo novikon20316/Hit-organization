@@ -23,6 +23,9 @@ import { apiClient } from '@/lib/apiClient';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { CoordinatorPendingMilestone } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { PROPOSAL_RECOMMENDATION_FIELD_GUIDE, PROPOSAL_RECOMMENDATION_GUIDE_KEY } from './fieldGuide';
 
 export type ProposalDecision = 'approved' | 'approved_conditionally' | 'rejected';
 
@@ -112,6 +115,7 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
         aria-modal="true"
         className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={PROPOSAL_RECOMMENDATION_GUIDE_KEY} steps={PROPOSAL_RECOMMENDATION_FIELD_GUIDE} />
         <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הצעה לפרויקט גמר' : 'Final Project Proposal'}</h2>
         <p className="mt-0.5 text-sm text-muted">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
 
@@ -184,8 +188,11 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
 
         {/* המלצת רכז הפרויקטים — the decision, then the coordinator's own signature */}
         <div className="mt-5 border-t border-line pt-4">
-          <h3 className="text-sm font-semibold text-ink">{lang === 'he' ? 'המלצת רכז הפרויקטים' : "Coordinator's recommendation"}</h3>
-          <div className="mt-3 grid gap-2">
+          <h3 className="flex items-center text-sm font-semibold text-ink">
+            {lang === 'he' ? 'המלצת רכז הפרויקטים' : "Coordinator's recommendation"}
+            <InfoTooltip text={PROPOSAL_RECOMMENDATION_FIELD_GUIDE[0]!.description} />
+          </h3>
+          <div data-field-guide-id="decision" className="mt-3 grid gap-2">
             {OPTIONS.map((opt) => (
               <label key={opt.value} className="flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink has-[:checked]:border-primary">
                 <input type="radio" name="proposal-decision" checked={decision === opt.value} onChange={() => setDecision(opt.value)} />

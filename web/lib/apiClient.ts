@@ -1003,6 +1003,16 @@ export const apiClient = {
     return request<{ success?: boolean }>('/api/users/complete-onboarding-tour', { method: 'POST' });
   },
 
+  /** POST /api/users/mark-field-guide-seen — permanently hides one specific
+   *  first-visit field-explanation walkthrough (see
+   *  components/guidance/FieldGuideOverlay.tsx), keyed by guideKey. */
+  async markFieldGuideSeen(guideKey: string) {
+    return request<{ success?: boolean }>('/api/users/mark-field-guide-seen', {
+      method: 'POST',
+      body: { guideKey },
+    });
+  },
+
   /** POST /api/users/delete-account/request — starts the 14-day grace
    *  period (server/src/services/accountDeletion.ts). Server rejects this
    *  with 401 unless the ID token's auth_time is under 5 minutes old, so

@@ -10,6 +10,13 @@ import { SubmitMilestoneModal } from './SubmitMilestoneModal';
 import { ResearchProposalFormModal } from './ResearchProposalFormModal';
 import { ProgressReportFormModal } from './ProgressReportFormModal';
 import { AnnouncementsBanner } from './AnnouncementsBanner';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  OVERVIEW_TAB_FIELD_GUIDE, OVERVIEW_TAB_GUIDE_KEY,
+  MILESTONES_TAB_FIELD_GUIDE, MILESTONES_TAB_GUIDE_KEY,
+  GRADES_TAB_FIELD_GUIDE, GRADES_TAB_GUIDE_KEY,
+} from './fieldGuide';
 import {
   MILESTONE_LABEL,
   resolveMilestoneOrder,
@@ -155,16 +162,20 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
 
       {tab === 'overview' && (
         <div className="grid gap-4">
+          <FieldGuideOverlay guideKey={OVERVIEW_TAB_GUIDE_KEY} steps={OVERVIEW_TAB_FIELD_GUIDE.filter((s) => s.key !== 'nextMilestone' || !!overviewDisplayMilestone)} />
           <AnnouncementsBanner />
 
-          <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
+          <div data-field-guide-id="progress" className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
             <p className="text-base font-semibold text-student-on-surface">📁 {lang === 'he' ? project.titleHe : project.titleEn}</p>
             <p className="mt-1 text-sm text-student-on-surface-variant">
               👨‍🏫 {project.supervisorName} · {project.academicYear}
             </p>
             <div className="mt-4">
               <div className="flex items-center justify-between text-xs text-student-on-surface-variant">
-                <span>{lang === 'he' ? 'התקדמות' : 'Progress'}</span>
+                <span>
+                  {lang === 'he' ? 'התקדמות' : 'Progress'}
+                  <InfoTooltip text={OVERVIEW_TAB_FIELD_GUIDE.find((s) => s.key === 'progress')!.description} />
+                </span>
                 <span>{progress}%</span>
               </div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-student-surface-container">
@@ -179,11 +190,15 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
 
           {overviewDisplayMilestone && (
             <div
+              data-field-guide-id="nextMilestone"
               className="role-rail rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm"
               style={{ '--rail-color': 'var(--student-primary)' } as React.CSSProperties}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-student-on-surface">⚡ {lang === 'he' ? 'אבן הדרך הבאה' : 'Next Milestone'}</span>
+                <span className="text-sm font-semibold text-student-on-surface">
+                  ⚡ {lang === 'he' ? 'אבן הדרך הבאה' : 'Next Milestone'}
+                  <InfoTooltip text={OVERVIEW_TAB_FIELD_GUIDE.find((s) => s.key === 'nextMilestone')!.description} />
+                </span>
                 {isWaitingApproval ? (
                   <span className="rounded-full bg-[#FBF3E3] px-2.5 py-1 text-xs font-medium text-accent">
                     {lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting approval'}
@@ -234,9 +249,11 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
 
       {tab === 'milestones' && (
         <div className="grid gap-4 xl:grid-cols-12">
-          <div className="xl:col-span-8 rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
+          <FieldGuideOverlay guideKey={MILESTONES_TAB_GUIDE_KEY} steps={MILESTONES_TAB_FIELD_GUIDE} />
+          <div data-field-guide-id="timeline" className="xl:col-span-8 rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
             <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-student-on-surface">
               {lang === 'he' ? 'אבני הדרך שלך' : 'Your Milestones'}
+              <InfoTooltip text={MILESTONES_TAB_FIELD_GUIDE.find((s) => s.key === 'timeline')!.description} />
             </p>
             <div className="grid">
               {milestones.map((m, index) => {
@@ -494,8 +511,12 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
       )}
 
       {tab === 'grades' && (
-        <div className="grid gap-3">
-          <p className="text-sm font-semibold text-student-on-surface">{lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}</p>
+        <div className="grid gap-3" data-field-guide-id="gradeCards">
+          <FieldGuideOverlay guideKey={GRADES_TAB_GUIDE_KEY} steps={GRADES_TAB_FIELD_GUIDE} />
+          <p className="text-sm font-semibold text-student-on-surface">
+            {lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}
+            <InfoTooltip text={GRADES_TAB_FIELD_GUIDE.find((s) => s.key === 'gradeCards')!.description} />
+          </p>
           {milestones.map((m) => {
             const label = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
             const grade = m.finalGrade ?? m.supervisorScore ?? null;

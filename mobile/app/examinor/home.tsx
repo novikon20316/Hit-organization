@@ -16,6 +16,22 @@ import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import {AssignedMilestone, GradingComponentSpec} from '@/types'
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import {
+  GRADE_EXAMINER_FIELD_GUIDE, GRADE_EXAMINER_GUIDE_KEY,
+  EXAMINER_EVALUATION_FIELD_GUIDE, EXAMINER_EVALUATION_GUIDE_KEY,
+  EXAMINER_FORM_FIELDS_FIELD_GUIDE, EXAMINER_FORM_FIELDS_GUIDE_KEY,
+  ASSIGNMENTS_FIELD_GUIDE, ASSIGNMENTS_GUIDE_KEY,
+} from '@/constants/examinerFieldGuide';
+
+function gradeGuideEntry(key: string) {
+  return GRADE_EXAMINER_FIELD_GUIDE.find((s) => s.key === key)!;
+}
+function evalGuideEntry(key: string) {
+  return EXAMINER_EVALUATION_FIELD_GUIDE.find((s) => s.key === key)!;
+}
  
 // ─── Constants ────────────────────────────────────────────────────────────────
  
@@ -666,6 +682,7 @@ export default function ExaminerHome() {
         {/* ════════ PROJECTS TAB ════════ */}
         {activeTab === 'projects' && (
           <>
+            <FieldGuideOverlay guideKey={ASSIGNMENTS_GUIDE_KEY} steps={ASSIGNMENTS_FIELD_GUIDE} />
             {assignments.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>📭</Text>
@@ -1102,10 +1119,19 @@ export default function ExaminerHome() {
       {/* ════════ GRADE MODAL — 100% unchanged from original ════════ */}
       <Modal visible={gradeModal} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
-          <Text style={styles.modalTitle}>
-            {lang === 'he' ? '✏️ טופס ציון בוחן' : '✏️ Examiner Grading Form'}
-          </Text>
- 
+          {gradeModal && (
+            <FieldGuideOverlay
+              guideKey={GRADE_EXAMINER_GUIDE_KEY}
+              steps={GRADE_EXAMINER_FIELD_GUIDE.filter((s) => s.key !== 'excludedScores' || activeGradingFields(selected).some((c) => c.excludeFromTotal))}
+            />
+          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.modalTitle}>
+              {lang === 'he' ? '✏️ טופס ציון בוחן' : '✏️ Examiner Grading Form'}
+            </Text>
+            <InfoTooltip textHe={gradeGuideEntry('criteria').description.he} textEn={gradeGuideEntry('criteria').description.en} />
+          </View>
+
           {selected && (
             <View style={styles.context}>
               <Text style={styles.contextTitle}>
@@ -1119,6 +1145,8 @@ export default function ExaminerHome() {
             </View>
           )}
  
+          <FieldGuideTarget fieldKey="criteria">
+          <View>
           {activeGradingFields(selected).filter((c) => !c.excludeFromTotal).map((c, idx, arr) => {
             const group = lang === 'he' ? c.groupHe : c.groupEn;
             const prevGroup = idx > 0 ? (lang === 'he' ? arr[idx - 1]!.groupHe : arr[idx - 1]!.groupEn) : undefined;
@@ -1145,12 +1173,18 @@ export default function ExaminerHome() {
               </View>
             );
           })}
+          </View>
+          </FieldGuideTarget>
 
           {activeGradingFields(selected).filter((c) => c.excludeFromTotal).length > 0 && (
-            <>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', marginTop: 8, marginBottom: 4 }}>
-                {lang === 'he' ? 'ציונים נפרדים (לא נכללים בסיכום)' : 'Separate scores (not included in the total)'}
-              </Text>
+            <FieldGuideTarget fieldKey="excludedScores">
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 4 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase' }}>
+                  {lang === 'he' ? 'ציונים נפרדים (לא נכללים בסיכום)' : 'Separate scores (not included in the total)'}
+                </Text>
+                <InfoTooltip textHe={gradeGuideEntry('excludedScores').description.he} textEn={gradeGuideEntry('excludedScores').description.en} />
+              </View>
               {activeGradingFields(selected).filter((c) => c.excludeFromTotal).map((c) => (
                 <View key={c.key} style={styles.criterionRow}>
                   <View style={styles.criterionHeader}>
@@ -1169,7 +1203,8 @@ export default function ExaminerHome() {
                   />
                 </View>
               ))}
-            </>
+            </View>
+            </FieldGuideTarget>
           )}
 
           <View style={styles.totalRow}>
@@ -1182,9 +1217,14 @@ export default function ExaminerHome() {
             </Text>
           </View>
  
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'הערות' : 'Comments'}
-          </Text>
+          <FieldGuideTarget fieldKey="comments">
+          <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'הערות' : 'Comments'}
+            </Text>
+            <InfoTooltip textHe={gradeGuideEntry('comments').description.he} textEn={gradeGuideEntry('comments').description.en} />
+          </View>
           <TextInput
             style={styles.textarea}
             value={comments}
@@ -1194,6 +1234,8 @@ export default function ExaminerHome() {
             placeholder={lang === 'he' ? 'הערות לסטודנט...' : 'Comments to student...'}
             textAlign={isRtl ? 'right' : 'left'}
           />
+          </View>
+          </FieldGuideTarget>
  
           <Pressable
             style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
@@ -1224,9 +1266,13 @@ export default function ExaminerHome() {
           text/number/date/textarea field a template defines. */}
       <Modal visible={formModal} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
-          <Text style={styles.modalTitle}>
-            📝 {formTarget ? (MILESTONE_LABEL[formTarget.type]?.[lang] ?? '') : ''}
-          </Text>
+          {formModal && <FieldGuideOverlay guideKey={EXAMINER_FORM_FIELDS_GUIDE_KEY} steps={EXAMINER_FORM_FIELDS_FIELD_GUIDE} />}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.modalTitle}>
+              📝 {formTarget ? (MILESTONE_LABEL[formTarget.type]?.[lang] ?? '') : ''}
+            </Text>
+            <InfoTooltip textHe={EXAMINER_FORM_FIELDS_FIELD_GUIDE[0]!.description.he} textEn={EXAMINER_FORM_FIELDS_FIELD_GUIDE[0]!.description.en} />
+          </View>
 
           {formTarget && (
             <View style={styles.context}>
@@ -1371,11 +1417,15 @@ export default function ExaminerHome() {
           </>
         ) : (
           <>
-          <Text style={styles.modalTitle}>
-            {evalTarget?.kind === 'project'
-              ? (lang === 'he' ? '📄 הערכת בוחן — עבודת הגמר' : '📄 Examiner Evaluation — The Project')
-              : (lang === 'he' ? '🛡 הערכת בוחן — בחינת ההגנה' : '🛡 Examiner Evaluation — The Defense Exam')}
-          </Text>
+          {evalModal && <FieldGuideOverlay guideKey={EXAMINER_EVALUATION_GUIDE_KEY} steps={EXAMINER_EVALUATION_FIELD_GUIDE} />}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.modalTitle}>
+              {evalTarget?.kind === 'project'
+                ? (lang === 'he' ? '📄 הערכת בוחן — עבודת הגמר' : '📄 Examiner Evaluation — The Project')
+                : (lang === 'he' ? '🛡 הערכת בוחן — בחינת ההגנה' : '🛡 Examiner Evaluation — The Defense Exam')}
+            </Text>
+            <InfoTooltip textHe={evalGuideEntry('rubric').description.he} textEn={evalGuideEntry('rubric').description.en} />
+          </View>
 
           {evalTarget && (
             <View style={styles.context}>
@@ -1401,6 +1451,8 @@ export default function ExaminerHome() {
             </View>
           )}
 
+          <FieldGuideTarget fieldKey="rubric">
+          <View>
           {evalRubric.map((c) => (
             <View key={c.key} style={styles.criterionRow}>
               <View style={styles.criterionHeader}>
@@ -1419,6 +1471,8 @@ export default function ExaminerHome() {
               />
             </View>
           ))}
+          </View>
+          </FieldGuideTarget>
 
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
@@ -1430,9 +1484,14 @@ export default function ExaminerHome() {
             </Text>
           </View>
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}{isDataScienceDocument ? ' *' : ''}
-          </Text>
+          <FieldGuideTarget fieldKey="comment">
+          <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}{isDataScienceDocument ? ' *' : ''}
+            </Text>
+            <InfoTooltip textHe={evalGuideEntry('comment').description.he} textEn={evalGuideEntry('comment').description.en} />
+          </View>
           <TextInput
             style={styles.textarea}
             value={evalComment}
@@ -1442,10 +1501,17 @@ export default function ExaminerHome() {
             placeholder={lang === 'he' ? 'הערות לסטודנט...' : 'Comments to student...'}
             textAlign={isRtl ? 'right' : 'left'}
           />
+          </View>
+          </FieldGuideTarget>
 
-          <Text style={styles.fieldLabel}>
-            {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
-          </Text>
+          <FieldGuideTarget fieldKey="file">
+          <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
+            </Text>
+            <InfoTooltip textHe={evalGuideEntry('file').description.he} textEn={evalGuideEntry('file').description.en} />
+          </View>
           <Pressable
             onPress={pickEvalFile}
             style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
@@ -1455,6 +1521,8 @@ export default function ExaminerHome() {
               {evalFile ? `📄 ${evalFile.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
             </Text>
           </Pressable>
+          </View>
+          </FieldGuideTarget>
 
           <Pressable
             style={[styles.submitBtn, evalSubmitting && { opacity: 0.6 }]}

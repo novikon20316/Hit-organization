@@ -13,6 +13,14 @@ import { apiClient } from '../../src/api/apiClient';
 import { normalizePrerequisites, formatPrerequisite, meetsPrerequisite, type CompletedCourse } from '@/components/Prerequisites';
 import CompletedCoursesList from '@/components/CompletedCoursesList';
 import ApplicationStatusCard from '@/components/ApplicationStatusCard';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import { APPLY_PROJECT_FIELD_GUIDE, APPLY_PROJECT_GUIDE_KEY } from '@/constants/studentFieldGuide';
+
+function applyGuideEntry(key: string) {
+  return APPLY_PROJECT_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface Props {
   proposals: ProjectProposal[];
@@ -570,6 +578,12 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       {/* ── Application Modal ── */}
       <Modal visible={showApply} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          {showApply && selected && (
+            <FieldGuideOverlay
+              guideKey={APPLY_PROJECT_GUIDE_KEY}
+              steps={APPLY_PROJECT_FIELD_GUIDE.filter((s) => s.key !== 'track' || projectTypesOf(selected).length > 1)}
+            />
+          )}
           <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
             <Text style={styles.modalTitle}>{tx('applyTitle', lang)}</Text>
             <Pressable
@@ -593,10 +607,14 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
           )}
 
           {selected && projectTypesOf(selected).length > 1 && (
+            <FieldGuideTarget fieldKey="track">
             <View style={{ marginTop: 16 }}>
-              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-                {lang === 'he' ? 'מסלול *' : 'Track *'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                  {lang === 'he' ? 'מסלול *' : 'Track *'}
+                </Text>
+                <InfoTooltip textHe={applyGuideEntry('track').description.he} textEn={applyGuideEntry('track').description.en} />
+              </View>
               <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 12, marginTop: 6 }}>
                 {projectTypesOf(selected).map((tp) => {
                   const isActive = selectedProjectType === tp;
@@ -623,12 +641,18 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                 })}
               </View>
             </View>
+            </FieldGuideTarget>
           )}
 
           {/* Cover note */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {tx('coverNote', lang)}
-          </Text>
+          <FieldGuideTarget fieldKey="coverNote">
+          <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+              {tx('coverNote', lang)}
+            </Text>
+            <InfoTooltip textHe={applyGuideEntry('coverNote').description.he} textEn={applyGuideEntry('coverNote').description.en} />
+          </View>
           <TextInput
             style={[styles.textarea, isRtl && styles.textRight]}
             multiline
@@ -639,11 +663,18 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
             onChangeText={setCoverNote}
             textAlign={isRtl ? 'right' : 'left'}
           />
+          </View>
+          </FieldGuideTarget>
 
           {/* Transcript upload */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {tx('uploadTranscript', lang)} *
-          </Text>
+          <FieldGuideTarget fieldKey="transcript">
+          <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+              {tx('uploadTranscript', lang)} *
+            </Text>
+            <InfoTooltip textHe={applyGuideEntry('transcript').description.he} textEn={applyGuideEntry('transcript').description.en} />
+          </View>
           <Pressable
             style={[styles.uploadBtn, (transcriptUri || lastTranscriptUrl) && styles.uploadBtnDone]}
             onPress={() => pickFile('transcript')}
@@ -667,11 +698,18 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
               </Pressable>
             </View>
           ) : null}
+          </View>
+          </FieldGuideTarget>
 
           {/* CV upload */}
-          <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-            {tx('uploadCV', lang)} *
-          </Text>
+          <FieldGuideTarget fieldKey="cv">
+          <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+              {tx('uploadCV', lang)} *
+            </Text>
+            <InfoTooltip textHe={applyGuideEntry('cv').description.he} textEn={applyGuideEntry('cv').description.en} />
+          </View>
           <Pressable
             style={[styles.uploadBtn, (cvUri || lastCvUrl) && styles.uploadBtnDone]}
             onPress={() => pickFile('cv')}
@@ -695,6 +733,8 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
               </Pressable>
             </View>
           ) : null}
+          </View>
+          </FieldGuideTarget>
 
           {/* Message */}
           {applyMessage && (

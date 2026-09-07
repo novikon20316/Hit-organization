@@ -14,6 +14,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { MILESTONE_LABEL } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { UPDATE_GRADE_FIELD_GUIDE, UPDATE_GRADE_GUIDE_KEY } from './fieldGuide';
+
+function updateGuideEntry(key: string) {
+  return UPDATE_GRADE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface UpdateGradeModalProps {
   milestoneId: string;
@@ -78,6 +85,7 @@ export function UpdateGradeModal({ milestoneId, projectId, milestoneType, curren
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={UPDATE_GRADE_GUIDE_KEY} steps={UPDATE_GRADE_FIELD_GUIDE} />
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'עדכון ציון' : 'Update Grade'}</h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
@@ -89,8 +97,11 @@ export function UpdateGradeModal({ milestoneId, projectId, milestoneType, curren
           {MILESTONE_LABEL[milestoneType]?.[lang] ?? milestoneType}
         </p>
 
-        <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'ציון חדש (0–100)' : 'New grade (0–100)'}</span>
+        <label data-field-guide-id="score" className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+            {lang === 'he' ? 'ציון חדש (0–100)' : 'New grade (0–100)'}
+            <InfoTooltip text={updateGuideEntry('score').description} />
+          </span>
           <input
             type="number"
             min={0}
@@ -101,8 +112,11 @@ export function UpdateGradeModal({ milestoneId, projectId, milestoneType, curren
           />
         </label>
 
-        <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'סיבת השינוי' : 'Reason for the change'}</span>
+        <label data-field-guide-id="reason" className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+            {lang === 'he' ? 'סיבת השינוי' : 'Reason for the change'}
+            <InfoTooltip text={updateGuideEntry('reason').description} />
+          </span>
           <textarea
             rows={3}
             value={reason}

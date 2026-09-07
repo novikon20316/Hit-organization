@@ -21,6 +21,14 @@ import { NewProjectModalStyles } from '../../constants/styles';
 import FacultyCheckboxes from '../FacultyCheckboxes';
 import WorkflowTemplatePreview from '../WorkflowTemplatePreview';
 import type { PrerequisiteSpec } from '../Prerequisites';
+import { InfoTooltip } from '../InfoTooltip';
+import { FieldGuideOverlay } from '../guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '../guidance/FieldGuideTarget';
+import { NEW_PROJECT_FORM_GUIDE_KEY, newProjectFieldInfo, pickNewProjectSteps } from '../../constants/newProjectFieldGuide';
+
+const FIELD_GUIDE_STEPS = pickNewProjectSteps([
+  'title', 'description', 'faculty', 'teamSize', 'degreeType', 'major', 'projectType', 'prerequisites', 'supervisors',
+]);
 
 // Mirrors web's TeamSizeField.tsx — options offered once "Team Project" is
 // toggled on. Capped at 9 — realistically never reached, but there's room
@@ -220,6 +228,7 @@ export default function NewProjectModal({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+        {visible && <FieldGuideOverlay guideKey={NEW_PROJECT_FORM_GUIDE_KEY} steps={FIELD_GUIDE_STEPS} />}
 
         {/* ── Header ──────────────────────────────────────────────────────────── */}
         <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
@@ -236,22 +245,47 @@ export default function NewProjectModal({
         </View>
 
         {/* ── Basic text fields ────────────────────────────────────────────────── */}
+        <FieldGuideTarget fieldKey="title">
+        <View>
         {[
           { label: lang === "he" ? "כותרת בעברית *"   : "Hebrew Title *",       value: titleHe, set: setTitleHe, dir: "rtl" },
           { label: lang === "he" ? "כותרת באנגלית *"  : "English Title *",      value: titleEn, set: setTitleEn, dir: "ltr" },
-          { label: lang === "he" ? "תיאור בעברית"     : "Hebrew Description",   value: descHe,  set: setDescHe,  dir: "rtl", multi: true },
-          { label: lang === "he" ? "תיאור באנגלית"    : "English Description",  value: descEn,  set: setDescEn,  dir: "ltr", multi: true },
-        ].map((f) => (
+        ].map((f, i) => (
           <View key={f.label} style={{ marginBottom: 12 }}>
-            <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>{f.label}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>{f.label}</Text>
+              {i === 0 && <InfoTooltip textHe={newProjectFieldInfo('title').he} textEn={newProjectFieldInfo('title').en} />}
+            </View>
             <TextInput
-              style={[styles.input, f.multi && styles.textarea, { textAlign: f.dir === "rtl" ? "right" : "left" }, { marginBottom: 20 }]}
+              style={[styles.input, { textAlign: f.dir === "rtl" ? "right" : "left" }, { marginBottom: 20 }]}
               value={f.value}
               onChangeText={f.set}
-              multiline={f.multi}
             />
           </View>
         ))}
+        </View>
+        </FieldGuideTarget>
+        <FieldGuideTarget fieldKey="description">
+        <View>
+        {[
+          { label: lang === "he" ? "תיאור בעברית"     : "Hebrew Description",   value: descHe,  set: setDescHe,  dir: "rtl", multi: true },
+          { label: lang === "he" ? "תיאור באנגלית"    : "English Description",  value: descEn,  set: setDescEn,  dir: "ltr", multi: true },
+        ].map((f, i) => (
+          <View key={f.label} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>{f.label}</Text>
+              {i === 0 && <InfoTooltip textHe={newProjectFieldInfo('description').he} textEn={newProjectFieldInfo('description').en} />}
+            </View>
+            <TextInput
+              style={[styles.input, styles.textarea, { textAlign: f.dir === "rtl" ? "right" : "left" }, { marginBottom: 20 }]}
+              value={f.value}
+              onChangeText={f.set}
+              multiline
+            />
+          </View>
+        ))}
+        </View>
+        </FieldGuideTarget>
 
         {/* ── File upload ──────────────────────────────────────────────────────── */}
         <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>
@@ -283,10 +317,14 @@ export default function NewProjectModal({
 
         {/* ── Faculty: checkboxes for admin/faculty_admin, read-only badge for supervisor ──── */}
         {(isAdmin || isFacultyAdmin) && (
+          <FieldGuideTarget fieldKey="faculty">
           <>
-            <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
-              {lang === "he" ? "פקולטה/ות *" : "Faculty/Faculties *"}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
+                {lang === "he" ? "פקולטה/ות *" : "Faculty/Faculties *"}
+              </Text>
+              <InfoTooltip textHe={newProjectFieldInfo('faculty').he} textEn={newProjectFieldInfo('faculty').en} />
+            </View>
             <FacultyCheckboxes
               selected={facultyIds}
               onChange={(ids) => {
@@ -301,6 +339,7 @@ export default function NewProjectModal({
               lang={lang}
             />
           </>
+          </FieldGuideTarget>
         )}
 
         {isSupervisor && supervisorFacultyObj && (
@@ -330,9 +369,14 @@ export default function NewProjectModal({
             opt-in via this toggle, which reveals the group-size picker below.
             isTeam is derived from maxStudents itself (no separate state), so
             it stays correct if the parent resets its form after submit. */}
-        <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
-          {lang === "he" ? "פרויקט קבוצתי" : "Team Project"}
-        </Text>
+        <FieldGuideTarget fieldKey="teamSize">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
+            {lang === "he" ? "פרויקט קבוצתי" : "Team Project"}
+          </Text>
+          <InfoTooltip textHe={newProjectFieldInfo('teamSize').he} textEn={newProjectFieldInfo('teamSize').en} />
+        </View>
         <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
           <Pressable
             style={[styles.toggleBtn, maxStudents > 1 && styles.toggleBtnActive]}
@@ -375,11 +419,18 @@ export default function NewProjectModal({
             </View>
           </>
         )}
+        </View>
+        </FieldGuideTarget>
 
         {/* ── Degree ───────────────────────────────────────────────────────────── */}
-        <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
-          {lang === "he" ? "סוג תואר" : "Degree Type"}
-        </Text>
+        <FieldGuideTarget fieldKey="degreeType">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
+            {lang === "he" ? "סוג תואר" : "Degree Type"}
+          </Text>
+          <InfoTooltip textHe={newProjectFieldInfo('degreeType').he} textEn={newProjectFieldInfo('degreeType').en} />
+        </View>
         <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
           {degreeOptions.map((d) => {
             const isSelected = degreeTypes.includes(d);
@@ -406,13 +457,19 @@ export default function NewProjectModal({
             {lang === "he" ? "הפקולטה/ות שנבחרו מציעות תואר אחד בלבד" : "The selected faculty/ies only offer one degree level"}
           </Text>
         )}
+        </View>
+        </FieldGuideTarget>
 
         {/* ── Program picker (shown when exactly one faculty + one degree are selected) ── */}
         {showProgramPicker && (
+          <FieldGuideTarget fieldKey="major">
           <View style={programStyles.section}>
-            <Text style={[programStyles.sectionTitle, { marginBottom: 10 }]}>
-              {lang === "he" ? "מסלול לימודים *" : "Study Program *"}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={programStyles.sectionTitle}>
+                {lang === "he" ? "מסלול לימודים *" : "Study Program *"}
+              </Text>
+              <InfoTooltip textHe={newProjectFieldInfo('major').he} textEn={newProjectFieldInfo('major').en} />
+            </View>
 
             {isSupervisor && !isMajorRestricted && (
               <Pressable
@@ -450,6 +507,7 @@ export default function NewProjectModal({
               );
             })}
           </View>
+          </FieldGuideTarget>
         )}
 
         {/* Hint when faculty is selected but no programs match degree */}
@@ -515,9 +573,14 @@ export default function NewProjectModal({
           )
         )}
         {/* ── Type ─────────────────────────────────────────────────────────────── */}
-        <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
-          {lang === "he" ? "סוג פרויקט" : "Project Type"}
-        </Text>
+        <FieldGuideTarget fieldKey="projectType">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
+            {lang === "he" ? "סוג פרויקט" : "Project Type"}
+          </Text>
+          <InfoTooltip textHe={newProjectFieldInfo('projectType').he} textEn={newProjectFieldInfo('projectType').en} />
+        </View>
         <View style={[styles.toggleRow, !isRtl && styles.rowReverse]}>
           {(["project", "thesis"] as const).map((t) => {
             const isSelected = projectTypes.includes(t);
@@ -539,6 +602,8 @@ export default function NewProjectModal({
             );
           })}
         </View>
+        </View>
+        </FieldGuideTarget>
 
         {/* ── Workflow template preview ───────────────────────────────────────── */}
         <WorkflowTemplatePreview
@@ -550,9 +615,14 @@ export default function NewProjectModal({
         />
 
         {/* ── Prerequisites ─────────────────────────────────────────────────────── */}
-        <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>
-          {lang === "he" ? "קורסי דרישת קדם" : "Prerequisites"}
-        </Text>
+        <FieldGuideTarget fieldKey="prerequisites">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 4 }}>
+          <Text style={[styles.fieldLabel, !isRtl && styles.textRight]}>
+            {lang === "he" ? "קורסי דרישת קדם" : "Prerequisites"}
+          </Text>
+          <InfoTooltip textHe={newProjectFieldInfo('prerequisites').he} textEn={newProjectFieldInfo('prerequisites').en} />
+        </View>
         <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 8, textAlign: isRtl ? 'right' : 'left' }}>
           {lang === "he"
             ? "לכל קורס ניתן להוסיף ציון מינימלי נדרש (אופציונלי) — למשל \"מדעי המחשב\" עם ציון מינימלי 80."
@@ -591,13 +661,19 @@ export default function NewProjectModal({
         >
           <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>＋ {lang === "he" ? "הוסף קורס" : "Add course"}</Text>
         </Pressable>
+        </View>
+        </FieldGuideTarget>
 
         {/* ── Supervisors (admin/faculty_admin only) ────────────────────────────── */}
         {(isAdmin || isFacultyAdmin) && supervisors?.length ? (
+          <FieldGuideTarget fieldKey="supervisors">
           <>
-            <Text style={styles.fieldLabel}>
-              {lang === "he" ? "בחר מנחה" : "Select Supervisor"}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.fieldLabel}>
+                {lang === "he" ? "בחר מנחה" : "Select Supervisor"}
+              </Text>
+              <InfoTooltip textHe={newProjectFieldInfo('supervisors').he} textEn={newProjectFieldInfo('supervisors').en} />
+            </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -617,6 +693,7 @@ export default function NewProjectModal({
               ))}
             </ScrollView>
           </>
+          </FieldGuideTarget>
         ) : null}
 
         {/* ── Submit ───────────────────────────────────────────────────────────── */}

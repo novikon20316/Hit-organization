@@ -24,6 +24,13 @@ import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 import ChatbotFab from '@/components/ChatbotFab';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  STUDENTS_TAB_FIELD_GUIDE, STUDENTS_TAB_GUIDE_KEY,
+  APPROVALS_TAB_FIELD_GUIDE, APPROVALS_TAB_GUIDE_KEY,
+  SUPERVISORS_TAB_FIELD_GUIDE, SUPERVISORS_TAB_GUIDE_KEY,
+  STAFF_TAB_FIELD_GUIDE, STAFF_TAB_GUIDE_KEY,
+} from '@/constants/programHeadFieldGuide';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -329,6 +336,7 @@ export default function ProgramHeadDashboard() {
         {/* ── STUDENTS TAB ── */}
         {activeTab === 'students' && (
           <>
+            <FieldGuideOverlay guideKey={STUDENTS_TAB_GUIDE_KEY} steps={STUDENTS_TAB_FIELD_GUIDE} />
             {/* Search + filters */}
             <TextInput
               style={s.searchInput}
@@ -415,6 +423,7 @@ export default function ProgramHeadDashboard() {
         {/* ── APPROVALS TAB ── */}
         {activeTab === 'approvals' && (
           <>
+            <FieldGuideOverlay guideKey={APPROVALS_TAB_GUIDE_KEY} steps={APPROVALS_TAB_FIELD_GUIDE} />
             <PendingSignoffsWidget lang={lang} showEmptyState />
             <ExceptionalActionQueue lang={lang} />
             {(data?.pendingApprovals.length ?? 0) === 0 ? (
@@ -515,6 +524,7 @@ export default function ProgramHeadDashboard() {
         {/* ── SUPERVISORS TAB ── */}
         {activeTab === 'supervisors' && (
           <>
+            <FieldGuideOverlay guideKey={SUPERVISORS_TAB_GUIDE_KEY} steps={SUPERVISORS_TAB_FIELD_GUIDE} />
             {(data?.supervisorLoads.length ?? 0) === 0 ? (
               <EmptyState emoji="👨‍🏫" text={lang === 'he' ? 'אין מנחים' : 'No supervisors'} />
             ) : (
@@ -536,13 +546,16 @@ export default function ProgramHeadDashboard() {
 
         {/* ── STAFF TAB ── */}
         {activeTab === 'staff' && (
-          <ManagedStaffSection
-            staff={staff}
-            onRefresh={fetchStaff}
-            scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: data?.facultyId }}
-            lang={lang}
-            isRtl={lang === 'he'}
-          />
+          <>
+            <FieldGuideOverlay guideKey={STAFF_TAB_GUIDE_KEY} steps={STAFF_TAB_FIELD_GUIDE} />
+            <ManagedStaffSection
+              staff={staff}
+              onRefresh={fetchStaff}
+              scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: data?.facultyId }}
+              lang={lang}
+              isRtl={lang === 'he'}
+            />
+          </>
         )}
 
         {/* ── MY PROJECTS TAB (only for a program_head who's also a supervisor) ── */}

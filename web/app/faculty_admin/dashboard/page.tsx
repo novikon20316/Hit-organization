@@ -36,6 +36,14 @@ import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { MyProjectsWidget } from '@/components/MyProjectsWidget';
 import { DeadlinesTab } from './DeadlinesTab';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  USERS_TAB_FIELD_GUIDE, USERS_TAB_GUIDE_KEY,
+  PROJECTS_TAB_FIELD_GUIDE, PROJECTS_TAB_GUIDE_KEY,
+  STUDENTS_TAB_FIELD_GUIDE, STUDENTS_TAB_GUIDE_KEY,
+  DEADLINES_TAB_FIELD_GUIDE, DEADLINES_TAB_GUIDE_KEY,
+  SIGNOFFS_TAB_FIELD_GUIDE, SIGNOFFS_TAB_GUIDE_KEY,
+} from './fieldGuide';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import type { FacultyAdminUserRecord, FacultyAdminProjectRecord, FacultyAdminDeadline } from './types';
 
@@ -142,13 +150,17 @@ function FacultyAdminDashboardContent() {
           <StatCard emoji="🎓" value={availableStudents.length} label={lang === 'he' ? 'סטודנטים ללא פרויקט' : 'Students w/o Project'} href="/faculty_admin/dashboard?tab=users" />
         </div>
       ) : tab === 'users' ? (
-        <ManagedStaffTab
-          staff={users as unknown as AdminUserRecord[]}
-          onRefresh={fetchDashboard}
-          scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }}
-        />
+        <div data-field-guide-id="userList">
+          <FieldGuideOverlay guideKey={USERS_TAB_GUIDE_KEY} steps={USERS_TAB_FIELD_GUIDE} />
+          <ManagedStaffTab
+            staff={users as unknown as AdminUserRecord[]}
+            onRefresh={fetchDashboard}
+            scope={{ selectableRoles: DELEGATE_MANAGEABLE_ROLES, lockedFacultyId: facultyId }}
+          />
+        </div>
       ) : tab === 'projects' ? (
-        <div>
+        <div data-field-guide-id="projectList">
+          <FieldGuideOverlay guideKey={PROJECTS_TAB_GUIDE_KEY} steps={PROJECTS_TAB_FIELD_GUIDE} />
           <div className="mb-3">
             <CreateOwnProjectButton onCreated={fetchDashboard} />
           </div>
@@ -166,11 +178,20 @@ function FacultyAdminDashboardContent() {
           </div>
         </div>
       ) : tab === 'deadlines' ? (
-        <DeadlinesTab deadlines={deadlines} projects={projects} users={users} onSaved={fetchDashboard} />
+        <div data-field-guide-id="deadlineList">
+          <FieldGuideOverlay guideKey={DEADLINES_TAB_GUIDE_KEY} steps={DEADLINES_TAB_FIELD_GUIDE} />
+          <DeadlinesTab deadlines={deadlines} projects={projects} users={users} onSaved={fetchDashboard} />
+        </div>
       ) : tab === 'students' ? (
-        <StudentsListTab />
+        <div data-field-guide-id="studentList">
+          <FieldGuideOverlay guideKey={STUDENTS_TAB_GUIDE_KEY} steps={STUDENTS_TAB_FIELD_GUIDE} />
+          <StudentsListTab />
+        </div>
       ) : (
-        <PendingSignoffsWidget showEmptyState />
+        <div data-field-guide-id="signoffList">
+          <FieldGuideOverlay guideKey={SIGNOFFS_TAB_GUIDE_KEY} steps={SIGNOFFS_TAB_FIELD_GUIDE} />
+          <PendingSignoffsWidget showEmptyState />
+        </div>
       )}
 
       {enrollingProject && (

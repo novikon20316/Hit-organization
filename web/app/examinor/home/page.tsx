@@ -19,6 +19,8 @@ import { GradeExaminerModal } from './GradeExaminerModal';
 import { ExaminerEvaluationModal } from './ExaminerEvaluationModal';
 import { ExaminerFormFieldsModal } from './ExaminerFormFieldsModal';
 import type { AssignedMilestone } from './types';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { ASSIGNMENTS_FIELD_GUIDE, ASSIGNMENTS_GUIDE_KEY } from './fieldGuide';
 
 const EXAMINER_ROLES: AppRole[] = ['internal_examiner', 'system_admin'];
 
@@ -139,7 +141,8 @@ function ExaminerHomeContent() {
       {loadingData ? (
         <p className="text-sm text-examinor-on-surface-variant">{t('loading')}</p>
       ) : tab === 'defenses' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="assignmentList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={ASSIGNMENTS_GUIDE_KEY} steps={ASSIGNMENTS_FIELD_GUIDE} />
           {assignments.map((m) => (
             <AssignmentCard
               key={m.id}

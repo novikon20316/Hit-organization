@@ -22,6 +22,13 @@ import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
 import { TeamSizeField } from '@/components/TeamSizeField';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { NEW_PROJECT_FORM_GUIDE_KEY, newProjectFieldInfo, pickNewProjectSteps } from '@/components/newProjectFieldGuide';
+
+const FIELD_GUIDE_STEPS = pickNewProjectSteps([
+  'title', 'description', 'faculty', 'supervisors', 'major', 'degreeType', 'projectType', 'teamSize', 'skills', 'prerequisites',
+]);
 
 interface NewProjectModalProps {
   open: boolean;
@@ -176,23 +183,28 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-grad-school-head-lg bg-grad-school-head-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={NEW_PROJECT_FORM_GUIDE_KEY} steps={FIELD_GUIDE_STEPS} />
         <h2 className="text-lg font-semibold text-grad-school-head-on-surface">📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
 
         <div className="mt-4 grid gap-4">
-          <Field label={lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}>
-            <input value={titleHe} onChange={(e) => setTitleHe(e.target.value)} dir="rtl" className={inputCls} required />
-          </Field>
-          <Field label={lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}>
-            <input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} dir="ltr" className={inputCls} required />
-          </Field>
-          <Field label={lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'}>
-            <textarea rows={3} value={descHe} onChange={(e) => setDescHe(e.target.value)} dir="rtl" className={inputCls} />
-          </Field>
-          <Field label={lang === 'he' ? 'תיאור באנגלית' : 'English Description'}>
-            <textarea rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} dir="ltr" className={inputCls} />
-          </Field>
+          <div data-field-guide-id="title" className="grid gap-4">
+            <Field label={lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'} info={newProjectFieldInfo('title')}>
+              <input value={titleHe} onChange={(e) => setTitleHe(e.target.value)} dir="rtl" className={inputCls} required />
+            </Field>
+            <Field label={lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}>
+              <input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} dir="ltr" className={inputCls} required />
+            </Field>
+          </div>
+          <div data-field-guide-id="description" className="grid gap-4">
+            <Field label={lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'} info={newProjectFieldInfo('description')}>
+              <textarea rows={3} value={descHe} onChange={(e) => setDescHe(e.target.value)} dir="rtl" className={inputCls} />
+            </Field>
+            <Field label={lang === 'he' ? 'תיאור באנגלית' : 'English Description'}>
+              <textarea rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} dir="ltr" className={inputCls} />
+            </Field>
+          </div>
 
-          <Field label={lang === 'he' ? 'פקולטה/ות *' : 'Faculty/Faculties *'}>
+          <Field label={lang === 'he' ? 'פקולטה/ות *' : 'Faculty/Faculties *'} info={newProjectFieldInfo('faculty')} fieldGuideId="faculty">
             <FacultyCheckboxes
               selected={facultyIds}
               onChange={(ids) => {
@@ -208,7 +220,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
             />
           </Field>
 
-          <Field label={lang === 'he' ? 'מנחה/ים *' : 'Supervisor(s) *'}>
+          <Field label={lang === 'he' ? 'מנחה/ים *' : 'Supervisor(s) *'} info={newProjectFieldInfo('supervisors')} fieldGuideId="supervisors">
             <SupervisorCheckboxes
               facultyIds={facultyIds}
               options={supervisors}
@@ -218,7 +230,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
             />
           </Field>
 
-          <Field label={lang === 'he' ? 'מגמה / תוכנית (אופציונלי)' : 'Major/Program (optional)'}>
+          <Field label={lang === 'he' ? 'מגמה / תוכנית (אופציונלי)' : 'Major/Program (optional)'} info={newProjectFieldInfo('major')} fieldGuideId="major">
             <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} disabled={facultyIds.length === 0}>
               <option value="">{lang === 'he' ? 'ללא הגבלה — כל המגמות' : 'No restriction — all majors'}</option>
               {majorOptions().map((m) => (
@@ -230,7 +242,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label={lang === 'he' ? 'סוג תואר' : 'Degree Type'}>
+            <Field label={lang === 'he' ? 'סוג תואר' : 'Degree Type'} info={newProjectFieldInfo('degreeType')} fieldGuideId="degreeType">
               <div className="flex gap-3">
                 {degreeOptions.includes('bachelors') && (
                   <label className="flex items-center gap-1.5 text-sm text-grad-school-head-on-surface">
@@ -256,7 +268,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
                 </p>
               )}
             </Field>
-            <Field label={lang === 'he' ? 'סוג פרויקט' : 'Project Type'}>
+            <Field label={lang === 'he' ? 'סוג פרויקט' : 'Project Type'} info={newProjectFieldInfo('projectType')} fieldGuideId="projectType">
               <div className="flex gap-3">
                 <label className="flex items-center gap-1.5 text-sm text-grad-school-head-on-surface">
                   <input type="checkbox" checked={projectTypes.includes('project')} onChange={() => toggleProjectType('project')} className="h-4 w-4" />
@@ -272,13 +284,17 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
 
           <WorkflowTemplatePreview facultyIds={facultyIds} degreeTypes={degreeTypes} projectTypes={projectTypes} major={major || undefined} />
 
-          <TeamSizeField value={maxStudents} onChange={setMaxStudents} lang={lang} />
+          <div data-field-guide-id="teamSize">
+            <TeamSizeField value={maxStudents} onChange={setMaxStudents} lang={lang} />
+          </div>
 
-          <Field label={lang === 'he' ? 'כישורים נדרשים (מופרד בפסיקים)' : 'Required Skills (comma-separated)'}>
+          <Field label={lang === 'he' ? 'כישורים נדרשים (מופרד בפסיקים)' : 'Required Skills (comma-separated)'} info={newProjectFieldInfo('skills')} fieldGuideId="skills">
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder={lang === 'he' ? 'לדוגמה: Python, React' : 'e.g. Python, React'} />
           </Field>
 
-          <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
+          <div data-field-guide-id="prerequisites">
+            <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
+          </div>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
@@ -305,10 +321,20 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
 
 const inputCls = 'w-full rounded-lg border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-low px-3 py-2 text-sm text-grad-school-head-on-surface focus:border-grad-school-head-primary focus:bg-grad-school-head-surface-container-lowest focus:outline-none disabled:opacity-60';
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label, children, info, fieldGuideId,
+}: {
+  label: string;
+  children: React.ReactNode;
+  info?: { he: string; en: string };
+  fieldGuideId?: string;
+}) {
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-grad-school-head-on-surface">{label}</span>
+    <label className="block" data-field-guide-id={fieldGuideId}>
+      <span className="mb-1.5 block text-sm font-medium text-grad-school-head-on-surface">
+        {label}
+        {info && <InfoTooltip text={info} />}
+      </span>
       {children}
     </label>
   );

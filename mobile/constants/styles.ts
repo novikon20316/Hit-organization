@@ -5031,3 +5031,64 @@ export const OnboardingTourStyles = StyleSheet.create({
     color:      '#ffffff',
   },
 });
+
+// Reuses OnboardingTourStyles' spotlight-ring/mask/card visual language (see
+// above) at field/tab granularity — components/guidance/FieldGuideOverlay.tsx.
+export const FieldGuideStyles = OnboardingTourStyles;
+
+// components/InfoTooltip.tsx — the small (i) button dropped next to a form
+// field's label, and the popover it opens on tap.
+export const InfoTooltipStyles = StyleSheet.create({
+  button: {
+    width:          16,
+    height:         16,
+    borderRadius:   8,
+    borderWidth:    1,
+    borderColor:    '#CBD5E1',
+    alignItems:     'center',
+    justifyContent: 'center',
+    marginStart:    6,
+  },
+  buttonText: {
+    fontSize:   10,
+    fontWeight: '700',
+    color:      '#64748B',
+  },
+  backdrop: {
+    flex:            1,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    alignItems:      'center',
+    justifyContent:  'center',
+    padding:         24,
+  },
+  card: {
+    width:            '100%',
+    maxWidth:         340,
+    backgroundColor:  '#ffffff',
+    borderRadius:     14,
+    padding:          16,
+    shadowColor:      '#000',
+    shadowOffset:     { width: 0, height: 4 },
+    shadowOpacity:    0.2,
+    shadowRadius:     10,
+    elevation:        8,
+  },
+  cardText: {
+    fontSize:   13,
+    color:      '#0F172A',
+    lineHeight: 19,
+  },
+  closeBtn: {
+    marginTop:         12,
+    alignSelf:         'flex-end',
+    paddingHorizontal: 14,
+    paddingVertical:   8,
+    borderRadius:      10,
+    backgroundColor:   '#2E86FF',
+  },
+  closeBtnText: {
+    fontSize:   13,
+    fontWeight: '700',
+    color:      '#ffffff',
+  },
+});

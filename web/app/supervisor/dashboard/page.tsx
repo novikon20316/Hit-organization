@@ -32,6 +32,12 @@ import { NewProjectModal } from './NewProjectModal';
 import { RecommendExaminersModal, type RecommendExaminersTarget } from './RecommendExaminersModal';
 import { QuickTasksPanel } from './QuickTasksPanel';
 import type { MyProject, Application, SupervisorPendingMilestone } from './types';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  PROJECTS_TAB_FIELD_GUIDE, PROJECTS_TAB_GUIDE_KEY,
+  APPLICATIONS_TAB_FIELD_GUIDE, APPLICATIONS_TAB_GUIDE_KEY,
+  SIGNOFFS_TAB_FIELD_GUIDE, SIGNOFFS_TAB_GUIDE_KEY,
+} from './fieldGuide';
 
 const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
@@ -270,7 +276,8 @@ function SupervisorDashboardContent() {
       ) : (
         <>
           {tab === 'applications' && (
-            <>
+            <div data-field-guide-id="applicationList">
+              <FieldGuideOverlay guideKey={APPLICATIONS_TAB_GUIDE_KEY} steps={APPLICATIONS_TAB_FIELD_GUIDE} />
               <div className="mb-4 flex gap-1 overflow-x-auto">
                 {APPLICATION_FILTERS.map(({ key, he, en }) => (
                   <button
@@ -304,11 +311,12 @@ function SupervisorDashboardContent() {
                   </p>
                 )}
               </div>
-            </>
+            </div>
           )}
 
           {tab === 'projects' && (
-            <>
+            <div data-field-guide-id="projectList">
+              <FieldGuideOverlay guideKey={PROJECTS_TAB_GUIDE_KEY} steps={PROJECTS_TAB_FIELD_GUIDE} />
               <div className="mb-4 flex gap-1 overflow-x-auto">
                 {PROJECT_FILTERS.map(({ key, he, en }) => (
                   <button
@@ -350,10 +358,15 @@ function SupervisorDashboardContent() {
                   </p>
                 )}
               </div>
-            </>
+            </div>
           )}
 
-          {tab === 'signoffs' && <PendingSignoffsWidget showEmptyState />}
+          {tab === 'signoffs' && (
+            <div data-field-guide-id="signoffList">
+              <FieldGuideOverlay guideKey={SIGNOFFS_TAB_GUIDE_KEY} steps={SIGNOFFS_TAB_FIELD_GUIDE} />
+              <PendingSignoffsWidget showEmptyState />
+            </div>
+          )}
         </>
       )}
       </div>

@@ -29,6 +29,13 @@ import type { FacultyId } from '@/lib/i18n';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
 import { TeamSizeField } from '@/components/TeamSizeField';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { NEW_PROJECT_FORM_GUIDE_KEY, newProjectFieldInfo, pickNewProjectSteps } from '@/components/newProjectFieldGuide';
+
+const FIELD_GUIDE_STEPS = pickNewProjectSteps([
+  'title', 'description', 'major', 'teamSize', 'degreeType', 'projectType', 'skills', 'prerequisites',
+]);
 
 interface NewProjectModalProps {
   facultyId: FacultyId;
@@ -135,6 +142,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={NEW_PROJECT_FORM_GUIDE_KEY} steps={FIELD_GUIDE_STEPS} />
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
@@ -143,22 +151,32 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
         </div>
 
         <div className="mt-4 grid gap-3">
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}</span>
-            <input dir="rtl" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}</span>
-            <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'}</span>
-            <textarea dir="rtl" rows={3} value={descHe} onChange={(e) => setDescHe(e.target.value)} className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תיאור באנגלית' : 'English Description'}</span>
-            <textarea dir="ltr" rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} className={inputCls} />
-          </label>
+          <div data-field-guide-id="title" className="grid gap-3">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+                {lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}
+                <InfoTooltip text={newProjectFieldInfo('title')} />
+              </span>
+              <input dir="rtl" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}</span>
+              <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} className={inputCls} />
+            </label>
+          </div>
+          <div data-field-guide-id="description" className="grid gap-3">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+                {lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'}
+                <InfoTooltip text={newProjectFieldInfo('description')} />
+              </span>
+              <textarea dir="rtl" rows={3} value={descHe} onChange={(e) => setDescHe(e.target.value)} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תיאור באנגלית' : 'English Description'}</span>
+              <textarea dir="ltr" rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} className={inputCls} />
+            </label>
+          </div>
 
           <div>
             <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
@@ -167,9 +185,10 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
             </span>
           </div>
 
-          <label className="block">
+          <label data-field-guide-id="major" className="block">
             <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
               {lang === 'he' ? `מגמה / תוכנית${isMajorRestricted ? ' *' : ' (אופציונלי)'}` : `Major/Program${isMajorRestricted ? ' *' : ' (optional)'}`}
+              <InfoTooltip text={newProjectFieldInfo('major')} />
             </span>
             <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} required={isMajorRestricted}>
               {!isMajorRestricted && (
@@ -189,11 +208,16 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
             )}
           </label>
 
-          <TeamSizeField value={numberOfStudents} onChange={setNumberOfStudents} lang={lang} />
+          <div data-field-guide-id="teamSize">
+            <TeamSizeField value={numberOfStudents} onChange={setNumberOfStudents} lang={lang} />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'תואר' : 'Degree'}</span>
+            <div data-field-guide-id="degreeType">
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+                {lang === 'he' ? 'תואר' : 'Degree'}
+                <InfoTooltip text={newProjectFieldInfo('degreeType')} />
+              </span>
               <div className="flex gap-3">
                 {degreeOptions.includes('bachelors') && (
                   <label className="flex items-center gap-1.5 text-sm text-supervisor-on-surface">
@@ -214,8 +238,11 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
                 </p>
               )}
             </div>
-            <div>
-              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'סוג' : 'Type'}</span>
+            <div data-field-guide-id="projectType">
+              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+                {lang === 'he' ? 'סוג' : 'Type'}
+                <InfoTooltip text={newProjectFieldInfo('projectType')} />
+              </span>
               <div className="flex gap-3">
                 <label className="flex items-center gap-1.5 text-sm text-supervisor-on-surface">
                   <input type="checkbox" checked={projectTypes.includes('project')} onChange={() => toggleProjectType('project')} className="h-4 w-4" />
@@ -231,12 +258,17 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
 
           <WorkflowTemplatePreview facultyIds={[facultyId]} degreeTypes={degreeTypes} projectTypes={projectTypes} major={major || undefined} />
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'כישורים נדרשים (מופרדים בפסיק)' : 'Required Skills (comma-separated)'}</span>
+          <label data-field-guide-id="skills" className="block">
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+              {lang === 'he' ? 'כישורים נדרשים (מופרדים בפסיק)' : 'Required Skills (comma-separated)'}
+              <InfoTooltip text={newProjectFieldInfo('skills')} />
+            </span>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder="React, Python, ..." />
           </label>
 
-          <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
+          <div data-field-guide-id="prerequisites">
+            <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
+          </div>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}

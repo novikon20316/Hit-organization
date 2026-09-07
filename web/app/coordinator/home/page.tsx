@@ -24,6 +24,15 @@ import { RecommendationCard } from './RecommendationCard';
 import { AssignExaminersModal } from './AssignExaminersModal';
 import { DefenseTab, buildDefenseCards, type DefenseCard } from './DefenseTab';
 import { InProgressTab } from './InProgressTab';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  PENDING_TAB_FIELD_GUIDE, PENDING_TAB_GUIDE_KEY,
+  DEFENSE_TAB_FIELD_GUIDE, DEFENSE_TAB_GUIDE_KEY,
+  IN_PROGRESS_TAB_FIELD_GUIDE, IN_PROGRESS_TAB_GUIDE_KEY,
+  DEADLINES_TAB_FIELD_GUIDE, DEADLINES_TAB_GUIDE_KEY,
+  RECOMMENDATIONS_TAB_FIELD_GUIDE, RECOMMENDATIONS_TAB_GUIDE_KEY,
+  SIGNOFFS_TAB_FIELD_GUIDE, SIGNOFFS_TAB_GUIDE_KEY,
+} from './fieldGuide';
 import { DeadlinesTab } from './DeadlinesTab';
 import { BulkImportModal } from '@/components/BulkImportModal';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
@@ -466,7 +475,8 @@ function CoordinatorHomeContent() {
           </div>
         </div>
       ) : tab === 'pending' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="submissionList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={PENDING_TAB_GUIDE_KEY} steps={PENDING_TAB_FIELD_GUIDE} />
           {pendingMilestones.map((m) => (
             <PendingMilestoneCard key={m.id} milestone={m} onChanged={fetchAll} onApproveFinalReport={setAssigningMilestone} />
           ))}
@@ -475,15 +485,19 @@ function CoordinatorHomeContent() {
           )}
         </div>
       ) : tab === 'defense' ? (
-        <DefenseTab
-          cards={defenseCards}
-          examiners={examiners}
-          onChanged={fetchAll}
-          onApproveFinalReport={setAssigningMilestone}
-          onOpenAssignExaminers={setAssigningMilestone}
-        />
+        <div data-field-guide-id="defenseList">
+          <FieldGuideOverlay guideKey={DEFENSE_TAB_GUIDE_KEY} steps={DEFENSE_TAB_FIELD_GUIDE} />
+          <DefenseTab
+            cards={defenseCards}
+            examiners={examiners}
+            onChanged={fetchAll}
+            onApproveFinalReport={setAssigningMilestone}
+            onOpenAssignExaminers={setAssigningMilestone}
+          />
+        </div>
       ) : tab === 'inProgress' ? (
-        <>
+        <div data-field-guide-id="projectList">
+          <FieldGuideOverlay guideKey={IN_PROGRESS_TAB_GUIDE_KEY} steps={IN_PROGRESS_TAB_FIELD_GUIDE} />
           <CreateOwnProjectButton onCreated={fetchAll} />
           <div className="mt-3">
             <MyApplicationsWidget />
@@ -494,11 +508,15 @@ function CoordinatorHomeContent() {
           <div className="mt-3">
             <InProgressTab projects={inProgressProjects} currentUserId={firebaseUser?.uid} onChanged={fetchAll} />
           </div>
-        </>
+        </div>
       ) : tab === 'deadlines' ? (
-        <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchAll} />
+        <div data-field-guide-id="deadlineList">
+          <FieldGuideOverlay guideKey={DEADLINES_TAB_GUIDE_KEY} steps={DEADLINES_TAB_FIELD_GUIDE} />
+          <DeadlinesTab deadlines={deadlines} projects={projects} onSaved={fetchAll} />
+        </div>
       ) : tab === 'recommendations' ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div data-field-guide-id="recommendationList" className="grid gap-3 sm:grid-cols-2">
+          <FieldGuideOverlay guideKey={RECOMMENDATIONS_TAB_GUIDE_KEY} steps={RECOMMENDATIONS_TAB_FIELD_GUIDE} />
           {recommendations.map((rec) => (
             <RecommendationCard key={rec.id} recommendation={rec} onChanged={fetchAll} />
           ))}
@@ -511,7 +529,10 @@ function CoordinatorHomeContent() {
       ) : tab === 'archived' ? (
         <ArchivedProjectsTab />
       ) : (
-        <PendingSignoffsWidget showEmptyState />
+        <div data-field-guide-id="signoffList">
+          <FieldGuideOverlay guideKey={SIGNOFFS_TAB_GUIDE_KEY} steps={SIGNOFFS_TAB_FIELD_GUIDE} />
+          <PendingSignoffsWidget showEmptyState />
+        </div>
       )}
 
       {assigningMilestone && (

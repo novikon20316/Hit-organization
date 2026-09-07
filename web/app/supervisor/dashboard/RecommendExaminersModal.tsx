@@ -10,6 +10,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { ExaminerUser } from '@/app/coordinator/home/types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { RECOMMEND_EXAMINERS_FIELD_GUIDE, RECOMMEND_EXAMINERS_GUIDE_KEY } from './fieldGuide';
+
+function recommendGuideEntry(key: string) {
+  return RECOMMEND_EXAMINERS_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 export interface RecommendExaminersTarget {
   id: string;
@@ -106,6 +113,7 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={RECOMMEND_EXAMINERS_GUIDE_KEY} steps={RECOMMEND_EXAMINERS_FIELD_GUIDE} />
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'המלצת בוחנים' : 'Examiner Recommendation'}</h2>
@@ -139,7 +147,10 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
           </div>
         )}
 
-        <p className="mb-1.5 mt-4 text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'חפש בוחן פנימי' : 'Search Internal Examiner'}</p>
+        <p data-field-guide-id="internalSearch" className="mb-1.5 mt-4 flex items-center text-sm font-medium text-supervisor-on-surface">
+          {lang === 'he' ? 'חפש בוחן פנימי' : 'Search Internal Examiner'}
+          <InfoTooltip text={recommendGuideEntry('internalSearch').description} />
+        </p>
         <div className="grid gap-1.5">
           {internalExaminers.map((u) => {
             const added = examiners.some((e) => e.internalUserId === u.id);
@@ -158,8 +169,11 @@ export function RecommendExaminersModal({ project, internalExaminers, onClose, o
           })}
         </div>
 
-        <p className="mb-1.5 mt-4 text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'הוסף בוחן חיצוני' : 'Add External Examiner'}</p>
-        <div className="grid gap-2">
+        <p className="mb-1.5 mt-4 flex items-center text-sm font-medium text-supervisor-on-surface">
+          {lang === 'he' ? 'הוסף בוחן חיצוני' : 'Add External Examiner'}
+          <InfoTooltip text={recommendGuideEntry('externalForm').description} />
+        </p>
+        <div data-field-guide-id="externalForm" className="grid gap-2">
           <input placeholder={lang === 'he' ? 'שם מלא' : 'Full Name'} value={extName} onChange={(e) => setExtName(e.target.value)} className={inputCls} />
           <input placeholder={lang === 'he' ? 'דוא"ל' : 'Email'} dir="ltr" value={extEmail} onChange={(e) => setExtEmail(e.target.value)} className={inputCls} />
           <input

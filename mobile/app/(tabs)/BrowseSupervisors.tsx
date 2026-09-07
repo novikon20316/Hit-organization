@@ -18,6 +18,14 @@ import { tx, type Lang } from '../../components/i18n';
 import { apiClient } from '../../src/api/apiClient';
 import type { PendingApplication } from '@/types';
 import ApplicationStatusCard from '@/components/ApplicationStatusCard';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import { APPLY_PROJECT_FIELD_GUIDE, APPLY_PROJECT_GUIDE_KEY } from '@/constants/studentFieldGuide';
+
+function applyGuideEntry(key: string) {
+  return APPLY_PROJECT_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface BrowseSupervisorProject {
   id: string;
@@ -314,6 +322,12 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: '85%' }}>
             <ScrollView>
+              {applyTarget && (
+                <FieldGuideOverlay
+                  guideKey={APPLY_PROJECT_GUIDE_KEY}
+                  steps={APPLY_PROJECT_FIELD_GUIDE.filter((s) => s.key !== 'track' || applyTarget.projectTypes.length > 1)}
+                />
+              )}
               <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 16, fontWeight: '700' }}>{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</Text>
                 <Pressable
@@ -325,8 +339,12 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
               {applyTarget && <Text style={{ marginTop: 4, fontSize: 13, color: '#8899BB' }}>{lang === 'he' ? applyTarget.titleHe : applyTarget.titleEn}</Text>}
 
               {applyTarget && applyTarget.projectTypes.length > 1 && (
+                <FieldGuideTarget fieldKey="track">
                 <View style={{ marginTop: 12 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{lang === 'he' ? 'מסלול *' : 'Track *'}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600' }}>{lang === 'he' ? 'מסלול *' : 'Track *'}</Text>
+                    <InfoTooltip textHe={applyGuideEntry('track').description.he} textEn={applyGuideEntry('track').description.en} />
+                  </View>
                   <View style={{ flexDirection: 'row', gap: 12 }}>
                     {applyTarget.projectTypes.map((tp) => (
                       <Pressable
@@ -342,9 +360,15 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
                     ))}
                   </View>
                 </View>
+                </FieldGuideTarget>
               )}
 
-              <Text style={{ marginTop: 12, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}</Text>
+              <FieldGuideTarget fieldKey="coverNote">
+              <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600' }}>{lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}</Text>
+                <InfoTooltip textHe={applyGuideEntry('coverNote').description.he} textEn={applyGuideEntry('coverNote').description.en} />
+              </View>
               <TextInput
                 value={coverNote}
                 onChangeText={setCoverNote}
@@ -352,25 +376,33 @@ export default function BrowseSupervisors({ lang, isRtl, pendingApplications, su
                 numberOfLines={3}
                 style={{ borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 10, padding: 10, fontSize: 13, textAlignVertical: 'top' }}
               />
+              </View>
+              </FieldGuideTarget>
 
+              <FieldGuideTarget fieldKey="transcript">
               <Pressable
                 onPress={() => pickFile('transcript')}
-                style={{ marginTop: 12, borderWidth: 1, borderColor: '#D0DEFF', borderStyle: 'dashed', borderRadius: 10, padding: 12 }}
+                style={{ marginTop: 12, borderWidth: 1, borderColor: '#D0DEFF', borderStyle: 'dashed', borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
                 accessibilityRole="button"
               >
                 <Text style={{ fontSize: 13 }}>
                   {transcriptUri ? `✓ ${transcriptName}` : lastTranscriptUrl ? `✓ ${lang === 'he' ? 'נעשה שימוש בקובץ אחרון' : 'Using last file'}` : `📄 ${lang === 'he' ? 'גיליון ציונים *' : 'Transcript *'}`}
                 </Text>
+                <InfoTooltip textHe={applyGuideEntry('transcript').description.he} textEn={applyGuideEntry('transcript').description.en} />
               </Pressable>
+              </FieldGuideTarget>
+              <FieldGuideTarget fieldKey="cv">
               <Pressable
                 onPress={() => pickFile('cv')}
-                style={{ marginTop: 8, borderWidth: 1, borderColor: '#D0DEFF', borderStyle: 'dashed', borderRadius: 10, padding: 12 }}
+                style={{ marginTop: 8, borderWidth: 1, borderColor: '#D0DEFF', borderStyle: 'dashed', borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
                 accessibilityRole="button"
               >
                 <Text style={{ fontSize: 13 }}>
                   {cvUri ? `✓ ${cvName}` : lastCvUrl ? `✓ ${lang === 'he' ? 'נעשה שימוש בקובץ אחרון' : 'Using last file'}` : `📄 ${lang === 'he' ? 'קורות חיים *' : 'CV *'}`}
                 </Text>
+                <InfoTooltip textHe={applyGuideEntry('cv').description.he} textEn={applyGuideEntry('cv').description.en} />
               </Pressable>
+              </FieldGuideTarget>
 
               {applyMessage && <Text style={{ marginTop: 12, fontSize: 13, color: applyMessage.startsWith('✅') ? '#16A34A' : '#EF4444' }}>{applyMessage}</Text>}
 

@@ -16,6 +16,14 @@ import { tx, type Lang } from '../i18n';
 import type { Milestone } from '@/types';
 import { apiClient } from '../../src/api/apiClient';
 import { ActivateDashboardStyles } from '../../constants/styles';
+import { InfoTooltip } from '../InfoTooltip';
+import { FieldGuideOverlay } from '../guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '../guidance/FieldGuideTarget';
+import { SUBMIT_MILESTONE_FIELD_GUIDE, SUBMIT_MILESTONE_GUIDE_KEY } from '../../constants/studentFieldGuide';
+
+function submitGuideEntry(key: string) {
+  return SUBMIT_MILESTONE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 // ─── Milestone type labels ─────────────────────────────────────────────────
 // Duplicated locally rather than imported from Activedashboard.tsx — this
@@ -187,6 +195,10 @@ export default function SubmitMilestoneModal({
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+        <FieldGuideOverlay
+          guideKey={SUBMIT_MILESTONE_GUIDE_KEY}
+          steps={SUBMIT_MILESTONE_FIELD_GUIDE.filter((s) => (s.key === 'files' && showFileField) || (s.key === 'note' && showNoteField))}
+        />
         <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
           <Text style={styles.modalTitle}>
             {tx('submitTitle', lang)}{' '}
@@ -205,11 +217,15 @@ export default function SubmitMilestoneModal({
 
         {/* Files */}
         {showFileField && (
+          <FieldGuideTarget fieldKey="files">
           <>
-            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-              {tx('uploadFiles', lang)}
-              {(submissionRequirement === 'file' || submissionRequirement === 'both') ? ' *' : ''}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {tx('uploadFiles', lang)}
+                {(submissionRequirement === 'file' || submissionRequirement === 'both') ? ' *' : ''}
+              </Text>
+              <InfoTooltip textHe={submitGuideEntry('files').description.he} textEn={submitGuideEntry('files').description.en} />
+            </View>
             {allowedTypesLabel && (
               <Text style={[styles.fieldLabel, { fontSize: 11, fontWeight: '400', marginTop: -4 }, isRtl && styles.textRight]}>
                 {lang === 'he' ? `סוגי קובץ מותרים: ${allowedTypesLabel}` : `Allowed file types: ${allowedTypesLabel}`}
@@ -233,15 +249,20 @@ export default function SubmitMilestoneModal({
               </Text>
             </Pressable>
           </>
+          </FieldGuideTarget>
         )}
 
         {/* Note */}
         {showNoteField && (
+          <FieldGuideTarget fieldKey="note">
           <>
-            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
-              {tx('addNote', lang)}
-              {(submissionRequirement === 'comment' || submissionRequirement === 'both') ? ' *' : ''}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
+                {tx('addNote', lang)}
+                {(submissionRequirement === 'comment' || submissionRequirement === 'both') ? ' *' : ''}
+              </Text>
+              <InfoTooltip textHe={submitGuideEntry('note').description.he} textEn={submitGuideEntry('note').description.en} />
+            </View>
             <TextInput
               style={[styles.textarea, isRtl && styles.textRight]}
               multiline
@@ -253,6 +274,7 @@ export default function SubmitMilestoneModal({
               textAlign={isRtl ? 'right' : 'left'}
             />
           </>
+          </FieldGuideTarget>
         )}
 
         {!showFileField && !showNoteField && (

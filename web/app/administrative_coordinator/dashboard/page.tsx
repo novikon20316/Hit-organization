@@ -34,6 +34,14 @@ import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
 import { UngradedCsMastersTab } from '@/components/students/UngradedCsMastersTab';
 import { StudentsListTab } from '@/components/students/StudentsListTab';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import {
+  GROUPS_TAB_FIELD_GUIDE, GROUPS_TAB_GUIDE_KEY,
+  STUDENTS_REPORT_TAB_FIELD_GUIDE, STUDENTS_REPORT_TAB_GUIDE_KEY,
+  USERS_TAB_FIELD_GUIDE, USERS_TAB_GUIDE_KEY,
+  OVERRIDES_TAB_FIELD_GUIDE, OVERRIDES_TAB_GUIDE_KEY,
+  UNGRADED_TAB_FIELD_GUIDE, UNGRADED_TAB_GUIDE_KEY,
+} from './fieldGuide';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { StudentContactModal, type ContactMember } from './StudentContactModal';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
@@ -328,16 +336,30 @@ function AdministrativeCoordinatorDashboardContent() {
       <PendingSignoffsWidget />
 
       {activeTab === 'overrides' ? (
-        <GradeOverridesTab />
+        <div data-field-guide-id="overrideList">
+          <FieldGuideOverlay guideKey={OVERRIDES_TAB_GUIDE_KEY} steps={OVERRIDES_TAB_FIELD_GUIDE} />
+          <GradeOverridesTab />
+        </div>
       ) : activeTab === 'students' ? (
-        <StudentsReportTab />
+        <div data-field-guide-id="reportList">
+          <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />
+          <StudentsReportTab />
+        </div>
       ) : activeTab === 'users' ? (
-        <StudentsListTab enablePasswordReset canManageStudents />
+        <div data-field-guide-id="userList">
+          <FieldGuideOverlay guideKey={USERS_TAB_GUIDE_KEY} steps={USERS_TAB_FIELD_GUIDE} />
+          <StudentsListTab enablePasswordReset canManageStudents />
+        </div>
       ) : activeTab === 'statistics' ? (
         <CoordinatorStatisticsTab />
       ) : activeTab === 'ungraded' ? (
-        <UngradedCsMastersTab />
+        <div data-field-guide-id="ungradedList">
+          <FieldGuideOverlay guideKey={UNGRADED_TAB_GUIDE_KEY} steps={UNGRADED_TAB_FIELD_GUIDE} />
+          <UngradedCsMastersTab />
+        </div>
       ) : (
+        <div data-field-guide-id="groupList">
+        <FieldGuideOverlay guideKey={GROUPS_TAB_GUIDE_KEY} steps={GROUPS_TAB_FIELD_GUIDE} />
         <>
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
@@ -603,6 +625,7 @@ function AdministrativeCoordinatorDashboardContent() {
         </>
       )}
         </>
+        </div>
       )}
 
       {examinerModalGroup && (

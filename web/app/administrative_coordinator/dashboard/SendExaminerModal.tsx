@@ -20,6 +20,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { ProjectGroup } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { SEND_EXAMINER_FIELD_GUIDE, SEND_EXAMINER_GUIDE_KEY } from './fieldGuide';
+
+function sendExaminerGuideEntry(key: string) {
+  return SEND_EXAMINER_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface SendExaminerModalProps {
   group: ProjectGroup;
@@ -84,6 +91,7 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-administrative-coordinator-lg bg-administrative-coordinator-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={SEND_EXAMINER_GUIDE_KEY} steps={SEND_EXAMINER_FIELD_GUIDE} />
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-administrative-coordinator-on-surface">📧 {lang === 'he' ? 'שלח בוחן חיצוני' : 'Send External Examiner'}</h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-administrative-coordinator-on-surface-variant hover:text-administrative-coordinator-on-surface">
@@ -97,21 +105,33 @@ export function SendExaminerModal({ group, onClose }: SendExaminerModalProps) {
         </div>
 
         <div className="mt-4 grid gap-3">
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'שם הבוחן *' : 'Examiner name *'}</span>
+          <label data-field-guide-id="name" className="block">
+            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
+              {lang === 'he' ? 'שם הבוחן *' : 'Examiner name *'}
+              <InfoTooltip text={sendExaminerGuideEntry('name').description} />
+            </span>
             <input value={examinerName} onChange={(e) => setExaminerName(e.target.value)} className={inputCls} />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'דוא"ל *' : 'Email *'}</span>
+          <label data-field-guide-id="email" className="block">
+            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
+              {lang === 'he' ? 'דוא"ל *' : 'Email *'}
+              <InfoTooltip text={sendExaminerGuideEntry('email').description} />
+            </span>
             <input dir="ltr" value={examinerEmail} onChange={(e) => setExaminerEmail(e.target.value)} className={inputCls} />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'מוסד' : 'Institution'}</span>
+          <label data-field-guide-id="institution" className="block">
+            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
+              {lang === 'he' ? 'מוסד' : 'Institution'}
+              <InfoTooltip text={sendExaminerGuideEntry('institution').description} />
+            </span>
             <input value={examinerInstitution} onChange={(e) => setExaminerInstitution(e.target.value)} className={inputCls} />
           </label>
 
-          <div>
-            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">{lang === 'he' ? 'שפה מועדפת' : 'Preferred Language'}</span>
+          <div data-field-guide-id="language">
+            <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
+              {lang === 'he' ? 'שפה מועדפת' : 'Preferred Language'}
+              <InfoTooltip text={sendExaminerGuideEntry('language').description} />
+            </span>
             <div className="flex gap-1.5">
               {(['he', 'en'] as const).map((l) => (
                 <button

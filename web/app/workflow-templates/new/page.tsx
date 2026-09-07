@@ -34,6 +34,13 @@ import {
   SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, emptyMilestone, processTypeLabel,
   type ChainRole, type FormFieldSpec, type GradingComponentSpec, type MilestoneRoutingSpec, type MilestoneSpec, type ProcessType, type WorkflowTemplateDoc,
 } from '../types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { WORKFLOW_TEMPLATE_FIELD_GUIDE, WORKFLOW_TEMPLATE_FORM_GUIDE_KEY } from '../fieldGuide';
+
+function fieldGuideEntry(key: string) {
+  return WORKFLOW_TEMPLATE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 // Same list as ../page.tsx's WORKFLOW_TEMPLATE_ROLES — duplicated rather
 // than imported, matching this app's existing convention of each page file
@@ -443,8 +450,16 @@ function ProposeVersionForm({
 
   const sorted = [...milestones].sort((a, b) => a.order - b.order);
 
+  // supervisorSelectionRequiresApproval only renders while firstStepMode is
+  // 'choose_supervisor' — drop its walkthrough step otherwise, so the
+  // overlay never spotlights a field the user can't actually see.
+  const fieldGuideSteps = WORKFLOW_TEMPLATE_FIELD_GUIDE.filter(
+    (s) => s.key !== 'supervisorSelectionRequiresApproval' || firstStepMode === 'choose_supervisor',
+  );
+
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
+      <FieldGuideOverlay guideKey={WORKFLOW_TEMPLATE_FORM_GUIDE_KEY} steps={fieldGuideSteps} />
       <div className="mb-4 flex justify-end">
         <button
           type="button"
@@ -462,10 +477,11 @@ function ProposeVersionForm({
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
-      <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
+      <div data-field-guide-id="milestones" className="rounded-[var(--radius)] border border-line bg-surface p-5">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-ink">
             {lang === 'he' ? 'אבני דרך' : 'Milestones'} ({milestones.length})
+            <InfoTooltip text={fieldGuideEntry('milestones').description} />
           </span>
           <button type="button" onClick={openAddRow} disabled={isReadOnly} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-50">
             ＋ {t('add')}
@@ -534,9 +550,10 @@ function ProposeVersionForm({
         </div>
       </div>
 
-      <div className="mt-4 rounded-[var(--radius)] border border-line bg-surface p-5">
+      <div data-field-guide-id="defaultRouting" className="mt-4 rounded-[var(--radius)] border border-line bg-surface p-5">
         <span className="mb-1.5 block text-sm font-medium text-ink">
           {lang === 'he' ? 'שרשרת אישור/דחייה ברירת מחדל' : 'Default approval/rejection chain'}
+          <InfoTooltip text={fieldGuideEntry('defaultRouting').description} />
         </span>
         <p className="mb-1.5 text-xs text-muted">
           {lang === 'he'
@@ -547,9 +564,10 @@ function ProposeVersionForm({
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <label className="block rounded-[var(--radius)] border border-line bg-surface p-5">
+        <label data-field-guide-id="examinerSignoffRole" className="block rounded-[var(--radius)] border border-line bg-surface p-5">
           <span className="mb-1.5 block text-sm font-medium text-ink">
             {lang === 'he' ? 'אישור נוסף להזמנת בוחנים' : 'Second sign-off before examiner invitations go out'}
+            <InfoTooltip text={fieldGuideEntry('examinerSignoffRole').description} />
           </span>
           <p className="mb-1.5 text-xs text-muted">
             {lang === 'he'
@@ -569,9 +587,10 @@ function ProposeVersionForm({
           </select>
         </label>
 
-        <label className="block rounded-[var(--radius)] border border-line bg-surface p-5">
+        <label data-field-guide-id="finalGradeSignoffRole" className="block rounded-[var(--radius)] border border-line bg-surface p-5">
           <span className="mb-1.5 block text-sm font-medium text-ink">
             {lang === 'he' ? 'אישור הציון הסופי (הגנה)' : 'Final grade sign-off (defense)'}
+            <InfoTooltip text={fieldGuideEntry('finalGradeSignoffRole').description} />
           </span>
           <p className="mb-1.5 text-xs text-muted">
             {lang === 'he'
@@ -590,9 +609,10 @@ function ProposeVersionForm({
           </select>
         </label>
 
-        <label className="block rounded-[var(--radius)] border border-line bg-surface p-5">
+        <label data-field-guide-id="firstStepMode" className="block rounded-[var(--radius)] border border-line bg-surface p-5">
           <span className="mb-1.5 block text-sm font-medium text-ink">
             {lang === 'he' ? 'מה הסטודנט/ית רואה קודם?' : 'What does the student see first?'}
+            <InfoTooltip text={fieldGuideEntry('firstStepMode').description} />
           </span>
           <p className="mb-1.5 text-xs text-muted">
             {lang === 'he'
@@ -611,10 +631,11 @@ function ProposeVersionForm({
         </label>
 
         {firstStepMode === 'choose_supervisor' && (
-          <label className="flex items-start justify-between gap-3 rounded-[var(--radius)] border border-line bg-surface p-5">
+          <label data-field-guide-id="supervisorSelectionRequiresApproval" className="flex items-start justify-between gap-3 rounded-[var(--radius)] border border-line bg-surface p-5">
             <span>
               <span className="mb-1.5 block text-sm font-medium text-ink">
                 {lang === 'he' ? 'בחירת מנחה מצריכה אישור' : 'Choosing a supervisor requires approval'}
+                <InfoTooltip text={fieldGuideEntry('supervisorSelectionRequiresApproval').description} />
               </span>
               <span className="block text-xs text-muted">
                 {lang === 'he'
@@ -633,9 +654,10 @@ function ProposeVersionForm({
         )}
       </div>
 
-      <div className="mt-4 rounded-[var(--radius)] border border-line bg-surface p-5">
+      <div data-field-guide-id="applyMode" className="mt-4 rounded-[var(--radius)] border border-line bg-surface p-5">
         <span className="mb-1.5 block text-sm font-medium text-ink">
           {lang === 'he' ? 'מתי התבנית תיכנס לתוקף?' : 'When should this take effect?'}
+          <InfoTooltip text={fieldGuideEntry('applyMode').description} />
         </span>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
@@ -666,8 +688,11 @@ function ProposeVersionForm({
         )}
       </div>
 
-      <label className="mt-4 block rounded-[var(--radius)] border border-line bg-surface p-5">
-        <span className="mb-1.5 block text-sm font-medium text-ink">{`${lang === 'he' ? 'הערה להצעה' : 'Note for this proposal'} (${t('optional')})`}</span>
+      <label data-field-guide-id="note" className="mt-4 block rounded-[var(--radius)] border border-line bg-surface p-5">
+        <span className="mb-1.5 block text-sm font-medium text-ink">
+          {`${lang === 'he' ? 'הערה להצעה' : 'Note for this proposal'} (${t('optional')})`}
+          <InfoTooltip text={fieldGuideEntry('note').description} />
+        </span>
         <textarea
           value={note}
           onChange={(e) => { markDirty(); setNote(e.target.value); }}

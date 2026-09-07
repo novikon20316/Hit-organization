@@ -34,6 +34,13 @@ import { SupervisorCheckboxes } from '@/components/SupervisorCheckboxes';
 import { WorkflowTemplatePreview } from '@/components/WorkflowTemplatePreview';
 import { PrerequisitesEditor, type PrerequisiteSpec } from '@/components/PrerequisitesEditor';
 import { TeamSizeField } from '@/components/TeamSizeField';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { NEW_PROJECT_FORM_GUIDE_KEY, newProjectFieldInfo, pickNewProjectSteps } from '@/components/newProjectFieldGuide';
+
+const FIELD_GUIDE_STEPS = pickNewProjectSteps([
+  'title', 'description', 'faculty', 'supervisors', 'degreeType', 'projectType', 'teamSize', 'skills', 'prerequisites',
+]);
 
 interface NewProjectModalProps {
   facultyId: FacultyId;
@@ -166,6 +173,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-faculty-admin-lg bg-faculty-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={NEW_PROJECT_FORM_GUIDE_KEY} steps={FIELD_GUIDE_STEPS} />
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-faculty-admin-on-surface">📁 {lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project'}</h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-faculty-admin-on-surface-variant hover:text-faculty-admin-on-surface">
@@ -174,20 +182,24 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
         </div>
 
         <div className="mt-4 grid gap-4">
-          <Field label={lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'}>
-            <input value={titleHe} onChange={(e) => setTitleHe(e.target.value)} dir="rtl" className={inputCls} required />
-          </Field>
-          <Field label={lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}>
-            <input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} dir="ltr" className={inputCls} required />
-          </Field>
-          <Field label={lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'}>
-            <textarea rows={3} value={descHe} onChange={(e) => setDescHe(e.target.value)} dir="rtl" className={inputCls} />
-          </Field>
-          <Field label={lang === 'he' ? 'תיאור באנגלית' : 'English Description'}>
-            <textarea rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} dir="ltr" className={inputCls} />
-          </Field>
+          <div data-field-guide-id="title" className="grid gap-4">
+            <Field label={lang === 'he' ? 'כותרת בעברית *' : 'Hebrew Title *'} info={newProjectFieldInfo('title')}>
+              <input value={titleHe} onChange={(e) => setTitleHe(e.target.value)} dir="rtl" className={inputCls} required />
+            </Field>
+            <Field label={lang === 'he' ? 'כותרת באנגלית *' : 'English Title *'}>
+              <input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} dir="ltr" className={inputCls} required />
+            </Field>
+          </div>
+          <div data-field-guide-id="description" className="grid gap-4">
+            <Field label={lang === 'he' ? 'תיאור בעברית' : 'Hebrew Description'} info={newProjectFieldInfo('description')}>
+              <textarea rows={3} value={descHe} onChange={(e) => setDescHe(e.target.value)} dir="rtl" className={inputCls} />
+            </Field>
+            <Field label={lang === 'he' ? 'תיאור באנגלית' : 'English Description'}>
+              <textarea rows={3} value={descEn} onChange={(e) => setDescEn(e.target.value)} dir="ltr" className={inputCls} />
+            </Field>
+          </div>
 
-          <Field label={lang === 'he' ? 'פקולטה/ות *' : 'Faculty/Faculties *'}>
+          <Field label={lang === 'he' ? 'פקולטה/ות *' : 'Faculty/Faculties *'} info={newProjectFieldInfo('faculty')} fieldGuideId="faculty">
             <FacultyCheckboxes
               selected={facultyIds}
               onChange={(ids) => {
@@ -202,7 +214,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
             />
           </Field>
 
-          <Field label={lang === 'he' ? 'מנחה/ים *' : 'Supervisor(s) *'}>
+          <Field label={lang === 'he' ? 'מנחה/ים *' : 'Supervisor(s) *'} info={newProjectFieldInfo('supervisors')} fieldGuideId="supervisors">
             <SupervisorCheckboxes
               facultyIds={facultyIds}
               options={supervisors}
@@ -213,7 +225,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label={lang === 'he' ? 'סוג תואר' : 'Degree Type'}>
+            <Field label={lang === 'he' ? 'סוג תואר' : 'Degree Type'} info={newProjectFieldInfo('degreeType')} fieldGuideId="degreeType">
               <div className="flex gap-3">
                 {degreeOptions.includes('bachelors') && (
                   <label className="flex items-center gap-1.5 text-sm text-faculty-admin-on-surface">
@@ -239,7 +251,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
                 </p>
               )}
             </Field>
-            <Field label={lang === 'he' ? 'סוג פרויקט' : 'Project Type'}>
+            <Field label={lang === 'he' ? 'סוג פרויקט' : 'Project Type'} info={newProjectFieldInfo('projectType')} fieldGuideId="projectType">
               <div className="flex gap-3">
                 <label className="flex items-center gap-1.5 text-sm text-faculty-admin-on-surface">
                   <input type="checkbox" checked={projectTypes.includes('project')} onChange={() => toggleProjectType('project')} className="h-4 w-4" />
@@ -255,13 +267,17 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
 
           <WorkflowTemplatePreview facultyIds={facultyIds} degreeTypes={degreeTypes} projectTypes={projectTypes} />
 
-          <TeamSizeField value={maxStudents} onChange={setMaxStudents} lang={lang} />
+          <div data-field-guide-id="teamSize">
+            <TeamSizeField value={maxStudents} onChange={setMaxStudents} lang={lang} />
+          </div>
 
-          <Field label={lang === 'he' ? 'כישורים נדרשים (מופרד בפסיקים)' : 'Required Skills (comma-separated)'}>
+          <Field label={lang === 'he' ? 'כישורים נדרשים (מופרד בפסיקים)' : 'Required Skills (comma-separated)'} info={newProjectFieldInfo('skills')} fieldGuideId="skills">
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className={inputCls} placeholder={lang === 'he' ? 'לדוגמה: Python, React' : 'e.g. Python, React'} />
           </Field>
 
-          <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
+          <div data-field-guide-id="prerequisites">
+            <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
+          </div>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
@@ -279,10 +295,23 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label, children, info, fieldGuideId,
+}: {
+  label: string;
+  children: React.ReactNode;
+  /** Renders an (i) InfoTooltip next to the label when given. */
+  info?: { he: string; en: string };
+  /** Sets data-field-guide-id on the wrapping <label> so FieldGuideOverlay
+   *  can spotlight this field during the first-visit walkthrough. */
+  fieldGuideId?: string;
+}) {
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{label}</span>
+    <label className="block" data-field-guide-id={fieldGuideId}>
+      <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+        {label}
+        {info && <InfoTooltip text={info} />}
+      </span>
       {children}
     </label>
   );

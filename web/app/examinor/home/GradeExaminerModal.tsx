@@ -6,6 +6,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { EXAMINER_GRADING_CRITERIA, MILESTONE_LABEL, type AssignedMilestone } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { GRADE_EXAMINER_FIELD_GUIDE, GRADE_EXAMINER_GUIDE_KEY } from './fieldGuide';
+
+function gradeGuideEntry(key: string) {
+  return GRADE_EXAMINER_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface GradeExaminerModalProps {
   milestone: AssignedMilestone;
@@ -91,7 +98,14 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-examinor bg-examinor-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-examinor-on-surface">✏️ {lang === 'he' ? 'טופס ציון בוחן' : 'Examiner Grading Form'}</h2>
+        <FieldGuideOverlay
+          guideKey={GRADE_EXAMINER_GUIDE_KEY}
+          steps={GRADE_EXAMINER_FIELD_GUIDE.filter((s) => s.key !== 'excludedScores' || excludedFields.length > 0)}
+        />
+        <h2 className="flex items-center text-lg font-semibold text-examinor-on-surface">
+          ✏️ {lang === 'he' ? 'טופס ציון בוחן' : 'Examiner Grading Form'}
+          <InfoTooltip text={gradeGuideEntry('criteria').description} />
+        </h2>
 
         <div className="mt-3 rounded-lg bg-examinor-surface-container-low p-3">
           <p className="text-sm font-semibold text-examinor-on-surface">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
@@ -99,7 +113,7 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
           {m.defenseDate && <p className="mt-0.5 text-xs text-examinor-on-surface-variant">📅 {new Date(m.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>}
         </div>
 
-        <div className="mt-4 grid gap-3">
+        <div data-field-guide-id="criteria" className="mt-4 grid gap-3">
           {totalFields.map((f, idx) => {
             const group = lang === 'he' ? f.groupHe : f.groupEn;
             const prevGroup = idx > 0 ? (lang === 'he' ? totalFields[idx - 1]!.groupHe : totalFields[idx - 1]!.groupEn) : undefined;
@@ -127,9 +141,10 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
         </div>
 
         {excludedFields.length > 0 && (
-          <div className="mt-4 grid gap-3 border-t border-examinor-outline-variant pt-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-examinor-on-surface-variant">
+          <div data-field-guide-id="excludedScores" className="mt-4 grid gap-3 border-t border-examinor-outline-variant pt-3">
+            <p className="flex items-center text-xs font-semibold uppercase tracking-wide text-examinor-on-surface-variant">
               {lang === 'he' ? 'ציונים נפרדים (לא נכללים בסיכום)' : 'Separate scores (not included in the total)'}
+              <InfoTooltip text={gradeGuideEntry('excludedScores').description} />
             </p>
             {excludedFields.map((f) => (
               <div key={f.key}>
@@ -157,8 +172,11 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
           </span>
         </div>
 
-        <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-examinor-on-surface">{lang === 'he' ? 'הערות' : 'Comments'}</span>
+        <label data-field-guide-id="comments" className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-examinor-on-surface">
+            {lang === 'he' ? 'הערות' : 'Comments'}
+            <InfoTooltip text={gradeGuideEntry('comments').description} />
+          </span>
           <textarea
             rows={4}
             value={comments}

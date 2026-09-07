@@ -8,6 +8,13 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import { FilePreviewFrame } from '@/components/MilestoneFilePanel';
 import { GRADING_CRITERIA, MILESTONE_LABEL, type SupervisorPendingMilestone } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { GRADE_MILESTONE_FIELD_GUIDE, GRADE_MILESTONE_GUIDE_KEY } from './fieldGuide';
+
+function gradeGuideEntry(key: string) {
+  return GRADE_MILESTONE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface GradeMilestoneModalProps {
   milestone: SupervisorPendingMilestone;
@@ -126,6 +133,10 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-supervisor bg-supervisor-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay
+          guideKey={GRADE_MILESTONE_GUIDE_KEY}
+          steps={GRADE_MILESTONE_FIELD_GUIDE.filter((s) => (s.key !== 'submittedDocument' || m.fileUrls.length > 0) && (s.key !== 'individualGrade' || isGroupProject))}
+        />
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'טופס ציון' : 'Grading Form'}</h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
@@ -145,8 +156,11 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
             — the supervisor should never have to grade blind or hunt down
             the file in a separate view first. */}
         {m.fileUrls.length > 0 && (
-          <div className="mt-4 grid gap-3">
-            <p className="text-sm font-semibold text-supervisor-on-surface">{lang === 'he' ? 'המסמך שהוגש' : 'Submitted document'}</p>
+          <div data-field-guide-id="submittedDocument" className="mt-4 grid gap-3">
+            <p className="text-sm font-semibold text-supervisor-on-surface">
+              {lang === 'he' ? 'המסמך שהוגש' : 'Submitted document'}
+              <InfoTooltip text={gradeGuideEntry('submittedDocument').description} />
+            </p>
             {m.fileUrls.map((url, i) => (
               <div key={i} className="overflow-hidden rounded-lg border border-supervisor-outline-variant">
                 <div className="flex items-center justify-between border-b border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2">
@@ -165,7 +179,11 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           </div>
         )}
 
-        <div className="mt-4 grid gap-3">
+        <div data-field-guide-id="criteria" className="mt-4 grid gap-3">
+          <p className="flex items-center text-sm font-semibold text-supervisor-on-surface">
+            {lang === 'he' ? 'מדדי ציון' : 'Grading criteria'}
+            <InfoTooltip text={gradeGuideEntry('criteria').description} />
+          </p>
           {activeFields.map((field) => (
             <label key={field.key} className="block">
               <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
@@ -187,9 +205,10 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
             the shared group score above — final grades can differ within
             the group. */}
         {isGroupProject && (
-          <div className="mt-4">
+          <div data-field-guide-id="individualGrade" className="mt-4">
             <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
               {lang === 'he' ? 'ציון אישי (לצד הציון הקבוצתי)' : 'Individual grade (on top of the group score)'}
+              <InfoTooltip text={gradeGuideEntry('individualGrade').description} />
             </span>
             <div className="grid gap-2.5">
               {m.studentIds.map((studentId, idx) => (
@@ -210,8 +229,11 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           </div>
         )}
 
-        <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">{lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}</span>
+        <label data-field-guide-id="comment" className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+            {lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}
+            <InfoTooltip text={gradeGuideEntry('comment').description} />
+          </span>
           <textarea
             rows={4}
             value={comment}

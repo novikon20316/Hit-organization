@@ -23,6 +23,10 @@ import { examinerSignatureStyle } from '../../utils/examinerSignature';
 import { tx, type Lang } from '../i18n';
 import { ActivateDashboardStyles } from '../../constants/styles';
 import type { PendingMilestone } from '@/types';
+import { InfoTooltip } from '../InfoTooltip';
+import { FieldGuideOverlay } from '../guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '../guidance/FieldGuideTarget';
+import { PROPOSAL_RECOMMENDATION_FIELD_GUIDE, PROPOSAL_RECOMMENDATION_GUIDE_KEY } from '../../constants/coordinatorFieldGuide';
 
 export type ProposalDecision = 'approved' | 'approved_conditionally' | 'rejected';
 
@@ -105,6 +109,7 @@ export default function ProposalRecommendationModal({
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+        <FieldGuideOverlay guideKey={PROPOSAL_RECOMMENDATION_GUIDE_KEY} steps={PROPOSAL_RECOMMENDATION_FIELD_GUIDE} />
         <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
           <Text style={styles.modalTitle}>{lang === 'he' ? 'הצעה לפרויקט גמר' : 'Final Project Proposal'}</Text>
           <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}>
@@ -165,8 +170,12 @@ export default function ProposalRecommendationModal({
           </View>
         )}
 
+        <FieldGuideTarget fieldKey="decision">
         <View style={{ borderTopWidth: 1, borderTopColor: '#E0E8FF', paddingTop: 12, marginTop: 4 }}>
-          <Text style={[styles.sectionTitle, isRtl && styles.textRight]}>{lang === 'he' ? 'המלצת רכז הפרויקטים' : "Coordinator's recommendation"}</Text>
+          <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && styles.rowReverse]}>
+            <Text style={[styles.sectionTitle, isRtl && styles.textRight]}>{lang === 'he' ? 'המלצת רכז הפרויקטים' : "Coordinator's recommendation"}</Text>
+            <InfoTooltip textHe={PROPOSAL_RECOMMENDATION_FIELD_GUIDE[0]!.description.he} textEn={PROPOSAL_RECOMMENDATION_FIELD_GUIDE[0]!.description.en} />
+          </View>
           {OPTIONS.map((opt) => (
             <Pressable
               key={opt.value}
@@ -178,7 +187,10 @@ export default function ProposalRecommendationModal({
               <Text style={local.radioText}>{decision === opt.value ? '🔘' : '⚪'} {lang === 'he' ? opt.labelHe : opt.labelEn}</Text>
             </Pressable>
           ))}
+        </View>
+        </FieldGuideTarget>
 
+        <View>
           <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
             {lang === 'he' ? 'הערה' : 'Comment'}{commentRequired ? ' *' : ''}
           </Text>

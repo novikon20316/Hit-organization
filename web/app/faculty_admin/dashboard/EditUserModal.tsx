@@ -8,6 +8,13 @@ import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel } from '@/lib/i18n';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { FacultyAdminUserRecord, StudentStatusConfig } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { EDIT_USER_FIELD_GUIDE, EDIT_USER_GUIDE_KEY } from './fieldGuide';
+
+function editUserGuideEntry(key: string) {
+  return EDIT_USER_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface EditUserModalProps {
   user: FacultyAdminUserRecord;
@@ -88,14 +95,18 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
         aria-modal="true"
         className="w-full max-w-sm rounded-faculty-admin bg-faculty-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={EDIT_USER_GUIDE_KEY} steps={EDIT_USER_FIELD_GUIDE.filter((s) => (s.key !== 'primaryStatus' && s.key !== 'secondaryStatus') || isStudent)} />
         <h2 className="text-lg font-semibold text-faculty-admin-on-surface">{lang === 'he' ? 'עריכת משתמש' : 'Edit User'}</h2>
         <p className="mt-1 text-sm text-faculty-admin-on-surface-variant">
           {user.displayName} — {user.email}
         </p>
 
         <div className="mt-4 grid gap-3">
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'תפקיד' : 'Role'}</span>
+          <label data-field-guide-id="role" className="block">
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+              {lang === 'he' ? 'תפקיד' : 'Role'}
+              <InfoTooltip text={editUserGuideEntry('role').description} />
+            </span>
             <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
               {VALID_ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -104,8 +115,11 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
               ))}
             </select>
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
+          <label data-field-guide-id="faculty" className="block">
+            <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+              {lang === 'he' ? 'פקולטה' : 'Faculty'}
+              <InfoTooltip text={editUserGuideEntry('faculty').description} />
+            </span>
             <select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls}>
               {VALID_FACULTY_IDS.map((id) => (
                 <option key={id} value={id}>
@@ -117,8 +131,11 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
 
           {isStudent && (
             <>
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}</span>
+              <label data-field-guide-id="primaryStatus" className="block">
+                <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+                  {lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}
+                  <InfoTooltip text={editUserGuideEntry('primaryStatus').description} />
+                </span>
                 <select value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.primary.map((o) => (
@@ -128,8 +145,11 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
                   ))}
                 </select>
               </label>
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}</span>
+              <label data-field-guide-id="secondaryStatus" className="block">
+                <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+                  {lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}
+                  <InfoTooltip text={editUserGuideEntry('secondaryStatus').description} />
+                </span>
                 <select value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.secondary.map((o) => (

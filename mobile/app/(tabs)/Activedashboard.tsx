@@ -16,6 +16,13 @@ import ResearchProposalFormModal from '../../components/modals/ResearchProposalF
 import ProgressReportFormModal from '../../components/modals/ProgressReportFormModal';
 import { TabBadge } from '../../components/TabBadge';
 import { useNotifications } from '../../src/context/NotificationsContext';
+import { InfoTooltip } from '../../components/InfoTooltip';
+import { FieldGuideOverlay } from '../../components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '../../components/guidance/FieldGuideTarget';
+import {
+  OVERVIEW_TAB_FIELD_GUIDE, OVERVIEW_TAB_GUIDE_KEY,
+  GRADES_TAB_FIELD_GUIDE, GRADES_TAB_GUIDE_KEY,
+} from '../../constants/studentFieldGuide';
 
 interface Props {
   project:       ActiveProject;
@@ -294,6 +301,10 @@ export default function ActiveDashboard({
         {/* ══════════════ OVERVIEW TAB ══════════════ */}
         {activeTab === 'overview' && (
           <>
+            <FieldGuideOverlay
+              guideKey={OVERVIEW_TAB_GUIDE_KEY}
+              steps={OVERVIEW_TAB_FIELD_GUIDE.filter((s) => s.key !== 'nextDeadline' || !!nextMilestone)}
+            />
             {announcements.map((a) => (
               <View key={a.id} style={{
                 backgroundColor: '#FFFBEB', borderRadius: 16, padding: 16,
@@ -327,11 +338,13 @@ export default function ActiveDashboard({
             </View>
 
             {/* Metric cards */}
+            <FieldGuideTarget fieldKey="metrics">
             <View style={[ov.metricsRow, isRtl && styles.rowReverse]}>
               <View style={ov.metricCard}>
                 <View style={[ov.metricHeader, isRtl && styles.rowReverse]}>
                   <Text style={ov.metricLabel}>{lang === 'he' ? 'ציון סופי' : 'FINAL GRADE'}</Text>
                   <Text style={ov.metricIcon}>📊</Text>
+                  <InfoTooltip textHe={OVERVIEW_TAB_FIELD_GUIDE.find((s) => s.key === 'metrics')!.description.he} textEn={OVERVIEW_TAB_FIELD_GUIDE.find((s) => s.key === 'metrics')!.description.en} />
                 </View>
                 <Text style={ov.metricValue}>
                   {project.overallFinalGrade != null ? String(project.overallFinalGrade) : '—'}
@@ -349,13 +362,16 @@ export default function ActiveDashboard({
                 </View>
               </View>
             </View>
+            </FieldGuideTarget>
 
             {/* Next deadline card */}
             {nextMilestone && (
+              <FieldGuideTarget fieldKey="nextDeadline">
               <View style={ov.deadlineCard}>
                 <View style={[ov.deadlineHeader, isRtl && styles.rowReverse]}>
                   <Text style={ov.metricLabel}>{lang === 'he' ? 'המועד הקרוב' : 'NEXT DEADLINE'}</Text>
                   <Text style={ov.metricIcon}>⏰</Text>
+                  <InfoTooltip textHe={OVERVIEW_TAB_FIELD_GUIDE.find((s) => s.key === 'nextDeadline')!.description.he} textEn={OVERVIEW_TAB_FIELD_GUIDE.find((s) => s.key === 'nextDeadline')!.description.en} />
                 </View>
                 <View style={[ov.deadlineBody, isRtl && styles.rowReverse]}>
                   {nextDeadlineDays !== null && (
@@ -384,6 +400,7 @@ export default function ActiveDashboard({
                   </View>
                 </View>
               </View>
+              </FieldGuideTarget>
             )}
 
             {/* Quick Actions */}
@@ -472,10 +489,15 @@ export default function ActiveDashboard({
 
         {/* ══════════════ GRADES TAB ══════════════ */}
         {activeTab === 'grades' && (
+          <FieldGuideTarget fieldKey="gradeCards">
           <>
-            <Text style={[styles.sectionTitle, !isRtl && styles.textRight]}>
-              {lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}
-            </Text>
+            <FieldGuideOverlay guideKey={GRADES_TAB_GUIDE_KEY} steps={GRADES_TAB_FIELD_GUIDE} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.sectionTitle, !isRtl && styles.textRight]}>
+                {lang === 'he' ? 'ציונים ומשקלים' : 'Grades & Weights'}
+              </Text>
+              <InfoTooltip textHe={GRADES_TAB_FIELD_GUIDE[0]!.description.he} textEn={GRADES_TAB_FIELD_GUIDE[0]!.description.en} />
+            </View>
 
             {milestones.map((m) => {
               const label = lang === 'he'
@@ -763,6 +785,7 @@ export default function ActiveDashboard({
               </View>
             )}
           </>
+          </FieldGuideTarget>
         )}
 
         <View style={{ height: 40 }} />

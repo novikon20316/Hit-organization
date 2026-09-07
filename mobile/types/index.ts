@@ -157,6 +157,11 @@ export interface UserDocument {
    *  components/onboarding/OnboardingTourOverlay.tsx). False/undefined means
    *  it hasn't been shown yet. Never shown to system_admin. */
   hasSeenOnboardingTour?: boolean;
+  /** guideKeys of first-visit field-explanation walkthroughs (see
+   *  components/guidance/FieldGuideOverlay.tsx) this user has already
+   *  finished or dismissed — per-tab/per-form granularity, unlike the
+   *  single app-wide hasSeenOnboardingTour above. */
+  seenFieldGuides?: string[];
   // Student-only fields
   studentId?: string;
   phone?: string;

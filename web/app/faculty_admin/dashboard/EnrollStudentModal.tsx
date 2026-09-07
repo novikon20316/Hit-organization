@@ -6,6 +6,9 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { FacultyAdminProjectRecord, FacultyAdminUserRecord } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { ENROLL_STUDENT_FIELD_GUIDE, ENROLL_STUDENT_GUIDE_KEY } from './fieldGuide';
 
 interface EnrollStudentModalProps {
   project: FacultyAdminProjectRecord;
@@ -49,11 +52,15 @@ export function EnrollStudentModal({ project, availableStudents, onClose, onEnro
         aria-modal="true"
         className="w-full max-w-sm rounded-faculty-admin bg-faculty-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={ENROLL_STUDENT_GUIDE_KEY} steps={ENROLL_STUDENT_FIELD_GUIDE} />
         <h2 className="text-lg font-semibold text-faculty-admin-on-surface">{lang === 'he' ? 'שיוך סטודנט לפרויקט' : 'Enroll Student in Project'}</h2>
         <p className="mt-1 text-sm text-faculty-admin-on-surface-variant">{lang === 'he' ? project.titleHe : project.titleEn}</p>
 
-        <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">{lang === 'he' ? 'סטודנט (ללא פרויקט פעיל)' : 'Student (no active project)'}</span>
+        <label data-field-guide-id="student" className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
+            {lang === 'he' ? 'סטודנט (ללא פרויקט פעיל)' : 'Student (no active project)'}
+            <InfoTooltip text={ENROLL_STUDENT_FIELD_GUIDE[0]!.description} />
+          </span>
           <select
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}

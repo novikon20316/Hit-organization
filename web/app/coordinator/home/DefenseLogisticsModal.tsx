@@ -13,6 +13,13 @@ import { apiClient } from '@/lib/apiClient';
 import { DefenseBuildingPicker } from '@/components/DefenseBuildingPicker';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { AssignedMilestone, Project } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY } from './fieldGuide';
+
+function logisticsGuideEntry(key: string) {
+  return DEFENSE_LOGISTICS_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface DefenseLogisticsModalProps {
   project: Project;
@@ -66,6 +73,7 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
       >
+        <FieldGuideOverlay guideKey={DEFENSE_LOGISTICS_GUIDE_KEY} steps={DEFENSE_LOGISTICS_FIELD_GUIDE} />
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">📍 {lang === 'he' ? 'פרטי ההגנה' : 'Defense Logistics'}</h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
@@ -79,24 +87,34 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
           </p>
         )}
 
-        <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שעה' : 'Time'}</span>
+        <label data-field-guide-id="time" className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'שעה' : 'Time'}
+            <InfoTooltip text={logisticsGuideEntry('time').description} />
+          </span>
           <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="HH:MM" className={inputCls} />
         </label>
 
-        <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'חדר' : 'Room'}</span>
+        <label data-field-guide-id="room" className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'חדר' : 'Room'}
+            <InfoTooltip text={logisticsGuideEntry('room').description} />
+          </span>
           <input value={room} onChange={(e) => setRoom(e.target.value)} placeholder={lang === 'he' ? 'חדר 101' : 'Room 101'} className={inputCls} />
         </label>
 
-        <div className="mt-4">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'בניין' : 'Building'}</span>
+        <div data-field-guide-id="building" className="mt-4">
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'בניין' : 'Building'}
+            <InfoTooltip text={logisticsGuideEntry('building').description} />
+          </span>
           <DefenseBuildingPicker value={building} onChange={setBuilding} />
         </div>
 
-        <label className="mt-4 block">
+        <label data-field-guide-id="onlineLink" className="mt-4 block">
           <span className="mb-1.5 block text-sm font-medium text-ink">
             {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
+            <InfoTooltip text={logisticsGuideEntry('onlineLink').description} />
           </span>
           <input
             value={onlineDefenseLink}

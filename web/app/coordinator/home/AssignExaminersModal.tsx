@@ -17,6 +17,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { CoordinatorPendingMilestone, ExaminerUser } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { ASSIGN_EXAMINERS_FIELD_GUIDE, ASSIGN_EXAMINERS_GUIDE_KEY } from './fieldGuide';
+
+function assignGuideEntry(key: string) {
+  return ASSIGN_EXAMINERS_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface ExternalExaminerInput {
   name: string;
@@ -143,9 +150,14 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'שיבוץ בוחנים' : 'Assign Examiners'}</h2>
+        <FieldGuideOverlay guideKey={ASSIGN_EXAMINERS_GUIDE_KEY} steps={ASSIGN_EXAMINERS_FIELD_GUIDE.filter((s) => s.key !== 'weights' || !isThreeRubricDefense)} />
+        <h2 className="flex items-center text-lg font-semibold text-ink">
+          {lang === 'he' ? 'שיבוץ בוחנים' : 'Assign Examiners'}
+          <InfoTooltip text={assignGuideEntry('examinerSlots').description} />
+        </h2>
         <p className="mt-1 text-sm text-muted">{lang === 'he' ? milestone.projectTitleHe : milestone.projectTitleEn}</p>
 
+        <div data-field-guide-id="examinerSlots">
         {slots.map((slot, idx) => (
           <ExaminerSlotRow
             key={idx}
@@ -165,6 +177,7 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
         >
           ＋ {lang === 'he' ? 'הוסף בוחן' : 'Add examiner'}
         </button>
+        </div>
 
         {isThreeRubricDefense ? (
           <div className="mt-4 rounded-lg bg-paper p-3 text-xs text-muted">
@@ -173,9 +186,10 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
               : 'Final grade: Supervisor 40% · Project evaluation 30% (averaged across examiners) · Defense evaluation 30% (averaged across examiners) — fixed regardless of how many examiners are on the panel.'}
           </div>
         ) : (
-          <div className="mt-4">
+          <div data-field-guide-id="weights" className="mt-4">
             <span className="mb-1.5 block text-sm font-medium text-ink">
               {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
+              <InfoTooltip text={assignGuideEntry('weights').description} />
             </span>
             <div className="grid grid-cols-2 gap-2">
               <WeightField label={lang === 'he' ? 'מנחה' : 'Supervisor'} value={weightSupervisor} onChange={setWeightSupervisor} />

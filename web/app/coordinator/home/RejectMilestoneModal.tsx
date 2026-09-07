@@ -4,6 +4,9 @@
 import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { REJECT_MILESTONE_FIELD_GUIDE, REJECT_MILESTONE_GUIDE_KEY } from './fieldGuide';
 
 interface RejectMilestoneModalProps {
   open: boolean;
@@ -29,11 +32,16 @@ export function RejectMilestoneModal({ open, busy, onCancel, onConfirm }: Reject
         aria-modal="true"
         className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
       >
-        <h2 className="text-base font-semibold text-ink">{lang === 'he' ? 'דחיית אבן דרך' : 'Reject Milestone'}</h2>
+        <FieldGuideOverlay guideKey={REJECT_MILESTONE_GUIDE_KEY} steps={REJECT_MILESTONE_FIELD_GUIDE} />
+        <h2 className="flex items-center text-base font-semibold text-ink">
+          {lang === 'he' ? 'דחיית אבן דרך' : 'Reject Milestone'}
+          <InfoTooltip text={REJECT_MILESTONE_FIELD_GUIDE[0]!.description} />
+        </h2>
         <p className="mt-1 text-sm text-muted">
           {lang === 'he' ? 'יש לציין סיבה — היא תישלח לסטודנט ולמנחה.' : 'A reason is required — it will be sent to the student and supervisor.'}
         </p>
         <textarea
+          data-field-guide-id="reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}

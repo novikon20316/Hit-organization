@@ -13,6 +13,14 @@ import { tx } from '../../components/i18n';
 import { ROLE_LABELS } from '../../constants'; // adjust path if needed
 import { FACULTY_COLORS } from '../../components/shared'; // adjust path if needed
 import { AppUser, MyProject, Application } from '@/types'
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import { RECOMMEND_EXAMINERS_FIELD_GUIDE, RECOMMEND_EXAMINERS_GUIDE_KEY } from '@/constants/supervisorFieldGuide';
+
+function recommendGuideEntry(key: string) {
+  return RECOMMEND_EXAMINERS_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 type Lang = 'he' | 'en';
 
@@ -87,6 +95,7 @@ export default function RecommendedExaminerModal({
   return (
     <Modal visible={recommendModal} animationType="slide" presentationStyle="pageSheet">
   <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+    {recommendModal && <FieldGuideOverlay guideKey={RECOMMEND_EXAMINERS_GUIDE_KEY} steps={RECOMMEND_EXAMINERS_FIELD_GUIDE} />}
     <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
       <Text style={styles.modalTitle}>{tx('examinerRecommendTitle', lang)}</Text>
       <Pressable
@@ -160,9 +169,14 @@ export default function RecommendedExaminerModal({
     )}
 
     {/* Add internal examiner */}
-    <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 12 }]}>
-      {tx('examinerSearchInternal', lang)}
-    </Text>
+    <FieldGuideTarget fieldKey="internalSearch">
+    <View>
+    <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && styles.rowReverse]}>
+      <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 12 }]}>
+        {tx('examinerSearchInternal', lang)}
+      </Text>
+      <InfoTooltip textHe={recommendGuideEntry('internalSearch').description.he} textEn={recommendGuideEntry('internalSearch').description.en} />
+    </View>
     {internalUsers.map((u: any) => {
       const alreadyAdded = recExaminers.some(e => e.internalUserId === u.id);
       return (
@@ -192,34 +206,18 @@ export default function RecommendedExaminerModal({
         </Pressable>
       );
     })}
+    </View>
+    </FieldGuideTarget>
 
     {/* Add external examiner */}
-    <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 16 }]}>
-      {tx('examinerAddExternal', lang)}
-    </Text>
-    {[
-        { label: tx('examinerExternalName', lang),        value: extName,        set: setExtName,        kb: 'default' as const        },
-        { label: tx('examinerExternalEmail', lang),       value: extEmail,       set: setExtEmail,       kb: 'email-address' as const  },
-        { label: tx('examinerExternalInstitution', lang), value: extInstitution, set: setExtInstitution, kb: 'default' as const        },
-        { label: tx('examinerExternalExpertise', lang),   value: extExpertise,   set: setExtExpertise,   kb: 'default' as const        },
-        ].map((field) => (
-        <View key={field.label} style={{ marginBottom: 8 }}>
-          <Text style={[{ fontSize: 12, color: '#8899BB', marginBottom: 4 }, isRtl && styles.textRight]}>
-            {field.label}
-          </Text>
-          <TextInput
-            style={[styles.input, isRtl && styles.textRight]}
-            value={field.value}
-            onChangeText={field.set}
-            keyboardType={field.kb}
-            // store in a ref so all fields compose into one examiner on "Add"
-            // For simplicity we use a flat approach below
-          />
-        </View>
-    ))}
-    <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 16 }]}>
-      {tx('examinerAddExternal', lang)}
-    </Text>
+    <FieldGuideTarget fieldKey="externalForm">
+    <View>
+    <View style={[{ flexDirection: 'row', alignItems: 'center' }, isRtl && styles.rowReverse]}>
+      <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 16 }]}>
+        {tx('examinerAddExternal', lang)}
+      </Text>
+      <InfoTooltip textHe={recommendGuideEntry('externalForm').description.he} textEn={recommendGuideEntry('externalForm').description.en} />
+    </View>
     {[
       { label: tx('examinerExternalName', lang),        value: extName,        set: setExtName,        kb: 'default' as const        },
       { label: tx('examinerExternalEmail', lang),       value: extEmail,       set: setExtEmail,       kb: 'email-address' as const  },
@@ -261,6 +259,8 @@ export default function RecommendedExaminerModal({
     >
       <Text style={styles.meetingBtnText}>+ {tx('examinerAddExternal', lang)}</Text>
     </Pressable>
+    </View>
+    </FieldGuideTarget>
 
     {/* Also add the 4 new state vars near the top of the component */}
 

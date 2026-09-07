@@ -281,6 +281,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       totp_enabled: false,
       totp_last_verified: null,
       hasSeenOnboardingTour: false,
+      seenFieldGuides: [],
 
       ...(role === 'examiner' ? { dates: [] } : {}),
       isEligibleForProcess,
@@ -363,6 +364,29 @@ export const completeOnboardingTour = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('completeOnboardingTour error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// ─── POST /api/users/mark-field-guide-seen ────────────────────────────────────
+// Called once by either client when a user finishes or dismisses the
+// first-visit field-explanation walkthrough for a specific tab/form (web:
+// FieldGuideOverlay, mobile: components/guidance/FieldGuideOverlay) —
+// permanently hides that one walkthrough from then on, without affecting any
+// other guideKey. arrayUnion keeps this idempotent under a repeat/racing
+// call, unlike a read-then-write append.
+export const markFieldGuideSeen = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    const { guideKey } = req.body;
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+    if (!guideKey || typeof guideKey !== 'string') return res.status(400).json({ error: 'Missing guideKey' });
+
+    await db.collection('users').doc(uid).update({ seenFieldGuides: FieldValue.arrayUnion(guideKey) });
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('markFieldGuideSeen error:', error);
     return res.status(500).json({ error: error.message });
   }
 };

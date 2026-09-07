@@ -7,6 +7,9 @@
 import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { REJECT_PROPOSAL_FIELD_GUIDE, REJECT_PROPOSAL_GUIDE_KEY } from './fieldGuide';
 
 interface RejectProposalModalProps {
   open: boolean;
@@ -32,11 +35,16 @@ export function RejectProposalModal({ open, busy, onCancel, onConfirm }: RejectP
         aria-modal="true"
         className="w-full max-w-sm rounded-faculty-admin bg-faculty-admin-surface-container-lowest p-5 shadow-lg outline-none"
       >
-        <h2 className="text-base font-semibold text-faculty-admin-on-surface">{lang === 'he' ? 'דחיית הצעת תבנית' : 'Reject Template Proposal'}</h2>
+        <FieldGuideOverlay guideKey={REJECT_PROPOSAL_GUIDE_KEY} steps={REJECT_PROPOSAL_FIELD_GUIDE} />
+        <h2 className="flex items-center text-base font-semibold text-faculty-admin-on-surface">
+          {lang === 'he' ? 'דחיית הצעת תבנית' : 'Reject Template Proposal'}
+          <InfoTooltip text={REJECT_PROPOSAL_FIELD_GUIDE[0]!.description} />
+        </h2>
         <p className="mt-1 text-sm text-faculty-admin-on-surface-variant">
           {lang === 'he' ? 'יש לציין סיבה — היא תישלח למנחה שהגיש את ההצעה.' : 'A reason is required — it will be sent to the supervisor who submitted the proposal.'}
         </p>
         <textarea
+          data-field-guide-id="reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}

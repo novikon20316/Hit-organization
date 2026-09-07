@@ -323,6 +323,12 @@ export interface UserDoc {
    *  field's rollout is itself each of their next "first login". Never
    *  shown to system_admin (excluded by construction, not by this flag). */
   hasSeenOnboardingTour?: boolean;
+  /** guideKeys of first-visit field-explanation walkthroughs (see
+   *  components/guidance/FieldGuideOverlay.tsx) this user has already
+   *  finished or dismissed — per-tab/per-form granularity, unlike the
+   *  single app-wide hasSeenOnboardingTour above. Absent/missing key means
+   *  "not seen yet". */
+  seenFieldGuides?: string[];
   /** Only meaningful for supervisor/secondary_supervisor — restricts them to
    *  specific majors within their own facultyId. Empty/unset means
    *  unrestricted (all majors in their faculty). See

@@ -12,6 +12,16 @@ import { useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { CommitteeRecord } from '@/lib/apiClient';
 import { CHAIN_ROLES, chainRoleLabel, type ChainStage } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+
+const STAGE_INFO = {
+  he: 'מי מטפל בשלב הזה בשרשרת (תפקיד), ומה הם עושים — מדרגים את אבן הדרך עם ציון, או רק מאשרים/דוחים אותה ללא ציון.',
+  en: 'Who handles this stage of the chain (role), and what they do — assign a grade to the milestone, or just approve/reject it with no grade.',
+};
+const REJECT_TO_INFO = {
+  he: 'לאן חוזר התהליך אם השלב הזה נדחה: בחזרה לסטודנט/ית (יגישו מחדש), או לשלב אחר בשרשרת (כולל אפשרות לחזור לשלב זה עצמו).',
+  en: "Where the process goes if this stage rejects it: back to the student (to resubmit), or to another stage in the chain (including looping back to this same stage).",
+};
 
 function makeStageId(): string {
   return `stage_${Math.random().toString(36).slice(2, 8)}`;
@@ -78,6 +88,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
           <div key={stage.id} className="rounded-md border border-line bg-surface p-2.5">
             <div className="flex items-center gap-2">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EDE9FE] text-[10px] font-bold text-primary">{idx + 1}</span>
+              <InfoTooltip text={STAGE_INFO} label={lang === 'he' ? 'מידע על שלב זה' : 'About this stage'} />
               <select
                 value={stage.role}
                 onChange={(e) => updateStage(idx, { role: e.target.value as ChainStage['role'] })}
@@ -105,6 +116,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
             </div>
             <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
               {lang === 'he' ? 'אם נדחה, יעבור אל' : 'If rejected, goes to'}
+              <InfoTooltip text={REJECT_TO_INFO} />
               <select
                 value={stage.rejectTo}
                 onChange={(e) => updateStage(idx, { rejectTo: e.target.value })}

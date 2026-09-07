@@ -16,6 +16,7 @@ import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { getHomeRoute, getUserRoles, resolveActiveRole } from '@/firebase/roles'; // ← single source of truth
 import { ActiveRoleProvider, useActiveRole } from '@/contexts/ActiveRoleContext';
 import { OnboardingTourProvider } from '@/contexts/OnboardingTourContext';
+import { FieldGuideProvider } from '@/contexts/FieldGuideContext';
 import { OnboardingTourOverlay } from '@/components/onboarding/OnboardingTourOverlay';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -121,7 +122,9 @@ export default function RootLayout() {
   return (
     <ActiveRoleProvider>
       <OnboardingTourProvider>
-        <RootLayoutInner />
+        <FieldGuideProvider>
+          <RootLayoutInner />
+        </FieldGuideProvider>
       </OnboardingTourProvider>
     </ActiveRoleProvider>
   );
@@ -245,7 +248,7 @@ function RootLayoutInner() {
         // context) reflects it, not just the primary role.
         const roles = getUserRoles(userData);
         const activeRole = resolveActiveRole(userData) ?? role;
-        sync(user.uid, roles, userData.facultyId ?? '', userData.language, userData.hasSeenOnboardingTour);
+        sync(user.uid, roles, userData.facultyId ?? '', userData.language, userData.hasSeenOnboardingTour, userData.seenFieldGuides);
 
         // ── Forced password change (accounts created via Excel import) ──────
         // Takes priority over everything below, including the 2FA gate.

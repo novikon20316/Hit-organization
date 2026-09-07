@@ -16,6 +16,14 @@ import React from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import { GRADE_MILESTONE_FIELD_GUIDE, GRADE_MILESTONE_GUIDE_KEY } from '@/constants/supervisorFieldGuide';
+
+function gradeGuideEntry(key: string) {
+  return GRADE_MILESTONE_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 export interface GradeMilestoneModalField {
   key: string;
@@ -118,6 +126,12 @@ export function GradeMilestoneModal({
         </View>
 
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+          {visible && (
+            <FieldGuideOverlay
+              guideKey={GRADE_MILESTONE_GUIDE_KEY}
+              steps={GRADE_MILESTONE_FIELD_GUIDE.filter((s) => (s.key !== 'submittedDocument' || !!milestone?.fileUrls?.length) && (s.key !== 'individualGrade' || isGroupProject))}
+            />
+          )}
           {milestone && (
             <View style={s.card}>
               <View style={[s.rowBetween, isRtl && s.rowReverse]}>
@@ -148,8 +162,12 @@ export function GradeMilestoneModal({
               )}
 
               {!!milestone.fileUrls?.length && (
+                <FieldGuideTarget fieldKey="submittedDocument">
                 <View style={{ marginTop: spacing.sm }}>
-                  <Text style={[s.statLabel, isRtl && s.textRight]}>{lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}</Text>
+                  <View style={[s.rowBetween, isRtl && s.rowReverse]}>
+                    <Text style={[s.statLabel, isRtl && s.textRight]}>{lang === 'he' ? 'קבצים שהוגשו' : 'Submitted Files'}</Text>
+                    <InfoTooltip textHe={gradeGuideEntry('submittedDocument').description.he} textEn={gradeGuideEntry('submittedDocument').description.en} />
+                  </View>
                   <View style={[s.chipsRow, isRtl && s.rowReverse]}>
                     {milestone.fileUrls.map((url, idx) => (
                       <Pressable
@@ -169,12 +187,17 @@ export function GradeMilestoneModal({
                     ))}
                   </View>
                 </View>
+                </FieldGuideTarget>
               )}
             </View>
           )}
 
+          <FieldGuideTarget fieldKey="criteria">
           <View style={s.card}>
-            <Text style={[s.cardTitle, isRtl && s.textRight]}>{lang === 'he' ? 'מחוון ציונים' : 'Grading Rubric'}</Text>
+            <View style={[s.rowBetween, isRtl && s.rowReverse]}>
+              <Text style={[s.cardTitle, isRtl && s.textRight]}>{lang === 'he' ? 'מחוון ציונים' : 'Grading Rubric'}</Text>
+              <InfoTooltip textHe={gradeGuideEntry('criteria').description.he} textEn={gradeGuideEntry('criteria').description.en} />
+            </View>
 
             {activeFields.map((field, idx) => (
               <View
@@ -203,12 +226,17 @@ export function GradeMilestoneModal({
               <View style={[s.progressFill, { width: `${pct}%` }]} />
             </View>
           </View>
+          </FieldGuideTarget>
 
           {isGroupProject && milestone && (
+            <FieldGuideTarget fieldKey="individualGrade">
             <View style={s.card}>
-              <Text style={[s.cardTitle, isRtl && s.textRight]}>
-                {lang === 'he' ? 'ציון אישי (לצד הציון הקבוצתי)' : 'Individual grade (on top of the group score)'}
-              </Text>
+              <View style={[s.rowBetween, isRtl && s.rowReverse]}>
+                <Text style={[s.cardTitle, isRtl && s.textRight]}>
+                  {lang === 'he' ? 'ציון אישי (לצד הציון הקבוצתי)' : 'Individual grade (on top of the group score)'}
+                </Text>
+                <InfoTooltip textHe={gradeGuideEntry('individualGrade').description.he} textEn={gradeGuideEntry('individualGrade').description.en} />
+              </View>
               {milestone.studentIds.map((sid, idx) => (
                 <View key={sid} style={{ marginTop: spacing.sm }}>
                   <Text style={[s.statLabel, isRtl && s.textRight]}>👤 {milestone.studentNames[idx] ?? sid}</Text>
@@ -223,10 +251,15 @@ export function GradeMilestoneModal({
                 </View>
               ))}
             </View>
+            </FieldGuideTarget>
           )}
 
+          <FieldGuideTarget fieldKey="comment">
           <View style={s.card}>
-            <Text style={[s.cardTitle, isRtl && s.textRight]}>{lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}</Text>
+            <View style={[s.rowBetween, isRtl && s.rowReverse]}>
+              <Text style={[s.cardTitle, isRtl && s.textRight]}>{lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}</Text>
+              <InfoTooltip textHe={gradeGuideEntry('comment').description.he} textEn={gradeGuideEntry('comment').description.en} />
+            </View>
             <TextInput
               style={[s.input, s.textarea, isRtl && s.textRight]}
               value={comment}
@@ -238,6 +271,7 @@ export function GradeMilestoneModal({
               textAlign={isRtl ? 'right' : 'left'}
             />
           </View>
+          </FieldGuideTarget>
 
           <Pressable
             style={[s.submitBtn, submitting && { opacity: 0.6 }]}

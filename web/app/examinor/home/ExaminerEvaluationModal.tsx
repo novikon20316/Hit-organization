@@ -16,6 +16,13 @@ import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
 import type { AssignedMilestone, GradingComponentSpec } from './types';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { EXAMINER_EVALUATION_FIELD_GUIDE, EXAMINER_EVALUATION_GUIDE_KEY } from './fieldGuide';
+
+function evalGuideEntry(key: string) {
+  return EXAMINER_EVALUATION_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 interface ExaminerEvaluationModalProps {
   milestone: AssignedMilestone;
@@ -134,10 +141,12 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
         aria-modal="true"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-examinor bg-examinor-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-examinor-on-surface">
+        <FieldGuideOverlay guideKey={EXAMINER_EVALUATION_GUIDE_KEY} steps={EXAMINER_EVALUATION_FIELD_GUIDE} />
+        <h2 className="flex items-center text-lg font-semibold text-examinor-on-surface">
           {kind === 'project'
             ? (lang === 'he' ? '📄 הערכת בוחן — עבודת הגמר' : '📄 Examiner Evaluation — The Project')
             : (lang === 'he' ? '🛡 הערכת בוחן — בחינת ההגנה' : '🛡 Examiner Evaluation — The Defense Exam')}
+          <InfoTooltip text={evalGuideEntry('rubric').description} />
         </h2>
 
         <div className="mt-3 rounded-lg bg-examinor-surface-container-low p-3">
@@ -158,7 +167,7 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
           )}
         </div>
 
-        <div className="mt-4 grid gap-3">
+        <div data-field-guide-id="rubric" className="mt-4 grid gap-3">
           {rubric.map((c) => (
             <label key={c.key} className="block">
               <span className="mb-1.5 block text-sm font-medium text-examinor-on-surface">
@@ -176,9 +185,10 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
           ))}
         </div>
 
-        <label className="mt-4 block">
+        <label data-field-guide-id="comment" className="mt-4 block">
           <span className="mb-1.5 block text-sm font-medium text-examinor-on-surface">
             {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}{isDataScienceDocument ? ' *' : ''}
+            <InfoTooltip text={evalGuideEntry('comment').description} />
           </span>
           <textarea
             rows={4}
@@ -195,9 +205,10 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
           </span>
         </div>
 
-        <label className="mt-4 block">
+        <label data-field-guide-id="file" className="mt-4 block">
           <span className="mb-1.5 block text-sm font-medium text-examinor-on-surface">
             {lang === 'he' ? 'קובץ מצורף (אופציונלי)' : 'Attached file (optional)'}
+            <InfoTooltip text={evalGuideEntry('file').description} />
           </span>
           <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3 py-2 text-sm text-examinor-on-surface" />
         </label>

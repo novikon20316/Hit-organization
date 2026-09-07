@@ -30,6 +30,23 @@ import { TourTarget } from '@/components/onboarding/TourTarget';
 import { ap } from '@/constants/theme';
 import { TabBadge } from '@/components/TabBadge';
 import { useNotifications } from '@/src/context/NotificationsContext';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import {
+  DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY,
+  SEND_EXAMINER_FIELD_GUIDE, SEND_EXAMINER_GUIDE_KEY,
+  GROUPS_TAB_FIELD_GUIDE, GROUPS_TAB_GUIDE_KEY,
+  STUDENTS_REPORT_TAB_FIELD_GUIDE, STUDENTS_REPORT_TAB_GUIDE_KEY,
+  OVERRIDES_TAB_FIELD_GUIDE, OVERRIDES_TAB_GUIDE_KEY,
+} from '@/constants/administrativeCoordinatorFieldGuide';
+
+function sendExaminerGuideEntry(key: string) {
+  return SEND_EXAMINER_FIELD_GUIDE.find((s) => s.key === key)!;
+}
+function logisticsGuideEntry(key: string) {
+  return DEFENSE_LOGISTICS_FIELD_GUIDE.find((s) => s.key === key)!;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -256,6 +273,7 @@ function SendExaminerModal({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={m.modal} contentContainerStyle={m.modalContent}>
+        {visible && <FieldGuideOverlay guideKey={SEND_EXAMINER_GUIDE_KEY} steps={SEND_EXAMINER_FIELD_GUIDE} />}
         <Text style={m.modalTitle}>
           📧 {tx('send', lang)} {tx('externalExaminer', lang)}
         </Text>
@@ -275,8 +293,12 @@ function SendExaminerModal({
           { label: lang === 'he' ? 'דוא"ל *' : 'Email *',                    value: examinerEmail,       set: setExaminerEmail,       key: 'email' },
           { label: lang === 'he' ? 'מוסד' : 'Institution',                   value: examinerInstitution, set: setExaminerInstitution, key: 'inst' },
         ].map(field => (
-          <View key={field.key} style={m.fieldWrap}>
-            <Text style={m.fieldLabel}>{field.label}</Text>
+          <FieldGuideTarget key={field.key} fieldKey={field.key}>
+          <View style={m.fieldWrap}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={m.fieldLabel}>{field.label}</Text>
+              <InfoTooltip textHe={sendExaminerGuideEntry(field.key).description.he} textEn={sendExaminerGuideEntry(field.key).description.en} />
+            </View>
             <TextInput
               style={[m.input, isRtl && { textAlign: 'right' }]}
               value={field.value}
@@ -286,10 +308,16 @@ function SendExaminerModal({
               placeholderTextColor={ap.onSurfaceVariant}
             />
           </View>
+          </FieldGuideTarget>
         ))}
 
         {/* Language preference */}
-        <Text style={m.fieldLabel}>{tx('examinerPreferredLanguage', lang)}</Text>
+        <FieldGuideTarget fieldKey="language">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={m.fieldLabel}>{tx('examinerPreferredLanguage', lang)}</Text>
+          <InfoTooltip textHe={sendExaminerGuideEntry('language').description.he} textEn={sendExaminerGuideEntry('language').description.en} />
+        </View>
         <View style={m.langRow}>
           {(['he', 'en'] as const).map(l => (
             <Pressable
@@ -304,6 +332,8 @@ function SendExaminerModal({
             </Pressable>
           ))}
         </View>
+        </View>
+        </FieldGuideTarget>
 
         {/* Sent confirmation */}
         {sent && (
@@ -390,6 +420,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={m.modal} contentContainerStyle={m.modalContent}>
+        {visible && <FieldGuideOverlay guideKey={DEFENSE_LOGISTICS_GUIDE_KEY} steps={DEFENSE_LOGISTICS_FIELD_GUIDE} />}
         <Text style={m.modalTitle}>
           🛡 {tx('scheduleDefense', lang)}
         </Text>
@@ -408,8 +439,12 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
           </View>
         )}
 
+        <FieldGuideTarget fieldKey="time">
         <View style={m.fieldWrap}>
-          <Text style={m.fieldLabel}>{tx('defenseTime', lang)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={m.fieldLabel}>{tx('defenseTime', lang)}</Text>
+            <InfoTooltip textHe={logisticsGuideEntry('time').description.he} textEn={logisticsGuideEntry('time').description.en} />
+          </View>
           <TextInput
             style={[m.input, isRtl && { textAlign: 'right' }]}
             value={time}
@@ -418,9 +453,14 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
             placeholderTextColor={ap.onSurfaceVariant}
           />
         </View>
+        </FieldGuideTarget>
 
+        <FieldGuideTarget fieldKey="room">
         <View style={m.fieldWrap}>
-          <Text style={m.fieldLabel}>{tx('defenseRoom', lang)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={m.fieldLabel}>{tx('defenseRoom', lang)}</Text>
+            <InfoTooltip textHe={logisticsGuideEntry('room').description.he} textEn={logisticsGuideEntry('room').description.en} />
+          </View>
           <TextInput
             style={[m.input, isRtl && { textAlign: 'right' }]}
             value={room}
@@ -429,14 +469,24 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
             placeholderTextColor={ap.onSurfaceVariant}
           />
         </View>
+        </FieldGuideTarget>
 
+        <FieldGuideTarget fieldKey="building">
         <View style={m.fieldWrap}>
-          <Text style={m.fieldLabel}>{tx('defenseBuilding', lang)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={m.fieldLabel}>{tx('defenseBuilding', lang)}</Text>
+            <InfoTooltip textHe={logisticsGuideEntry('building').description.he} textEn={logisticsGuideEntry('building').description.en} />
+          </View>
           <DefenseBuildingPicker value={building} onChange={setBuilding} lang={lang} />
         </View>
+        </FieldGuideTarget>
 
+        <FieldGuideTarget fieldKey="onlineLink">
         <View style={m.fieldWrap}>
-          <Text style={m.fieldLabel}>{lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={m.fieldLabel}>{lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}</Text>
+            <InfoTooltip textHe={logisticsGuideEntry('onlineLink').description.he} textEn={logisticsGuideEntry('onlineLink').description.en} />
+          </View>
           <TextInput
             style={[m.input, isRtl && { textAlign: 'right' }]}
             value={onlineDefenseLink}
@@ -446,6 +496,7 @@ function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: Defen
             autoCapitalize="none"
           />
         </View>
+        </FieldGuideTarget>
 
         <Pressable
           style={[m.btnSend, saving && { opacity: 0.6 }]}
@@ -960,6 +1011,7 @@ export default function ProjectCoordinatorDashboard() {
 
         {activeTab === 'overrides' ? (
           <View>
+            <FieldGuideOverlay guideKey={OVERRIDES_TAB_GUIDE_KEY} steps={OVERRIDES_TAB_FIELD_GUIDE} />
             {overridesLoading && !overridesLoaded ? (
               <ActivityIndicator style={{ marginTop: 24 }} />
             ) : overrides.length === 0 ? (
@@ -1056,6 +1108,7 @@ export default function ProjectCoordinatorDashboard() {
           </View>
         ) : activeTab === 'students' ? (
           <View>
+            <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />
             <View style={{ marginBottom: 12 }}>
               <AddStudentModal lang={lang} isRtl={lang === 'he'} onCreated={() => fetchStudentsReport()} />
             </View>
@@ -1167,6 +1220,7 @@ export default function ProjectCoordinatorDashboard() {
           </View>
         ) : !viewingSupervisorKey ? (
         <>
+        <FieldGuideOverlay guideKey={GROUPS_TAB_GUIDE_KEY} steps={GROUPS_TAB_FIELD_GUIDE} />
         <CreateOwnProjectButton lang={lang} isRtl={lang === 'he'} onCreated={fetchData} />
         <TextInput
           style={s.searchInput}
