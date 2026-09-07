@@ -94,6 +94,7 @@ function AdminPanelContent() {
   const [roleFilter, setRoleFilter] = useState<'all' | AppRole>('all');
   const [staffFilter, setStaffFilter] = useState<'all' | 'staff' | 'student'>('all');
   const [facultyFilter, setFacultyFilter] = useState<'all' | FacultyId>('all');
+  const [showColorLegend, setShowColorLegend] = useState(false);
   const [showNewUser, setShowNewUser] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
   const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
@@ -258,6 +259,35 @@ function AdminPanelContent() {
     });
   }, [users, search, roleFilter, staffFilter, facultyFilter]);
 
+  // Faculty-color legend for the Users tab — the colored rail on each
+  // UserRow card is getFacultyColor(user.facultyId); this counts the
+  // currently filtered/displayed users per color so the legend always
+  // matches what's on screen.
+  const colorLegend = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const u of filteredUsers) {
+      const color = getFacultyColor(u.facultyId);
+      counts.set(color, (counts.get(color) ?? 0) + 1);
+    }
+    const entries = DISPLAYED_FACULTIES.map((id) => ({
+      key: id as string,
+      label: facultyLabel(id, lang),
+      color: getFacultyColor(id),
+      count: counts.get(getFacultyColor(id)) ?? 0,
+    }));
+    const otherColor = getFacultyColor(undefined);
+    const otherCount = counts.get(otherColor) ?? 0;
+    if (otherCount > 0) {
+      entries.push({
+        key: 'none',
+        label: lang === 'he' ? 'ללא פקולטה (כלל-מערכתי)' : 'No faculty (system-wide)',
+        color: otherColor,
+        count: otherCount,
+      });
+    }
+    return entries;
+  }, [filteredUsers, lang]);
+
   if (guardLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-admin-surface">
@@ -317,6 +347,18 @@ function AdminPanelContent() {
             </select>
             <button
               type="button"
+              onClick={() => setShowColorLegend((v) => !v)}
+              aria-expanded={showColorLegend}
+              aria-label={lang === 'he' ? 'מקרא צבעי פקולטה' : 'Faculty color legend'}
+              title={lang === 'he' ? 'מקרא צבעי פקולטה' : 'Faculty color legend'}
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${
+                showColorLegend ? 'border-primary bg-primary/10 text-primary' : 'border-line bg-surface text-ink hover:border-primary'
+              }`}
+            >
+              ⓘ
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 const qs = new URLSearchParams(searchParams);
                 qs.set('modal', 'enforce2fa');
@@ -327,6 +369,19 @@ function AdminPanelContent() {
               🔐 {lang === 'he' ? 'אכיפת 2FA' : 'Enforce 2FA'}
             </button>
           </div>
+
+          {showColorLegend && (
+            <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 rounded-lg border border-line bg-surface p-3">
+              {colorLegend.map((entry) => (
+                <div key={entry.key} className="flex items-center gap-2 text-sm text-ink">
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
+                  <span>{entry.label}</span>
+                  <span className="font-semibold text-muted">({entry.count})</span>
+                </div>
+              ))}
+              {colorLegend.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}
+            </div>
+          )}
 
           {(loadingLocked || lockedUsers.length > 0) && (
             <div className="mb-4 rounded-lg border border-danger/30 bg-danger-bg p-4">
