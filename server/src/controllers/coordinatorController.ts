@@ -1029,6 +1029,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
             relatedProjectId: projectId ?? null,
             relatedMilestoneId: milestoneId,
             emailData: { milestoneTitle, grade: grade != null ? String(grade) : '' },
+            taskKind: 'grade_published',
           });
         } catch (notifyError) {
           console.error(`coordinatorApproveMilestone: student notify failed for ${studentId} on milestone ${milestoneId}:`, notifyError);
@@ -1047,6 +1048,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
             relatedProjectId: projectId ?? null,
             relatedMilestoneId: milestoneId,
             channels: { email: false, sms: false },
+            taskKind: 'grade_published',
           });
         } catch (notifyError) {
           console.error(`coordinatorApproveMilestone: supervisor notify failed for ${supervisorId} on milestone ${milestoneId}:`, notifyError);
@@ -1203,6 +1205,13 @@ async function rejectChainMilestone(
       }
       const targetUids = await resolveStaffForScope(targetStage.role, resource, projectSupervisorIds, milestone.examinerIds ?? []);
       const milestoneTitle = { he: rejectedMilestone.nameHe ?? rejectedMilestone.type ?? '', en: rejectedMilestone.nameEn ?? rejectedMilestone.type ?? '' };
+      // Resolved from the STAGE's role directly (same as the approve path's
+      // nextStageTargetScreen above), not each recipient's own primary
+      // `role` field — targetUids can include a multi-role staff member
+      // matched on targetStage.role while their profile's primary role is
+      // something else, which would otherwise send their "Go to" link to
+      // the wrong dashboard (or nowhere).
+      const rerouteTargetScreen = targetScreenFor(targetStage.role, 'milestone_action');
       await Promise.all(targetUids.map(async (uid) => {
         try {
           await notifyUser({
@@ -1215,7 +1224,7 @@ async function rejectChainMilestone(
             relatedProjectId: rejectedMilestone!.projectId ?? null,
             relatedMilestoneId: milestoneId,
             channels: { email: false, sms: false },
-            taskKind: 'milestone_action',
+            ...(rerouteTargetScreen ? { targetScreen: rerouteTargetScreen } : { taskKind: 'milestone_action' }),
           });
         } catch (notifyError) {
           console.error(`rejectChainMilestone: reroute notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);

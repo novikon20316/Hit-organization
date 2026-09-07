@@ -176,6 +176,14 @@ export default function NotificationsPage() {
         console.error('Failed to mark notification as read:', err);
       }
     }
+    // Chat notifications don't go through computeNotifTargetRoute's
+    // role/targetScreen table at all — their destination is the specific
+    // conversation (notif.chatId), same special case handleTapNotif already
+    // makes for the row click itself.
+    if (notif.type === 'new_message') {
+      if (notif.chatId) router.push(`/message/${notif.chatId}?otherName=${encodeURIComponent(notif.senderName ?? '')}`);
+      return;
+    }
     const targetRoute = computeNotifTargetRoute(notif.type, userData?.role, notif.targetScreen);
     if (targetRoute) router.push(targetRoute);
   };
@@ -305,7 +313,13 @@ export default function NotificationsPage() {
                   <div className="grid gap-2">
                     {notifs.map((n) => {
                       const style = TYPE_STYLE[n.type] ?? TYPE_STYLE.project_published;
-                      const targetRoute = computeNotifTargetRoute(n.type, userData?.role, n.targetScreen);
+                      // Chat notifications route straight to their
+                      // conversation (see handleGoToTarget) rather than
+                      // through the role/targetScreen table, so the button
+                      // still needs to show for them whenever a chatId exists.
+                      const targetRoute = n.type === 'new_message'
+                        ? (n.chatId ? `/message/${n.chatId}` : '')
+                        : computeNotifTargetRoute(n.type, userData?.role, n.targetScreen);
                       return (
                         <div
                           key={n.id}

@@ -680,6 +680,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           relatedProjectId: projectId ?? null,
           relatedMilestoneId: milestoneId,
           emailData: { milestoneTitle, grade: String(Number(givenScore)) },
+          taskKind: 'grade_published',
         }).catch((err) => console.error(`submitMilestoneGrade: student notify failed for ${studentId} on ${milestoneId}:`, err))
       ));
     }
@@ -1409,6 +1410,13 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       relatedMilestoneId: milestoneId,
       emailData: { milestoneTitle, projectTitle },
       taskKind: 'milestone_action',
+      // Recipients here are matched via resolveStaffForScope('coordinator'/
+      // 'administrative_secretary', ...) below — a multi-role staff member
+      // can be matched that way while their primary `role` field says
+      // something else entirely, so the destination has to be resolved
+      // against the role they were actually matched under (see notify.ts's
+      // NotifyParams doc comment), not just their primary role.
+      taskRoleCandidates: ['coordinator', 'administrative_secretary'],
       channels: { sms: false },
     });
 

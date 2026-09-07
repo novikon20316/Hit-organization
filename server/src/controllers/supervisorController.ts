@@ -1042,9 +1042,19 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       // unlike the fixed-role fan-outs elsewhere in this codebase, those
       // don't all land on the same screen for a sign-off task — each
       // recipient's own role has to be looked up to pick their destination.
+      // Prefer signoffRole itself when the recipient actually holds it
+      // (primary `role` or in `roles[]`) over their bare primary role — a
+      // multi-role staff member (e.g. primary role 'supervisor', also
+      // holding 'coordinator') can be matched into this fan-out via
+      // resolveStaffForScope(signoffRole, ...) while their primary role
+      // resolves to a different (or no) destination, same class of bug as
+      // notify.ts's taskRoleCandidates fixes elsewhere.
       const recipientSnaps = await Promise.all(uids.map((uid) => db.collection('users').doc(uid).get()));
       await Promise.all(uids.map((recipientId, idx) => {
-        const targetScreen = targetScreenFor(recipientSnaps[idx]?.data()?.role, 'signoff');
+        const recipientData = recipientSnaps[idx]?.data();
+        const rolesHeld = new Set<string>([recipientData?.role, ...(Array.isArray(recipientData?.roles) ? recipientData.roles : [])].filter(Boolean));
+        const effectiveRole = rolesHeld.has(signoffRole) ? signoffRole : recipientData?.role;
+        const targetScreen = targetScreenFor(effectiveRole, 'signoff');
         return db.collection('notifications').add({
           recipientId,
           type: 'grade_override_pending',

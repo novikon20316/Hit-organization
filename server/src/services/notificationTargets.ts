@@ -94,7 +94,16 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
     case 'applications':
       return role === 'supervisor' || role === 'secondary_supervisor' ? 'supervisor_applications' : null;
     case 'grade_published':
-      return role === 'student' ? 'student_grades' : null;
+      switch (role) {
+        case 'student':                  return 'student_grades';
+        // The supervisor also gets a 'milestone_graded' notification when a
+        // coordinator approves their student's grade (informational, not
+        // actionable) — lands them back on the project they're supervising
+        // rather than the client's student-only fallback route.
+        case 'supervisor':
+        case 'secondary_supervisor':     return 'supervisor_projects';
+        default: return null;
+      }
     default:
       return null;
   }

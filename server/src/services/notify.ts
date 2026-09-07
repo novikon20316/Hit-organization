@@ -40,6 +40,22 @@ export interface NotifyParams {
    *  dashboard's default tab. Omit for notifications where that's not
    *  applicable (student-directed ones, informational-only ones). */
   taskKind?: NotificationTaskKind;
+  /** The role(s) this notification actually concerns the recipient in, when
+   *  the caller resolved them via a role-scoped fan-out (e.g.
+   *  resolveStaffForScope('coordinator', ...)). A multi-role staff member's
+   *  `role` field (used below to resolve targetScreen) is just their
+   *  PRIMARY role — someone whose primary role is 'supervisor' but who also
+   *  holds 'coordinator' in `roles[]` still gets matched into a coordinator
+   *  fan-out, but without this hint targetScreenFor(user.role, taskKind)
+   *  would resolve their *supervisor* screen (or nothing) instead of the
+   *  coordinator one they were actually notified for — landing the "Go to"
+   *  link on the wrong dashboard, or none at all. When given, and the
+   *  recipient holds one of these roles (primary or in `roles[]`), that role
+   *  is used instead of their primary `role` to resolve targetScreen. List
+   *  every role the fan-out could have matched on (e.g.
+   *  ['coordinator', 'administrative_secretary']) — order doesn't matter
+   *  when they all resolve to the same screen for this taskKind. */
+  taskRoleCandidates?: string[];
   /** Direct override for the resolved target screen — for destinations
    *  that don't depend on the recipient's role at all (e.g. a dedicated
    *  page like /committees, reachable the same way by whichever role
@@ -69,7 +85,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
   const {
     recipientId, type, inAppType, titleHe, titleEn, bodyHe, bodyEn,
     relatedProjectId = null, relatedMilestoneId = null, emailData, channels, taskKind,
-    targetScreen: targetScreenOverride,
+    taskRoleCandidates, targetScreen: targetScreenOverride,
   } = params;
 
   const wantInApp = channels?.inApp !== false;
@@ -92,7 +108,12 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
     fullEmailData[key] = typeof value === 'string' ? value : (lang === 'he' ? value.he : value.en);
   }
 
-  const targetScreen = targetScreenOverride ?? (taskKind ? targetScreenFor(user.role, taskKind) : null);
+  // Prefer a taskRoleCandidates match (the role this notification actually
+  // concerns the recipient in) over their primary `role` field — see the
+  // NotifyParams doc comment for why a multi-role recipient needs this.
+  const rolesHeld = new Set<string>([user.role, ...(Array.isArray(user.roles) ? user.roles : [])].filter(Boolean));
+  const effectiveRole = taskRoleCandidates?.find((r) => rolesHeld.has(r)) ?? user.role;
+  const targetScreen = targetScreenOverride ?? (taskKind ? targetScreenFor(effectiveRole, taskKind) : null);
 
   // A real, clickable "go see it" link for the channels OUTSIDE the app
   // (email/SMS/WhatsApp) — in-app/push notifications already deep-link via

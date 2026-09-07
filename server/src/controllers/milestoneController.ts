@@ -421,6 +421,13 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       relatedMilestoneId: milestoneId,
       emailData: { milestoneTitle, projectTitle },
       taskKind: 'milestone_action',
+      // Recipients here are matched via resolveStaffForScope('coordinator'/
+      // 'administrative_secretary', ...) below — a multi-role staff member
+      // can be matched that way while their primary `role` field says
+      // something else entirely, so the destination has to be resolved
+      // against the role they were actually matched under (see notify.ts's
+      // NotifyParams doc comment), not just their primary role.
+      taskRoleCandidates: ['coordinator', 'administrative_secretary'],
       channels: { sms: false },
     });
 
