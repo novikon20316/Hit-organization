@@ -69,9 +69,16 @@ export default function NotificationDetailPage() {
   const bodyHe     = current?.bodyHe     ?? paramBodyHe;
   const bodyEn     = current?.bodyEn     ?? paramBodyEn;
   const createdAt  = current?.createdAt  ?? paramCreatedAt;
-  // Only recomputed once the list (and userData.role) is known — otherwise
-  // falls back to whatever the list page already computed for this notification.
-  const targetRoute = listReady ? computeNotifTargetRoute(type, userData?.role, current?.targetScreen) : paramTargetRoute;
+  // Only recomputed once `current` is actually found in the freshly fetched
+  // list — otherwise falls back to whatever the list page already computed
+  // for this notification (the same rule every other field above follows).
+  // Gating on `listReady` alone was a bug: if the feed fetch failed, or this
+  // notification simply wasn't in it yet, `current` stays null while
+  // `listReady` still flips true — silently discarding the already-correct
+  // targetScreen-based route from the URL params and falling back to a
+  // generic role-home route with no tab, even though the list's own "Go"
+  // button (driven by live data) had the right destination all along.
+  const targetRoute = current ? computeNotifTargetRoute(current.type, userData?.role, current.targetScreen) : paramTargetRoute;
 
   const style = TYPE_STYLE[type] ?? TYPE_STYLE.project_published;
   const title = lang === 'he' ? titleHe : titleEn;
