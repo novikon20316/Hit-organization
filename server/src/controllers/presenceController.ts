@@ -22,6 +22,7 @@ export const heartbeat = async (req: AuthenticatedRequest, res: Response) => {
       uid,
       displayName: req.user?.displayName ?? '',
       role: req.user?.role ?? 'student',
+      facultyId: req.user?.facultyId ?? 'all',
       platform,
       lastSeen: admin.firestore.FieldValue.serverTimestamp(),
     });

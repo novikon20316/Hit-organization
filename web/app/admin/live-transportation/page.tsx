@@ -14,16 +14,18 @@
 // local component state — it keeps accumulating even with no admin page
 // open, and survives reloads/logouts instead of resetting on every mount.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, doc, getDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { useLanguage } from '@/contexts/LanguageContext';
-import type { AppRole } from '@/lib/i18n';
-import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { facultyLabel, roleLabel, type AppRole, type FacultyId } from '@/lib/i18n';
+import { FACULTY_COLORS } from '@/lib/facultyColors';
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
 const ADMIN_ROLES: AppRole[] = ['system_admin'];
 // Must comfortably exceed usePresenceHeartbeat's ~25s send interval so a
@@ -40,6 +42,7 @@ interface PresenceRow {
   uid: string;
   displayName: string;
   role: string;
+  facultyId: string;
   platform: 'web' | 'mobile';
   lastSeenMs: number | null;
 }
@@ -122,6 +125,75 @@ const toIsoDate = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
+interface UsersListModalProps {
+  open: boolean;
+  title: string;
+  rows: PresenceRow[];
+  lang: 'he' | 'en';
+  onClose: () => void;
+}
+
+// Small read-only drill-down opened from a stat card or a pie slice — "who,
+// exactly, is behind this number." Rows come straight from the already-live
+// `onlineUsers` list, so it stays in sync with the cards/charts around it
+// without a query of its own.
+function UsersListModal({ open, title, rows, lang, onClose }: UsersListModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, open, onClose);
+
+  if (!open) return null;
+
+  const sorted = [...rows].sort((a, b) => (a.displayName || a.uid).localeCompare(b.displayName || b.uid));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="users-list-modal-title"
+        className="flex max-h-[80vh] w-full max-w-md flex-col rounded-[var(--radius)] bg-admin-surface p-5 shadow-lg outline-none"
+      >
+        <div className="flex items-center justify-between">
+          <h2 id="users-list-modal-title" className="text-base font-semibold text-admin-primary">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={lang === 'he' ? 'סגור' : 'Close'}
+            className="rounded-md px-2 py-1 text-admin-on-surface-variant hover:bg-admin-surface-container-low"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="mt-3 flex-1 overflow-y-auto">
+          {sorted.length === 0 ? (
+            <p className="py-6 text-center text-sm text-admin-on-surface-variant">
+              {lang === 'he' ? 'אין משתמשים מחוברים' : 'No users online'}
+            </p>
+          ) : (
+            <ul className="divide-y divide-admin-outline-variant">
+              {sorted.map((row) => (
+                <li key={row.uid} className="flex items-center justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-admin-on-surface">{row.displayName || row.uid}</p>
+                    <p className="truncate text-xs text-admin-on-surface-variant">
+                      {roleLabel(row.role as AppRole, lang)} · {facultyLabel(row.facultyId as FacultyId, lang)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-admin-on-surface-variant">
+                    {row.platform === 'mobile' ? '📱' : '💻'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LiveTransportationPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(ADMIN_ROLES);
   const { lang } = useLanguage();
@@ -156,6 +228,10 @@ export default function LiveTransportationPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  // Drill-down modal — set to a faculty id to scope the list, or 'all' for
+  // every currently-online user (opened from the Active Sessions card).
+  const [usersModalFilter, setUsersModalFilter] = useState<'all' | string | null>(null);
+
   useEffect(() => {
     if (!isAllowed) return;
     const unsub = onSnapshot(
@@ -170,6 +246,7 @@ export default function LiveTransportationPage() {
               uid: d.id,
               displayName: (data.displayName as string) ?? '',
               role: (data.role as string) ?? '',
+              facultyId: (data.facultyId as string) || 'all',
               platform: data.platform === 'mobile' ? 'mobile' : 'web',
               lastSeenMs: lastSeen?.toMillis ? lastSeen.toMillis() : null,
             } satisfies PresenceRow;
@@ -304,6 +381,24 @@ export default function LiveTransportationPage() {
     [onlineUsers]
   );
 
+  // Recomputed from the same `onlineUsers` (presence snapshot + `now` tick)
+  // as the cards above, so it refreshes in lockstep with them rather than on
+  // its own schedule.
+  const byFaculty = useMemo(() => {
+    const counts = new Map<string, number>();
+    onlineUsers.forEach((u) => {
+      const id = u.facultyId || 'all';
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([facultyId, count]) => ({
+        facultyId,
+        name: facultyLabel(facultyId as FacultyId, lang),
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [onlineUsers, lang]);
+
   const actionCounts = useMemo(() => {
     const counts = new Map<string, number>();
     auditRows.forEach((r) => counts.set(r.action, (counts.get(r.action) ?? 0) + 1));
@@ -415,6 +510,19 @@ export default function LiveTransportationPage() {
   const failedLoginCount = useMemo(() => auditRows.filter((r) => r.action === 'login_failed').length, [auditRows]);
   const importantRows = useMemo(() => computeImportantRows(auditRows), [auditRows]);
 
+  const usersModalRows = useMemo(() => {
+    if (usersModalFilter === null) return [];
+    if (usersModalFilter === 'all') return onlineUsers;
+    return onlineUsers.filter((u) => (u.facultyId || 'all') === usersModalFilter);
+  }, [usersModalFilter, onlineUsers]);
+
+  const usersModalTitle =
+    usersModalFilter === 'all'
+      ? (lang === 'he' ? `משתמשים מחוברים (${onlineUsers.length})` : `Online users (${onlineUsers.length})`)
+      : usersModalFilter
+      ? `${facultyLabel(usersModalFilter as FacultyId, lang)} (${usersModalRows.length})`
+      : '';
+
   if (guardLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-admin-surface">
@@ -437,7 +545,11 @@ export default function LiveTransportationPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setUsersModalFilter('all')}
+            className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 text-left shadow-sm transition-colors hover:bg-admin-surface-container-low"
+          >
             <span className="text-[11px] font-medium uppercase tracking-wider text-admin-on-surface-variant">
               {lang === 'he' ? 'משתמשים מחוברים' : 'Active Sessions'}
             </span>
@@ -445,7 +557,7 @@ export default function LiveTransportationPage() {
               <span className="text-3xl font-semibold text-admin-primary">{onlineUsers.length}</span>
               <span className="mb-1 text-xl">👥</span>
             </div>
-          </div>
+          </button>
           <div className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
             <span className="text-[11px] font-medium uppercase tracking-wider text-admin-on-surface-variant">
               {lang === 'he' ? 'אתר / אפליקציה' : 'Web / Mobile'}
@@ -475,7 +587,7 @@ export default function LiveTransportationPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <section className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
             <div className="flex items-baseline justify-between">
               <h2 className="text-sm font-bold text-admin-primary">{lang === 'he' ? 'משתמשים מחוברים כעת' : 'Active now'}</h2>
@@ -497,6 +609,45 @@ export default function LiveTransportationPage() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+          </section>
+
+          <section className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-bold text-admin-primary">{lang === 'he' ? 'מחוברים לפי פקולטה' : 'Online by faculty'}</h2>
+            {byFaculty.length === 0 ? (
+              <div className="flex h-56 w-full items-center justify-center text-xs text-admin-on-surface-variant">
+                {lang === 'he' ? 'אין משתמשים מחוברים' : 'No users online'}
+              </div>
+            ) : (
+              <>
+                <div className="h-56 w-full" dir="ltr">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={byFaculty}
+                        dataKey="count"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        isAnimationActive={false}
+                        onClick={(entry) => setUsersModalFilter((entry.payload as { facultyId: string }).facultyId)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        {byFaculty.map((entry) => (
+                          <Cell key={entry.facultyId} fill={FACULTY_COLORS[entry.facultyId as FacultyId] ?? FACULTY_COLORS.all} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="mt-1 text-center text-[11px] text-admin-on-surface-variant">
+                  {lang === 'he' ? 'לחצו על פלח כדי לראות משתמשים' : 'Click a slice to see who’s online'}
+                </p>
+              </>
+            )}
           </section>
 
           <section className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">
@@ -712,6 +863,13 @@ export default function LiveTransportationPage() {
         busy={deleteBusy}
         onConfirm={() => runDelete({ all: true })}
         onCancel={() => setConfirmAction(null)}
+      />
+      <UsersListModal
+        open={usersModalFilter !== null}
+        title={usersModalTitle}
+        rows={usersModalRows}
+        lang={lang}
+        onClose={() => setUsersModalFilter(null)}
       />
     </DashboardShell>
   );
