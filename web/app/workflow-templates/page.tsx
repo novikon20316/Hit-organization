@@ -409,7 +409,14 @@ function WorkflowTemplatesContent() {
                   <div key={m.type} className={`flex items-center gap-2.5 py-2 ${idx > 0 ? 'border-t border-line' : ''}`}>
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EDE9FE] text-xs font-bold text-primary">{idx + 1}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{lang === 'he' ? m.nameHe : m.nameEn}</p>
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {lang === 'he' ? m.nameHe : m.nameEn}
+                        {typeof m.percentOfFinalGrade === 'number' && (
+                          <span className="ms-1.5 font-normal text-muted">
+                            {lang === 'he' ? `— ${m.percentOfFinalGrade}% מהציון הכולל` : `— ${m.percentOfFinalGrade}% of final grade`}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-muted">
                         📅 {m.dateMode === 'fixed'
                           ? (lang === 'he' ? `תאריך קבוע: ${m.fixedDate ?? '—'}` : `Fixed: ${m.fixedDate ?? '—'}`)

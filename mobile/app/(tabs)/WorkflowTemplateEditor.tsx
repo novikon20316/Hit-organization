@@ -995,7 +995,14 @@ export default function WorkflowTemplateEditor() {
               <Text style={{ fontSize: 11, fontWeight: '700', color: '#7C3AED' }}>{idx + 1}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#1F1235' }}>{lang === 'he' ? ms.nameHe : ms.nameEn}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#1F1235' }}>
+                {lang === 'he' ? ms.nameHe : ms.nameEn}
+                {typeof ms.percentOfFinalGrade === 'number' && (
+                  <Text style={{ fontWeight: '400', color: '#8899BB' }}>
+                    {lang === 'he' ? `  — ${ms.percentOfFinalGrade}% מהציון הכולל` : `  — ${ms.percentOfFinalGrade}% of final grade`}
+                  </Text>
+                )}
+              </Text>
               <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>
                 📅 {ms.dateMode === 'fixed'
                   ? (lang === 'he' ? `תאריך קבוע: ${ms.fixedDate ?? '—'}` : `Fixed: ${ms.fixedDate ?? '—'}`)

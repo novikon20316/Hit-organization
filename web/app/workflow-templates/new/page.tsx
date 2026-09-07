@@ -477,7 +477,14 @@ function ProposeVersionForm({
             <div key={ms.type} className="flex items-start gap-2.5 rounded-lg border border-line bg-paper p-3">
               <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EDE9FE] text-xs font-bold text-primary">{idx + 1}</span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink">{lang === 'he' ? ms.nameHe || '—' : ms.nameEn || '—'}</p>
+                <p className="truncate text-sm font-semibold text-ink">
+                  {lang === 'he' ? ms.nameHe || '—' : ms.nameEn || '—'}
+                  {typeof ms.percentOfFinalGrade === 'number' && (
+                    <span className="ms-1.5 font-normal text-muted">
+                      {lang === 'he' ? `— ${ms.percentOfFinalGrade}% מהציון הכולל` : `— ${ms.percentOfFinalGrade}% of final grade`}
+                    </span>
+                  )}
+                </p>
                 <p className="mt-0.5 text-xs text-muted">
                   📅 {ms.dateMode === 'fixed'
                     ? (lang === 'he' ? `תאריך קבוע: ${ms.fixedDate ?? '—'}` : `Fixed: ${ms.fixedDate ?? '—'}`)
