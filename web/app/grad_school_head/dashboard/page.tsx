@@ -553,7 +553,7 @@ function GradSchoolHeadDashboardContent() {
           {approvedFinalGrades.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">📭 {lang === 'he' ? 'אין ציונים מאושרים' : 'No approved grades'}</p>}
         </div>
       ) : tab === 'students' ? (
-        <StudentsListTab />
+        <StudentsListTab canManageStudents addStudentDegreeType="masters" />
       ) : tab === 'ungraded' ? (
         <UngradedCsMastersTab />
       ) : (

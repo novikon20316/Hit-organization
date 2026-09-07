@@ -332,7 +332,7 @@ function AdministrativeCoordinatorDashboardContent() {
       ) : activeTab === 'students' ? (
         <StudentsReportTab />
       ) : activeTab === 'users' ? (
-        <StudentsListTab enablePasswordReset />
+        <StudentsListTab enablePasswordReset canManageStudents />
       ) : activeTab === 'statistics' ? (
         <CoordinatorStatisticsTab />
       ) : activeTab === 'ungraded' ? (

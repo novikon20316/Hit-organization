@@ -18,7 +18,7 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { facultyIdMatches, withinCoordinatorScope, type RoleFacultyField } from '../services/scopeAuthorization.js';
+import { isStudentWithinStaffScope } from '../services/scopeAuthorization.js';
 
 const db = admin.firestore();
 
@@ -26,38 +26,12 @@ function hasRole(user: AuthenticatedRequest['user'], r: string): boolean {
   return user?.role === r || (user?.roles ?? []).includes(r);
 }
 
-/** True if `user` holds a coordinatorScope naming a specific major for
- *  `student`'s faculty (or a cross-faculty 'all' scope). If the account has
- *  no such scope at all, it's unrestricted on the major axis — "the entire
- *  faculty's masters degree if he does not have any specific major". */
-function majorAllowed(user: AuthenticatedRequest['user'], student: { facultyId: string; major?: string | null }): boolean {
-  const scopes = user?.coordinatorScopes ?? [];
-  const majorScopes = scopes.filter((s) => s.major && (s.facultyId === 'all' || s.facultyId === student.facultyId));
-  if (majorScopes.length === 0) return true;
-  return majorScopes.some((s) => s.major === student.major);
-}
-
+// The scope predicate itself now lives in scopeAuthorization.ts
+// (isStudentWithinStaffScope), shared with adminController.ts's Add/Delete
+// Student endpoints so a coordinator can never create or delete a student
+// outside what this roster would even show them.
 function inScope(user: AuthenticatedRequest['user'], student: { facultyId: string; major?: string | null; degreeType?: string | null }): boolean {
-  if (hasRole(user, 'system_admin')) return true;
-  if (hasRole(user, 'faculty_admin')) {
-    return facultyIdMatches(user as any, student.facultyId, 'facultyAdminFacultyIds' as RoleFacultyField);
-  }
-  if (hasRole(user, 'grad_school_head')) {
-    if (student.degreeType !== 'masters') return false;
-    if (!facultyIdMatches(user as any, student.facultyId, 'gradSchoolHeadFacultyIds' as RoleFacultyField)) return false;
-    return majorAllowed(user, student);
-  }
-  // administrative_secretary ("administrative coordinator") has no
-  // *FacultyIds delegate field of its own — its real scope lives in
-  // coordinatorScopes (facultyId/major pairs), the same mechanism the
-  // thesis-average write endpoints already scope it by (see
-  // studentTrackController.ts). Reused as-is here rather than adding a
-  // degreeType restriction, since callers (e.g. the "students without an
-  // average" tab) already narrow further client-side for their own purpose.
-  if (hasRole(user, 'administrative_secretary')) {
-    return withinCoordinatorScope(user as any, { facultyId: student.facultyId, ...(student.major ? { major: student.major } : {}) });
-  }
-  return false;
+  return isStudentWithinStaffScope(user, student);
 }
 
 export const listStudentsForScope = async (req: AuthenticatedRequest, res: Response) => {

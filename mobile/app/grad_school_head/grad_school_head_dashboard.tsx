@@ -883,7 +883,7 @@ export default function GradSchoolHeadDashboard() {
 
         {/* ── STUDENTS LIST TAB ── */}
         {activeTab === 'students' && (
-          <StudentsListSection lang={lang} isRtl={lang === 'he'} />
+          <StudentsListSection lang={lang} isRtl={lang === 'he'} canManageStudents />
         )}
 
         <View style={{ height: 60 }} />

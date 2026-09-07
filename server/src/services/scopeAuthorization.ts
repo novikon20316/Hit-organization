@@ -153,6 +153,58 @@ export function facultyIdMatches(
   return eff === 'all' || eff.includes(target);
 }
 
+function hasRole(user: AuthUser, r: string): boolean {
+  return user.role === r || user.roles.includes(r);
+}
+
+/** True if `user` holds a coordinatorScope naming a specific major for
+ *  `student`'s faculty (or a cross-faculty 'all' scope). No such scope at
+ *  all means unrestricted on the major axis — "the entire faculty's
+ *  masters degree if they have no specific major assigned". */
+function studentMajorAllowed(user: AuthUser, student: { facultyId: string; major?: string | null }): boolean {
+  const majorScopes = user.coordinatorScopes.filter((s) => s.major && (s.facultyId === 'all' || s.facultyId === student.facultyId));
+  if (majorScopes.length === 0) return true;
+  return majorScopes.some((s) => s.major === student.major);
+}
+
+/**
+ * True if `student` falls within `user`'s scope for the staff roles that
+ * manage individual student accounts — the Students List tab
+ * (studentsListController.ts's listStudentsForScope) and the Add/Delete
+ * Student actions on it (adminController.ts's createAdminUser/
+ * eraseUserBySystemAdmin). Shared by the read side and both write endpoints
+ * so a coordinator can never create or delete a student they wouldn't even
+ * be shown in their own roster.
+ *
+ * faculty_admin: whole faculty, any major/degree.
+ * grad_school_head: masters students only, narrowed to whichever majors
+ * their coordinatorScopes name (or the whole faculty's masters students if
+ * none are set).
+ * administrative_secretary ("administrative coordinator"): whatever her own
+ * coordinatorScopes name — she has no *FacultyIds field of her own, unlike
+ * the two roles above.
+ * system_admin: always.
+ */
+export function isStudentWithinStaffScope(
+  user: AuthUser | undefined,
+  student: { facultyId: string; major?: string | null; degreeType?: string | null }
+): boolean {
+  if (!user) return false;
+  if (isSystemAdmin(user)) return true;
+  if (hasRole(user, 'faculty_admin')) {
+    return facultyIdMatches(user, student.facultyId, 'facultyAdminFacultyIds');
+  }
+  if (hasRole(user, 'grad_school_head')) {
+    if (student.degreeType !== 'masters') return false;
+    if (!facultyIdMatches(user, student.facultyId, 'gradSchoolHeadFacultyIds')) return false;
+    return studentMajorAllowed(user, student);
+  }
+  if (hasRole(user, 'administrative_secretary')) {
+    return withinCoordinatorScope(user, { facultyId: student.facultyId, ...(student.major ? { major: student.major } : {}) });
+  }
+  return false;
+}
+
 /** Resolves a project doc's scope-relevant fields for scope-matching against
  *  a ScopeRule/CoordinatorScope. Returns null if the project doesn't exist. */
 export async function resolveProjectScope(projectId: string | undefined | null): Promise<ResourceScope | null> {

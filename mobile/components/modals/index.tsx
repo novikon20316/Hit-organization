@@ -1,4 +1,5 @@
 import AddStudentToProjectModal from './AddStudentToProjectModal';
+import AddStudentModal from './AddStudentModal';
 import NewUserModal from './NewUserModal';
 import MaintenanceModal from './MaintenanceModal';
 import EditUserModal from './EditUserModal';
@@ -17,6 +18,7 @@ import Enforce2FAModal from './Enforce2FAModal';
 
 export {
     NewUserModal,
+    AddStudentModal,
     AddStudentToProjectModal,
     MaintenanceModal,
     EditUserModal,

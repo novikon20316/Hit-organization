@@ -18,7 +18,8 @@ import { apiClient } from '@/src/api/apiClient';
 import { TopBar, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
-import { BulkDueDateModal, NewProjectModal } from '@/components/modals';
+import { BulkDueDateModal, NewProjectModal, AddStudentModal } from '@/components/modals';
+import DeleteStudentButton from '@/components/DeleteStudentButton';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import { AdministrativeCoordinatorDashboardStyles, AdministrativeCoordinatorModalStyles, adminPanelStyles } from '../../constants/styles';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
@@ -1055,6 +1056,9 @@ export default function ProjectCoordinatorDashboard() {
           </View>
         ) : activeTab === 'students' ? (
           <View>
+            <View style={{ marginBottom: 12 }}>
+              <AddStudentModal lang={lang} isRtl={lang === 'he'} onCreated={() => fetchStudentsReport()} />
+            </View>
             <TextInput
               style={s.searchInput}
               value={reportSearchText}
@@ -1140,6 +1144,22 @@ export default function ProjectCoordinatorDashboard() {
                         🔑 {resettingPasswordId === row.id ? (lang === 'he' ? 'מאפס…' : 'Resetting…') : (lang === 'he' ? 'איפוס סיסמה' : 'Reset password')}
                       </Text>
                     </Pressable>
+                    <DeleteStudentButton
+                      lang={lang}
+                      studentId={row.id}
+                      studentName={row.name}
+                      onDeleted={() => fetchStudentsReport()}
+                      style={{
+                        marginTop: 8,
+                        alignSelf: lang === 'he' ? 'flex-end' : 'flex-start',
+                        borderWidth: 1,
+                        borderColor: ap.outlineVariant,
+                        borderRadius: 8,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                      }}
+                      textStyle={{ fontSize: 12, fontWeight: '600', color: '#EF4444' }}
+                    />
                   </Pressable>
                 );
               })

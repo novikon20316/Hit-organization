@@ -24,8 +24,12 @@ interface NewUserModalProps {
    *  the delegate's own faculty — omit `lockedFacultyId` for
    *  grad_school_head, who can create staff in any faculty. Enforced for
    *  real server-side by createAdminUser's delegate scope check — this is
-   *  just so the form doesn't even offer an option the server would reject. */
-  scope?: { selectableRoles: AppRole[]; lockedFacultyId?: string };
+   *  just so the form doesn't even offer an option the server would reject.
+   *  `lockedDegreeType`/`allowedMajors` narrow the student-only fields the
+   *  same way for the Add Student flow (grad_school_head can only ever
+   *  create masters students — see isStudentWithinStaffScope — and either
+   *  role may hold a coordinatorScopes major restriction). */
+  scope?: { selectableRoles: AppRole[]; lockedFacultyId?: string; lockedDegreeType?: 'bachelors' | 'masters'; allowedMajors?: string[] };
 }
 
 const SELECTABLE_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
@@ -52,7 +56,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<AppRole>(roleOptions[0] ?? 'student');
   const [facultyId, setFacultyId] = useState(scope?.lockedFacultyId ?? '');
-  const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>('bachelors');
+  const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>(scope?.lockedDegreeType ?? 'bachelors');
   const [major, setMajor] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState('1');
   const [studentId, setStudentId] = useState('');
@@ -76,18 +80,20 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
     const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
     if (!faculty) return [];
     const seen = new Set<string>();
-    return faculty.programs.filter((p) => p.level === degreeType && !seen.has(p.slug) && seen.add(p.slug));
-  }, [facultyId, degreeType]);
+    const options = faculty.programs.filter((p) => p.level === degreeType && !seen.has(p.slug) && seen.add(p.slug));
+    return scope?.allowedMajors?.length ? options.filter((p) => scope.allowedMajors!.includes(p.slug)) : options;
+  }, [facultyId, degreeType, scope]);
 
   // Some faculties only offer one degree level (e.g. data_science is
   // masters-only, medical_tech is bachelors-only) — lock the degree selector
   // to that level instead of letting the admin pick the other one and get an
   // empty major list. No faculty selected yet → both levels stay available.
   const availableDegreeLevels = useMemo((): Array<'bachelors' | 'masters'> => {
+    if (scope?.lockedDegreeType) return [scope.lockedDegreeType];
     const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
     if (!faculty) return ['bachelors', 'masters'];
     return Array.from(new Set(faculty.programs.map((p) => p.level)));
-  }, [facultyId]);
+  }, [facultyId, scope]);
 
   // Deduped across degree levels — unlike majorOptions above, which is
   // filtered per degree level for the student major picker.
@@ -103,7 +109,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
     setPhone('');
     setRole(roleOptions[0] ?? 'student');
     setFacultyId(scope?.lockedFacultyId ?? '');
-    setDegreeType('bachelors');
+    setDegreeType(scope?.lockedDegreeType ?? 'bachelors');
     setMajor('');
     setYearOfStudy('1');
     setStudentId('');
@@ -301,6 +307,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                   setFacultyId(newFacultyId);
                   setMajor('');
                   setAssignedMajors([]);
+                  if (scope?.lockedDegreeType) return;
                   const faculty = HIT_FACULTIES.find((f) => f.key === newFacultyId);
                   const levels = faculty ? Array.from(new Set(faculty.programs.map((p) => p.level))) : [];
                   if (levels.length === 1) setDegreeType(levels[0]!);
@@ -308,7 +315,10 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                 className={inputCls}
               >
                 <option value="">{lang === 'he' ? 'בחר פקולטה' : 'Select faculty'}</option>
-                {SELECTABLE_FACULTIES.map((id) => (
+                {(scope?.lockedDegreeType
+                  ? SELECTABLE_FACULTIES.filter((id) => HIT_FACULTIES.find((f) => f.key === id)?.programs.some((p) => p.level === scope.lockedDegreeType))
+                  : SELECTABLE_FACULTIES
+                ).map((id) => (
                   <option key={id} value={id}>
                     {facultyLabel(id, lang)}
                   </option>

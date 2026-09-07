@@ -84,6 +84,12 @@ interface Props {
   // real server-side by createAdminUser's delegate scope check.
   selectableRoles?: string[];
   lockedFacultyId?: string;
+  // grad_school_head can only ever create masters students (see
+  // isStudentWithinStaffScope server-side) — fixes the Degree Level picker
+  // to a single value and narrows the Faculty list to faculties that
+  // actually offer it, instead of letting the caller pick a combination the
+  // server would just reject.
+  lockedDegreeType?: 'bachelors' | 'masters';
 
   styles: any;
 }
@@ -122,6 +128,7 @@ export default function NewUserModal({
   creating,
   selectableRoles,
   lockedFacultyId,
+  lockedDegreeType,
   styles,
 }: Props) {
   const roleEntries = selectableRoles?.length
@@ -133,9 +140,11 @@ export default function NewUserModal({
   // to that level instead of letting the admin pick the other one and get an
   // empty major list. No faculty selected yet → both levels stay available.
   const faculty = getFacultyByKey(newUserFaculty);
-  const availableDegreeLevels: Array<'bachelors' | 'masters'> = faculty
-    ? Array.from(new Set(faculty.programs.map((p) => p.level)))
-    : ['bachelors', 'masters'];
+  const availableDegreeLevels: Array<'bachelors' | 'masters'> = lockedDegreeType
+    ? [lockedDegreeType]
+    : faculty
+      ? Array.from(new Set(faculty.programs.map((p) => p.level)))
+      : ['bachelors', 'masters'];
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -287,6 +296,7 @@ export default function NewUserModal({
             ) : (
               Object.entries(FACULTY_COLORS)
                 .filter(([k]) => k !== 'default' && k !== 'all')
+                .filter(([fid]) => !lockedDegreeType || getFacultyByKey(fid)?.programs.some((p) => p.level === lockedDegreeType))
                 .map(([fid, fc]) => (
                   <Pressable
                     key={fid}
@@ -298,6 +308,7 @@ export default function NewUserModal({
                       setNewUserFaculty(fid);
                       setNewUserMajor('');
                       setNewUserAssignedMajors([]);
+                      if (lockedDegreeType) return;
                       const picked = getFacultyByKey(fid);
                       const levels = picked ? Array.from(new Set(picked.programs.map((p) => p.level))) : [];
                       if (levels.length === 1) setNewUserDegree(levels[0]!);

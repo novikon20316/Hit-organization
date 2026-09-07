@@ -20,7 +20,7 @@ import {
   VALID_SCOPE_FACULTY_IDS,
   type ScopeRule, type CoordinatorScope,
 } from '../config/permissionScopes.js';
-import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, type RoleFacultyField } from '../services/scopeAuthorization.js';
+import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, isStudentWithinStaffScope, type RoleFacultyField } from '../services/scopeAuthorization.js';
 import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js';
 import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
@@ -623,12 +623,27 @@ export const createAdminUser = async (req: AuthenticatedRequest, res: Response) 
       if (ADMIN_TIER_ROLES.includes(userData.role)) {
         return res.status(403).json({ message: 'Access denied: system_admin only.' });
       }
-      const callerRole = req.user?.role ?? '';
-      const isDelegateAdmin = DELEGATE_ADMIN_ROLES.includes(callerRole);
-      const inOwnFacultyScope = isDelegateAdmin && facultyIdWithinDelegateScope(req.user, callerRole, userData.facultyId);
       const requestedScope = { facultyId: userData.facultyId, major: userData.major };
-      if (!inOwnFacultyScope && !hasActionGrant(req.user, 'add_users', requestedScope)) {
-        return res.status(403).json({ message: 'Access denied: system_admin only.' });
+      if (userData.role === 'student') {
+        // "Add Student" (Users tab): administrative_secretary ("administrative
+        // coordinator") and grad_school_head may self-serve within their own
+        // scope — the exact same scope studentsListController's roster
+        // already shows them, never looser (see isStudentWithinStaffScope).
+        // Falls back to an explicit add_users grant for anyone else it's
+        // been delegated to, same as every other role below.
+        const allowed =
+          isStudentWithinStaffScope(req.user, { facultyId: userData.facultyId, major: userData.major, degreeType: userData.degreeType }) ||
+          hasActionGrant(req.user, 'add_users', requestedScope);
+        if (!allowed) {
+          return res.status(403).json({ message: 'Access denied: system_admin only.' });
+        }
+      } else {
+        const callerRole = req.user?.role ?? '';
+        const isDelegateAdmin = DELEGATE_ADMIN_ROLES.includes(callerRole);
+        const inOwnFacultyScope = isDelegateAdmin && facultyIdWithinDelegateScope(req.user, callerRole, userData.facultyId);
+        if (!inOwnFacultyScope && !hasActionGrant(req.user, 'add_users', requestedScope)) {
+          return res.status(403).json({ message: 'Access denied: system_admin only.' });
+        }
       }
     }
 
@@ -1311,9 +1326,12 @@ export const disableUser2FA = async (req: AuthenticatedRequest, res: Response) =
 /**
  * POST /api/admin/users/:id/erase
  * Permanently deletes a user's Firebase Auth account + Firestore data —
- * system_admin only. Immediate, no grace period (matches existing admin-
- * action conventions like deleteAdminProject/toggleUserStatusAdmin). Runs
- * the same eligibility check as self-service deletion — an admin can't
+ * system_admin, or administrative_secretary/grad_school_head deleting a
+ * student within their own scope (isStudentWithinStaffScope — the "Delete
+ * Student" action on their own Users tab), or anyone else holding an
+ * explicit delete_users grant. Immediate, no grace period (matches existing
+ * admin-action conventions like deleteAdminProject/toggleUserStatusAdmin).
+ * Runs the same eligibility check as self-service deletion — no caller can
  * bypass it either, to avoid orphaning a supervisor's active students, a
  * student's own active project, or an unfinished defense-grading assignment.
  */
@@ -1334,7 +1352,16 @@ export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Res
         return res.status(403).json({ message: 'Access denied: system_admin only.' });
       }
       const scope = { facultyId: target.facultyId, major: target.major };
-      if (!hasActionGrant(req.user, 'delete_users', scope)) {
+      // "Delete Student" (Users tab): administrative_secretary and
+      // grad_school_head may self-serve within their own scope, same as the
+      // Add Student path above — never looser than what studentsListController
+      // already shows them. Falls back to an explicit delete_users grant
+      // (never delegable — see DELEGATE_RESTRICTED_ACTIONS) for anyone else
+      // it's been granted to.
+      const isScopedStudentDelete =
+        target.role === 'student' &&
+        isStudentWithinStaffScope(req.user, { facultyId: target.facultyId, major: target.major, degreeType: target.degreeType });
+      if (!isScopedStudentDelete && !hasActionGrant(req.user, 'delete_users', scope)) {
         return res.status(403).json({ message: 'Access denied: system_admin only.' });
       }
     }

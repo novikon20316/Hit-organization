@@ -8,13 +8,15 @@
 // sees masters students only narrowed to whichever majors their
 // coordinatorScopes name (or the whole faculty if none are set), and
 // administrative_secretary ("administrative coordinator") sees whatever her
-// own coordinatorScopes name. No create/edit/toggle actions here — just a
-// searchable/filterable roster, modeled on components/staff/ManagedStaffTab.tsx's
-// card-grid shell — except for the optional password-reset action below,
-// opted into only by administrative_secretary's own "Users" tab (see
-// app/administrative_coordinator/dashboard/page.tsx), which is the one role
-// among these three actually allowed to call it (adminController.ts's
-// resetUserPasswordAdmin enforces this server-side regardless).
+// own coordinatorScopes name. A searchable/filterable roster, modeled on
+// components/staff/ManagedStaffTab.tsx's card-grid shell, with two opt-in
+// actions neither of which faculty_admin gets (not part of this rollout):
+// password-reset (administrative_secretary only, via `enablePasswordReset`)
+// and Add/Delete Student (administrative_secretary + grad_school_head, via
+// `canManageStudents` — reuses NewUserModal/adminController.ts's
+// createAdminUser+eraseUserBySystemAdmin, scoped by
+// scopeAuthorization.ts's isStudentWithinStaffScope, the same predicate this
+// tab's own roster is filtered by).
 
 import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -22,6 +24,8 @@ import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
 import { getDegreeTypeColor, getTrackColor, withAlpha } from '@/lib/facultyColors';
+import { NewUserModal } from '@/app/admin/panel/NewUserModal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 type StudentRecord = Awaited<ReturnType<typeof apiClient.getStudentsList>>['students'][number];
 
@@ -74,7 +78,7 @@ function ResetPasswordAction({ studentId }: { studentId: string }) {
   };
 
   return (
-    <div className="mt-2 border-t border-line pt-2" onClick={(e) => e.stopPropagation()}>
+    <div>
       <button
         type="button"
         disabled={busy}
@@ -114,7 +118,79 @@ function ResetPasswordAction({ studentId }: { studentId: string }) {
   );
 }
 
-export function StudentsListTab({ enablePasswordReset = false }: { enablePasswordReset?: boolean }) {
+/** Per-card delete action — mirrors ResetPasswordAction's own local
+ *  busy/confirm state so erasing one student doesn't affect any other card.
+ *  Reuses the exact same permanent-erase endpoint/eligibility checks as
+ *  system_admin's panel (UserRow.tsx) — adminController.ts's
+ *  eraseUserBySystemAdmin now also accepts administrative_secretary/
+ *  grad_school_head acting within their own scope (isStudentWithinStaffScope),
+ *  so no separate endpoint was needed here. */
+function DeleteStudentAction({ student, onDeleted }: { student: StudentRecord; onDeleted: () => void }) {
+  const { lang } = useLanguage();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleDelete = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.eraseUserBySystemAdmin(student.id);
+      setConfirming(false);
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'מחיקת הסטודנט נכשלה' : 'Failed to delete student');
+      setConfirming(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-ink hover:border-danger hover:text-danger"
+      >
+        🗑️ {lang === 'he' ? 'מחק סטודנט' : 'Delete student'}
+      </button>
+      {error && <p className="mt-1.5 rounded-md bg-danger-bg px-2 py-1 text-xs text-danger" role="alert">{error}</p>}
+
+      <ConfirmDialog
+        open={confirming}
+        title={lang === 'he' ? 'מחיקת סטודנט לצמיתות' : 'Permanently Delete Student'}
+        message={
+          lang === 'he'
+            ? `הפעולה תמחק לצמיתות את החשבון, הכניסה למערכת והפרופיל האישי של ${student.displayName}, וכן את ההתראות והבקשות שלו/שלה. אם יש לו/לה פרויקט פעיל, המחיקה תיחסם. לא ניתן לבטל פעולה זו.`
+            : `This will permanently delete ${student.displayName}'s account, login, and personal profile, along with their notifications and applications. Blocked if they have an active project. This cannot be undone.`
+        }
+        confirmLabel={lang === 'he' ? 'מחק לצמיתות' : 'Delete permanently'}
+        cancelLabel={lang === 'he' ? 'ביטול' : 'Cancel'}
+        destructive
+        busy={busy}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirming(false)}
+      />
+    </div>
+  );
+}
+
+export interface StudentsListTabProps {
+  enablePasswordReset?: boolean;
+  /** Surfaces "+ Add Student" and a per-card "Delete student" action —
+   *  administrative_secretary and grad_school_head, whose scope is enforced
+   *  server-side the same way this tab's own roster is already scoped (see
+   *  server/src/services/scopeAuthorization.ts's isStudentWithinStaffScope). */
+  canManageStudents?: boolean;
+  /** grad_school_head can only ever manage masters students — locks the Add
+   *  Student form's degree field instead of offering a choice the server
+   *  would just reject. Omitted for administrative_secretary, who isn't
+   *  degree-restricted. */
+  addStudentDegreeType?: 'bachelors' | 'masters';
+}
+
+export function StudentsListTab({ enablePasswordReset = false, canManageStudents = false, addStudentDegreeType }: StudentsListTabProps) {
   const { lang, t } = useLanguage();
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,6 +198,7 @@ export function StudentsListTab({ enablePasswordReset = false }: { enablePasswor
   const [search, setSearch] = useState('');
   const [majorFilter, setMajorFilter] = useState('all');
   const [degreeFilter, setDegreeFilter] = useState('all');
+  const [showAddStudent, setShowAddStudent] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +219,15 @@ export function StudentsListTab({ enablePasswordReset = false }: { enablePasswor
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-fetch after Add/Delete Student — not wrapped in the loading spinner
+  // (unlike the initial load above) so the roster refreshes in place.
+  const refetchStudents = () => {
+    apiClient
+      .getStudentsList()
+      .then((res) => setStudents(res.students ?? []))
+      .catch((err) => setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת רשימת הסטודנטים נכשלה' : 'Failed to load students list'));
+  };
 
   const majorOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -196,6 +282,15 @@ export function StudentsListTab({ enablePasswordReset = false }: { enablePasswor
             ))}
           </select>
         )}
+        {canManageStudents && (
+          <button
+            type="button"
+            onClick={() => setShowAddStudent(true)}
+            className="ms-auto rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+          >
+            + {lang === 'he' ? 'סטודנט חדש' : 'Add Student'}
+          </button>
+        )}
       </div>
 
       {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
@@ -248,11 +343,28 @@ export function StudentsListTab({ enablePasswordReset = false }: { enablePasswor
               )}
             </div>
 
-            {enablePasswordReset && <ResetPasswordAction studentId={s.id} />}
+            {(enablePasswordReset || canManageStudents) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2" onClick={(e) => e.stopPropagation()}>
+                {enablePasswordReset && <ResetPasswordAction studentId={s.id} />}
+                {canManageStudents && <DeleteStudentAction student={s} onDeleted={refetchStudents} />}
+              </div>
+            )}
           </div>
         ))}
         {filtered.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}
       </div>
+
+      {canManageStudents && (
+        <NewUserModal
+          open={showAddStudent}
+          onClose={() => setShowAddStudent(false)}
+          onCreated={() => {
+            setShowAddStudent(false);
+            refetchStudents();
+          }}
+          scope={{ selectableRoles: ['student'], ...(addStudentDegreeType ? { lockedDegreeType: addStudentDegreeType } : {}) }}
+        />
+      )}
     </div>
   );
 }
