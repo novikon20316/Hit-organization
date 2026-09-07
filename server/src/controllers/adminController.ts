@@ -1082,14 +1082,20 @@ export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Resp
  * account just to give it a new password. Mirrors the exact Admin-SDK +
  * mustChangePassword/tempPasswordHash convention already used by
  * createAdminUser and loginSecurity.ts's resolveIncident (owner decision).
+ *
+ * system_admin may reset anyone. administrative_secretary ("administrative
+ * coordinator") may additionally reset a *student's* password, scoped to
+ * their own faculty/major via withinCoordinatorScope — same scoping
+ * convention as getStudentDetail/listStudentsForScope, since a coordinator's
+ * real jurisdiction is "the students in their faculty/major", not staff or
+ * students outside it.
  */
 export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  const role = req.user?.role;
-  const roles = req.user?.roles ?? [];
-  const isSystemAdmin = role === 'system_admin' || roles.includes('system_admin');
-  if (!isSystemAdmin) {
+  const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
+  const isAdminCoordinator = hasAnyRole(req.user, ['administrative_secretary']);
+  if (!isSystemAdmin && !isAdminCoordinator) {
     await logPermissionDenied(req, 'user', req.params.id ?? 'unknown');
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: 'Access denied.' });
   }
 
   const { id: userId } = req.params;
@@ -1099,6 +1105,20 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
     const targetSnap = await db.collection('users').doc(userId).get();
     if (!targetSnap.exists) return res.status(404).json({ message: 'User not found.' });
     const target = targetSnap.data()!;
+
+    if (!isSystemAdmin) {
+      // administrative_secretary: student only, and only within their own
+      // faculty/major scope — never another coordinator, supervisor, or a
+      // student outside their jurisdiction.
+      if (target.role !== 'student') {
+        await logPermissionDenied(req, 'user', userId);
+        return res.status(403).json({ message: 'Access denied: can only reset passwords for students in your faculty.' });
+      }
+      if (!withinCoordinatorScope(req.user, { facultyId: target.facultyId ?? '', major: target.major || undefined })) {
+        await logPermissionDenied(req, 'user', userId);
+        return res.status(403).json({ message: 'Access denied: student is outside your faculty/major scope.' });
+      }
+    }
 
     const tempPassword = generateTempPassword();
     // Also clears the Auth-level `disabled` flag — same recovery rationale as

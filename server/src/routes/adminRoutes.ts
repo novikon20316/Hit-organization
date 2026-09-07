@@ -107,6 +107,8 @@ router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaff
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
 router.post('/login-security/:code/lift', verifyToken, liftLoginLockout);
+// system_admin (any user) or administrative coordinator (students in their
+// own faculty/major scope only) — gated inside the controller.
 router.post('/users/:id/reset-password', verifyToken, resetUserPasswordAdmin);
 // Temporary debug tool — see config/featureFlags.ts's IMPERSONATION_ENABLED.
 router.post('/users/:id/impersonate', verifyToken, impersonationLimiter, impersonateUser);
