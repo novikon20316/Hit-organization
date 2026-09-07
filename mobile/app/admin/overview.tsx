@@ -6,11 +6,15 @@
 // values below are the same ones, so the two platforms visually match.
 //
 // The full CRUD console (users/projects/milestones management) that used to
-// be the system_admin home is reachable via app/admin/menu.tsx — a sectioned
-// nav screen mirroring web's sidebar (web/app/admin/navConfig.ts) — from the
-// "Open Admin Panel" button below. Its individual sections still live at
-// app/admin/panel.tsx?tab=..., but that screen's own old-style in-page tab
-// strip is gone now that admin/menu.tsx is the way to switch between them.
+// be the system_admin home is reachable via TopBar's "☰" — opened full-screen
+// (TopBar's fullScreenMenu prop) with every nav/directory destination from
+// constants/adminMenu.ts, mirroring web's sidebar (web/app/admin/
+// navConfig.ts). That used to be a separate "Open Admin Panel" button below
+// pushing a dedicated app/admin/menu.tsx screen; folded into the hamburger
+// so there's a single, consistent way to reach the rest of the admin console
+// from every admin screen (see app/admin/panel.tsx, which sets up the same
+// menu items) instead of two different-looking "more options" entry points.
+// Individual sections still live at app/admin/panel.tsx?tab=....
 //
 // Every tile here is backed by real data already used elsewhere in the app,
 // not fabricated placeholder metrics:
@@ -26,7 +30,7 @@
 //    MaintenanceModal component app/admin/panel.tsx already uses.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Switch, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
@@ -34,8 +38,11 @@ import { db } from '@/src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import { TopBar, StatCard } from '@/components/shared';
 import { MaintenanceModal } from '@/components/modals';
+import type { HeaderMenuItem } from '@/components/HeaderMenu';
 import type { Lang } from '@/components/i18n';
 import { ap } from '@/constants/theme';
+import { ADMIN_NAVIGATION_ITEMS, ADMIN_DIRECTORY_ITEMS } from '@/constants/adminMenu';
+import { useNotifications } from '@/src/context/NotificationsContext';
 
 // Same "online" definition as web/app/admin/live-transportation/page.tsx —
 // comfortably exceeds usePresenceHeartbeat's send interval so a session
@@ -75,6 +82,33 @@ export default function AdminOverviewScreen() {
   const [maintenanceStatus, setMaintenanceStatus] = useState<{ isActive: boolean; title: string; endsAt: string | null } | null>(null);
   const [deactivatingMaintenance, setDeactivatingMaintenance] = useState(false);
   const [savingMaintenance, setSavingMaintenance] = useState(false);
+
+  // Feeds TopBar's fullScreenMenu — the single "☰" entry point to every
+  // admin destination (nav + directories), replacing the old separate
+  // "Open Admin Panel" button below. See constants/adminMenu.ts.
+  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const badgeCountFor = (targetScreens?: string[]) =>
+    (targetScreens ?? []).reduce((sum, ts) => sum + (unreadByTargetScreen[ts] ?? 0), 0);
+  const adminMenuItems: HeaderMenuItem[] = [
+    ...ADMIN_NAVIGATION_ITEMS.map((item, i) => ({
+      key: item.key,
+      icon: item.icon,
+      label: item.label[lang],
+      badge: badgeCountFor(item.badgeTargetScreens),
+      sectionTitle: i === 0 ? (lang === 'he' ? 'ניווט' : 'Navigation') : undefined,
+      onPress: () => {
+        if (item.badgeTargetScreens?.length) markTabSeen(item.badgeTargetScreens);
+        router.push(item.href as any);
+      },
+    })),
+    ...ADMIN_DIRECTORY_ITEMS.map((item, i) => ({
+      key: item.key,
+      icon: item.icon,
+      label: item.label[lang],
+      sectionTitle: i === 0 ? (lang === 'he' ? 'תוכן וניהול' : 'Directories & Config') : undefined,
+      onPress: () => router.push(item.href as any),
+    })),
+  ];
 
   const fetchProfileAndSummary = useCallback(async () => {
     try {
@@ -202,6 +236,9 @@ export default function AdminOverviewScreen() {
         role="system_admin"
         lang={lang}
         isRtl={isRtl}
+        showBack={false}
+        fullScreenMenu
+        extraMenuItems={adminMenuItems}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
         onMaintenance={() => { setMaintenanceModal(true); fetchMaintenanceStatus(); }}
       />
@@ -280,9 +317,6 @@ export default function AdminOverviewScreen() {
           )}
         </View>
 
-        <Pressable style={styles.panelButton} onPress={() => router.push('/admin/menu' as any)} accessibilityRole="button">
-          <Text style={styles.panelButtonText}>{lang === 'he' ? 'פתח פאנל ניהול מלא' : 'Open Admin Panel'}</Text>
-        </Pressable>
       </ScrollView>
 
       <MaintenanceModal
@@ -369,12 +403,4 @@ const styles = StyleSheet.create({
   alertName: { fontSize: 13, fontWeight: '600', color: ap.onSurface, flexShrink: 1 },
   alertTime: { fontSize: 11, color: ap.onSurfaceVariant },
   alertDetail: { fontSize: 12, color: ap.onSurfaceVariant, marginTop: 2 },
-  panelButton: {
-    backgroundColor: ap.primary,
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  panelButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });

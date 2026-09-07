@@ -40,6 +40,9 @@ import {
 import { adminPanelStyles } from '../../constants/styles';
 import { ap } from '../../constants/theme';
 import {ROLE_LABELS} from '../../constants';
+import { ADMIN_NAVIGATION_ITEMS, ADMIN_DIRECTORY_ITEMS } from '../../constants/adminMenu';
+import type { HeaderMenuItem } from '../../components/HeaderMenu';
+import { useNotifications } from '../../src/context/NotificationsContext';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal, Enforce2FAModal} from '@/components/modals';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
@@ -55,6 +58,11 @@ export default function PanelScreen() {
   const isRtl = lang === 'he';
   const { projectId, tab: tabParam } = useLocalSearchParams<{ projectId: string; tab?: string }>();
   const [loading, setLoading] = useState(true);
+  // Feeds TopBar's fullScreenMenu — same combined nav+directory item list as
+  // app/admin/overview.tsx, so switching admin sections is available from
+  // the hamburger on every admin screen, not just from the (now-removed)
+  // app/admin/menu.tsx intermediate screen.
+  const { unreadByTargetScreen: adminMenuUnread, markTabSeen: markAdminMenuTabSeen } = useNotifications();
   const [adminName, setAdminName] = useState('');
   const [showNewUser, setShowNewUser] = useState(false);
   const [exportingUsers, setExportingUsers] = useState(false);
@@ -78,8 +86,9 @@ export default function PanelScreen() {
   const [activeTab] = useState<AdminPanelTab>(
     ADMIN_PANEL_TABS.includes(tabParam as AdminPanelTab) ? (tabParam as AdminPanelTab) : 'overview'
   );
-  // Section switching now happens on app/admin/menu.tsx (each row pushes
-  // this screen with a different `tab` param) — this screen just displays
+  // Section switching happens via TopBar's ☰ full-screen menu (each row
+  // pushes this screen with a different `tab` param — see adminMenuItems
+  // below, built from constants/adminMenu.ts) — this screen just displays
   // whichever tab it was opened with, so the header reflects that tab
   // instead of the old in-page pill strip.
   const ADMIN_TAB_META: Record<AdminPanelTab, { icon: string; label: Record<Lang, string> }> = {
@@ -1186,6 +1195,29 @@ export default function PanelScreen() {
     }  
   };
 
+  const adminMenuBadgeFor = (targetScreens?: string[]) =>
+    (targetScreens ?? []).reduce((sum, ts) => sum + (adminMenuUnread[ts] ?? 0), 0);
+  const adminMenuItems: HeaderMenuItem[] = [
+    ...ADMIN_NAVIGATION_ITEMS.map((item, i) => ({
+      key: item.key,
+      icon: item.icon,
+      label: item.label[lang],
+      badge: adminMenuBadgeFor(item.badgeTargetScreens),
+      sectionTitle: i === 0 ? (lang === 'he' ? 'ניווט' : 'Navigation') : undefined,
+      onPress: () => {
+        if (item.badgeTargetScreens?.length) markAdminMenuTabSeen(item.badgeTargetScreens);
+        router.push(item.href as any);
+      },
+    })),
+    ...ADMIN_DIRECTORY_ITEMS.map((item, i) => ({
+      key: item.key,
+      icon: item.icon,
+      label: item.label[lang],
+      sectionTitle: i === 0 ? (lang === 'he' ? 'תוכן וניהול' : 'Directories & Config') : undefined,
+      onPress: () => router.push(item.href as any),
+    })),
+  ];
+
   if (loading) {
     return (
       <View style={styles.loader}>
@@ -1201,30 +1233,10 @@ export default function PanelScreen() {
         role="system_admin"
         lang={lang}
         isRtl={isRtl}
+        fullScreenMenu
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
         onMaintenance={() => { setMaintenanceModal(true); fetchMaintenanceStatus(); }}
-        extraMenuItems={[
-          {
-            key: 'manage-files', icon: '📎',
-            label: lang === 'he' ? 'ניהול מסמכים לסטודנטים' : 'Manage Student Info Files',
-            onPress: () => router.push('/Info-files' as any),
-          },
-          {
-            key: 'manage-year', icon: '🎓',
-            label: lang === 'he' ? 'ניהול שנת לימודים' : 'Academic Year Management',
-            onPress: () => router.push('/AcademicYearManager' as any),
-          },
-          {
-            key: 'bulk-permissions', icon: '🛡️',
-            label: lang === 'he' ? 'הרשאות מרוכזות לפי תפקיד' : 'Bulk Permissions by Role',
-            onPress: () => router.push('/BulkPermissionsManager' as any),
-          },
-          {
-            key: 'project-records', icon: '📜',
-            label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
-            onPress: () => router.push({ pathname: '/admin/records', params: { lang } } as any),
-          },
-        ]}
+        extraMenuItems={adminMenuItems}
         onBeforeSignOut={() => {
           unsubUsersRef.current?.();
           unsubProjectsRef.current?.();

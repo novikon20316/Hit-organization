@@ -4117,6 +4117,25 @@ export const HeaderMenuStyles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5,
   },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+
+  // ── fullScreen mode (HeaderMenu's slide-up sheet variant) ──────────────
+  fullScreenRoot: { flex: 1, backgroundColor: '#fff' },
+  fullScreenHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: '#F0F2F5',
+  },
+  fullScreenTitle: { fontSize: 17, fontWeight: '800', color: '#111' },
+  closeBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0F4FF',
+  },
+  closeBtnText: { fontSize: 16, fontWeight: '700', color: '#111' },
+  fullScreenScroll: { paddingVertical: 8, paddingBottom: 32 },
+  sectionTitle: {
+    fontSize: 12, fontWeight: '700', color: '#8899BB', textTransform: 'uppercase',
+    letterSpacing: 0.5, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4,
+  },
 });
 
 export const StatCardStyles = StyleSheet.create({

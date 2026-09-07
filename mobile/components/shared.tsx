@@ -377,10 +377,21 @@ interface TopBarProps {
   onMaintenance?: () => void;
   onBeforeSignOut?: () => void | Promise<void>;
   extraMenuItems?: HeaderMenuItem[];
+  /** Hides the "← back" button — for a role's own home/dashboard screen,
+   *  which is the bottom of its navigation stack right after login, so the
+   *  button has nothing to go back to. Defaults to true (shown) everywhere
+   *  else, unchanged from before this prop existed. */
+  showBack?: boolean;
+  /** Opens the hamburger as a full-screen slide-up sheet (see HeaderMenu)
+   *  instead of the default small dropdown — for a role whose combined
+   *  menu items (nav + account actions) are too long for a dropdown.
+   *  Defaults to false, i.e. every other role's existing dropdown. */
+  fullScreenMenu?: boolean;
 }
 
 export function TopBar({
   name, role, lang, isRtl, onToggleLang, onMaintenance, onBeforeSignOut, extraMenuItems,
+  showBack = true, fullScreenMenu = false,
 }: TopBarProps) {
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
@@ -406,6 +417,7 @@ export function TopBar({
       key: 'security', icon: '🔐',
       label: lang === 'he' ? 'אבטחה ואימות דו-שלבי' : 'Security & 2FA',
       onPress: () => setSecurityModal(true),
+      sectionTitle: fullScreenMenu ? (lang === 'he' ? 'הגדרות' : 'Settings') : undefined,
     },
     ...(role === 'system_admin' ? [{
       key: 'maintenance', icon: '🛠️',
@@ -431,14 +443,16 @@ export function TopBar({
         {/* Left: back + avatar + name — flexShrink so a long name/role list
             can never push the hamburger button off-screen */}
         <View style={[tb.left, isRtl && tb.rowReverse]}>
-          <Pressable
-            style={[tb.backBtn, { marginLeft: isRtl ? 10 : 0, marginRight: isRtl ? 0 : 10 }]}
-            onPress={() => (router.canGoBack() ? router.back() : undefined)}
-            accessibilityLabel={lang === 'he' ? 'חזרה' : 'Go back'}
-            accessibilityRole="button"
-          >
-            <Text style={tb.backBtnText}>{isRtl ? '→' : '←'}</Text>
-          </Pressable>
+          {showBack && (
+            <Pressable
+              style={[tb.backBtn, { marginLeft: isRtl ? 10 : 0, marginRight: isRtl ? 0 : 10 }]}
+              onPress={() => (router.canGoBack() ? router.back() : undefined)}
+              accessibilityLabel={lang === 'he' ? 'חזרה' : 'Go back'}
+              accessibilityRole="button"
+            >
+              <Text style={tb.backBtnText}>{isRtl ? '→' : '←'}</Text>
+            </Pressable>
+          )}
           <View style={[tb.avatar, { backgroundColor: accent.text }]}>
             <Text style={tb.avatarText}>{name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
           </View>
@@ -479,7 +493,12 @@ export function TopBar({
           >
             <Text style={tb.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
           </Pressable>
-          <HeaderMenu items={menuItems} isRtl={isRtl} />
+          <HeaderMenu
+            items={menuItems}
+            isRtl={isRtl}
+            fullScreen={fullScreenMenu}
+            title={lang === 'he' ? 'תפריט' : 'Menu'}
+          />
         </View>
       </View>
 
