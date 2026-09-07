@@ -96,13 +96,6 @@ export default function StudentDetailPage() {
   const studentId = params.studentId;
   const role = userData?.role as AppRole | undefined;
   const canSetAverage = !!role && THESIS_AVERAGE_ROLES.includes(role);
-  // Password reset: administrative_secretary ("administrative coordinator")
-  // may reset a student's password, scoped server-side to their own
-  // faculty/major via withinCoordinatorScope (adminController.ts's
-  // resetUserPasswordAdmin) — the same jurisdiction this whole page is
-  // already scoped to. system_admin can too, though they'd normally do this
-  // from the admin panel instead.
-  const canResetPassword = role === 'administrative_secretary' || role === 'system_admin';
 
   const [data, setData] = useState<StudentDetail | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -111,9 +104,6 @@ export default function StudentDetailPage() {
   const [savingEligibility, setSavingEligibility] = useState(false);
   const [averageInput, setAverageInput] = useState('');
   const [savingAverage, setSavingAverage] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
-  const [resetTempPassword, setResetTempPassword] = useState<string | null>(null);
-  const [copiedResetPassword, setCopiedResetPassword] = useState(false);
 
   const loadDetail = async () => {
     if (!studentId) return;
@@ -167,36 +157,6 @@ export default function StudentDetailPage() {
       alert(err instanceof Error ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
     } finally {
       setSavingEligibility(false);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    if (!studentId) return;
-    if (!window.confirm(lang === 'he'
-      ? 'תיווצר סיסמה זמנית חדשה עבור הסטודנט/ית, והוא/היא יידרש/תידרש להחליף אותה בכניסה הבאה. להמשיך?'
-      : "A new temporary password will be generated for this student, and they'll be required to change it on next login. Continue?")) {
-      return;
-    }
-    setResettingPassword(true);
-    try {
-      const result = await apiClient.resetUserPasswordAdmin(studentId);
-      setResetTempPassword(result.tempPassword);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : lang === 'he' ? 'איפוס הסיסמה נכשל' : 'Failed to reset password');
-    } finally {
-      setResettingPassword(false);
-    }
-  };
-
-  const handleCopyResetPassword = async () => {
-    if (!resetTempPassword) return;
-    try {
-      await navigator.clipboard.writeText(resetTempPassword);
-      setCopiedResetPassword(true);
-      setTimeout(() => setCopiedResetPassword(false), 2000);
-    } catch {
-      // Clipboard API unavailable/denied — the value is still visible on
-      // screen for the coordinator to select and copy manually.
     }
   };
 
@@ -359,46 +319,6 @@ export default function StudentDetailPage() {
                 <p className="text-sm italic text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</p>
               )}
             </div>
-
-            {canResetPassword && (
-              <div className="mt-3 border-t border-administrative-coordinator-outline-variant pt-3">
-                <button
-                  type="button"
-                  disabled={resettingPassword}
-                  onClick={handleResetPassword}
-                  className="rounded-lg border border-administrative-coordinator-outline-variant px-3 py-1.5 text-sm font-medium text-administrative-coordinator-on-surface hover:border-administrative-coordinator-primary hover:text-administrative-coordinator-primary disabled:opacity-60"
-                >
-                  🔑 {resettingPassword ? (lang === 'he' ? 'מאפס…' : 'Resetting…') : (lang === 'he' ? 'איפוס סיסמה' : 'Reset password')}
-                </button>
-
-                {resetTempPassword && (
-                  <div className="mt-2 grid gap-2 rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low p-3">
-                    <span className="text-xs font-medium text-administrative-coordinator-on-surface-variant">
-                      {lang === 'he' ? 'סיסמה זמנית חדשה — מסרו אותה לסטודנט/ית:' : 'New temporary password — hand this to the student:'}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <code dir="ltr" className="flex-1 rounded-md border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest px-3 py-2 text-sm text-administrative-coordinator-on-surface">
-                        {resetTempPassword}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={handleCopyResetPassword}
-                        className="rounded-lg border border-administrative-coordinator-outline-variant px-3 py-2 text-xs font-medium text-administrative-coordinator-on-surface hover:bg-administrative-coordinator-surface-container-lowest"
-                      >
-                        {copiedResetPassword ? (lang === 'he' ? 'הועתק!' : 'Copied!') : (lang === 'he' ? 'העתק' : 'Copy')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setResetTempPassword(null)}
-                        className="rounded-lg border border-administrative-coordinator-outline-variant px-3 py-2 text-xs font-medium text-administrative-coordinator-on-surface-variant hover:text-administrative-coordinator-on-surface"
-                      >
-                        {lang === 'he' ? 'סגור' : 'Dismiss'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Project */}

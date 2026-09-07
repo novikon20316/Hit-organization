@@ -461,11 +461,11 @@ export const apiClient = {
     return request<{ success: boolean; staff: Array<Record<string, unknown> & { id: string }> }>('/api/admin/staff', { method: 'GET' });
   },
 
-  /** GET /api/admin/students-list — read-only student roster for
-   *  faculty_admin (own faculty, any major/degree) and grad_school_head
-   *  (masters only, narrowed to their coordinatorScopes majors if any are
-   *  set, otherwise the whole faculty). See
-   *  studentsListController.listStudentsForScope. */
+  /** GET /api/admin/students-list — student roster for faculty_admin (own
+   *  faculty, any major/degree), grad_school_head (masters only, narrowed to
+   *  their coordinatorScopes majors if any are set, otherwise the whole
+   *  faculty), and administrative_secretary (whatever her own
+   *  coordinatorScopes name). See studentsListController.listStudentsForScope. */
   async getStudentsList() {
     return request<{
       success: boolean;

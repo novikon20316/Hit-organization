@@ -10,7 +10,6 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
 import { apiClient } from '@/src/api/apiClient';
 import { facultyLabel, type FacultyId } from '@/components/i18n';
 import { HIT_FACULTIES } from '@/constants/faculties';
@@ -108,7 +107,6 @@ export default function StudentDetailScreen() {
   const [error, setError] = useState('');
   const [eligibilityReason, setEligibilityReason] = useState('');
   const [savingEligibility, setSavingEligibility] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
 
   const loadDetail = () => {
     if (!studentId) return;
@@ -145,53 +143,6 @@ export default function StudentDetailScreen() {
     } finally {
       setSavingEligibility(false);
     }
-  };
-
-  // administrative_secretary ("administrative coordinator") may reset a
-  // student's password — scoped server-side to this coordinator's own
-  // faculty/major via withinCoordinatorScope (adminController.ts's
-  // resetUserPasswordAdmin). No client-side role check needed: this whole
-  // route is only ever reached from the administrative_coordinator
-  // dashboard.
-  const handleResetPassword = () => {
-    if (!studentId) return;
-    Alert.alert(
-      lang === 'he' ? 'איפוס סיסמה' : 'Reset Password',
-      lang === 'he'
-        ? 'תיווצר סיסמה זמנית חדשה עבור הסטודנט/ית, והוא/היא יידרש/תידרש להחליף אותה בכניסה הבאה. להמשיך?'
-        : "A new temporary password will be generated for this student, and they'll be required to change it on next login. Continue?",
-      [
-        { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
-        {
-          text: lang === 'he' ? 'כן, אפס' : 'Yes, reset',
-          onPress: async () => {
-            setResettingPassword(true);
-            try {
-              const { data: result } = await apiClient.post<{ tempPassword: string }>(`/api/admin/users/${studentId}/reset-password`);
-              const tempPassword = result?.tempPassword;
-              Alert.alert(
-                '✅',
-                (lang === 'he' ? 'הסיסמה אופסה בהצלחה' : 'Password reset successfully') +
-                  (tempPassword ? `\n\n${lang === 'he' ? 'סיסמה זמנית' : 'Temporary password'}: ${tempPassword}` : ''),
-                tempPassword
-                  ? [
-                      { text: lang === 'he' ? 'העתק סיסמה' : 'Copy password', onPress: () => { Clipboard.setStringAsync(tempPassword); } },
-                      { text: lang === 'he' ? 'סגור' : 'Close', style: 'cancel' },
-                    ]
-                  : undefined
-              );
-            } catch (err: any) {
-              Alert.alert(
-                lang === 'he' ? 'שגיאה' : 'Error',
-                err?.response?.data?.message || (lang === 'he' ? 'איפוס הסיסמה נכשל' : 'Failed to reset password')
-              );
-            } finally {
-              setResettingPassword(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   const student = data?.student ?? null;
@@ -316,26 +267,6 @@ export default function StudentDetailScreen() {
               ) : (
                 <Text style={[styles.cardSub, { fontStyle: 'italic' }]}>{lang === 'he' ? 'לא הוגדר טלפון' : 'No phone number on file'}</Text>
               )}
-              <Pressable
-                disabled={resettingPassword}
-                onPress={handleResetPassword}
-                style={{
-                  marginTop: 10,
-                  alignSelf: isRtl ? 'flex-end' : 'flex-start',
-                  borderWidth: 1,
-                  borderColor: ap.outlineVariant,
-                  borderRadius: 8,
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  opacity: resettingPassword ? 0.6 : 1,
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: resettingPassword }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurface }}>
-                  🔑 {resettingPassword ? (lang === 'he' ? 'מאפס…' : 'Resetting…') : (lang === 'he' ? 'איפוס סיסמה' : 'Reset password')}
-                </Text>
-              </Pressable>
             </View>
 
             {/* Project */}

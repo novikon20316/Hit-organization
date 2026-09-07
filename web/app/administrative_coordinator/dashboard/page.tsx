@@ -33,6 +33,7 @@ import { MyProjectsWidget } from '@/components/MyProjectsWidget';
 import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
 import { UngradedCsMastersTab } from '@/components/students/UngradedCsMastersTab';
+import { StudentsListTab } from '@/components/students/StudentsListTab';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { StudentContactModal, type ContactMember } from './StudentContactModal';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
@@ -205,8 +206,8 @@ function AdministrativeCoordinatorDashboardContent() {
   // land back on the Students Report tab instead of always resetting to
   // Groups.
   const paramTab = searchParams.get('tab');
-  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' | 'ungraded' =
-    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' || (paramTab === 'ungraded' && canSeeUngraded)
+  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' | 'ungraded' | 'users' =
+    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' || paramTab === 'users' || (paramTab === 'ungraded' && canSeeUngraded)
       ? paramTab
       : 'groups';
   const [facultyId, setFacultyId] = useState('');
@@ -330,6 +331,8 @@ function AdministrativeCoordinatorDashboardContent() {
         <GradeOverridesTab />
       ) : activeTab === 'students' ? (
         <StudentsReportTab />
+      ) : activeTab === 'users' ? (
+        <StudentsListTab enablePasswordReset />
       ) : activeTab === 'statistics' ? (
         <CoordinatorStatisticsTab />
       ) : activeTab === 'ungraded' ? (

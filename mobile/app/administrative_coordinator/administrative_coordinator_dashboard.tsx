@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Clipboard from 'expo-clipboard';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import { TopBar, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
@@ -567,6 +568,9 @@ export default function ProjectCoordinatorDashboard() {
   const [studentsNoScope, setStudentsNoScope] = useState(false);
   const [reportSearchText, setReportSearchText] = useState('');
   const [reportFilterStatus, setReportFilterStatus] = useState<'all' | StudentStatus>('all');
+  // Which student's password reset is in flight — keyed by uid so resetting
+  // one student's card doesn't disable every other card's button too.
+  const [resettingPasswordId, setResettingPasswordId] = useState<string | null>(null);
 
   // ── Grade Overrides tab ───────────────────────────────────────────────────
   const [overrides, setOverrides] = useState<GradeOverrideRow[]>([]);
@@ -645,6 +649,51 @@ export default function ProjectCoordinatorDashboard() {
   useEffect(() => {
     if (activeTab === 'students' && !studentsLoaded) fetchStudentsReport();
   }, [activeTab, studentsLoaded, fetchStudentsReport]);
+
+  // administrative_secretary ("administrative coordinator") may reset a
+  // student's password — scoped server-side to her own faculty/major via
+  // withinCoordinatorScope (adminController.ts's resetUserPasswordAdmin).
+  // Surfaced as a quick action on each card in this tab, same as web's
+  // Users tab (StudentsListTab.tsx's ResetPasswordAction).
+  const handleResetPassword = (studentId: string, studentName: string) => {
+    Alert.alert(
+      lang === 'he' ? 'איפוס סיסמה' : 'Reset Password',
+      lang === 'he'
+        ? `תיווצר סיסמה זמנית חדשה עבור ${studentName}, והוא/היא יידרש/תידרש להחליף אותה בכניסה הבאה. להמשיך?`
+        : `A new temporary password will be generated for ${studentName}, and they'll be required to change it on next login. Continue?`,
+      [
+        { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
+        {
+          text: lang === 'he' ? 'כן, אפס' : 'Yes, reset',
+          onPress: async () => {
+            setResettingPasswordId(studentId);
+            try {
+              const { data: result } = await apiClient.post<{ tempPassword: string }>(`/api/admin/users/${studentId}/reset-password`);
+              const tempPassword = result?.tempPassword;
+              Alert.alert(
+                '✅',
+                (lang === 'he' ? 'הסיסמה אופסה בהצלחה' : 'Password reset successfully') +
+                  (tempPassword ? `\n\n${lang === 'he' ? 'סיסמה זמנית' : 'Temporary password'}: ${tempPassword}` : ''),
+                tempPassword
+                  ? [
+                      { text: lang === 'he' ? 'העתק סיסמה' : 'Copy password', onPress: () => { Clipboard.setStringAsync(tempPassword); } },
+                      { text: lang === 'he' ? 'סגור' : 'Close', style: 'cancel' },
+                    ]
+                  : undefined
+              );
+            } catch (err: any) {
+              Alert.alert(
+                lang === 'he' ? 'שגיאה' : 'Error',
+                err?.response?.data?.message || (lang === 'he' ? 'איפוס הסיסמה נכשל' : 'Failed to reset password')
+              );
+            } finally {
+              setResettingPasswordId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const filteredStudentsReport = studentsReport.filter((row) => {
     const q = reportSearchText.trim().toLowerCase();
@@ -1071,6 +1120,26 @@ export default function ProjectCoordinatorDashboard() {
                     <Text style={[s.cardSub, { fontWeight: '700', color: row.days !== null && row.days < 0 ? '#EF4444' : undefined }]}>
                       ⏳ {daysLabel}
                     </Text>
+                    <Pressable
+                      disabled={resettingPasswordId === row.id}
+                      onPress={() => handleResetPassword(row.id, row.name)}
+                      style={{
+                        marginTop: 8,
+                        alignSelf: lang === 'he' ? 'flex-end' : 'flex-start',
+                        borderWidth: 1,
+                        borderColor: ap.outlineVariant,
+                        borderRadius: 8,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        opacity: resettingPasswordId === row.id ? 0.6 : 1,
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: resettingPasswordId === row.id }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: ap.onSurface }}>
+                        🔑 {resettingPasswordId === row.id ? (lang === 'he' ? 'מאפס…' : 'Resetting…') : (lang === 'he' ? 'איפוס סיסמה' : 'Reset password')}
+                      </Text>
+                    </Pressable>
                   </Pressable>
                 );
               })

@@ -35,6 +35,17 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'students',
       },
       {
+        key: 'users',
+        icon: '👥',
+        href: '/administrative_coordinator/dashboard?tab=users',
+        label: { he: 'משתמשים', en: 'Users' },
+        description: {
+          he: 'רשימת הסטודנטים בתחום האחריות שלך, כולל איפוס סיסמה.',
+          en: 'The students in your scope, including password reset.',
+        },
+        isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'users',
+      },
+      {
         key: 'overrides',
         icon: '✅',
         href: '/administrative_coordinator/dashboard?tab=overrides',

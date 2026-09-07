@@ -1,14 +1,20 @@
 'use client';
 
 // components/students/StudentsListTab.tsx
-// Read-only "Students List" tab for faculty_admin and grad_school_head —
-// scoped server-side by GET /api/admin/students-list (see
-// server/src/controllers/studentsListController.ts): faculty_admin sees
+// "Students List" tab for faculty_admin, grad_school_head, and
+// administrative_secretary — scoped server-side by GET /api/admin/students-list
+// (see server/src/controllers/studentsListController.ts): faculty_admin sees
 // every student in their faculty regardless of major/degree, grad_school_head
-// sees masters students only, narrowed to whichever majors their
-// coordinatorScopes name (or the whole faculty if none are set). No
-// create/edit/toggle actions — just a searchable/filterable roster, modeled
-// on components/staff/ManagedStaffTab.tsx's card-grid shell.
+// sees masters students only narrowed to whichever majors their
+// coordinatorScopes name (or the whole faculty if none are set), and
+// administrative_secretary ("administrative coordinator") sees whatever her
+// own coordinatorScopes name. No create/edit/toggle actions here — just a
+// searchable/filterable roster, modeled on components/staff/ManagedStaffTab.tsx's
+// card-grid shell — except for the optional password-reset action below,
+// opted into only by administrative_secretary's own "Users" tab (see
+// app/administrative_coordinator/dashboard/page.tsx), which is the one role
+// among these three actually allowed to call it (adminController.ts's
+// resetUserPasswordAdmin enforces this server-side regardless).
 
 import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -27,7 +33,87 @@ function majorLabel(facultyId: string, major: string | null, lang: 'he' | 'en'):
   return match?.label[lang] ?? major;
 }
 
-export function StudentsListTab() {
+/** Per-card password-reset action — its own local state (busy/result) so
+ *  resetting one student's password doesn't affect any other card. */
+function ResetPasswordAction({ studentId }: { studentId: string }) {
+  const { lang } = useLanguage();
+  const [busy, setBusy] = useState(false);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleReset = async () => {
+    if (!window.confirm(
+      lang === 'he'
+        ? 'תיווצר סיסמה זמנית חדשה עבור הסטודנט/ית, והוא/היא יידרש/תידרש להחליף אותה בכניסה הבאה. להמשיך?'
+        : "A new temporary password will be generated for this student, and they'll be required to change it on next login. Continue?"
+    )) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await apiClient.resetUserPasswordAdmin(studentId);
+      setTempPassword(result.tempPassword);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : lang === 'he' ? 'איפוס הסיסמה נכשל' : 'Failed to reset password');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable/denied — the value is still visible on
+      // screen for the coordinator to select and copy manually.
+    }
+  };
+
+  return (
+    <div className="mt-2 border-t border-line pt-2" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={handleReset}
+        className="rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-ink hover:border-primary hover:text-primary disabled:opacity-60"
+      >
+        🔑 {busy ? (lang === 'he' ? 'מאפס…' : 'Resetting…') : (lang === 'he' ? 'איפוס סיסמה' : 'Reset password')}
+      </button>
+
+      {tempPassword && (
+        <div className="mt-2 grid gap-1.5 rounded-lg border border-line bg-paper p-2">
+          <span className="text-[11px] font-medium text-muted">
+            {lang === 'he' ? 'סיסמה זמנית חדשה:' : 'New temporary password:'}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <code dir="ltr" className="flex-1 truncate rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink">
+              {tempPassword}
+            </code>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="shrink-0 rounded-md border border-line px-2 py-1 text-[11px] font-medium text-ink hover:bg-surface"
+            >
+              {copied ? (lang === 'he' ? 'הועתק!' : 'Copied!') : (lang === 'he' ? 'העתק' : 'Copy')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTempPassword(null)}
+              className="shrink-0 rounded-md border border-line px-2 py-1 text-[11px] font-medium text-muted hover:text-ink"
+            >
+              {lang === 'he' ? 'סגור' : 'Dismiss'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function StudentsListTab({ enablePasswordReset = false }: { enablePasswordReset?: boolean }) {
   const { lang, t } = useLanguage();
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,6 +231,8 @@ export function StudentsListTab() {
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">{lang === 'he' ? 'פרויקט פעיל' : 'Active project'}</span>
               )}
             </div>
+
+            {enablePasswordReset && <ResetPasswordAction studentId={s.id} />}
           </div>
         ))}
         {filtered.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}
