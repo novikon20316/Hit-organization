@@ -386,7 +386,23 @@ export default function WorkflowTemplateManager() {
 
   // Cross-faculty roles pick a real faculty explicitly; administrative_secretary
   // is resolved from her own scope; everyone else is locked to their own.
-  const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isCoordinator ? (coordinatorScope?.facultyId ?? null) : ownFacultyId;
+  //
+  // A single-major faculty (e.g. data_science: one major, named after the
+  // faculty itself) has nothing left to narrow with a coordinatorScopes
+  // entry, so administrative_secretary is commonly provisioned there with a
+  // real facultyId on her own user doc and an empty coordinatorScopes array
+  // instead — same shape server/src/services/scopeAuthorization.ts's
+  // withinCoordinatorScope already falls back to. Without this, her own real
+  // facultyId here fell through to null the instant coordinatorScopes was
+  // empty, showing "no scope assigned" even though she has one. Only kicks
+  // in when she holds no coordinatorScopes at all; a real entry still wins.
+  // Mirrors the identical fix in web/app/workflow-templates/page.tsx — keep
+  // the two in sync.
+  const facultyId = isFreeChoiceCrossFaculty
+    ? selectedFacultyId
+    : isCoordinator
+      ? (coordinatorScope?.facultyId ?? (coordinatorScopes.length === 0 && ownFacultyId && ownFacultyId !== 'all' ? ownFacultyId : null))
+      : ownFacultyId;
   // A plain 'coordinator' can ALSO be scoped to one specific major within
   // their own faculty via coordinatorScopes — the same generic field
   // administrative_secretary uses (e.g. {facultyId:'sciences',
@@ -649,7 +665,7 @@ export default function WorkflowTemplateManager() {
       )}
 
       {/* administrative_secretary's own subject — no free choice */}
-      {isCoordinator && coordinatorScopes.length === 0 && (
+      {isCoordinator && !facultyId && (
         <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12 }}>
           <Text style={{ color: '#B91C1C', fontSize: 13 }}>
             {lang === 'he'

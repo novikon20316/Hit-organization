@@ -98,7 +98,20 @@ function WorkflowTemplatesContent() {
   const coordinatorScopes = (userData?.coordinatorScopes ?? []) as { facultyId: string; major?: string }[];
   const coordinatorScope = isCoordinator ? coordinatorScopes[coordinatorScopeIndex] : undefined;
 
-  const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isCoordinator ? coordinatorScope?.facultyId : userData?.facultyId;
+  // A single-major faculty (e.g. data_science: one major, named after the
+  // faculty itself) has nothing left to narrow with a coordinatorScopes
+  // entry, so administrative_secretary is commonly provisioned there with a
+  // real facultyId on her own user doc and an empty coordinatorScopes array
+  // instead — same shape server/src/controllers/scopeAuthorization.ts's
+  // withinCoordinatorScope (and the Users tab that already uses it) already
+  // falls back to. Without this, her own real facultyId here fell through to
+  // undefined the instant coordinatorScopes was empty, showing "no scope
+  // assigned" even though she has one. Only kicks in when she holds no
+  // coordinatorScopes at all; a real (even single) entry still wins.
+  const facultyId =
+    isFreeChoiceCrossFaculty ? selectedFacultyId
+    : isCoordinator ? (coordinatorScope?.facultyId ?? (coordinatorScopes.length === 0 && userData?.facultyId && userData.facultyId !== 'all' ? userData.facultyId : undefined))
+    : userData?.facultyId;
   // A plain 'coordinator' can ALSO be scoped to one specific major within
   // their own faculty via coordinatorScopes — the same generic field
   // administrative_secretary uses (e.g. {facultyId:'sciences',
@@ -296,7 +309,7 @@ function WorkflowTemplatesContent() {
         </label>
       )}
 
-      {isCoordinator && coordinatorScopes.length === 0 && (
+      {isCoordinator && !facultyId && (
         <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
           {lang === 'he'
             ? 'לא הוקצה לך תחום אחריות עדיין — פנה למנהל המערכת שיקצה לך תחום.'

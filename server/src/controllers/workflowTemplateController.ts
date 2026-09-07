@@ -98,6 +98,24 @@ function resolveCoordinatorScope(
   return match ? { facultyId: match.facultyId, major: match.major ?? null } : null;
 }
 
+// A single-major faculty (e.g. data_science: one major, named after the
+// faculty itself) has nothing left to narrow with a coordinatorScopes entry,
+// so administrative_secretary is commonly provisioned there with a real
+// facultyId on her own user doc and an empty coordinatorScopes array instead
+// — same shape scopeAuthorization.ts's withinCoordinatorScope (and the Users
+// tab, via studentsListController.ts, which already works for such an
+// account) falls back to. Every resolveCoordinatorScope call site below used
+// to read req.user.coordinatorScopes directly, so that account's real,
+// single-scope facultyId fell through to "no scope assigned" everywhere in
+// this controller even though it isn't. Only kicks in when she holds no
+// coordinatorScopes at all; a real entry (even a single one) still wins and
+// is returned as-is.
+function effectiveCoordinatorScopes(user: AuthenticatedRequest['user']): { facultyId: string; major?: string }[] {
+  const explicit = user?.coordinatorScopes ?? [];
+  if (explicit.length > 0) return explicit;
+  return user?.facultyId && user.facultyId !== 'all' ? [{ facultyId: user.facultyId }] : [];
+}
+
 // Valid roles for a chain STAGE (routing/defaultRouting) — includes
 // 'examiner', which resolves to a milestone's own assigned panel (see
 // scopeAuthorization.ts's resolveStaffForScope), letting a milestone type be
@@ -406,7 +424,7 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
   const requestedMajor = req.query.major === 'all' ? null : (req.query.major as string | undefined) ?? undefined;
 
   if (hasAnyRole(req.user, ['administrative_secretary'])) {
-    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: requestedFacultyId, major: requestedMajor });
+    const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: requestedFacultyId, major: requestedMajor });
     if (!scope) {
       // No scope assigned yet, or the requested one isn't hers — either
       // way, an empty list (never someone else's subject), not an error.
@@ -457,10 +475,10 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   let major: string | null = req.body.major === 'all' || req.body.major === undefined ? null : req.body.major;
 
   if (role === 'administrative_secretary') {
-    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: req.body.facultyId, major: req.body.major });
+    const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: req.body.facultyId, major: req.body.major });
     if (!scope) {
       return res.status(403).json({
-        message: (req.user?.coordinatorScopes ?? []).length === 0
+        message: (effectiveCoordinatorScopes(req.user)).length === 0
           ? 'No subject has been assigned to your account yet — ask your system_admin to assign one.'
           : 'You may only propose templates for a subject assigned to you.',
       });
@@ -580,7 +598,7 @@ export const updateWorkflowTemplateProposalController = async (req: Authenticate
     const data = snap.data()!;
 
     if (role === 'administrative_secretary') {
-      const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only edit proposals for a subject assigned to you.' });
     } else if (!CROSS_FACULTY_PROPOSER_ROLES.includes(role) && data.facultyId !== req.user?.facultyId) {
       return res.status(403).json({ message: 'You may only edit proposals for your own faculty.' });
@@ -682,7 +700,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     // subject(s) — "keep a separation between degrees" applies to
     // approve/reject/delete, not just proposing/viewing.
     if (hasAnyRole(req.user, ['administrative_secretary'])) {
-      const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only approve templates for a subject assigned to you.' });
     }
 
@@ -743,7 +761,7 @@ export const getRetroactivePreviewController = async (req: AuthenticatedRequest,
   const isCrossFaculty = hasAnyRole(req.user, CROSS_FACULTY_PROPOSER_ROLES);
 
   if (hasAnyRole(req.user, ['administrative_secretary'])) {
-    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: requestedFacultyId, major: requestedMajor });
+    const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: requestedFacultyId, major: requestedMajor });
     if (!scope) return res.status(403).json({ message: 'You may only preview a subject assigned to you.' });
     facultyId = scope.facultyId;
     major = scope.major;
@@ -820,10 +838,10 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
   let targetFacultyId: string;
   let targetMajor: string | null;
   if (role === 'administrative_secretary') {
-    const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: req.body.targetFacultyId, major: req.body.targetMajor });
+    const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: req.body.targetFacultyId, major: req.body.targetMajor });
     if (!scope) {
       return res.status(403).json({
-        message: (req.user?.coordinatorScopes ?? []).length === 0
+        message: (effectiveCoordinatorScopes(req.user)).length === 0
           ? 'No subject has been assigned to your account yet — ask your system_admin to assign one.'
           : 'You may only duplicate into a subject assigned to you.',
       });
@@ -937,7 +955,7 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
       });
     }
     if (hasAnyRole(req.user, ['administrative_secretary'])) {
-      const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only delete templates for a subject assigned to you.' });
     }
 
@@ -986,7 +1004,7 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
       });
     }
     if (hasAnyRole(req.user, ['administrative_secretary'])) {
-      const scope = resolveCoordinatorScope(req.user?.coordinatorScopes ?? [], { facultyId: data.facultyId, major: data.major ?? null });
+      const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null });
       if (!scope) return res.status(403).json({ message: 'You may only reject templates for a subject assigned to you.' });
     }
 

@@ -47,6 +47,27 @@ const STUDENT_DETAIL_ROLES = ['administrative_secretary', 'coordinator', 'progra
 
 interface DegreeScope { facultyId: string; major?: string }
 
+/** Resolves a non-system_admin caller's scope from coordinatorScopes, falling
+ *  back to their own facultyId when coordinatorScopes is empty — same
+ *  contract as scopeAuthorization.ts's withinCoordinatorScope and
+ *  reportsController.ts's resolveFacultyScope. administrative_secretary is
+ *  usually provisioned with facultyId 'all' (a non-value, guarded against
+ *  below) with her real scope living only in coordinatorScopes — but a
+ *  single-major faculty like data_science (one major, literally named
+ *  after the faculty) has nothing left to narrow with a coordinatorScopes
+ *  entry, so she's commonly provisioned with a real facultyId there instead
+ *  and an empty coordinatorScopes array. Without this fallback that account
+ *  looks scope-less everywhere in this file, even though the Users tab
+ *  (studentsListController.ts, via withinCoordinatorScope) already resolves
+ *  her correctly. */
+function resolveCoordinatorScopes(user: AuthenticatedRequest['user']): DegreeScope[] {
+  const explicit: DegreeScope[] = (user?.coordinatorScopes ?? []).map((s) =>
+    (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId })
+  );
+  if (explicit.length > 0) return explicit;
+  return user?.facultyId && user.facultyId !== 'all' ? [{ facultyId: user.facultyId }] : [];
+}
+
 /**
  * GET /api/project-coordinator/:uid/dashboard
  * Same faculty-scoped data and permissions as the `coordinator` role's own
@@ -84,9 +105,7 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
     // institution", which the old facultyId==='all' behavior risked once
     // fixed naively — see withinCoordinatorScope's fallback for the write side).
     const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
-    const scopes: DegreeScope[] = isSystemAdmin
-      ? []
-      : (req.user.coordinatorScopes ?? []).map((s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId }));
+    const scopes: DegreeScope[] = isSystemAdmin ? [] : resolveCoordinatorScopes(req.user);
 
     if (!isSystemAdmin && scopes.length === 0) {
       return res.status(200).json({
@@ -304,9 +323,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
 
   try {
     const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
-    const scopes: DegreeScope[] = isSystemAdmin
-      ? []
-      : (req.user.coordinatorScopes ?? []).map((s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId }));
+    const scopes: DegreeScope[] = isSystemAdmin ? [] : resolveCoordinatorScopes(req.user);
 
     if (!isSystemAdmin && scopes.length === 0) {
       return res.status(200).json({ students: [], noScopeAssigned: true });
@@ -627,9 +644,7 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
 
   try {
     const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
-    const scopes: DegreeScope[] = isSystemAdmin
-      ? []
-      : (req.user.coordinatorScopes ?? []).map((s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId }));
+    const scopes: DegreeScope[] = isSystemAdmin ? [] : resolveCoordinatorScopes(req.user);
 
     if (!isSystemAdmin && scopes.length === 0) {
       return res.status(200).json({ overrides: [] });
@@ -729,11 +744,15 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
  *  Scope differs per role, since this endpoint now serves two different
  *  dashboards:
  *  - system_admin: unrestricted (every faculty).
- *  - administrative_secretary: her `facultyId` field is a useless 'all'
- *    sentinel (see CROSS_FACULTY_ROLES) — her real scope lives ONLY in
- *    coordinatorScopes, same as getProjectCoordinatorDashboard/
- *    getStudentsReport above. No coordinatorScopes assigned means nothing
- *    to see (noScopeAssigned), not "everything."
+ *  - administrative_secretary: usually provisioned with a useless 'all'
+ *    facultyId sentinel (see CROSS_FACULTY_ROLES) with her real scope living
+ *    only in coordinatorScopes — but a single-major faculty like data_science
+ *    (one major, named after the faculty itself) has nothing left to narrow
+ *    with a coordinatorScopes entry, so that account is commonly provisioned
+ *    with a real facultyId instead and an empty coordinatorScopes array (see
+ *    resolveCoordinatorScopes above). Falls back to that facultyId the same
+ *    way `coordinator` below does; no coordinatorScopes AND no real facultyId
+ *    means nothing to see (noScopeAssigned), not "everything."
  *  - coordinator: a real single facultyId (coordinatorController.ts's
  *    getCoordinatorDashboard reads it directly, no coordinatorScopes
  *    involved there) — falls back to that facultyId whenever coordinatorScopes
@@ -749,16 +768,7 @@ function resolveStatisticsScope(req: AuthenticatedRequest): {
   requestedFacultyId?: string;
 } {
   const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
-  const coordinatorScopes: DegreeScope[] = (req.user!.coordinatorScopes ?? []).map(
-    (s) => (s.major ? { facultyId: s.facultyId, major: s.major } : { facultyId: s.facultyId })
-  );
-  const scopes: DegreeScope[] = isSystemAdmin
-    ? []
-    : coordinatorScopes.length > 0
-      ? coordinatorScopes
-      : (hasAnyRole(req.user, ['coordinator']) && req.user!.facultyId)
-        ? [{ facultyId: req.user!.facultyId }]
-        : [];
+  const scopes: DegreeScope[] = isSystemAdmin ? [] : resolveCoordinatorScopes(req.user);
   // system_admin has no coordinatorScopes/facultyId of its own to derive this
   // from (unrestricted by design) — without this, its faculty filter dropdown
   // would have no options to narrow by at all. Every other role's dropdown is
