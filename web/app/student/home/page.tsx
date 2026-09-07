@@ -23,6 +23,7 @@ import { BrowseSupervisors } from './BrowseSupervisors';
 import { ActiveDashboard } from './ActiveDashboard';
 import { InfoScreen } from './InfoScreen';
 import { AwaitingGradeScreen } from './AwaitingGradeScreen';
+import { NoProjectTabPlaceholder } from './NoProjectTabPlaceholder';
 
 const STUDENT_ROLES: AppRole[] = ['student'];
 
@@ -45,6 +46,7 @@ function StudentHomeContent() {
     pendingApplications,
     supervisorSelectionRequiresApproval,
     studentDegree,
+    studentTrack,
     studentCompletedCourses,
     refresh,
     cancelAllListeners,
@@ -90,21 +92,29 @@ function StudentHomeContent() {
         {studentState === 'awaiting_grade' && <AwaitingGradeScreen />}
 
         {studentState === 'no_project' && (
-          <BrowseProjects
-            proposals={proposals}
-            studentDegree={studentDegree}
-            pendingApplications={pendingApplications}
-            completedCourses={studentCompletedCourses}
-            onApplicationsChanged={refresh}
-          />
+          activeTab === 'overview' ? (
+            <BrowseProjects
+              proposals={proposals}
+              studentDegree={studentDegree}
+              pendingApplications={pendingApplications}
+              completedCourses={studentCompletedCourses}
+              onApplicationsChanged={refresh}
+            />
+          ) : (
+            <NoProjectTabPlaceholder tab={activeTab} studentDegree={studentDegree} studentTrack={studentTrack} />
+          )
         )}
 
         {studentState === 'choose_supervisor' && (
-          <BrowseSupervisors
-            pendingApplications={pendingApplications}
-            supervisorSelectionRequiresApproval={supervisorSelectionRequiresApproval}
-            onApplicationsChanged={refresh}
-          />
+          activeTab === 'overview' ? (
+            <BrowseSupervisors
+              pendingApplications={pendingApplications}
+              supervisorSelectionRequiresApproval={supervisorSelectionRequiresApproval}
+              onApplicationsChanged={refresh}
+            />
+          ) : (
+            <NoProjectTabPlaceholder tab={activeTab} studentDegree={studentDegree} studentTrack={studentTrack} />
+          )
         )}
 
         {/* TEMP-2-ACTIVE-PROJECTS: activeProjects can hold more than one
