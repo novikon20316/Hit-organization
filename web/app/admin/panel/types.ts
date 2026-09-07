@@ -51,6 +51,11 @@ export interface AdminUserRecord {
   permissionRules?: ScopeRule[];
   /** A coordinator's own operational scope narrowing beyond their facultyId. */
   coordinatorScopes?: CoordinatorScope[];
+  /** Student-only. See lib/facultyColors.ts's getDegreeTypeColor/getTrackColor
+   *  for the color-coding these two feed on the Users tab. */
+  degreeType?: 'bachelors' | 'masters' | null;
+  major?: string | null;
+  track?: 'thesis' | 'project' | null;
 }
 
 /** Mirrors apiClient.getStudentStatusOptions()'s response shape (see

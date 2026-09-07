@@ -36,6 +36,28 @@ export function getFacultyColor(id: string | undefined): string {
   return FACULTY_COLORS[(id as FacultyId) ?? 'all'] ?? FACULTY_COLORS.all;
 }
 
+// Student-only secondary color dimensions — degree type (bachelors/masters)
+// and track (thesis/project). Deliberately distinct from both FACULTY_COLORS
+// and ROLE_ACCENTS above so a badge using one of these never gets mistaken
+// for a faculty or role tag sitting next to it on the same card.
+export const DEGREE_TYPE_COLORS: Record<'bachelors' | 'masters', string> = {
+  bachelors: '#0EA5E9',
+  masters:   '#F97316',
+};
+
+export const TRACK_COLORS: Record<'thesis' | 'project', string> = {
+  thesis:  '#9333EA',
+  project: '#0D9488',
+};
+
+export function getDegreeTypeColor(degreeType: string | null | undefined): string | null {
+  return degreeType === 'bachelors' || degreeType === 'masters' ? DEGREE_TYPE_COLORS[degreeType] : null;
+}
+
+export function getTrackColor(track: string | null | undefined): string | null {
+  return track === 'thesis' || track === 'project' ? TRACK_COLORS[track] : null;
+}
+
 export function getRoleAccent(role: string | undefined): string {
   return ROLE_ACCENTS[role as AppRole] ?? '#6B7280';
 }

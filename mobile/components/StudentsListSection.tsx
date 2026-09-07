@@ -15,6 +15,7 @@ import { apiClient } from '../src/api/apiClient';
 import { facultyLabel, type FacultyId } from './i18n';
 import { majorsForFaculty } from '../constants/permissions';
 import { adminPanelStyles } from '../constants/styles';
+import { getDegreeTypeAccent, getTrackAccent } from './shared';
 
 interface StudentRecord {
   id: string;
@@ -25,6 +26,7 @@ interface StudentRecord {
   degreeType: 'bachelors' | 'masters' | null;
   major: string | null;
   yearOfStudy: number | null;
+  track: 'thesis' | 'project' | null;
   hasActiveProject: boolean;
   isActive: boolean;
 }
@@ -40,12 +42,6 @@ function majorLabel(facultyId: string, major: string | null, lang: 'he' | 'en'):
   if (!major) return null;
   const match = majorsForFaculty(facultyId).find((m) => m.slug === major);
   return match?.label[lang] ?? major;
-}
-
-function degreeLabel(degreeType: string | null, lang: 'he' | 'en'): string | null {
-  if (degreeType === 'bachelors') return lang === 'he' ? 'תואר ראשון' : "Bachelor's";
-  if (degreeType === 'masters') return lang === 'he' ? 'תואר שני' : "Master's";
-  return null;
 }
 
 export default function StudentsListSection({ lang, isRtl }: Props) {
@@ -110,11 +106,38 @@ export default function StudentsListSection({ lang, isRtl }: Props) {
             <Text style={s.projectMeta}>
               {facultyLabel(u.facultyId as FacultyId, lang)}
               {majorLabel(u.facultyId, u.major, lang) ? ` · ${majorLabel(u.facultyId, u.major, lang)}` : ''}
-              {degreeLabel(u.degreeType, lang) ? ` · ${degreeLabel(u.degreeType, lang)}` : ''}
               {u.yearOfStudy != null ? ` · ${lang === 'he' ? `שנה ${u.yearOfStudy}` : `Year ${u.yearOfStudy}`}` : ''}
             </Text>
+            {(() => {
+              // Degree type (bachelors/masters) + track (thesis/project) as
+              // colored badges — a second color dimension alongside the
+              // faculty/major line above, same palette as web's
+              // StudentsListTab (see lib/facultyColors.ts there,
+              // components/shared.tsx's DEGREE_TYPE_ACCENT/TRACK_ACCENT here).
+              const degreeAccent = getDegreeTypeAccent(u.degreeType);
+              const trackAccent = getTrackAccent(u.track);
+              if (!degreeAccent && !trackAccent) return null;
+              return (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  {degreeAccent && (
+                    <View style={{ backgroundColor: degreeAccent.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: degreeAccent.text }}>
+                        🎓 {degreeAccent.label[lang]}
+                      </Text>
+                    </View>
+                  )}
+                  {trackAccent && (
+                    <View style={{ backgroundColor: trackAccent.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: trackAccent.text }}>
+                        📘 {trackAccent.label[lang]}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
             {u.hasActiveProject && (
-              <Text style={[s.projectMeta, { marginTop: 0 }]}>
+              <Text style={[s.projectMeta, { marginTop: 4 }]}>
                 {lang === 'he' ? '✅ פרויקט פעיל' : '✅ Active project'}
               </Text>
             )}

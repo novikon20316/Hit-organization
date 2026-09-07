@@ -9,7 +9,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
 import { auth } from '@/lib/firebase';
-import { getFacultyColor, getRoleAccent, withAlpha } from '@/lib/facultyColors';
+import { getFacultyColor, getRoleAccent, getDegreeTypeColor, getTrackColor, withAlpha } from '@/lib/facultyColors';
 import { roleLabel, facultyLabel, type AppRole, type FacultyId } from '@/lib/i18n';
 import { staffFacultyMajorLabel } from '@/lib/permissions';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -49,6 +49,18 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
     : null;
   const primaryStatusOption = isStudent && user.primaryStatus ? statusConfig.primary.find((o) => o.key === user.primaryStatus) : undefined;
   const secondaryStatusOption = isStudent && user.secondaryStatus ? statusConfig.secondary.find((o) => o.key === user.secondaryStatus) : undefined;
+  // Student-only degree type (bachelors/masters) and track (thesis/project)
+  // badges — a second color dimension alongside the faculty rail/avatar
+  // above, so an admin scanning a long Users list can tell degree/track
+  // apart at a glance without opening each card. See lib/facultyColors.ts.
+  const degreeColor = isStudent ? getDegreeTypeColor(user.degreeType) : null;
+  const trackColor = isStudent ? getTrackColor(user.track) : null;
+  const degreeLabel = user.degreeType === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's")
+    : user.degreeType === 'masters' ? (lang === 'he' ? 'תואר שני' : "Master's")
+    : null;
+  const trackLabel = user.track === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis')
+    : user.track === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project')
+    : null;
 
   const [togglingActive, setTogglingActive] = useState(false);
   const [confirmDisable2fa, setConfirmDisable2fa] = useState(false);
@@ -313,8 +325,24 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
         </div>
       )}
 
-      {(primaryStatusOption || secondaryStatusOption) && (
+      {(degreeColor || trackColor || primaryStatusOption || secondaryStatusOption) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
+          {degreeColor && degreeLabel && (
+            <span
+              className="rounded-full px-2.5 py-1 text-xs font-medium"
+              style={{ backgroundColor: withAlpha(degreeColor, 0.12), color: degreeColor }}
+            >
+              🎓 {degreeLabel}
+            </span>
+          )}
+          {trackColor && trackLabel && (
+            <span
+              className="rounded-full px-2.5 py-1 text-xs font-medium"
+              style={{ backgroundColor: withAlpha(trackColor, 0.12), color: trackColor }}
+            >
+              📘 {trackLabel}
+            </span>
+          )}
           {primaryStatusOption && (
             <span className="rounded-full bg-[#EEF2FF] px-2.5 py-1 text-xs font-medium text-[#4338CA]">
               🎯 {lang === 'he' ? primaryStatusOption.labelHe : primaryStatusOption.labelEn}

@@ -122,6 +122,31 @@ export function getRoleAccent(role: string): { bg: string; text: string; label: 
   return (ROLE_ACCENT as Record<string, typeof DEFAULT_ROLE_ACCENT>)[role] ?? DEFAULT_ROLE_ACCENT;
 }
 
+// ─── Student degree type / track accent colors ─────────────────────────────
+// A second color dimension for student rows, alongside faculty color above —
+// same {bg,text,label} shape as ROLE_ACCENT, ported verbatim (same hex) from
+// web/lib/facultyColors.ts's DEGREE_TYPE_COLORS/TRACK_COLORS so this reads
+// identically on both platforms. Deliberately distinct hues from both
+// FACULTY_COLORS and ROLE_ACCENT so a degree/track badge never gets mistaken
+// for a faculty or role tag sitting next to it on the same card.
+export const DEGREE_TYPE_ACCENT = {
+  bachelors: { bg: withAlpha('#0EA5E9', 0.12), text: '#0EA5E9', label: { he: 'תואר ראשון', en: "Bachelor's" } },
+  masters:   { bg: withAlpha('#F97316', 0.12), text: '#F97316', label: { he: 'תואר שני',   en: "Master's"   } },
+} as const;
+
+export const TRACK_ACCENT = {
+  thesis:  { bg: withAlpha('#9333EA', 0.12), text: '#9333EA', label: { he: 'תזה',      en: 'Thesis'  } },
+  project: { bg: withAlpha('#0D9488', 0.12), text: '#0D9488', label: { he: 'פרויקט',   en: 'Project' } },
+} as const;
+
+export function getDegreeTypeAccent(degreeType: string | null | undefined) {
+  return degreeType === 'bachelors' || degreeType === 'masters' ? DEGREE_TYPE_ACCENT[degreeType] : null;
+}
+
+export function getTrackAccent(track: string | null | undefined) {
+  return track === 'thesis' || track === 'project' ? TRACK_ACCENT[track] : null;
+}
+
 // ─── 2FA Security Modal ───────────────────────────────────────────────────────
 // Self-contained — handles setup and verify flows internally.
 function SecurityModal({ visible, onClose, lang }: {

@@ -33,6 +33,8 @@ import {
   StatusBadge,
   getFacultyColor,
   getRoleAccent,
+  getDegreeTypeAccent,
+  getTrackAccent,
   FACULTY_COLORS,
 } from '../../components/shared';
 import { adminPanelStyles } from '../../constants/styles';
@@ -1519,6 +1521,27 @@ export default function PanelScreen() {
                         </Text>
                       )}
                     </View>
+
+                    {/* Student-only degree type (bachelors/masters) + track
+                        (thesis/project) badges — a second color dimension
+                        alongside the faculty avatar/rail above, same palette
+                        as web's admin Users tab (see lib/facultyColors.ts
+                        there, components/shared.tsx's
+                        DEGREE_TYPE_ACCENT/TRACK_ACCENT here). */}
+                    {u.role === 'student' && getDegreeTypeAccent((u as any).degreeType) && (
+                      <View style={[styles.roleBadge, { backgroundColor: getDegreeTypeAccent((u as any).degreeType)!.bg }]}>
+                        <Text style={[styles.roleBadgeText, { color: getDegreeTypeAccent((u as any).degreeType)!.text }]}>
+                          🎓 {getDegreeTypeAccent((u as any).degreeType)!.label[lang]}
+                        </Text>
+                      </View>
+                    )}
+                    {u.role === 'student' && getTrackAccent((u as any).track) && (
+                      <View style={[styles.roleBadge, { backgroundColor: getTrackAccent((u as any).track)!.bg }]}>
+                        <Text style={[styles.roleBadgeText, { color: getTrackAccent((u as any).track)!.text }]}>
+                          📘 {getTrackAccent((u as any).track)!.label[lang]}
+                        </Text>
+                      </View>
+                    )}
 
                     {/* Student Primary/Secondary status badge — students
                         with a status set only (see server/src/services/

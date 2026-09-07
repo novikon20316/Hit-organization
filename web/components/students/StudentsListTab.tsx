@@ -21,6 +21,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
+import { getDegreeTypeColor, getTrackColor, withAlpha } from '@/lib/facultyColors';
 
 type StudentRecord = Awaited<ReturnType<typeof apiClient.getStudentsList>>['students'][number];
 
@@ -223,7 +224,22 @@ export function StudentsListTab({ enablePasswordReset = false }: { enablePasswor
               {majorLabel(s.facultyId, s.major, lang) && (
                 <span className="rounded-full bg-paper px-2 py-0.5">{majorLabel(s.facultyId, s.major, lang)}</span>
               )}
-              {s.degreeType && <span className="rounded-full bg-paper px-2 py-0.5">{t(s.degreeType as 'bachelors' | 'masters')}</span>}
+              {s.degreeType && (
+                <span
+                  className="rounded-full px-2 py-0.5 font-medium"
+                  style={{ backgroundColor: withAlpha(getDegreeTypeColor(s.degreeType)!, 0.12), color: getDegreeTypeColor(s.degreeType)! }}
+                >
+                  🎓 {t(s.degreeType as 'bachelors' | 'masters')}
+                </span>
+              )}
+              {s.track && (
+                <span
+                  className="rounded-full px-2 py-0.5 font-medium"
+                  style={{ backgroundColor: withAlpha(getTrackColor(s.track)!, 0.12), color: getTrackColor(s.track)! }}
+                >
+                  📘 {s.track === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : lang === 'he' ? 'פרויקט' : 'Project'}
+                </span>
+              )}
               {s.yearOfStudy != null && (
                 <span className="rounded-full bg-paper px-2 py-0.5">{lang === 'he' ? `שנה ${s.yearOfStudy}` : `Year ${s.yearOfStudy}`}</span>
               )}
