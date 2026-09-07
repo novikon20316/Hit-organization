@@ -99,7 +99,24 @@ function WorkflowTemplatesContent() {
   const coordinatorScope = isCoordinator ? coordinatorScopes[coordinatorScopeIndex] : undefined;
 
   const facultyId = isFreeChoiceCrossFaculty ? selectedFacultyId : isCoordinator ? coordinatorScope?.facultyId : userData?.facultyId;
-  const major: string | null = role === 'system_admin' ? selectedMajor : isCoordinator ? (coordinatorScope?.major ?? null) : null;
+  // A plain 'coordinator' can ALSO be scoped to one specific major within
+  // their own faculty via coordinatorScopes — the same generic field
+  // administrative_secretary uses (e.g. {facultyId:'sciences',
+  // major:'computer_science'}). Only administrative_secretary's major was
+  // ever read from it here, so a coordinator's own major-scoped templates
+  // (created with `major` set) were invisible on this screen: `major` fell
+  // through to null → GET /api/workflow-templates?major=all → the server
+  // treats 'all' as "faculty-wide only" and returns ONLY major===null
+  // templates (see workflowTemplateController.ts's listWorkflowTemplates),
+  // hiding every major-specific one she'd made. Falls back to null (no major
+  // filter — her whole faculty) when she has no matching scope, same as the
+  // server's own coordinatorScopes fallback elsewhere.
+  const ownCoordinatorScope = coordinatorScopes.find((s) => s.facultyId === userData?.facultyId);
+  const major: string | null =
+    role === 'system_admin' ? selectedMajor
+    : isCoordinator ? (coordinatorScope?.major ?? null)
+    : role === 'coordinator' ? (ownCoordinatorScope?.major ?? null)
+    : null;
 
   // administrative_secretary has no Pending Approval tab (see the tabs list
   // further below) — correct for the `?tab=pending` redirect case (or any
