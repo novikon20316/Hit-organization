@@ -61,7 +61,12 @@ function toMilestoneData(raw: Record<string, unknown> & { id: string }): Milesto
     fileUrls: Array.isArray(raw.fileUrls) ? (raw.fileUrls as string[]) : [],
     finalGrade: typeof raw.finalGrade === 'number' ? raw.finalGrade : null,
     supervisorScore: typeof raw.supervisorScore === 'number' ? raw.supervisorScore : null,
-    defenseDate: toISO(raw.defenseDate),
+    // `defenseDate` has never actually existed on a milestone doc — the
+    // resolved defense date (see defenseScheduling.ts's finalizeMatchedDate)
+    // is written to `dueDate`, same as coordinatorController.ts's
+    // getCoordinatorProjects already accounts for (see its "CRITICAL FIX"
+    // comment there).
+    defenseDate: toISO(raw.defenseDate) ?? toISO(raw.dueDate),
     defenseRoom: typeof raw.defenseRoom === 'string' ? raw.defenseRoom : null,
     defenseBuilding: typeof raw.defenseBuilding === 'string' ? raw.defenseBuilding : null,
     defenseTime: typeof raw.defenseTime === 'string' ? raw.defenseTime : null,
@@ -80,6 +85,7 @@ export default function AdminProjectMilestonesPage() {
   const [milestones, setMilestones] = useState<MilestoneData[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const fetchMilestones = useCallback(async () => {
     if (!projectId) return;
@@ -88,6 +94,20 @@ export default function AdminProjectMilestonesPage() {
     mapped.sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
     setMilestones(mapped);
   }, [projectId]);
+
+  const handleApproveGrade = useCallback(
+    async (milestone: MilestoneData) => {
+      setActionError('');
+      try {
+        await apiClient.coordinatorApproveMilestone(milestone.id);
+        await fetchMilestones();
+      } catch (err) {
+        console.error('Failed to approve milestone grade:', err);
+        setActionError(err instanceof Error ? err.message : lang === 'he' ? 'אישור הציון נכשל' : 'Failed to approve the grade');
+      }
+    },
+    [fetchMilestones, lang]
+  );
 
   useEffect(() => {
     if (!projectId) return;
@@ -162,11 +182,16 @@ export default function AdminProjectMilestonesPage() {
             )}
           </div>
 
+          {actionError && (
+            <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{actionError}</p>
+          )}
+
           <div className="mt-5">
             <MilestoneTimeline
               milestones={milestones}
               viewerRole="system_admin"
               projectId={projectId}
+              onCoordinatorApprove={handleApproveGrade}
               onAdjustDate={() => {
                 fetchMilestones().catch((err) => console.error('Failed to refresh milestones after date adjust:', err));
               }}
