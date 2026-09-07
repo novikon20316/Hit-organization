@@ -41,8 +41,13 @@ const KNOWN_PREFIXES = [
 
 const ROLE_ROUTES: Record<string, string> = {
   student:              '/student/home',
-  supervisor:           '/supervisor/home',
-  secondary_supervisor: '/supervisor/home',
+  // The supervisor screen's actual file is app/supervisor/dashboard.tsx —
+  // there has never been an app/supervisor/home.tsx (confirmed via git
+  // history), so this and the matching ROLE_TABS entry below used to point
+  // every supervisor/secondary_supervisor login at a route Expo Router can't
+  // resolve.
+  supervisor:           '/supervisor/dashboard',
+  secondary_supervisor: '/supervisor/dashboard',
   coordinator:          '/coordinator/home',
   internal_examiner:    '/examinor/home',
   faculty_admin:        '/faculty_admin/dashboard',
@@ -71,12 +76,12 @@ const ROLE_TABS: Record<string, Array<{
     { name: 'notifications',      iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   supervisor: [
-    { name: 'supervisor/home',  iconActive: '📋', iconInactive: '📋', labelHe: 'פרויקטים', labelEn: 'Projects'  },
-    { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
+    { name: 'supervisor/dashboard', iconActive: '📋', iconInactive: '📋', labelHe: 'פרויקטים', labelEn: 'Projects'  },
+    { name: 'notifications',        iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   secondary_supervisor: [
-    { name: 'supervisor/home',  iconActive: '📋', iconInactive: '📋', labelHe: 'פרויקטים', labelEn: 'Projects'  },
-    { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
+    { name: 'supervisor/dashboard', iconActive: '📋', iconInactive: '📋', labelHe: 'פרויקטים', labelEn: 'Projects'  },
+    { name: 'notifications',        iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   internal_examiner: [
     { name: 'examinor/home',   iconActive: '✏️', iconInactive: '✏️', labelHe: 'הגנות',    labelEn: 'Defenses'  },
@@ -107,6 +112,36 @@ const ROLE_TABS: Record<string, Array<{
     { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
 };
+
+// ─── Additional-role tabs ──────────────────────────────────────────────────
+// A user whose primary role outranks a secondary operational role they also
+// hold (e.g. a coordinator who is ALSO a supervisor in roles[]) only ever
+// gets that primary role's 2-tab bar above — there's no tab pointing at the
+// dashboard where their supervisor/examiner work (grading a submitted
+// milestone, submitting examiner availability dates) actually lives. The
+// route itself is still directly reachable (each screen's own guard checks
+// the full roles[] array, not just the active role), but nothing in the tab
+// bar links to it. Mirrors web/lib/roleChrome.ts's ADDITIONAL_ROLE_LINKS —
+// same roles, same target screens — keep the two in sync.
+const ADDITIONAL_ROLE_TABS: Array<{
+  roles: string[]; // any one of these in the user's roles[] qualifies
+  tab: { name: string; iconActive: string; iconInactive: string; labelHe: string; labelEn: string };
+}> = [
+  {
+    roles: ['supervisor', 'secondary_supervisor'],
+    tab: { name: 'supervisor/dashboard', iconActive: '📋', iconInactive: '📋', labelHe: 'מנחה',       labelEn: 'Supervisor' },
+  },
+  {
+    roles: ['internal_examiner'],
+    tab: { name: 'examinor/home',        iconActive: '✏️', iconInactive: '✏️', labelHe: 'בוחן פנימי', labelEn: 'Examiner'   },
+  },
+];
+
+function additionalRoleTabs(role: string, roles: string[]) {
+  return ADDITIONAL_ROLE_TABS
+    .filter((entry) => !entry.roles.includes(role) && entry.roles.some((r) => roles.includes(r)))
+    .map((entry) => entry.tab);
+}
 
 // ─── Tab icon component ───────────────────────────────────────────────────────
 // accentColor comes from the signed-in user's role (see ROLE_ACCENT in
@@ -151,19 +186,23 @@ export default function TabLayout() {
   const router = useRouter(); // ← add this
 
   const [role,   setRole]   = useState<string | null>(null);
+  const [roles,  setRoles]  = useState<string[]>([]);
   const [lang,   setLang]   = useState<'he' | 'en'>('he');
   const [unread, setUnread] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const { activeRole } = useActiveRole();
+  const { activeRole, roles: contextRoles } = useActiveRole();
 
-  // Keeps the tab bar in sync if the resolved highest-ranked role changes
-  // live (e.g. an admin grants/revokes a role while the user is signed in) —
-  // that updates ActiveRoleContext directly, not through a fresh auth-state
-  // event, so this effect is what this file needs to pick up the change
-  // without waiting on the fetch below.
+  // Keeps the tab bar in sync if the resolved highest-ranked role (or the
+  // full role set behind it) changes live (e.g. an admin grants/revokes a
+  // role while the user is signed in) — that updates ActiveRoleContext
+  // directly, not through a fresh auth-state event, so this effect is what
+  // this file needs to pick up the change without waiting on the fetch
+  // below. `roles` seeds from that same profile fetch as a fallback for the
+  // brief window before this context resolves, then this takes over.
   useEffect(() => {
     if (activeRole) setRole(activeRole);
-  }, [activeRole]);
+    if (contextRoles.length) setRoles(contextRoles);
+  }, [activeRole, contextRoles]);
 
   // ── 1. Authenticated User Profile Routing Sync ────────────────────────
 
@@ -184,6 +223,7 @@ export default function TabLayout() {
         if (userData) {
           const userRole = userData.role ?? 'student';
           setRole(userRole);
+          setRoles(Array.isArray(userData.roles) && userData.roles.length ? userData.roles : [userRole]);
           setLang(userData.language ?? 'he');
 
           // Account is mid-grace-period (self-requested or auto-flagged as
@@ -253,7 +293,13 @@ export default function TabLayout() {
     pathname.startsWith('/notifications') ||
     !isKnownRoute(pathname);
 
-  const tabs = role ? (ROLE_TABS[role] ?? []) : [];
+  // Extra tabs (supervisor/examiner, etc.) go before the trailing
+  // notifications tab, which every role's own list ends with — see
+  // additionalRoleTabs above.
+  const baseTabs = role ? (ROLE_TABS[role] ?? []) : [];
+  const tabs = role
+    ? [...baseTabs.slice(0, -1), ...additionalRoleTabs(role, roles), ...baseTabs.slice(-1)]
+    : [];
   const roleAccentColor = getRoleAccent(role ?? '').text;
 
   return (

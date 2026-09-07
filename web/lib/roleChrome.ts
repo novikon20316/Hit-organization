@@ -42,42 +42,76 @@ import { SUPERVISOR_NAV_SECTIONS } from '@/app/supervisor/navSections';
 import { EXAMINOR_NAV_SECTIONS } from '@/app/examinor/navSections';
 import { STUDENT_NAV_SECTIONS } from '@/app/student/navSections';
 
-// A multi-role user whose PRIMARY role outranks internal_examiner (i.e.
-// everyone except student — see roles.ts's ROLE_RANK, where internal_examiner
-// sits second-to-last) never lands on the examiner sidebar/dashboard at all:
-// resolveActiveRole always picks their highest-ranked role, and the examiner
-// tabs (including "submit the dates you're available for") only exist under
-// that role's own chrome. Without this, such a user has no in-app way to even
-// discover that they hold the role, let alone reach /examinor/home — the
-// route itself is still reachable (useRequireRole checks the full roles[]
-// array), but nothing links to it.
+// A multi-role user whose PRIMARY role outranks a secondary operational role
+// they also hold (e.g. coordinator/faculty_admin/grad_school_head who is
+// ALSO a supervisor or internal_examiner in roles[] — see roles.ts's
+// ROLE_RANK) never lands on that role's own sidebar/dashboard at all:
+// resolveActiveRole always picks their highest-ranked role, and each role's
+// own tabs (grading a submitted milestone, submitting examiner availability
+// dates, etc.) only exist under that role's own chrome. Without this, such a
+// user has no in-app way to even discover that they hold the extra role, let
+// alone reach its dashboard — the route itself is still reachable
+// (useRequireRole checks the full roles[] array), but nothing links to it.
+// This is exactly the gap a coordinator+supervisor account hits: milestones
+// a student submitted sit waiting for THEM to grade as supervisor, but their
+// coordinator sidebar has no link into /supervisor/dashboard to find them.
 //
-// This appends one extra sidebar link, present on every dashboard for anyone
-// who holds internal_examiner as a secondary role, pointing at their real
-// examiner assignments. Being an ordinary SidebarSection item (not a bolted-on
-// banner), it's picked up by OnboardingTour the same as every other tab —
-// see SidebarShell's `<OnboardingTour sections={sections} .../>` — so a
-// first-login walkthrough teaches these users it exists, not just this one
-// session's dashboard.
-function withExaminerAssignmentsLink(sections: SidebarSection[], role: AppRole, roles: AppRole[]): SidebarSection[] {
-  if (role === 'internal_examiner' || !roles.includes('internal_examiner')) return sections;
-  const examinerSection: SidebarSection = {
+// This appends one combined "Additional Role" sidebar section, with one item
+// per extra operational role the user holds, pointing at that role's own
+// dashboard. Being ordinary SidebarSection items (not a bolted-on banner),
+// they're picked up by OnboardingTour the same as every other tab — see
+// SidebarShell's `<OnboardingTour sections={sections} .../>` — so a
+// first-login walkthrough teaches these users the role/screen exists, not
+// just as a one-time dashboard hint.
+//
+// To add another additional-role link, extend ADDITIONAL_ROLE_LINKS below —
+// everything else (dedup against the active role, combining into one
+// section, tour integration) is generic.
+const ADDITIONAL_ROLE_LINKS: Array<{
+  roles: AppRole[]; // any one of these in the user's roles[] qualifies
+  key: string;
+  icon: string;
+  href: string;
+  label: { he: string; en: string };
+  description: { he: string; en: string };
+  isActive: (pathname: string) => boolean;
+}> = [
+  {
+    roles: ['supervisor', 'secondary_supervisor'],
+    key: 'supervisor_assignments',
+    icon: '📋',
+    href: '/supervisor/dashboard',
+    label: { he: 'מנחה', en: 'Supervisor' },
+    description: {
+      he: 'יש לך גם תפקיד מנחה. כאן תמצא/י את הפרויקטים שבפיקוחך ואת ההגשות הממתינות לבדיקה שלך.',
+      en: 'You also hold the supervisor role. Find your supervised projects and submissions awaiting your grading here.',
+    },
+    isActive: (pathname) => pathname.startsWith('/supervisor'),
+  },
+  {
+    roles: ['internal_examiner'],
+    key: 'examiner_assignments',
+    icon: '🎓',
+    href: '/examinor/home',
+    label: { he: 'בוחן פנימי', en: 'Internal Examiner' },
+    description: {
+      he: 'יש לך גם תפקיד בוחן פנימי. כאן תמצא/י את ההגנות שהוקצו לך לבחינה, ואת המקום להגיש בו את התאריכים שבהם את/ה פנוי/ה.',
+      en: "You also hold the internal examiner role. Find the defenses assigned to you to examine here, and submit the dates you're available for.",
+    },
+    isActive: (pathname) => pathname.startsWith('/examinor'),
+  },
+];
+
+function withAdditionalRoleLinks(sections: SidebarSection[], role: AppRole, roles: AppRole[]): SidebarSection[] {
+  const items = ADDITIONAL_ROLE_LINKS
+    .filter((entry) => !entry.roles.includes(role) && entry.roles.some((r) => roles.includes(r)))
+    .map(({ roles: _roles, ...item }) => item);
+  if (items.length === 0) return sections;
+  const additionalRoleSection: SidebarSection = {
     title: { he: 'תפקיד נוסף', en: 'Additional Role' },
-    items: [
-      {
-        key: 'examiner_assignments',
-        icon: '🎓',
-        href: '/examinor/home',
-        label: { he: 'בוחן פנימי', en: 'Internal Examiner' },
-        description: {
-          he: 'יש לך גם תפקיד בוחן פנימי. כאן תמצא/י את ההגנות שהוקצו לך לבחינה, ואת המקום להגיש בו את התאריכים שבהם את/ה פנוי/ה.',
-          en: "You also hold the internal examiner role. Find the defenses assigned to you to examine here, and submit the dates you're available for.",
-        },
-        isActive: (pathname) => pathname.startsWith('/examinor'),
-      },
-    ],
+    items,
   };
-  return [...sections, examinerSection];
+  return [...sections, additionalRoleSection];
 }
 
 export interface RoleChrome {
@@ -94,7 +128,7 @@ export interface RoleChrome {
 export function getChromeForRole(role: AppRole | undefined, roles: AppRole[]): RoleChrome | null {
   const chrome = getBaseChromeForRole(role, roles);
   if (!chrome || !role) return chrome;
-  return { ...chrome, sections: withExaminerAssignmentsLink(chrome.sections, role, roles) };
+  return { ...chrome, sections: withAdditionalRoleLinks(chrome.sections, role, roles) };
 }
 
 function getBaseChromeForRole(role: AppRole | undefined, roles: AppRole[]): RoleChrome | null {
