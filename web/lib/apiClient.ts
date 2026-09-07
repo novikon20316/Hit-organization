@@ -393,10 +393,13 @@ export const apiClient = {
 
   /** GET /api/reports/projects — the administrative coordinator's
    *  project-first Reports flow (AdminCoordinatorReportsFlow.tsx) picks one
-   *  of these before picking a report type. */
-  async getReportProjects() {
+   *  of these before picking a report type; system_admin's own
+   *  SystemAdminReportsFlow.tsx passes the current filter bar so this list
+   *  narrows the same way the reports themselves do. */
+  async getReportProjects(filters?: Record<string, string | number | boolean | undefined>) {
     return request<{ projects: Array<{ id: string; projectTitleHe: string; projectTitleEn: string; advisorName: string; startYearHebrew: string | null }> }>('/api/reports/projects', {
       method: 'GET',
+      params: filters,
     });
   },
 

@@ -34,6 +34,12 @@ export interface ReportFilters {
    *  picks a specific project before picking a report type, rather than
    *  filtering across her whole scope. */
   projectId?: string | undefined;
+  /** Narrows to a hand-picked set of projects — system_admin's own
+   *  project-first flow (web/app/reports/SystemAdminReportsFlow.tsx) lets her
+   *  check off several projects/theses before running a report, rather than
+   *  the single-project picker above. Takes precedence over `projectId` when
+   *  both are somehow present. */
+  projectIds?: string[] | undefined;
 }
 
 export interface EngagementRecord {
@@ -100,7 +106,10 @@ export async function gatherEngagements(filters: ReportFilters = {}): Promise<En
     const wanted = filters.projectType;
     projects = projects.filter((p) => (p.projectTypes ?? (p.projectType ? [p.projectType] : [])).includes(wanted));
   }
-  if (filters.projectId) {
+  if (filters.projectIds && filters.projectIds.length > 0) {
+    const idSet = new Set(filters.projectIds);
+    projects = projects.filter((p) => idSet.has(p.id));
+  } else if (filters.projectId) {
     projects = projects.filter((p) => p.id === filters.projectId);
   }
 
@@ -261,10 +270,14 @@ export async function examinerTrackingReport(filters: ReportFilters): Promise<Ex
     projectSnaps.forEach((snap) => { if (snap.exists) projectFacultyById[snap.id] = snap.data()?.facultyId; });
   }
 
+  const tokenProjectIdFilter = filters.projectIds && filters.projectIds.length > 0
+    ? new Set(filters.projectIds)
+    : filters.projectId ? new Set([filters.projectId]) : null;
+
   for (const doc of tokensSnap.docs) {
     const t = doc.data();
     if (filters.facultyId && projectFacultyById[t.projectId] !== filters.facultyId) continue;
-    if (filters.projectId && t.projectId !== filters.projectId) continue;
+    if (tokenProjectIdFilter && !tokenProjectIdFilter.has(t.projectId)) continue;
     const invitedAt = t.createdAt ? new Date(t.createdAt) : null;
     const daysElapsed = invitedAt ? Math.floor((now - invitedAt.getTime()) / 86_400_000) : null;
     const expiresAt = t.expiresAt ? new Date(t.expiresAt) : null;

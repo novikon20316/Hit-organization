@@ -60,6 +60,10 @@ function parseFilters(req: AuthenticatedRequest, resolvedFacultyId: string | und
     milestoneType: q.milestoneType || undefined,
     overdueOnly: q.overdueOnly === 'true',
     projectId: q.projectId || undefined,
+    // Comma-separated, matching how every other multi-value filter here is
+    // passed (see e.g. advisorId/examinerId as plain strings) — sent by
+    // SystemAdminReportsFlow.tsx's checkbox selection.
+    projectIds: q.projectIds ? q.projectIds.split(',').filter(Boolean) : undefined,
   };
 }
 
