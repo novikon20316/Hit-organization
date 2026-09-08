@@ -21,6 +21,7 @@ import { db, auth } from '@/lib/firebase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { examinerSignatureStyle } from '@/lib/examinerSignature';
 import type { Milestone, ActiveProject } from './types';
 
 interface StudentFormField {
@@ -207,36 +208,51 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
           {!teammates ? (
             <p className="text-xs text-muted">{lang === 'he' ? 'טוען פרטי סטודנטים...' : 'Loading student details...'}</p>
           ) : (
-            teammates.map((tm) => (
-              <div key={tm.uid} className="flex gap-3 rounded-lg border border-line bg-paper p-3">
-                <div className="flex shrink-0 flex-col items-center gap-1.5">
-                  <div className="h-16 w-16 overflow-hidden rounded-full border border-line bg-surface">
-                    {tm.photoUrl && <img src={tm.photoUrl} alt="" className="h-full w-full object-cover" />}
+            teammates.map((tm) => {
+              // Deterministic stylized rendering of the student's own name —
+              // same "signing" convention used everywhere else in this
+              // system (see lib/examinerSignature.ts): nothing is drawn or
+              // uploaded, just the name shown in a signature-like style once
+              // the student is part of this milestone's submission. Matches
+              // ProgressReportFormModal.tsx's identical block.
+              const sig = examinerSignatureStyle(tm.displayName, project.facultyId ?? '', 'student', project.major ?? null);
+              return (
+                <div key={tm.uid} className="flex gap-3 rounded-lg border border-line bg-paper p-3">
+                  <div className="flex shrink-0 flex-col items-center gap-1.5">
+                    <div className="h-16 w-16 overflow-hidden rounded-full border border-line bg-surface">
+                      {tm.photoUrl && <img src={tm.photoUrl} alt="" className="h-full w-full object-cover" />}
+                    </div>
+                    {tm.uid === currentUid && (
+                      <label className="cursor-pointer text-[10px] text-primary hover:underline">
+                        {uploadingPhoto ? '…' : lang === 'he' ? 'העלה תמונה' : 'Upload photo'}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          className="hidden"
+                          onChange={(e) => e.target.files?.[0] && handlePhotoUpload(tm.uid, e.target.files[0])}
+                        />
+                      </label>
+                    )}
                   </div>
-                  {tm.uid === currentUid && (
-                    <label className="cursor-pointer text-[10px] text-primary hover:underline">
-                      {uploadingPhoto ? '…' : lang === 'he' ? 'העלה תמונה' : 'Upload photo'}
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg"
-                        className="hidden"
-                        onChange={(e) => e.target.files?.[0] && handlePhotoUpload(tm.uid, e.target.files[0])}
-                      />
-                    </label>
-                  )}
-                </div>
-                <div className="grid flex-1 grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <div><span className="text-muted">{lang === 'he' ? 'שם מלא: ' : 'Full name: '}</span>{tm.displayName || '—'}</div>
-                  <div><span className="text-muted">{lang === 'he' ? 'ת.ז.: ' : 'ID: '}</span>{tm.studentId || '—'}</div>
-                  <div><span className="text-muted">{lang === 'he' ? 'טלפון: ' : 'Phone: '}</span>{tm.phoneNumber || '—'}</div>
-                  <div><span className="text-muted">{lang === 'he' ? 'דוא"ל: ' : 'Email: '}</span>{tm.email || '—'}</div>
-                  <div>
-                    <span className="text-muted">{lang === 'he' ? 'נ"ז צבור: ' : 'Accumulated credits: '}</span>
-                    {tm.accumulatedCredits ?? (lang === 'he' ? 'טרם התקבל' : 'Pending')}
+                  <div className="flex-1">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      <div><span className="text-muted">{lang === 'he' ? 'שם מלא: ' : 'Full name: '}</span>{tm.displayName || '—'}</div>
+                      <div><span className="text-muted">{lang === 'he' ? 'ת.ז.: ' : 'ID: '}</span>{tm.studentId || '—'}</div>
+                      <div><span className="text-muted">{lang === 'he' ? 'טלפון: ' : 'Phone: '}</span>{tm.phoneNumber || '—'}</div>
+                      <div><span className="text-muted">{lang === 'he' ? 'דוא"ל: ' : 'Email: '}</span>{tm.email || '—'}</div>
+                      <div>
+                        <span className="text-muted">{lang === 'he' ? 'נ"ז צבור: ' : 'Accumulated credits: '}</span>
+                        {tm.accumulatedCredits ?? (lang === 'he' ? 'טרם התקבל' : 'Pending')}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
+                      <span className="text-[10px] text-muted">{lang === 'he' ? 'חתימה: ' : 'Signature: '}</span>
+                      <span style={{ color: sig.color, fontFamily: sig.fontFamily }} className="text-base">{tm.displayName}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 

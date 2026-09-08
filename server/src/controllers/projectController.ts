@@ -1284,9 +1284,11 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       // Chain-driven milestones restart the chain on every fresh submission
       // (first-time or resubmission after a student-facing rejection) — the
       // grader(s) evaluate the new content from stage 0, not wherever a
-      // previous round left off.
+      // previous round left off. supervisorApprovals resets alongside
+      // stageScores for the same reason — see milestoneController.ts's
+      // identical addition in submitMilestone.
       ...(isChainDriven(milestoneData)
-        ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
+        ? { currentStageIndex: 0, stageScores: {}, supervisorApprovals: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
     });
 

@@ -1403,12 +1403,19 @@ export const apiClient = {
           routing?: Array<{
             id: string; role: string; action: 'grade' | 'approve';
             formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
+            requireAllAssignedSupervisors?: boolean;
           }> | null;
           currentStageIndex?: number;
+          /** Per-signer stamps for a requireAllAssignedSupervisors stage,
+           *  keyed by uid — see server's getSupervisorProjectDetail. */
+          supervisorApprovals?: Record<string, { signedAt: string | null; signedByName: string }> | null;
         }>;
       }>;
       createdAt: string | null;
-      /** Read-only — see server's getSupervisorProjectDetail. */
+      supervisorId?: string | null;
+      secondarySupervisorId?: string | null;
+      primarySupervisorName?: string | null;
+      /** Read-only when the current stage doesn't require both to sign. */
       secondarySupervisorName?: string | null;
     }>(`/api/supervisor/projects/${projectId}/detail`, { method: 'GET' });
   },
@@ -2478,7 +2485,29 @@ export const apiClient = {
   async submitCommitteeDecision(milestoneId: string, decision: 'approve' | 'reject', comment: string) {
     return request<{ success: boolean; message: string }>(`/api/milestones/${milestoneId}/committee-decision`, { method: 'POST', body: { decision, comment } });
   },
+
+  // See workflowTemplates.ts's preGradeSignoffs — independent, parallel
+  // signoffs unlocked at student-submission time (distinct from the
+  // sequential committee-decision chain above).
+  async getParallelSignoffStatus(milestoneId: string) {
+    return request<ParallelSignoffStatus>(`/api/milestones/${milestoneId}/parallel-signoffs`, { method: 'GET' });
+  },
+
+  async submitCommitteeChairDecision(milestoneId: string, decision: 'continue' | 'not_continue', reason: string) {
+    return request<{ success: boolean }>(`/api/milestones/${milestoneId}/committee-chair-decision`, { method: 'POST', body: { decision, reason } });
+  },
+
+  async submitExaminerOneSignoff(milestoneId: string) {
+    return request<{ success: boolean }>(`/api/milestones/${milestoneId}/examiner-one-signoff`, { method: 'POST', body: {} });
+  },
 };
+
+export interface ParallelSignoffStatus {
+  preGradeSignoffs: { committee?: boolean; examinerOne?: boolean } | null;
+  committeeChairDecision: { decision: 'continue' | 'not_continue'; reason: string; decidedBy: string; decidedAt: string } | null;
+  examinerOneSignoff: { approvedBy: string; approvedAt: string } | null;
+  examinerOneId: string | null;
+}
 
 export interface CommitteeRecord {
   id: string;

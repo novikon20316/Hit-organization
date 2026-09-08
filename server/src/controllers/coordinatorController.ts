@@ -784,7 +784,14 @@ async function approveChainMilestone(
   }
 
   const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: milestone.facultyId ?? '' };
-  const projectSupervisorIds = [milestone.supervisorId].filter(Boolean);
+  // Includes the secondary supervisor (if any) alongside the primary — a
+  // 'supervisor' stage has always resolved to the primary only until now,
+  // silently excluding a real secondary supervisor from ever signing/grading
+  // anything. Purely additive: widens who CAN act, never removes the
+  // primary's own standing access. See ChainStage.requireAllAssignedSupervisors
+  // for the separate "both must independently sign" behavior this also
+  // enables for a stage that opts into it.
+  const projectSupervisorIds = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean);
   const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
   if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
 
@@ -812,6 +819,12 @@ async function approveChainMilestone(
   // e.g. a supervisor's research_proposal sign-off never told the
   // coordinator it was now their turn.
   let advancedToStage: ChainStage | undefined;
+  // Set when this stage requires both the primary and secondary supervisor
+  // to sign independently (see ChainStage.requireAllAssignedSupervisors) and
+  // this actor was the FIRST of the two — the stage deliberately does not
+  // advance, so none of the normal finalize/next-stage handling below runs.
+  let partialSignoff = false;
+  let awaitingCoSupervisorUid: string | undefined;
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -826,8 +839,43 @@ async function approveChainMilestone(
       }
       previousStatus = fresh.status;
 
+      // Only meaningful when this stage opted into requireAllAssignedSupervisors
+      // AND the project actually has a secondary supervisor — otherwise this
+      // is exactly today's single-actor "first one wins" stage, unchanged.
+      const secondarySupervisorId: string | undefined = fresh.secondarySupervisorId || undefined;
+      const dualSignRequired = stage.role === 'supervisor' && !!stage.requireAllAssignedSupervisors && !!secondarySupervisorId;
+      let stillMissingUid: string | undefined;
+      if (dualSignRequired) {
+        const alreadySigned = new Set(Object.keys(fresh.supervisorApprovals ?? {}));
+        alreadySigned.add(actorId);
+        const requiredUids = [fresh.supervisorId, secondarySupervisorId].filter(Boolean) as string[];
+        stillMissingUid = requiredUids.find((uid) => !alreadySigned.has(uid));
+      }
+
+      const update: Record<string, any> = {};
+      if (dualSignRequired) {
+        // Each signer's own stamp, keyed by uid — distinct from the flat
+        // {role}SignedAt/ByName fields below, which are only ever set once
+        // BOTH required uids are present here (i.e. the stage is actually
+        // complete), same as every other stage's single-actor stamp.
+        update[`supervisorApprovals.${actorId}`] = {
+          signedAt: admin.firestore.FieldValue.serverTimestamp(),
+          signedByName: req.user?.displayName ?? '',
+        };
+      }
+      if (stageFormData && Object.keys(stageFormData).length > 0) {
+        update[`stageFormData.${stage.id}`] = stageFormData;
+      }
+
+      if (stillMissingUid) {
+        transaction.update(milestoneRef, update);
+        awaitingCoSupervisorUid = stillMissingUid;
+        partialSignoff = true;
+        return;
+      }
+
       const nextStage = freshRouting[freshIndex + 1];
-      const update: Record<string, any> = { stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() };
+      update.stageEnteredAt = admin.firestore.FieldValue.serverTimestamp();
       // Deterministic signature stamp (see examinerSignature.ts's
       // examinerSignatureStyle) — only the name + timestamp are persisted;
       // the stylized color/font are recomputed client-side on every view,
@@ -839,9 +887,6 @@ async function approveChainMilestone(
       // those two roles, unchanged from before this generalization.
       update[`${stage.role}SignedAt`] = admin.firestore.FieldValue.serverTimestamp();
       update[`${stage.role}SignedByName`] = req.user?.displayName ?? '';
-      if (stageFormData && Object.keys(stageFormData).length > 0) {
-        update[`stageFormData.${stage.id}`] = stageFormData;
-      }
       if (nextStage) {
         update.currentStageIndex = freshIndex + 1;
         update.status = statusForStage(nextStage);
@@ -858,6 +903,41 @@ async function approveChainMilestone(
       }
       transaction.update(milestoneRef, update);
     });
+
+    if (partialSignoff) {
+      if (awaitingCoSupervisorUid) {
+        const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
+        const coSupervisorTargetScreen = targetScreenFor('supervisor', 'milestone_action');
+        await notifyUser({
+          recipientId: awaitingCoSupervisorUid,
+          type: 'milestone_submitted',
+          titleHe: 'ממתין לחתימתך',
+          titleEn: 'Awaiting your signature',
+          bodyHe: `המנחה השני חתם על "${milestoneTitle.he}" — ממתין כעת לחתימתך.`,
+          bodyEn: `The other supervisor signed "${milestoneTitle.en}" — now awaiting your signature.`,
+          relatedProjectId: milestone.projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          ...(coSupervisorTargetScreen ? { targetScreen: coSupervisorTargetScreen } : {}),
+          emailData: { milestoneTitle },
+        }).catch((notifyError) => {
+          console.error(`approveChainMilestone: co-supervisor notify failed for ${awaitingCoSupervisorUid} on milestone ${milestoneId}:`, notifyError);
+        });
+      }
+      await logAuditEvent({
+        userId: actorId,
+        userRole: req.user?.role ?? stage.role,
+        action: 'milestone_approved',
+        entityType: 'milestone',
+        entityId: milestoneId,
+        oldValue: { status: previousStatus ?? null },
+        newValue: { stageId: stage.id, partialSignoff: true },
+      });
+      return res.status(200).json({
+        success: true,
+        partialSignoff: true,
+        message: 'Your signature was recorded — waiting for the other supervisor to also sign before this stage advances.',
+      });
+    }
 
     // The stage that just approved is no longer "awaiting review" for
     // anyone else who was fanned a notification about it — see
@@ -1123,7 +1203,11 @@ async function rejectChainMilestone(
   }
 
   const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: milestone.facultyId ?? '' };
-  const projectSupervisorIds = [milestone.supervisorId].filter(Boolean);
+  // Either supervisor may reject on their own — unlike approving, rejection
+  // has no "both must agree" requirement (see approveChainMilestone's
+  // dualSignRequired branch), so simply widening who's authorized here is
+  // sufficient.
+  const projectSupervisorIds = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean);
   const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
   if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
 
@@ -1162,6 +1246,11 @@ async function rejectChainMilestone(
           coordinatorId: actorId,
           rejectionReason: reason,
           stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+          // A resubmission restarts the whole chain at stage 0 (see
+          // submitMilestone/submitStudentMilestone) — any partial dual-sign
+          // stamps from THIS round must not silently count toward the next
+          // round's own requireAllAssignedSupervisors check.
+          supervisorApprovals: {},
         });
 
         const studentIds: string[] = fresh.studentIds ?? [];

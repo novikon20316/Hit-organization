@@ -22,6 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient';
+import { examinerSignatureStyle } from '../../utils/examinerSignature';
 import { tx, type Lang } from '../i18n';
 import { ActivateDashboardStyles } from '../../constants/styles';
 import type { Milestone, ActiveProject } from '@/types';
@@ -38,6 +39,7 @@ const local = StyleSheet.create({
   },
   detailText: { fontSize: 12, color: '#445', marginBottom: 2 },
   lockedText: { fontSize: 14, color: '#8899BB', paddingVertical: 8 },
+  signatureText: { fontSize: 16, marginTop: 4 },
 });
 
 interface StudentFormField {
@@ -222,29 +224,39 @@ export default function ResearchProposalFormModal({
         {!teammates ? (
           <ActivityIndicator />
         ) : (
-          teammates.map((tm) => (
-            <View key={tm.uid} style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 10, marginBottom: 10, padding: 8, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8 }}>
-              <View style={{ alignItems: 'center', gap: 4 }}>
-                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#F1F0EC', overflow: 'hidden' }}>
-                  {tm.photoUrl && <Image source={{ uri: tm.photoUrl }} style={{ width: 56, height: 56 }} />}
+          teammates.map((tm) => {
+            // Deterministic stylized rendering of the student's own name —
+            // same "signing" convention used everywhere else in this system
+            // (see utils/examinerSignature.ts): nothing is drawn or
+            // uploaded, just the name shown in a signature-like style once
+            // the student is part of this milestone's submission. Matches
+            // ProgressReportFormModal.tsx's identical block.
+            const sig = examinerSignatureStyle(tm.displayName, project.facultyId ?? '', 'student', project.major ?? null);
+            return (
+              <View key={tm.uid} style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 10, marginBottom: 10, padding: 8, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8 }}>
+                <View style={{ alignItems: 'center', gap: 4 }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#F1F0EC', overflow: 'hidden' }}>
+                    {tm.photoUrl && <Image source={{ uri: tm.photoUrl }} style={{ width: 56, height: 56 }} />}
+                  </View>
+                  {tm.uid === currentUid && (
+                    <Pressable onPress={() => handlePhotoUpload(tm.uid)} disabled={uploadingPhoto} accessibilityRole="button">
+                      <Text style={{ fontSize: 10, color: '#00236f' }}>{uploadingPhoto ? '…' : lang === 'he' ? 'העלה תמונה' : 'Upload photo'}</Text>
+                    </Pressable>
+                  )}
                 </View>
-                {tm.uid === currentUid && (
-                  <Pressable onPress={() => handlePhotoUpload(tm.uid)} disabled={uploadingPhoto} accessibilityRole="button">
-                    <Text style={{ fontSize: 10, color: '#00236f' }}>{uploadingPhoto ? '…' : lang === 'he' ? 'העלה תמונה' : 'Upload photo'}</Text>
-                  </Pressable>
-                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={[local.detailText, isRtl && styles.textRight]}>{lang === 'he' ? 'שם: ' : 'Name: '}{tm.displayName || '—'}</Text>
+                  <Text style={[local.detailText, isRtl && styles.textRight]}>{lang === 'he' ? 'ת.ז.: ' : 'ID: '}{tm.studentId || '—'}</Text>
+                  <Text style={[local.detailText, isRtl && styles.textRight]}>{lang === 'he' ? 'טלפון: ' : 'Phone: '}{tm.phoneNumber || '—'}</Text>
+                  <Text style={[local.detailText, isRtl && styles.textRight]}>{lang === 'he' ? 'דוא"ל: ' : 'Email: '}{tm.email || '—'}</Text>
+                  <Text style={[local.detailText, isRtl && styles.textRight]}>
+                    {lang === 'he' ? 'נ"ז צבור: ' : 'Credits: '}{tm.accumulatedCredits ?? (lang === 'he' ? 'טרם התקבל' : 'Pending')}
+                  </Text>
+                  <Text style={[local.signatureText, { color: sig.color }]}>{tm.displayName}</Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[local.detailText, isRtl && styles.textRight]}>{lang === 'he' ? 'שם: ' : 'Name: '}{tm.displayName || '—'}</Text>
-                <Text style={[local.detailText, isRtl && styles.textRight]}>{lang === 'he' ? 'ת.ז.: ' : 'ID: '}{tm.studentId || '—'}</Text>
-                <Text style={[local.detailText, isRtl && styles.textRight]}>{lang === 'he' ? 'טלפון: ' : 'Phone: '}{tm.phoneNumber || '—'}</Text>
-                <Text style={[local.detailText, isRtl && styles.textRight]}>{lang === 'he' ? 'דוא"ל: ' : 'Email: '}{tm.email || '—'}</Text>
-                <Text style={[local.detailText, isRtl && styles.textRight]}>
-                  {lang === 'he' ? 'נ"ז צבור: ' : 'Credits: '}{tm.accumulatedCredits ?? (lang === 'he' ? 'טרם התקבל' : 'Pending')}
-                </Text>
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
 
         {fields.map((f) => (

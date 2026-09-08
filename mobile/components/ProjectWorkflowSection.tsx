@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, TextInput } from 'react-native';
 import { apiClient } from '../src/api/apiClient';
+import { auth } from '../src/firebase/firebase';
 import { roleLabel, type Lang, type AppRole } from './i18n';
 import StaffRecordModal from './modals/StaffRecordModal';
 import SupervisorEvaluationModal from './modals/SupervisorEvaluationModal';
@@ -58,6 +59,7 @@ interface RoutingStage {
   role: string;
   action: 'grade' | 'approve';
   formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
+  requireAllAssignedSupervisors?: boolean;
 }
 
 interface StudentMilestoneRow {
@@ -84,6 +86,9 @@ interface StudentMilestoneRow {
    *  "awaiting X" label instead of guessing from the coarse status string. */
   routing?: RoutingStage[] | null;
   currentStageIndex?: number;
+  /** Per-signer stamps for a requireAllAssignedSupervisors stage, keyed by
+   *  uid — see server's getSupervisorProjectDetail. */
+  supervisorApprovals?: Record<string, { signedAt: string | null; signedByName: string }> | null;
 }
 
 interface StudentRow {
@@ -146,6 +151,13 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [secondarySupervisorName, setSecondarySupervisorName] = useState<string | null>(null);
+  // Needed alongside the name above to work out, from the CURRENT viewer's
+  // own uid, which of the two is "me" and which is "the other supervisor" —
+  // this screen is reachable by either one, so it can't be assumed the
+  // viewer is always the primary. Mirrors web's identical addition.
+  const [supervisorId, setSupervisorId] = useState<string | null>(null);
+  const [secondarySupervisorId, setSecondarySupervisorId] = useState<string | null>(null);
+  const [primarySupervisorName, setPrimarySupervisorName] = useState<string | null>(null);
 
   // research_proposal's supervisor_sign stage — mirrors web's
   // ProjectWorkflowSection.tsx's signingId/stageFormValues.
@@ -179,6 +191,9 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
         setTemplateMilestones([...(res.data.templateMilestones ?? [])].sort((a: TemplateMilestone, b: TemplateMilestone) => a.order - b.order));
         setStudents(res.data.students ?? []);
         setSecondarySupervisorName(res.data.secondarySupervisorName ?? null);
+        setSupervisorId(res.data.supervisorId ?? null);
+        setSecondarySupervisorId(res.data.secondarySupervisorId ?? null);
+        setPrimarySupervisorName(res.data.primarySupervisorName ?? null);
         setError('');
       })
       .catch((e: any) => {
@@ -292,9 +307,24 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                         sign-off (action: 'approve'), not a grade, so it's
                         rendered here rather than in the generic Grade
                         branch. Mirrors web's ProjectWorkflowSection.tsx. */}
-                    {m.type === 'research_proposal' && m.id && m.finalGrade == null && (
+                    {m.type === 'research_proposal' && m.id && m.finalGrade == null && (() => {
+                      const currentStage = m.routing?.[m.currentStageIndex ?? 0];
+                      const dualSignRequired = !!(
+                        currentStage?.role === 'supervisor' && currentStage.requireAllAssignedSupervisors && secondarySupervisorId
+                      );
+                      const myUid = auth.currentUser?.uid;
+                      const otherUid = myUid === secondarySupervisorId ? supervisorId : secondarySupervisorId;
+                      const otherName = myUid === secondarySupervisorId ? primarySupervisorName : secondarySupervisorName;
+                      const iHaveSigned = !!(myUid && m.supervisorApprovals?.[myUid]);
+                      return (
                       m.status === 'submitted' ? (
-                        signingId === m.id ? (
+                        dualSignRequired && iHaveSigned ? (
+                          <Text style={{ marginTop: 4, fontSize: 12, color: '#F59E0B' }}>
+                            ✓ {lang === 'he'
+                              ? `חתמת — ממתין לחתימת ${otherName ?? 'המנחה הנוסף'}`
+                              : `You signed — awaiting ${otherName ?? "the other supervisor"}'s signature`}
+                          </Text>
+                        ) : signingId === m.id ? (
                           <View style={{ marginTop: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', padding: 8 }}>
                             {(() => {
                               const stage = m.routing?.[m.currentStageIndex ?? 0];
@@ -334,7 +364,13 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                                 </View>
                               );
                             })()}
-                            {secondarySupervisorName && (
+                            {dualSignRequired ? (
+                              <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 8 }}>
+                                {lang === 'he'
+                                  ? `${otherName ?? 'המנחה הנוסף'}: ${otherUid && m.supervisorApprovals?.[otherUid] ? 'חתם/ה ✓' : 'טרם חתם/ה — נדרשות שתי חתימות'}`
+                                  : `${otherName ?? 'The other supervisor'}: ${otherUid && m.supervisorApprovals?.[otherUid] ? 'signed ✓' : "hasn't signed yet — both signatures are required"}`}
+                              </Text>
+                            ) : secondarySupervisorName && (
                               <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 8 }}>
                                 {lang === 'he' ? 'מנחה נוסף: ' : 'Secondary supervisor: '}{secondarySupervisorName}
                               </Text>
@@ -375,7 +411,8 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                           );
                         })()
                       ) : null
-                    )}
+                      );
+                    })()}
 
                     {/* Staff record action (research_proposal/progress_report only). */}
                     {m.staffRecordMode === 'upload_or_form' && m.id && (

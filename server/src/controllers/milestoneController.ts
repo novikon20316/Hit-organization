@@ -277,9 +277,13 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       // Chain-driven milestones restart the chain on every fresh submission
       // — see the identical addition in projectController.ts's
       // submitStudentMilestone (this is the second, mobile-facing route that
-      // does the exact same submit/resubmit write).
+      // does the exact same submit/resubmit write). supervisorApprovals is
+      // reset alongside stageScores for the same reason — a stale partial
+      // dual-signature from a rejected round must not count toward this
+      // fresh round's own requireAllAssignedSupervisors check (see
+      // coordinatorController.ts's approveChainMilestone).
       ...(isChainDriven(milestoneData)
-        ? { currentStageIndex: 0, stageScores: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
+        ? { currentStageIndex: 0, stageScores: {}, supervisorApprovals: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
     });
 

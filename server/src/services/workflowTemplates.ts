@@ -164,6 +164,20 @@ export interface ChainStage {
    *  'approve' stage gets, not by a FormFieldSpec). See approveChainMilestone
    *  in coordinatorController.ts. */
   formFields?: FormFieldSpec[];
+  /** Only meaningful when role === 'supervisor' and action === 'approve'.
+   *  Today every chain stage is single-actor "first one wins" — whoever
+   *  resolveStaffForScope('supervisor', ...) returns (the project's primary
+   *  supervisor, and now also its secondary supervisor if one exists — see
+   *  coordinatorController.ts) that acts first advances the stage alone. Set
+   *  this true to require BOTH, independently, before the stage advances —
+   *  e.g. a paper form with two separate supervisor signature lines. Has no
+   *  effect on a project with no secondarySupervisorId (primary alone still
+   *  suffices, identical to every other stage). Each signer's own stamp is
+   *  recorded under the milestone's supervisorApprovals[uid] map — distinct
+   *  from the single flat supervisorSignedAt/supervisorSignedByName fields,
+   *  which are only set once the requirement is fully satisfied. See
+   *  approveChainMilestone's dual-signature branch. */
+  requireAllAssignedSupervisors?: boolean;
 }
 
 export type MilestoneRoutingSpec = ChainStage[];

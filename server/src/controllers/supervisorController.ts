@@ -400,6 +400,14 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             routing: m?.routing ?? null,
             currentStageIndex: m?.currentStageIndex ?? 0,
             stageFormData: m?.stageFormData ?? null,
+            // Per-signer stamps for a stage with requireAllAssignedSupervisors
+            // set (e.g. research_proposal's supervisor_sign) — keyed by uid,
+            // distinct from the single flat supervisorSignedAt/ByName fields
+            // (only set once BOTH required signers are in here). Lets the
+            // client show "you signed" / "awaiting the other supervisor"
+            // regardless of which of the two is viewing. See
+            // coordinatorController.ts's approveChainMilestone.
+            supervisorApprovals: m?.supervisorApprovals ?? null,
             // Three-rubric final-grade workflow state (defense only — see
             // workflowTemplates.ts's finalGradeComponents). Lets the UI
             // decide what to show (evaluation form vs. approve/override vs.
@@ -419,18 +427,30 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
       };
     });
 
-    // Read-only display only (e.g. research_proposal's supervisor_sign
-    // stage, which shows the secondary supervisor's name alongside the
-    // primary's own signature) — they never act on this endpoint's own
-    // stage themselves, so no separate status/signature is resolved here.
-    const secondarySupervisorName: string | null = project.secondarySupervisorId
-      ? ((await db.collection('users').doc(project.secondarySupervisorId).get()).data()?.displayName ?? null)
-      : null;
+    // Both names resolved regardless of which of the two is viewing this
+    // endpoint (a secondary supervisor has their own "My Projects" view of
+    // the exact same project — see supervisor/dashboard/page.tsx's
+    // secondarySupervisorId query) — the client works out which one is
+    // "the other supervisor" from its own uid (see
+    // ProjectWorkflowSection.tsx). Used both for the read-only display on a
+    // stage that doesn't require both to sign, and for the interactive
+    // dual-signature UI on one that does (requireAllAssignedSupervisors).
+    const [primarySupervisorName, secondarySupervisorName] = await Promise.all([
+      project.supervisorId
+        ? db.collection('users').doc(project.supervisorId).get().then((s) => s.data()?.displayName ?? null)
+        : Promise.resolve(null),
+      project.secondarySupervisorId
+        ? db.collection('users').doc(project.secondarySupervisorId).get().then((s) => s.data()?.displayName ?? null)
+        : Promise.resolve(null),
+    ]);
 
     return res.status(200).json({
       templateMilestones: templateMilestones.map((spec) => ({ ...spec, dueDate: dueDateByType[spec.type] ?? null })),
       students,
       createdAt: project.createdAt?.toDate?.()?.toISOString() ?? null,
+      supervisorId: project.supervisorId ?? null,
+      secondarySupervisorId: project.secondarySupervisorId ?? null,
+      primarySupervisorName,
       secondarySupervisorName,
     });
   } catch (error: any) {

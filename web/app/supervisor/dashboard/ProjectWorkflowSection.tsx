@@ -102,8 +102,19 @@ export interface StudentMilestoneRow {
   routing?: Array<{
     id: string; role: string; action: 'grade' | 'approve';
     formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
+    requireAllAssignedSupervisors?: boolean;
   }> | null;
   currentStageIndex?: number;
+  /** Per-signer stamps for a requireAllAssignedSupervisors stage, keyed by
+   *  uid — see server's getSupervisorProjectDetail. */
+  supervisorApprovals?: Record<string, { signedAt: string | null; signedByName: string }> | null;
+  /** Independent parallel signoffs gating this milestone's grade — see
+   *  server/src/services/workflowTemplates.ts's preGradeSignoffs doc
+   *  comment. Both required entries must be non-null before the "Grade"
+   *  action below is allowed. */
+  preGradeSignoffs?: { committee?: boolean; examinerOne?: boolean } | null;
+  committeeChairDecision?: { decision: 'continue' | 'not_continue'; reason: string } | null;
+  examinerOneSignoff?: { approvedBy: string } | null;
 }
 
 export interface StudentRow {
@@ -195,7 +206,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   // submitted grade actually appear here without navigating away and back.
   const isFirstLoadRef = useRef(true);
   const { lang } = useLanguage();
-  const { userData } = useAuth();
+  const { userData, firebaseUser } = useAuth();
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [signingId, setSigningId] = useState<string | null>(null);
   // Only meaningful while signingId is set — the current stage's own form
@@ -204,6 +215,14 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [secondarySupervisorName, setSecondarySupervisorName] = useState<string | null>(null);
+  // Needed alongside the names above to work out, from the CURRENT viewer's
+  // own uid, which of the two is "me" and which is "the other supervisor" —
+  // this dashboard is reachable by either one (see supervisor/dashboard/
+  // page.tsx's secondarySupervisorId query), so it can't be assumed the
+  // viewer is always the primary. See the dualSignRequired block below.
+  const [supervisorId, setSupervisorId] = useState<string | null>(null);
+  const [secondarySupervisorId, setSecondarySupervisorId] = useState<string | null>(null);
+  const [primarySupervisorName, setPrimarySupervisorName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -265,6 +284,9 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
         setTemplateMilestones([...res.templateMilestones].sort((a, b) => a.order - b.order));
         setStudents(res.students);
         setSecondarySupervisorName(res.secondarySupervisorName ?? null);
+        setSupervisorId(res.supervisorId ?? null);
+        setSecondarySupervisorId(res.secondarySupervisorId ?? null);
+        setPrimarySupervisorName(res.primarySupervisorName ?? null);
         setError('');
       })
       .catch((err) => {
@@ -445,9 +467,24 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                               'grade' (see addResearchProposalStudentForm.ts), so it's kept
                               out of the generic Grade branch below entirely: submitting a
                               score against an 'approve' stage would 400. */}
-                          {m.type === 'research_proposal' && m.id && (
+                          {m.type === 'research_proposal' && m.id && (() => {
+                            const currentStage = m.routing?.[m.currentStageIndex ?? 0];
+                            const dualSignRequired = !!(
+                              currentStage?.role === 'supervisor' && currentStage.requireAllAssignedSupervisors && secondarySupervisorId
+                            );
+                            const myUid = firebaseUser?.uid;
+                            const otherUid = myUid === secondarySupervisorId ? supervisorId : secondarySupervisorId;
+                            const otherName = myUid === secondarySupervisorId ? primarySupervisorName : secondarySupervisorName;
+                            const iHaveSigned = !!(myUid && m.supervisorApprovals?.[myUid]);
+                            return (
                             m.finalGrade == null && m.status === 'submitted' ? (
-                              signingId === m.id ? (
+                              dualSignRequired && iHaveSigned ? (
+                                <p className="mt-1 text-xs text-accent">
+                                  ✓ {lang === 'he'
+                                    ? `חתמת — ממתין לחתימת ${otherName ?? 'המנחה הנוסף'}`
+                                    : `You signed — awaiting ${otherName ?? "the other supervisor"}'s signature`}
+                                </p>
+                              ) : signingId === m.id ? (
                                 <div className="mt-1 rounded-md border border-supervisor-outline-variant bg-supervisor-surface-container-low p-2">
                                   {/* This stage's own fields (e.g. courses still needed,
                                       agree-to-supervise) — only meaningful when the
@@ -491,10 +528,18 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                       </div>
                                     );
                                   })()}
-                                  {/* Read-only secondary-supervisor name, if the project has
-                                      one — they never act on this stage themselves, so there's
-                                      no separate signature/date to show alongside it. */}
-                                  {secondarySupervisorName && (
+                                  {/* Secondary-supervisor status — when this stage requires
+                                      both to sign (see ChainStage.requireAllAssignedSupervisors)
+                                      this reflects whether the OTHER one already has; otherwise
+                                      it's the original read-only name-only display (a project
+                                      whose stage doesn't opt into dual signing). */}
+                                  {dualSignRequired ? (
+                                    <p className="mb-2 text-[11px] text-supervisor-on-surface-variant">
+                                      {lang === 'he'
+                                        ? `${otherName ?? 'המנחה הנוסף'}: ${otherUid && m.supervisorApprovals?.[otherUid] ? 'חתם/ה ✓' : 'טרם חתם/ה — נדרשות שתי חתימות'}`
+                                        : `${otherName ?? 'The other supervisor'}: ${otherUid && m.supervisorApprovals?.[otherUid] ? 'signed ✓' : "hasn't signed yet — both signatures are required"}`}
+                                    </p>
+                                  ) : secondarySupervisorName && (
                                     <p className="mb-2 text-[11px] text-supervisor-on-surface-variant">
                                       {lang === 'he' ? 'מנחה נוסף: ' : 'Secondary supervisor: '}
                                       {secondarySupervisorName}
@@ -593,7 +638,8 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                 );
                               })()
                             ) : null
-                          )}
+                            );
+                          })()}
 
                           {/* Grade action/display for ordinary milestones — the
                               three-rubric defense workflow below handles its own,
@@ -620,6 +666,27 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                               );
                             }
                             if (pending) {
+                              // See workflowTemplates.ts's preGradeSignoffs —
+                              // the committee chair's decision and/or examiner
+                              // #1's sign-off must both be recorded before the
+                              // supervisor may grade this milestone (matches
+                              // the server-side gate in submitMilestoneGrade).
+                              const missingSignoffs: string[] = [];
+                              if (m.preGradeSignoffs?.committee && !m.committeeChairDecision) {
+                                missingSignoffs.push(lang === 'he' ? 'החלטת יו"ר הוועדה' : "the committee chair's decision");
+                              }
+                              if (m.preGradeSignoffs?.examinerOne && !m.examinerOneSignoff) {
+                                missingSignoffs.push(lang === 'he' ? 'חתימת הבוחן הראשי' : "examiner #1's sign-off");
+                              }
+                              if (missingSignoffs.length > 0) {
+                                return (
+                                  <p className="mt-1 text-xs text-supervisor-on-surface-variant">
+                                    ⏳ {lang === 'he'
+                                      ? `ממתין ל${missingSignoffs.join(' ול')} לפני מתן ציון`
+                                      : `Awaiting ${missingSignoffs.join(' and ')} before this can be graded`}
+                                  </p>
+                                );
+                              }
                               return (
                                 <button
                                   type="button"
