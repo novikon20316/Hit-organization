@@ -60,6 +60,10 @@ interface InfoFile {
   facultyIds: string[];
   majors: string[];
   degreeTypes: string[];
+  /** A student's TRACK (thesis vs. project) — see lib/studentTrack.ts's
+   *  resolveEffectiveTrack, the source of truth server-side filtering
+   *  matches against. Distinct from projectType elsewhere in the app. */
+  trackTypes: string[];
   projectIds: string[];
   milestoneType: string | null;
   isVisible: boolean;
@@ -78,7 +82,7 @@ interface FacultyContentItem {
   createdAt: string | null;
 }
 
-function scopeSummary(f: { facultyIds: string[]; majors: string[]; degreeTypes: string[] }, lang: 'he' | 'en'): string {
+function scopeSummary(f: { facultyIds: string[]; majors: string[]; degreeTypes: string[]; trackTypes?: string[] }, lang: 'he' | 'en'): string {
   const parts: string[] = [];
   if (f.facultyIds?.length) parts.push(f.facultyIds.map((id) => facultyLabel(id as FacultyId, lang)).join(', '));
   if (f.majors?.length) {
@@ -92,6 +96,13 @@ function scopeSummary(f: { facultyIds: string[]; majors: string[]; degreeTypes: 
     parts.push(
       f.degreeTypes
         .map((d) => (d === 'bachelors' ? (lang === 'he' ? "תואר ראשון" : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")))
+        .join(', ')
+    );
+  }
+  if (f.trackTypes?.length) {
+    parts.push(
+      f.trackTypes
+        .map((t) => (t === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')))
         .join(', ')
     );
   }
@@ -286,6 +297,7 @@ export default function InfoFilesPage() {
   const [scopeFacultyIds, setScopeFacultyIds] = useState<string[]>([]);
   const [scopeMajors, setScopeMajors] = useState<string[]>([]);
   const [scopeDegreeTypes, setScopeDegreeTypes] = useState<string[]>([]);
+  const [scopeTrackTypes, setScopeTrackTypes] = useState<string[]>([]);
   const [selectAllFiles, setSelectAllFiles] = useState(false);
 
   // Cascades to just the selected faculties' majors once any are picked —
@@ -453,11 +465,11 @@ export default function InfoFilesPage() {
         setError(lang === 'he' ? 'יש לבחור פרויקט אחד לפחות' : 'Select at least one project');
         return;
       }
-    } else if (!selectAllFiles && scopeFacultyIds.length === 0 && scopeMajors.length === 0 && scopeDegreeTypes.length === 0) {
+    } else if (!selectAllFiles && scopeFacultyIds.length === 0 && scopeMajors.length === 0 && scopeDegreeTypes.length === 0 && scopeTrackTypes.length === 0) {
       setError(
         lang === 'he'
-          ? 'יש לבחור פקולטה, מגמה או תואר אחד לפחות — או לסמן "הצג לכולם"'
-          : 'Select at least one faculty, major, or degree — or check "Show to everyone"'
+          ? 'יש לבחור פקולטה, מגמה, תואר או מסלול אחד לפחות — או לסמן "הצג לכולם"'
+          : 'Select at least one faculty, major, degree, or track — or check "Show to everyone"'
       );
       return;
     }
@@ -476,6 +488,7 @@ export default function InfoFilesPage() {
         formData.append('facultyIds', JSON.stringify(selectAllFiles ? [] : scopeFacultyIds));
         formData.append('majors', JSON.stringify(selectAllFiles ? [] : scopeMajors));
         formData.append('degreeTypes', JSON.stringify(selectAllFiles ? [] : scopeDegreeTypes));
+        formData.append('trackTypes', JSON.stringify(selectAllFiles ? [] : scopeTrackTypes));
       }
       await apiClient.uploadInfoFile(formData);
       setTitleHe('');
@@ -484,6 +497,7 @@ export default function InfoFilesPage() {
       setScopeFacultyIds([]);
       setScopeMajors([]);
       setScopeDegreeTypes([]);
+      setScopeTrackTypes([]);
       setSelectAllFiles(false);
       setScopeProjectIds([]);
       setScopeMilestoneType('');
@@ -609,6 +623,7 @@ export default function InfoFilesPage() {
                     setScopeFacultyIds([]);
                     setScopeMajors([]);
                     setScopeDegreeTypes([]);
+                    setScopeTrackTypes([]);
                   }
                 }}
               />
@@ -675,6 +690,25 @@ export default function InfoFilesPage() {
                   {lang === 'he' ? 'הפקולטה/ות שנבחרו מציעות תואר אחד בלבד' : 'The selected faculty/ies only offer one degree level'}
                 </p>
               )}
+            </div>
+
+            <div className={selectAllFiles ? 'opacity-50' : undefined}>
+              <span className="mb-1.5 block text-xs font-medium text-ink">{lang === 'he' ? 'מסלול' : 'Track'}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {(['thesis', 'project'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    disabled={selectAllFiles}
+                    onClick={() => toggleIn(scopeTrackTypes, t, setScopeTrackTypes)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
+                      scopeTrackTypes.includes(t) ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                    }`}
+                  >
+                    {t === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

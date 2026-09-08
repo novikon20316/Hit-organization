@@ -24,6 +24,9 @@ interface InfoFile {
   facultyIds: string[];
   majors: string[];
   degreeTypes: string[];
+  /** A student's TRACK (thesis vs. project) — see server's
+   *  config/studentTrack.ts's resolveEffectiveTrack. */
+  trackTypes: string[];
 }
 
 interface FacultyContentItem {
@@ -86,6 +89,13 @@ function scopeSummary(f: InfoFile, lang: Lang): string {
         .join(', ')
     );
   }
+  if (f.trackTypes?.length) {
+    parts.push(
+      f.trackTypes
+        .map((t) => (t === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')))
+        .join(', ')
+    );
+  }
   if (parts.length === 0) return lang === 'he' ? '🌐 כולם' : '🌐 Everyone';
   return `🎯 ${parts.join(' · ')}`;
 }
@@ -108,6 +118,7 @@ export default function InfoFilesAdmin() {
   const [scopeFacultyIds, setScopeFacultyIds] = useState<string[]>([]);
   const [scopeMajors, setScopeMajors] = useState<string[]>([]);
   const [scopeDegreeTypes, setScopeDegreeTypes] = useState<string[]>([]);
+  const [scopeTrackTypes, setScopeTrackTypes] = useState<string[]>([]);
 
   // Cascades to just the selected faculties' majors once any are picked —
   // otherwise the full cross-faculty list, since a major on its own is a
@@ -323,6 +334,7 @@ export default function InfoFilesAdmin() {
       formData.append('facultyIds', JSON.stringify(scopeFacultyIds));
       formData.append('majors', JSON.stringify(scopeMajors));
       formData.append('degreeTypes', JSON.stringify(scopeDegreeTypes));
+      formData.append('trackTypes', JSON.stringify(scopeTrackTypes));
 
       await apiClient.post('/api/admin/info-files', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -335,6 +347,7 @@ export default function InfoFilesAdmin() {
       setScopeFacultyIds([]);
       setScopeMajors([]);
       setScopeDegreeTypes([]);
+      setScopeTrackTypes([]);
       fetchFiles();
     } catch (e) {
       Alert.alert(
@@ -484,6 +497,28 @@ export default function InfoFilesAdmin() {
                   >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>
                       {d === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.scopeGroupLabel, isRtl && styles.textRight]}>
+              {lang === 'he' ? 'מסלול' : 'Track'}
+            </Text>
+            <View style={styles.chipRow}>
+              {(['thesis', 'project'] as const).map((t) => {
+                const active = scopeTrackTypes.includes(t);
+                return (
+                  <Pressable
+                    key={t}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleIn(scopeTrackTypes, t, setScopeTrackTypes)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {t === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')}
                     </Text>
                   </Pressable>
                 );

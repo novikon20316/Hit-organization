@@ -1125,6 +1125,9 @@ export const apiClient = {
       files: Array<{
         id: string; titleHe: string; titleEn: string; fileUrl: string; fileName: string;
         facultyIds: string[]; majors: string[]; degreeTypes: string[];
+        /** A student's TRACK (thesis vs. project) — see
+         *  lib/studentTrack.ts's resolveEffectiveTrack. */
+        trackTypes: string[];
         /** Non-empty means this file targets specific project(s) instead of
          *  (mutually exclusive with) the faculty/major/degree axes above. */
         projectIds: string[];

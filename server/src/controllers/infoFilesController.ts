@@ -8,6 +8,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { VALID_MAJORS } from '../config/majors.js';
 import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
+import { resolveEffectiveTrack } from '../config/studentTrack.js';
 
 const db = admin.firestore();
 
@@ -25,6 +26,13 @@ const VALID_FACULTY_IDS = new Set([
   'sciences', 'electrical', 'industrial', 'learning_tech', 'medical_tech', 'design', 'data_science',
 ]);
 const VALID_DEGREE_TYPES = new Set(['bachelors', 'masters']);
+// A student's TRACK (thesis vs. project), not to be confused with
+// projectType elsewhere in the codebase — see config/studentTrack.ts's
+// resolveEffectiveTrack, the single source of truth this mirrors. A masters
+// student whose major has no thesis track at all (project_only policy)
+// always resolves to 'project', so a file scoped to trackTypes:['thesis']
+// correctly never shows for them regardless of any stale `track` field.
+const VALID_TRACK_TYPES = new Set(['project', 'thesis']);
 
 // Empty/omitted array on any of these three fields means "unrestricted" for
 // that axis — matches the convention already established for project.major
@@ -131,13 +139,14 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
     const isVisible = req.body?.isVisible === undefined ? true : req.body.isVisible === 'true' || req.body.isVisible === true;
 
     // Each empty/omitted = unrestricted for that axis; a student must match
-    // ALL three (facultyIds, majors, degreeTypes) that are non-empty to see
-    // this file — enforced in getInfoFiles below.
-    let facultyIds: string[], majors: string[], degreeTypes: string[];
+    // ALL four (facultyIds, majors, degreeTypes, trackTypes) that are
+    // non-empty to see this file — enforced in getInfoFiles below.
+    let facultyIds: string[], majors: string[], degreeTypes: string[], trackTypes: string[];
     try {
       facultyIds  = parseScopeArray(req.body?.facultyIds, VALID_FACULTY_IDS, 'facultyIds');
       majors      = parseScopeArray(req.body?.majors, VALID_MAJORS, 'majors');
       degreeTypes = parseScopeArray(req.body?.degreeTypes, VALID_DEGREE_TYPES, 'degreeTypes');
+      trackTypes  = parseScopeArray(req.body?.trackTypes, VALID_TRACK_TYPES, 'trackTypes');
     } catch (e: any) {
       return res.status(400).json({ message: e.message });
     }
@@ -148,6 +157,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       facultyIds = [];
       majors = [];
       degreeTypes = [];
+      trackTypes = [];
       if (role === 'supervisor' && !(await verifySupervisorOwnsProjects(uploaderId, projectIds))) {
         return res.status(403).json({ message: 'You may only attach files to your own projects.' });
       }
@@ -176,6 +186,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       facultyIds,
       majors,
       degreeTypes,
+      trackTypes,
       projectIds,
       milestoneType,
       isVisible,
@@ -267,6 +278,7 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
         facultyIds:    data.facultyIds    ?? [],
         majors:        data.majors        ?? [],
         degreeTypes:   data.degreeTypes   ?? [],
+        trackTypes:    data.trackTypes    ?? [],
         projectIds:    data.projectIds    ?? [],
         milestoneType: data.milestoneType ?? null,
         isVisible:     data.isVisible     ?? true,
@@ -282,11 +294,16 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
       // projects work in projectEnrollment.ts).
       const activeProjectIds: string[] = student.activeProjectIds ?? (student.activeProjectId ? [student.activeProjectId] : []);
 
+      // Computed once per request, not per file — resolveEffectiveTrack only
+      // needs the student's own degreeType/major/track, all already loaded.
+      const effectiveTrack = resolveEffectiveTrack(student);
+
       const facultyMajorMatched = files.filter((f) =>
         f.projectIds.length === 0 &&
         (f.facultyIds.length === 0  || f.facultyIds.includes(req.user!.facultyId)) &&
         (f.majors.length === 0      || f.majors.includes(student.major)) &&
-        (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType))
+        (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType)) &&
+        (f.trackTypes.length === 0  || f.trackTypes.includes(effectiveTrack))
       );
 
       const projectScopedCandidates = files.filter((f) =>
