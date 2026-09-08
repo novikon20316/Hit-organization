@@ -51,8 +51,8 @@ export default function AdminLayout() {
   const router = useRouter();
 
   // 'checking' — still retrying, no definitive answer yet (branded loading screen).
-  // 'admin' — a successful response confirmed role === 'system_admin'.
-  // 'not-admin' — a successful response confirmed the role is something else.
+  // 'admin' — a successful response confirmed system_admin is the main role or one of the additional roles.
+  // 'not-admin' — a successful response confirmed system_admin is neither.
   // 'unverifiable' — every retry attempt failed as a *request* (network/token/server) — never a confirmed non-admin, so this must never render NoAccessScreen.
   const [status, setStatus] = useState<"checking" | "admin" | "not-admin" | "unverifiable">("checking");
 
@@ -62,7 +62,9 @@ export default function AdminLayout() {
       try {
         const response = await apiClient.get("/api/users/profile");
         const role = response.data?.role;
-        setStatus(role === "system_admin" ? "admin" : "not-admin");
+        const roles: string[] = response.data?.roles ?? [];
+        const isSystemAdmin = role === "system_admin" || roles.includes("system_admin");
+        setStatus(isSystemAdmin ? "admin" : "not-admin");
         return;
       } catch (e) {
         console.error(`AdminLayout profile check failed (attempt ${attempt}/${MAX_ATTEMPTS}):`, e);
