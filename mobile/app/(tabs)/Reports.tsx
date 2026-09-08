@@ -1,14 +1,14 @@
 // app/(tabs)/Reports.tsx
 //
 // The reports suite (requirements doc section 12) — see
-// server/src/services/reports.ts / reportsController.ts. One screen covering
-// all 10 report types: a block-card selector (name + short description per
-// report, ported from web/app/reports), a light filter bar, a generic row
-// list (each report shapes its rows differently, so this picks a curated set
-// of display fields per type rather than one fixed table), and an Excel
-// export button that mirrors the same filters.
+// server/src/services/reports.ts / reportsController.ts. Mirrors web's
+// ProjectFirstReportsFlow.tsx: pick a report type, check off the
+// project(s)/thesis you want it for from a permission-scoped results list
+// (server already restricts this per role — see resolveFacultyScope in
+// reportsController.ts), "Create Report" previews it on-screen, "Export to
+// Excel" downloads the whole filter-wide set independent of the checkboxes.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, TextInput, Alert, Switch,
@@ -18,7 +18,7 @@ import { auth } from '../../src/firebase/firebase';
 import type { Lang } from '../../components/i18n';
 import { TopBar } from '../../components/shared';
 import { apiClient } from '../../src/api/apiClient';
-import { fetchReport, exportReport, type ReportType } from '../../src/api/reports';
+import { fetchReport, fetchReportProjects, exportReport, type ReportType, type ReportProject } from '../../src/api/reports';
 
 // ─── Report type catalog ───────────────────────────────────────────────────────
 
@@ -153,6 +153,24 @@ const REPORTS: ReportDef[] = [
   },
 ];
 
+// She manages a handful of specific projects rather than a whole faculty of
+// students — swap the "Student" column for "Project/Thesis" so a group
+// project's several students don't show as identical rows. Mirrors web's
+// fieldsForAdministrativeCoordinator (app/reports/types.ts) exactly.
+const PROJECT_FIELD_KEY: Partial<Record<ReportType, string>> = {
+  'examiner-tracking': 'projectTitle',
+};
+
+function fieldsForAdministrativeCoordinator(def: ReportDef): ReportDef['fields'] {
+  if (!def.fields.some((f) => f.key === 'studentName')) return def.fields;
+  const projectKey = PROJECT_FIELD_KEY[def.key] ?? 'projectTitleHe';
+  if (def.fields.some((f) => f.key === projectKey)) {
+    return def.fields.filter((f) => f.key !== 'studentName');
+  }
+  const projectField = { key: projectKey, he: 'פרויקט/תזה', en: 'Project/Thesis' };
+  return def.fields.map((f) => (f.key === 'studentName' ? projectField : f));
+}
+
 function displayValue(v: any): string {
   if (v == null) return '—';
   if (typeof v === 'boolean') return v ? '✓' : '—';
@@ -161,9 +179,8 @@ function displayValue(v: any): string {
 }
 
 // ─── Extra filters (backend already supports all of these — see
-// services/reports.ts's ReportFilters — this screen just wasn't exposing
-// them yet). Kept behind a "More filters" toggle so the default screen
-// stays as compact as before. ──────────────────────────────────────────────
+// services/reports.ts's ReportFilters) — kept behind a "More filters" toggle
+// so the default screen stays compact. ──────────────────────────────────────
 const DEGREE_TYPES = ['bachelors', 'masters'] as const;
 const PROJECT_TYPES = ['project', 'thesis'] as const;
 const MILESTONE_TYPES = ['research_proposal', 'progress_report', 'final_report', 'defense'] as const;
@@ -240,7 +257,7 @@ export default function Reports() {
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  const [activeReport, setActiveReport] = useState<ReportType>('full-status');
+  const [activeReport, setActiveReport] = useState<ReportType | null>(null);
   const [startYear, setStartYear] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
@@ -252,10 +269,15 @@ export default function Reports() {
   const [advisorId, setAdvisorId] = useState('');
   const [examinerId, setExaminerId] = useState('');
   const [examinerOptions, setExaminerOptions] = useState<Array<{ id: string; displayName: string }>>([]);
+  const [search, setSearch] = useState('');
 
-  const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [projects, setProjects] = useState<ReportProject[] | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
+  const [creating, setCreating] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<any[] | null>(null);
   const [meta, setMeta] = useState<{ threshold?: number } | null>(null);
 
   const uid = auth.currentUser?.uid;
@@ -265,6 +287,7 @@ export default function Reports() {
   // already pins their facultyId itself (see reportsController.ts's
   // resolveFacultyScope) and there's nothing left for them to filter by.
   const isSystemAdmin = userRole === 'system_admin';
+  const isAdminCoordinator = userRole === 'administrative_secretary';
 
   useEffect(() => {
     if (!uid) return;
@@ -288,7 +311,7 @@ export default function Reports() {
       .catch(() => setExaminerOptions([]));
   }, [uid]);
 
-  const filters = {
+  const filters = useMemo(() => ({
     startYear: startYear ? Number(startYear) : undefined,
     overdueOnly: overdueOnly || undefined,
     degreeType: degreeType || undefined,
@@ -298,13 +321,51 @@ export default function Reports() {
     facultyId: isSystemAdmin && facultyId ? facultyId : undefined,
     advisorId: advisorId || undefined,
     examinerId: examinerId || undefined,
+  }), [startYear, overdueOnly, degreeType, projectType, milestoneType, processStatus, facultyId, advisorId, examinerId, isSystemAdmin]);
+
+  const loadProjects = useCallback(async () => {
+    if (!uid) return;
+    setProjectsLoading(true);
+    try {
+      const list = await fetchReportProjects(filters);
+      setProjects(list);
+      // A filter change can drop a project out of the list out from under an
+      // existing checkbox pick — un-check it rather than silently running
+      // "Create Report" against a project no longer shown.
+      setSelectedIds((prev) => new Set([...prev].filter((id) => list.some((p) => p.id === id))));
+    } catch (err) {
+      console.error('Reports: failed to load projects', err);
+      setProjects([]);
+    } finally {
+      setProjectsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, filters]);
+
+  useEffect(() => { loadProjects(); }, [loadProjects]);
+
+  const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!projects) return [];
+    if (!q) return projects;
+    return projects.filter(
+      (p) => p.projectTitleHe.toLowerCase().includes(q) || p.projectTitleEn.toLowerCase().includes(q) || p.advisorName.toLowerCase().includes(q)
+    );
+  }, [projects, search]);
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
-  const load = useCallback(async () => {
-    if (!uid) return; // no session yet (or signed out) — nothing to fetch
-    setLoading(true);
+  const handleCreateReport = async () => {
+    if (!activeReport || selectedIds.size === 0) return;
+    setCreating(true);
     try {
-      const data = await fetchReport(activeReport, filters);
+      const data = await fetchReport(activeReport, { ...filters, projectIds: [...selectedIds] });
       if (activeReport === 'stuck-students') {
         setRows(data.students ?? []);
         setMeta({ threshold: data.threshold });
@@ -317,17 +378,18 @@ export default function Reports() {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'טעינת הדוח נכשלה' : 'Failed to load the report');
       setRows([]);
     } finally {
-      setLoading(false);
+      setCreating(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, activeReport, startYear, overdueOnly, degreeType, projectType, milestoneType, processStatus, facultyId, advisorId, examinerId, isSystemAdmin, lang]);
-
-  useEffect(() => { load(); }, [load]);
+  };
 
   const handleExport = async () => {
+    if (!activeReport) return;
     setExporting(true);
     try {
-      await exportReport(activeReport, filters);
+      // Matches whichever language the administrative coordinator is
+      // currently viewing in — everyone else's export stays English-only,
+      // unaffected (mirrors web's downloadReportExport special-case).
+      await exportReport(activeReport, isAdminCoordinator ? { ...filters, lang } as any : filters);
     } catch (e: any) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e.message || (lang === 'he' ? 'הייצוא נכשל' : 'Export failed'));
     } finally {
@@ -335,7 +397,9 @@ export default function Reports() {
     }
   };
 
-  const def = REPORTS.find((r) => r.key === activeReport)!;
+  const def = activeReport ? REPORTS.find((r) => r.key === activeReport)! : null;
+  const displayFields = def ? (isAdminCoordinator ? fieldsForAdministrativeCoordinator(def) : def.fields) : [];
+  const projectLabel = (p: ReportProject) => (lang === 'he' ? p.projectTitleHe || p.projectTitleEn : p.projectTitleEn || p.projectTitleHe);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
@@ -347,137 +411,218 @@ export default function Reports() {
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
       />
 
-      {/* Report type selector — one block per report, name + short description */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 12, gap: 10 }}>
-        {REPORTS.map((r) => (
-          <Pressable
-            key={r.key}
-            style={{
-              width: '47%',
-              borderWidth: 1.5, borderColor: activeReport === r.key ? '#2E86FF' : '#D0DEFF',
-              backgroundColor: activeReport === r.key ? '#EAF2FF' : '#fff',
-              borderRadius: 14, padding: 12,
-            }}
-            onPress={() => setActiveReport(r.key)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeReport === r.key }}
-          >
-            <Text style={{ color: activeReport === r.key ? '#2E86FF' : '#111', fontWeight: '700', fontSize: 13 }}>
-              {lang === 'he' ? r.he : r.en}
-            </Text>
-            <Text style={{ color: '#8899BB', fontSize: 11, marginTop: 4 }}>
-              {lang === 'he' ? r.heDesc : r.enDesc}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* Filter bar */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
-        <TextInput
-          style={{ borderWidth: 1.5, borderColor: '#D0DEFF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, width: 110, backgroundColor: '#fff' }}
-          value={startYear}
-          onChangeText={setStartYear}
-          keyboardType="numeric"
-          placeholder={lang === 'he' ? 'שנת התחלה' : 'Start year'}
-          accessibilityLabel={lang === 'he' ? 'שנת התחלה' : 'Start year'}
-        />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 13, color: '#445' }}>{lang === 'he' ? 'חריגה בלבד' : 'Overdue only'}</Text>
-          <Switch value={overdueOnly} onValueChange={setOverdueOnly} trackColor={{ true: '#2E86FF' }} />
-        </View>
-      </View>
-
-      <Pressable
-        onPress={() => setShowMoreFilters(v => !v)}
-        style={{ paddingHorizontal: 16, paddingTop: 8 }}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: showMoreFilters }}
-      >
-        <Text style={{ fontSize: 12, fontWeight: '600', color: '#2E86FF' }}>
-          {showMoreFilters ? (lang === 'he' ? '▲ פחות מסננים' : '▲ Fewer filters') : (lang === 'he' ? '▼ עוד מסננים' : '▼ More filters')}
-        </Text>
-      </Pressable>
-
-      {showMoreFilters && (
-        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-          {isSystemAdmin && (
-            <FilterPillRow
-              options={Object.keys(FACULTY_LABEL)}
-              value={facultyId}
-              onChange={setFacultyId}
-              labelFor={(v) => FACULTY_LABEL[v]?.[lang] ?? v}
-            />
-          )}
-          <FilterPillRow options={DEGREE_TYPES} value={degreeType} onChange={setDegreeType} labelFor={(v) => DEGREE_TYPE_LABEL[v]?.[lang] ?? v} />
-          <FilterPillRow options={PROJECT_TYPES} value={projectType} onChange={setProjectType} labelFor={(v) => PROJECT_TYPE_LABEL[v]?.[lang] ?? v} />
-          <FilterPillRow options={MILESTONE_TYPES} value={milestoneType} onChange={setMilestoneType} labelFor={(v) => MILESTONE_TYPE_LABEL[v]?.[lang] ?? v} />
-          <FilterPillRow options={PROCESS_STATUSES} value={processStatus} onChange={setProcessStatus} labelFor={(v) => PROCESS_STATUS_LABEL[v]?.[lang] ?? v} />
-          {examinerOptions.length > 0 && (
-            <FilterPillRow
-              options={examinerOptions.map((e) => e.id)}
-              value={examinerId}
-              onChange={setExaminerId}
-              labelFor={(id) => examinerOptions.find((e) => e.id === id)?.displayName ?? id}
-            />
-          )}
+      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+        {/* Filter bar */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
           <TextInput
-            style={{ borderWidth: 1.5, borderColor: '#D0DEFF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, backgroundColor: '#fff' }}
-            value={advisorId}
-            onChangeText={setAdvisorId}
-            placeholder={lang === 'he' ? 'מזהה מנחה' : 'Advisor ID'}
-            accessibilityLabel={lang === 'he' ? 'מזהה מנחה' : 'Advisor ID'}
+            style={{ borderWidth: 1.5, borderColor: '#D0DEFF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, width: 110, backgroundColor: '#fff' }}
+            value={startYear}
+            onChangeText={setStartYear}
+            keyboardType="numeric"
+            placeholder={lang === 'he' ? 'שנת התחלה' : 'Start year'}
+            accessibilityLabel={lang === 'he' ? 'שנת התחלה' : 'Start year'}
           />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 13, color: '#445' }}>{lang === 'he' ? 'חריגה בלבד' : 'Overdue only'}</Text>
+            <Switch value={overdueOnly} onValueChange={setOverdueOnly} trackColor={{ true: '#2E86FF' }} />
+          </View>
         </View>
-      )}
 
-      {/* Export button */}
-      <Pressable
-        style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 10, alignItems: 'center', opacity: exporting ? 0.6 : 1 }}
-        onPress={handleExport}
-        disabled={exporting}
-        accessibilityRole="button"
-      >
-        {exporting
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>📤 {lang === 'he' ? 'ייצוא לאקסל' : 'Export to Excel'}</Text>
-        }
-      </Pressable>
+        <Pressable
+          onPress={() => setShowMoreFilters(v => !v)}
+          style={{ paddingHorizontal: 16, paddingTop: 8 }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showMoreFilters }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#2E86FF' }}>
+            {showMoreFilters ? (lang === 'he' ? '▲ פחות מסננים' : '▲ Fewer filters') : (lang === 'he' ? '▼ עוד מסננים' : '▼ More filters')}
+          </Text>
+        </Pressable>
 
-      {meta?.threshold != null && (
-        <Text style={{ paddingHorizontal: 16, paddingTop: 10, fontSize: 12, color: '#8899BB' }}>
-          {lang === 'he' ? `סף "תקוע": ${meta.threshold} ימים` : `"Stuck" threshold: ${meta.threshold} days`}
+        {showMoreFilters && (
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            {isSystemAdmin && (
+              <FilterPillRow
+                options={Object.keys(FACULTY_LABEL)}
+                value={facultyId}
+                onChange={setFacultyId}
+                labelFor={(v) => FACULTY_LABEL[v]?.[lang] ?? v}
+              />
+            )}
+            <FilterPillRow options={DEGREE_TYPES} value={degreeType} onChange={setDegreeType} labelFor={(v) => DEGREE_TYPE_LABEL[v]?.[lang] ?? v} />
+            <FilterPillRow options={PROJECT_TYPES} value={projectType} onChange={setProjectType} labelFor={(v) => PROJECT_TYPE_LABEL[v]?.[lang] ?? v} />
+            <FilterPillRow options={MILESTONE_TYPES} value={milestoneType} onChange={setMilestoneType} labelFor={(v) => MILESTONE_TYPE_LABEL[v]?.[lang] ?? v} />
+            <FilterPillRow options={PROCESS_STATUSES} value={processStatus} onChange={setProcessStatus} labelFor={(v) => PROCESS_STATUS_LABEL[v]?.[lang] ?? v} />
+            {examinerOptions.length > 0 && (
+              <FilterPillRow
+                options={examinerOptions.map((e) => e.id)}
+                value={examinerId}
+                onChange={setExaminerId}
+                labelFor={(id) => examinerOptions.find((e) => e.id === id)?.displayName ?? id}
+              />
+            )}
+            <TextInput
+              style={{ borderWidth: 1.5, borderColor: '#D0DEFF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, backgroundColor: '#fff' }}
+              value={advisorId}
+              onChangeText={setAdvisorId}
+              placeholder={lang === 'he' ? 'מזהה מנחה' : 'Advisor ID'}
+              accessibilityLabel={lang === 'he' ? 'מזהה מנחה' : 'Advisor ID'}
+            />
+          </View>
+        )}
+
+        {/* Step 1 — report type selector */}
+        <Text style={{ paddingHorizontal: 16, paddingTop: 14, fontSize: 13, fontWeight: '700', color: '#111' }}>
+          {lang === 'he' ? '1. בחר/י סוג דוח' : '1. Pick a report type'}
         </Text>
-      )}
-
-      {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#2E86FF" />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 8, gap: 10 }}>
+          {REPORTS.map((r) => (
+            <Pressable
+              key={r.key}
+              style={{
+                width: '47%',
+                borderWidth: 1.5, borderColor: activeReport === r.key ? '#2E86FF' : '#D0DEFF',
+                backgroundColor: activeReport === r.key ? '#EAF2FF' : '#fff',
+                borderRadius: 14, padding: 12,
+              }}
+              onPress={() => setActiveReport(r.key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: activeReport === r.key }}
+            >
+              <Text style={{ color: activeReport === r.key ? '#2E86FF' : '#111', fontWeight: '700', fontSize: 13 }}>
+                {lang === 'he' ? r.he : r.en}
+              </Text>
+              <Text style={{ color: '#8899BB', fontSize: 11, marginTop: 4 }}>
+                {lang === 'he' ? r.heDesc : r.enDesc}
+              </Text>
+            </Pressable>
+          ))}
         </View>
-      ) : (
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
-          {rows.length === 0 ? (
-            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-              <Text style={{ fontSize: 40, marginBottom: 10 }}>📭</Text>
-              <Text style={{ fontSize: 14, color: '#8899BB' }}>{lang === 'he' ? 'אין נתונים' : 'No data'}</Text>
-            </View>
-          ) : (
-            rows.map((row, idx) => (
-              <View key={idx} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E0E8FF' }}>
-                {def.fields.map((f) => (
-                  <View key={f.key} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
-                    <Text style={{ fontSize: 12, color: '#8899BB' }}>{lang === 'he' ? f.he : f.en}</Text>
-                    <Text style={{ fontSize: 13, color: '#111', fontWeight: '600', flexShrink: 1, textAlign: isRtl ? 'left' : 'right' }}>
-                      {displayValue(row[f.key])}
-                    </Text>
+
+        {/* Step 2 — project checklist */}
+        <Text style={{ paddingHorizontal: 16, paddingTop: 16, fontSize: 13, fontWeight: '700', color: '#111' }}>
+          {lang === 'he' ? `2. בחר/י פרויקטים/תזות (${selectedIds.size} נבחרו)` : `2. Pick project(s)/thesis (${selectedIds.size} selected)`}
+        </Text>
+        <TextInput
+          style={{ marginHorizontal: 16, marginTop: 8, borderWidth: 1.5, borderColor: '#D0DEFF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, backgroundColor: '#fff' }}
+          value={search}
+          onChangeText={setSearch}
+          placeholder={lang === 'he' ? 'חיפוש פרויקט/תזה או מנחה...' : 'Search project/thesis or advisor...'}
+          accessibilityLabel={lang === 'he' ? 'חיפוש פרויקט' : 'Search projects'}
+        />
+
+        {projectsLoading ? (
+          <ActivityIndicator size="small" color="#2E86FF" style={{ marginTop: 16 }} />
+        ) : filteredProjects.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+            <Text style={{ fontSize: 28, marginBottom: 6 }}>📭</Text>
+            <Text style={{ fontSize: 13, color: '#8899BB' }}>
+              {search
+                ? (lang === 'he' ? 'לא נמצאו פרויקטים תואמים' : 'No matching projects found')
+                : (lang === 'he' ? 'אין פרויקטים תואמים לסינון' : 'No projects match the current filters')}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 16, paddingTop: 10, gap: 8 }}>
+            {filteredProjects.map((p) => {
+              const selected = selectedIds.has(p.id);
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => toggleSelected(p.id)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+                    borderWidth: 1.5, borderColor: selected ? '#2E86FF' : '#E0E8FF',
+                    backgroundColor: selected ? '#EAF2FF' : '#fff',
+                    borderRadius: 12, padding: 12,
+                  }}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                >
+                  <View style={{
+                    width: 20, height: 20, borderRadius: 5, marginTop: 2,
+                    borderWidth: 1.5, borderColor: selected ? '#2E86FF' : '#B9C6E8',
+                    backgroundColor: selected ? '#2E86FF' : '#fff',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {selected && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#111' }}>{projectLabel(p)}</Text>
+                    <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>👨‍🏫 {p.advisorName}</Text>
+                    {p.startYearHebrew && <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 1 }}>📅 {p.startYearHebrew}</Text>}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Create Report + Export */}
+        <View style={{ flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 16 }}>
+          <Pressable
+            style={{
+              flex: 1, backgroundColor: '#2E86FF', borderRadius: 10, paddingVertical: 10, alignItems: 'center',
+              opacity: (!activeReport || selectedIds.size === 0 || creating) ? 0.5 : 1,
+            }}
+            onPress={handleCreateReport}
+            disabled={!activeReport || selectedIds.size === 0 || creating}
+            accessibilityRole="button"
+          >
+            {creating
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>📊 {lang === 'he' ? 'צור דוח' : 'Create Report'}</Text>
+            }
+          </Pressable>
+          <Pressable
+            style={{
+              flex: 1, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 10, alignItems: 'center',
+              opacity: (!activeReport || exporting) ? 0.5 : 1,
+            }}
+            onPress={handleExport}
+            disabled={!activeReport || exporting}
+            accessibilityRole="button"
+          >
+            {exporting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>📤 {lang === 'he' ? 'ייצוא לאקסל' : 'Export to Excel'}</Text>
+            }
+          </Pressable>
+        </View>
+
+        {/* Preview — only after "Create Report" */}
+        {rows !== null && def && (
+          <View style={{ paddingHorizontal: 16, paddingTop: 18 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#111' }}>👁 {lang === 'he' ? def.he : def.en}</Text>
+            {meta?.threshold != null && (
+              <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 4 }}>
+                {lang === 'he' ? `סף "תקוע": ${meta.threshold} ימים` : `"Stuck" threshold: ${meta.threshold} days`}
+              </Text>
+            )}
+            {rows.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+                <Text style={{ fontSize: 36, marginBottom: 8 }}>📭</Text>
+                <Text style={{ fontSize: 13, color: '#8899BB' }}>{lang === 'he' ? 'אין נתונים' : 'No data'}</Text>
+              </View>
+            ) : (
+              <View style={{ marginTop: 10 }}>
+                {rows.map((row, idx) => (
+                  <View key={idx} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E0E8FF' }}>
+                    {displayFields.map((f) => (
+                      <View key={f.key} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+                        <Text style={{ fontSize: 12, color: '#8899BB' }}>{lang === 'he' ? f.he : f.en}</Text>
+                        <Text style={{ fontSize: 13, color: '#111', fontWeight: '600', flexShrink: 1, textAlign: isRtl ? 'left' : 'right' }}>
+                          {displayValue(row[f.key])}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 ))}
               </View>
-            ))
-          )}
-          <View style={{ height: 60 }} />
-        </ScrollView>
-      )}
+            )}
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }

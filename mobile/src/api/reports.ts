@@ -24,12 +24,25 @@ export interface ReportFilters {
   examinerId?: string;
   milestoneType?: string;
   overdueOnly?: boolean;
+  /** Narrows to a hand-picked set of projects — the project-first Reports
+   *  screen (Reports.tsx) lets the user check off several projects/theses
+   *  before running a report. Sent comma-joined (String() on an array does
+   *  this automatically), matching the server's parseFilters parsing. */
+  projectIds?: string[];
+}
+
+export interface ReportProject {
+  id: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  advisorName: string;
+  startYearHebrew: string | null;
 }
 
 function buildQuery(filters: ReportFilters): string {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
+    if (v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0)) params.set(k, String(v));
   });
   const qs = params.toString();
   return qs ? `?${qs}` : '';
@@ -38,6 +51,15 @@ function buildQuery(filters: ReportFilters): string {
 export async function fetchReport(reportType: ReportType, filters: ReportFilters = {}): Promise<any> {
   const res = await apiClient.get(`/api/reports/${reportType}${buildQuery(filters)}`);
   return res.data.data;
+}
+
+/** GET /api/reports/projects — feeds the project-first flow's checklist:
+ *  every project/thesis the current role is permitted to see (scoped
+ *  server-side, see reportsController.ts's resolveFacultyScope), narrowed by
+ *  whichever of the filters above are set. */
+export async function fetchReportProjects(filters: ReportFilters = {}): Promise<ReportProject[]> {
+  const res = await apiClient.get(`/api/reports/projects${buildQuery(filters)}`);
+  return res.data.projects ?? [];
 }
 
 /** Downloads the report as .xlsx and opens the native share/save sheet. */
