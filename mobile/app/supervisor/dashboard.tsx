@@ -77,6 +77,13 @@ interface GradingComponentSpec {
   maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean;
 }
 
+interface RoutingStage {
+  id: string;
+  role: string;
+  action: 'grade' | 'approve';
+  formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
+}
+
 interface PendingMilestone {
   id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
   type: string; status: string; studentNames: string[]; studentIds: string[]; dueDate: any; submittedAt: any;
@@ -84,6 +91,10 @@ interface PendingMilestone {
   // Per-milestone configured grading rubric — empty means the grading modal
   // falls back to the hardcoded default rubric below.
   gradingComponents?: GradingComponentSpec[];
+  // The milestone's own snapshotted approval chain — see ChainStage in
+  // server/src/services/workflowTemplates.ts.
+  routing?: RoutingStage[] | null;
+  currentStageIndex?: number;
 }
 
 interface Examiner {
@@ -226,6 +237,10 @@ export default function SupervisorHome() {
   // addResearchProposalStudentForm.ts); kept out of the grade modal entirely.
   const [signingId, setSigningId] = useState<string | null>(null);
   const [signing,   setSigning]   = useState(false);
+  // Only meaningful while signingId is set — the current stage's own form
+  // answers (e.g. research_proposal's supervisor_sign stage). See
+  // ChainStage.formFields in server/src/services/workflowTemplates.ts.
+  const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
   const [activeMilestone, setActiveMilestone] = useState<any | null>(null);
   const [expandedCards,   setExpandedCards]   = useState<Record<string, boolean>>({});
   const [criteria, setCriteria] = useState<Record<string, string>>({
@@ -1467,7 +1482,47 @@ export default function SupervisorHome() {
                             own button instead of opening GradeMilestoneModal. */}
                         {m.type === 'research_proposal' ? (
                           signingId === m.id ? (
-                            <View style={{ marginTop: 4, flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <View style={{ marginTop: 4 }}>
+                              {(() => {
+                                const stage = m.routing?.[m.currentStageIndex ?? 0];
+                                if (!stage || stage.role !== 'supervisor' || !stage.formFields?.length) return null;
+                                return (
+                                  <View style={{ gap: 8, marginBottom: 8 }}>
+                                    {stage.formFields.map((f) => (
+                                      <View key={f.key}>
+                                        <Text style={{ fontSize: 11, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 4 }}>
+                                          {lang === 'he' ? f.labelHe : f.labelEn}{f.required ? ' *' : ''}
+                                        </Text>
+                                        {f.type === 'yesno' ? (
+                                          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 8 }}>
+                                            {(['yes', 'no'] as const).map((opt) => (
+                                              <Pressable
+                                                key={opt}
+                                                onPress={(e) => { e.stopPropagation(); setStageFormValues((v) => ({ ...v, [f.key]: opt })); }}
+                                                style={{ flex: 1, borderRadius: 6, padding: 6, alignItems: 'center', backgroundColor: stageFormValues[f.key] === opt ? '#D1FAE5' : '#F1F5F9' }}
+                                                accessibilityRole="button"
+                                              >
+                                                <Text style={{ fontSize: 12, fontWeight: '600' }}>
+                                                  {opt === 'yes' ? (lang === 'he' ? 'כן' : 'Yes') : (lang === 'he' ? 'לא' : 'No')}
+                                                </Text>
+                                              </Pressable>
+                                            ))}
+                                          </View>
+                                        ) : (
+                                          <TextInput
+                                            value={stageFormValues[f.key] ?? ''}
+                                            onChangeText={(t) => setStageFormValues((v) => ({ ...v, [f.key]: t }))}
+                                            multiline={f.type === 'textarea'}
+                                            textAlign={isRtl ? 'right' : 'left'}
+                                            style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, padding: 6, fontSize: 12, backgroundColor: '#fff' }}
+                                          />
+                                        )}
+                                      </View>
+                                    ))}
+                                  </View>
+                                );
+                              })()}
+                              <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <Text
                                 style={
                                   currentUser
@@ -1484,8 +1539,9 @@ export default function SupervisorHome() {
                                   e.stopPropagation();
                                   setSigning(true);
                                   try {
-                                    await apiClient.post(`/api/coordinator/${m.id}/approve`);
+                                    await apiClient.post(`/api/coordinator/${m.id}/approve`, { stageFormData: stageFormValues });
                                     setSigningId(null);
+                                    setStageFormValues({});
                                     fetchDashboardData();
                                   } catch {
                                     Alert.alert('Error', 'Failed to sign the proposal.');
@@ -1497,9 +1553,10 @@ export default function SupervisorHome() {
                               >
                                 <Text style={styles.gradeBtnText}>{lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}</Text>
                               </Pressable>
-                              <Pressable onPress={(e) => { e.stopPropagation(); setSigningId(null); }} accessibilityRole="button">
+                              <Pressable onPress={(e) => { e.stopPropagation(); setSigningId(null); setStageFormValues({}); }} accessibilityRole="button">
                                 <Text style={{ color: ap.onSurfaceVariant, fontSize: 12 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                               </Pressable>
+                              </View>
                             </View>
                           ) : (
                             <Pressable

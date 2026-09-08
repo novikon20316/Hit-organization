@@ -16,6 +16,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
+import { roleLabel, type AppRole } from '@/lib/i18n';
 import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
@@ -48,7 +49,11 @@ interface TemplateMilestone {
   dueDate?: string | null;
   requiresExaminers: boolean;
   percentOfFinalGrade?: number;
-  staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean }>;
+  staffFormFields?: Array<{
+    key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; required: boolean;
+    autoFill?: 'studentName' | 'studentIdNumber' | 'projectNameHe' | 'projectNameEn' | 'examinerNames' | 'supervisorName' | 'submissionDate';
+    locked?: boolean;
+  }>;
   finalGradeComponents?: {
     supervisorEvaluation: { components: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }>; weight: number };
   };
@@ -87,6 +92,18 @@ export interface StudentMilestoneRow {
     locked?: boolean;
   }> | null;
   studentFormData?: Record<string, unknown> | null;
+  /** The milestone's own snapshotted approval chain — see
+   *  server/src/services/workflowTemplates.ts's ChainStage. Lets this
+   *  component render whichever stage's own formFields are currently active
+   *  (e.g. the supervisor's research-proposal sign-off) and derive an
+   *  accurate "awaiting X" label instead of guessing from the coarse status
+   *  string, which collapses every 'approve' stage after the first into one
+   *  indistinguishable value. */
+  routing?: Array<{
+    id: string; role: string; action: 'grade' | 'approve';
+    formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
+  }> | null;
+  currentStageIndex?: number;
 }
 
 export interface StudentRow {
@@ -181,7 +198,12 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   const { userData } = useAuth();
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [signingId, setSigningId] = useState<string | null>(null);
+  // Only meaningful while signingId is set — the current stage's own form
+  // answers (e.g. research_proposal's supervisor_sign stage: courses still
+  // needed, agree-to-supervise). See ChainStage.formFields.
+  const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [secondarySupervisorName, setSecondarySupervisorName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -242,6 +264,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
       .then((res) => {
         setTemplateMilestones([...res.templateMilestones].sort((a, b) => a.order - b.order));
         setStudents(res.students);
+        setSecondarySupervisorName(res.secondarySupervisorName ?? null);
         setError('');
       })
       .catch((err) => {
@@ -426,6 +449,57 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                             m.finalGrade == null && m.status === 'submitted' ? (
                               signingId === m.id ? (
                                 <div className="mt-1 rounded-md border border-supervisor-outline-variant bg-supervisor-surface-container-low p-2">
+                                  {/* This stage's own fields (e.g. courses still needed,
+                                      agree-to-supervise) — only meaningful when the
+                                      CURRENT stage is the supervisor's own. */}
+                                  {(() => {
+                                    const stage = m.routing?.[m.currentStageIndex ?? 0];
+                                    if (!stage || stage.role !== 'supervisor' || !stage.formFields?.length) return null;
+                                    return (
+                                      <div className="mb-2 grid gap-2">
+                                        {stage.formFields.map((f) => (
+                                          <div key={f.key}>
+                                            <label className="mb-1 block text-[11px] font-medium text-supervisor-on-surface-variant">
+                                              {lang === 'he' ? f.labelHe : f.labelEn}{f.required ? ' *' : ''}
+                                            </label>
+                                            {f.type === 'textarea' ? (
+                                              <textarea
+                                                value={stageFormValues[f.key] ?? ''}
+                                                onChange={(e) => setStageFormValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                                                rows={2}
+                                                className="w-full rounded-md border border-supervisor-outline-variant bg-white px-2 py-1 text-xs text-supervisor-on-surface"
+                                              />
+                                            ) : f.type === 'yesno' ? (
+                                              <select
+                                                value={stageFormValues[f.key] ?? ''}
+                                                onChange={(e) => setStageFormValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                                                className="w-full rounded-md border border-supervisor-outline-variant bg-white px-2 py-1 text-xs text-supervisor-on-surface"
+                                              >
+                                                <option value="">{lang === 'he' ? 'בחר' : 'Select'}</option>
+                                                <option value="yes">{lang === 'he' ? 'כן' : 'Yes'}</option>
+                                                <option value="no">{lang === 'he' ? 'לא' : 'No'}</option>
+                                              </select>
+                                            ) : (
+                                              <input
+                                                value={stageFormValues[f.key] ?? ''}
+                                                onChange={(e) => setStageFormValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                                                className="w-full rounded-md border border-supervisor-outline-variant bg-white px-2 py-1 text-xs text-supervisor-on-surface"
+                                              />
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
+                                  {/* Read-only secondary-supervisor name, if the project has
+                                      one — they never act on this stage themselves, so there's
+                                      no separate signature/date to show alongside it. */}
+                                  {secondarySupervisorName && (
+                                    <p className="mb-2 text-[11px] text-supervisor-on-surface-variant">
+                                      {lang === 'he' ? 'מנחה נוסף: ' : 'Secondary supervisor: '}
+                                      {secondarySupervisorName}
+                                    </p>
+                                  )}
                                   {m.studentFormFields && m.studentFormFields.length > 0 && (
                                     <div className="mb-2 grid max-h-64 gap-1.5 overflow-y-auto">
                                       {m.studentFormFields.filter((f) => !f.locked).map((f) => {
@@ -477,15 +551,16 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                   <button
                                     type="button"
                                     onClick={async () => {
-                                      await apiClient.coordinatorApproveMilestone(m.id!);
+                                      await apiClient.coordinatorApproveMilestone(m.id!, undefined, undefined, stageFormValues);
                                       setSigningId(null);
+                                      setStageFormValues({});
                                       fetchDetail();
                                     }}
                                     className="rounded-md bg-supervisor-primary px-2 py-1 text-xs font-semibold text-supervisor-on-primary hover:opacity-90"
                                   >
                                     {lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}
                                   </button>
-                                  <button type="button" onClick={() => setSigningId(null)} className="text-xs text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
+                                  <button type="button" onClick={() => { setSigningId(null); setStageFormValues({}); }} className="text-xs text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
                                     {lang === 'he' ? 'ביטול' : 'Cancel'}
                                   </button>
                                 </div>
@@ -502,7 +577,21 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                             ) : m.status === 'coordinator_approved' || m.status === 'completed' ? (
                               <p className="mt-1 text-xs font-semibold text-success">✓ {lang === 'he' ? 'נחתם ואושר סופית' : 'Signed and finalized'}</p>
                             ) : m.status === 'supervisor_graded' ? (
-                              <p className="mt-1 text-xs text-accent">✓ {lang === 'he' ? 'נחתם ע"י המנחה — ממתין לרכז/ת' : "Signed — awaiting the coordinator"}</p>
+                              // The coarse legacy status collapses every 'approve' stage
+                              // after the first into this one string — derive the actual
+                              // "awaiting X" label from the chain's own current stage
+                              // (routing[currentStageIndex].role) rather than always
+                              // claiming "the coordinator", which is only true for the
+                              // 2-stage supervisor→coordinator default chain.
+                              (() => {
+                                const awaitingRole = m.routing?.[m.currentStageIndex ?? 0]?.role;
+                                const label = awaitingRole ? roleLabel(awaitingRole as AppRole, lang) : (lang === 'he' ? 'הרכז/ת' : 'the coordinator');
+                                return (
+                                  <p className="mt-1 text-xs text-accent">
+                                    ✓ {lang === 'he' ? `נחתם — ממתין ל${label}` : `Signed — awaiting ${label}`}
+                                  </p>
+                                );
+                              })()
                             ) : null
                           )}
 
@@ -603,6 +692,20 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
         <StaffRecordModal
           milestoneId={staffRecordFor.milestoneId}
           fields={staffRecordFor.fields ?? []}
+          context={{
+            studentNames: (project.enrolledStudents ?? []).map((s) => s.name),
+            studentIdNumbers: (project.enrolledStudents ?? []).map((s) => s.studentIdNumber),
+            projectNameHe: project.titleHe,
+            projectNameEn: project.titleEn,
+            // TODO: no examinerIds are surfaced on the supervisor project
+            // detail endpoint yet — wire this once it's decided which
+            // milestone's examiner panel a given staff-record form should
+            // read names from (see getSupervisorProjectDetail).
+            examinerNames: [],
+            supervisorName: userData?.displayName,
+            supervisorFacultyId: userData?.facultyId,
+            supervisorMajor: userData?.major ?? null,
+          }}
           onClose={() => setStaffRecordFor(null)}
           onSubmitted={refreshDetailSilently}
         />

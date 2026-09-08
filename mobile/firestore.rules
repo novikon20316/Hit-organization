@@ -28,7 +28,7 @@ service cloud.firestore {
     }
     function isStaffRole(u) {
       return role(u) in ['supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary', 'program_head', 'internal_examiner',
-                         'faculty_admin', 'grad_school_head', 'system_admin'];
+                         'faculty_admin', 'grad_school_head', 'division_head', 'dean', 'system_admin'];
     }
     // Roles with cross-faculty (or "all") access. grad_school_head/
     // internal_examiner used to be unconditionally cross-faculty by role

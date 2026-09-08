@@ -9,7 +9,10 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import { doc, getDoc } from 'firebase/firestore';
+import { db, auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient';
+import { examinerSignatureStyle } from '../../utils/examinerSignature';
 import type { Lang } from '../i18n';
 
 interface StaffFormField {
@@ -18,6 +21,24 @@ interface StaffFormField {
   labelEn: string;
   type: 'text' | 'textarea' | 'date' | 'number' | 'table';
   required: boolean;
+  /** Same meaning as workflowTemplates.ts's FormFieldSpec.autoFill — resolved
+   *  read-only from `context` (plus this modal's own fetched supervisor
+   *  profile for supervisorName) instead of typed by the supervisor. */
+  autoFill?: 'studentName' | 'studentIdNumber' | 'projectNameHe' | 'projectNameEn'
+    | 'examinerNames' | 'supervisorName' | 'submissionDate';
+  locked?: boolean;
+}
+
+/** See web/app/supervisor/dashboard/StaffRecordModal.tsx's identical context
+ *  shape — any piece the caller doesn't have yet (e.g. examinerNames, when no
+ *  milestone has assigned examiners for this project) can be omitted/empty;
+ *  the corresponding field then renders blank rather than throwing. */
+interface StaffRecordAutoFillContext {
+  studentNames?: string[];
+  studentIdNumbers?: (string | null)[];
+  projectNameHe?: string;
+  projectNameEn?: string;
+  examinerNames?: string[];
 }
 
 interface Props {
@@ -25,17 +46,19 @@ interface Props {
   lang: Lang;
   milestoneId: string;
   fields: StaffFormField[];
+  context?: StaffRecordAutoFillContext;
   onClose: () => void;
   onSubmitted: () => void;
 }
 
-export default function StaffRecordModal({ visible, lang, milestoneId, fields, onClose, onSubmitted }: Props) {
+export default function StaffRecordModal({ visible, lang, milestoneId, fields, context, onClose, onSubmitted }: Props) {
   const isRtl = lang === 'he';
   const [mode, setMode] = useState<'upload' | 'form'>(fields.length > 0 ? 'form' : 'upload');
   const [file, setFile] = useState<{ uri: string; name: string; mimeType?: string } | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [supervisor, setSupervisor] = useState<{ displayName: string; facultyId: string; major: string | null } | null>(null);
 
   // Reset the form each time this reopens for a (possibly different) milestone.
   useEffect(() => {
@@ -47,6 +70,37 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, o
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, milestoneId]);
+
+  // Own profile — needed for the studentName-style autoFill row and the
+  // submit-time signature — fetched directly the same way
+  // ProgressReportFormModal.tsx resolves each teammate's own profile.
+  useEffect(() => {
+    if (!visible) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    let cancelled = false;
+    (async () => {
+      const snap = await getDoc(doc(db, 'users', uid));
+      const u = snap.data();
+      if (!cancelled) {
+        setSupervisor({ displayName: u?.displayName ?? '', facultyId: u?.facultyId ?? '', major: u?.major ?? null });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [visible]);
+
+  const resolveLockedValue = (f: StaffFormField): string => {
+    switch (f.autoFill) {
+      case 'submissionDate': return new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US');
+      case 'projectNameHe': return context?.projectNameHe ?? '';
+      case 'projectNameEn': return context?.projectNameEn ?? '';
+      case 'studentName': return (context?.studentNames ?? []).filter(Boolean).join(', ');
+      case 'studentIdNumber': return (context?.studentIdNumbers ?? []).filter(Boolean).join(', ');
+      case 'examinerNames': return (context?.examinerNames ?? []).filter(Boolean).join(', ');
+      case 'supervisorName': return supervisor?.displayName ?? '';
+      default: return '';
+    }
+  };
 
   const pickFile = async () => {
     const result = await DocumentPicker.getDocumentAsync();
@@ -87,14 +141,19 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, o
       return;
     }
 
-    const missing = fields.filter((f) => f.required && !values[f.key]?.trim());
+    const missing = fields.filter((f) => f.required && !f.locked && !values[f.key]?.trim());
     if (missing.length > 0) {
       setError(lang === 'he' ? 'יש למלא את כל שדות החובה' : 'Fill in every required field');
       return;
     }
     setSubmitting(true);
     try {
-      await apiClient.post(`/api/supervisor/milestones/${milestoneId}/staff-record`, { formData: values });
+      const formData: Record<string, string> = {};
+      for (const f of fields) {
+        if (f.locked) continue;
+        formData[f.key] = values[f.key] ?? '';
+      }
+      await apiClient.post(`/api/supervisor/milestones/${milestoneId}/staff-record`, { formData });
       onSubmitted();
       onClose();
     } catch (err: any) {
@@ -173,29 +232,46 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, o
             {fields.map((f) => (
               <View key={f.key}>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>
-                  {lang === 'he' ? f.labelHe : f.labelEn}{f.required ? ' *' : ''}
+                  {lang === 'he' ? f.labelHe : f.labelEn}{f.required && !f.locked ? ' *' : ''}
                 </Text>
-                <TextInput
-                  style={{
-                    borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, padding: 11,
-                    fontSize: 14, color: '#1E293B', backgroundColor: '#fff',
-                    ...(f.type === 'textarea' ? { minHeight: 90, textAlignVertical: 'top' as const } : {}),
-                  }}
-                  value={values[f.key] ?? ''}
-                  onChangeText={(v) => setValues((prev) => ({ ...prev, [f.key]: v }))}
-                  multiline={f.type === 'textarea'}
-                  numberOfLines={f.type === 'textarea' ? 4 : 1}
-                  keyboardType={f.type === 'number' ? 'numeric' : 'default'}
-                  placeholder={f.type === 'date' ? 'YYYY-MM-DD' : undefined}
-                  placeholderTextColor="#9CA3AF"
-                  textAlign={isRtl ? 'right' : 'left'}
-                />
+                {f.locked ? (
+                  <View style={{ borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 8, padding: 11, backgroundColor: '#F1F5F9' }}>
+                    <Text style={{ fontSize: 14, color: '#64748B' }}>{resolveLockedValue(f) || '—'}</Text>
+                  </View>
+                ) : (
+                  <TextInput
+                    style={{
+                      borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, padding: 11,
+                      fontSize: 14, color: '#1E293B', backgroundColor: '#fff',
+                      ...(f.type === 'textarea' ? { minHeight: 90, textAlignVertical: 'top' as const } : {}),
+                    }}
+                    value={values[f.key] ?? ''}
+                    onChangeText={(v) => setValues((prev) => ({ ...prev, [f.key]: v }))}
+                    multiline={f.type === 'textarea'}
+                    numberOfLines={f.type === 'textarea' ? 4 : 1}
+                    keyboardType={f.type === 'number' ? 'numeric' : 'default'}
+                    placeholder={f.type === 'date' ? 'YYYY-MM-DD' : undefined}
+                    placeholderTextColor="#9CA3AF"
+                    textAlign={isRtl ? 'right' : 'left'}
+                  />
+                )}
               </View>
             ))}
             {fields.length === 0 && (
               <Text style={{ fontSize: 12, color: '#94A3B8' }}>
                 {lang === 'he' ? 'לא הוגדרו שדות לטופס זה.' : 'No fields configured for this form.'}
               </Text>
+            )}
+            {/* Submitting this form electronically signs it as the supervisor
+                — a deterministic stylized rendering of their own name (see
+                utils/examinerSignature.ts). Nothing is drawn or uploaded. */}
+            {fields.length > 0 && supervisor?.displayName && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 10 }}>
+                <Text style={{ fontSize: 11, color: '#94A3B8' }}>{lang === 'he' ? 'חתימת המנחה: ' : "Supervisor's signature: "}</Text>
+                <Text style={[{ fontSize: 15 }, examinerSignatureStyle(supervisor.displayName, supervisor.facultyId, 'supervisor', supervisor.major)]}>
+                  {supervisor.displayName}
+                </Text>
+              </View>
             )}
           </View>
         )}

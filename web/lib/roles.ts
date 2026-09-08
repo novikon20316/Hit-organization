@@ -25,6 +25,8 @@ export const ROLES = {
   COORDINATOR:           'coordinator',
   FACULTY_ADMIN:         'faculty_admin',
   PROGRAM_HEAD:          'program_head',
+  DIVISION_HEAD:         'division_head',
+  DEAN:                  'dean',
   PROJECT_COORDINATOR:   'administrative_secretary',
   GRAD_SCHOOL_HEAD:      'grad_school_head',
   INTERNAL_EXAMINER:     'internal_examiner',
@@ -38,6 +40,8 @@ export const STAFF_ROLES: AppRole[] = [
   'coordinator',
   'faculty_admin',
   'program_head',
+  'division_head',
+  'dean',
   'administrative_secretary',
   'grad_school_head',
   'internal_examiner',
@@ -46,10 +50,10 @@ export const STAFF_ROLES: AppRole[] = [
 
 // Roles a delegate (faculty_admin/program_head/grad_school_head) can create
 // or edit for someone else — STAFF_ROLES minus the admin tier itself
-// (system_admin/faculty_admin/program_head/grad_school_head — see
-// server/src/config/permissionScopes.ts's ADMIN_TIER_ROLES, which a delegate
-// may never touch) and minus 'student' (self-registration only, not
-// admin-created here).
+// (system_admin/faculty_admin/program_head/grad_school_head/division_head/
+// dean — see server/src/config/permissionScopes.ts's ADMIN_TIER_ROLES, which
+// a delegate may never touch) and minus 'student' (self-registration only,
+// not admin-created here).
 export const DELEGATE_MANAGEABLE_ROLES: AppRole[] = [
   'coordinator',
   'supervisor',
@@ -157,8 +161,8 @@ export const PERMISSION_MAP: Record<Permission, AppRole[]> = {
   view_audit_log:                ['coordinator', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'],
   toggle_maintenance:            ['system_admin'],
 
-  send_message:                  ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
-  view_own_messages:             ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  send_message:                  ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'division_head', 'dean', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
+  view_own_messages:             ['student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin', 'program_head', 'division_head', 'dean', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin'],
 
   // Project erasure/archive protocol — deliberately narrower than the other
   // "coordinator-tier" keys above (no faculty_admin/program_head/
@@ -216,18 +220,24 @@ export function getUserRoles(userData: { role?: AppRole; roles?: AppRole[] } | n
  *  while coordinator isn't; administrative_secretary is explicitly narrower
  *  than coordinator for the erasure/archive protocol; secondary_supervisor
  *  never holds more authority than supervisor; internal_examiner has no
- *  approval authority but still outranks student. */
+ *  approval authority but still outranks student. division_head/dean are
+ *  narrow, single-purpose approval roles (see the Electrical Engineering
+ *  research-proposal chain) — ranked just below program_head/faculty_admin
+ *  since dean is the form's terminal sign-off and division_head sits between
+ *  coordinator and program_head in that same chain. */
 const ROLE_RANK: Record<AppRole, number> = {
   system_admin: 0,
   grad_school_head: 1,
-  faculty_admin: 2,
-  program_head: 3,
-  coordinator: 4,
-  administrative_secretary: 5,
-  supervisor: 6,
-  secondary_supervisor: 7,
-  internal_examiner: 8,
-  student: 9,
+  dean: 2,
+  faculty_admin: 3,
+  program_head: 4,
+  division_head: 5,
+  coordinator: 6,
+  administrative_secretary: 7,
+  supervisor: 8,
+  secondary_supervisor: 9,
+  internal_examiner: 10,
+  student: 11,
 };
 
 export function highestRankedRole(roles: AppRole[]): AppRole | undefined {
@@ -255,6 +265,8 @@ export function getHomeRoute(role: AppRole | undefined): string {
     case 'coordinator':                return '/coordinator/home';
     case 'faculty_admin':              return '/faculty_admin/dashboard';
     case 'program_head':               return '/program_head/dashboard';
+    case 'division_head':              return '/division_head/dashboard';
+    case 'dean':                       return '/dean/dashboard';
     case 'administrative_secretary':   return '/administrative_coordinator/dashboard';
     case 'grad_school_head':           return '/grad_school_head/dashboard';
     case 'internal_examiner':          return '/examinor/home';
@@ -375,7 +387,7 @@ export interface UserDoc {
 
 export const VALID_ROLES: AppRole[] = [
   'student', 'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin',
-  'program_head', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin',
+  'program_head', 'division_head', 'dean', 'administrative_secretary', 'grad_school_head', 'internal_examiner', 'system_admin',
 ];
 
 export const VALID_FACULTY_IDS: FacultyId[] = [

@@ -24,6 +24,8 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
         case 'secondary_supervisor':     return 'supervisor_projects';
         case 'faculty_admin':            return 'faculty_admin_projects';
         case 'program_head':             return 'program_head_approvals';
+        case 'division_head':            return 'division_head_pending';
+        case 'dean':                     return 'dean_pending';
         case 'grad_school_head':         return 'grad_school_head_approvals';
         case 'internal_examiner':        return 'examiner_defenses';
         case 'system_admin':             return 'admin_panel_milestones';

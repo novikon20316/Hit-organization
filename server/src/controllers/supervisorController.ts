@@ -249,6 +249,12 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         gradingComponents: data.gradingComponents ?? [],
         dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
         submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
+        // The milestone's own snapshotted approval chain (see
+        // workflowTemplates.ts's ChainStage) — lets the mobile dashboard
+        // render research_proposal's supervisor_sign stage's own formFields
+        // (e.g. courses still needed) alongside the sign button.
+        routing: data.routing ?? null,
+        currentStageIndex: data.currentStageIndex ?? 0,
       };
     });
 
@@ -383,6 +389,17 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // the supervisor review what they're signing before confirming.
             studentFormFields: m?.studentFormFields ?? null,
             studentFormData: m?.studentFormData ?? null,
+            // The milestone's own snapshotted approval chain (see
+            // workflowTemplates.ts's ChainStage/MilestoneRoutingSpec) — lets
+            // the client render whichever stage's own formFields are
+            // currently active (e.g. the supervisor's research-proposal
+            // sign-off stage) and derive an accurate "awaiting X" label from
+            // routing[currentStageIndex].role instead of guessing from the
+            // coarse legacy status string, which collapses every 'approve'
+            // stage after the first into one indistinguishable value.
+            routing: m?.routing ?? null,
+            currentStageIndex: m?.currentStageIndex ?? 0,
+            stageFormData: m?.stageFormData ?? null,
             // Three-rubric final-grade workflow state (defense only — see
             // workflowTemplates.ts's finalGradeComponents). Lets the UI
             // decide what to show (evaluation form vs. approve/override vs.
@@ -402,10 +419,19 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
       };
     });
 
+    // Read-only display only (e.g. research_proposal's supervisor_sign
+    // stage, which shows the secondary supervisor's name alongside the
+    // primary's own signature) — they never act on this endpoint's own
+    // stage themselves, so no separate status/signature is resolved here.
+    const secondarySupervisorName: string | null = project.secondarySupervisorId
+      ? ((await db.collection('users').doc(project.secondarySupervisorId).get()).data()?.displayName ?? null)
+      : null;
+
     return res.status(200).json({
       templateMilestones: templateMilestones.map((spec) => ({ ...spec, dueDate: dueDateByType[spec.type] ?? null })),
       students,
       createdAt: project.createdAt?.toDate?.()?.toISOString() ?? null,
+      secondarySupervisorName,
     });
   } catch (error: any) {
     console.error('getSupervisorProjectDetail error:', error);
@@ -890,7 +916,11 @@ export const submitStaffRecord = async (req: AuthenticatedRequest, res: Response
         return res.status(400).json({ message: 'Either a file or formData is required.' });
       }
       const fields: FormFieldSpec[] = data.staffFormFields ?? [];
-      const missing = fields.filter((f) => f.required && (formData[f.key] === undefined || formData[f.key] === null || formData[f.key] === ''));
+      // Locked fields (autoFill) are never typed by the supervisor — only the
+      // client-derived display value exists, and it's never sent back (see
+      // StaffRecordModal.tsx's handleSubmit) — so skip them here the same way
+      // milestoneController.ts's submitMilestone does for studentFormFields.
+      const missing = fields.filter((f) => f.required && !f.locked && (formData[f.key] === undefined || formData[f.key] === null || formData[f.key] === ''));
       if (missing.length > 0) {
         return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
       }

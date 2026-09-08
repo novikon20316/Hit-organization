@@ -92,7 +92,7 @@ export interface FormFieldSpec {
    *  each variant is resolved server-side. */
   autoFill?: 'studentName' | 'studentIdNumber' | 'studentPhone' | 'studentEmail'
     | 'studentPhoto' | 'accumulatedCredits' | 'supervisorName' | 'submissionDate'
-    | 'projectNameHe' | 'projectNameEn';
+    | 'projectNameHe' | 'projectNameEn' | 'examinerNames';
   /** Only meaningful alongside autoFill — true means the value can never be
    *  edited by the student, even as a fallback when the auto-filled source is
    *  empty (e.g. a not-yet-computed accumulatedCredits shows a "pending"
@@ -131,7 +131,7 @@ export interface FinalGradeRubric {
 // can actually advance/reject the stage — see the dedicated
 // committee-vote/committee-decision endpoints in committeeReviewController.ts,
 // not the generic approve/reject chain endpoints.
-export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head' | 'committee';
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head' | 'division_head' | 'dean' | 'committee';
 // 'student', or another stage's `id` within the same chain (self-reference allowed).
 export type RejectionTarget = 'student' | string;
 
@@ -151,6 +151,19 @@ export interface ChainStage {
    *  major, where there's only ever one candidate committee anyway). See
    *  committeeReviewController.ts's onEnterCommitteeStage. */
   committeeId?: string;
+  /** This stage's own small online form — e.g. a supervisor's "courses still
+   *  needed" textarea, or a coordinator's committee-member-name fields —
+   *  filled by whoever is authorized to act on this stage, alongside the
+   *  plain approve/reject decision. Answers are persisted on the milestone
+   *  doc under stageFormData[stage.id], keyed by this stage's own id so an
+   *  earlier stage's answers survive later stages' own approvals. Reuses
+   *  FormFieldSpec verbatim (same type as staffFormFields/studentFormFields/
+   *  examinerFormFields) — autoFill/locked fields are valid here too, though
+   *  this feature's own stages don't need them (the signer's own name/date is
+   *  already captured by the {role}SignedAt/{role}SignedByName stamp every
+   *  'approve' stage gets, not by a FormFieldSpec). See approveChainMilestone
+   *  in coordinatorController.ts. */
+  formFields?: FormFieldSpec[];
 }
 
 export type MilestoneRoutingSpec = ChainStage[];

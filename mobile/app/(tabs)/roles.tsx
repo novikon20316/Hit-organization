@@ -17,6 +17,8 @@ const ROLE_META: Record<AppRole, { icon: string; labelHe: string; labelEn: strin
   coordinator:              { icon: '📊', labelHe: 'רכז', labelEn: 'Coordinator' },
   faculty_admin:            { icon: '⚙️', labelHe: 'ראש מנהל פקולטה', labelEn: 'Faculty Admin' },
   program_head:             { icon: '🎓', labelHe: 'ראש תוכנית', labelEn: 'Program Head' },
+  division_head:            { icon: '🧭', labelHe: 'ראש תחום', labelEn: 'Head of Division' },
+  dean:                     { icon: '🏅', labelHe: 'דיקן הפקולטה', labelEn: 'Dean of the Faculty' },
   administrative_secretary: { icon: '📊', labelHe: 'רכזת אדמיניסטרטיבית', labelEn: 'Administrative Coordinator' },
   grad_school_head:         { icon: '🏛️', labelHe: 'ראש בית ספר ללימודי מוסמכים', labelEn: 'Grad School Head' },
   internal_examiner:        { icon: '✏️', labelHe: 'בוחן פנימי', labelEn: 'Internal Examiner' },

@@ -12,9 +12,9 @@
 // Ports web/app/supervisor/dashboard/ProjectWorkflowSection.tsx.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, TextInput } from 'react-native';
 import { apiClient } from '../src/api/apiClient';
-import type { Lang } from './i18n';
+import { roleLabel, type Lang, type AppRole } from './i18n';
 import StaffRecordModal from './modals/StaffRecordModal';
 import SupervisorEvaluationModal from './modals/SupervisorEvaluationModal';
 import FinalGradeDecisionModal from './modals/FinalGradeDecisionModal';
@@ -26,6 +26,8 @@ interface StaffFormField {
   labelEn: string;
   type: 'text' | 'textarea' | 'date' | 'number' | 'table';
   required: boolean;
+  autoFill?: 'studentName' | 'studentIdNumber' | 'projectNameHe' | 'projectNameEn' | 'examinerNames' | 'supervisorName' | 'submissionDate';
+  locked?: boolean;
 }
 
 interface RubricComponent { key: string; labelHe: string; labelEn: string; maxScore: number; weight: number }
@@ -51,6 +53,13 @@ interface TemplateMilestone {
   };
 }
 
+interface RoutingStage {
+  id: string;
+  role: string;
+  action: 'grade' | 'approve';
+  formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
+}
+
 interface StudentMilestoneRow {
   id: string | null;
   type: string;
@@ -68,6 +77,13 @@ interface StudentMilestoneRow {
   finalGrade: number | null;
   gradeApproved: boolean;
   gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
+  /** The milestone's own snapshotted approval chain — see
+   *  ChainStage in server/src/services/workflowTemplates.ts. Lets this
+   *  screen render whichever stage's own formFields are currently active
+   *  (research_proposal's supervisor_sign stage) and derive an accurate
+   *  "awaiting X" label instead of guessing from the coarse status string. */
+  routing?: RoutingStage[] | null;
+  currentStageIndex?: number;
 }
 
 interface StudentRow {
@@ -129,6 +145,12 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   const [error, setError] = useState('');
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [secondarySupervisorName, setSecondarySupervisorName] = useState<string | null>(null);
+
+  // research_proposal's supervisor_sign stage — mirrors web's
+  // ProjectWorkflowSection.tsx's signingId/stageFormValues.
+  const [signingId, setSigningId] = useState<string | null>(null);
+  const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
 
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: StaffFormField[] } | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
@@ -156,6 +178,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
       .then((res) => {
         setTemplateMilestones([...(res.data.templateMilestones ?? [])].sort((a: TemplateMilestone, b: TemplateMilestone) => a.order - b.order));
         setStudents(res.data.students ?? []);
+        setSecondarySupervisorName(res.data.secondarySupervisorName ?? null);
         setError('');
       })
       .catch((e: any) => {
@@ -265,6 +288,95 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                       </Text>
                     </View>
 
+                    {/* research_proposal's supervisor_sign stage — a pure
+                        sign-off (action: 'approve'), not a grade, so it's
+                        rendered here rather than in the generic Grade
+                        branch. Mirrors web's ProjectWorkflowSection.tsx. */}
+                    {m.type === 'research_proposal' && m.id && m.finalGrade == null && (
+                      m.status === 'submitted' ? (
+                        signingId === m.id ? (
+                          <View style={{ marginTop: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', padding: 8 }}>
+                            {(() => {
+                              const stage = m.routing?.[m.currentStageIndex ?? 0];
+                              if (!stage || stage.role !== 'supervisor' || !stage.formFields?.length) return null;
+                              return (
+                                <View style={{ gap: 8, marginBottom: 8 }}>
+                                  {stage.formFields.map((f) => (
+                                    <View key={f.key}>
+                                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748B', marginBottom: 4 }}>
+                                        {lang === 'he' ? f.labelHe : f.labelEn}{f.required ? ' *' : ''}
+                                      </Text>
+                                      {f.type === 'yesno' ? (
+                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                          {(['yes', 'no'] as const).map((opt) => (
+                                            <Pressable
+                                              key={opt}
+                                              onPress={() => setStageFormValues((v) => ({ ...v, [f.key]: opt }))}
+                                              style={{ flex: 1, borderRadius: 6, padding: 6, alignItems: 'center', backgroundColor: stageFormValues[f.key] === opt ? '#D1FAE5' : '#F1F5F9' }}
+                                              accessibilityRole="button"
+                                            >
+                                              <Text style={{ fontSize: 12, fontWeight: '600', color: '#1E293B' }}>
+                                                {opt === 'yes' ? (lang === 'he' ? 'כן' : 'Yes') : (lang === 'he' ? 'לא' : 'No')}
+                                              </Text>
+                                            </Pressable>
+                                          ))}
+                                        </View>
+                                      ) : (
+                                        <TextInput
+                                          value={stageFormValues[f.key] ?? ''}
+                                          onChangeText={(t) => setStageFormValues((v) => ({ ...v, [f.key]: t }))}
+                                          multiline={f.type === 'textarea'}
+                                          style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, padding: 6, fontSize: 12, backgroundColor: '#fff' }}
+                                        />
+                                      )}
+                                    </View>
+                                  ))}
+                                </View>
+                              );
+                            })()}
+                            {secondarySupervisorName && (
+                              <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 8 }}>
+                                {lang === 'he' ? 'מנחה נוסף: ' : 'Secondary supervisor: '}{secondarySupervisorName}
+                              </Text>
+                            )}
+                            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                              <Pressable
+                                onPress={async () => {
+                                  await apiClient.post(`/api/coordinator/${m.id}/approve`, { stageFormData: stageFormValues });
+                                  setSigningId(null);
+                                  setStageFormValues({});
+                                  refreshDetailSilently();
+                                }}
+                                style={{ backgroundColor: '#00236f', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 }}
+                                accessibilityRole="button"
+                              >
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>{lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}</Text>
+                              </Pressable>
+                              <Pressable onPress={() => { setSigningId(null); setStageFormValues({}); }} accessibilityRole="button">
+                                <Text style={{ fontSize: 12, color: '#64748B' }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        ) : (
+                          <Pressable onPress={() => setSigningId(m.id!)} style={{ marginTop: 4 }} accessibilityRole="button">
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: '#00236f' }}>✍️ {lang === 'he' ? 'חתום על הצעת המחקר' : 'Sign the research proposal'}</Text>
+                          </Pressable>
+                        )
+                      ) : m.status === 'coordinator_approved' || m.status === 'completed' ? (
+                        <Text style={{ marginTop: 4, fontSize: 12, fontWeight: '700', color: '#10B981' }}>✓ {lang === 'he' ? 'נחתם ואושר סופית' : 'Signed and finalized'}</Text>
+                      ) : m.status === 'supervisor_graded' ? (
+                        (() => {
+                          const awaitingRole = m.routing?.[m.currentStageIndex ?? 0]?.role;
+                          const label = awaitingRole ? roleLabel(awaitingRole as AppRole, lang) : (lang === 'he' ? 'הרכז/ת' : 'the coordinator');
+                          return (
+                            <Text style={{ marginTop: 4, fontSize: 12, color: '#F59E0B' }}>
+                              ✓ {lang === 'he' ? `נחתם — ממתין ל${label}` : `Signed — awaiting ${label}`}
+                            </Text>
+                          );
+                        })()
+                      ) : null
+                    )}
+
                     {/* Staff record action (research_proposal/progress_report only). */}
                     {m.staffRecordMode === 'upload_or_form' && m.id && (
                       <Pressable onPress={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })} style={{ marginTop: 4 }} accessibilityRole="button">
@@ -321,6 +433,16 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
           lang={lang}
           milestoneId={staffRecordFor.milestoneId}
           fields={staffRecordFor.fields}
+          context={{
+            studentNames: students.map((s) => s.studentName),
+            studentIdNumbers: (project?.enrolledStudents ?? []).map((s) => s.studentIdNumber ?? null),
+            projectNameHe: project?.titleHe,
+            projectNameEn: project?.titleEn,
+            // TODO: no examinerIds are surfaced to this screen yet — wire this
+            // once it's decided which milestone's examiner panel a given
+            // staff-record form should read names from.
+            examinerNames: [],
+          }}
           onClose={() => setStaffRecordFor(null)}
           onSubmitted={refreshDetailSilently}
         />

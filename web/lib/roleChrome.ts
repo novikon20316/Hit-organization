@@ -40,6 +40,8 @@ import { ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS } from '@/app/administrative_co
 import { FACULTY_ADMIN_NAV_SECTIONS, FACULTY_ADMIN_QUICK_ACTIONS } from '@/app/faculty_admin/navSections';
 import { GRAD_SCHOOL_HEAD_NAV_SECTIONS, GRAD_SCHOOL_HEAD_QUICK_ACTIONS } from '@/app/grad_school_head/navSections';
 import { buildProgramHeadNavSections } from '@/app/program_head/navSections';
+import { DIVISION_HEAD_NAV_SECTIONS } from '@/app/division_head/navSections';
+import { DEAN_NAV_SECTIONS } from '@/app/dean/navSections';
 import { SUPERVISOR_NAV_SECTIONS } from '@/app/supervisor/navSections';
 import { EXAMINOR_NAV_SECTIONS } from '@/app/examinor/navSections';
 import { STUDENT_NAV_SECTIONS } from '@/app/student/navSections';
@@ -65,6 +67,8 @@ const ROLE_SWITCH_META: Record<AppRole, { icon: string; label: { he: string; en:
   coordinator:              { icon: '📊', label: { he: 'רכז', en: 'Coordinator' } },
   faculty_admin:            { icon: '⚙️', label: { he: 'ראש מנהל פקולטה', en: 'Faculty Admin' } },
   program_head:             { icon: '🎓', label: { he: 'ראש תוכנית', en: 'Program Head' } },
+  division_head:            { icon: '🧭', label: { he: 'ראש תחום', en: 'Head of Division' } },
+  dean:                     { icon: '🏅', label: { he: 'דיקן הפקולטה', en: 'Dean of the Faculty' } },
   administrative_secretary: { icon: '📊', label: { he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' } },
   grad_school_head:         { icon: '🏛️', label: { he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' } },
   internal_examiner:        { icon: '✏️', label: { he: 'בוחן פנימי', en: 'Internal Examiner' } },
@@ -155,6 +159,18 @@ function getBaseChromeForRole(role: AppRole | undefined, roles: AppRole[]): Role
       return {
         brand: { name: 'HIT', subtitle: { he: 'פורטל ראש תוכנית', en: 'Program Head Portal' } },
         sections: buildProgramHeadNavSections(roles),
+        theme: { mode: 'accent' },
+      };
+    case 'division_head':
+      return {
+        brand: { name: 'HIT', subtitle: { he: 'פורטל ראש תחום', en: 'Head of Division Portal' } },
+        sections: DIVISION_HEAD_NAV_SECTIONS,
+        theme: { mode: 'accent' },
+      };
+    case 'dean':
+      return {
+        brand: { name: 'HIT', subtitle: { he: 'פורטל דיקן הפקולטה', en: 'Dean Portal' } },
+        sections: DEAN_NAV_SECTIONS,
         theme: { mode: 'accent' },
       };
     case 'coordinator':

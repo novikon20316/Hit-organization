@@ -122,7 +122,7 @@ function effectiveCoordinatorScopes(user: AuthenticatedRequest['user']): { facul
 // graded examiner-only (e.g. a Poster session) with no supervisor stage.
 // 'committee' routes to the department's thesis/final_project committee —
 // see workflowTemplates.ts's ChainRole doc comment.
-const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'program_head', 'committee'];
+const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'program_head', 'division_head', 'dean', 'committee'];
 // examinerSignoffRole/finalGradeSignoffRole are a single overall approver
 // resolved without any per-milestone examinerIds in scope — 'examiner' would
 // always resolve to nobody there (or, worse, read as "an examiner approves
@@ -162,7 +162,13 @@ function validateRoutingChain(input: any): MilestoneRoutingSpec | null {
     const id = stage.id.trim();
     if (ids.has(id)) return null; // duplicate stage id within the same chain
     ids.add(id);
-    cleaned.push({ id, role: stage.role, action: stage.action, rejectTo: stage.rejectTo.trim() });
+    const built: ChainStage = { id, role: stage.role, action: stage.action, rejectTo: stage.rejectTo.trim() };
+    if (stage.formFields !== undefined) {
+      const formFields = validateFormFields(stage.formFields);
+      if (formFields === null) return null;
+      if (formFields.length > 0) built.formFields = formFields;
+    }
+    cleaned.push(built);
   }
   // rejectTo must resolve to 'student' or another stage's id within this same chain.
   for (const stage of cleaned) {

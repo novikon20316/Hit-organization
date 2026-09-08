@@ -697,7 +697,11 @@ export default function CoordinatorHome() {
   // Decision/comment come straight from ProposalRecommendationModal's own
   // local state (it owns the radio/comment inputs, not this screen) — the
   // modal only calls this once "Sign & submit decision" is actually pressed.
-  const handleProposalDecision = async (decision: 'approved' | 'approved_conditionally' | 'rejected', comment: string) => {
+  const handleProposalDecision = async (
+    decision: 'approved' | 'approved_conditionally' | 'rejected',
+    comment: string,
+    stageFormData: { committeeMember1: string; committeeMember2: string },
+  ) => {
     if (!proposalDecisionFor) return;
     setProposalSaving(true);
     try {
@@ -707,6 +711,7 @@ export default function CoordinatorHome() {
         await apiClient.post(`/api/coordinator/${proposalDecisionFor.id}/approve`, {
           comment: comment || undefined,
           recommendation: decision,
+          stageFormData,
         });
         fetchCoordinatorDashboard();
       }

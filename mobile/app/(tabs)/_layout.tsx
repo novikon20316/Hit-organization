@@ -33,6 +33,8 @@ const KNOWN_PREFIXES = [
   '/coordinator/',
   '/faculty_admin/',
   '/program_head/',
+  '/division_head/',
+  '/dean/',
   '/administrative_coordinator/',
   '/grad_school_head/',
   '/admin/',
@@ -58,6 +60,8 @@ export const ROLE_ROUTES: Record<string, string> = {
   internal_examiner:    '/examinor/home',
   faculty_admin:        '/faculty_admin/dashboard',
   program_head:         '/program_head/program_head_dashboard',
+  division_head:        '/division_head/division_head_dashboard',
+  dean:                 '/dean/dean_dashboard',
   administrative_secretary:  '/administrative_coordinator/administrative_coordinator_dashboard',
   grad_school_head:     '/grad_school_head/grad_school_head_dashboard',
   system_admin:         '/admin/overview',
@@ -104,6 +108,14 @@ const ROLE_TABS: Record<string, Array<{
   program_head: [
     { name: 'program_head/program_head_dashboard', iconActive: '🎓', iconInactive: '🎓', labelHe: 'לוח בקרה', labelEn: 'Dashboard' },
     { name: 'notifications',                        iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
+  ],
+  division_head: [
+    { name: 'division_head/division_head_dashboard', iconActive: '🧭', iconInactive: '🧭', labelHe: 'ממתין לאישור', labelEn: 'Approvals' },
+    { name: 'notifications',                          iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',       labelEn: 'Alerts'    },
+  ],
+  dean: [
+    { name: 'dean/dean_dashboard', iconActive: '🏅', iconInactive: '🏅', labelHe: 'ממתין לאישור', labelEn: 'Approvals' },
+    { name: 'notifications',       iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',       labelEn: 'Alerts'    },
   ],
   administrative_secretary: [
     { name: 'administrative_coordinator/administrative_coordinator_dashboard', iconActive: '📊', iconInactive: '📊', labelHe: 'לוח בקרה', labelEn: 'Dashboard' },

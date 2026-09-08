@@ -13,17 +13,26 @@
 
 import { db } from '../config/firebase.js';
 import { resolveStaffForScope, type AuthUser, type ResourceScope } from './scopeAuthorization.js';
-import { deriveProcessType, resolveFinalGradeSignoffRole, type ChainRole } from './workflowTemplates.js';
+import { deriveProcessType, resolveFinalGradeSignoffRole, type ChainRole, type ChainStage, type FormFieldSpec } from './workflowTemplates.js';
+import { isChainDriven } from './milestoneRouting.js';
 import { urgencyFromAge } from './studentProgress.js';
 
 export interface PendingSignoffItem {
   id: string;
-  type: 'examiners' | 'final_grade';
+  type: 'examiners' | 'final_grade' | 'chain_stage';
   studentName: string;
   facultyId: string;
   title: string;
   submittedAt: string;
   urgency: 'low' | 'medium' | 'high';
+  /** Only meaningful for type === 'chain_stage' — the current chain stage's
+   *  own id/form fields, so the caller (PendingSignoffsWidget) knows whether
+   *  to collect any answers before approving. See ChainStage.formFields in
+   *  workflowTemplates.ts and approveChainMilestone in
+   *  coordinatorController.ts, which persists them under
+   *  stageFormData[stageId]. */
+  stageId?: string;
+  stageFormFields?: FormFieldSpec[];
 }
 
 function resourceScopeOf(project: FirebaseFirestore.DocumentData, fallbackFacultyId: string): ResourceScope {
@@ -36,9 +45,14 @@ function resourceScopeOf(project: FirebaseFirestore.DocumentData, fallbackFacult
 }
 
 export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingSignoffItem[]> {
-  const [examinerRecsSnap, defenseMilestonesSnap] = await Promise.all([
+  const [examinerRecsSnap, defenseMilestonesSnap, researchProposalsSnap] = await Promise.all([
     db.collection('examinerRecommendations').where('status', '==', 'coordinator_approved').get(),
     db.collection('milestones').where('type', '==', 'defense').where('status', '==', 'graded').get(),
+    // Chain-driven 'approve' stages on the research_proposal milestone (the
+    // Electrical Engineering staff-approval chain) — kept narrow to this one
+    // milestone type for now, not every chain-driven milestone in the app;
+    // generalize this query if a future chain needs the same treatment.
+    db.collection('milestones').where('type', '==', 'research_proposal').get(),
   ]);
 
   // Every cache below is scoped to this one call — avoids re-fetching the
@@ -135,6 +149,32 @@ export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingS
       title: `${project.titleHe || project.titleEn || ''} — ${data.finalGrade}`,
       submittedAt: data.gradedAt?.toDate?.()?.toISOString?.() ?? '',
       urgency: urgencyFromAge(data.gradedAt),
+    });
+  }
+
+  for (const doc of researchProposalsSnap.docs) {
+    const data = doc.data();
+    if (!isChainDriven(data)) continue;
+    const routing: ChainStage[] = data.routing ?? [];
+    const stage = routing[data.currentStageIndex ?? 0];
+    if (!stage || stage.action !== 'approve' || stage.role === 'committee') continue;
+    const project = await getProject(data.projectId);
+    if (!project) continue;
+    const resource = resourceScopeOf(project, data.facultyId ?? '');
+    const supervisorIds = [project.supervisorId].filter(Boolean);
+    const uids = await getResolvedUids(stage.role as ChainRole, resource, supervisorIds);
+    if (!uids.includes(user.uid)) continue;
+
+    items.push({
+      id: doc.id,
+      type: 'chain_stage',
+      studentName: await studentNameFor(project),
+      facultyId: resource.facultyId,
+      title: data.nameHe || data.nameEn || project.titleHe || project.titleEn || '',
+      submittedAt: data.stageEnteredAt?.toDate?.()?.toISOString?.() ?? data.submittedAt?.toDate?.()?.toISOString?.() ?? '',
+      urgency: urgencyFromAge(data.stageEnteredAt ?? data.submittedAt),
+      stageId: stage.id,
+      stageFormFields: stage.formFields ?? [],
     });
   }
 

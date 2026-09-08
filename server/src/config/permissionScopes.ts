@@ -52,7 +52,7 @@ export const VALID_SCOPE_FACULTY_IDS: string[] = [...Object.keys(MAJORS_BY_FACUL
 // grant-permissions-to one of these accounts; only system_admin can touch
 // them. Single source of truth — previously duplicated verbatim in both
 // adminController.ts and facultyAdminController.ts.
-export const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head'];
+export const ADMIN_TIER_ROLES = ['system_admin', 'faculty_admin', 'program_head', 'grad_school_head', 'division_head', 'dean'];
 
 // The three roles that can now self-serve day-to-day staff management
 // within their own organizational scope (faculty_admin/program_head: their

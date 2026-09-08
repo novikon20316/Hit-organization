@@ -111,6 +111,8 @@ export const ROLE_ACCENT = {
   faculty_admin:         { bg: '#ECFEFF', text: '#06B6D4', label: { he: 'מנהל פקולטה',              en: 'Faculty Admin'           } },
   grad_school_head:      { bg: '#F0FDFA', text: '#0D9488', label: { he: 'ראש בית ספר',              en: 'Grad School Head'        } },
   program_head:          { bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש תוכנית',              en: 'Program Head'            } },
+  division_head:         { bg: '#ECFDF5', text: '#2E5C4E', label: { he: 'ראש תחום',                en: 'Head of Division'        } },
+  dean:                  { bg: '#FEF2F2', text: '#7A2E2E', label: { he: 'דיקן הפקולטה',            en: 'Dean of the Faculty'     } },
   administrative_secretary: { bg: '#FAF5FF', text: '#9333EA', label: { he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator'} },
 };
 

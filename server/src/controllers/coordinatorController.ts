@@ -767,6 +767,14 @@ async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.Docu
 async function approveChainMilestone(
   req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string, comment?: string,
   recommendation?: 'approved' | 'approved_conditionally',
+  // This stage's own form answers (see ChainStage.formFields in
+  // workflowTemplates.ts) — e.g. a supervisor's "courses still needed" text,
+  // or a coordinator's committee-member names. Distinct from comment/
+  // recommendation above (an older, coordinator/tri-state-specific
+  // mechanism, left as-is) — persisted unconditionally under
+  // stageFormData[stage.id] on every stage transition, not just the
+  // terminal one, so an earlier stage's answers survive later approvals.
+  stageFormData?: Record<string, unknown>,
 ): Promise<Response> {
   const routing: ChainStage[] = milestone.routing;
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
@@ -779,6 +787,19 @@ async function approveChainMilestone(
   const projectSupervisorIds = [milestone.supervisorId].filter(Boolean);
   const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
   if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
+
+  // Same required/non-locked rule milestoneController.ts's submitMilestone
+  // already applies to studentFormFields — a locked (autoFill) field is
+  // never actually typed by the actor, so it's excluded from this check.
+  const stageFields = stage.formFields ?? [];
+  if (stageFields.length > 0) {
+    const missing = stageFields.filter((f) =>
+      f.required && !f.locked && (stageFormData?.[f.key] === undefined || stageFormData?.[f.key] === null || stageFormData?.[f.key] === '')
+    );
+    if (missing.length > 0) {
+      return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
+    }
+  }
 
   const milestoneRef = db.collection('milestones').doc(milestoneId);
   let previousStatus: string | undefined;
@@ -810,16 +831,16 @@ async function approveChainMilestone(
       // Deterministic signature stamp (see examinerSignature.ts's
       // examinerSignatureStyle) — only the name + timestamp are persisted;
       // the stylized color/font are recomputed client-side on every view,
-      // never stored as an image. Only meaningful for research_proposal's
-      // supervisor_sign/coordinator_sign stages today, but harmless to stamp
-      // on any 'approve' stage using one of these two roles (e.g. poster's
-      // coordinator stage).
-      if (stage.role === 'supervisor') {
-        update.supervisorSignedAt = admin.firestore.FieldValue.serverTimestamp();
-        update.supervisorSignedByName = req.user?.displayName ?? '';
-      } else if (stage.role === 'coordinator') {
-        update.coordinatorSignedAt = admin.firestore.FieldValue.serverTimestamp();
-        update.coordinatorSignedByName = req.user?.displayName ?? '';
+      // never stored as an image. Generic across every role a chain stage
+      // can name (was hardcoded to just supervisor/coordinator until the
+      // Electrical Engineering research-proposal chain added division_head/
+      // program_head/dean stages that need the exact same treatment) —
+      // field names stay e.g. supervisorSignedAt/coordinatorSignedByName for
+      // those two roles, unchanged from before this generalization.
+      update[`${stage.role}SignedAt`] = admin.firestore.FieldValue.serverTimestamp();
+      update[`${stage.role}SignedByName`] = req.user?.displayName ?? '';
+      if (stageFormData && Object.keys(stageFormData).length > 0) {
+        update[`stageFormData.${stage.id}`] = stageFormData;
       }
       if (nextStage) {
         update.currentStageIndex = freshIndex + 1;
@@ -937,6 +958,14 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (recommendation === 'approved_conditionally' && !comment) {
     return res.status(400).json({ message: 'A comment describing the conditions is required for a conditional approval.' });
   }
+  // The current stage's own form answers (see ChainStage.formFields) — e.g.
+  // a supervisor's "courses still needed" text or a coordinator's
+  // committee-member names. Validated against the stage's own field list
+  // inside approveChainMilestone, not here.
+  let stageFormData: Record<string, unknown> | undefined;
+  if (req.body?.stageFormData && typeof req.body.stageFormData === 'object') {
+    stageFormData = req.body.stageFormData;
+  }
 
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid or missing milestoneId.' });
@@ -953,7 +982,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation);
+    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation, stageFormData);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {

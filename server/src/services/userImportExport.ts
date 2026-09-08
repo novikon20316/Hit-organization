@@ -26,6 +26,8 @@ export const VALID_ROLES = [
   'coordinator',
   'faculty_admin',
   'program_head',
+  'division_head',
+  'dean',
   'administrative_secretary',
   'grad_school_head',
   'internal_examiner',

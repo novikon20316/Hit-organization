@@ -10,6 +10,7 @@ import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { examinerSignatureStyle } from '@/lib/examinerSignature';
 
 interface StaffFormField {
   key: string;
@@ -19,6 +20,30 @@ interface StaffFormField {
   required: boolean;
   /** Only meaningful when type === 'table' — the columns of each repeatable row. */
   tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }>;
+  /** Same meaning as workflowTemplates.ts's FormFieldSpec.autoFill — resolved
+   *  read-only from `context` below instead of typed by the supervisor. */
+  autoFill?: 'studentName' | 'studentIdNumber' | 'projectNameHe' | 'projectNameEn'
+    | 'examinerNames' | 'supervisorName' | 'submissionDate';
+  locked?: boolean;
+}
+
+/** Everything a staff-record form's autoFill fields (and its footer
+ *  signature) can resolve from, gathered by the caller from whatever it
+ *  already has loaded (project detail + the signed-in supervisor's own
+ *  profile) — see ProjectWorkflowSection.tsx's staffRecordFor. Any piece the
+ *  caller doesn't have yet (e.g. examinerNames, when no milestone has
+ *  assigned examiners for this project) can be omitted/empty; the
+ *  corresponding field then renders blank rather than throwing, same as an
+ *  autoFill field with no resolvable value anywhere else in the app. */
+interface StaffRecordAutoFillContext {
+  studentNames?: string[];
+  studentIdNumbers?: (string | null)[];
+  projectNameHe?: string;
+  projectNameEn?: string;
+  examinerNames?: string[];
+  supervisorName?: string;
+  supervisorFacultyId?: string;
+  supervisorMajor?: string | null;
 }
 
 function emptyTableRow(columns: NonNullable<StaffFormField['tableColumns']>): Record<string, string> {
@@ -28,11 +53,12 @@ function emptyTableRow(columns: NonNullable<StaffFormField['tableColumns']>): Re
 interface StaffRecordModalProps {
   milestoneId: string;
   fields: StaffFormField[];
+  context?: StaffRecordAutoFillContext;
   onClose: () => void;
   onSubmitted: () => void;
 }
 
-export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: StaffRecordModalProps) {
+export function StaffRecordModal({ milestoneId, fields, context, onClose, onSubmitted }: StaffRecordModalProps) {
   const { lang, t } = useLanguage();
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, true, onClose);
@@ -55,6 +81,23 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
       ...prev,
       [fieldKey]: (prev[fieldKey] ?? []).map((row, i) => (i === rowIdx ? { ...row, [columnKey]: cellValue } : row)),
     }));
+  };
+
+  // Resolves a locked/autoFill field's display value — never editable, never
+  // sent back to the server (see handleSubmit's formData loop below, and
+  // supervisorController.ts's submitStaffRecord, which skips required-checking
+  // locked fields the same way milestoneController.ts's submitMilestone does).
+  const resolveLockedValue = (f: StaffFormField): string => {
+    switch (f.autoFill) {
+      case 'submissionDate': return new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US');
+      case 'projectNameHe': return context?.projectNameHe ?? '';
+      case 'projectNameEn': return context?.projectNameEn ?? '';
+      case 'studentName': return (context?.studentNames ?? []).filter(Boolean).join(', ');
+      case 'studentIdNumber': return (context?.studentIdNumbers ?? []).filter(Boolean).join(', ');
+      case 'examinerNames': return (context?.examinerNames ?? []).filter(Boolean).join(', ');
+      case 'supervisorName': return context?.supervisorName ?? '';
+      default: return '';
+    }
   };
 
   const handleSubmit = async () => {
@@ -80,7 +123,7 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
     }
 
     const missing = fields.filter((f) =>
-      f.required && (f.type === 'table' ? (tableValues[f.key] ?? []).length === 0 : !values[f.key]?.trim())
+      f.required && !f.locked && (f.type === 'table' ? (tableValues[f.key] ?? []).length === 0 : !values[f.key]?.trim())
     );
     if (missing.length > 0) {
       setError(lang === 'he' ? 'יש למלא את כל שדות החובה' : 'Fill in every required field');
@@ -88,9 +131,10 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
     }
     setSubmitting(true);
     try {
-      const formData: Record<string, unknown> = { ...values };
+      const formData: Record<string, unknown> = {};
       for (const f of fields) {
-        if (f.type === 'table') formData[f.key] = tableValues[f.key] ?? [];
+        if (f.locked) continue;
+        formData[f.key] = f.type === 'table' ? (tableValues[f.key] ?? []) : (values[f.key] ?? '');
       }
       await apiClient.submitStaffRecordForm(milestoneId, formData);
       onSubmitted();
@@ -146,9 +190,13 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
             {fields.map((f) => (
               <div key={f.key} className="block">
                 <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
-                  {lang === 'he' ? f.labelHe : f.labelEn}{f.required ? ' *' : ''}
+                  {lang === 'he' ? f.labelHe : f.labelEn}{f.required && !f.locked ? ' *' : ''}
                 </span>
-                {f.type === 'table' ? (
+                {f.locked ? (
+                  <p className="rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface-variant">
+                    {resolveLockedValue(f) || '—'}
+                  </p>
+                ) : f.type === 'table' ? (
                   <div className="rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low p-2.5">
                     <div className="grid gap-2">
                       {(tableValues[f.key] ?? []).map((row, rowIdx) => (
@@ -194,6 +242,21 @@ export function StaffRecordModal({ milestoneId, fields, onClose, onSubmitted }: 
             ))}
             {fields.length === 0 && (
               <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'לא הוגדרו שדות לטופס זה.' : 'No fields configured for this form.'}</p>
+            )}
+            {/* Submitting this form electronically signs it as the supervisor —
+                a deterministic stylized rendering of their own name (see
+                lib/examinerSignature.ts), same as every other signed form in
+                the app. Nothing is drawn or uploaded. */}
+            {fields.length > 0 && context?.supervisorName && (
+              <div className="mt-1 flex items-center gap-2 border-t border-supervisor-outline-variant pt-3">
+                <span className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'חתימת המנחה: ' : "Supervisor's signature: "}</span>
+                <span
+                  className="text-base"
+                  style={examinerSignatureStyle(context.supervisorName, context.supervisorFacultyId ?? '', 'supervisor', context.supervisorMajor ?? null)}
+                >
+                  {context.supervisorName}
+                </span>
+              </div>
             )}
           </div>
         )}

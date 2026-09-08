@@ -38,7 +38,7 @@ export type TemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'sup
 // — but the two department-specific extensions below (staff record +
 // defense's three-rubric final grade) are ported, since Data Science needs
 // them configurable from mobile too.
-export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head' | 'committee';
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head' | 'division_head' | 'dean' | 'committee';
 export type RejectionTarget = 'student' | string;
 
 export interface ChainStage {
@@ -54,6 +54,11 @@ export interface ChainStage {
    *  candidate committee for that faculty+major+type anyway). Mirrors
    *  web/app/workflow-templates/types.ts's ChainStage. */
   committeeId?: string;
+  /** This stage's own small online form, filled alongside its approve/reject
+   *  decision — see server/src/services/workflowTemplates.ts's ChainStage
+   *  doc comment. Not editable from this screen (same table-type carve-out as
+   *  FormFieldSpec below), just round-tripped so it survives a mobile edit. */
+  formFields?: FormFieldSpec[];
 }
 
 // Mirrors CommitteeDoc in server/src/controllers/committeeController.ts —
@@ -127,6 +132,8 @@ export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
   { key: 'administrative_secretary', he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' },
   { key: 'grad_school_head', he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' },
   { key: 'program_head', he: 'ראש תוכנית', en: 'Program Head' },
+  { key: 'division_head', he: 'ראש תחום', en: 'Head of Division' },
+  { key: 'dean', he: 'דיקן הפקולטה', en: 'Dean of the Faculty' },
   // Routes to the department's thesis/final_project committee (see
   // server/src/controllers/committeeController.ts) — every committee member
   // votes independently and only the chairman can advance/reject the stage.

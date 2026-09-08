@@ -53,7 +53,7 @@ interface Props {
   lang: Lang;
   isRtl: boolean;
   onCancel: () => void;
-  onConfirm: (decision: ProposalDecision, comment: string) => void;
+  onConfirm: (decision: ProposalDecision, comment: string, stageFormData: { committeeMember1: string; committeeMember2: string }) => void;
 }
 
 const OPTIONS: Array<{ value: ProposalDecision; labelHe: string; labelEn: string }> = [
@@ -67,6 +67,10 @@ export default function ProposalRecommendationModal({
 }: Props) {
   const [decision, setDecision] = useState<ProposalDecision>('approved');
   const [comment, setComment] = useState('');
+  // The coordinator_sign stage's own two committee-member-name fields — see
+  // web/app/coordinator/home/ProposalRecommendationModal.tsx.
+  const [committeeMember1, setCommitteeMember1] = useState('');
+  const [committeeMember2, setCommitteeMember2] = useState('');
   const [teammates, setTeammates] = useState<TeammateProfile[] | null>(null);
 
   useEffect(() => {
@@ -190,6 +194,27 @@ export default function ProposalRecommendationModal({
         </View>
         </FieldGuideTarget>
 
+        <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 10, marginTop: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{lang === 'he' ? 'חבר/ת ועדת מחקר 1' : 'Committee member 1'}</Text>
+            <TextInput
+              style={[styles.textarea, isRtl && styles.textRight, { minHeight: undefined }]}
+              value={committeeMember1}
+              onChangeText={setCommitteeMember1}
+              textAlign={isRtl ? 'right' : 'left'}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{lang === 'he' ? 'חבר/ת ועדת מחקר 2' : 'Committee member 2'}</Text>
+            <TextInput
+              style={[styles.textarea, isRtl && styles.textRight, { minHeight: undefined }]}
+              value={committeeMember2}
+              onChangeText={setCommitteeMember2}
+              textAlign={isRtl ? 'right' : 'left'}
+            />
+          </View>
+        </View>
+
         <View>
           <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
             {lang === 'he' ? 'הערה' : 'Comment'}{commentRequired ? ' *' : ''}
@@ -223,7 +248,7 @@ export default function ProposalRecommendationModal({
 
         <Pressable
           style={[styles.submitBtn, (busy || !canConfirm) && { opacity: 0.6 }]}
-          onPress={() => canConfirm && onConfirm(decision, comment.trim())}
+          onPress={() => canConfirm && onConfirm(decision, comment.trim(), { committeeMember1: committeeMember1.trim(), committeeMember2: committeeMember2.trim() })}
           disabled={busy || !canConfirm}
           accessibilityRole="button"
         >

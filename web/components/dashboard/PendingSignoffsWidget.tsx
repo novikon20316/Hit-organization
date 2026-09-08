@@ -16,8 +16,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 
-type SignoffType = 'examiners' | 'final_grade';
+type SignoffType = 'examiners' | 'final_grade' | 'chain_stage';
 type Urgency = 'low' | 'medium' | 'high';
+
+interface StageFormField {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno';
+  required: boolean;
+}
 
 interface PendingSignoffItem {
   id: string;
@@ -27,11 +35,17 @@ interface PendingSignoffItem {
   title: string;
   submittedAt: string;
   urgency: Urgency;
+  /** Only present for type === 'chain_stage' — see
+   *  services/pendingSignoffs.ts's PendingSignoffItem. When non-empty,
+   *  Approve collects these answers first instead of approving immediately. */
+  stageId?: string;
+  stageFormFields?: StageFormField[];
 }
 
 const TYPE_LABEL: Record<SignoffType, { he: string; en: string }> = {
   examiners: { he: 'אישור בוחנים', en: 'Examiner Approval' },
   final_grade: { he: 'אישור ציון סופי', en: 'Final Grade' },
+  chain_stage: { he: 'אישור אבן דרך', en: 'Milestone Approval' },
 };
 
 const URGENCY_COLOR: Record<Urgency, string> = {
@@ -57,6 +71,12 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // Only used for type === 'chain_stage' items whose stage has its own form
+  // fields (e.g. division_head's "division name" field) — Approve opens this
+  // instead of approving immediately. Items with no stageFormFields skip
+  // straight to the plain approve, same as every other signoff type.
+  const [formTargetId, setFormTargetId] = useState<string | null>(null);
+  const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
 
   const fetchItems = useCallback(async () => {
     try {
@@ -76,10 +96,20 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
   }, [fetchItems]);
 
   const handleApprove = async (item: PendingSignoffItem) => {
+    // A chain_stage item whose stage has its own fields collects them first
+    // (see the inline form below) instead of approving on this first click.
+    if (item.type === 'chain_stage' && (item.stageFormFields ?? []).length > 0 && formTargetId !== item.id) {
+      setFormTargetId(item.id);
+      setStageFormValues({});
+      return;
+    }
     setBusyId(item.id);
     try {
       if (item.type === 'examiners') await apiClient.approveExaminerRecommendationFinal(item.id);
+      else if (item.type === 'chain_stage') await apiClient.coordinatorApproveMilestone(item.id, undefined, undefined, stageFormValues);
       else await apiClient.approveFinalGrade(item.id);
+      setFormTargetId(null);
+      setStageFormValues({});
       await fetchItems();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'האישור נכשל' : 'Approval failed');
@@ -93,6 +123,7 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
     setBusyId(item.id);
     try {
       if (item.type === 'examiners') await apiClient.rejectExaminerRecommendationFinal(item.id, rejectReason.trim());
+      else if (item.type === 'chain_stage') await apiClient.coordinatorRejectMilestone(item.id, rejectReason.trim());
       else await apiClient.rejectFinalGrade(item.id, rejectReason.trim());
       setRejectTargetId(null);
       setRejectReason('');
@@ -113,7 +144,7 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
   return (
     <div className="mb-4">
       <h3 className="mb-2 text-sm font-semibold text-ink">
-        ✍️ {lang === 'he' ? 'ממתין לאישור ציונים ובוחנים' : 'Awaiting grade/examiner approval'}
+        ✍️ {lang === 'he' ? 'ממתין לאישורך' : 'Awaiting your approval'}
       </h3>
       {error && <p className="mb-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -140,6 +171,41 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
                 className="mt-2 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
               />
             )}
+            {formTargetId === item.id && (
+              <div className="mt-2 grid gap-2">
+                {(item.stageFormFields ?? []).map((f) => (
+                  <div key={f.key}>
+                    <label className="mb-1 block text-xs text-muted">
+                      {lang === 'he' ? f.labelHe : f.labelEn}{f.required ? ' *' : ''}
+                    </label>
+                    {f.type === 'textarea' ? (
+                      <textarea
+                        value={stageFormValues[f.key] ?? ''}
+                        onChange={(e) => setStageFormValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                        rows={2}
+                        className="w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                      />
+                    ) : f.type === 'yesno' ? (
+                      <select
+                        value={stageFormValues[f.key] ?? ''}
+                        onChange={(e) => setStageFormValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                        className="w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                      >
+                        <option value="">{lang === 'he' ? 'בחר' : 'Select'}</option>
+                        <option value="yes">{lang === 'he' ? 'כן' : 'Yes'}</option>
+                        <option value="no">{lang === 'he' ? 'לא' : 'No'}</option>
+                      </select>
+                    ) : (
+                      <input
+                        value={stageFormValues[f.key] ?? ''}
+                        onChange={(e) => setStageFormValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                        className="w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
@@ -155,7 +221,11 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
                 disabled={busyId === item.id}
                 className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
               >
-                {busyId === item.id ? (lang === 'he' ? 'מאשר...' : 'Approving...') : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                {busyId === item.id
+                  ? (lang === 'he' ? 'מאשר...' : 'Approving...')
+                  : formTargetId === item.id
+                    ? `✅ ${lang === 'he' ? 'שלח אישור' : 'Submit approval'}`
+                    : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
               </button>
             </div>
           </div>

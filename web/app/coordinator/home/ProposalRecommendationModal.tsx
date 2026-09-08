@@ -44,7 +44,7 @@ interface ProposalRecommendationModalProps {
   busy: boolean;
   milestone: CoordinatorPendingMilestone;
   onCancel: () => void;
-  onConfirm: (decision: ProposalDecision, comment: string) => void;
+  onConfirm: (decision: ProposalDecision, comment: string, stageFormData: { committeeMember1: string; committeeMember2: string }) => void;
 }
 
 export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel, onConfirm }: ProposalRecommendationModalProps) {
@@ -52,6 +52,11 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
   const { userData } = useAuth();
   const [decision, setDecision] = useState<ProposalDecision>('approved');
   const [comment, setComment] = useState('');
+  // The coordinator_sign stage's own two committee-member-name fields (see
+  // ChainStage.formFields) — free text, not the structured 'committee'
+  // entity used elsewhere (committeeController.ts) for defense panels.
+  const [committeeMember1, setCommitteeMember1] = useState('');
+  const [committeeMember2, setCommitteeMember2] = useState('');
   const [teammates, setTeammates] = useState<TeammateProfile[] | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   useModalA11y(modalRef, open, () => {
@@ -201,6 +206,25 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
             ))}
           </div>
 
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'חבר/ת ועדת מחקר 1' : 'Research committee member 1'}</span>
+              <input
+                value={committeeMember1}
+                onChange={(e) => setCommitteeMember1(e.target.value)}
+                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'חבר/ת ועדת מחקר 2' : 'Research committee member 2'}</span>
+              <input
+                value={committeeMember2}
+                onChange={(e) => setCommitteeMember2(e.target.value)}
+                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+              />
+            </label>
+          </div>
+
           <label className="mt-3 block">
             <span className="mb-1.5 block text-sm font-medium text-ink">
               {lang === 'he' ? 'הערה' : 'Comment'}{commentRequired && <span className="text-danger"> *</span>}
@@ -246,7 +270,7 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
           <button
             type="button"
             disabled={busy || !canConfirm}
-            onClick={() => onConfirm(decision, comment.trim())}
+            onClick={() => onConfirm(decision, comment.trim(), { committeeMember1: committeeMember1.trim(), committeeMember2: committeeMember2.trim() })}
             className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
           >
             {busy ? '…' : lang === 'he' ? '✍️ חתום ושלח החלטה' : '✍️ Sign & submit decision'}

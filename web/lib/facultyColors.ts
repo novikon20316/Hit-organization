@@ -26,6 +26,8 @@ export const ROLE_ACCENTS: Record<AppRole, string> = {
   coordinator: '#3F6B4C',
   faculty_admin: '#1E3A5F',
   program_head: '#16304E',
+  division_head: '#2E5C4E',
+  dean: '#7A2E2E',
   administrative_secretary: '#7A6A53',
   grad_school_head: '#6E5A99',
   internal_examiner: '#8C4F6B',

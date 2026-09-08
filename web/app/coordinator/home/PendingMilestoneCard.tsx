@@ -65,7 +65,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
   // reject flow (mandatory reason, status:'rejected') under a
   // form-matching label; the other two both go through the approve endpoint
   // with a `recommendation`.
-  const handleProposalDecision = async (decision: ProposalDecision, comment: string) => {
+  const handleProposalDecision = async (decision: ProposalDecision, comment: string, stageFormData: { committeeMember1: string; committeeMember2: string }) => {
     if (decision === 'rejected') {
       await handleReject(comment);
       return;
@@ -73,7 +73,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
     setApproving(true);
     setRowError('');
     try {
-      await apiClient.coordinatorApproveMilestone(m.id, comment || undefined, decision);
+      await apiClient.coordinatorApproveMilestone(m.id, comment || undefined, decision, stageFormData);
       setShowApprove(false);
       onChanged();
     } catch (err) {

@@ -877,10 +877,14 @@ export const apiClient = {
   /** `recommendation` is only meaningful for a research_proposal milestone's
    *  coordinator_sign stage — see ProposalRecommendationModal.tsx. A comment
    *  is mandatory server-side when recommendation === 'approved_conditionally'. */
-  async coordinatorApproveMilestone(milestoneId: string, comment?: string, recommendation?: 'approved' | 'approved_conditionally') {
+  async coordinatorApproveMilestone(milestoneId: string, comment?: string, recommendation?: 'approved' | 'approved_conditionally', stageFormData?: Record<string, unknown>) {
     return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/approve`, {
       method: 'POST',
-      body: (comment || recommendation) ? { ...(comment ? { comment } : {}), ...(recommendation ? { recommendation } : {}) } : undefined,
+      body: (comment || recommendation || stageFormData) ? {
+        ...(comment ? { comment } : {}),
+        ...(recommendation ? { recommendation } : {}),
+        ...(stageFormData ? { stageFormData } : {}),
+      } : undefined,
     });
   },
 
@@ -981,12 +985,20 @@ export const apiClient = {
     return request<{
       items: Array<{
         id: string;
-        type: 'examiners' | 'final_grade';
+        type: 'examiners' | 'final_grade' | 'chain_stage';
         studentName: string;
         facultyId: string;
         title: string;
         submittedAt: string;
         urgency: 'low' | 'medium' | 'high';
+        /** Only present for type === 'chain_stage' — see
+         *  services/pendingSignoffs.ts's PendingSignoffItem. */
+        stageId?: string;
+        stageFormFields?: Array<{
+          key: string; labelHe: string; labelEn: string;
+          type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno';
+          required: boolean;
+        }>;
       }>;
     }>('/api/staff/pending-signoffs', { method: 'GET' });
   },
@@ -1384,9 +1396,20 @@ export const apiClient = {
           supervisorScore: number | null;
           gradeApproved: boolean;
           gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
+          studentFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string }>; locked?: boolean }> | null;
+          studentFormData?: Record<string, unknown> | null;
+          /** The milestone's own snapshotted approval chain — see
+           *  ChainStage in server/src/services/workflowTemplates.ts. */
+          routing?: Array<{
+            id: string; role: string; action: 'grade' | 'approve';
+            formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
+          }> | null;
+          currentStageIndex?: number;
         }>;
       }>;
       createdAt: string | null;
+      /** Read-only — see server's getSupervisorProjectDetail. */
+      secondarySupervisorName?: string | null;
     }>(`/api/supervisor/projects/${projectId}/detail`, { method: 'GET' });
   },
 

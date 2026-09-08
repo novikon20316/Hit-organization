@@ -104,6 +104,8 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   faculty_admin_signoffs: '/faculty_admin/dashboard?tab=signoffs',
   faculty_admin_deadlines: '/faculty_admin/dashboard?tab=deadlines',
   program_head_approvals: '/program_head/dashboard?tab=approvals',
+  division_head_pending: '/division_head/dashboard',
+  dean_pending: '/dean/dashboard',
   grad_school_head_approvals: '/grad_school_head/dashboard?tab=approvals',
   grad_school_head_examiners: '/grad_school_head/dashboard?tab=examiners',
   examiner_defenses: '/examinor/home?tab=defenses',
