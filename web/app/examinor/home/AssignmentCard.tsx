@@ -19,6 +19,10 @@ interface AssignmentCardProps {
    *  examinerFormFields) — opens ExaminerFormFieldsModal instead of the
    *  numeric-rubric GradeExaminerModal. */
   onGradeForm: (m: AssignedMilestone) => void;
+  /** Independent parallel signoff (see workflowTemplates.ts's
+   *  preGradeSignoffs) — a plain one-shot approval, not a score. Only
+   *  meaningful for examinerIds[0]. */
+  onSignoff: (m: AssignedMilestone) => void;
 }
 
 function toDateSafe(val: unknown): Date | null {
@@ -36,7 +40,7 @@ function toDateInputValue(d: Date | null): string | undefined {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeKind, onGradeForm }: AssignmentCardProps) {
+export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeKind, onGradeForm, onSignoff }: AssignmentCardProps) {
   const { lang } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   // Dates the examiner has picked so far (chips), plus whatever's currently
@@ -115,6 +119,14 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   // blocks whenever there's no agreed date at all, not just when there is
   // one and it's still in the future.
   const isBeforeDefense = !m.defenseDate || new Date() < new Date(m.defenseDate);
+  // Independent parallel signoff (see workflowTemplates.ts's
+  // preGradeSignoffs) — checked BEFORE isBeforeDefense below, since this kind
+  // of milestone (e.g. Electrical Engineering's Interim Report) has no
+  // defense date at all and would otherwise be wrongly stuck on "grading
+  // opens after the defense". Only examinerIds[0] ("examiner #1") has
+  // anything to do here; a co-examiner sees a plain status line instead.
+  const isParallelSignoff = !!m.preGradeSignoffs?.examinerOne;
+  const isExaminerOne = m.examinerIds[0] === uid;
 
   // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
   // deliberately duplicated rather than trusted-away, so a rejected date is
@@ -385,7 +397,26 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       )}
 
       <div className="mt-3">
-        {graded ? (
+        {isParallelSignoff ? (
+          m.examinerOneSignoff ? (
+            <span className="block rounded-lg bg-success-bg px-3 py-2 text-center text-xs font-semibold text-success">
+              ✅ {lang === 'he' ? 'האישור נשלח' : 'Sign-off submitted'}
+            </span>
+          ) : isExaminerOne ? (
+            <button
+              type="button"
+              onClick={() => onSignoff(m)}
+              className="w-full rounded-lg px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+              style={{ backgroundColor: facultyColor }}
+            >
+              ✍️ {lang === 'he' ? 'אשר כבוחן ראשי' : 'Sign off as examiner #1'}
+            </button>
+          ) : (
+            <span className="block rounded-lg bg-examinor-surface-container-low px-3 py-2 text-center text-xs font-semibold text-examinor-on-surface-variant">
+              {lang === 'he' ? 'ממתין לאישור הבוחן הראשי' : "Awaiting examiner #1's sign-off"}
+            </span>
+          )
+        ) : graded ? (
           <span className="block rounded-lg bg-success-bg px-3 py-2 text-center text-xs font-semibold text-success">
             ✅ {lang === 'he' ? 'ציון הוגש' : 'Grade submitted'}
           </span>

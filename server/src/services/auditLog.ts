@@ -83,7 +83,13 @@ export type AuditAction =
   // Temporary debug tooling (see config/featureFlags.ts's
   // IMPERSONATION_ENABLED) — a system_admin signing in as another user from
   // the web Users tab.
-  | 'impersonation_started';
+  | 'impersonation_started'
+  // WorkflowMilestoneSpec.preGradeSignoffs — independent, parallel signoffs
+  // unlocked at student-submission time (see services/parallelSignoffs.ts
+  // and parallelSignoffController.ts), distinct from the sequential
+  // committee chain's 'milestone_approved'/'milestone_rejected'.
+  | 'committee_chair_decision_recorded'
+  | 'examiner_one_signoff_recorded';
 
 export interface AuditLogEntry {
   userId: string;

@@ -255,6 +255,11 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         // (e.g. courses still needed) alongside the sign button.
         routing: data.routing ?? null,
         currentStageIndex: data.currentStageIndex ?? 0,
+        // Independent parallel signoffs gating this milestone's grade — see
+        // workflowTemplates.ts's preGradeSignoffs doc comment.
+        preGradeSignoffs: data.preGradeSignoffs ?? null,
+        committeeChairDecision: data.committeeChairDecision ?? null,
+        examinerOneSignoff: data.examinerOneSignoff ?? null,
       };
     });
 
@@ -422,6 +427,13 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             supervisorScore: m?.supervisorScore ?? null,
             gradeApproved: !!m?.gradeApproved,
             gradeOverrideStatus: m?.gradeOverride?.status ?? null,
+            // Independent parallel signoffs gating this milestone's grade —
+            // see workflowTemplates.ts's preGradeSignoffs doc comment. Lets
+            // the supervisor's own view show live status without a separate
+            // round trip, and disable the "Grade" action until both are in.
+            preGradeSignoffs: m?.preGradeSignoffs ?? null,
+            committeeChairDecision: m?.committeeChairDecision ?? null,
+            examinerOneSignoff: m?.examinerOneSignoff ?? null,
           };
         }),
       };

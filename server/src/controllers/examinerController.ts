@@ -149,6 +149,11 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           onlineDefenseLink: milestoneData.onlineDefenseLink ?? null,
           defensePanel: milestoneData.defensePanel ?? [],
           dateMatching: milestoneData.dateMatching ?? null,
+          // Independent parallel signoff (see workflowTemplates.ts's
+          // preGradeSignoffs) — a plain one-shot approval, only meaningful
+          // for examinerIds[0] ("examiner #1"). See AssignmentCard.tsx.
+          preGradeSignoffs: milestoneData.preGradeSignoffs ?? null,
+          examinerOneSignoff: milestoneData.examinerOneSignoff ?? null,
         };
       })
     );

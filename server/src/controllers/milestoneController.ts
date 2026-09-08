@@ -14,6 +14,7 @@ import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../service
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
 import { submissionRequirementMet, resolveMilestoneOrder, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES, type FormFieldSpec, type MilestoneFileType } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
+import { onMilestoneNeedsParallelSignoffs } from '../services/parallelSignoffs.js';
 import { notifyUser } from '../services/notify.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
@@ -285,6 +286,12 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       ...(isChainDriven(milestoneData)
         ? { currentStageIndex: 0, stageScores: {}, supervisorApprovals: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
+      // A stale committee/examiner-#1 signoff from a rejected round must not
+      // count toward this fresh round's own preGradeSignoffs gate — same
+      // reasoning as the stageScores reset above.
+      ...(milestoneData.preGradeSignoffs
+        ? { committeeChairDecision: null, examinerOneSignoff: null, parallelCommitteeId: null }
+        : {}),
     });
 
     // The research-proposal form is where a project's real title first
@@ -322,6 +329,15 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     if (isChainDriven(milestoneData) && milestoneData.routing[0]?.role === 'committee') {
       const freshMilestone = (await milestoneRef.get()).data()!;
       await onEnterCommitteeStage(milestoneId, freshMilestone);
+    }
+
+    // Independent of the chain above — see workflowTemplates.ts's
+    // preGradeSignoffs doc comment. Fires regardless of what routing[0].role
+    // is (typically 'supervisor' here), since this is a parallel side-channel,
+    // not a chain stage.
+    if (milestoneData.preGradeSignoffs) {
+      const freshMilestone = (await milestoneRef.get()).data()!;
+      await onMilestoneNeedsParallelSignoffs(milestoneId, freshMilestone);
     }
 
     // ── Notify supervisor + coordinator/administrative-coordinator staff ───

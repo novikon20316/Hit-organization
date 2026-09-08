@@ -11,12 +11,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient, type CommitteeRecord, type CommitteePendingReview } from '@/lib/apiClient';
+import { apiClient, type CommitteeRecord, type CommitteePendingReview, type ChairDecisionPendingReview } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
 import { STAFF_ROLES } from '@/lib/roles';
 import { EditCommitteeModal } from './EditCommitteeModal';
 import { CommitteeReviewModal } from './CommitteeReviewModal';
+import { ChairDecisionModal } from './ChairDecisionModal';
 
 export default function CommitteesPage() {
   const { loading: guardLoading, isAllowed, firebaseUser, userData } = useRequireRole(STAFF_ROLES);
@@ -26,20 +27,24 @@ export default function CommitteesPage() {
   const [allCommittees, setAllCommittees] = useState<CommitteeRecord[]>([]);
   const [myCommittees, setMyCommittees] = useState<CommitteeRecord[]>([]);
   const [pendingReviews, setPendingReviews] = useState<CommitteePendingReview[]>([]);
+  const [pendingChairDecisions, setPendingChairDecisions] = useState<ChairDecisionPendingReview[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [creatingCommittee, setCreatingCommittee] = useState(false);
   const [editingCommittee, setEditingCommittee] = useState<CommitteeRecord | null>(null);
   const [reviewingMilestoneId, setReviewingMilestoneId] = useState<string | null>(null);
+  const [decidingReview, setDecidingReview] = useState<ChairDecisionPendingReview | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [mine, reviews] = await Promise.all([
+      const [mine, reviews, chairDecisions] = await Promise.all([
         apiClient.getMyCommittees(),
         apiClient.getMyPendingCommitteeReviews(),
+        apiClient.getMyPendingChairDecisions(),
       ]);
       setMyCommittees(mine.committees);
       setPendingReviews(reviews.reviews);
+      setPendingChairDecisions(chairDecisions.reviews);
       if (isSystemAdmin) {
         const all = await apiClient.listCommittees();
         setAllCommittees(all.committees);
@@ -175,6 +180,28 @@ export default function CommitteesPage() {
               </div>
             )}
           </section>
+
+          {pendingChairDecisions.length > 0 && (
+            <section>
+              <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? "החלטות יו\"ר ממתינות" : 'Pending chair decisions'}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {pendingChairDecisions.map((r) => (
+                  <div key={r.milestoneId} className="rounded-lg border border-line bg-surface p-3">
+                    <p className="truncate text-sm font-medium text-ink">{lang === 'he' ? r.nameHe : r.nameEn}</p>
+                    <p className="truncate text-xs text-muted">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
+                    {r.studentNames.length > 0 && <p className="mt-0.5 text-xs text-muted">👤 {r.studentNames.join(', ')}</p>}
+                    <button
+                      type="button"
+                      onClick={() => setDecidingReview(r)}
+                      className="mt-2 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+                    >
+                      {lang === 'he' ? 'החלטה' : 'Decide'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -191,6 +218,9 @@ export default function CommitteesPage() {
           onClose={() => setReviewingMilestoneId(null)}
           onActed={fetchAll}
         />
+      )}
+      {decidingReview && (
+        <ChairDecisionModal review={decidingReview} onClose={() => setDecidingReview(null)} onActed={fetchAll} />
       )}
     </DashboardShell>
   );

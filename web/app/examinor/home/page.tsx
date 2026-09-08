@@ -18,6 +18,7 @@ import { AssignmentCard } from './AssignmentCard';
 import { GradeExaminerModal } from './GradeExaminerModal';
 import { ExaminerEvaluationModal } from './ExaminerEvaluationModal';
 import { ExaminerFormFieldsModal } from './ExaminerFormFieldsModal';
+import { ExaminerSignoffModal } from './ExaminerSignoffModal';
 import type { AssignedMilestone } from './types';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { ASSIGNMENTS_FIELD_GUIDE, ASSIGNMENTS_GUIDE_KEY } from './fieldGuide';
@@ -48,6 +49,7 @@ function ExaminerHomeContent() {
   const [gradingTarget, setGradingTarget] = useState<AssignedMilestone | null>(null);
   const [evaluationTarget, setEvaluationTarget] = useState<{ milestone: AssignedMilestone; kind: 'project' | 'defense' } | null>(null);
   const [formTarget, setFormTarget] = useState<AssignedMilestone | null>(null);
+  const [signoffTarget, setSignoffTarget] = useState<AssignedMilestone | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -106,6 +108,7 @@ function ExaminerHomeContent() {
               examinerEvaluations: live.examinerEvaluations ?? m.examinerEvaluations,
               stageScores: live.stageScores ?? m.stageScores,
               examinerFormAnswers: live.examinerFormAnswers ?? m.examinerFormAnswers,
+              examinerOneSignoff: live.examinerOneSignoff ?? m.examinerOneSignoff,
             };
           })
         );
@@ -152,6 +155,7 @@ function ExaminerHomeContent() {
               onGrade={setGradingTarget}
               onGradeKind={(milestone, kind) => setEvaluationTarget({ milestone, kind })}
               onGradeForm={setFormTarget}
+              onSignoff={setSignoffTarget}
             />
           ))}
           {assignments.length === 0 && <p className="text-sm text-examinor-on-surface-variant">📭 {lang === 'he' ? 'לא הוקצו לך הגנות לבחינה' : 'No defenses assigned to you'}</p>}
@@ -225,6 +229,7 @@ function ExaminerHomeContent() {
 
       {gradingTarget && <GradeExaminerModal key={gradingTarget.id} milestone={gradingTarget} onClose={() => setGradingTarget(null)} onGraded={fetchDashboard} />}
       {formTarget && <ExaminerFormFieldsModal key={formTarget.id} milestone={formTarget} onClose={() => setFormTarget(null)} onSubmitted={fetchDashboard} />}
+      {signoffTarget && <ExaminerSignoffModal key={signoffTarget.id} milestone={signoffTarget} onClose={() => setSignoffTarget(null)} onSubmitted={fetchDashboard} />}
       {evaluationTarget && (
         <ExaminerEvaluationModal
           key={`${evaluationTarget.milestone.id}-${evaluationTarget.kind}`}

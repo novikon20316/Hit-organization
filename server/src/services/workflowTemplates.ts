@@ -393,6 +393,25 @@ export interface WorkflowMilestoneSpec {
   staffRecordMode?: 'none' | 'upload_or_form';
   /** The online-form field list shown when staffRecordMode === 'upload_or_form'. */
   staffFormFields?: FormFieldSpec[];
+  /** Independent, PARALLEL signoffs that unlock the instant the STUDENT
+   *  submits this milestone — not gated behind `routing`/`currentStageIndex`
+   *  at all (unlike ChainStage, where only one stage is ever "current"). Each
+   *  named party gets their own one-shot action, completely decoupled from
+   *  the others: the committee's chairman records a continue/not-continue
+   *  decision (see parallelSignoffController.ts's submitCommitteeChairDecision,
+   *  which writes committeeChairDecision on the milestone doc), and this
+   *  milestone's own examinerIds[0] ("examiner #1") records a plain approval
+   *  (submitExaminerOneSignoff, writes examinerOneSignoff). Only meaningful
+   *  when this milestone's `routing` has a `{role:'supervisor', action:'grade'}`
+   *  first stage — see submitMilestoneGrade's chain-driven branch, which
+   *  refuses to accept that stage's grade until every signoff required here
+   *  is present. `examinerOne` additionally requires `requiresExaminers: true`
+   *  so `examinerIds` actually gets populated (via assignExaminers' existing
+   *  fan-out to every non-defense requiresExaminers milestone on the
+   *  project — see coordinatorController.ts). Omitted keeps every existing
+   *  milestone's behavior unchanged (no gate, supervisor grades whenever the
+   *  chain reaches their stage, same as today). */
+  preGradeSignoffs?: { committee?: boolean; examinerOne?: boolean };
   /** The STUDENT-facing online form for this milestone — when set (non-empty),
    *  the student's "Submit Milestone" action renders these fields (via
    *  submitMilestone's formData branch) instead of the generic file+note

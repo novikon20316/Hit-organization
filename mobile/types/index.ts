@@ -597,6 +597,12 @@ export interface AssignedMilestone {
   // the numeric-rubric grade modal.
   examinerFormFields?: FormFieldSpec[];
   examinerFormAnswers?: Record<string, Record<string, { value: unknown; comment?: string }>>;
+  // Independent, parallel signoff unlocked at student-submission time — see
+  // server/src/services/workflowTemplates.ts's preGradeSignoffs doc comment.
+  // Only meaningful for examinerIds[0] ("examiner #1"); a co-examiner has no
+  // action here at all. A plain one-shot approval, not a score.
+  preGradeSignoffs?: { committee?: boolean; examinerOne?: boolean } | null;
+  examinerOneSignoff?: { approvedBy: string } | null;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.

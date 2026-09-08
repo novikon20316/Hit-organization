@@ -244,6 +244,7 @@ export default function ExaminerHome() {
               examiner1Score: live.examiner1Score ?? null,
               examiner2Score: live.examiner2Score ?? null,
               examinerEvaluations: live.examinerEvaluations ?? m.examinerEvaluations,
+              examinerOneSignoff: live.examinerOneSignoff ?? m.examinerOneSignoff,
             };
           })
         );
@@ -625,6 +626,36 @@ export default function ExaminerHome() {
     }
   };
 
+  // ── Independent parallel signoff (see workflowTemplates.ts's
+  //    preGradeSignoffs) — a plain one-shot approval by examinerIds[0], no
+  //    fields to fill (unlike the form above). Confirmed via Alert since
+  //    it can't be undone once submitted. ────────────────────────────────
+  const [signingOffId, setSigningOffId] = useState<string | null>(null);
+  const handleSignoff = (m: AssignedMilestone) => {
+    Alert.alert(
+      lang === 'he' ? 'אישור כבוחן ראשי' : 'Sign off as examiner #1',
+      lang === 'he' ? 'לא ניתן לבטל לאחר האישור. להמשיך?' : "This cannot be undone once submitted. Continue?",
+      [
+        { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
+        {
+          text: lang === 'he' ? 'אשר' : 'Confirm',
+          onPress: async () => {
+            setSigningOffId(m.id);
+            try {
+              await apiClient.post(`/api/milestones/${m.id}/examiner-one-signoff`, {});
+              await fetchDashboardData();
+            } catch (e) {
+              console.error(e);
+              Alert.alert('Error', String(e));
+            } finally {
+              setSigningOffId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -938,7 +969,38 @@ export default function ExaminerHome() {
                     </Text>
  
                     {/* Grade button — unchanged */}
-                    {graded ? (
+                    {m.preGradeSignoffs?.examinerOne ? (
+                      // Independent parallel signoff (see workflowTemplates.ts's
+                      // preGradeSignoffs) — checked BEFORE the defense-date
+                      // gating below, since this kind of milestone (e.g.
+                      // Electrical Engineering's Interim Report) has no
+                      // defense date at all. Only examinerIds[0] has anything
+                      // to do here.
+                      m.examinerOneSignoff ? (
+                        <View style={styles.gradedBadge}>
+                          <Text style={styles.gradedBadgeText}>
+                            ✅ {lang === 'he' ? 'האישור נשלח' : 'Sign-off submitted'}
+                          </Text>
+                        </View>
+                      ) : m.examinerIds[0] === uid ? (
+                        <Pressable
+                          style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
+                          onPress={() => handleSignoff(m)}
+                          disabled={signingOffId === m.id}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.gradeBtnText}>
+                            ✍️ {lang === 'he' ? 'אשר כבוחן ראשי' : 'Sign off as examiner #1'}
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <View style={[styles.gradedBadge, { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' }]}>
+                          <Text style={[styles.gradedBadgeText, { color: '#64748B' }]}>
+                            {lang === 'he' ? 'ממתין לאישור הבוחן הראשי' : "Awaiting examiner #1's sign-off"}
+                          </Text>
+                        </View>
+                      )
+                    ) : graded ? (
                       <View style={styles.gradedBadge}>
                         <Text style={styles.gradedBadgeText}>
                           ✅ {lang === 'he' ? 'ציון הוגש' : 'Grade submitted'}

@@ -22,6 +22,7 @@ import { notifyUser } from '../services/notify.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense, isIdentityKeyedExaminerOnly } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec, FormFieldSpec, MilestoneFileType } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
+import { onMilestoneNeedsParallelSignoffs } from '../services/parallelSignoffs.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 
 const db = admin.firestore();
@@ -164,6 +165,25 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       const stage = routing[currentStageIndex];
       if (!stage || stage.action !== 'grade') {
         return res.status(400).json({ message: 'This milestone is not currently awaiting a grade submission.' });
+      }
+
+      // See workflowTemplates.ts's preGradeSignoffs doc comment — independent
+      // parallel signoffs (committee chair decision, examiner #1 approval)
+      // that must both be recorded before the FIRST grade stage (currentStageIndex
+      // 0) can be submitted. Only meaningful there — a later grade stage (e.g.
+      // a second co-grader) was never gated by this in the first place.
+      const preGradeSignoffs: { committee?: boolean; examinerOne?: boolean } | undefined = data.preGradeSignoffs;
+      if (preGradeSignoffs && currentStageIndex === 0) {
+        const missing: string[] = [];
+        if (preGradeSignoffs.committee && !data.committeeChairDecision) missing.push('committee chair decision');
+        if (preGradeSignoffs.examinerOne && !data.examinerOneSignoff) missing.push('examiner #1 sign-off');
+        if (missing.length > 0) {
+          return res.status(400).json({
+            message: `Awaiting ${missing.join(' and ')} before this milestone can be graded.`,
+            messageHe: 'לא ניתן לדרג אבן דרך זו לפני קבלת החלטת יו"ר הוועדה וחתימת הבוחן הראשי.',
+            messageEn: `Awaiting ${missing.join(' and ')} before this milestone can be graded.`,
+          });
+        }
       }
 
       const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: data.facultyId ?? '' };
@@ -1290,7 +1310,19 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       ...(isChainDriven(milestoneData)
         ? { currentStageIndex: 0, stageScores: {}, supervisorApprovals: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
         : {}),
+      // Same preGradeSignoffs reset as the web submit route
+      // (milestoneController.ts's submitMilestone) — see its comment.
+      ...(milestoneData.preGradeSignoffs
+        ? { committeeChairDecision: null, examinerOneSignoff: null, parallelCommitteeId: null }
+        : {}),
     });
+
+    // Independent of the chain — see workflowTemplates.ts's preGradeSignoffs
+    // doc comment and milestoneController.ts's submitMilestone (same hook).
+    if (milestoneData.preGradeSignoffs) {
+      const freshMilestone = (await milestoneRef.get()).data()!;
+      await onMilestoneNeedsParallelSignoffs(milestoneId, freshMilestone);
+    }
 
     // Same project-title propagation as the web submit route
     // (milestoneController.ts's submitMilestone) — see its comment.

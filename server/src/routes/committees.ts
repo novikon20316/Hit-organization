@@ -7,6 +7,7 @@ import {
   updateCommittee,
 } from '../controllers/committeeController.js';
 import { getMyPendingCommitteeReviews } from '../controllers/committeeReviewController.js';
+import { getMyPendingChairDecisions } from '../controllers/parallelSignoffController.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -15,6 +16,9 @@ const router = Router();
 // mistaken for a committee id.
 router.get('/mine', verifyToken, getMyCommittees);
 router.get('/mine/pending-reviews', verifyToken, getMyPendingCommitteeReviews);
+// See workflowTemplates.ts's preGradeSignoffs — the parallel sibling of
+// pending-reviews above, for milestones outside the sequential chain.
+router.get('/mine/pending-chair-decisions', verifyToken, getMyPendingChairDecisions);
 router.get('/eligible-members', verifyToken, listEligibleCommitteeMembers);
 router.get('/', verifyToken, listCommittees);
 router.post('/', verifyToken, createCommittee);

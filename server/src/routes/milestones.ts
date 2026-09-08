@@ -11,6 +11,7 @@ import {
 } from '../controllers/milestoneController.js'
 import { submitRevisionDecision, getExaminerOpinions } from '../controllers/revisionDecisionController.js';
 import { getCommitteeReview, submitCommitteeVote, submitCommitteeDecision } from '../controllers/committeeReviewController.js';
+import { submitCommitteeChairDecision, submitExaminerOneSignoff, getParallelSignoffStatus } from '../controllers/parallelSignoffController.js';
 const router = Router();
 
 // GET /api/milestones  — fetch milestones by query params
@@ -35,6 +36,16 @@ router.get('/:id/committee-review', verifyToken, getCommitteeReview)
 router.post('/:id/committee-vote', verifyToken, submitCommitteeVote)
 // POST /api/milestones/:id/committee-decision — the chairman's one final, binding decision
 router.post('/:id/committee-decision', verifyToken, submitCommitteeDecision)
+
+// See workflowTemplates.ts's preGradeSignoffs — independent, parallel
+// signoffs unlocked at student-submission time, decoupled from the routing
+// chain above (see services/parallelSignoffs.ts and parallelSignoffController.ts).
+// GET /api/milestones/:id/parallel-signoffs — read-only status
+router.get('/:id/parallel-signoffs', verifyToken, getParallelSignoffStatus)
+// POST /api/milestones/:id/committee-chair-decision — committee chairman only
+router.post('/:id/committee-chair-decision', verifyToken, submitCommitteeChairDecision)
+// POST /api/milestones/:id/examiner-one-signoff — this milestone's examinerIds[0] only
+router.post('/:id/examiner-one-signoff', verifyToken, submitExaminerOneSignoff)
 
 
 export default router;

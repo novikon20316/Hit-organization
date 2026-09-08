@@ -2477,6 +2477,12 @@ export const apiClient = {
     return request<{ reviews: CommitteePendingReview[] }>('/api/committees/mine/pending-reviews', { method: 'GET' });
   },
 
+  // See workflowTemplates.ts's preGradeSignoffs — the parallel sibling of
+  // pending-reviews above, for milestones outside the sequential chain.
+  async getMyPendingChairDecisions() {
+    return request<{ reviews: ChairDecisionPendingReview[] }>('/api/committees/mine/pending-chair-decisions', { method: 'GET' });
+  },
+
   async getCommitteeReview(milestoneId: string) {
     return request<CommitteeReviewDetail>(`/api/milestones/${milestoneId}/committee-review`, { method: 'GET' });
   },
@@ -2532,6 +2538,18 @@ export interface CommitteePendingReview {
   alreadyVoted: boolean;
   voteCount: number;
   memberCount: number;
+}
+
+export interface ChairDecisionPendingReview {
+  milestoneId: string;
+  type: string;
+  nameHe: string;
+  nameEn: string;
+  projectId: string | null;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  studentNames: string[];
+  submittedAt: string | null;
 }
 
 export interface CommitteeVoteRecord {

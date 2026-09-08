@@ -95,6 +95,11 @@ interface PendingMilestone {
   // server/src/services/workflowTemplates.ts.
   routing?: RoutingStage[] | null;
   currentStageIndex?: number;
+  // Independent parallel signoffs gating this milestone's grade — see
+  // server/src/services/workflowTemplates.ts's preGradeSignoffs doc comment.
+  preGradeSignoffs?: { committee?: boolean; examinerOne?: boolean } | null;
+  committeeChairDecision?: { decision: 'continue' | 'not_continue'; reason: string } | null;
+  examinerOneSignoff?: { approvedBy: string } | null;
 }
 
 interface Examiner {
@@ -1567,23 +1572,46 @@ export default function SupervisorHome() {
                               <Text style={styles.gradeBtnText}>✍️ {lang === 'he' ? 'חתום על הצעת המחקר' : 'Sign the research proposal'}</Text>
                             </Pressable>
                           )
-                        ) : (
-                          <Pressable
-                            style={[styles.gradeBtn, { backgroundColor: fc.primary, marginTop: 4 }]}
-                            onPress={(e) => {
-                              e.stopPropagation(); // prevent collapsing layout card
-                              setActiveMilestone(m);
-                              setGradeComment('');
-                              setCriteria(Object.fromEntries(activeGradingFields(m).map((f) => [f.key, ''])));
-                              setIndividualScores({});
-                              setGradeMilestone(m);
-                              setGradeModal(true);
-                            }}
-                            accessibilityRole="button"
-                          >
-                            <Text style={styles.gradeBtnText}>✏️ {lang === 'he' ? 'תן ציון' : 'Grade'}</Text>
-                          </Pressable>
-                        )}
+                        ) : (() => {
+                          // See workflowTemplates.ts's preGradeSignoffs — the
+                          // committee chair's decision and/or examiner #1's
+                          // sign-off must both be recorded before the
+                          // supervisor may grade this milestone (matches the
+                          // server-side gate in submitMilestoneGrade).
+                          const missingSignoffs: string[] = [];
+                          if (m.preGradeSignoffs?.committee && !m.committeeChairDecision) {
+                            missingSignoffs.push(lang === 'he' ? 'החלטת יו"ר הוועדה' : "the committee chair's decision");
+                          }
+                          if (m.preGradeSignoffs?.examinerOne && !m.examinerOneSignoff) {
+                            missingSignoffs.push(lang === 'he' ? 'חתימת הבוחן הראשי' : "examiner #1's sign-off");
+                          }
+                          if (missingSignoffs.length > 0) {
+                            return (
+                              <Text style={[isRtl && styles.textRight, { color: ap.onSurfaceVariant, fontSize: 12, marginTop: 4 }]}>
+                                ⏳ {lang === 'he'
+                                  ? `ממתין ל${missingSignoffs.join(' ול')} לפני מתן ציון`
+                                  : `Awaiting ${missingSignoffs.join(' and ')} before this can be graded`}
+                              </Text>
+                            );
+                          }
+                          return (
+                            <Pressable
+                              style={[styles.gradeBtn, { backgroundColor: fc.primary, marginTop: 4 }]}
+                              onPress={(e) => {
+                                e.stopPropagation(); // prevent collapsing layout card
+                                setActiveMilestone(m);
+                                setGradeComment('');
+                                setCriteria(Object.fromEntries(activeGradingFields(m).map((f) => [f.key, ''])));
+                                setIndividualScores({});
+                                setGradeMilestone(m);
+                                setGradeModal(true);
+                              }}
+                              accessibilityRole="button"
+                            >
+                              <Text style={styles.gradeBtnText}>✏️ {lang === 'he' ? 'תן ציון' : 'Grade'}</Text>
+                            </Pressable>
+                          );
+                        })()}
                       </View>
                     )}
                   </Pressable>
