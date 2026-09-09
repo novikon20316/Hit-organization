@@ -77,8 +77,9 @@ async function logPermissionDenied(req: AuthenticatedRequest, entityType: string
 export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: Response) => {
   const uid  = req.user?.uid;
   const role = req.user?.role;
+  const roles = req.user?.roles ?? [];
 
-  if (role !== 'system_admin') {
+  if (role !== 'system_admin' && !roles.includes('system_admin')) {
     await logPermissionDenied(req, 'admin_dashboard_summary', uid ?? 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
@@ -217,8 +218,9 @@ export const impersonateUser = async (req: AuthenticatedRequest, res: Response) 
  */
 export const getAdminProjectMilestones = async (req: AuthenticatedRequest, res: Response) => {
   const role = req.user?.role;
+  const roles = req.user?.roles ?? [];
 
-  if (role !== 'system_admin') {
+  if (role !== 'system_admin' && !roles.includes('system_admin')) {
     await logPermissionDenied(req, 'admin_project_milestones', typeof req.query.projectId === 'string' ? req.query.projectId : 'unknown');
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
   }
@@ -562,7 +564,7 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
  * createImportedUserAccount — see that function for the reference pattern.
  */
 export const createAdminUser = async (req: AuthenticatedRequest, res: Response) => {
-  const isSystemAdmin = req.user?.role === 'system_admin';
+  const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
 
   try {
     // tempPassword is never persisted to Firestore — split it out of the
@@ -777,7 +779,7 @@ export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Respons
  * Changes a user's operational privileges (e.g., 'student' -> 'supervisor').
  */
 export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Response) => {
-  const isSystemAdmin = req.user?.role === 'system_admin';
+  const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
 
   const { id: userId } = req.params;
   const {
@@ -1256,7 +1258,7 @@ export const liftLoginLockout = async (req: AuthenticatedRequest, res: Response)
  * permanent delete, so it always shows up restorable in the Archived tab.
  */
 export const deleteAdminProject = async (req: AuthenticatedRequest, res: Response) => {
-  const isSystemAdmin = req.user?.role === 'system_admin';
+  const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
 
   const { id: projectId } = req.params;
   if(!projectId || typeof projectId !== 'string'){
