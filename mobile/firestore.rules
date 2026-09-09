@@ -23,6 +23,14 @@ service cloud.firestore {
     function role(u) {
       return u.role;
     }
+    // Matches a user's main role OR any of their additional roles (u.roles,
+    // e.g. a supervisor also granted system_admin) — for the few rules below
+    // that need to recognize an additional-role holder the way the Express
+    // API already does (see server/src/middleware/auth.ts's hasAnyRole).
+    // Most role checks in this file intentionally stay main-role-only.
+    function hasRole(u, r) {
+      return role(u) == r || (r in u.get('roles', []));
+    }
     function facultyId(u) {
       return u.get('facultyId', '');
     }
@@ -526,15 +534,18 @@ service cloud.firestore {
     // (checking status, confirming/denying) goes through the Express API
     // (services/loginSecurity.ts) via the Admin SDK, which bypasses rules
     // entirely, so denying all client writes here doesn't break the feature.
-    // Reads are opened to system_admin only (same role(userDoc()) ==
-    // 'system_admin' pattern used for `users` above) so the admin panel's
-    // locked-accounts panel can listen live via onSnapshot instead of
-    // polling GET /api/admin/login-security/locked — this doesn't expose
-    // anything system_admin couldn't already fetch through that endpoint,
-    // just a live path to the same data. Still denied to every other
-    // signed-in (or, since login can be failing, unauthenticated) client.
+    // Reads are opened to system_admin only (main role OR an additional
+    // role — see hasRole() above; the REST endpoint this mirrors,
+    // GET /api/admin/login-security/locked, already checks both via
+    // hasAnyRole, so a system_admin held as an additional role must not be
+    // denied here while that same account can fetch the identical data
+    // through the API) so the admin panel's locked-accounts panel can listen
+    // live via onSnapshot instead of polling that endpoint — this doesn't
+    // expose anything system_admin couldn't already fetch through it, just a
+    // live path to the same data. Still denied to every other signed-in (or,
+    // since login can be failing, unauthenticated) client.
     match /loginSecurityIncidents/{code} {
-      allow read: if isSignedIn() && role(userDoc()) == 'system_admin';
+      allow read: if isSignedIn() && hasRole(userDoc(), 'system_admin');
       allow write: if false;
     }
 

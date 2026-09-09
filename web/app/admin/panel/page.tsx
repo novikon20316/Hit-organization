@@ -198,7 +198,7 @@ function AdminPanelContent() {
         // Previously silent when this failed (console.error only) — the
         // "Locked Accounts" stat card would just show 0, indistinguishable
         // from "actually zero locked accounts."
-        if (err?.code === 'permission-denied') return; // expected during sign-out
+        if (err?.code === 'permission-denied') { setLoadingLocked(false); return; } // expected during sign-out — still clear loading so a stuck permission error never leaves the spinner up forever
         console.error('Failed to load locked accounts:', err);
         setLockedUsersError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת חשבונות נעולים נכשלה' : 'Failed to load locked accounts');
         setLoadingLocked(false);
