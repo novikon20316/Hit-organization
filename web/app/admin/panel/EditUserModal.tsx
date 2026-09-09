@@ -200,14 +200,14 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'עריכת משתמש' : 'Edit User'}</h2>
-        <p className="mt-1 text-sm text-muted">{user.displayName} — {user.email}</p>
+        <h2 className="text-lg font-semibold text-admin-on-surface">{lang === 'he' ? 'עריכת משתמש' : 'Edit User'}</h2>
+        <p className="mt-1 text-sm text-admin-on-surface-variant">{user.displayName} — {user.email}</p>
 
         <div className="mt-4 grid gap-4">
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תפקיד ראשי' : 'Primary Role'}</span>
+            <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'תפקיד ראשי' : 'Primary Role'}</span>
             <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
               {roleOptions.map((r) => (
                 <option key={r} value={r}>
@@ -219,7 +219,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
 
           {!scope?.lockedFacultyId && (
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
               <select value={facultyId} onChange={(e) => handleFacultyChange(e.target.value)} className={inputCls}>
                 {VALID_FACULTY_IDS.map((id) => (
                   <option key={id} value={id}>
@@ -233,7 +233,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
           {isStudent && (
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}</span>
+                <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}</span>
                 <select value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.primary.map((o) => (
@@ -244,7 +244,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                 </select>
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}</span>
+                <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}</span>
                 <select value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.secondary.map((o) => (
@@ -259,10 +259,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
 
           {isSupervisorLike && (
             <div>
-              <span className="mb-1.5 block text-sm font-medium text-ink">
+              <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
                 {lang === 'he' ? 'מגמות משויכות (אופציונלי)' : 'Assigned Majors (optional)'}
               </span>
-              <p className="mb-1.5 text-xs text-muted">
+              <p className="mb-1.5 text-xs text-admin-on-surface-variant">
                 {lang === 'he'
                   ? 'ללא בחירה — המנחה יהיה משויך לכל המגמות בפקולטה.'
                   : 'Leave unselected to allow all majors in the faculty.'}
@@ -276,7 +276,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                       type="button"
                       onClick={() => toggleAssignedMajor(m.slug)}
                       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                        checked ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface hover:border-admin-primary'
                       }`}
                     >
                       {m.label[lang]}
@@ -284,7 +284,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                   );
                 })}
                 {assignedMajorOptions.length === 0 && (
-                  <span className="text-xs text-muted">{lang === 'he' ? 'אין מגמות לפקולטה זו' : 'No majors for this faculty'}</span>
+                  <span className="text-xs text-admin-on-surface-variant">{lang === 'he' ? 'אין מגמות לפקולטה זו' : 'No majors for this faculty'}</span>
                 )}
               </div>
             </div>
@@ -304,10 +304,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             const article = /^[aeiou]/i.test(label) ? 'an' : 'a';
             return (
               <div key={field}>
-                <span className="mb-1.5 block text-sm font-medium text-ink">
+                <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
                   {lang === 'he' ? `${label} גם בפקולטות נוספות (אופציונלי)` : `Also ${article} ${label} in additional faculties (optional)`}
                 </span>
-                <p className="mb-1.5 text-xs text-muted">
+                <p className="mb-1.5 text-xs text-admin-on-surface-variant">
                   {facultyId === 'all'
                     ? (lang === 'he'
                       ? `ללא בחירה — המשתמש יופיע כ${label} זמין בכל הפקולטות (ברירת המחדל לתפקיד חוצה-פקולטות). סמן פקולטות ספציפיות כדי להגביל אליהן בלבד.`
@@ -325,7 +325,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                         type="button"
                         onClick={() => toggleRoleFaculty(field, id)}
                         className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                          checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                          checked ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface hover:border-admin-primary'
                         }`}
                       >
                         {facultyLabel(id, lang)}
@@ -338,7 +338,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
           })}
 
           <div>
-            <span className="mb-1.5 block text-sm font-medium text-ink">
+            <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
               {lang === 'he' ? 'תפקידים נוספים (אופציונלי)' : 'Additional Roles (optional)'}
             </span>
             <div className="flex flex-wrap gap-2">
@@ -350,7 +350,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                     type="button"
                     onClick={() => toggleAdditionalRole(r)}
                     className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                      checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                      checked ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface hover:border-admin-primary'
                     }`}
                   >
                     {roleLabel(r, lang)}
@@ -361,10 +361,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
           </div>
 
           {!scope && (
-            <label className="flex items-center justify-between gap-3 rounded-lg border border-line bg-paper px-3.5 py-2.5">
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3.5 py-2.5">
               <span>
-                <span className="block text-sm font-medium text-ink">🚫 {lang === 'he' ? 'פטור מחובת אימות דו-שלבי (2FA)' : 'Exempt from 2FA enforcement'}</span>
-                <span className="block text-xs text-muted">
+                <span className="block text-sm font-medium text-admin-on-surface">🚫 {lang === 'he' ? 'פטור מחובת אימות דו-שלבי (2FA)' : 'Exempt from 2FA enforcement'}</span>
+                <span className="block text-xs text-admin-on-surface-variant">
                   {lang === 'he'
                     ? 'המשתמש לא יחסם גם אם המערכת מחייבת 2FA לכולם. ניתן לבטל בכל עת.'
                     : "This user won't be blocked even while system-wide 2FA enforcement is active. Reversible any time."}
@@ -378,10 +378,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
           <button
             type="button"
             onClick={() => setPermissionsModalOpen(true)}
-            className="flex items-center justify-between rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm font-medium text-ink hover:border-primary"
+            className="flex items-center justify-between rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3.5 py-2.5 text-sm font-medium text-admin-on-surface hover:border-admin-primary"
           >
             <span>🔐 {lang === 'he' ? 'הרשאות מפורטות' : 'Granular Permissions'}</span>
-            <span className="text-muted">
+            <span className="text-admin-on-surface-variant">
               {permissionRules.length > 0
                 ? (lang === 'he' ? `${permissionRules.length} כללים ›` : `${permissionRules.length} rules ›`)
                 : '›'}
@@ -395,7 +395,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             <button
               type="button"
               onClick={() => setScopesModalOpen(true)}
-              className="flex items-center justify-between rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm font-medium text-ink hover:border-primary"
+              className="flex items-center justify-between rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3.5 py-2.5 text-sm font-medium text-admin-on-surface hover:border-admin-primary"
             >
               <span>
                 📋{' '}
@@ -403,7 +403,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                   ? lang === 'he' ? 'תחום אחריות (רכזת)' : 'Subject Responsibility'
                   : lang === 'he' ? 'היקף אחריות רכז' : 'Coordinator Scope'}
               </span>
-              <span className="text-muted">
+              <span className="text-admin-on-surface-variant">
                 {coordinatorScopes.length > 0
                   ? (lang === 'he' ? `${coordinatorScopes.length} תחומים ›` : `${coordinatorScopes.length} scopes ›`)
                   : '›'}
@@ -415,14 +415,14 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-admin-outline-variant px-3.5 py-2 text-sm font-medium text-admin-on-surface hover:bg-admin-surface-container-low">
             {lang === 'he' ? 'ביטול' : 'Cancel'}
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container disabled:opacity-60"
           >
             {saving ? '…' : lang === 'he' ? 'שמור' : 'Save'}
           </button>
@@ -449,4 +449,4 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   );
 }
 
-const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+const inputCls = 'w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none';

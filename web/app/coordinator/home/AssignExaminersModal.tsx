@@ -148,14 +148,14 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-coordinator-lg bg-coordinator-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <FieldGuideOverlay guideKey={ASSIGN_EXAMINERS_GUIDE_KEY} steps={ASSIGN_EXAMINERS_FIELD_GUIDE.filter((s) => s.key !== 'weights' || !isThreeRubricDefense)} />
-        <h2 className="flex items-center text-lg font-semibold text-ink">
+        <h2 className="flex items-center text-lg font-semibold text-coordinator-on-surface">
           {lang === 'he' ? 'שיבוץ בוחנים' : 'Assign Examiners'}
           <InfoTooltip text={assignGuideEntry('examinerSlots').description} />
         </h2>
-        <p className="mt-1 text-sm text-muted">{lang === 'he' ? milestone.projectTitleHe : milestone.projectTitleEn}</p>
+        <p className="mt-1 text-sm text-coordinator-on-surface-variant">{lang === 'he' ? milestone.projectTitleHe : milestone.projectTitleEn}</p>
 
         <div data-field-guide-id="examinerSlots">
         {slots.map((slot, idx) => (
@@ -173,21 +173,21 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
         <button
           type="button"
           onClick={addSlot}
-          className="mt-3 w-full rounded-lg border border-dashed border-primary px-3 py-2 text-sm font-semibold text-primary hover:bg-paper"
+          className="mt-3 w-full rounded-lg border border-dashed border-coordinator-primary px-3 py-2 text-sm font-semibold text-coordinator-primary hover:bg-coordinator-surface-container-low"
         >
           ＋ {lang === 'he' ? 'הוסף בוחן' : 'Add examiner'}
         </button>
         </div>
 
         {isThreeRubricDefense ? (
-          <div className="mt-4 rounded-lg bg-paper p-3 text-xs text-muted">
+          <div className="mt-4 rounded-lg bg-coordinator-surface-container-low p-3 text-xs text-coordinator-on-surface-variant">
             {lang === 'he'
               ? 'ציון סופי: מנחה 40% · הערכת עבודה 30% (ממוצע בין הבוחנים) · הערכת הגנה 30% (ממוצע בין הבוחנים) — המשקלות קבועות ואינן תלויות במספר הבוחנים.'
               : 'Final grade: Supervisor 40% · Project evaluation 30% (averaged across examiners) · Defense evaluation 30% (averaged across examiners) — fixed regardless of how many examiners are on the panel.'}
           </div>
         ) : (
           <div data-field-guide-id="weights" className="mt-4">
-            <span className="mb-1.5 block text-sm font-medium text-ink">
+            <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">
               {lang === 'he' ? 'משקלות ציון (סה"כ 100%)' : 'Grade Weights (must total 100%)'}
               <InfoTooltip text={assignGuideEntry('weights').description} />
             </span>
@@ -205,14 +205,14 @@ export function AssignExaminersModal({ milestone, examiners, onClose, onAssigned
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-coordinator-outline-variant px-3.5 py-2 text-sm font-medium text-coordinator-on-surface hover:bg-coordinator-surface-container-low">
             {lang === 'he' ? 'ביטול' : 'Cancel'}
           </button>
           <button
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-coordinator-primary px-3.5 py-2 text-sm font-semibold text-coordinator-on-primary hover:bg-coordinator-primary-container disabled:opacity-60"
           >
             {submitting ? '…' : lang === 'he' ? 'שבץ בוחנים' : 'Assign Examiners'}
           </button>
@@ -237,21 +237,21 @@ function ExaminerSlotRow({
   examiners: ExaminerUser[];
   lang: 'he' | 'en';
 }) {
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none';
   const label = lang === 'he' ? `בוחן ${index + 1}` : `Examiner ${index + 1}`;
   return (
-    <div className="mt-4 rounded-lg border border-line p-3">
+    <div className="mt-4 rounded-lg border border-coordinator-outline-variant p-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-ink">{label}</span>
+        <span className="text-sm font-medium text-coordinator-on-surface">{label}</span>
         <div className="flex items-center gap-2">
-          <div className="flex gap-1 rounded-full bg-paper p-0.5">
+          <div className="flex gap-1 rounded-full bg-coordinator-surface-container-low p-0.5">
             {(['internal', 'external'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => onChange({ type: t })}
                 className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                  slot.type === t ? 'bg-primary text-primary-ink' : 'text-muted'
+                  slot.type === t ? 'bg-coordinator-primary text-coordinator-on-primary' : 'text-coordinator-on-surface-variant'
                 }`}
               >
                 {t === 'internal' ? (lang === 'he' ? 'פנימי' : 'Internal') : lang === 'he' ? 'חיצוני' : 'External'}
@@ -259,7 +259,7 @@ function ExaminerSlotRow({
             ))}
           </div>
           {onRemove && (
-            <button type="button" onClick={onRemove} className="text-muted hover:text-danger" aria-label={lang === 'he' ? 'הסר בוחן' : 'Remove examiner'}>
+            <button type="button" onClick={onRemove} className="text-coordinator-on-surface-variant hover:text-danger" aria-label={lang === 'he' ? 'הסר בוחן' : 'Remove examiner'}>
               ✕
             </button>
           )}
@@ -305,15 +305,15 @@ function ExaminerSlotRow({
 function WeightField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-muted">{label}</span>
+      <span className="mb-1 block text-xs text-coordinator-on-surface-variant">{label}</span>
       <div className="relative">
         <input
           type="number"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-line bg-paper px-3 py-2 pe-6 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+          className="w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 pe-6 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none"
         />
-        <span className="absolute inset-y-0 end-2 flex items-center text-xs text-muted">%</span>
+        <span className="absolute inset-y-0 end-2 flex items-center text-xs text-coordinator-on-surface-variant">%</span>
       </div>
     </label>
   );

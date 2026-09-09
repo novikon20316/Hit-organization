@@ -112,27 +112,27 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">🔐 {isHe ? 'אכיפת אימות דו-שלבי (2FA)' : 'Enforce Two-Factor Authentication (2FA)'}</h2>
-          <button type="button" onClick={onClose} aria-label={isHe ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-admin-on-surface">🔐 {isHe ? 'אכיפת אימות דו-שלבי (2FA)' : 'Enforce Two-Factor Authentication (2FA)'}</h2>
+          <button type="button" onClick={onClose} aria-label={isHe ? 'סגור' : 'Close'} className="text-admin-on-surface-variant hover:text-admin-on-surface">
             ✕
           </button>
         </div>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-admin-on-surface-variant">
           {isHe
             ? 'כל המשתמשים יקבלו הודעה (במערכת + אימייל) בעברית ובאנגלית, עם הסבר כיצד להפעיל. בתום התקופה, מי שלא הגדיר יחויב לסרוק קוד QR לפני המשך שימוש.'
             : 'Every user gets a notice (in-app + email) in Hebrew and English explaining how to enable it. Once the deadline passes, anyone who hasn\'t set it up will be required to scan a QR code before continuing.'}
         </p>
 
-        <div className="mt-4 rounded-lg bg-paper p-3">
+        <div className="mt-4 rounded-lg bg-admin-surface-container-low p-3">
           {statusLoading ? (
-            <p className="text-xs text-muted">{isHe ? 'טוען סטטוס…' : 'Loading status…'}</p>
+            <p className="text-xs text-admin-on-surface-variant">{isHe ? 'טוען סטטוס…' : 'Loading status…'}</p>
           ) : status?.active ? (
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-ink">
+                <p className="text-sm font-semibold text-admin-on-surface">
                   {isHe ? 'אכיפה פעילה — ' : 'Enforcement active — '}
                   <span className={pastDeadline ? 'text-danger' : 'text-success'}>
                     {pastDeadline
@@ -141,7 +141,7 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
                   </span>
                 </p>
                 {status.deadline && (
-                  <p className="mt-0.5 text-xs text-muted">
+                  <p className="mt-0.5 text-xs text-admin-on-surface-variant">
                     {isHe ? 'תאריך יעד: ' : 'Deadline: '}
                     {new Date(status.deadline).toLocaleDateString(isHe ? 'he-IL' : 'en-US')}
                   </p>
@@ -157,12 +157,12 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
               </button>
             </div>
           ) : (
-            <p className="text-sm text-ink">{isHe ? 'אין אכיפה פעילה כרגע' : 'No enforcement currently active'}</p>
+            <p className="text-sm text-admin-on-surface">{isHe ? 'אין אכיפה פעילה כרגע' : 'No enforcement currently active'}</p>
           )}
         </div>
 
-        <div className="mt-5 border-t border-line pt-4">
-          <p className="mb-1.5 text-sm font-medium text-ink">⏳ {isHe ? 'תקופת התארגנות' : 'Grace period'}</p>
+        <div className="mt-5 border-t border-admin-outline-variant pt-4">
+          <p className="mb-1.5 text-sm font-medium text-admin-on-surface">⏳ {isHe ? 'תקופת התארגנות' : 'Grace period'}</p>
           <div className="flex flex-wrap gap-1.5">
             {DAY_OPTIONS.map((d) => (
               <button
@@ -170,7 +170,7 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
                 type="button"
                 onClick={() => setGraceDays(d)}
                 className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                  graceDays === d ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                  graceDays === d ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface'
                 }`}
               >
                 {d} {isHe ? (d === 1 ? 'יום' : 'ימים') : d === 1 ? 'day' : 'days'}
@@ -179,22 +179,22 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
           </div>
         </div>
 
-        <div className="mt-4 rounded-lg bg-paper p-3">
-          <p className="mb-1 text-xs font-semibold text-muted">👁️ {isHe ? 'מה המשתמשים יקבלו' : 'What users will receive'}</p>
-          <p className="whitespace-pre-line text-xs text-ink">{previewText}</p>
+        <div className="mt-4 rounded-lg bg-admin-surface-container-low p-3">
+          <p className="mb-1 text-xs font-semibold text-admin-on-surface-variant">👁️ {isHe ? 'מה המשתמשים יקבלו' : 'What users will receive'}</p>
+          <p className="whitespace-pre-line text-xs text-admin-on-surface">{previewText}</p>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-admin-outline-variant px-3.5 py-2 text-sm font-medium text-admin-on-surface hover:bg-admin-surface-container-low">
             {isHe ? 'סגור' : 'Close'}
           </button>
           <button
             type="button"
             onClick={handleActivate}
             disabled={activating}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container disabled:opacity-60"
           >
             {activating
               ? '…'

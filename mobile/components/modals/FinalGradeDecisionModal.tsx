@@ -11,6 +11,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { apiClient } from '../../src/api/apiClient';
+import { ap } from '../../constants/theme';
 import type { Lang } from '../i18n';
 
 type PickedFile = { uri: string; name: string; mimeType?: string };
@@ -127,9 +128,9 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <ScrollView style={{ flex: 1, backgroundColor: '#F8FAFC' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: ap.surfaceContainerLow }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E293B' }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: ap.onSurface }}>
             {lang === 'he' ? 'ציון סופי מחושב' : 'Computed Final Grade'}
           </Text>
           <Pressable
@@ -137,27 +138,27 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
             accessibilityRole="button"
             accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
           >
-            <Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text>
+            <Text style={{ fontSize: 20, color: ap.outline }}>✕</Text>
           </Pressable>
         </View>
 
-        <View style={{ marginTop: 16, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', padding: 16, alignItems: 'center' }}>
-          <Text style={{ fontSize: 12, color: '#64748B' }}>
+        <View style={{ marginTop: 16, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: ap.outlineVariant, padding: 16, alignItems: 'center' }}>
+          <Text style={{ fontSize: 12, color: ap.outline }}>
             {lang === 'he' ? 'הציון המחושב אוטומטית' : 'Automatically calculated grade'}
           </Text>
-          <Text style={{ fontSize: 32, fontWeight: '800', color: '#1E293B', marginTop: 4 }}>{autoCalculatedFinalGrade}</Text>
+          <Text style={{ fontSize: 32, fontWeight: '800', color: ap.onSurface, marginTop: 4 }}>{autoCalculatedFinalGrade}</Text>
         </View>
 
         <View style={{ marginTop: 16 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 8 }}>
             {lang === 'he' ? 'קובץ מצורף (אופציונלי — למשל טופס הציון הסופי החתום)' : 'Attached file (optional — e.g. the signed final-grade form)'}
           </Text>
           <Pressable
             onPress={pickFile}
-            style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+            style={{ borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
             accessibilityRole="button"
           >
-            <Text style={{ fontSize: 13, color: file ? '#1E293B' : '#94A3B8' }}>
+            <Text style={{ fontSize: 13, color: file ? ap.onSurface : ap.outline }}>
               {file ? `📄 ${file.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
             </Text>
           </Pressable>
@@ -182,10 +183,10 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
             </Pressable>
             <Pressable
               onPress={() => setMode('override')}
-              style={{ borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1', paddingVertical: 12, alignItems: 'center' }}
+              style={{ borderRadius: 10, borderWidth: 1.5, borderColor: ap.outlineVariant, paddingVertical: 12, alignItems: 'center' }}
               accessibilityRole="button"
             >
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B' }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: ap.onSurface }}>
                 {lang === 'he' ? 'שנה את הציון' : 'Change the grade'}
               </Text>
             </Pressable>
@@ -193,24 +194,24 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
         ) : (
           <View style={{ marginTop: 16, gap: 14 }}>
             <View>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6 }}>
                 {lang === 'he' ? 'ציון חדש' : 'New grade'}
               </Text>
               <TextInput
-                style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff' }}
+                style={{ borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11, fontSize: 14, color: ap.onSurface, backgroundColor: '#fff' }}
                 value={overrideGrade}
                 onChangeText={setOverrideGrade}
                 keyboardType="numeric"
               />
             </View>
             <View>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6 }}>
                 {lang === 'he' ? 'נימוק לשינוי (חובה)' : 'Reason for the change (required)'}
               </Text>
               <TextInput
                 style={{
-                  borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, padding: 11,
-                  fontSize: 14, color: '#1E293B', backgroundColor: '#fff', minHeight: 80, textAlignVertical: 'top',
+                  borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11,
+                  fontSize: 14, color: ap.onSurface, backgroundColor: '#fff', minHeight: 80, textAlignVertical: 'top',
                 }}
                 value={reason}
                 onChangeText={setReason}
@@ -219,7 +220,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
                 textAlign={isRtl ? 'right' : 'left'}
               />
             </View>
-            <Text style={{ fontSize: 12, color: '#64748B' }}>
+            <Text style={{ fontSize: 12, color: ap.outline }}>
               {lang === 'he'
                 ? 'השינוי יישלח לאישור הרכז/ת — עד להחלטתו/ה הציון לא ייכנס לתוקף.'
                 : "This change will be sent to the coordinator for approval — it won't take effect until they decide."}
@@ -227,10 +228,10 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Pressable
                 onPress={() => setMode('choose')}
-                style={{ flex: 1, borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1', paddingVertical: 10, alignItems: 'center' }}
+                style={{ flex: 1, borderRadius: 10, borderWidth: 1.5, borderColor: ap.outlineVariant, paddingVertical: 10, alignItems: 'center' }}
                 accessibilityRole="button"
               >
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B' }}>{lang === 'he' ? 'חזרה' : 'Back'}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: ap.onSurface }}>{lang === 'he' ? 'חזרה' : 'Back'}</Text>
               </Pressable>
               <Pressable
                 onPress={handleOverride}

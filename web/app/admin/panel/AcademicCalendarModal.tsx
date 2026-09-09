@@ -80,32 +80,32 @@ export function AcademicCalendarModal({ onClose }: AcademicCalendarModalProps) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="w-full max-w-md rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">📅 {lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-admin-on-surface">📅 {lang === 'he' ? 'לוח שנה אקדמי' : 'Academic Calendar'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-admin-on-surface-variant hover:text-admin-on-surface">
             ✕
           </button>
         </div>
 
         {loading ? (
-          <p className="mt-4 text-sm text-muted">…</p>
+          <p className="mt-4 text-sm text-admin-on-surface-variant">…</p>
         ) : (
           <>
-            <p className="mt-2 text-xs text-muted">
+            <p className="mt-2 text-xs text-admin-on-surface-variant">
               {lang === 'he'
                 ? 'סמסטר הקיץ קבוע (יולי–ספטמבר). התאריכים הבאים משמשים גם לחישוב מחיקת חשבון אוטומטית לסטודנטים שסיימו את משך הלימודים.'
                 : "Summer semester is fixed (July-September). These dates also feed the automatic graduation-based account-deletion check."}
             </p>
 
-            <p className="mt-4 text-sm font-medium text-ink">{lang === 'he' ? 'תחילת סמסטר סתיו' : 'Fall semester start'}</p>
+            <p className="mt-4 text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'תחילת סמסטר סתיו' : 'Fall semester start'}</p>
             <div className="mt-1.5 flex gap-2.5">
               <input type="number" min={1} max={12} value={fallMonth} onChange={(e) => setFallMonth(e.target.value)} placeholder={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'} className={inputCls} />
               <input type="number" min={1} max={31} value={fallDay} onChange={(e) => setFallDay(e.target.value)} placeholder={lang === 'he' ? 'יום' : 'Day'} className={inputCls} />
             </div>
 
-            <p className="mt-4 text-sm font-medium text-ink">{lang === 'he' ? 'תחילת סמסטר אביב' : 'Spring semester start'}</p>
+            <p className="mt-4 text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'תחילת סמסטר אביב' : 'Spring semester start'}</p>
             <div className="mt-1.5 flex gap-2.5">
               <input type="number" min={1} max={12} value={springMonth} onChange={(e) => setSpringMonth(e.target.value)} placeholder={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'} className={inputCls} />
               <input type="number" min={1} max={31} value={springDay} onChange={(e) => setSpringDay(e.target.value)} placeholder={lang === 'he' ? 'יום' : 'Day'} className={inputCls} />
@@ -118,7 +118,7 @@ export function AcademicCalendarModal({ onClose }: AcademicCalendarModalProps) {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="mt-6 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              className="mt-6 w-full rounded-lg bg-admin-primary py-2.5 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container disabled:opacity-60"
             >
               {saving ? '…' : lang === 'he' ? 'שמור' : 'Save'}
             </button>
@@ -129,4 +129,4 @@ export function AcademicCalendarModal({ onClose }: AcademicCalendarModalProps) {
   );
 }
 
-const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+const inputCls = 'w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none';

@@ -13,6 +13,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient';
 import { examinerSignatureStyle } from '../../utils/examinerSignature';
+import { ap } from '../../constants/theme';
 import type { Lang } from '../i18n';
 
 interface StaffFormField {
@@ -165,9 +166,9 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <ScrollView style={{ flex: 1, backgroundColor: '#F8FAFC' }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: ap.surfaceContainerLow }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E293B' }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: ap.onSurface }}>
             {lang === 'he' ? 'רשומת מנחה' : 'Staff Record'}
           </Text>
           <Pressable
@@ -175,7 +176,7 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
             accessibilityRole="button"
             accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
           >
-            <Text style={{ fontSize: 20, color: '#8899BB' }}>✕</Text>
+            <Text style={{ fontSize: 20, color: ap.outline }}>✕</Text>
           </Pressable>
         </View>
 
@@ -184,13 +185,13 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
             onPress={() => setMode('upload')}
             style={{
               flex: 1, borderRadius: 10, borderWidth: 1.5, paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center',
-              borderColor: mode === 'upload' ? '#7C3AED' : '#E2E8F0',
+              borderColor: mode === 'upload' ? '#7C3AED' : ap.outlineVariant,
               backgroundColor: mode === 'upload' ? '#7C3AED' : '#fff',
             }}
             accessibilityRole="radio"
             accessibilityState={{ checked: mode === 'upload' }}
           >
-            <Text style={{ fontSize: 12, fontWeight: '600', color: mode === 'upload' ? '#fff' : '#1E293B' }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: mode === 'upload' ? '#fff' : ap.onSurface }}>
               {lang === 'he' ? 'העלאת קובץ' : 'Upload a file'}
             </Text>
           </Pressable>
@@ -199,14 +200,14 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
             disabled={fields.length === 0}
             style={{
               flex: 1, borderRadius: 10, borderWidth: 1.5, paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center',
-              borderColor: mode === 'form' ? '#7C3AED' : '#E2E8F0',
+              borderColor: mode === 'form' ? '#7C3AED' : ap.outlineVariant,
               backgroundColor: mode === 'form' ? '#7C3AED' : '#fff',
               opacity: fields.length === 0 ? 0.4 : 1,
             }}
             accessibilityRole="radio"
             accessibilityState={{ checked: mode === 'form', disabled: fields.length === 0 }}
           >
-            <Text style={{ fontSize: 12, fontWeight: '600', color: mode === 'form' ? '#fff' : '#1E293B' }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: mode === 'form' ? '#fff' : ap.onSurface }}>
               {lang === 'he' ? 'מילוי טופס' : 'Fill the form'}
             </Text>
           </Pressable>
@@ -214,15 +215,15 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
 
         {mode === 'upload' ? (
           <View style={{ marginTop: 16 }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 8 }}>
               {lang === 'he' ? 'קובץ' : 'File'}
             </Text>
             <Pressable
               onPress={pickFile}
-              style={{ borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
+              style={{ borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, backgroundColor: '#fff' }}
               accessibilityRole="button"
             >
-              <Text style={{ fontSize: 13, color: file ? '#1E293B' : '#94A3B8' }}>
+              <Text style={{ fontSize: 13, color: file ? ap.onSurface : ap.outline }}>
                 {file ? `📄 ${file.name}` : (lang === 'he' ? 'בחר/י קובץ...' : 'Choose a file...')}
               </Text>
             </Pressable>
@@ -231,18 +232,18 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
           <View style={{ marginTop: 16, gap: 14 }}>
             {fields.map((f) => (
               <View key={f.key}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6 }}>
                   {lang === 'he' ? f.labelHe : f.labelEn}{f.required && !f.locked ? ' *' : ''}
                 </Text>
                 {f.locked ? (
-                  <View style={{ borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 8, padding: 11, backgroundColor: '#F1F5F9' }}>
-                    <Text style={{ fontSize: 14, color: '#64748B' }}>{resolveLockedValue(f) || '—'}</Text>
+                  <View style={{ borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11, backgroundColor: ap.surfaceContainerLow }}>
+                    <Text style={{ fontSize: 14, color: ap.outline }}>{resolveLockedValue(f) || '—'}</Text>
                   </View>
                 ) : (
                   <TextInput
                     style={{
-                      borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, padding: 11,
-                      fontSize: 14, color: '#1E293B', backgroundColor: '#fff',
+                      borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11,
+                      fontSize: 14, color: ap.onSurface, backgroundColor: '#fff',
                       ...(f.type === 'textarea' ? { minHeight: 90, textAlignVertical: 'top' as const } : {}),
                     }}
                     value={values[f.key] ?? ''}
@@ -258,7 +259,7 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
               </View>
             ))}
             {fields.length === 0 && (
-              <Text style={{ fontSize: 12, color: '#94A3B8' }}>
+              <Text style={{ fontSize: 12, color: ap.outline }}>
                 {lang === 'he' ? 'לא הוגדרו שדות לטופס זה.' : 'No fields configured for this form.'}
               </Text>
             )}
@@ -266,8 +267,8 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
                 — a deterministic stylized rendering of their own name (see
                 utils/examinerSignature.ts). Nothing is drawn or uploaded. */}
             {fields.length > 0 && supervisor?.displayName && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 10 }}>
-                <Text style={{ fontSize: 11, color: '#94A3B8' }}>{lang === 'he' ? 'חתימת המנחה: ' : "Supervisor's signature: "}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: ap.outlineVariant, paddingTop: 10 }}>
+                <Text style={{ fontSize: 11, color: ap.outline }}>{lang === 'he' ? 'חתימת המנחה: ' : "Supervisor's signature: "}</Text>
                 <Text style={[{ fontSize: 15 }, examinerSignatureStyle(supervisor.displayName, supervisor.facultyId, 'supervisor', supervisor.major)]}>
                   {supervisor.displayName}
                 </Text>

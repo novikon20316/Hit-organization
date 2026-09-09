@@ -65,14 +65,14 @@ export function AddStudentToProjectModal({ project, users, onClose, onEnrolled }
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-ink">👤 {lang === 'he' ? 'הוסף סטודנט לפרויקט' : 'Add Student to Project'}</h2>
-            {projectTitle && <p className="mt-1 truncate text-sm text-muted">📁 {projectTitle}</p>}
+            <h2 className="text-lg font-semibold text-admin-on-surface">👤 {lang === 'he' ? 'הוסף סטודנט לפרויקט' : 'Add Student to Project'}</h2>
+            {projectTitle && <p className="mt-1 truncate text-sm text-admin-on-surface-variant">📁 {projectTitle}</p>}
           </div>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-admin-on-surface-variant hover:text-admin-on-surface">
             ✕
           </button>
         </div>
@@ -82,7 +82,7 @@ export function AddStudentToProjectModal({ project, users, onClose, onEnrolled }
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={lang === 'he' ? 'חיפוש לפי שם או אימייל...' : 'Search by name or email...'}
-          className="mt-4 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+          className="mt-4 w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none"
         />
 
         <div className="mt-3 grid gap-1.5">
@@ -94,22 +94,22 @@ export function AddStudentToProjectModal({ project, users, onClose, onEnrolled }
                 type="button"
                 onClick={() => setConfirmStudent(u)}
                 disabled={adding}
-                className="flex items-center gap-3 rounded-lg border border-line bg-paper px-3 py-2 text-start hover:border-primary disabled:opacity-60"
+                className="flex items-center gap-3 rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-start hover:border-admin-primary disabled:opacity-60"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ backgroundColor: color }}>
                   {(u.displayName || '?').charAt(0).toUpperCase()}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-ink">{u.displayName}</span>
-                  <span className="block truncate text-xs text-muted" dir="ltr">
+                  <span className="block truncate text-sm font-medium text-admin-on-surface">{u.displayName}</span>
+                  <span className="block truncate text-xs text-admin-on-surface-variant" dir="ltr">
                     {u.email}
                   </span>
                 </span>
-                <span className="text-muted">›</span>
+                <span className="text-admin-on-surface-variant">›</span>
               </button>
             );
           })}
-          {filteredStudents.length === 0 && <p className="py-6 text-center text-sm text-muted">🔍 {lang === 'he' ? 'לא נמצאו סטודנטים' : 'No students found'}</p>}
+          {filteredStudents.length === 0 && <p className="py-6 text-center text-sm text-admin-on-surface-variant">🔍 {lang === 'he' ? 'לא נמצאו סטודנטים' : 'No students found'}</p>}
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}

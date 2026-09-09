@@ -45,19 +45,19 @@ export default function ChooseTrackPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-paper">
+    <div className="flex min-h-screen flex-col bg-student-surface-container-low">
       <header className="flex justify-end p-4">
         <LanguageToggle />
       </header>
 
       <main className="flex flex-1 items-center justify-center px-4 pb-16">
-        <div className="w-full max-w-sm role-rail rounded-[var(--radius)] border border-line bg-surface p-6 shadow-sm" style={{ '--rail-color': 'var(--primary)' } as React.CSSProperties}>
+        <div className="w-full max-w-sm role-rail rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-6 shadow-sm" style={{ '--rail-color': 'var(--primary)' } as React.CSSProperties}>
           <div className="mb-5 text-center">
             <p className="mb-2 text-2xl">🎉</p>
-            <h1 className="text-xl font-semibold tracking-tight text-ink">
+            <h1 className="text-xl font-semibold tracking-tight text-student-on-surface">
               {lang === 'he' ? 'הממוצע שלך גבוה מאוד! 🎉' : 'Your average is exceptionally high! 🎉'}
             </h1>
-            <p className="mt-2 text-sm text-muted">
+            <p className="mt-2 text-sm text-student-on-surface-variant">
               {lang === 'he'
                 ? 'עליך לבחור באיזה מסלול להמשיך – תזה או פרויקט גמר. לא ניתן לדחות את הבחירה.'
                 : "You must choose which track to continue on — thesis or final project. This choice can't be postponed."}
@@ -71,7 +71,7 @@ export default function ChooseTrackPage() {
               type="button"
               disabled={choosing !== null}
               onClick={() => handleChoose('thesis')}
-              className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-lg bg-student-primary py-2.5 text-sm font-semibold text-student-on-primary hover:bg-student-primary-container disabled:cursor-not-allowed disabled:opacity-60"
             >
               {choosing === 'thesis' ? '…' : lang === 'he' ? 'תזה' : 'Thesis'}
             </button>
@@ -79,7 +79,7 @@ export default function ChooseTrackPage() {
               type="button"
               disabled={choosing !== null}
               onClick={() => handleChoose('project')}
-              className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-lg bg-student-primary py-2.5 text-sm font-semibold text-student-on-primary hover:bg-student-primary-container disabled:cursor-not-allowed disabled:opacity-60"
             >
               {choosing === 'project' ? '…' : lang === 'he' ? 'פרויקט גמר' : 'Final Project'}
             </button>

@@ -202,7 +202,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
     <div>
       {pendingApplications.length > 0 && (
         <div className="mb-4">
-          <p className="mb-2 text-sm font-semibold text-ink">
+          <p className="mb-2 text-sm font-semibold text-student-on-surface">
             {lang === 'he' ? 'הבקשות שלי' : 'My Applications'} ({pendingApplications.length})
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -213,7 +213,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
         </div>
       )}
 
-      <p className="mb-2 text-xs text-muted">
+      <p className="mb-2 text-xs text-student-on-surface-variant">
         {lang === 'he'
           ? 'בחר/י מנחה כדי לראות את הפרויקטים/תזות הפתוחים שלו/שלה.'
           : 'Choose a supervisor to see their open projects/theses.'}
@@ -223,54 +223,54 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder={lang === 'he' ? 'חיפוש לפי שם מנחה או פרויקט...' : 'Search by supervisor or project name...'}
-        className="w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+        className="w-full max-w-sm rounded-lg border border-student-outline-variant bg-student-surface-container-lowest px-3.5 py-2 text-sm text-student-on-surface focus:border-student-primary focus:outline-none"
       />
 
       {loading ? (
-        <p className="mt-4 text-sm text-muted">{t('loading')}</p>
+        <p className="mt-4 text-sm text-student-on-surface-variant">{t('loading')}</p>
       ) : loadError ? (
         <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>
       ) : (
         <>
-          <p className="mt-3 text-xs text-muted">
+          <p className="mt-3 text-xs text-student-on-surface-variant">
             {filtered.length} {lang === 'he' ? 'מנחים' : 'supervisors'}
           </p>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            {filtered.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? '📭 לא נמצאו מנחים' : '📭 No supervisors found'}</p>}
+            {filtered.length === 0 && <p className="text-sm text-student-on-surface-variant">{lang === 'he' ? '📭 לא נמצאו מנחים' : '📭 No supervisors found'}</p>}
             {filtered.map((s) => {
               const isExpanded = expandedSupervisorId === s.supervisorId;
               return (
-                <div key={s.supervisorId} className="rounded-[var(--radius)] border border-line bg-surface p-4">
+                <div key={s.supervisorId} className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-4">
                   <button
                     type="button"
                     onClick={() => setExpandedSupervisorId(isExpanded ? null : s.supervisorId)}
                     className="flex w-full items-center justify-between text-start"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-ink">👨‍🏫 {s.supervisorName}</p>
-                      <p className="mt-1 text-xs text-muted">
+                      <p className="text-sm font-semibold text-student-on-surface">👨‍🏫 {s.supervisorName}</p>
+                      <p className="mt-1 text-xs text-student-on-surface-variant">
                         {s.projects.length} {lang === 'he' ? 'פרויקטים/תזות פתוחים' : 'open projects/theses'}
                       </p>
                     </div>
-                    <span className="text-xs text-muted">{isExpanded ? '▲' : '▼'}</span>
+                    <span className="text-xs text-student-on-surface-variant">{isExpanded ? '▲' : '▼'}</span>
                   </button>
 
                   {isExpanded && (
-                    <div className="mt-3 grid gap-2 border-t border-line pt-3">
+                    <div className="mt-3 grid gap-2 border-t border-student-outline-variant pt-3">
                       {s.projects.map((p) => {
                         const alreadyApplied = appliedProjectIds.includes(p.id);
                         return (
-                          <div key={p.id} className="rounded-lg border border-line bg-paper p-3">
+                          <div key={p.id} className="rounded-lg border border-student-outline-variant bg-student-surface-container-low p-3">
                             <div className="flex flex-wrap items-center gap-1.5">
                               {p.projectTypes.map((tp) => (
-                                <span key={tp} className="rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-ink">
+                                <span key={tp} className="rounded-full bg-student-surface-container-lowest px-2 py-0.5 text-xs font-medium text-student-on-surface">
                                   {projectTypeLabel(tp)}
                                 </span>
                               ))}
                             </div>
-                            <p className="mt-1.5 text-sm font-medium text-ink">{lang === 'he' ? p.titleHe : p.titleEn}</p>
-                            <p className="mt-1 text-xs text-muted">{lang === 'he' ? p.descriptionHe : p.descriptionEn}</p>
-                            <p className="mt-1 text-xs text-muted">
+                            <p className="mt-1.5 text-sm font-medium text-student-on-surface">{lang === 'he' ? p.titleHe : p.titleEn}</p>
+                            <p className="mt-1 text-xs text-student-on-surface-variant">{lang === 'he' ? p.descriptionHe : p.descriptionEn}</p>
+                            <p className="mt-1 text-xs text-student-on-surface-variant">
                               👥 {lang === 'he' ? 'מקומות פנויים:' : 'Open seats:'} {p.remainingCapacity}
                             </p>
 
@@ -286,7 +286,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
                                     ? openApply(s.supervisorId, p)
                                     : setJoinTarget(p)
                                 }
-                                className="mt-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+                                className="mt-2 rounded-lg bg-student-primary px-3 py-2 text-xs font-semibold text-student-on-primary hover:bg-student-primary-container"
                               >
                                 {supervisorSelectionRequiresApproval
                                   ? lang === 'he' ? 'הגש מועמדות' : 'Apply'
@@ -312,29 +312,29 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
             tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-student-lg bg-student-surface-container-lowest p-6 shadow-lg outline-none"
           >
             <FieldGuideOverlay
               guideKey={APPLY_PROJECT_GUIDE_KEY}
               steps={APPLY_PROJECT_FIELD_GUIDE.filter((s) => s.key !== 'track' || applyTarget.project.projectTypes.length > 1)}
             />
             <div className="flex items-start justify-between">
-              <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
-              <button type="button" onClick={closeApply} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+              <h2 className="text-lg font-semibold text-student-on-surface">{lang === 'he' ? 'הגשת מועמדות' : 'Apply to Project'}</h2>
+              <button type="button" onClick={closeApply} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-student-on-surface-variant hover:text-student-on-surface">
                 ✕
               </button>
             </div>
-            <p className="mt-1 text-sm text-muted">{lang === 'he' ? applyTarget.project.titleHe : applyTarget.project.titleEn}</p>
+            <p className="mt-1 text-sm text-student-on-surface-variant">{lang === 'he' ? applyTarget.project.titleHe : applyTarget.project.titleEn}</p>
 
             {applyTarget.project.projectTypes.length > 1 && (
               <div data-field-guide-id="track" className="mt-4">
-                <span className="mb-1.5 block text-sm font-medium text-ink">
+                <span className="mb-1.5 block text-sm font-medium text-student-on-surface">
                   {lang === 'he' ? 'מסלול *' : 'Track *'}
                   <InfoTooltip text={applyGuideEntry('track').description} />
                 </span>
                 <div className="flex gap-3">
                   {applyTarget.project.projectTypes.map((tp) => (
-                    <label key={tp} className="flex items-center gap-1.5 text-sm text-ink">
+                    <label key={tp} className="flex items-center gap-1.5 text-sm text-student-on-surface">
                       <input
                         type="radio"
                         name="applyProjectType"
@@ -350,7 +350,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
             )}
 
             <label data-field-guide-id="coverNote" className="mt-4 block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">
+              <span className="mb-1.5 block text-sm font-medium text-student-on-surface">
                 {lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}
                 <InfoTooltip text={applyGuideEntry('coverNote').description} />
               </span>
@@ -358,7 +358,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
                 rows={4}
                 value={coverNote}
                 onChange={(e) => setCoverNote(e.target.value)}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-lg border border-student-outline-variant bg-student-surface-container-low px-3 py-2 text-sm text-student-on-surface focus:border-student-primary focus:bg-student-surface-container-lowest focus:outline-none"
               />
             </label>
 
@@ -398,7 +398,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
               type="button"
               onClick={handleApply}
               disabled={submitting}
-              className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+              className="mt-4 w-full rounded-lg bg-student-primary py-2.5 text-sm font-semibold text-student-on-primary hover:bg-student-primary-container disabled:opacity-60"
             >
               {submitting ? '…' : t('submit')}
             </button>
@@ -413,10 +413,10 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
             tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+            className="w-full max-w-sm rounded-student-lg bg-student-surface-container-lowest p-5 shadow-lg outline-none"
           >
-            <h2 className="text-base font-semibold text-ink">{lang === 'he' ? 'הצטרפות לפרויקט' : 'Join Project'}</h2>
-            <p className="mt-2 text-sm text-muted">
+            <h2 className="text-base font-semibold text-student-on-surface">{lang === 'he' ? 'הצטרפות לפרויקט' : 'Join Project'}</h2>
+            <p className="mt-2 text-sm text-student-on-surface-variant">
               {lang === 'he'
                 ? `האם להצטרף ל"${joinTarget.titleHe}"? הצטרפות זו מיידית וללא צורך באישור.`
                 : `Join "${joinTarget.titleEn}"? This enrolls you immediately, no approval needed.`}
@@ -427,7 +427,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
                 type="button"
                 onClick={() => setJoinTarget(null)}
                 disabled={joining}
-                className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+                className="rounded-lg border border-student-outline-variant px-3.5 py-2 text-sm font-medium text-student-on-surface hover:bg-student-surface-container-low"
               >
                 {t('cancel')}
               </button>
@@ -435,7 +435,7 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
                 type="button"
                 onClick={handleJoinDirect}
                 disabled={joining}
-                className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                className="rounded-lg bg-student-primary px-3.5 py-2 text-sm font-semibold text-student-on-primary hover:bg-student-primary-container disabled:opacity-60"
               >
                 {joining ? '…' : lang === 'he' ? 'הצטרף/י' : 'Join'}
               </button>
@@ -485,12 +485,12 @@ function FileField({
 
   return (
     <label className="relative mt-4 block">
-      <span className="mb-1.5 block text-sm font-medium text-ink">
+      <span className="mb-1.5 block text-sm font-medium text-student-on-surface">
         {label}
         {info && <InfoTooltip text={info} />}
       </span>
-      <div className="relative flex items-center justify-between overflow-hidden rounded-lg border border-dashed border-line bg-paper px-3 py-2.5 text-sm">
-        <span className={file || reusing ? 'text-success' : 'text-muted'}>
+      <div className="relative flex items-center justify-between overflow-hidden rounded-lg border border-dashed border-student-outline-variant bg-student-surface-container-low px-3 py-2.5 text-sm">
+        <span className={file || reusing ? 'text-success' : 'text-student-on-surface-variant'}>
           {file
             ? `✓ ${file.name}`
             : reusing
@@ -506,10 +506,10 @@ function FileField({
       </div>
       {reusing && (
         <div className="mt-1 flex items-center gap-3 text-xs">
-          <a href={reuseUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+          <a href={reuseUrl} target="_blank" rel="noopener noreferrer" className="text-student-primary hover:underline">
             {lang === 'he' ? 'צפייה בקובץ' : 'View file'}
           </a>
-          <span className="text-muted">{lang === 'he' ? 'לחץ למעלה כדי להחליף' : 'Click above to replace it'}</span>
+          <span className="text-student-on-surface-variant">{lang === 'he' ? 'לחץ למעלה כדי להחליף' : 'Click above to replace it'}</span>
           <button type="button" onClick={onClearReuse} className="text-danger hover:opacity-70">
             {lang === 'he' ? 'הסר' : 'Remove'}
           </button>

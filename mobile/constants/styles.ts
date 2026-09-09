@@ -1775,7 +1775,7 @@ export const adminPanelStyles = StyleSheet.create({
 });
 
 export const browseProjectsStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F4FF' },
+  container: { flex: 1, backgroundColor: ap.surface },
   textRight: { textAlign: 'right' },
   rowReverse: { flexDirection: 'row-reverse' },
 
@@ -1787,13 +1787,13 @@ export const browseProjectsStyles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#E0E8FF',
-    shadowColor: '#2E86FF',
+    borderColor: ap.outlineVariant,
+    shadowColor: ap.primary,
     shadowOpacity: 0.07,
     shadowRadius: 8,
     elevation: 2,
   },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: '#111' },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: ap.onSurface },
   searchIcon: { fontSize: 18 },
 
   filters: { paddingHorizontal: 14, marginBottom: 6 },
@@ -1815,17 +1815,17 @@ export const browseProjectsStyles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#D0DEFF',
+    borderColor: ap.outlineVariant,
     marginRight: 8,
   },
-  chipActive: { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
+  chipActive: { backgroundColor: ap.primary, borderColor: ap.primary },
   chipActiveAlt: { backgroundColor: '#6C5CE7', borderColor: '#6C5CE7' },
   chipText: { fontSize: 12, fontWeight: '600', color: '#555' },
   chipTextActive: { color: '#fff' },
   chipDivider: {
     width: 1,
     height: 28,
-    backgroundColor: '#E0E8FF',
+    backgroundColor: ap.outlineVariant,
     marginRight: 8,
     alignSelf: 'center',
   },
@@ -1834,14 +1834,14 @@ export const browseProjectsStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 6,
     fontSize: 12,
-    color: '#8899BB',
+    color: ap.outline,
     fontWeight: '500',
   },
 
   list: { paddingHorizontal: 14 },
   empty: { alignItems: 'center', paddingTop: 60 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: '#8899BB' },
+  emptyText: { fontSize: 15, color: ap.outline },
 
   card: {
     backgroundColor: '#fff',
@@ -1849,8 +1849,8 @@ export const browseProjectsStyles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E0E8FF',
-    shadowColor: '#2E86FF',
+    borderColor: ap.outlineVariant,
+    shadowColor: ap.primary,
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
@@ -1876,29 +1876,29 @@ export const browseProjectsStyles = StyleSheet.create({
   badgeMasters: { backgroundColor: '#F3E5F5' },
   badgeType: { backgroundColor: '#E8F5E9' },
   badgeText: { fontSize: 11, fontWeight: '600', color: '#555' },
-  chevron: { fontSize: 12, color: '#9BA8C0' },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#111', marginBottom: 6 },
+  chevron: { fontSize: 12, color: ap.outline },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: ap.onSurface, marginBottom: 6 },
   cardSupervisor: { fontSize: 13, color: '#5577AA', marginBottom: 8 },
   skillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
-  skillChip: { backgroundColor: '#F0F4FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  skillText: { fontSize: 11, color: '#2E86FF', fontWeight: '500' },
-  moreSkills: { fontSize: 11, color: '#9BA8C0', alignSelf: 'center' },
+  skillChip: { backgroundColor: ap.surface, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  skillText: { fontSize: 11, color: ap.primary, fontWeight: '500' },
+  moreSkills: { fontSize: 11, color: ap.outline, alignSelf: 'center' },
 
-  expanded: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F0F4FF' },
-  descText: { fontSize: 13, color: '#445', lineHeight: 20, marginBottom: 16 },
+  expanded: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: ap.surface },
+  descText: { fontSize: 13, color: ap.onSurfaceVariant, lineHeight: 20, marginBottom: 16 },
   applyBtn: {
-    backgroundColor: '#2E86FF',
+    backgroundColor: ap.primary,
     borderRadius: 12,
     paddingVertical: 13,
     alignItems: 'center',
-    shadowColor: '#2E86FF',
+    shadowColor: ap.primary,
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 3,
   },
   applyBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  modal: { flex: 1, backgroundColor: '#F0F4FF' },
+  modal: { flex: 1, backgroundColor: ap.surface },
   modalContent: { padding: 20, paddingBottom: 60 },
   modalHeader: {
     flexDirection: 'row',
@@ -1906,8 +1906,8 @@ export const browseProjectsStyles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: '#111' },
-  modalClose: { fontSize: 22, color: '#888', padding: 4 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: ap.onSurface },
+  modalClose: { fontSize: 22, color: ap.outline, padding: 4 },
 
   applyProjectInfo: {
     backgroundColor: '#fff',
@@ -1915,21 +1915,21 @@ export const browseProjectsStyles = StyleSheet.create({
     padding: 14,
     marginBottom: 20,
     borderLeftWidth: 4,
-    borderLeftColor: '#2E86FF',
+    borderLeftColor: ap.primary,
   },
-  applyForLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
-  applyProjectTitle: { fontSize: 14, fontWeight: '700', color: '#111' },
+  applyForLabel: { fontSize: 12, color: ap.outline, marginBottom: 4 },
+  applyProjectTitle: { fontSize: 14, fontWeight: '700', color: ap.onSurface },
 
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#445', marginBottom: 6, marginTop: 16 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6, marginTop: 16 },
   textarea: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 14,
     fontSize: 14,
-    color: '#111',
+    color: ap.onSurface,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: '#E0E8FF',
+    borderColor: ap.outlineVariant,
     minHeight: 100,
   },
   uploadBtn: {
@@ -1937,7 +1937,7 @@ export const browseProjectsStyles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
-    borderColor: '#D0DEFF',
+    borderColor: ap.outlineVariant,
     borderStyle: 'dashed',
     alignItems: 'center',
   },
@@ -1949,12 +1949,12 @@ export const browseProjectsStyles = StyleSheet.create({
   applyMessageError: { backgroundColor: '#FFEBEE', color: '#C62828' },
 
   submitBtn: {
-    backgroundColor: '#2E86FF',
+    backgroundColor: ap.primary,
     borderRadius: 14,
     paddingVertical: 15,
     alignItems: 'center',
     marginTop: 24,
-    shadowColor: '#2E86FF',
+    shadowColor: ap.primary,
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 4,
@@ -2114,7 +2114,7 @@ export const facultyTemplateManager = StyleSheet.create({
   // wrapping and growing this past a single line.
   tab:           { width: 110, height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 18, gap: 6, overflow: 'hidden' },
   tabActive:     { borderBottomWidth: 3, borderBottomColor: '#7C3AED' },
-  tabText:       { fontSize: 13, color: '#8899BB', fontWeight: '500' },
+  tabText:       { fontSize: 13, color: ap.outline, fontWeight: '500' },
   tabTextActive: { color: '#7C3AED', fontWeight: '700' },
   badge:         { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   badgeText:     { color: '#fff', fontSize: 10, fontWeight: '700' },
@@ -2133,13 +2133,13 @@ export const facultyTemplateManager = StyleSheet.create({
   // Empty
   empty:      { alignItems: 'center', paddingVertical: 48 },
   emptyEmoji: { fontSize: 40, marginBottom: 10 },
-  emptyText:  { fontSize: 14, color: '#8899BB', textAlign: 'center', paddingHorizontal: 24 },
+  emptyText:  { fontSize: 14, color: ap.outline, textAlign: 'center', paddingHorizontal: 24 },
 
   // Template card
   tplCard:        { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, shadowColor: '#7C3AED', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   tplCardHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   tplName:        { fontSize: 15, fontWeight: '700', color: '#1F1235' },
-  tplSub:         { fontSize: 12, color: '#8899BB', marginTop: 2 },
+  tplSub:         { fontSize: 12, color: ap.outline, marginTop: 2 },
   tplActions:     { flexDirection: 'row', gap: 8 },
   editBtn:        { backgroundColor: '#EDE9FE', borderRadius: 8, padding: 8 },
   editBtnText:    { fontSize: 16 },
@@ -2150,21 +2150,21 @@ export const facultyTemplateManager = StyleSheet.create({
   msPreviewRow:   { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#F3F0FF', gap: 10 },
   msOrderBadge:   { width: 24, height: 24, borderRadius: 12, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   msOrderText:    { fontSize: 11, fontWeight: '700', color: '#7C3AED' },
-  msPreviewName:  { fontSize: 13, fontWeight: '600', color: '#111' },
-  msPreviewMeta:  { fontSize: 11, color: '#8899BB', marginTop: 2 },
+  msPreviewName:  { fontSize: 13, fontWeight: '600', color: ap.onSurface },
+  msPreviewMeta:  { fontSize: 11, color: ap.outline, marginTop: 2 },
 
   // Proposal card
   proposalCard:   { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: '#F59E0B' },
   proposalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  proposalTitle:  { fontSize: 15, fontWeight: '700', color: '#111', flex: 1 },
+  proposalTitle:  { fontSize: 15, fontWeight: '700', color: ap.onSurface, flex: 1 },
   pendingBadge:   { backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   pendingBadgeText: { fontSize: 11, color: '#92400E', fontWeight: '700' },
-  proposalBy:     { fontSize: 13, color: '#4B5563', marginTop: 3 },
-  proposalDegree: { fontSize: 13, color: '#4B5563', marginTop: 3, marginBottom: 10 },
-  changesBox:     { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, marginBottom: 12 },
-  changesTitle:   { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6 },
-  changesText:    { fontSize: 12, color: '#6B7280', marginBottom: 4 },
-  changesItem:    { fontSize: 12, color: '#374151', marginTop: 2 },
+  proposalBy:     { fontSize: 13, color: ap.onSurfaceVariant, marginTop: 3 },
+  proposalDegree: { fontSize: 13, color: ap.onSurfaceVariant, marginTop: 3, marginBottom: 10 },
+  changesBox:     { backgroundColor: ap.surfaceContainerLow, borderRadius: 10, padding: 12, marginBottom: 12 },
+  changesTitle:   { fontSize: 13, fontWeight: '700', color: ap.onSurfaceVariant, marginBottom: 6 },
+  changesText:    { fontSize: 12, color: ap.outline, marginBottom: 4 },
+  changesItem:    { fontSize: 12, color: ap.onSurfaceVariant, marginTop: 2 },
   proposalBtns:   { flexDirection: 'row', gap: 10 },
   approveBtn:     { flex: 1, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
@@ -2174,14 +2174,14 @@ export const facultyTemplateManager = StyleSheet.create({
   // Modal
   modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F0EBFF' },
   modalTitle:   { fontSize: 18, fontWeight: '700', color: '#1F1235' },
-  modalClose:   { fontSize: 20, color: '#8899BB', paddingHorizontal: 4 },
+  modalClose:   { fontSize: 20, color: ap.outline, paddingHorizontal: 4 },
   modalContent: { padding: 20 },
 
   infoBox:     { backgroundColor: '#EDE9FE', borderRadius: 10, padding: 12, marginBottom: 16 },
   infoBoxText: { fontSize: 13, color: '#5B21B6', fontWeight: '600' },
 
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 14 },
-  input:      { borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, backgroundColor: '#fff', color: '#111' },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6, marginTop: 14 },
+  input:      { borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, backgroundColor: '#fff', color: ap.onSurface },
 
   // Milestone section in editor
   msSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 },
@@ -2190,7 +2190,7 @@ export const facultyTemplateManager = StyleSheet.create({
 
   msEditorRow:     { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#F5F3FF', borderRadius: 12, padding: 12, marginTop: 8, gap: 10 },
   msEditorName:    { fontSize: 13, fontWeight: '700', color: '#1F1235' },
-  msEditorMeta:    { fontSize: 11, color: '#8899BB', marginTop: 2 },
+  msEditorMeta:    { fontSize: 11, color: ap.outline, marginTop: 2 },
   msWeightsText:   { fontSize: 11, color: '#7C3AED', marginTop: 3 },
   msRowActions:    { flexDirection: 'row', gap: 6 },
   msActionBtn:     { padding: 4 },
@@ -2198,29 +2198,29 @@ export const facultyTemplateManager = StyleSheet.create({
   // Weight fields
   toggleRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
   weightRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  weightRowLabel: { fontSize: 13, color: '#374151', flex: 1 },
+  weightRowLabel: { fontSize: 13, color: ap.onSurfaceVariant, flex: 1 },
   weightInput:    { width: 72, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, textAlign: 'center', fontSize: 14 },
   weightTotal:    { fontSize: 13, fontWeight: '700', textAlign: 'right', marginTop: 8 },
 
   saveBtn:      { backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 },
   saveBtnText:  { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn:    { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
-  cancelBtnText:{ color: '#8899BB', fontSize: 14 },
+  cancelBtnText:{ color: ap.outline, fontSize: 14 },
 });
 
 export const ActivateDashboardStyles = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: '#F0F4FF' },
+  container:   { flex: 1, backgroundColor: ap.surface },
   content:     { padding: 16 },
   textRight:   { textAlign: 'right' },
   rowReverse:  { flexDirection: 'row-reverse' },
-  sectionTitle:{ fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 14 },
+  sectionTitle:{ fontSize: 16, fontWeight: '800', color: ap.onSurface, marginBottom: 14 },
 
   // Tabs
   tabBar: {
     flexDirection: 'row',
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E8FF',
+    borderBottomColor: ap.outlineVariant,
     gap: 8,
   },
   // Fixed size (not flex:1) — matches admin/panel.tsx's tabsContainer; wrap
@@ -2232,40 +2232,40 @@ export const ActivateDashboardStyles = StyleSheet.create({
     justifyContent: 'center', overflow: 'hidden',
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  tabActive:     { borderBottomColor: '#2E86FF' },
-  tabText:       { fontSize: 13, fontWeight: '600', color: '#8899BB' },
-  tabTextActive: { color: '#2E86FF' },
+  tabActive:     { borderBottomColor: ap.primary },
+  tabText:       { fontSize: 13, fontWeight: '600', color: ap.outline },
+  tabTextActive: { color: ap.primary },
 
   // Project card
   projectCard: {
     backgroundColor: '#fff', borderRadius: 18, padding: 18,
-    marginBottom: 16, borderWidth: 1, borderColor: '#E0E8FF',
-    shadowColor: '#2E86FF', shadowOpacity: 0.07, shadowRadius: 10, elevation: 2,
+    marginBottom: 16, borderWidth: 1, borderColor: ap.outlineVariant,
+    shadowColor: ap.primary, shadowOpacity: 0.07, shadowRadius: 10, elevation: 2,
   },
   projectCardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   projectCardEmoji:  { fontSize: 32 },
-  projectTitle:      { fontSize: 16, fontWeight: '800', color: '#111', marginBottom: 4 },
-  projectMeta:       { fontSize: 12, color: '#8899BB' },
+  projectTitle:      { fontSize: 16, fontWeight: '800', color: ap.onSurface, marginBottom: 4 },
+  projectMeta:       { fontSize: 12, color: ap.outline },
 
   // Progress bar
   progressSection:   { marginTop: 4 },
   progressLabelRow:  { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressLabel:     { fontSize: 13, fontWeight: '600', color: '#445' },
-  progressPct:       { fontSize: 13, fontWeight: '800', color: '#2E86FF' },
+  progressLabel:     { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant },
+  progressPct:       { fontSize: 13, fontWeight: '800', color: ap.primary },
   progressTrack: {
-    height: 8, backgroundColor: '#E0E8FF', borderRadius: 4, overflow: 'hidden', marginBottom: 6,
+    height: 8, backgroundColor: ap.outlineVariant, borderRadius: 4, overflow: 'hidden', marginBottom: 6,
   },
-  progressFill:  { height: '100%', backgroundColor: '#2E86FF', borderRadius: 4 },
-  progressSub:   { fontSize: 11, color: '#9BA8C0' },
+  progressFill:  { height: '100%', backgroundColor: ap.primary, borderRadius: 4 },
+  progressSub:   { fontSize: 11, color: ap.outline },
 
   // Next milestone banner
   nextMilestone: {
-    backgroundColor: '#EFF6FF', borderRadius: 16, padding: 16,
-    borderLeftWidth: 4, borderLeftColor: '#2E86FF', marginBottom: 16,
+    backgroundColor: ap.surfaceContainerLow, borderRadius: 16, padding: 16,
+    borderLeftWidth: 4, borderLeftColor: ap.primary, marginBottom: 16,
   },
   nextHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  nextLabel:     { fontSize: 12, fontWeight: '700', color: '#2E86FF', textTransform: 'uppercase', letterSpacing: 0.5 },
-  nextTitle:     { fontSize: 17, fontWeight: '800', color: '#111', marginBottom: 4 },
+  nextLabel:     { fontSize: 12, fontWeight: '700', color: ap.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  nextTitle:     { fontSize: 17, fontWeight: '800', color: ap.onSurface, marginBottom: 4 },
   nextDue:       { fontSize: 13, color: '#5577AA', marginBottom: 12 },
   daysBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   daysBadgeBlue: { backgroundColor: '#DBEAFE' },
@@ -2273,19 +2273,19 @@ export const ActivateDashboardStyles = StyleSheet.create({
   daysBadgeRed:  { backgroundColor: '#FEE2E2' },
   daysBadgeText: { fontSize: 11, fontWeight: '800', color: '#1D4ED8' },
   submitMilestoneBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 12,
+    backgroundColor: ap.primary, borderRadius: 12, paddingVertical: 12,
     alignItems: 'center',
-    shadowColor: '#2E86FF', shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
+    shadowColor: ap.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
   },
   submitMilestoneBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
   // Description card
   descCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: '#E0E8FF',
+    borderWidth: 1, borderColor: ap.outlineVariant,
   },
-  descTitle: { fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 8 },
-  descBody:  { fontSize: 13, color: '#445', lineHeight: 20 },
+  descTitle: { fontSize: 14, fontWeight: '700', color: ap.onSurface, marginBottom: 8 },
+  descBody:  { fontSize: 13, color: ap.onSurfaceVariant, lineHeight: 20 },
 
   // Milestones timeline
   milestoneCard: { flexDirection: 'row', marginBottom: 8 },
@@ -2295,15 +2295,15 @@ export const ActivateDashboardStyles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   timelineNum:     { color: '#fff', fontSize: 11, fontWeight: '800' },
-  timelineLine:    { flex: 1, width: 2, backgroundColor: '#E0E8FF', minHeight: 20, marginVertical: 2 },
+  timelineLine:    { flex: 1, width: 2, backgroundColor: ap.outlineVariant, minHeight: 20, marginVertical: 2 },
   timelineLineDone:{ backgroundColor: '#10B981' },
   milestoneContent:      { flex: 1, marginLeft: 12, marginBottom: 8 },
   milestoneContentRtl:   { marginLeft: 0, marginRight: 12 },
   milestoneHeader:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  milestoneTitle:        { fontSize: 14, fontWeight: '700', color: '#111', flex: 1 },
+  milestoneTitle:        { fontSize: 14, fontWeight: '700', color: ap.onSurface, flex: 1 },
   statusBadge:           { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   statusBadgeText:       { fontSize: 11, fontWeight: '600' },
-  milestoneDue:          { fontSize: 12, color: '#8899BB', marginBottom: 8 },
+  milestoneDue:          { fontSize: 12, color: ap.outline, marginBottom: 8 },
   daysTag:               { fontSize: 12, fontWeight: '600' },
   gradeChip: {
     alignSelf: 'flex-start',
@@ -2313,73 +2313,73 @@ export const ActivateDashboardStyles = StyleSheet.create({
   gradeChipText:   { fontSize: 13, fontWeight: '700', color: '#10B981' },
   defenseInfo:     { backgroundColor: '#F5F3FF', borderRadius: 10, padding: 10, marginBottom: 8 },
   defenseRow:      { fontSize: 13, color: '#5B21B6', marginBottom: 4 },
-  notScheduled:    { fontSize: 12, color: '#8899BB', fontStyle: 'italic', marginBottom: 8 },
+  notScheduled:    { fontSize: 12, color: ap.outline, fontStyle: 'italic', marginBottom: 8 },
   milestoneSubmitBtn: {
-    backgroundColor: '#EFF6FF', borderRadius: 10, paddingVertical: 9,
+    backgroundColor: ap.surfaceContainerLow, borderRadius: 10, paddingVertical: 9,
     alignItems: 'center', borderWidth: 1, borderColor: '#BFDBFE',
   },
-  milestoneSubmitBtnText: { color: '#2E86FF', fontSize: 13, fontWeight: '700' },
+  milestoneSubmitBtnText: { color: ap.primary, fontSize: 13, fontWeight: '700' },
   filesRow:    { flexDirection: 'row', alignItems: 'center' },
-  filesLabel:  { fontSize: 12, color: '#8899BB' },
+  filesLabel:  { fontSize: 12, color: ap.outline },
 
   // Grades tab
   gradeCard: {
     backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: '#E0E8FF',
+    borderWidth: 1, borderColor: ap.outlineVariant,
   },
   gradeCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  gradeCardTitle:  { fontSize: 14, fontWeight: '700', color: '#111' },
+  gradeCardTitle:  { fontSize: 14, fontWeight: '700', color: ap.onSurface },
   gradePill: {
-    backgroundColor: '#2E86FF', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12,
+    backgroundColor: ap.primary, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12,
   },
   gradePillText:   { color: '#fff', fontWeight: '800', fontSize: 16 },
-  noGrade:         { fontSize: 12, color: '#9BA8C0', fontStyle: 'italic' },
+  noGrade:         { fontSize: 12, color: ap.outline, fontStyle: 'italic' },
   gradeProgress: {
-    height: 6, backgroundColor: '#E0E8FF', borderRadius: 3, overflow: 'hidden',
+    height: 6, backgroundColor: ap.outlineVariant, borderRadius: 3, overflow: 'hidden',
   },
-  gradeProgressFill: { height: '100%', backgroundColor: '#2E86FF', borderRadius: 3 },
+  gradeProgressFill: { height: '100%', backgroundColor: ap.primary, borderRadius: 3 },
 
   finalGradeCard: {
-    backgroundColor: '#2E86FF', borderRadius: 18, padding: 24,
+    backgroundColor: ap.primary, borderRadius: 18, padding: 24,
     alignItems: 'center', marginTop: 8,
-    shadowColor: '#2E86FF', shadowOpacity: 0.35, shadowRadius: 14, elevation: 6,
+    shadowColor: ap.primary, shadowOpacity: 0.35, shadowRadius: 14, elevation: 6,
   },
   finalGradeLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600', marginBottom: 8 },
   finalGradeValue: { color: '#fff', fontSize: 56, fontWeight: '900', marginBottom: 8 },
   finalGradeNote:  { color: 'rgba(255,255,255,0.65)', fontSize: 11, textAlign: 'center' },
 
   // Modal
-  modal:        { flex: 1, backgroundColor: '#F0F4FF' },
+  modal:        { flex: 1, backgroundColor: ap.surface },
   modalContent: { padding: 20, paddingBottom: 60 },
   modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle:   { fontSize: 18, fontWeight: '800', color: '#111' },
-  modalClose:   { fontSize: 22, color: '#888', padding: 4 },
-  fieldLabel:   { fontSize: 13, fontWeight: '600', color: '#445', marginBottom: 8, marginTop: 16 },
+  modalTitle:   { fontSize: 18, fontWeight: '800', color: ap.onSurface },
+  modalClose:   { fontSize: 22, color: ap.outline, padding: 4 },
+  fieldLabel:   { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 8, marginTop: 16 },
   textarea: {
     backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    fontSize: 14, color: '#111', textAlignVertical: 'top',
-    borderWidth: 1, borderColor: '#E0E8FF', minHeight: 90,
+    fontSize: 14, color: ap.onSurface, textAlignVertical: 'top',
+    borderWidth: 1, borderColor: ap.outlineVariant, minHeight: 90,
   },
   fileRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: '#E0E8FF',
+    borderWidth: 1, borderColor: ap.outlineVariant,
   },
-  fileName:   { fontSize: 13, color: '#445', flex: 1 },
+  fileName:   { fontSize: 13, color: ap.onSurfaceVariant, flex: 1 },
   fileRemove: { fontSize: 18, color: '#D32F2F', paddingLeft: 10 },
   uploadBtn: {
     backgroundColor: '#fff', borderRadius: 12, padding: 14,
     borderWidth: 2, borderColor: '#D0DEFF', borderStyle: 'dashed',
     alignItems: 'center', marginBottom: 4,
   },
-  uploadBtnText: { color: '#2E86FF', fontSize: 14, fontWeight: '600' },
+  uploadBtnText: { color: ap.primary, fontSize: 14, fontWeight: '600' },
   submitMsg:       { marginTop: 14, padding: 12, borderRadius: 10, textAlign: 'center', fontSize: 14 },
   submitMsgOk:     { backgroundColor: '#E8F5E9', color: '#2E7D32' },
   submitMsgErr:    { backgroundColor: '#FFEBEE', color: '#C62828' },
   submitBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 14, paddingVertical: 15,
+    backgroundColor: ap.primary, borderRadius: 14, paddingVertical: 15,
     alignItems: 'center', marginTop: 24,
-    shadowColor: '#2E86FF', shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
+    shadowColor: ap.primary, shadowOpacity: 0.3, shadowRadius: 10, elevation: 4,
   },
   submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
@@ -3207,7 +3207,7 @@ export const GradeBreakdownStyles = StyleSheet.create({
     marginTop:       12,
     paddingTop:      12,
     borderTopWidth:  1,
-    borderTopColor:  '#E0E8FF',
+    borderTopColor:  ap.outlineVariant,
   },
   row: {
     flexDirection:   'row',
@@ -3217,7 +3217,7 @@ export const GradeBreakdownStyles = StyleSheet.create({
   },
   criterionLabel: {
     fontSize:   13,
-    color:      '#445',
+    color:      ap.onSurfaceVariant,
     fontWeight: '600',
     flex:       1,
     marginRight: 8,
@@ -3231,7 +3231,7 @@ export const GradeBreakdownStyles = StyleSheet.create({
     width:           80,
     height:          8,
     borderRadius:    4,
-    backgroundColor: '#F0F4FF',
+    backgroundColor: ap.surface,
     flexDirection:   'row',
     overflow:        'hidden',
   },
@@ -3241,14 +3241,14 @@ export const GradeBreakdownStyles = StyleSheet.create({
   },
   scoreText: {
     fontSize:   13,
-    color:      '#445',
+    color:      ap.onSurfaceVariant,
     fontWeight: '700',
     minWidth:   50,
     textAlign:  'right',
   },
   divider: {
     height:          1,
-    backgroundColor: '#E0E8FF',
+    backgroundColor: ap.outlineVariant,
     marginVertical:  8,
   },
   commentsBox: {
@@ -3257,17 +3257,17 @@ export const GradeBreakdownStyles = StyleSheet.create({
     borderRadius:    10,
     padding:         10,
     borderWidth:     1,
-    borderColor:     '#E0E8FF',
+    borderColor:     ap.outlineVariant,
   },
   commentsLabel: {
     fontSize:     12,
     fontWeight:   '700',
-    color:        '#8899BB',
+    color:        ap.outline,
     marginBottom: 4,
   },
   commentsText: {
     fontSize:   13,
-    color:      '#445',
+    color:      ap.onSurfaceVariant,
     lineHeight: 19,
   },
 });
@@ -3613,36 +3613,36 @@ export const InfoFilesStyles = StyleSheet.create({
 });
 
 export const ExaminerAccessStyles = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#F0F4FF' },
+  root:        { flex: 1, backgroundColor: ap.surface },
   scroll:      { padding: 20 },
   centered:    { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
 
   // Loading
-  loadingText: { marginTop: 12, color: '#2E86FF', fontSize: 15 },
+  loadingText: { marginTop: 12, color: ap.primary, fontSize: 15 },
 
   // Error / status states
   errorEmoji:   { fontSize: 56, marginBottom: 16 },
   successEmoji: { fontSize: 56, marginBottom: 16 },
-  errorTitle:   { fontSize: 20, fontWeight: '700', color: '#1E293B', textAlign: 'center', marginBottom: 8 },
+  errorTitle:   { fontSize: 20, fontWeight: '700', color: ap.onSurface, textAlign: 'center', marginBottom: 8 },
   successTitle: { fontSize: 20, fontWeight: '700', color: '#10B981', textAlign: 'center', marginBottom: 8 },
-  errorSub:     { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 },
-  metaChip:     { marginTop: 16, fontSize: 13, color: '#64748B' },
+  errorSub:     { fontSize: 14, color: ap.outline, textAlign: 'center', lineHeight: 22 },
+  metaChip:     { marginTop: 16, fontSize: 13, color: ap.outline },
 
   // Header
   header:        { marginBottom: 24 },
   headerRtl:     { alignItems: 'flex-end' },
-  headerTitle:   { fontSize: 22, fontWeight: '800', color: '#1E293B', marginBottom: 4, marginTop: 48 },
-  headerSub:     { fontSize: 14, color: '#64748B', marginBottom: 16 },
+  headerTitle:   { fontSize: 22, fontWeight: '800', color: ap.onSurface, marginBottom: 4, marginTop: 48 },
+  headerSub:     { fontSize: 14, color: ap.outline, marginBottom: 16 },
 
   // Info card
   infoCard:      { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12,
                    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   infoRow:       { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6,
-                   borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  infoLabel:     { fontSize: 13, color: '#64748B', flex: 1 },
-  infoValue:     { fontSize: 13, color: '#1E293B', fontWeight: '600', flex: 2, textAlign: 'right' },
-  infoValueAccent: { color: '#2E86FF' },
-  accessNote:    { fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 4 },
+                   borderBottomWidth: 1, borderBottomColor: ap.surfaceContainerLow },
+  infoLabel:     { fontSize: 13, color: ap.outline, flex: 1 },
+  infoValue:     { fontSize: 13, color: ap.onSurface, fontWeight: '600', flex: 2, textAlign: 'right' },
+  infoValueAccent: { color: ap.primary },
+  accessNote:    { fontSize: 12, color: ap.outline, textAlign: 'center', marginTop: 4 },
 
   // Accepted banner
   acceptedBanner:     { backgroundColor: '#D1FAE5', borderRadius: 10, padding: 12,
@@ -3652,43 +3652,43 @@ export const ExaminerAccessStyles = StyleSheet.create({
   // Section
   section:       { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16,
                    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  sectionTitle:  { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 12 },
+  sectionTitle:  { fontSize: 16, fontWeight: '700', color: ap.onSurface, marginBottom: 12 },
 
   // Download
-  downloadBtn:     { backgroundColor: '#2E86FF', borderRadius: 10, padding: 14, alignItems: 'center' },
+  downloadBtn:     { backgroundColor: ap.primary, borderRadius: 10, padding: 14, alignItems: 'center' },
   downloadBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
   // Criterion rows
   criterionRow:    { marginBottom: 12 },
   criterionHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  criterionLabel:  { fontSize: 14, color: '#1E293B', fontWeight: '600' },
-  criterionMax:    { fontSize: 13, color: '#64748B' },
-  scoreInput:      { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-                     padding: 10, fontSize: 16, color: '#1E293B', textAlign: 'center' },
+  criterionLabel:  { fontSize: 14, color: ap.onSurface, fontWeight: '600' },
+  criterionMax:    { fontSize: 13, color: ap.outline },
+  scoreInput:      { borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8,
+                     padding: 10, fontSize: 16, color: ap.onSurface, textAlign: 'center' },
 
   // Total
   totalRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                 paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginBottom: 16 },
-  totalLabel:  { fontSize: 15, fontWeight: '700', color: '#1E293B' },
+                 paddingVertical: 12, borderTopWidth: 1, borderTopColor: ap.surfaceContainerLow, marginBottom: 16 },
+  totalLabel:  { fontSize: 15, fontWeight: '700', color: ap.onSurface },
   totalScore:  { fontSize: 22, fontWeight: '800' },
 
   // Radio
   radioRow:         { flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
                       paddingHorizontal: 12, borderRadius: 8, marginBottom: 6,
-                      backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0' },
-  radioRowSelected: { backgroundColor: '#EFF6FF', borderColor: '#2E86FF' },
+                      backgroundColor: ap.surfaceContainerLow, borderWidth: 1.5, borderColor: ap.outlineVariant },
+  radioRowSelected: { backgroundColor: ap.surfaceContainerLow, borderColor: ap.primary },
   radioCircle:      { width: 18, height: 18, borderRadius: 9, borderWidth: 2,
-                      borderColor: '#CBD5E1', marginEnd: 10 },
-  radioCircleSelected: { borderColor: '#2E86FF', backgroundColor: '#2E86FF' },
+                      borderColor: ap.outlineVariant, marginEnd: 10 },
+  radioCircleSelected: { borderColor: ap.primary, backgroundColor: ap.primary },
   radioLabel:       { fontSize: 14, color: '#475569' },
   radioLabelSelected: { color: '#1E3A8A', fontWeight: '600' },
 
   // Field label
-  fieldLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
+  fieldLabel: { fontSize: 14, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 8 },
 
   // Textarea
-  textarea:   { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10,
-                padding: 12, fontSize: 14, color: '#1E293B',
+  textarea:   { borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10,
+                padding: 12, fontSize: 14, color: ap.onSurface,
                 minHeight: 120, textAlignVertical: 'top' },
   textRtl:    { textAlign: 'right' },
 
@@ -3696,21 +3696,21 @@ export const ExaminerAccessStyles = StyleSheet.create({
   actionBlock:  { gap: 12, marginBottom: 24 },
   declineBlock: { backgroundColor: '#fff', borderRadius: 12, padding: 16, gap: 12, marginBottom: 24 },
 
-  btnPrimary:     { backgroundColor: '#2E86FF', borderRadius: 12, padding: 16, alignItems: 'center' },
+  btnPrimary:     { backgroundColor: ap.primary, borderRadius: 12, padding: 16, alignItems: 'center' },
   btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  btnOutline:     { borderWidth: 2, borderColor: '#CBD5E1', borderRadius: 12,
+  btnOutline:     { borderWidth: 2, borderColor: ap.outlineVariant, borderRadius: 12,
                     padding: 16, alignItems: 'center', backgroundColor: '#fff' },
-  btnOutlineText: { color: '#374151', fontSize: 16, fontWeight: '600' },
+  btnOutlineText: { color: ap.onSurfaceVariant, fontSize: 16, fontWeight: '600' },
   btnDanger:      { backgroundColor: '#EF4444', borderRadius: 12, padding: 16, alignItems: 'center' },
   btnGhost:       { padding: 12, alignItems: 'center' },
-  btnGhostText:   { color: '#64748B', fontSize: 15 },
+  btnGhostText:   { color: ap.outline, fontSize: 15 },
   btnDisabled:    { opacity: 0.55 },
 
   // Lang toggle
   langToggle:     { position: 'absolute', top: 0, right: 0, zIndex: 10,
                     backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 12,
-                    paddingVertical: 6, borderWidth: 1, borderColor: '#E2E8F0' },
-  langToggleText: { fontWeight: '700', fontSize: 13, color: '#374151' },
+                    paddingVertical: 6, borderWidth: 1, borderColor: ap.outlineVariant },
+  langToggleText: { fontWeight: '700', fontSize: 13, color: ap.onSurfaceVariant },
 });
 
 export const ModalScreenStyles = StyleSheet.create({
@@ -4174,19 +4174,19 @@ export const StatusBadgeStyles = StyleSheet.create({
 
 export const SecurityModalStyles = StyleSheet.create({
   root: {
-    flex: 1, backgroundColor: '#F0F4FF',
+    flex: 1, backgroundColor: ap.surface,
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 16,
     backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E0E8FF',
+    borderBottomWidth: 1, borderBottomColor: ap.outlineVariant,
   },
-  title:    { fontSize: 17, fontWeight: '700', color: '#111', flex: 1, textAlign: 'center' },
+  title:    { fontSize: 17, fontWeight: '700', color: ap.onSurface, flex: 1, textAlign: 'center' },
   backBtn:  { padding: 4, minWidth: 60 },
-  backText: { fontSize: 14, color: '#2E86FF', fontWeight: '600' },
+  backText: { fontSize: 14, color: ap.primary, fontWeight: '600' },
   closeBtn: { padding: 4, minWidth: 60, alignItems: 'flex-end' },
-  closeText:{ fontSize: 18, color: '#8899BB' },
+  closeText:{ fontSize: 18, color: ap.outline },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   body:     { flex: 1, padding: 24 },
   textRight:{ textAlign: 'right' },
@@ -4201,25 +4201,25 @@ export const SecurityModalStyles = StyleSheet.create({
   statusIcon:    { fontSize: 48, marginBottom: 12 },
   statusTitle:   { fontSize: 16, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
   statusSub:     { fontSize: 13, color: '#667', textAlign: 'center', lineHeight: 20 },
-  adminNote:     { fontSize: 12, color: '#8899BB', textAlign: 'center', marginTop: 8 },
+  adminNote:     { fontSize: 12, color: ap.outline, textAlign: 'center', marginTop: 8 },
 
   // Setup screen
-  setupTitle:    { fontSize: 17, fontWeight: '700', color: '#111', marginBottom: 8 },
+  setupTitle:    { fontSize: 17, fontWeight: '700', color: ap.onSurface, marginBottom: 8 },
   setupSub:      { fontSize: 13, color: '#667', lineHeight: 20, marginBottom: 24 },
   qr: {
     width: 200, height: 200, alignSelf: 'center',
     marginBottom: 24, borderRadius: 12,
-    borderWidth: 1, borderColor: '#E0E8FF',
+    borderWidth: 1, borderColor: ap.outlineVariant,
   },
   qrPlaceholder: {
     width: 200, height: 200, alignSelf: 'center',
     marginBottom: 24, borderRadius: 12,
-    backgroundColor: '#E0E8FF',
+    backgroundColor: ap.outlineVariant,
     justifyContent: 'center', alignItems: 'center',
   },
   codeLabel: { fontSize: 14, fontWeight: '600', color: '#334', marginBottom: 10 },
   codeInput: {
-    borderWidth: 2, borderColor: '#2E86FF', borderRadius: 12,
+    borderWidth: 2, borderColor: ap.primary, borderRadius: 12,
     padding: 16, fontSize: 28, letterSpacing: 10,
     backgroundColor: '#fff', marginBottom: 12,
   },
@@ -4227,17 +4227,17 @@ export const SecurityModalStyles = StyleSheet.create({
 
   // Buttons
   primaryBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 12,
+    backgroundColor: ap.primary, borderRadius: 12,
     padding: 16, alignItems: 'center', marginTop: 8,
   },
   btnDisabled:    { backgroundColor: '#A0C4FF' },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   openAuthBtn: {
-    backgroundColor: '#F0F4FF', borderRadius: 12, padding: 14,
+    backgroundColor: ap.surface, borderRadius: 12, padding: 14,
     alignItems: 'center', marginBottom: 16,
-    borderWidth: 1, borderColor: '#2E86FF',
+    borderWidth: 1, borderColor: ap.primary,
   },
-  openAuthText: { color: '#2E86FF', fontWeight: '700', fontSize: 14 },
+  openAuthText: { color: ap.primary, fontWeight: '700', fontSize: 14 },
 });
 
 export const ChatbotFabStyles = StyleSheet.create({
@@ -4439,7 +4439,7 @@ export const EditUserModalExtraStyles = StyleSheet.create({
   },
   hint: {
     fontSize:     12,
-    color:        '#8899BB',
+    color:        ap.outline,
     marginBottom: 10,
     marginTop:    2,
   },
@@ -4450,13 +4450,13 @@ export const EditUserModalExtraStyles = StyleSheet.create({
     paddingVertical:   11,
     borderRadius:      12,
     borderWidth:       1.5,
-    borderColor:       '#D0DEFF',
+    borderColor:       ap.outlineVariant,
     backgroundColor:   '#F8FAFF',
     marginBottom:      8,
     gap:               10,
   },
   additionalRoleBtnActive: {
-    borderColor:     '#2E86FF',
+    borderColor:     ap.primary,
     backgroundColor: '#EBF3FF',
   },
   checkbox: {
@@ -4464,13 +4464,13 @@ export const EditUserModalExtraStyles = StyleSheet.create({
     height:          20,
     borderRadius:    6,
     borderWidth:     2,
-    borderColor:     '#9BA8C0',
+    borderColor:     ap.outline,
     alignItems:      'center',
     justifyContent:  'center',
   },
   checkboxActive: {
-    borderColor:     '#2E86FF',
-    backgroundColor: '#2E86FF',
+    borderColor:     ap.primary,
+    backgroundColor: ap.primary,
   },
   checkmark: {
     color:      '#fff',
@@ -4479,7 +4479,7 @@ export const EditUserModalExtraStyles = StyleSheet.create({
   },
   additionalRoleText: {
     fontSize:   14,
-    color:      '#374151',
+    color:      ap.onSurfaceVariant,
     fontWeight: '500',
   },
   additionalRoleTextActive: {
@@ -4506,7 +4506,7 @@ export const EditUserModalExtraStyles = StyleSheet.create({
     gap:           6,
   },
   chip: {
-    backgroundColor: '#2E86FF',
+    backgroundColor: ap.primary,
     borderRadius:    20,
     paddingHorizontal: 10,
     paddingVertical:   4,
@@ -4522,7 +4522,7 @@ export const EditUserModalExtraStyles = StyleSheet.create({
   pickerWrap: {
     backgroundColor: '#F8FAFF',
     borderWidth:      1.5,
-    borderColor:      '#D0DEFF',
+    borderColor:      ap.outlineVariant,
     borderRadius:     12,
     overflow:         'hidden',
     marginBottom:     10,
@@ -4539,16 +4539,16 @@ export const PermissionsEditorModalStyles = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: '#EEF2FF',
   },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#111' },
-  close:       { fontSize: 20, color: '#8899BB' },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: ap.onSurface },
+  close:       { fontSize: 20, color: ap.outline },
 
   countBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 10,
     backgroundColor: '#F8FAFF', borderBottomWidth: 1, borderBottomColor: '#EEF2FF',
   },
-  countText: { fontSize: 13, fontWeight: '700', color: '#2E86FF' },
-  countHint: { fontSize: 11, color: '#8899BB' },
+  countText: { fontSize: 13, fontWeight: '700', color: ap.primary },
+  countHint: { fontSize: 11, color: ap.outline },
 
   groupTabs: {
     flexDirection: 'row', gap: 8,
@@ -4558,8 +4558,8 @@ export const PermissionsEditorModalStyles = StyleSheet.create({
     flex: 1, paddingVertical: 10, borderRadius: 10,
     alignItems: 'center', backgroundColor: '#F1F5FF',
   },
-  groupTabActive:     { backgroundColor: '#2E86FF' },
-  groupTabText:       { fontSize: 14, fontWeight: '700', color: '#64748B' },
+  groupTabActive:     { backgroundColor: ap.primary },
+  groupTabText:       { fontSize: 14, fontWeight: '700', color: ap.outline },
   groupTabTextActive: { color: '#fff' },
 
   scroll: { paddingHorizontal: 16, paddingBottom: 40 },
@@ -4573,17 +4573,17 @@ export const PermissionsEditorModalStyles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 14,
   },
   facultyDot:  { width: 12, height: 12, borderRadius: 6 },
-  facultyName: { flex: 1, fontSize: 14, fontWeight: '700', color: '#111' },
-  facultyCount:  { fontSize: 12, fontWeight: '700', color: '#8899BB', marginRight: 4 },
-  facultyChevron: { fontSize: 14, color: '#8899BB' },
+  facultyName: { flex: 1, fontSize: 14, fontWeight: '700', color: ap.onSurface },
+  facultyCount:  { fontSize: 12, fontWeight: '700', color: ap.outline, marginRight: 4 },
+  facultyChevron: { fontSize: 14, color: ap.outline },
 
   degreeBlock: { paddingHorizontal: 14, paddingBottom: 12 },
   degreeHeaderRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginTop: 10, marginBottom: 6,
   },
-  degreeLabel:    { fontSize: 12, fontWeight: '700', color: '#374151' },
-  selectAllText:  { fontSize: 11, fontWeight: '600', color: '#2E86FF' },
+  degreeLabel:    { fontSize: 12, fontWeight: '700', color: ap.onSurfaceVariant },
+  selectAllText:  { fontSize: 11, fontWeight: '600', color: ap.primary },
 
   permRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -4591,18 +4591,18 @@ export const PermissionsEditorModalStyles = StyleSheet.create({
   },
   checkbox: {
     width: 20, height: 20, borderRadius: 6, borderWidth: 2,
-    borderColor: '#9BA8C0', alignItems: 'center', justifyContent: 'center',
+    borderColor: ap.outline, alignItems: 'center', justifyContent: 'center',
   },
-  checkboxActive: { borderColor: '#2E86FF', backgroundColor: '#2E86FF' },
+  checkboxActive: { borderColor: ap.primary, backgroundColor: ap.primary },
   checkmark:      { color: '#fff', fontSize: 12, fontWeight: '700' },
-  permLabel:      { fontSize: 13, color: '#374151', flex: 1 },
+  permLabel:      { fontSize: 13, color: ap.onSurfaceVariant, flex: 1 },
 
   footer: {
     padding: 16, borderTopWidth: 1, borderTopColor: '#EEF2FF', backgroundColor: '#fff',
   },
-  footerNote: { fontSize: 11, color: '#9BA8C0', textAlign: 'center', marginBottom: 10 },
+  footerNote: { fontSize: 11, color: ap.outline, textAlign: 'center', marginBottom: 10 },
   doneBtn: {
-    backgroundColor: '#2E86FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center',
+    backgroundColor: ap.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center',
   },
   doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
@@ -4610,39 +4610,39 @@ export const PermissionsEditorModalStyles = StyleSheet.create({
 export const DeleteAccountModalStyles = StyleSheet.create({
   root:      { flex: 1, backgroundColor: '#fff' },
   header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-               padding: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  title:     { fontSize: 18, fontWeight: '800', color: '#1E293B' },
+               padding: 20, borderBottomWidth: 1, borderBottomColor: ap.outlineVariant },
+  title:     { fontSize: 18, fontWeight: '800', color: ap.onSurface },
   closeBtn:  { padding: 4 },
-  closeText: { fontSize: 20, color: '#64748B' },
+  closeText: { fontSize: 20, color: ap.outline },
   body:      { padding: 20 },
   textRight: { textAlign: 'right' },
   warning:   { fontSize: 14, color: '#991B1B', backgroundColor: '#FEE2E2', borderRadius: 10,
                padding: 14, marginBottom: 20, lineHeight: 20 },
-  label:     { fontSize: 13, fontWeight: '600', color: '#445', marginBottom: 6 },
-  input:     { backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1.5, borderColor: '#E2E8F0',
-               padding: 14, fontSize: 16, color: '#111', marginBottom: 8 },
+  label:     { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6 },
+  input:     { backgroundColor: ap.surfaceContainerLow, borderRadius: 10, borderWidth: 1.5, borderColor: ap.outlineVariant,
+               padding: 14, fontSize: 16, color: ap.onSurface, marginBottom: 8 },
   error:     { color: '#EF4444', fontSize: 13, marginBottom: 8 },
   confirmBtn:{ backgroundColor: '#EF4444', borderRadius: 12, paddingVertical: 14,
                alignItems: 'center', marginTop: 12 },
   btnDisabled:{ opacity: 0.5 },
   confirmBtnText:{ color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  cancelBtnText:{ color: '#64748B', fontWeight: '600', fontSize: 14 },
+  cancelBtnText:{ color: ap.outline, fontWeight: '600', fontSize: 14 },
 });
 
 export const ScheduleDefenseModalStyles = StyleSheet.create({
-  modal:        { flex: 1, backgroundColor: '#F8FAFC' },
+  modal:        { flex: 1, backgroundColor: ap.surfaceContainerLow },
   content:      { padding: 20, paddingBottom: 60 },
-  title:        { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 8 },
-  subtitle:     { fontSize: 13, color: '#64748B', marginBottom: 16 },
-  label:        { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 10 },
-  input:        { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-                  padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff' },
+  title:        { fontSize: 18, fontWeight: '800', color: ap.onSurface, marginBottom: 8 },
+  subtitle:     { fontSize: 13, color: ap.outline, marginBottom: 16 },
+  label:        { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6, marginTop: 10 },
+  input:        { borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8,
+                  padding: 11, fontSize: 14, color: ap.onSurface, backgroundColor: '#fff' },
   saveBtn:      { backgroundColor: '#10B981', borderRadius: 12, padding: 15,
                   alignItems: 'center', marginTop: 20, marginBottom: 10 },
   saveBtnText:  { color: '#fff', fontSize: 16, fontWeight: '700' },
   cancelBtn:    { padding: 12, alignItems: 'center' },
-  cancelBtnText:{ color: '#64748B', fontSize: 15 },
+  cancelBtnText:{ color: ap.outline, fontSize: 15 },
 });
 
 export const NewProjectModalStyles = StyleSheet.create({
@@ -4657,7 +4657,7 @@ export const NewProjectModalStyles = StyleSheet.create({
     paddingVertical:   10,
     borderRadius:      12,
     borderWidth:       1.5,
-    borderColor:       '#D0DEFF',
+    borderColor:       ap.outlineVariant,
     backgroundColor:   '#F8FAFF',
     gap:               8,
   },
@@ -4668,7 +4668,7 @@ export const NewProjectModalStyles = StyleSheet.create({
   },
   facultyBtnText: {
     fontSize:   14,
-    color:      '#374151',
+    color:      ap.onSurfaceVariant,
     fontWeight: '500',
     flexShrink: 1,
   },
@@ -4679,12 +4679,12 @@ export const NewProjectModalStyles = StyleSheet.create({
     borderRadius:    16,
     padding:         16,
     borderWidth:     1,
-    borderColor:     '#E0E8FF',
+    borderColor:     ap.outlineVariant,
   },
   sectionTitle: {
     fontSize:   15,
     fontWeight: '700',
-    color:      '#111827',
+    color:      ap.onSurface,
   },
   programBtn: {
     flexDirection:     'row',
@@ -4693,18 +4693,18 @@ export const NewProjectModalStyles = StyleSheet.create({
     paddingVertical:   11,
     borderRadius:      12,
     borderWidth:       1.5,
-    borderColor:       '#D0DEFF',
+    borderColor:       ap.outlineVariant,
     backgroundColor:   '#fff',
     marginBottom:      8,
     gap:               10,
   },
   programBtnActive: {
-    borderColor:     '#2E86FF',
+    borderColor:     ap.primary,
     backgroundColor: '#EBF3FF',
   },
   programBtnText: {
     fontSize:   14,
-    color:      '#374151',
+    color:      ap.onSurfaceVariant,
     fontWeight: '500',
     flexShrink: 1,
   },
@@ -4717,18 +4717,18 @@ export const NewProjectModalStyles = StyleSheet.create({
     height:          18,
     borderRadius:    9,
     borderWidth:     2,
-    borderColor:     '#9BA8C0',
+    borderColor:     ap.outline,
     alignItems:      'center',
     justifyContent:  'center',
   },
   programRadioActive: {
-    borderColor: '#2E86FF',
+    borderColor: ap.primary,
   },
   programRadioDot: {
     width:           8,
     height:          8,
     borderRadius:    4,
-    backgroundColor: '#2E86FF',
+    backgroundColor: ap.primary,
   },
   supervisorFacultyBadge: {
     flexDirection:     'row',
@@ -4764,45 +4764,45 @@ export const NewProjectModalStyles = StyleSheet.create({
 });
 
 export const BulkDueDateModalStyles = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: '#F8FAFC' },
+  root:     { flex: 1, backgroundColor: ap.surfaceContainerLow },
   content:  { padding: 20, paddingBottom: 60 },
-  title:    { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 6 },
-  subtitle: { fontSize: 12, color: '#64748B', marginBottom: 18, lineHeight: 18 },
+  title:    { fontSize: 18, fontWeight: '800', color: ap.onSurface, marginBottom: 6 },
+  subtitle: { fontSize: 12, color: ap.outline, marginBottom: 18, lineHeight: 18 },
   textRight:{ textAlign: 'right' },
 
-  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, marginTop: 6 },
+  fieldLabel: { fontSize: 13, fontWeight: '700', color: ap.onSurfaceVariant, marginBottom: 8, marginTop: 6 },
 
   projectList: { marginBottom: 8, gap: 8 },
   projectRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
-    borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#fff',
+    borderWidth: 1.5, borderColor: ap.outlineVariant, backgroundColor: '#fff',
   },
-  projectRowActive:    { borderColor: '#2E86FF', backgroundColor: '#EBF3FF' },
-  projectRowText:      { flex: 1, fontSize: 13, color: '#334155' },
+  projectRowActive:    { borderColor: ap.primary, backgroundColor: '#EBF3FF' },
+  projectRowText:      { flex: 1, fontSize: 13, color: ap.onSurfaceVariant },
   projectRowTextActive:{ color: '#1A5FCC', fontWeight: '600' },
-  projectRowSublabel:  { fontSize: 11, color: '#94A3B8', marginTop: 1 },
+  projectRowSublabel:  { fontSize: 11, color: ap.outline, marginTop: 1 },
   checkbox: {
     width: 18, height: 18, borderRadius: 5, borderWidth: 2,
-    borderColor: '#9BA8C0', alignItems: 'center', justifyContent: 'center',
+    borderColor: ap.outline, alignItems: 'center', justifyContent: 'center',
   },
-  checkboxActive: { borderColor: '#2E86FF', backgroundColor: '#2E86FF' },
+  checkboxActive: { borderColor: ap.primary, backgroundColor: ap.primary },
   checkmark:      { color: '#fff', fontSize: 11, fontWeight: '700' },
-  emptyText:      { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 12 },
-  selectAll:      { fontSize: 12, color: '#2E86FF', fontWeight: '600', marginBottom: 12 },
+  emptyText:      { fontSize: 13, color: ap.outline, textAlign: 'center', paddingVertical: 12 },
+  selectAll:      { fontSize: 12, color: ap.primary, fontWeight: '600', marginBottom: 12 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0',
+    backgroundColor: ap.surfaceContainerLow, borderWidth: 1, borderColor: ap.outlineVariant,
   },
-  chipActive:     { backgroundColor: '#2E86FF', borderColor: '#2E86FF' },
+  chipActive:     { backgroundColor: ap.primary, borderColor: ap.primary },
   chipText:       { fontSize: 12, fontWeight: '600', color: '#475569' },
   chipTextActive: { color: '#fff' },
 
   input: {
-    borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8,
-    padding: 11, fontSize: 14, color: '#1E293B', backgroundColor: '#fff', marginBottom: 4,
+    borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8,
+    padding: 11, fontSize: 14, color: ap.onSurface, backgroundColor: '#fff', marginBottom: 4,
   },
   inputMultiline: { minHeight: 70, textAlignVertical: 'top' },
 
@@ -4810,7 +4810,7 @@ export const BulkDueDateModalStyles = StyleSheet.create({
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },
   cancelBtn:         { padding: 12, alignItems: 'center' },
-  cancelBtnText:     { color: '#64748B', fontSize: 15 },
+  cancelBtnText:     { color: ap.outline, fontSize: 15 },
 });
 
 export const MaintenanceModalStyles = StyleSheet.create({
@@ -4911,10 +4911,10 @@ export const StudentStatusesModalStyles = StyleSheet.create({
   sectionCountText: {
     fontSize:   13,
     fontWeight: '700',
-    color:      '#374151',
+    color:      ap.onSurfaceVariant,
   },
   addBtn: {
-    backgroundColor:   '#2E86FF',
+    backgroundColor:   ap.primary,
     borderRadius:      8,
     paddingHorizontal: 12,
     paddingVertical:   6,
@@ -4930,7 +4930,7 @@ export const StudentStatusesModalStyles = StyleSheet.create({
     backgroundColor:   '#F8FAFF',
     borderRadius:      12,
     borderWidth:       1,
-    borderColor:       '#E0E8FF',
+    borderColor:       ap.outlineVariant,
     padding:           12,
     marginBottom:      8,
     gap:               10,
@@ -4941,7 +4941,7 @@ export const StudentStatusesModalStyles = StyleSheet.create({
   rowInput: {
     backgroundColor:   '#fff',
     borderWidth:       1,
-    borderColor:       '#D0DEFF',
+    borderColor:       ap.outlineVariant,
     borderRadius:      8,
     paddingHorizontal: 12,
     paddingVertical:   9,
@@ -4958,7 +4958,7 @@ export const StudentStatusesModalStyles = StyleSheet.create({
   },
   emptyText: {
     fontSize:     12,
-    color:        '#94A3B8',
+    color:        ap.outline,
     fontStyle:    'italic',
     marginBottom: 8,
   },

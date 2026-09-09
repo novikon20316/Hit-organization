@@ -67,18 +67,18 @@ export function DefenseAccessTab() {
 
   return (
     <div>
-      <p className="mb-4 text-sm text-muted">
+      <p className="mb-4 text-sm text-admin-on-surface-variant">
         {lang === 'he' ? 'גישת בוחנים חיצוניים ליום ההגנה' : "External examiners' defense-day access"}
       </p>
 
-      <div className="mb-4 flex gap-1 border-b border-line">
+      <div className="mb-4 flex gap-1 border-b border-admin-outline-variant">
         {(['expired', 'active'] as const).map((st) => (
           <button
             key={st}
             type="button"
             onClick={() => setStatusFilter(st)}
             className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-              statusFilter === st ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-ink'
+              statusFilter === st ? 'border-admin-primary text-admin-primary' : 'border-transparent text-admin-on-surface-variant hover:text-admin-on-surface'
             }`}
           >
             {st === 'expired' ? (lang === 'he' ? 'פג תוקף' : 'Expired') : lang === 'he' ? 'פעיל' : 'Active'}
@@ -89,9 +89,9 @@ export function DefenseAccessTab() {
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 
       {loading ? (
-        <p className="text-sm text-muted">…</p>
+        <p className="text-sm text-admin-on-surface-variant">…</p>
       ) : grants.length === 0 ? (
-        <p className="text-sm text-muted">
+        <p className="text-sm text-admin-on-surface-variant">
           {statusFilter === 'expired'
             ? lang === 'he'
               ? 'אין בקשות הארכה ממתינות'
@@ -103,12 +103,12 @@ export function DefenseAccessTab() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {grants.map((g) => (
-            <div key={g.code} className="rounded-[var(--radius)] border border-line bg-surface p-4">
-              <p className="text-sm font-semibold text-ink">{g.examinerName}</p>
-              <p className="mt-1 text-xs text-muted" dir="ltr">
+            <div key={g.code} className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface-container-lowest p-4">
+              <p className="text-sm font-semibold text-admin-on-surface">{g.examinerName}</p>
+              <p className="mt-1 text-xs text-admin-on-surface-variant" dir="ltr">
                 📧 {g.examinerEmail}
               </p>
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-xs text-admin-on-surface-variant">
                 📅 {lang === 'he' ? 'תאריך הגנה:' : 'Defense date:'} {g.defenseDateISO}
               </p>
 
@@ -118,20 +118,20 @@ export function DefenseAccessTab() {
                     type="datetime-local"
                     value={newDate}
                     onChange={(e) => setNewDate(e.target.value)}
-                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                    className="w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none"
                   />
                   <input
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
-                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                    className="w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none"
                   />
                   {submitError && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{submitError}</p>}
                   <button
                     type="button"
                     onClick={() => handleExtend(g.code)}
                     disabled={submitting}
-                    className="rounded-lg bg-primary py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                    className="rounded-lg bg-admin-primary py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container disabled:opacity-60"
                   >
                     {submitting ? '…' : lang === 'he' ? 'אשר הארכה' : 'Confirm extension'}
                   </button>
@@ -141,7 +141,7 @@ export function DefenseAccessTab() {
                       setExtendingCode(null);
                       setSubmitError('');
                     }}
-                    className="text-xs text-muted hover:underline"
+                    className="text-xs text-admin-on-surface-variant hover:underline"
                   >
                     {lang === 'he' ? 'ביטול' : 'Cancel'}
                   </button>
@@ -155,7 +155,7 @@ export function DefenseAccessTab() {
                     setReason('');
                     setSubmitError('');
                   }}
-                  className="mt-3 w-full rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+                  className="mt-3 w-full rounded-lg border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-admin-primary hover:text-admin-primary"
                 >
                   🔓 {lang === 'he' ? 'הארך גישה' : 'Extend access'}
                 </button>

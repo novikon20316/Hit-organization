@@ -120,9 +120,9 @@ export function GradeOverridesTab() {
           {r.kind === 'override' ? (
             <>
               <div className="mt-3 flex gap-2">
-                <div className="flex-1 rounded-lg bg-paper p-2 text-center">
-                  <p className="text-[10px] text-muted">{lang === 'he' ? 'ציון מחושב' : 'Computed'}</p>
-                  <p className="text-lg font-bold text-ink">{r.autoCalculatedFinalGrade}</p>
+                <div className="flex-1 rounded-lg bg-administrative-coordinator-surface-container-low p-2 text-center">
+                  <p className="text-[10px] text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'ציון מחושב' : 'Computed'}</p>
+                  <p className="text-lg font-bold text-administrative-coordinator-on-surface">{r.autoCalculatedFinalGrade}</p>
                 </div>
                 <div className="flex-1 rounded-lg bg-[#FBF3E3] p-2 text-center">
                   <p className="text-[10px] text-accent">{lang === 'he' ? 'ציון מוצע' : 'Proposed'}</p>
@@ -130,14 +130,14 @@ export function GradeOverridesTab() {
                 </div>
               </div>
 
-              <p className="mt-2 rounded-md bg-paper px-2.5 py-1.5 text-xs text-ink">💬 {r.reason}</p>
+              <p className="mt-2 rounded-md bg-administrative-coordinator-surface-container-low px-2.5 py-1.5 text-xs text-administrative-coordinator-on-surface">💬 {r.reason}</p>
 
               <div className="mt-3 flex gap-1.5">
                 <button
                   type="button"
                   onClick={() => decide(r.milestoneId, 'approve_override')}
                   disabled={busyId === r.milestoneId}
-                  className="flex-1 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                  className="flex-1 rounded-lg bg-administrative-coordinator-primary px-2.5 py-1.5 text-xs font-semibold text-administrative-coordinator-on-primary hover:bg-administrative-coordinator-primary-container disabled:opacity-60"
                 >
                   {lang === 'he' ? '✓ אשר את השינוי' : '✓ Approve change'}
                 </button>
@@ -145,7 +145,7 @@ export function GradeOverridesTab() {
                   type="button"
                   onClick={() => decide(r.milestoneId, 'keep_auto')}
                   disabled={busyId === r.milestoneId}
-                  className="flex-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-paper disabled:opacity-60"
+                  className="flex-1 rounded-lg border border-administrative-coordinator-outline-variant px-2.5 py-1.5 text-xs font-medium text-administrative-coordinator-on-surface hover:bg-administrative-coordinator-surface-container-low disabled:opacity-60"
                 >
                   {lang === 'he' ? 'השאר מחושב' : 'Keep computed'}
                 </button>
@@ -153,9 +153,9 @@ export function GradeOverridesTab() {
             </>
           ) : (
             <>
-              <div className="mt-3 rounded-lg bg-paper p-2 text-center">
-                <p className="text-[10px] text-muted">{lang === 'he' ? 'המנחה אישר את הציון המחושב' : "Supervisor confirmed the computed grade"}</p>
-                <p className="text-lg font-bold text-ink">{r.proposedGrade}</p>
+              <div className="mt-3 rounded-lg bg-administrative-coordinator-surface-container-low p-2 text-center">
+                <p className="text-[10px] text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'המנחה אישר את הציון המחושב' : "Supervisor confirmed the computed grade"}</p>
+                <p className="text-lg font-bold text-administrative-coordinator-on-surface">{r.proposedGrade}</p>
               </div>
 
               <div className="mt-3">
@@ -163,7 +163,7 @@ export function GradeOverridesTab() {
                   type="button"
                   onClick={() => decide(r.milestoneId, 'approve_override')}
                   disabled={busyId === r.milestoneId}
-                  className="w-full rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                  className="w-full rounded-lg bg-administrative-coordinator-primary px-2.5 py-1.5 text-xs font-semibold text-administrative-coordinator-on-primary hover:bg-administrative-coordinator-primary-container disabled:opacity-60"
                 >
                   {lang === 'he' ? '✓ אשר ציון סופי' : '✓ Approve final grade'}
                 </button>

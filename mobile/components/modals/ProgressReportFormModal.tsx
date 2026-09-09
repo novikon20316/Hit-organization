@@ -23,6 +23,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient';
 import { examinerSignatureStyle } from '../../utils/examinerSignature';
+import { ap } from '../../constants/theme';
 import type { Lang } from '../i18n';
 import type { Milestone, ActiveProject } from '@/types';
 
@@ -241,26 +242,26 @@ export default function ProgressReportFormModal({ milestone, project, lang, isRt
 }
 
 const styles = StyleSheet.create({
-  modal: { flex: 1, backgroundColor: '#F8FAFC' },
+  modal: { flex: 1, backgroundColor: ap.surface },
   modalContent: { padding: 20, paddingBottom: 60 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#1E293B', flexShrink: 1 },
-  modalClose: { fontSize: 22, color: '#888', padding: 4 },
-  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8 },
-  teammateCard: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9', borderRadius: 10, padding: 12, marginBottom: 10 },
-  teammateLine: { fontSize: 12, color: '#374151', marginBottom: 2 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: ap.onSurface, flexShrink: 1 },
+  modalClose: { fontSize: 22, color: ap.outline, padding: 4 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', color: ap.onSurfaceVariant, marginBottom: 8 },
+  teammateCard: { borderWidth: 1, borderColor: ap.outlineVariant, backgroundColor: ap.surfaceContainerLow, borderRadius: 10, padding: 12, marginBottom: 10 },
+  teammateLine: { fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 2 },
   signatureText: { fontSize: 18, marginTop: 6 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 14 },
-  lockedValue: { fontSize: 14, color: '#64748B', borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F1F5F9', borderRadius: 10, padding: 10 },
-  input: { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 10, fontSize: 14, color: '#111' },
-  textarea: { borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10, padding: 10, fontSize: 14, color: '#111', minHeight: 90, textAlignVertical: 'top' },
-  fileRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 8, marginBottom: 6 },
-  fileName: { fontSize: 13, color: '#445', flex: 1 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6, marginTop: 14 },
+  lockedValue: { fontSize: 14, color: ap.outline, borderWidth: 1, borderColor: ap.outlineVariant, backgroundColor: ap.surfaceContainerLow, borderRadius: 10, padding: 10 },
+  input: { borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 10, fontSize: 14, color: ap.onSurface },
+  textarea: { borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 10, fontSize: 14, color: ap.onSurface, minHeight: 90, textAlignVertical: 'top' },
+  fileRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 8, marginBottom: 6 },
+  fileName: { fontSize: 13, color: ap.onSurfaceVariant, flex: 1 },
   fileRemove: { fontSize: 16, color: '#D32F2F', paddingLeft: 10 },
-  uploadBtn: { backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#CBD5E1', borderStyle: 'dashed', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 4 },
-  uploadBtnText: { color: '#2E86FF', fontSize: 14, fontWeight: '600' },
+  uploadBtn: { backgroundColor: ap.surfaceContainerLow, borderWidth: 1, borderColor: ap.outlineVariant, borderStyle: 'dashed', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 4 },
+  uploadBtnText: { color: ap.primary, fontSize: 14, fontWeight: '600' },
   errorText: { marginTop: 14, padding: 10, borderRadius: 8, backgroundColor: '#FEE2E2', color: '#B91C1C', fontSize: 13 },
-  submitBtn: { backgroundColor: '#2563EB', borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 20 },
+  submitBtn: { backgroundColor: ap.primary, borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 20 },
   submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   rowReverse: { flexDirection: 'row-reverse' },
   textRight: { textAlign: 'right' },

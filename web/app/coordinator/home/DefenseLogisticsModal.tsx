@@ -61,7 +61,7 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none';
   const title = lang === 'he' ? project.titleHe : project.titleEn;
 
   return (
@@ -71,24 +71,24 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-coordinator-lg bg-coordinator-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <FieldGuideOverlay guideKey={DEFENSE_LOGISTICS_GUIDE_KEY} steps={DEFENSE_LOGISTICS_FIELD_GUIDE} />
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">📍 {lang === 'he' ? 'פרטי ההגנה' : 'Defense Logistics'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-coordinator-on-surface">📍 {lang === 'he' ? 'פרטי ההגנה' : 'Defense Logistics'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-coordinator-on-surface-variant hover:text-coordinator-on-surface">
             ✕
           </button>
         </div>
-        {title && <p className="mt-1 truncate text-sm text-muted">📁 {title}</p>}
+        {title && <p className="mt-1 truncate text-sm text-coordinator-on-surface-variant">📁 {title}</p>}
         {milestone.defenseDate && (
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-coordinator-on-surface-variant">
             {lang === 'he' ? 'תאריך שנקבע:' : 'Confirmed date:'} {milestone.defenseDate}
           </p>
         )}
 
         <label data-field-guide-id="time" className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">
             {lang === 'he' ? 'שעה' : 'Time'}
             <InfoTooltip text={logisticsGuideEntry('time').description} />
           </span>
@@ -96,7 +96,7 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
         </label>
 
         <label data-field-guide-id="room" className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">
             {lang === 'he' ? 'חדר' : 'Room'}
             <InfoTooltip text={logisticsGuideEntry('room').description} />
           </span>
@@ -104,7 +104,7 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
         </label>
 
         <div data-field-guide-id="building" className="mt-4">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">
             {lang === 'he' ? 'בניין' : 'Building'}
             <InfoTooltip text={logisticsGuideEntry('building').description} />
           </span>
@@ -112,7 +112,7 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
         </div>
 
         <label data-field-guide-id="onlineLink" className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">
             {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
             <InfoTooltip text={logisticsGuideEntry('onlineLink').description} />
           </span>
@@ -127,14 +127,14 @@ export function DefenseLogisticsModal({ project, milestone, onClose, onSaved }: 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-coordinator-outline-variant px-3.5 py-2 text-sm font-medium text-coordinator-on-surface hover:bg-coordinator-surface-container-low">
             {lang === 'he' ? 'ביטול' : 'Cancel'}
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-coordinator-primary px-3.5 py-2 text-sm font-semibold text-coordinator-on-primary hover:bg-coordinator-primary-container disabled:opacity-60"
           >
             {saving ? '…' : lang === 'he' ? 'שמור' : 'Save'}
           </button>

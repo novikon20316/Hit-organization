@@ -80,21 +80,21 @@ export function OtpGate({ token, onVerified }: OtpGateProps) {
   return (
     <div className="w-full max-w-sm text-center">
       <span className="text-4xl">🔐</span>
-      <h1 className="mt-2 text-xl font-semibold text-ink">{t('examinerOtpRequiredTitle')}</h1>
-      <p className="mt-2 text-sm text-muted">{t('examinerOtpRequiredBody')}</p>
+      <h1 className="mt-2 text-xl font-semibold text-examinor-on-surface">{t('examinerOtpRequiredTitle')}</h1>
+      <p className="mt-2 text-sm text-examinor-on-surface-variant">{t('examinerOtpRequiredBody')}</p>
 
       {!sent ? (
         <button
           type="button"
           onClick={handleRequestOtp}
           disabled={sending}
-          className="mt-5 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          className="mt-5 w-full rounded-lg bg-examinor-primary py-2.5 text-sm font-semibold text-examinor-on-primary hover:bg-examinor-primary-container disabled:opacity-60"
         >
           {sending ? t('examinerOtpSending') : `✉️ ${t('examinerOtpSendBtn')}`}
         </button>
       ) : (
         <div className="mt-5 text-start">
-          <label className="mb-1.5 block text-sm font-medium text-ink">{t('examinerOtpEnterLabel')}</label>
+          <label className="mb-1.5 block text-sm font-medium text-examinor-on-surface">{t('examinerOtpEnterLabel')}</label>
           <input
             type="text"
             inputMode="numeric"
@@ -104,13 +104,13 @@ export function OtpGate({ token, onVerified }: OtpGateProps) {
             value={otpCode}
             onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
             placeholder="000000"
-            className="w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-center text-lg tracking-[0.3em] text-ink focus:border-primary focus:bg-surface focus:outline-none"
+            className="w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3.5 py-2.5 text-center text-lg tracking-[0.3em] text-examinor-on-surface focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none"
           />
           <button
             type="button"
             onClick={handleVerifyOtp}
             disabled={verifying || !otpCode.trim()}
-            className="mt-3 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="mt-3 w-full rounded-lg bg-examinor-primary py-2.5 text-sm font-semibold text-examinor-on-primary hover:bg-examinor-primary-container disabled:opacity-60"
           >
             {verifying ? '…' : t('examinerOtpVerifyBtn')}
           </button>
@@ -118,7 +118,7 @@ export function OtpGate({ token, onVerified }: OtpGateProps) {
             type="button"
             onClick={handleRequestOtp}
             disabled={sending}
-            className="mt-2 w-full text-center text-sm text-primary hover:underline"
+            className="mt-2 w-full text-center text-sm text-examinor-primary hover:underline"
           >
             {sending ? t('examinerOtpSending') : t('examinerOtpResendBtn')}
           </button>

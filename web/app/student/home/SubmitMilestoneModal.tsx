@@ -164,44 +164,44 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <FieldGuideOverlay
           guideKey={SUBMIT_MILESTONE_GUIDE_KEY}
           steps={SUBMIT_MILESTONE_FIELD_GUIDE.filter((s) => (s.key === 'files' && showFile) || (s.key === 'note' && showNote))}
         />
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">
+          <h2 className="text-lg font-semibold text-student-on-surface">
             {lang === 'he' ? 'הגשת' : 'Submit'} {MILESTONE_LABEL[milestone.type]?.[lang]}
           </h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="rounded-student p-1 text-student-outline transition-colors hover:bg-student-surface-container-low hover:text-student-on-surface">
             ✕
           </button>
         </div>
 
         {showFile && (
           <div data-field-guide-id="files" className="mt-4">
-            <span className="mb-1.5 block text-sm font-medium text-ink">
+            <span className="mb-1.5 block text-xs font-semibold text-student-on-surface-variant">
               {lang === 'he' ? 'קבצים' : 'Files'}
-              {(requirement === 'file' || requirement === 'both') && <span className="text-danger"> *</span>}
+              {(requirement === 'file' || requirement === 'both') && <span className="text-student-error"> *</span>}
               <InfoTooltip text={submitGuideEntry('files').description} />
             </span>
             {allowedTypesLabel && (
-              <p className="mb-1.5 text-xs text-muted">
+              <p className="mb-1.5 text-xs text-student-on-surface-variant">
                 {lang === 'he' ? `סוגי קובץ מותרים: ${allowedTypesLabel}` : `Allowed file types: ${allowedTypesLabel}`}
               </p>
             )}
             <div className="grid gap-1.5">
               {files.map((f, i) => (
-                <div key={i} className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2 text-sm">
-                  <span className="truncate text-ink">📎 {f.name}</span>
-                  <button type="button" onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`${lang === 'he' ? 'הסר קובץ' : 'Remove file'} ${f.name}`} className="text-muted hover:text-danger">
+                <div key={i} className="flex items-center justify-between rounded-student border border-student-outline-variant bg-student-surface-container-low px-3 py-2 text-sm">
+                  <span className="truncate text-student-on-surface">📎 {f.name}</span>
+                  <button type="button" onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`${lang === 'he' ? 'הסר קובץ' : 'Remove file'} ${f.name}`} className="text-student-outline hover:text-student-error">
                     ✕
                   </button>
                 </div>
               ))}
             </div>
-            <label className="relative mt-1.5 block overflow-hidden rounded-lg border border-dashed border-line bg-paper px-3 py-2.5 text-center text-sm text-ink hover:border-primary">
+            <label className="relative mt-1.5 block overflow-hidden rounded-student border border-dashed border-student-outline-variant bg-student-surface-container-low px-3 py-2.5 text-center text-sm text-student-on-surface hover:border-student-primary">
               + {lang === 'he' ? 'הוסף קובץ' : 'Add File'}
               <input type="file" multiple accept={acceptAttr} onChange={(e) => addFiles(e.target.files)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
             </label>
@@ -210,29 +210,29 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
 
         {showNote && (
           <label data-field-guide-id="note" className="mt-4 block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">
+            <span className="mb-1.5 block text-xs font-semibold text-student-on-surface-variant">
               {lang === 'he' ? 'הערה' : 'Note'}
-              {(requirement === 'comment' || requirement === 'both') && <span className="text-danger"> *</span>}
+              {(requirement === 'comment' || requirement === 'both') && <span className="text-student-error"> *</span>}
               <InfoTooltip text={submitGuideEntry('note').description} />
             </span>
             <textarea
               rows={4}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+              className="w-full rounded-student border border-student-outline-variant bg-student-surface-container-low px-3.5 py-2.5 text-sm text-student-on-surface transition-colors focus:border-student-primary focus:bg-student-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-student-primary/15"
             />
           </label>
         )}
 
         {!showFile && !showNote && (
-          <p className="mt-4 text-sm text-muted">
+          <p className="mt-4 text-sm text-student-on-surface-variant">
             {lang === 'he' ? 'אבן דרך זו אינה דורשת קובץ או הערה — ניתן להגיש ישירות.' : 'This milestone requires no file or comment — you can submit directly.'}
           </p>
         )}
 
         {message && (
           <p
-            className={`mt-4 rounded-md px-3 py-2 text-sm ${message.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}
+            className={`mt-4 rounded-student px-3 py-2 text-sm ${message.ok ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}
             role={message.ok ? 'status' : 'alert'}
           >{message.text}</p>
         )}
@@ -241,7 +241,7 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
           type="button"
           onClick={handleSubmit}
           disabled={submitting || !canSubmit}
-          className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+          className="mt-4 w-full rounded-student-lg bg-student-primary py-2.5 text-sm font-semibold text-student-on-primary shadow-sm transition-colors hover:bg-student-primary-container disabled:opacity-40"
         >
           {submitting ? '…' : t('submit')}
         </button>

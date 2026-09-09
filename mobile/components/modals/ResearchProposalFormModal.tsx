@@ -25,6 +25,7 @@ import { apiClient } from '../../src/api/apiClient';
 import { examinerSignatureStyle } from '../../utils/examinerSignature';
 import { tx, type Lang } from '../i18n';
 import { ActivateDashboardStyles } from '../../constants/styles';
+import { ap } from '../../constants/theme';
 import type { Milestone, ActiveProject } from '@/types';
 
 // ActivateDashboardStyles (the shared submit-modal chrome — header/textarea/
@@ -34,11 +35,11 @@ import type { Milestone, ActiveProject } from '@/types';
 // widening a style sheet several other unrelated screens also import.
 const local = StyleSheet.create({
   input: {
-    backgroundColor: '#fff', borderRadius: 10, padding: 10,
-    fontSize: 14, color: '#111', borderWidth: 1, borderColor: '#E0E8FF', marginBottom: 6,
+    backgroundColor: ap.surfaceContainerLowest, borderRadius: 10, padding: 10,
+    fontSize: 14, color: ap.onSurface, borderWidth: 1, borderColor: ap.outlineVariant, marginBottom: 6,
   },
-  detailText: { fontSize: 12, color: '#445', marginBottom: 2 },
-  lockedText: { fontSize: 14, color: '#8899BB', paddingVertical: 8 },
+  detailText: { fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 2 },
+  lockedText: { fontSize: 14, color: ap.outline, paddingVertical: 8 },
   signatureText: { fontSize: 16, marginTop: 4 },
 });
 
@@ -233,14 +234,14 @@ export default function ResearchProposalFormModal({
             // ProgressReportFormModal.tsx's identical block.
             const sig = examinerSignatureStyle(tm.displayName, project.facultyId ?? '', 'student', project.major ?? null);
             return (
-              <View key={tm.uid} style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 10, marginBottom: 10, padding: 8, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8 }}>
+              <View key={tm.uid} style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 10, marginBottom: 10, padding: 8, borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8 }}>
                 <View style={{ alignItems: 'center', gap: 4 }}>
-                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#F1F0EC', overflow: 'hidden' }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: ap.surfaceContainerLow, overflow: 'hidden' }}>
                     {tm.photoUrl && <Image source={{ uri: tm.photoUrl }} style={{ width: 56, height: 56 }} />}
                   </View>
                   {tm.uid === currentUid && (
                     <Pressable onPress={() => handlePhotoUpload(tm.uid)} disabled={uploadingPhoto} accessibilityRole="button">
-                      <Text style={{ fontSize: 10, color: '#00236f' }}>{uploadingPhoto ? '…' : lang === 'he' ? 'העלה תמונה' : 'Upload photo'}</Text>
+                      <Text style={{ fontSize: 10, color: ap.primary }}>{uploadingPhoto ? '…' : lang === 'he' ? 'העלה תמונה' : 'Upload photo'}</Text>
                     </Pressable>
                   )}
                 </View>
@@ -269,13 +270,13 @@ export default function ResearchProposalFormModal({
             ) : f.type === 'table' ? (
               <View>
                 {(tableValues[f.key] ?? []).map((row, rowIdx) => (
-                  <View key={rowIdx} style={{ marginBottom: 6, padding: 6, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6 }}>
+                  <View key={rowIdx} style={{ marginBottom: 6, padding: 6, borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 6 }}>
                     {(f.tableColumns ?? []).map((col) => (
                       <TextInput
                         key={col.key}
                         style={local.input}
                         placeholder={lang === 'he' ? col.labelHe : col.labelEn}
-                        placeholderTextColor="#9BA8C0"
+                        placeholderTextColor={ap.outline}
                         keyboardType={col.type === 'number' ? 'numeric' : 'default'}
                         value={row[col.key] ?? ''}
                         onChangeText={(v) => updateTableCell(f.key, rowIdx, col.key, v)}
@@ -288,7 +289,7 @@ export default function ResearchProposalFormModal({
                   </View>
                 ))}
                 <Pressable onPress={() => addTableRow(f)} accessibilityRole="button">
-                  <Text style={{ color: '#00236f', fontWeight: '600' }}>＋ {tx('add', lang)}</Text>
+                  <Text style={{ color: ap.primary, fontWeight: '600' }}>＋ {tx('add', lang)}</Text>
                 </Pressable>
               </View>
             ) : f.type === 'textarea' ? (

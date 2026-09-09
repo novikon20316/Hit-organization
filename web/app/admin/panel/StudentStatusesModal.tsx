@@ -115,20 +115,20 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
   const renderList = (title: string, rows: EditableRow[], setList: Dispatch<SetStateAction<EditableRow[]>>) => (
     <div className="mt-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-ink">
+        <span className="text-sm font-semibold text-admin-on-surface">
           {title} ({rows.length})
         </span>
         <button
           type="button"
           onClick={() => addRow(setList)}
-          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover"
+          className="rounded-lg bg-admin-primary px-3 py-1.5 text-xs font-semibold text-admin-on-primary hover:bg-admin-primary-container"
         >
           ＋ {t('add')}
         </button>
       </div>
       <div className="mt-2 grid gap-2">
         {rows.map((row) => (
-          <div key={row.rowId} className="flex items-center gap-2 rounded-lg border border-line bg-paper p-2.5">
+          <div key={row.rowId} className="flex items-center gap-2 rounded-lg border border-admin-outline-variant bg-admin-surface-container-low p-2.5">
             <input
               dir="rtl"
               value={row.labelHe}
@@ -146,14 +146,14 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
             <button
               type="button"
               onClick={() => removeRow(setList, row.rowId)}
-              className="shrink-0 rounded-md px-1.5 py-1 text-sm text-muted hover:bg-surface hover:text-danger"
+              className="shrink-0 rounded-md px-1.5 py-1 text-sm text-admin-on-surface-variant hover:bg-admin-surface-container-lowest hover:text-danger"
               aria-label="remove"
             >
               ✕
             </button>
           </div>
         ))}
-        {rows.length === 0 && <p className="text-xs text-muted">{lang === 'he' ? 'אין שורות' : 'No rows yet'}</p>}
+        {rows.length === 0 && <p className="text-xs text-admin-on-surface-variant">{lang === 'he' ? 'אין שורות' : 'No rows yet'}</p>}
       </div>
     </div>
   );
@@ -165,20 +165,20 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">🏷️ {lang === 'he' ? 'סטטוסים של סטודנטים' : 'Student Statuses'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-admin-on-surface">🏷️ {lang === 'he' ? 'סטטוסים של סטודנטים' : 'Student Statuses'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-admin-on-surface-variant hover:text-admin-on-surface">
             ✕
           </button>
         </div>
 
         {loading ? (
-          <p className="mt-4 text-sm text-muted">…</p>
+          <p className="mt-4 text-sm text-admin-on-surface-variant">…</p>
         ) : (
           <>
-            <p className="mt-2 text-xs text-muted">
+            <p className="mt-2 text-xs text-admin-on-surface-variant">
               {lang === 'he'
                 ? 'עריכת תווית של סטטוס קיים מעדכנת אותה מיידית לכל הסטודנטים המוגדרים אליו. מחיקת שורה אינה פוגעת בסטודנטים שכבר הוגדרו לסטטוס הזה — היא רק מסתירה את האפשרות מרשימות עתידיות.'
                 : "Editing an existing status's label updates it immediately for every student already set to it. Deleting a row doesn't affect students already set to it — it just hides that option going forward."}
@@ -199,7 +199,7 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
                 type="button"
                 onClick={onClose}
                 disabled={saving}
-                className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+                className="rounded-lg border border-admin-outline-variant px-3.5 py-2 text-sm font-medium text-admin-on-surface hover:bg-admin-surface-container-low"
               >
                 {t('cancel')}
               </button>
@@ -207,7 +207,7 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container disabled:opacity-60"
               >
                 {saving ? '…' : t('save')}
               </button>
@@ -220,4 +220,4 @@ export function StudentStatusesModal({ onClose }: StudentStatusesModalProps) {
 }
 
 const rowInputCls =
-  'w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-primary focus:outline-none';
+  'w-full rounded-md border border-admin-outline-variant bg-admin-surface-container-lowest px-2.5 py-1.5 text-sm text-admin-on-surface focus:border-admin-primary focus:outline-none';

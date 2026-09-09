@@ -183,36 +183,36 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">🛠️ {isHe ? 'מצב תחזוקה' : 'Maintenance mode'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">
+          <h2 className="text-lg font-semibold text-admin-on-surface">🛠️ {isHe ? 'מצב תחזוקה' : 'Maintenance mode'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-admin-on-surface-variant hover:text-admin-on-surface">
             ✕
           </button>
         </div>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-admin-on-surface-variant">
           {isHe ? 'אתר ואפליקציה מנוהלים בנפרד — השבתת אחד לא משפיעה על השני' : 'Web and mobile are managed independently — taking one down doesn’t affect the other'}
         </p>
 
         {/* Current status per platform */}
         <div className="mt-4 grid gap-2">
           {statusLoading ? (
-            <p className="text-xs text-muted">{isHe ? 'טוען סטטוס…' : 'Loading status…'}</p>
+            <p className="text-xs text-admin-on-surface-variant">{isHe ? 'טוען סטטוס…' : 'Loading status…'}</p>
           ) : (
             PLATFORMS.map((p) => {
               const status = statuses[p];
               return (
-                <div key={p} className="flex items-center justify-between rounded-lg bg-paper p-3">
+                <div key={p} className="flex items-center justify-between rounded-lg bg-admin-surface-container-low p-3">
                   <div>
-                    <p className="text-sm font-semibold text-ink">
+                    <p className="text-sm font-semibold text-admin-on-surface">
                       {platformLabel(p)} —{' '}
                       <span className={status?.isActive ? 'text-danger' : 'text-success'}>
                         {status?.isActive ? (isHe ? 'בתחזוקה' : 'Under maintenance') : isHe ? 'פעיל' : 'Live'}
                       </span>
                     </p>
                     {status?.isActive && (
-                      <p className="mt-0.5 text-xs text-muted">
+                      <p className="mt-0.5 text-xs text-admin-on-surface-variant">
                         {status.title}
                         {status.endsAt ? ` · ${isHe ? 'עד' : 'until'} ${new Date(status.endsAt).toLocaleString(isHe ? 'he-IL' : 'en-US')}` : ''}
                       </p>
@@ -234,8 +234,8 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
           )}
         </div>
 
-        <div className="mt-5 border-t border-line pt-4">
-          <p className="mb-1.5 text-sm font-medium text-ink">🎯 {isHe ? 'להפעיל תחזוקה עבור' : 'Activate maintenance for'}</p>
+        <div className="mt-5 border-t border-admin-outline-variant pt-4">
+          <p className="mb-1.5 text-sm font-medium text-admin-on-surface">🎯 {isHe ? 'להפעיל תחזוקה עבור' : 'Activate maintenance for'}</p>
           <div className="flex gap-1.5">
             {PLATFORMS.map((p) => (
               <button
@@ -243,7 +243,7 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
                 type="button"
                 onClick={() => setPlatform(p)}
                 className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                  platform === p ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink'
+                  platform === p ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface'
                 }`}
               >
                 {platformLabel(p)}
@@ -253,7 +253,7 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">💬 {isHe ? 'הודעה למשתמשים' : 'User-facing message'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">💬 {isHe ? 'הודעה למשתמשים' : 'User-facing message'}</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -263,29 +263,29 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
         </label>
 
         <div className="mt-4">
-          <p className="mb-1.5 text-sm font-medium text-ink">📣 {isHe ? 'אזהרה לפני הסגירה' : 'Warning before shutdown'}</p>
+          <p className="mb-1.5 text-sm font-medium text-admin-on-surface">📣 {isHe ? 'אזהרה לפני הסגירה' : 'Warning before shutdown'}</p>
           <div className="grid grid-cols-3 gap-2">
             <TimeSelect label={isHe ? 'ימים' : 'Days'} value={warnDays} onChange={setWarnDays} options={DAY_OPTIONS} />
             <TimeSelect label={isHe ? 'שעות' : 'Hours'} value={warnHours} onChange={setWarnHours} options={HOUR_OPTIONS} />
             <TimeSelect label={isHe ? 'דקות' : 'Mins'} value={warnMinutes} onChange={setWarnMinutes} options={MIN_OPTIONS} />
           </div>
-          <p className="mt-1.5 text-xs text-muted">{warnLabel}</p>
+          <p className="mt-1.5 text-xs text-admin-on-surface-variant">{warnLabel}</p>
         </div>
 
         <div className="mt-4">
-          <p className="mb-1.5 text-sm font-medium text-ink">⏱️ {isHe ? 'משך התחזוקה' : 'Maintenance duration'}</p>
+          <p className="mb-1.5 text-sm font-medium text-admin-on-surface">⏱️ {isHe ? 'משך התחזוקה' : 'Maintenance duration'}</p>
           <div className="grid grid-cols-3 gap-2">
             <TimeSelect label={isHe ? 'ימים' : 'Days'} value={durDays} onChange={setDurDays} options={DAY_OPTIONS} />
             <TimeSelect label={isHe ? 'שעות' : 'Hours'} value={durHours} onChange={setDurHours} options={HOUR_OPTIONS} />
             <TimeSelect label={isHe ? 'דקות' : 'Mins'} value={durMinutes} onChange={setDurMinutes} options={MIN_OPTIONS} />
           </div>
-          <p className="mt-1.5 text-xs text-muted">{durLabel}</p>
+          <p className="mt-1.5 text-xs text-admin-on-surface-variant">{durLabel}</p>
         </div>
 
-        <label className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-paper p-3">
+        <label className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-admin-surface-container-low p-3">
           <span>
-            <span className="block text-sm font-medium text-ink">📡 {isHe ? 'שידור התראה' : 'Push broadcast'}</span>
-            <span className="block text-xs text-muted">
+            <span className="block text-sm font-medium text-admin-on-surface">📡 {isHe ? 'שידור התראה' : 'Push broadcast'}</span>
+            <span className="block text-xs text-admin-on-surface-variant">
               {broadcastEnabled
                 ? isHe
                   ? 'התראה תישלח לכל המכשירים הרלוונטיים'
@@ -298,22 +298,22 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
           <input type="checkbox" checked={broadcastEnabled} onChange={(e) => setBroadcastEnabled(e.target.checked)} className="h-5 w-5" />
         </label>
 
-        <div className="mt-4 rounded-lg bg-paper p-3">
-          <p className="mb-1 text-xs font-semibold text-muted">👁️ {isHe ? 'מה המשתמשים החסומים יראו' : 'What blocked users will see'}</p>
-          <p className="whitespace-pre-line text-xs text-ink">{previewText}</p>
+        <div className="mt-4 rounded-lg bg-admin-surface-container-low p-3">
+          <p className="mb-1 text-xs font-semibold text-admin-on-surface-variant">👁️ {isHe ? 'מה המשתמשים החסומים יראו' : 'What blocked users will see'}</p>
+          <p className="whitespace-pre-line text-xs text-admin-on-surface">{previewText}</p>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-admin-outline-variant px-3.5 py-2 text-sm font-medium text-admin-on-surface hover:bg-admin-surface-container-low">
             {isHe ? 'ביטול' : 'Cancel'}
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container disabled:opacity-60"
           >
             {saving
               ? '…'
@@ -334,7 +334,7 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
 function TimeSelect({ label, value, onChange, options }: { label: string; value: number; onChange: (v: number) => void; options: number[] }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-muted">{label}</span>
+      <span className="mb-1 block text-xs text-admin-on-surface-variant">{label}</span>
       <select value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputCls}>
         {options.map((n) => (
           <option key={n} value={n}>
@@ -346,4 +346,4 @@ function TimeSelect({ label, value, onChange, options }: { label: string; value:
   );
 }
 
-const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+const inputCls = 'w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none';

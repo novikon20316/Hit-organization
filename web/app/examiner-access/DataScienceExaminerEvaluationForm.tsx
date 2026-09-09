@@ -49,8 +49,8 @@ function RubricSection({
 
   if (done) {
     return (
-      <div className="mt-4 rounded-[var(--radius)] border border-line bg-surface p-4">
-        <h3 className="text-sm font-semibold text-ink">{title}</h3>
+      <div className="mt-4 rounded-examinor-lg border border-examinor-outline-variant bg-examinor-surface-container-lowest p-4">
+        <h3 className="text-sm font-semibold text-examinor-on-surface">{title}</h3>
         <p className="mt-2 text-sm font-semibold text-success">✅ {lang === 'he' ? 'הוגש' : 'Submitted'}</p>
       </div>
     );
@@ -82,12 +82,12 @@ function RubricSection({
   };
 
   return (
-    <div className="mt-4 rounded-[var(--radius)] border border-line bg-surface p-4">
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
+    <div className="mt-4 rounded-examinor-lg border border-examinor-outline-variant bg-examinor-surface-container-lowest p-4">
+      <h3 className="text-sm font-semibold text-examinor-on-surface">{title}</h3>
       <div className="mt-3 grid gap-3">
         {rubric.map((c) => (
           <label key={c.key} className="block">
-            <span className="mb-1 block text-sm font-medium text-ink">
+            <span className="mb-1 block text-xs font-semibold text-examinor-on-surface-variant">
               {lang === 'he' ? c.labelHe : c.labelEn} (0–{c.maxScore})
             </span>
             <input
@@ -96,32 +96,32 @@ function RubricSection({
               max={c.maxScore}
               value={scores[c.key]}
               onChange={(e) => setScores({ ...scores, [c.key]: e.target.value })}
-              className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+              className="w-full rounded-examinor border border-examinor-outline-variant bg-examinor-surface-container-low px-3.5 py-2.5 text-sm text-examinor-on-surface transition-colors focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-examinor-primary/15"
             />
           </label>
         ))}
       </div>
-      <div className="mt-3 flex items-center justify-between rounded-lg bg-paper px-3 py-2">
-        <span className="text-sm font-semibold text-ink">{lang === 'he' ? 'סה"כ' : 'Total'}</span>
-        <span className="text-sm font-bold text-ink">{total} / 100</span>
+      <div className="mt-3 flex items-center justify-between rounded-examinor bg-examinor-surface-container-low px-3 py-2">
+        <span className="text-sm font-semibold text-examinor-on-surface">{lang === 'he' ? 'סה"כ' : 'Total'}</span>
+        <span className="text-sm font-bold text-examinor-on-surface">{total} / 100</span>
       </div>
       <label className="mt-3 block">
-        <span className="mb-1 block text-sm font-medium text-ink">
-          {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}{mandatory ? ' *' : ''}
+        <span className="mb-1 block text-xs font-semibold text-examinor-on-surface-variant">
+          {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}{mandatory ? <span className="text-examinor-error"> *</span> : ''}
         </span>
         <textarea
           rows={4}
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+          className="w-full rounded-examinor border border-examinor-outline-variant bg-examinor-surface-container-low px-3.5 py-2.5 text-sm text-examinor-on-surface transition-colors focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-examinor-primary/15"
         />
       </label>
-      {!!error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+      {!!error && <p className="mt-2 rounded-examinor bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
       <button
         type="button"
         onClick={handleSubmit}
         disabled={submitting}
-        className="mt-3 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+        className="mt-3 w-full rounded-examinor-lg bg-examinor-primary py-2.5 text-sm font-semibold text-examinor-on-primary shadow-sm transition-colors hover:bg-examinor-primary-container disabled:opacity-40"
       >
         {submitting ? '…' : lang === 'he' ? 'שלח' : 'Submit'}
       </button>
@@ -177,14 +177,14 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
 
   if (loadError) {
     return (
-      <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-sm">
+      <div className="mt-5 rounded-examinor-lg border border-examinor-outline-variant bg-examinor-surface-container-lowest p-4 text-sm">
         <p className="text-danger" role="alert">
           {lang === 'he' ? 'טעינת סטטוס מועד ההגנה נכשלה.' : 'Failed to load defense-date status.'}
         </p>
         <button
           type="button"
           onClick={loadDate}
-          className="mt-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+          className="mt-2 rounded-examinor border border-examinor-outline-variant px-3.5 py-2 text-sm font-medium text-examinor-on-surface hover:bg-examinor-surface-container-low"
         >
           {lang === 'he' ? 'נסה שוב' : 'Retry'}
         </button>
@@ -194,7 +194,7 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
 
   if (!isOpen) {
     return (
-      <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-sm text-muted">
+      <div className="mt-5 rounded-examinor-lg border border-examinor-outline-variant bg-examinor-surface-container-lowest p-4 text-sm text-examinor-on-surface-variant">
         {agreedDate
           ? (lang === 'he'
               ? `טופס ההערכה ייפתח ביום ההגנה שנקבע — ${new Date(agreedDate).toLocaleDateString('he-IL')}.`
@@ -216,17 +216,17 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
 
   return (
     <div className="mt-5">
-      <div className="rounded-[var(--radius)] border border-line bg-surface p-4">
-        <h2 className="text-base font-semibold text-ink">📄 {lang === 'he' ? 'טופס הערכת בוחן — עבודת הגמר' : 'Examiner Evaluation Form — The Final Project'}</h2>
-        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted">
-          <span>{lang === 'he' ? 'שנה"ל:' : 'Academic year:'} <b className="text-ink">{tokenDoc.academicYearHebrew ?? '—'}</b></span>
+      <div className="rounded-examinor-lg border border-examinor-outline-variant bg-examinor-surface-container-low p-4">
+        <h2 className="text-base font-semibold text-examinor-on-surface">📄 {lang === 'he' ? 'טופס הערכת בוחן — עבודת הגמר' : 'Examiner Evaluation Form — The Final Project'}</h2>
+        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-examinor-on-surface-variant">
+          <span>{lang === 'he' ? 'שנה"ל:' : 'Academic year:'} <b className="text-examinor-on-surface">{tokenDoc.academicYearHebrew ?? '—'}</b></span>
           <span>
             {lang === 'he' ? 'תאריך תחילת פרויקט:' : 'Project start date:'}{' '}
-            <b className="text-ink">{tokenDoc.projectStartDate ? new Date(tokenDoc.projectStartDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
+            <b className="text-examinor-on-surface">{tokenDoc.projectStartDate ? new Date(tokenDoc.projectStartDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
           </span>
           <span>
             {lang === 'he' ? 'תאריך ההגנה:' : 'Defense date:'}{' '}
-            <b className="text-ink">{tokenDoc.defenseDate ? new Date(tokenDoc.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
+            <b className="text-examinor-on-surface">{tokenDoc.defenseDate ? new Date(tokenDoc.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
           </span>
         </div>
       </div>
@@ -247,12 +247,12 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
       />
 
       {projectDone && defenseDone && (
-        <div className="mt-4 rounded-lg border border-line bg-paper p-4">
-          <p className="text-xs text-muted">{lang === 'he' ? 'שם הבוחן' : 'Examiner name'}</p>
-          <p className="mt-0.5 text-sm font-semibold text-ink">{tokenDoc.examinerName}</p>
-          <p className="mt-3 text-xs text-muted">{lang === 'he' ? 'תאריך' : 'Date'}</p>
-          <p className="mt-0.5 text-sm text-ink">{new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>
-          <p className="mt-3 text-xs text-muted">{lang === 'he' ? 'חתימה' : 'Signature'}</p>
+        <div className="mt-4 rounded-examinor-lg border border-examinor-outline-variant bg-examinor-surface-container-low p-4">
+          <p className="text-xs text-examinor-on-surface-variant">{lang === 'he' ? 'שם הבוחן' : 'Examiner name'}</p>
+          <p className="mt-0.5 text-sm font-semibold text-examinor-on-surface">{tokenDoc.examinerName}</p>
+          <p className="mt-3 text-xs text-examinor-on-surface-variant">{lang === 'he' ? 'תאריך' : 'Date'}</p>
+          <p className="mt-0.5 text-sm text-examinor-on-surface">{new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}</p>
+          <p className="mt-3 text-xs text-examinor-on-surface-variant">{lang === 'he' ? 'חתימה' : 'Signature'}</p>
           <p className="mt-1 text-2xl" style={{ fontFamily: signature.fontFamily, color: signature.color }}>{tokenDoc.examinerName}</p>
         </div>
       )}

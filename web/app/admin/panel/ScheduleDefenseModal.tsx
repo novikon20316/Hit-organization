@@ -62,28 +62,28 @@ export function ScheduleDefenseModal({ project, onClose, onSaved }: ScheduleDefe
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-md rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="w-full max-w-md rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-ink">🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}</h2>
-        {projectTitle && <p className="mt-1 truncate text-sm text-muted">📁 {projectTitle}</p>}
+        <h2 className="text-lg font-semibold text-admin-on-surface">🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}</h2>
+        {projectTitle && <p className="mt-1 truncate text-sm text-admin-on-surface-variant">📁 {projectTitle}</p>}
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'שעה' : 'Time'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'שעה' : 'Time'}</span>
           <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="HH:MM" className={inputCls} />
         </label>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'חדר' : 'Room'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'חדר' : 'Room'}</span>
           <input value={room} onChange={(e) => setRoom(e.target.value)} placeholder={lang === 'he' ? 'חדר 101' : 'Room 101'} className={inputCls} />
         </label>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'בניין' : 'Building'}</span>
+          <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'בניין' : 'Building'}</span>
           <DefenseBuildingPicker value={building} onChange={setBuilding} />
         </label>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
             {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
           </span>
           <input
@@ -97,14 +97,14 @@ export function ScheduleDefenseModal({ project, onClose, onSaved }: ScheduleDefe
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper">
+          <button type="button" onClick={onClose} className="rounded-lg border border-admin-outline-variant px-3.5 py-2 text-sm font-medium text-admin-on-surface hover:bg-admin-surface-container-low">
             {lang === 'he' ? 'ביטול' : 'Cancel'}
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container disabled:opacity-60"
           >
             {saving ? '…' : lang === 'he' ? 'שמור' : 'Save'}
           </button>
@@ -114,4 +114,4 @@ export function ScheduleDefenseModal({ project, onClose, onSaved }: ScheduleDefe
   );
 }
 
-const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+const inputCls = 'w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none';

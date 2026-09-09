@@ -118,30 +118,30 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-coordinator-lg bg-coordinator-surface-container-lowest p-6 shadow-lg outline-none"
       >
         <FieldGuideOverlay guideKey={PROPOSAL_RECOMMENDATION_GUIDE_KEY} steps={PROPOSAL_RECOMMENDATION_FIELD_GUIDE} />
-        <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הצעה לפרויקט גמר' : 'Final Project Proposal'}</h2>
-        <p className="mt-0.5 text-sm text-muted">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
+        <h2 className="text-lg font-semibold text-coordinator-on-surface">{lang === 'he' ? 'הצעה לפרויקט גמר' : 'Final Project Proposal'}</h2>
+        <p className="mt-0.5 text-sm text-coordinator-on-surface-variant">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
 
         {/* Per-teammate personal-info blocks — same as the student's own form */}
         <div className="mt-4 grid gap-2">
-          <span className="text-sm font-medium text-ink">{lang === 'he' ? 'פרטי הסטודנט/ית/ים' : "Student(s)' details"}</span>
+          <span className="text-sm font-medium text-coordinator-on-surface">{lang === 'he' ? 'פרטי הסטודנט/ית/ים' : "Student(s)' details"}</span>
           {!teammates ? (
-            <p className="text-xs text-muted">{lang === 'he' ? 'טוען...' : 'Loading...'}</p>
+            <p className="text-xs text-coordinator-on-surface-variant">{lang === 'he' ? 'טוען...' : 'Loading...'}</p>
           ) : (
             teammates.map((tm) => (
-              <div key={tm.uid} className="flex gap-3 rounded-lg border border-line bg-paper p-3">
-                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-line bg-surface">
+              <div key={tm.uid} className="flex gap-3 rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low p-3">
+                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-coordinator-outline-variant bg-coordinator-surface-container-lowest">
                   {tm.photoUrl && <img src={tm.photoUrl} alt="" className="h-full w-full object-cover" />}
                 </div>
                 <div className="grid flex-1 grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <div><span className="text-muted">{lang === 'he' ? 'שם מלא: ' : 'Full name: '}</span>{tm.displayName || '—'}</div>
-                  <div><span className="text-muted">{lang === 'he' ? 'ת.ז.: ' : 'ID: '}</span>{tm.studentId || '—'}</div>
-                  <div><span className="text-muted">{lang === 'he' ? 'טלפון: ' : 'Phone: '}</span>{tm.phoneNumber || '—'}</div>
-                  <div><span className="text-muted">{lang === 'he' ? 'דוא"ל: ' : 'Email: '}</span>{tm.email || '—'}</div>
+                  <div><span className="text-coordinator-on-surface-variant">{lang === 'he' ? 'שם מלא: ' : 'Full name: '}</span>{tm.displayName || '—'}</div>
+                  <div><span className="text-coordinator-on-surface-variant">{lang === 'he' ? 'ת.ז.: ' : 'ID: '}</span>{tm.studentId || '—'}</div>
+                  <div><span className="text-coordinator-on-surface-variant">{lang === 'he' ? 'טלפון: ' : 'Phone: '}</span>{tm.phoneNumber || '—'}</div>
+                  <div><span className="text-coordinator-on-surface-variant">{lang === 'he' ? 'דוא"ל: ' : 'Email: '}</span>{tm.email || '—'}</div>
                   <div>
-                    <span className="text-muted">{lang === 'he' ? 'נ"ז צבור: ' : 'Accumulated credits: '}</span>
+                    <span className="text-coordinator-on-surface-variant">{lang === 'he' ? 'נ"ז צבור: ' : 'Accumulated credits: '}</span>
                     {tm.accumulatedCredits ?? (lang === 'he' ? 'טרם התקבל' : 'Pending')}
                   </div>
                 </div>
@@ -156,20 +156,20 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
             const v = m.studentFormData?.[f.key];
             return (
               <div key={f.key}>
-                <p className="text-xs font-medium text-muted">{lang === 'he' ? f.labelHe : f.labelEn}</p>
+                <p className="text-xs font-medium text-coordinator-on-surface-variant">{lang === 'he' ? f.labelHe : f.labelEn}</p>
                 {f.locked ? (
-                  <p className="text-sm text-ink">{resolveLockedValue(f)}</p>
+                  <p className="text-sm text-coordinator-on-surface">{resolveLockedValue(f)}</p>
                 ) : f.type === 'table' ? (
                   <div className="grid gap-1">
                     {(Array.isArray(v) ? v : []).map((row: Record<string, unknown>, i: number) => (
-                      <p key={i} className="text-sm text-ink">
+                      <p key={i} className="text-sm text-coordinator-on-surface">
                         {(f.tableColumns ?? []).map((c) => String(row[c.key] ?? '')).join(' · ')}
                       </p>
                     ))}
-                    {(!Array.isArray(v) || v.length === 0) && <p className="text-sm text-muted">—</p>}
+                    {(!Array.isArray(v) || v.length === 0) && <p className="text-sm text-coordinator-on-surface-variant">—</p>}
                   </div>
                 ) : (
-                  <p className="whitespace-pre-wrap text-sm text-ink">{v != null && v !== '' ? String(v) : '—'}</p>
+                  <p className="whitespace-pre-wrap text-sm text-coordinator-on-surface">{v != null && v !== '' ? String(v) : '—'}</p>
                 )}
               </div>
             );
@@ -178,13 +178,13 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
 
         {/* Supervisor's signature */}
         {m.supervisorSignedByName && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
-            <span className="text-xs text-muted">{lang === 'he' ? 'נחתם ע"י המנחה:' : 'Signed by supervisor:'}</span>
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2">
+            <span className="text-xs text-coordinator-on-surface-variant">{lang === 'he' ? 'נחתם ע"י המנחה:' : 'Signed by supervisor:'}</span>
             <span style={examinerSignatureStyle(m.supervisorSignedByName, m.facultyId, 'supervisor', null)} className="text-sm">
               {m.supervisorSignedByName}
             </span>
             {m.supervisorSignedAt && (
-              <span className="text-xs text-muted">
+              <span className="text-xs text-coordinator-on-surface-variant">
                 {new Date(m.supervisorSignedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
               </span>
             )}
@@ -192,14 +192,14 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
         )}
 
         {/* המלצת רכז הפרויקטים — the decision, then the coordinator's own signature */}
-        <div className="mt-5 border-t border-line pt-4">
-          <h3 className="flex items-center text-sm font-semibold text-ink">
+        <div className="mt-5 border-t border-coordinator-outline-variant pt-4">
+          <h3 className="flex items-center text-sm font-semibold text-coordinator-on-surface">
             {lang === 'he' ? 'המלצת רכז הפרויקטים' : "Coordinator's recommendation"}
             <InfoTooltip text={PROPOSAL_RECOMMENDATION_FIELD_GUIDE[0]!.description} />
           </h3>
           <div data-field-guide-id="decision" className="mt-3 grid gap-2">
             {OPTIONS.map((opt) => (
-              <label key={opt.value} className="flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink has-[:checked]:border-primary">
+              <label key={opt.value} className="flex cursor-pointer items-center gap-2 rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface has-[:checked]:border-coordinator-primary">
                 <input type="radio" name="proposal-decision" checked={decision === opt.value} onChange={() => setDecision(opt.value)} />
                 {lang === 'he' ? opt.labelHe : opt.labelEn}
               </label>
@@ -208,32 +208,32 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'חבר/ת ועדת מחקר 1' : 'Research committee member 1'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">{lang === 'he' ? 'חבר/ת ועדת מחקר 1' : 'Research committee member 1'}</span>
               <input
                 value={committeeMember1}
                 onChange={(e) => setCommitteeMember1(e.target.value)}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none"
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'חבר/ת ועדת מחקר 2' : 'Research committee member 2'}</span>
+              <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">{lang === 'he' ? 'חבר/ת ועדת מחקר 2' : 'Research committee member 2'}</span>
               <input
                 value={committeeMember2}
                 onChange={(e) => setCommitteeMember2(e.target.value)}
-                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+                className="w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none"
               />
             </label>
           </div>
 
           <label className="mt-3 block">
-            <span className="mb-1.5 block text-sm font-medium text-ink">
+            <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">
               {lang === 'he' ? 'הערה' : 'Comment'}{commentRequired && <span className="text-danger"> *</span>}
             </span>
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={3}
-              className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+              className="w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none"
               placeholder={
                 decision === 'approved_conditionally'
                   ? (lang === 'he' ? 'פרט/י את התנאים לאישור...' : 'Describe the conditions for approval...')
@@ -246,7 +246,7 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
 
           {userData && (
             <div className="mt-3 flex items-center gap-2">
-              <span className="text-xs text-muted">{lang === 'he' ? 'חתימה:' : 'Signature:'}</span>
+              <span className="text-xs text-coordinator-on-surface-variant">{lang === 'he' ? 'חתימה:' : 'Signature:'}</span>
               <span style={examinerSignatureStyle(userData.displayName, userData.facultyId, 'coordinator', userData.major ?? null)} className="text-sm">
                 {userData.displayName}
               </span>
@@ -263,7 +263,7 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
               onCancel();
             }}
             disabled={busy}
-            className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+            className="rounded-lg border border-coordinator-outline-variant px-3.5 py-2 text-sm font-medium text-coordinator-on-surface hover:bg-coordinator-surface-container-low"
           >
             {lang === 'he' ? 'ביטול' : 'Cancel'}
           </button>
@@ -271,7 +271,7 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
             type="button"
             disabled={busy || !canConfirm}
             onClick={() => onConfirm(decision, comment.trim(), { committeeMember1: committeeMember1.trim(), committeeMember2: committeeMember2.trim() })}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-coordinator-primary px-3.5 py-2 text-sm font-semibold text-coordinator-on-primary hover:bg-coordinator-primary-container disabled:opacity-60"
           >
             {busy ? '…' : lang === 'he' ? '✍️ חתום ושלח החלטה' : '✍️ Sign & submit decision'}
           </button>

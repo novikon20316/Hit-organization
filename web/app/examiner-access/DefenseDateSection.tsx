@@ -149,14 +149,14 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
 
   if (loadError) {
     return (
-      <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-start shadow-sm">
+      <div className="mt-5 rounded-examinor-lg border border-examinor-outline-variant bg-examinor-surface-container-lowest p-4 text-start shadow-sm">
         <p className="text-sm text-danger" role="alert">
           {t('examinerDefenseDateLoadError')}
         </p>
         <button
           type="button"
           onClick={load}
-          className="mt-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+          className="mt-2 rounded-lg border border-examinor-outline-variant px-3.5 py-2 text-sm font-medium text-examinor-on-surface hover:bg-examinor-surface-container-low"
         >
           {t('examinerDefenseDateRetry')}
         </button>
@@ -167,14 +167,14 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
   if (status === 'not_open') return null;
 
   return (
-    <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 text-start shadow-sm">
-      <h2 className="text-base font-semibold text-ink">📅 {t('examinerDefenseDateSectionTitle')}</h2>
+    <div className="mt-5 rounded-examinor-lg border border-examinor-outline-variant bg-examinor-surface-container-lowest p-4 text-start shadow-sm">
+      <h2 className="text-base font-semibold text-examinor-on-surface">📅 {t('examinerDefenseDateSectionTitle')}</h2>
 
       {status === 'awaiting_your_dates' && (
         <>
-          <p className="mt-2 text-sm text-muted">{t('examinerDefenseDateGuidance')}</p>
+          <p className="mt-2 text-sm text-examinor-on-surface-variant">{t('examinerDefenseDateGuidance')}</p>
           {dateWindow && (
-            <p className="mt-2 text-sm text-muted">
+            <p className="mt-2 text-sm text-examinor-on-surface-variant">
               {t('examinerDefenseDateWithin')} {dateWindow.start} – {dateWindow.end} · {t('examinerDefenseDateSunThu')}
             </p>
           )}
@@ -182,9 +182,9 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
           {pickedDates.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {pickedDates.map((d) => (
-                <span key={d} className="flex items-center gap-1 rounded-full bg-paper px-2.5 py-1 text-sm font-medium text-ink">
+                <span key={d} className="flex items-center gap-1 rounded-full bg-examinor-surface-container-low px-2.5 py-1 text-sm font-medium text-examinor-on-surface">
                   {d}
-                  <button type="button" onClick={() => removePickedDate(d)} aria-label={t('examinerDefenseDateRemove')} className="text-muted hover:text-danger">
+                  <button type="button" onClick={() => removePickedDate(d)} aria-label={t('examinerDefenseDateRemove')} className="text-examinor-on-surface-variant hover:text-danger">
                     ✕
                   </button>
                 </span>
@@ -200,13 +200,13 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
               onChange={(e) => setDateInput(e.target.value)}
               min={dateWindow?.start}
               max={dateWindow?.end}
-              className="flex-1 rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+              className="flex-1 rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3.5 py-2.5 text-sm text-examinor-on-surface focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none"
             />
             <button
               type="button"
               onClick={addPickedDate}
               disabled={!dateInput}
-              className="rounded-lg border border-primary px-3.5 py-2.5 text-sm font-semibold text-primary hover:bg-paper disabled:opacity-50"
+              className="rounded-lg border border-examinor-primary px-3.5 py-2.5 text-sm font-semibold text-examinor-primary hover:bg-examinor-surface-container-low disabled:opacity-50"
             >
               + {t('examinerDefenseDateAddBtn')}
             </button>
@@ -217,14 +217,14 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="mt-3 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="mt-3 w-full rounded-lg bg-examinor-primary py-2.5 text-sm font-semibold text-examinor-on-primary hover:bg-examinor-primary-container disabled:opacity-60"
           >
             {submitting ? '…' : t('examinerDefenseDateSubmitBtn')}
           </button>
         </>
       )}
 
-      {status === 'awaiting_other_examiners' && <p className="mt-2 text-sm text-muted">{t('examinerDefenseDateWaiting')}</p>}
+      {status === 'awaiting_other_examiners' && <p className="mt-2 text-sm text-examinor-on-surface-variant">{t('examinerDefenseDateWaiting')}</p>}
 
       {status === 'matched' && (
         <p className="mt-2 text-sm font-semibold text-success" role="status">

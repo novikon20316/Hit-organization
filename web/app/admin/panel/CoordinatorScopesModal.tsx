@@ -70,26 +70,26 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
         {!draft ? (
           <>
             {/* ── List screen ── */}
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink">📋 {lang === 'he' ? 'היקף אחריות רכז' : 'Coordinator Scope'}</h2>
-              <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-lg text-muted hover:text-ink">
+              <h2 className="text-lg font-semibold text-admin-on-surface">📋 {lang === 'he' ? 'היקף אחריות רכז' : 'Coordinator Scope'}</h2>
+              <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-lg text-admin-on-surface-variant hover:text-admin-on-surface">
                 ✕
               </button>
             </div>
 
-            <p className="mt-3 text-sm font-medium text-ink">
+            <p className="mt-3 text-sm font-medium text-admin-on-surface">
               {lang === 'he' ? `${scopes.length} תחומי אחריות` : `${scopes.length} scopes`}
             </p>
-            <p className="text-xs text-muted">{lang === 'he' ? 'ניתן להוסיף כמה שצריך' : 'add as many as needed'}</p>
+            <p className="text-xs text-admin-on-surface-variant">{lang === 'he' ? 'ניתן להוסיף כמה שצריך' : 'add as many as needed'}</p>
 
             <div className="mt-3 grid gap-2">
               {scopes.length === 0 && (
-                <p className="mt-4 text-center text-sm text-muted">
+                <p className="mt-4 text-center text-sm text-admin-on-surface-variant">
                   {lang === 'he'
                     ? 'אין עדיין תחומי אחריות — הוסף אחד למטה (בלעדיו, הרכז מוגבל לפקולטה השלמה שנבחרה למעלה)'
                     : 'No scopes yet — add one below (without it, the coordinator falls back to the whole faculty selected above)'}
@@ -97,12 +97,12 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
               )}
 
               {scopes.map((scope) => (
-                <div key={scope.id} className="rounded-lg border border-line bg-paper p-3">
-                  <p className="truncate text-sm font-semibold text-ink">
+                <div key={scope.id} className="rounded-lg border border-admin-outline-variant bg-admin-surface-container-low p-3">
+                  <p className="truncate text-sm font-semibold text-admin-on-surface">
                     {scopeLabel(scope, lang, (id) => facultyLabel(id as FacultyId, lang))}
                   </p>
                   <div className="mt-2 flex gap-3">
-                    <button type="button" onClick={() => openEditScope(scope)} className="text-xs font-medium text-primary hover:underline">
+                    <button type="button" onClick={() => openEditScope(scope)} className="text-xs font-medium text-admin-primary hover:underline">
                       {lang === 'he' ? 'ערוך' : 'Edit'}
                     </button>
                     <button type="button" onClick={() => deleteScope(scope.id)} className="text-xs font-medium text-danger hover:underline">
@@ -115,7 +115,7 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
               <button
                 type="button"
                 onClick={openNewScope}
-                className="mt-1 rounded-lg border border-dashed border-primary px-3 py-2 text-sm font-semibold text-primary hover:bg-paper"
+                className="mt-1 rounded-lg border border-dashed border-admin-primary px-3 py-2 text-sm font-semibold text-admin-primary hover:bg-admin-surface-container-low"
               >
                 ＋ {lang === 'he' ? 'הוסף תחום אחריות' : 'Add Scope'}
               </button>
@@ -125,7 +125,7 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+                className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container"
               >
                 {lang === 'he' ? 'סגור' : 'Done'}
               </button>
@@ -135,8 +135,8 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
           <>
             {/* ── Add/edit scope form ── */}
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'תחום אחריות' : 'Scope'}</h2>
-              <button type="button" onClick={cancelForm} aria-label={lang === 'he' ? 'ביטול' : 'Cancel'} className="text-lg text-muted hover:text-ink">
+              <h2 className="text-lg font-semibold text-admin-on-surface">{lang === 'he' ? 'תחום אחריות' : 'Scope'}</h2>
+              <button type="button" onClick={cancelForm} aria-label={lang === 'he' ? 'ביטול' : 'Cancel'} className="text-lg text-admin-on-surface-variant hover:text-admin-on-surface">
                 ✕
               </button>
             </div>
@@ -149,7 +149,7 @@ export function CoordinatorScopesModal({ open, onClose, scopes, onChange }: Coor
               <button
                 type="button"
                 onClick={saveScope}
-                className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+                className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container"
               >
                 {lang === 'he' ? 'שמור תחום' : 'Save Scope'}
               </button>

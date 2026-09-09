@@ -36,10 +36,10 @@ export function ApproveMilestoneModal({ open, busy, onCancel, onConfirm }: Appro
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none"
+        className="w-full max-w-sm rounded-coordinator-lg bg-coordinator-surface-container-lowest p-5 shadow-lg outline-none"
       >
-        <h2 className="text-base font-semibold text-ink">{lang === 'he' ? 'אישור אבן דרך' : 'Approve Milestone'}</h2>
-        <p className="mt-1 text-sm text-muted">
+        <h2 className="text-base font-semibold text-coordinator-on-surface">{lang === 'he' ? 'אישור אבן דרך' : 'Approve Milestone'}</h2>
+        <p className="mt-1 text-sm text-coordinator-on-surface-variant">
           {lang === 'he'
             ? 'ניתן להוסיף הערה אופציונלית — למשל אישור בתנאי. היא תישלח לסטודנט ולמנחה.'
             : "Optionally add a comment — e.g. a conditional approval. It'll be sent to the student and supervisor."}
@@ -48,7 +48,7 @@ export function ApproveMilestoneModal({ open, busy, onCancel, onConfirm }: Appro
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           rows={3}
-          className="mt-3 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
+          className="mt-3 w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none"
           placeholder={lang === 'he' ? 'הערה (אופציונלי)...' : 'Comment (optional)...'}
         />
         <div className="mt-4 flex justify-end gap-2">
@@ -59,7 +59,7 @@ export function ApproveMilestoneModal({ open, busy, onCancel, onConfirm }: Appro
               onCancel();
             }}
             disabled={busy}
-            className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+            className="rounded-lg border border-coordinator-outline-variant px-3.5 py-2 text-sm font-medium text-coordinator-on-surface hover:bg-coordinator-surface-container-low"
           >
             {lang === 'he' ? 'ביטול' : 'Cancel'}
           </button>

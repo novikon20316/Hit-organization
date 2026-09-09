@@ -185,7 +185,7 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+  const inputCls = 'w-full rounded-student border border-student-outline-variant bg-student-surface-container-low px-3.5 py-2.5 text-sm text-student-on-surface transition-colors focus:border-student-primary focus:bg-student-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-student-primary/15';
   const currentUid = auth.currentUser?.uid;
 
   return (
@@ -195,18 +195,20 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest shadow-lg outline-none"
       >
-        <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'הצעה לפרויקט גמר' : 'Final Project Proposal'}</h2>
-          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-muted hover:text-ink">✕</button>
+        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-student-outline-variant bg-student-surface-container-lowest px-6 py-4">
+          <h2 className="text-lg font-semibold text-student-on-surface">{lang === 'he' ? 'הצעה לפרויקט גמר' : 'Final Project Proposal'}</h2>
+          <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="rounded-student p-1 text-student-outline transition-colors hover:bg-student-surface-container-low hover:text-student-on-surface">✕</button>
         </div>
 
+        <div className="overflow-y-auto px-6 py-5">
+
         {/* Per-teammate personal-info blocks — auto-filled, read-only */}
-        <div className="mt-4 grid gap-3">
-          <span className="text-sm font-medium text-ink">{lang === 'he' ? 'פרטי הסטודנט/ית/ים' : "Student(s)' details"}</span>
+        <div className="grid gap-3">
+          <span className="text-sm font-medium text-student-on-surface">{lang === 'he' ? 'פרטי הסטודנט/ית/ים' : "Student(s)' details"}</span>
           {!teammates ? (
-            <p className="text-xs text-muted">{lang === 'he' ? 'טוען פרטי סטודנטים...' : 'Loading student details...'}</p>
+            <p className="text-xs text-student-on-surface-variant">{lang === 'he' ? 'טוען פרטי סטודנטים...' : 'Loading student details...'}</p>
           ) : (
             teammates.map((tm) => {
               // Deterministic stylized rendering of the student's own name —
@@ -217,13 +219,13 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
               // ProgressReportFormModal.tsx's identical block.
               const sig = examinerSignatureStyle(tm.displayName, project.facultyId ?? '', 'student', project.major ?? null);
               return (
-                <div key={tm.uid} className="flex gap-3 rounded-lg border border-line bg-paper p-3">
+                <div key={tm.uid} className="flex gap-3 rounded-student-lg border border-student-outline-variant bg-student-surface-container-low p-3">
                   <div className="flex shrink-0 flex-col items-center gap-1.5">
-                    <div className="h-16 w-16 overflow-hidden rounded-full border border-line bg-surface">
+                    <div className="h-16 w-16 overflow-hidden rounded-full border border-student-outline-variant bg-student-surface-container-lowest">
                       {tm.photoUrl && <img src={tm.photoUrl} alt="" className="h-full w-full object-cover" />}
                     </div>
                     {tm.uid === currentUid && (
-                      <label className="cursor-pointer text-[10px] text-primary hover:underline">
+                      <label className="cursor-pointer text-[10px] text-student-primary hover:underline">
                         {uploadingPhoto ? '…' : lang === 'he' ? 'העלה תמונה' : 'Upload photo'}
                         <input
                           type="file"
@@ -236,17 +238,17 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
                   </div>
                   <div className="flex-1">
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                      <div><span className="text-muted">{lang === 'he' ? 'שם מלא: ' : 'Full name: '}</span>{tm.displayName || '—'}</div>
-                      <div><span className="text-muted">{lang === 'he' ? 'ת.ז.: ' : 'ID: '}</span>{tm.studentId || '—'}</div>
-                      <div><span className="text-muted">{lang === 'he' ? 'טלפון: ' : 'Phone: '}</span>{tm.phoneNumber || '—'}</div>
-                      <div><span className="text-muted">{lang === 'he' ? 'דוא"ל: ' : 'Email: '}</span>{tm.email || '—'}</div>
+                      <div><span className="text-student-on-surface-variant">{lang === 'he' ? 'שם מלא: ' : 'Full name: '}</span>{tm.displayName || '—'}</div>
+                      <div><span className="text-student-on-surface-variant">{lang === 'he' ? 'ת.ז.: ' : 'ID: '}</span>{tm.studentId || '—'}</div>
+                      <div><span className="text-student-on-surface-variant">{lang === 'he' ? 'טלפון: ' : 'Phone: '}</span>{tm.phoneNumber || '—'}</div>
+                      <div><span className="text-student-on-surface-variant">{lang === 'he' ? 'דוא"ל: ' : 'Email: '}</span>{tm.email || '—'}</div>
                       <div>
-                        <span className="text-muted">{lang === 'he' ? 'נ"ז צבור: ' : 'Accumulated credits: '}</span>
+                        <span className="text-student-on-surface-variant">{lang === 'he' ? 'נ"ז צבור: ' : 'Accumulated credits: '}</span>
                         {tm.accumulatedCredits ?? (lang === 'he' ? 'טרם התקבל' : 'Pending')}
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
-                      <span className="text-[10px] text-muted">{lang === 'he' ? 'חתימה: ' : 'Signature: '}</span>
+                    <div className="mt-2 flex items-center gap-2 border-t border-student-outline-variant pt-2">
+                      <span className="text-[10px] text-student-on-surface-variant">{lang === 'he' ? 'חתימה: ' : 'Signature: '}</span>
                       <span style={{ color: sig.color, fontFamily: sig.fontFamily }} className="text-base">{tm.displayName}</span>
                     </div>
                   </div>
@@ -260,25 +262,25 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
         <div className="mt-4 grid gap-3">
           {fields.map((f) => (
             <div key={f.key} className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink">
-                {lang === 'he' ? f.labelHe : f.labelEn}{f.required && !f.locked ? ' *' : ''}
+              <span className="mb-1.5 block text-xs font-semibold text-student-on-surface-variant">
+                {lang === 'he' ? f.labelHe : f.labelEn}{f.required && !f.locked ? <span className="text-student-error"> *</span> : ''}
               </span>
               {f.locked ? (
-                <p className="rounded-lg border border-line bg-paper px-3 py-2 text-sm text-muted">{resolveLockedValue(f)}</p>
+                <p className="rounded-student border border-student-outline-variant bg-student-surface-container-low px-3.5 py-2.5 text-sm text-student-on-surface-variant">{resolveLockedValue(f)}</p>
               ) : f.type === 'table' ? (
-                <div className="rounded-lg border border-line bg-paper p-2.5">
+                <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-low p-2.5">
                   <div className="grid gap-2">
                     {(tableValues[f.key] ?? []).map((row, rowIdx) => (
-                      <div key={rowIdx} className="flex items-end gap-1.5 rounded-md border border-line bg-surface p-2">
+                      <div key={rowIdx} className="flex items-end gap-1.5 rounded-student border border-student-outline-variant bg-student-surface-container-lowest p-2">
                         <div className="grid flex-1 gap-1.5" style={{ gridTemplateColumns: `repeat(${(f.tableColumns ?? []).length}, minmax(0, 1fr))` }}>
                           {(f.tableColumns ?? []).map((col) => (
                             <label key={col.key} className="block">
-                              <span className="mb-1 block text-[10px] text-muted">{lang === 'he' ? col.labelHe : col.labelEn}</span>
+                              <span className="mb-1 block text-[10px] text-student-on-surface-variant">{lang === 'he' ? col.labelHe : col.labelEn}</span>
                               <input
                                 type={col.type === 'date' ? 'date' : col.type === 'number' ? 'number' : 'text'}
                                 value={row[col.key] ?? ''}
                                 onChange={(e) => updateTableCell(f.key, rowIdx, col.key, e.target.value)}
-                                className="w-full rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink"
+                                className="w-full rounded-student border border-student-outline-variant bg-student-surface-container-low px-2 py-1 text-xs text-student-on-surface"
                               />
                             </label>
                           ))}
@@ -287,7 +289,7 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
                       </div>
                     ))}
                   </div>
-                  <button type="button" onClick={() => addTableRow(f)} className="mt-2 rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
+                  <button type="button" onClick={() => addTableRow(f)} className="mt-2 rounded-student bg-student-primary px-2.5 py-1 text-xs font-semibold text-student-on-primary hover:bg-student-primary-container">
                     ＋ {t('add')}
                   </button>
                 </div>
@@ -305,16 +307,20 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
           ))}
         </div>
 
-        {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+        {error && <p className="mt-3 rounded-student bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
-        >
-          {submitting ? '…' : t('submit')}
-        </button>
+        </div>
+
+        <div className="sticky bottom-0 border-t border-student-outline-variant bg-student-surface-container-lowest px-6 py-4">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="w-full rounded-student-lg bg-student-primary py-2.5 text-sm font-semibold text-student-on-primary shadow-sm transition-colors hover:bg-student-primary-container disabled:opacity-40"
+          >
+            {submitting ? '…' : t('submit')}
+          </button>
+        </div>
       </div>
     </div>
   );

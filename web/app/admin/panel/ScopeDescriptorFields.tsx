@@ -24,7 +24,7 @@ interface ScopeDescriptorFieldsProps {
   onChange: (patch: Partial<ScopeDescriptor>) => void;
 }
 
-const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
+const inputCls = 'w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none';
 
 export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFieldsProps) {
   const { lang } = useLanguage();
@@ -36,7 +36,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
     <div className="grid gap-3">
       {/* Faculty */}
       <label className="block">
-        <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
+        <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
         <select
           value={scope.facultyId}
           onChange={(e) => {
@@ -58,7 +58,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
       {/* Major (only when a specific faculty, not 'all') */}
       {scope.facultyId !== 'all' && (
         <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
             {lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}
           </span>
           <select value={scope.major ?? ''} onChange={(e) => onChange({ major: e.target.value || undefined })} className={inputCls}>
@@ -74,7 +74,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
 
       {/* Degree level */}
       <label className="block">
-        <span className="mb-1.5 block text-sm font-medium text-ink">
+        <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
           {lang === 'he' ? 'תואר (אופציונלי)' : 'Degree Level (optional)'}
         </span>
         <select
@@ -97,7 +97,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
       {/* Process type — master's only */}
       {scope.degreeLevel === 'masters' && (
         <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink">
+          <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
             {lang === 'he' ? 'מסלול (אופציונלי)' : 'Process Type (optional)'}
           </span>
           <select

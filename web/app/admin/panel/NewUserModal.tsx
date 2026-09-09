@@ -197,25 +197,25 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
           tabIndex={-1}
           role="dialog"
           aria-modal="true"
-          className="w-full max-w-lg rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+          className="w-full max-w-lg rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
         >
-          <h2 className="text-lg font-semibold text-ink">✅ {tx('adminUserCreatedTitle', lang)}</h2>
+          <h2 className="text-lg font-semibold text-admin-on-surface">✅ {tx('adminUserCreatedTitle', lang)}</h2>
 
-          <div className="mt-4 grid gap-3 rounded-lg border border-line bg-paper p-4">
+          <div className="mt-4 grid gap-3 rounded-lg border border-admin-outline-variant bg-admin-surface-container-low p-4">
             <div>
-              <span className="block text-xs font-medium text-muted">{lang === 'he' ? 'דוא"ל' : 'Email'}</span>
-              <span dir="ltr" className="block text-sm text-ink">{created.email}</span>
+              <span className="block text-xs font-medium text-admin-on-surface-variant">{lang === 'he' ? 'דוא"ל' : 'Email'}</span>
+              <span dir="ltr" className="block text-sm text-admin-on-surface">{created.email}</span>
             </div>
             <div>
-              <span className="block text-xs font-medium text-muted">{lang === 'he' ? 'סיסמה זמנית' : 'Temporary Password'}</span>
+              <span className="block text-xs font-medium text-admin-on-surface-variant">{lang === 'he' ? 'סיסמה זמנית' : 'Temporary Password'}</span>
               <div className="mt-1 flex items-center gap-2">
-                <code dir="ltr" className="flex-1 rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink">
+                <code dir="ltr" className="flex-1 rounded-md border border-admin-outline-variant bg-admin-surface-container-lowest px-3 py-2 text-sm text-admin-on-surface">
                   {created.tempPassword}
                 </code>
                 <button
                   type="button"
                   onClick={handleCopyPassword}
-                  className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface"
+                  className="rounded-lg border border-admin-outline-variant px-3 py-2 text-sm font-medium text-admin-on-surface hover:bg-admin-surface-container-lowest"
                 >
                   {copied ? tx('adminCopied', lang) : tx('adminCopyPassword', lang)}
                 </button>
@@ -223,7 +223,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
             </div>
           </div>
 
-          <p className="mt-3 text-sm text-muted">
+          <p className="mt-3 text-sm text-admin-on-surface-variant">
             {lang === 'he'
               ? 'המשתמש יתבקש להחליף את הסיסמה הזמנית בכניסה הראשונה.'
               : 'The user will be required to change this temporary password on first login.'}
@@ -233,7 +233,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
             <button
               type="button"
               onClick={handleDismissSuccess}
-              className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+              className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container"
             >
               {tx('adminDone', lang)}
             </button>
@@ -251,9 +251,9 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
         role="dialog"
         aria-modal="true"
         onSubmit={handleSubmit}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
-        <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'משתמש חדש' : 'New User'}</h2>
+        <h2 className="text-lg font-semibold text-admin-on-surface">{lang === 'he' ? 'משתמש חדש' : 'New User'}</h2>
 
         <div className="mt-4 grid gap-4">
           <Field label={lang === 'he' ? 'שם מלא' : 'Full Name'}>
@@ -280,12 +280,12 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
               <button
                 type="button"
                 onClick={() => setTempPassword(generateReadableTempPassword())}
-                className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-paper"
+                className="shrink-0 rounded-lg border border-admin-outline-variant px-3 py-2 text-sm font-medium text-admin-on-surface hover:bg-admin-surface-container-low"
               >
                 {tx('adminGeneratePassword', lang)}
               </button>
             </div>
-            <p className="mt-1 text-xs text-muted">{tx('adminTempPasswordHelp', lang)}</p>
+            <p className="mt-1 text-xs text-admin-on-surface-variant">{tx('adminTempPasswordHelp', lang)}</p>
           </Field>
 
           <Field label={lang === 'he' ? 'תפקיד' : 'Role'}>
@@ -329,10 +329,10 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
 
           {isSupervisorLike && (
             <div>
-              <span className="mb-1.5 block text-sm font-medium text-ink">
+              <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
                 {lang === 'he' ? 'מגמות משויכות (אופציונלי)' : 'Assigned Majors (optional)'}
               </span>
-              <p className="mb-1.5 text-xs text-muted">
+              <p className="mb-1.5 text-xs text-admin-on-surface-variant">
                 {lang === 'he'
                   ? 'ללא בחירה — המנחה יהיה משויך לכל המגמות בפקולטה.'
                   : 'Leave unselected to allow all majors in the faculty.'}
@@ -347,7 +347,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                       onClick={() => toggleAssignedMajor(m.slug)}
                       disabled={!facultyId}
                       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${
-                        checked ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                        checked ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface hover:border-admin-primary'
                       }`}
                     >
                       {m.label[lang]}
@@ -355,7 +355,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                   );
                 })}
                 {facultyId && assignedMajorOptions.length === 0 && (
-                  <span className="text-xs text-muted">{lang === 'he' ? 'אין מגמות לפקולטה זו' : 'No majors for this faculty'}</span>
+                  <span className="text-xs text-admin-on-surface-variant">{lang === 'he' ? 'אין מגמות לפקולטה זו' : 'No majors for this faculty'}</span>
                 )}
               </div>
             </div>
@@ -381,7 +381,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                   )}
                 </select>
                 {availableDegreeLevels.length === 1 && (
-                  <p className="mt-1 text-xs text-muted">
+                  <p className="mt-1 text-xs text-admin-on-surface-variant">
                     {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
                   </p>
                 )}
@@ -424,14 +424,14 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
               reset();
               onClose();
             }}
-            className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-paper"
+            className="rounded-lg border border-admin-outline-variant px-3.5 py-2 text-sm font-medium text-admin-on-surface hover:bg-admin-surface-container-low"
           >
             {lang === 'he' ? 'ביטול' : 'Cancel'}
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+            className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container disabled:opacity-60"
           >
             {submitting ? '…' : lang === 'he' ? 'צור משתמש' : 'Create User'}
           </button>
@@ -442,12 +442,12 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
 }
 
 const inputCls =
-  'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none disabled:opacity-60';
+  'w-full rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2 text-sm text-admin-on-surface focus:border-admin-primary focus:bg-admin-surface-container-lowest focus:outline-none disabled:opacity-60';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{label}</span>
       {children}
     </label>
   );

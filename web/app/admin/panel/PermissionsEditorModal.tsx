@@ -83,44 +83,44 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange, restric
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-admin-lg bg-admin-surface-container-lowest p-6 shadow-lg outline-none"
       >
         {!draft ? (
           <>
             {/* ── List screen ── */}
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink">🔐 {lang === 'he' ? 'הרשאות מפורטות' : 'Granular Permissions'}</h2>
-              <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-lg text-muted hover:text-ink">
+              <h2 className="text-lg font-semibold text-admin-on-surface">🔐 {lang === 'he' ? 'הרשאות מפורטות' : 'Granular Permissions'}</h2>
+              <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-lg text-admin-on-surface-variant hover:text-admin-on-surface">
                 ✕
               </button>
             </div>
 
-            <p className="mt-3 text-sm font-medium text-ink">
+            <p className="mt-3 text-sm font-medium text-admin-on-surface">
               {lang === 'he' ? `${rules.length} כללי הרשאה` : `${rules.length} scope rules`}
             </p>
-            <p className="text-xs text-muted">
+            <p className="text-xs text-admin-on-surface-variant">
               {lang === 'he' ? 'כל כלל מגדיר פקולטה/מגמה/תואר/מסלול משלו' : "each rule scopes its own faculty/major/degree/track"}
             </p>
 
             <div className="mt-3 grid gap-2">
               {rules.length === 0 && (
-                <p className="mt-4 text-center text-sm text-muted">
+                <p className="mt-4 text-center text-sm text-admin-on-surface-variant">
                   {lang === 'he' ? 'אין עדיין כללי הרשאה — הוסף אחד למטה' : 'No scope rules yet — add one below'}
                 </p>
               )}
 
               {rules.map((rule) => (
-                <div key={rule.id} className="rounded-lg border border-line bg-paper p-3">
-                  <p className="truncate text-sm font-semibold text-ink">
+                <div key={rule.id} className="rounded-lg border border-admin-outline-variant bg-admin-surface-container-low p-3">
+                  <p className="truncate text-sm font-semibold text-admin-on-surface">
                     {scopeLabel(rule, lang, (id) => facultyLabel(id as FacultyId, lang))}
                   </p>
-                  <p className="mt-1 text-xs text-muted">
+                  <p className="mt-1 text-xs text-admin-on-surface-variant">
                     {lang === 'he'
                       ? `👁️ ${rule.view.length} צפייה · ⚡ ${rule.actions.length} פעולות`
                       : `👁️ ${rule.view.length} view · ⚡ ${rule.actions.length} action`}
                   </p>
                   <div className="mt-2 flex gap-3">
-                    <button type="button" onClick={() => openEditRule(rule)} className="text-xs font-medium text-primary hover:underline">
+                    <button type="button" onClick={() => openEditRule(rule)} className="text-xs font-medium text-admin-primary hover:underline">
                       {lang === 'he' ? 'ערוך' : 'Edit'}
                     </button>
                     <button type="button" onClick={() => deleteRule(rule.id)} className="text-xs font-medium text-danger hover:underline">
@@ -133,7 +133,7 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange, restric
               <button
                 type="button"
                 onClick={openNewRule}
-                className="mt-1 rounded-lg border border-dashed border-primary px-3 py-2 text-sm font-semibold text-primary hover:bg-paper"
+                className="mt-1 rounded-lg border border-dashed border-admin-primary px-3 py-2 text-sm font-semibold text-admin-primary hover:bg-admin-surface-container-low"
               >
                 ＋ {lang === 'he' ? 'הוסף כלל הרשאה' : 'Add Scope Rule'}
               </button>
@@ -143,7 +143,7 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange, restric
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+                className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container"
               >
                 {lang === 'he' ? 'סגור' : 'Done'}
               </button>
@@ -153,8 +153,8 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange, restric
           <>
             {/* ── Add/edit rule form ── */}
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink">{lang === 'he' ? 'כלל הרשאה' : 'Scope Rule'}</h2>
-              <button type="button" onClick={cancelForm} aria-label={lang === 'he' ? 'ביטול' : 'Cancel'} className="text-lg text-muted hover:text-ink">
+              <h2 className="text-lg font-semibold text-admin-on-surface">{lang === 'he' ? 'כלל הרשאה' : 'Scope Rule'}</h2>
+              <button type="button" onClick={cancelForm} aria-label={lang === 'he' ? 'ביטול' : 'Cancel'} className="text-lg text-admin-on-surface-variant hover:text-admin-on-surface">
                 ✕
               </button>
             </div>
@@ -164,34 +164,34 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange, restric
             </div>
 
             <div className="mt-4">
-              <p className="mb-1.5 text-sm font-medium text-ink">👁️ {lang === 'he' ? 'צפייה' : 'View'}</p>
+              <p className="mb-1.5 text-sm font-medium text-admin-on-surface">👁️ {lang === 'he' ? 'צפייה' : 'View'}</p>
               <div className="grid gap-1.5">
                 {VIEW_TYPES.map((v) => (
-                  <label key={v.key} className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
+                  <label key={v.key} className="flex items-center gap-2 rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2">
                     <input
                       type="checkbox"
                       checked={draft.view.includes(v.key)}
                       onChange={() => toggleView(v.key)}
                       className="h-4 w-4 accent-[var(--primary)]"
                     />
-                    <span className="text-sm text-ink">{v.label[lang]}</span>
+                    <span className="text-sm text-admin-on-surface">{v.label[lang]}</span>
                   </label>
                 ))}
               </div>
             </div>
 
             <div className="mt-4">
-              <p className="mb-1.5 text-sm font-medium text-ink">⚡ {lang === 'he' ? 'פעולות' : 'Actions'}</p>
+              <p className="mb-1.5 text-sm font-medium text-admin-on-surface">⚡ {lang === 'he' ? 'פעולות' : 'Actions'}</p>
               <div className="grid gap-1.5">
                 {availableActions.map((a) => (
-                  <label key={a.key} className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2">
+                  <label key={a.key} className="flex items-center gap-2 rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3 py-2">
                     <input
                       type="checkbox"
                       checked={draft.actions.includes(a.key)}
                       onChange={() => toggleAction(a.key)}
                       className="h-4 w-4 accent-[var(--primary)]"
                     />
-                    <span className="text-sm text-ink">{a.label[lang]}</span>
+                    <span className="text-sm text-admin-on-surface">{a.label[lang]}</span>
                   </label>
                 ))}
               </div>
@@ -201,7 +201,7 @@ export function PermissionsEditorModal({ open, onClose, rules, onChange, restric
               <button
                 type="button"
                 onClick={saveRule}
-                className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+                className="rounded-lg bg-admin-primary px-3.5 py-2 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-container"
               >
                 {lang === 'he' ? 'שמור כלל' : 'Save Rule'}
               </button>
