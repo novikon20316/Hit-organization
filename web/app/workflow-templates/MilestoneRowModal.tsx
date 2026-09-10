@@ -416,14 +416,16 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
         { label: lang === 'he' ? 'הערכת בוחן — בחינת ההגנה' : 'Examiner evaluation — the defense exam', components: examinerDefenseComponents, weight: examinerDefenseWeight },
       ];
       for (const r of rubrics) {
-        if (r.components.length === 0 || r.components.some((c) => !c.labelHe.trim() || !c.labelEn.trim())) {
-          setError(lang === 'he' ? `יש להגדיר לפחות מרכיב ציון אחד עם שם עבור: ${r.label}` : `Define at least one named grading component for: ${r.label}`);
+        if (r.components.some((c) => !c.labelHe.trim() || !c.labelEn.trim())) {
+          setError(lang === 'he' ? `יש להזין שם לכל מרכיב ציון עבור: ${r.label}` : `Enter a name for every grading component for: ${r.label}`);
           return;
         }
-        const sum = r.components.reduce((s, c) => s + (Number(c.weight) || 0), 0);
-        if (sum !== 100) {
-          setError(lang === 'he' ? `סכום המשקלים ב"${r.label}" חייב להיות 100 (כרגע ${sum})` : `Component weights in "${r.label}" must sum to 100 (currently ${sum})`);
-          return;
+        if (r.components.length > 0) {
+          const sum = r.components.reduce((s, c) => s + (Number(c.weight) || 0), 0);
+          if (sum !== 100) {
+            setError(lang === 'he' ? `סכום המשקלים ב"${r.label}" חייב להיות 100 (כרגע ${sum})` : `Component weights in "${r.label}" must sum to 100 (currently ${sum})`);
+            return;
+          }
         }
       }
       const w1 = Number(supervisorEvalWeight) || 0;

@@ -250,12 +250,13 @@ function validateFormFields(input: any): FormFieldSpec[] | null {
 }
 
 /** Validates one of the three final-grade rubrics — same component shape as
- *  a regular gradingComponents list, plus its own top-level weight. Returns
- *  null on any malformed input (including a missing/non-numeric weight). */
+ *  a regular gradingComponents list (an empty list is allowed), plus its own
+ *  top-level weight. Returns null on any malformed input (including a
+ *  missing/non-numeric weight). */
 function validateFinalGradeRubric(input: any): { components: GradingComponentSpec[]; weight: number } | null {
   if (!input || typeof input !== 'object') return null;
   const components = validateGradingComponents(input.components);
-  if (components === null || components.length === 0) return null;
+  if (components === null) return null;
   const weight = Number(input.weight);
   if (!Number.isFinite(weight) || weight < 0) return null;
   return { components, weight };
