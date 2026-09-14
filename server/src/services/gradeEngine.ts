@@ -189,6 +189,22 @@ export function computeProjectFinalGrade(
 }
 
 /**
+ * The median of whatever milestone finalGrade values a student's current
+ * project already has — distinct from computeProjectFinalGrade above, which
+ * returns null until EVERY nonzero-weighted milestone is graded. Used to show
+ * an in-progress "how are they doing so far" figure (e.g. the students report
+ * table) while a project is still ongoing, not a substitute for the real
+ * final grade. Returns null when nothing has been graded yet, never 0 — no
+ * grades is "unknown," not "failing."
+ */
+export function computeMedianGrade(finalGrades: Array<number | null | undefined>): number | null {
+  const graded = finalGrades.filter((g): g is number => typeof g === 'number' && Number.isFinite(g)).sort((a, b) => a - b);
+  if (graded.length === 0) return null;
+  const mid = Math.floor(graded.length / 2);
+  return graded.length % 2 === 0 ? (graded[mid - 1]! + graded[mid]!) / 2 : graded[mid]!;
+}
+
+/**
  * Stub — no live Michlol integration exists in this codebase (confirmed: zero
  * references to "Michlol"/"מכלול" anywhere outside orphaned i18n strings and
  * an unused permission key). Logs the attempt and returns a result the caller

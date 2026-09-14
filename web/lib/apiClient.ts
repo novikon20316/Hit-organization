@@ -1949,6 +1949,10 @@ export const apiClient = {
          *  days since signup while still searching (not_in_project/applied), or
          *  null (finished — nothing left to submit). */
         days: number | null;
+        /** Median of whatever milestone finalGrades exist so far in the
+         *  student's CURRENT project — null when not enrolled or nothing's
+         *  been graded yet (shown as '-'), never a final/official grade. */
+        medianGrade: number | null;
       }>;
     }>('/api/project-coordinator/students-report', { method: 'GET' });
   },

@@ -28,6 +28,7 @@ interface StudentReportRow {
   milestoneNameHe: string | null;
   milestoneNameEn: string | null;
   days: number | null;
+  medianGrade: number | null;
   facultyId: string | null;
   major: string | null;
   degreeType: 'bachelors' | 'masters' | null;
@@ -171,6 +172,7 @@ export function StudentsReportTab() {
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'מנחה' : 'Supervisor'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'אבן דרך נוכחית' : 'Current Milestone'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'ימים' : 'Days'}</th>
+              <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'ציון חציוני' : 'Median Grade'}</th>
             </tr>
           </thead>
           <tbody>
@@ -203,12 +205,13 @@ export function StudentsReportTab() {
                   <td className="px-3 py-2 font-semibold" style={{ color: r.days !== null && r.days < 0 ? 'var(--danger)' : undefined }}>
                     {daysLabel}
                   </td>
+                  <td className="px-3 py-2 text-administrative-coordinator-on-surface">{r.medianGrade ?? '-'}</td>
                 </tr>
               );
             })}
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
+                <td colSpan={9} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
                   📭 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}
                 </td>
               </tr>

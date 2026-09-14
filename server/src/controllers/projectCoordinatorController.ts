@@ -18,6 +18,7 @@ import {
 } from '../services/coordinatorStatistics.js';
 import { FACULTY_NAMES } from '../services/studentProgress.js';
 import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
+import { computeMedianGrade } from '../services/gradeEngine.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
@@ -403,6 +404,11 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
       let milestoneNameEn: string | null = null;
       let days: number | null = null;
       let appliedProjects: Array<{ titleHe: string; titleEn: string }> = [];
+      // Median of whatever milestones are already graded in the student's
+      // CURRENT project — not computeProjectFinalGrade's all-or-nothing
+      // final grade, which stays null until every milestone is done. null
+      // here just means "nothing graded yet," shown as '-' on the report.
+      let medianGrade: number | null = null;
 
       if (enrolled && project) {
         projectTitleHe = project.titleHe || project.titleEn || '';
@@ -413,6 +419,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
           .filter((m) => Array.isArray(m.studentIds) && m.studentIds.includes(s.id))
           .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
         const current = studentMilestones.find((m) => !DONE_MILESTONE_STATUSES.has(m.status)) ?? studentMilestones[studentMilestones.length - 1];
+        medianGrade = computeMedianGrade(studentMilestones.map((m) => m.finalGrade));
 
         if (current) {
           milestoneNameHe = current.nameHe ?? current.type;
@@ -466,6 +473,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
         milestoneNameHe,
         milestoneNameEn,
         days,
+        medianGrade,
       };
     });
 
