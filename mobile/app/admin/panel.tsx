@@ -240,6 +240,8 @@ export default function PanelScreen() {
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills,   setNewSkills]   = useState('');
   const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
+  const [newMinAverageGrade, setNewMinAverageGrade] = useState<number | null>(null);
+  const [newMinCreditPoints, setNewMinCreditPoints] = useState<number | null>(null);
   const [creating,    setCreating]    = useState(false);
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState<AppUser | null>(null);
@@ -848,6 +850,8 @@ export default function PanelScreen() {
         maxStudents: maxStudents,
         requiredSkills: newSkills.split(',').map((s) => s.trim()).filter(Boolean),
         prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
+        ...(newMinAverageGrade != null ? { minAverageGrade: newMinAverageGrade } : {}),
+        ...(newMinCreditPoints != null ? { minCreditPoints: newMinCreditPoints } : {}),
         // Optional single-major restriction — selectedProgram holds a
         // level-specific program *key* (e.g. "bsc_cs"), but the backend's
         // `major` field expects the canonical subject *slug* (e.g.
@@ -860,6 +864,8 @@ export default function PanelScreen() {
       setNewTitleHe(''); setNewTitleEn('');
       setNewDescHe(''); setNewDescEn('');
       setNewPrerequisites([]);
+      setNewMinAverageGrade(null);
+      setNewMinCreditPoints(null);
       setNewSkills('');
       setSelectedProgram(null);
 
@@ -2336,6 +2342,11 @@ export default function PanelScreen() {
 
         prerequisites={newPrerequisites}
         setPrerequisites={setNewPrerequisites}
+
+        minAverageGrade={newMinAverageGrade}
+        setMinAverageGrade={setNewMinAverageGrade}
+        minCreditPoints={newMinCreditPoints}
+        setMinCreditPoints={setNewMinCreditPoints}
 
         facultyIds={newProjectFacultyIds}
         setFacultyIds={setNewProjectFacultyIds}

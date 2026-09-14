@@ -85,3 +85,15 @@ export function computeAccumulatedCredits(courses: ExtractedCourse[]): number | 
   if (withCredits.length === 0) return null;
   return withCredits.reduce((sum, c) => sum + (c.credits ?? 0), 0);
 }
+
+/** Unweighted mean of every extracted course's grade — every ExtractedCourse
+ *  already has a real numeric grade (extractCompletedCourses only keeps
+ *  courses with one), so unlike computeAccumulatedCredits there's no
+ *  per-row null to filter out first. Used by
+ *  applicationReviewService.ts's checkMinAverageGrade project requirement.
+ *  Returns null (not 0) when there are no courses at all, same "no data"
+ *  convention as computeAccumulatedCredits. */
+export function computeAverageGrade(courses: ExtractedCourse[]): number | null {
+  if (courses.length === 0) return null;
+  return courses.reduce((sum, c) => sum + c.grade, 0) / courses.length;
+}

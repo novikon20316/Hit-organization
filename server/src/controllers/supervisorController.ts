@@ -14,7 +14,7 @@ import {
   type WorkflowMilestoneSpec, type FormFieldSpec,
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
-import { normalizePrerequisites } from '../services/prerequisites.js';
+import { normalizePrerequisites, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js';
 
 const db = admin.firestore();
 
@@ -501,6 +501,8 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       projectFileUrl,
       NumberOfStudents, requiredSkills, facultyId,
       prerequisites, // ← courses a student must have completed to be eligible
+      minAverageGrade, // ← optional whole-transcript minimum average requirement
+      minCreditPoints, // ← optional minimum accumulated credit-points requirement
       major, // ← optional; omitted means open to every major in the faculty
     } = req.body;
 
@@ -570,6 +572,8 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       NumberOfStudents:   NumberOfStudents   ?? 1,
       requiredSkills:     requiredSkills     ?? [],
       prerequisites:      normalizePrerequisites(prerequisites),
+      minAverageGrade:    normalizeMinAverageGrade(minAverageGrade),
+      minCreditPoints:    normalizeMinCreditPoints(minCreditPoints),
       facultyId:          resolvedFacultyId,
       ...(major ? { major } : {}),
       supervisorId,

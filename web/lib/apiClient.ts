@@ -648,6 +648,12 @@ export const apiClient = {
     /** minGrade is optional per subject — omitted means "must have taken the
      *  course," no grade threshold. See PrerequisitesEditor. */
     prerequisites: Array<{ subject: string; minGrade?: number }>;
+    /** Optional whole-transcript minimum preliminary average (0-100) — see
+     *  PrerequisitesEditor. */
+    minAverageGrade?: number;
+    /** Optional minimum accumulated credit-points requirement — see
+     *  PrerequisitesEditor. */
+    minCreditPoints?: number;
     /** Optional single major shared across every selected faculty — see
      *  adminController.ts's createAdminProject. Omitted = open to every
      *  major in each faculty. */
@@ -1554,6 +1560,12 @@ export const apiClient = {
     /** minGrade is optional per subject — omitted means "must have taken the
      *  course," no grade threshold. See PrerequisitesEditor. */
     prerequisites: Array<{ subject: string; minGrade?: number }>;
+    /** Optional whole-transcript minimum preliminary average (0-100) — see
+     *  PrerequisitesEditor. */
+    minAverageGrade?: number;
+    /** Optional minimum accumulated credit-points requirement — see
+     *  PrerequisitesEditor. */
+    minCreditPoints?: number;
     NumberOfStudents: number;
     facultyId: string;
     /** Optional single major within facultyId, validated server-side against

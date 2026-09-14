@@ -38,6 +38,8 @@ export default function CreateOwnProjectButton({ lang, isRtl, onCreated }: Props
   const [descEn, setDescEn] = useState('');
   const [skills, setSkills] = useState('');
   const [prerequisites, setPrerequisites] = useState<PrerequisiteSpec[]>([]);
+  const [minAverageGrade, setMinAverageGrade] = useState<number | null>(null);
+  const [minCreditPoints, setMinCreditPoints] = useState<number | null>(null);
   const [degreeTypes, setDegreeTypes] = useState<('bachelors' | 'masters')[]>(['bachelors']);
   const [projectTypes, setProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [maxStudents, setMaxStudents] = useState(1);
@@ -83,7 +85,8 @@ export default function CreateOwnProjectButton({ lang, isRtl, onCreated }: Props
 
   const resetForm = () => {
     setTitleHe(''); setTitleEn(''); setDescHe(''); setDescEn(''); setSkills('');
-    setPrerequisites([]); setSelectedProgram(null); setProjectFile(null); setProjectName(null);
+    setPrerequisites([]); setMinAverageGrade(null); setMinCreditPoints(null);
+    setSelectedProgram(null); setProjectFile(null); setProjectName(null);
     setDegreeTypes(['bachelors']); setProjectTypes(['project']); setMaxStudents(1);
   };
 
@@ -111,6 +114,8 @@ export default function CreateOwnProjectButton({ lang, isRtl, onCreated }: Props
         prerequisites: prerequisites
           .filter((p) => p.subject.trim())
           .map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
+        ...(minAverageGrade != null ? { minAverageGrade } : {}),
+        ...(minCreditPoints != null ? { minCreditPoints } : {}),
         facultyId,
       });
       setShowNewProject(false);
@@ -148,6 +153,8 @@ export default function CreateOwnProjectButton({ lang, isRtl, onCreated }: Props
         descEn={descEn} setDescEn={setDescEn}
         skills={skills} setSkills={setSkills}
         prerequisites={prerequisites} setPrerequisites={setPrerequisites}
+        minAverageGrade={minAverageGrade} setMinAverageGrade={setMinAverageGrade}
+        minCreditPoints={minCreditPoints} setMinCreditPoints={setMinCreditPoints}
         faculty={facultyId}
         degreeTypes={degreeTypes} setDegreeTypes={setDegreeTypes}
         projectTypes={projectTypes} setProjectTypes={setProjectTypes}

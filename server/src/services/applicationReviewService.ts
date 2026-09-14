@@ -7,12 +7,16 @@
 // rolls them up into a single recommendation for the supervisor: approve,
 // suggest a meeting, or recommend rejecting.
 //
-// Currently one check is implemented (grades vs. the project's prerequisites,
-// read off the student's uploaded transcript/gradesheet — cvScreeningService
-// never looks at the transcript at all, only the CV). Two more checks are
-// coming later — each is just another function matching CheckFn's shape,
-// added to the CHECKS array in reviewApplication; computeRecommendation
-// already works generically over however many checks are in the array.
+// Three checks are implemented: grades vs. the project's per-course
+// prerequisites (checkPrerequisiteGrades — an AI pass, since matching course
+// names on a transcript against a prerequisite's own free-text subject needs
+// judgment), plus two straightforward numeric checks against the project's
+// optional minAverageGrade/minCreditPoints requirements (checkMinAverageGrade/
+// checkMinCreditPoints) — computed in plain code from transcriptExtractionService's
+// extractCompletedCourses, never trusted from an AI's own arithmetic, same as
+// that service's own computeAccumulatedCredits. All read off the student's
+// uploaded transcript/gradesheet — cvScreeningService never looks at the
+// transcript at all, only the CV.
 //
 // Recommendation rule (decided by the department, not inferred): 0 broken
 // checks -> approve, exactly 1 -> meeting, 2+ -> reject. A check that
@@ -25,6 +29,7 @@
 import pdfParse from 'pdf-parse';
 import { askClaude } from './anthropicClient.js';
 import { formatPrerequisite, type PrerequisiteSpec } from './prerequisites.js';
+import { extractCompletedCourses, computeAccumulatedCredits, computeAverageGrade, type ExtractedCourse } from './transcriptExtractionService.js';
 
 export interface ApplicationCheckResult {
   id: string;
@@ -126,6 +131,65 @@ async function checkPrerequisiteGrades(params: {
   }
 }
 
+const MIN_AVERAGE_CHECK_ID = 'min_average_grade';
+const MIN_CREDITS_CHECK_ID = 'min_credit_points';
+
+/** Check #2 — the project's optional minimum preliminary-average requirement,
+ *  computed from the SAME transcript check #1 reads (not the student's own
+ *  accumulatedCredits/thesisEligibility.average, which can be stale or come
+ *  from a different application) — this is what the current approval form
+ *  itself carries. Plain arithmetic (computeAverageGrade), no AI call. */
+function checkMinAverageGrade(params: {
+  minAverageGrade: number | null;
+  transcriptUrl: string;
+  extractedCourses: ExtractedCourse[];
+}): ApplicationCheckResult {
+  const base = { id: MIN_AVERAGE_CHECK_ID, labelHe: 'ממוצע מקדים', labelEn: 'Minimum preliminary average' };
+
+  if (params.minAverageGrade == null) {
+    return { ...base, passed: true, reasoning: 'This project has no minimum average requirement.' };
+  }
+  if (!params.transcriptUrl) {
+    return { ...base, passed: null, reasoning: 'No transcript/gradesheet was uploaded with this application.' };
+  }
+  const average = computeAverageGrade(params.extractedCourses);
+  if (average == null) {
+    return { ...base, passed: null, reasoning: 'Could not read any grades off the transcript.' };
+  }
+  return {
+    ...base,
+    passed: average >= params.minAverageGrade,
+    reasoning: `Transcript average: ${average.toFixed(1)} — required: ${params.minAverageGrade}.`,
+  };
+}
+
+/** Check #3 — the project's optional minimum credit-points requirement, same
+ *  transcript-derived source and no-AI-arithmetic discipline as
+ *  checkMinAverageGrade above. */
+function checkMinCreditPoints(params: {
+  minCreditPoints: number | null;
+  transcriptUrl: string;
+  extractedCourses: ExtractedCourse[];
+}): ApplicationCheckResult {
+  const base = { id: MIN_CREDITS_CHECK_ID, labelHe: 'מינימום נקודות זכות', labelEn: 'Minimum credit points' };
+
+  if (params.minCreditPoints == null) {
+    return { ...base, passed: true, reasoning: 'This project has no minimum credit-points requirement.' };
+  }
+  if (!params.transcriptUrl) {
+    return { ...base, passed: null, reasoning: 'No transcript/gradesheet was uploaded with this application.' };
+  }
+  const credits = computeAccumulatedCredits(params.extractedCourses);
+  if (credits == null) {
+    return { ...base, passed: null, reasoning: 'The transcript has no credit-points column.' };
+  }
+  return {
+    ...base,
+    passed: credits >= params.minCreditPoints,
+    reasoning: `Transcript credits: ${credits} — required: ${params.minCreditPoints}.`,
+  };
+}
+
 /** 0 broken -> approve, exactly 1 -> meeting, 2+ -> reject. Checks with
  *  passed === null (couldn't run) never count toward "broken". */
 export function computeRecommendation(checks: ApplicationCheckResult[]): ApplicationRecommendation {
@@ -135,17 +199,27 @@ export function computeRecommendation(checks: ApplicationCheckResult[]): Applica
   return 'reject';
 }
 
-/** Runs every configured check and rolls them up into one recommendation —
- *  see this file's header comment for how future checks #2/#3 slot in. */
+/** Runs every configured check and rolls them up into one recommendation.
+ *  extractCompletedCourses (a broad, whole-transcript read) is fetched once
+ *  here and shared by checks #2/#3 — check #1 keeps its own separate,
+ *  narrower AI call since it needs to fuzzy-match specific prerequisite
+ *  subjects rather than just sum/average everything. */
 export async function reviewApplication(params: {
   transcriptUrl: string;
   prerequisites: PrerequisiteSpec[];
+  minAverageGrade?: number | null;
+  minCreditPoints?: number | null;
 }): Promise<ApplicationReviewResult> {
-  const checks = await Promise.all([
+  const [prereqCheck, extractedCourses] = await Promise.all([
     checkPrerequisiteGrades(params),
-    // Check #2 goes here once defined.
-    // Check #3 goes here once defined.
+    extractCompletedCourses({ transcriptUrl: params.transcriptUrl }),
   ]);
+
+  const checks = [
+    prereqCheck,
+    checkMinAverageGrade({ minAverageGrade: params.minAverageGrade ?? null, transcriptUrl: params.transcriptUrl, extractedCourses }),
+    checkMinCreditPoints({ minCreditPoints: params.minCreditPoints ?? null, transcriptUrl: params.transcriptUrl, extractedCourses }),
+  ];
 
   return {
     checks,

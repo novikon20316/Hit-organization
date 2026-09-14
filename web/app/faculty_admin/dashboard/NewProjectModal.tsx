@@ -70,6 +70,8 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
   const [maxStudents, setMaxStudents] = useState(1);
   const [skills, setSkills] = useState('');
   const [prerequisites, setPrerequisites] = useState<PrerequisiteSpec[]>([]);
+  const [minAverageGrade, setMinAverageGrade] = useState<number | null>(null);
+  const [minCreditPoints, setMinCreditPoints] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLFormElement>(null);
@@ -151,6 +153,8 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
         prerequisites: prerequisites
           .filter((p) => p.subject.trim())
           .map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
+        ...(minAverageGrade != null ? { minAverageGrade } : {}),
+        ...(minCreditPoints != null ? { minCreditPoints } : {}),
       });
       onCreated();
       onClose();
@@ -276,7 +280,15 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
           </Field>
 
           <div data-field-guide-id="prerequisites">
-            <PrerequisitesEditor lang={lang} value={prerequisites} onChange={setPrerequisites} />
+            <PrerequisitesEditor
+              lang={lang}
+              value={prerequisites}
+              onChange={setPrerequisites}
+              minAverageGrade={minAverageGrade}
+              onMinAverageGradeChange={setMinAverageGrade}
+              minCreditPoints={minCreditPoints}
+              onMinCreditPointsChange={setMinCreditPoints}
+            />
           </div>
         </div>
 

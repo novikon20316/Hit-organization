@@ -648,6 +648,8 @@ export default function ProjectCoordinatorDashboard() {
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills, setNewSkills] = useState('');
   const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
+  const [newMinAverageGrade, setNewMinAverageGrade] = useState<number | null>(null);
+  const [newMinCreditPoints, setNewMinCreditPoints] = useState<number | null>(null);
   const [newMaxStudents, setNewMaxStudents] = useState(1);
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
@@ -851,12 +853,15 @@ export default function ProjectCoordinatorDashboard() {
         maxStudents: newMaxStudents,
         requiredSkills: newSkills.split(',').map((sk) => sk.trim()).filter(Boolean),
         prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
+        ...(newMinAverageGrade != null ? { minAverageGrade: newMinAverageGrade } : {}),
+        ...(newMinCreditPoints != null ? { minCreditPoints: newMinCreditPoints } : {}),
         major: selectedProgram || undefined,
       });
       setShowNewProject(false);
       setNewTitleHe(''); setNewTitleEn('');
       setNewDescHe(''); setNewDescEn('');
       setNewSkills(''); setNewPrerequisites([]);
+      setNewMinAverageGrade(null); setNewMinCreditPoints(null);
       setSelectedProgram(null);
       setSelectedSupervisor(null);
       Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
@@ -1449,6 +1454,8 @@ export default function ProjectCoordinatorDashboard() {
         descEn={newDescEn} setDescEn={setNewDescEn}
         skills={newSkills} setSkills={setNewSkills}
         prerequisites={newPrerequisites} setPrerequisites={setNewPrerequisites}
+        minAverageGrade={newMinAverageGrade} setMinAverageGrade={setNewMinAverageGrade}
+        minCreditPoints={newMinCreditPoints} setMinCreditPoints={setNewMinCreditPoints}
         facultyIds={newProjectFacultyIds}
         setFacultyIds={setNewProjectFacultyIds}
         degreeTypes={newDegreeTypes} setDegreeTypes={setNewDegreeTypes}

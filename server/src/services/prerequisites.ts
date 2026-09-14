@@ -52,6 +52,24 @@ export function formatPrerequisite(p: PrerequisiteSpec, lang: 'he' | 'en' = 'en'
   return lang === 'he' ? `${p.subject} (ציון מינימלי: ${p.minGrade})` : `${p.subject} (min grade: ${p.minGrade})`;
 }
 
+/** A project's optional minimum preliminary-average requirement (0-100) —
+ *  unlike PrerequisiteSpec.minGrade (per specific course), this is checked
+ *  against the average of EVERY grade on the transcript submitted with an
+ *  application (see applicationReviewService.ts's checkMinAverageGrade).
+ *  Returns null (no requirement) for anything not a finite number in
+ *  [0, 100], same discipline as normalizePrerequisites' own minGrade. */
+export function normalizeMinAverageGrade(raw: unknown): number | null {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 && raw <= 100 ? raw : null;
+}
+
+/** A project's optional minimum accumulated credit-points requirement —
+ *  checked against the credits read off the same submitted transcript (see
+ *  applicationReviewService.ts's checkMinCreditPoints). No upper bound
+ *  (unlike a grade); null means no requirement. */
+export function normalizeMinCreditPoints(raw: unknown): number | null {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : null;
+}
+
 // A student's own self-reported/verified course history — stored as
 // `completedCourses` on their users/{uid} doc, checked against a project's
 // PrerequisiteSpec.minGrade above. Populated two ways: automatically from a

@@ -233,6 +233,8 @@ export default function SupervisorHome() {
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills,   setNewSkills]   = useState('');
   const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
+  const [newMinAverageGrade, setNewMinAverageGrade] = useState<number | null>(null);
+  const [newMinCreditPoints, setNewMinCreditPoints] = useState<number | null>(null);
   const [creating,    setCreating]    = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
   // ── Grade modal ───────────────────────────────────────────────────────────
@@ -600,6 +602,8 @@ export default function SupervisorHome() {
         NumberOfStudents: maxStudents,
         requiredSkills: newSkills.split(',').map(s => s.trim()).filter(Boolean),
         prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
+        ...(newMinAverageGrade != null ? { minAverageGrade: newMinAverageGrade } : {}),
+        ...(newMinCreditPoints != null ? { minCreditPoints: newMinCreditPoints } : {}),
         facultyId,
         // Optional single-major restriction — omitted means open to every
         // major in the faculty (today's default, unchanged).
@@ -607,6 +611,8 @@ export default function SupervisorHome() {
       });
       setShowNewProject(false);
       setNewPrerequisites([]);
+      setNewMinAverageGrade(null);
+      setNewMinCreditPoints(null);
       setSelectedProgram(null);
       setProjectFile(null);
       setProjectName(null);
@@ -1717,6 +1723,8 @@ export default function SupervisorHome() {
         descEn={newDescEn}     setDescEn={setNewDescEn}
         skills={newSkills}     setSkills={setNewSkills}
         prerequisites={newPrerequisites} setPrerequisites={setNewPrerequisites}
+        minAverageGrade={newMinAverageGrade} setMinAverageGrade={setNewMinAverageGrade}
+        minCreditPoints={newMinCreditPoints} setMinCreditPoints={setNewMinCreditPoints}
         faculty={facultyId}    setFaculty={setFacultyId}
         degreeTypes={newDegreeTypes}     setDegreeTypes={setNewDegreeTypes}
         projectTypes={newProjectTypes}   setProjectTypes={setNewProjectTypes}

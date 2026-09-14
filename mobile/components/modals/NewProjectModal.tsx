@@ -65,6 +65,12 @@ type Props = {
   descEn:  string; setDescEn:  (v: string) => void;
   skills:  string; setSkills:  (v: string) => void;
   prerequisites: PrerequisiteSpec[]; setPrerequisites: (v: PrerequisiteSpec[]) => void;
+  // Project-wide (not per-course) requirements, checked against the average/
+  // accumulated-credits read off the transcript a student submits with their
+  // application — see server's applicationReviewService.ts's
+  // checkMinAverageGrade/checkMinCreditPoints. null = no requirement.
+  minAverageGrade: number | null; setMinAverageGrade: (v: number | null) => void;
+  minCreditPoints: number | null; setMinCreditPoints: (v: number | null) => void;
 
   // Supervisor mode only — locked/single, unaffected by the multi-faculty
   // feature (supervisor isn't one of the allowed roles).
@@ -125,6 +131,8 @@ export default function NewProjectModal({
   descHe,  setDescHe,  descEn,  setDescEn,
   skills,  setSkills,
   prerequisites, setPrerequisites,
+  minAverageGrade, setMinAverageGrade,
+  minCreditPoints, setMinCreditPoints,
   faculty,
   facultyIds = [], setFacultyIds,
   degreeTypes, setDegreeTypes,
@@ -661,6 +669,42 @@ export default function NewProjectModal({
         >
           <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>＋ {lang === "he" ? "הוסף קורס" : "Add course"}</Text>
         </Pressable>
+
+        {/* Project-wide (not per-course) requirements — see server's
+            applicationReviewService.ts's checkMinAverageGrade/checkMinCreditPoints. */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginBottom: 4 }]}>
+              {lang === "he" ? "ממוצע מקדים" : "Preliminary Average"}
+            </Text>
+            <TextInput
+              style={[styles.input, { textAlign: isRtl ? "right" : "left" }]}
+              value={minAverageGrade != null ? String(minAverageGrade) : ''}
+              onChangeText={(v) => setMinAverageGrade(v === '' ? null : Number(v))}
+              keyboardType="numeric"
+              placeholder={lang === "he" ? "לדוגמה: 80" : "e.g. 80"}
+              placeholderTextColor="#9BA8C0"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginBottom: 4 }]}>
+              {lang === "he" ? "מינימום נקודות זכות" : "Minimum Credit Points"}
+            </Text>
+            <TextInput
+              style={[styles.input, { textAlign: isRtl ? "right" : "left" }]}
+              value={minCreditPoints != null ? String(minCreditPoints) : ''}
+              onChangeText={(v) => setMinCreditPoints(v === '' ? null : Number(v))}
+              keyboardType="numeric"
+              placeholder={lang === "he" ? "לדוגמה: 60" : "e.g. 60"}
+              placeholderTextColor="#9BA8C0"
+            />
+          </View>
+        </View>
+        <Text style={{ fontSize: 12, color: '#8899BB', marginBottom: 20, textAlign: isRtl ? 'right' : 'left' }}>
+          {lang === "he"
+            ? "אם שדה זה מלא, המערכת תבדוק בגיליון הציונים שהסטודנט שלח בטופס הבקשה האם עמד בדרישה."
+            : "If filled, the system checks the student's transcript submitted with the application against this requirement."}
+        </Text>
         </View>
         </FieldGuideTarget>
 

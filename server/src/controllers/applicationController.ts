@@ -4,7 +4,7 @@ import { Response } from 'express'
 import { screenApplication } from '../services/cvScreeningService.js'
 import { reviewApplication } from '../services/applicationReviewService.js'
 import { extractCompletedCourses, computeAccumulatedCredits, type ExtractedCourse } from '../services/transcriptExtractionService.js'
-import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js'
+import { normalizePrerequisites, normalizeCompletedCourses, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js'
 import { notifyUser } from '../services/notify.js'
 import { enrollStudentInProject } from '../services/projectEnrollment.js'
 import { resolveEffectiveTrack } from '../config/studentTrack.js'
@@ -328,6 +328,8 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         reviewApplication({
             transcriptUrl: transcriptUrl ?? '',
             prerequisites: normalizePrerequisites(projectData.prerequisites),
+            minAverageGrade: normalizeMinAverageGrade(projectData.minAverageGrade),
+            minCreditPoints: normalizeMinCreditPoints(projectData.minCreditPoints),
         })
             .then((aiReview) => newApplicationRef.update({ aiReview }))
             .catch((reviewError) => {

@@ -21,7 +21,7 @@ import {
   type ScopeRule, type CoordinatorScope,
 } from '../config/permissionScopes.js';
 import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, isStudentWithinStaffScope, type RoleFacultyField } from '../services/scopeAuthorization.js';
-import { normalizePrerequisites, normalizeCompletedCourses } from '../services/prerequisites.js';
+import { normalizePrerequisites, normalizeCompletedCourses, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js';
 import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { notifyUser } from '../services/notify.js';
@@ -509,6 +509,7 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
       projectType: _omitProjectType, projectTypes: _omitProjectTypes,
       supervisorId: _omitSupervisorId, supervisorIds: _omitSupervisorIds,
       prerequisites: _omitPrerequisites,
+      minAverageGrade: _omitMinAverageGrade, minCreditPoints: _omitMinCreditPoints,
       ...sharedFields
     } = projectData;
     // Pulled out of the spread and normalized explicitly (courses a student
@@ -516,6 +517,13 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
     // services/prerequisites.ts) rather than trusted as raw client input,
     // matching createSupervisorProject.
     const prerequisites = normalizePrerequisites(projectData.prerequisites);
+    // Same explicit-normalize treatment as prerequisites above — the
+    // project's optional whole-transcript minimum average / accumulated
+    // credit-points requirements (see prerequisites.ts's
+    // normalizeMinAverageGrade/normalizeMinCreditPoints and
+    // applicationReviewService.ts's checks #2/#3).
+    const minAverageGrade = normalizeMinAverageGrade(projectData.minAverageGrade);
+    const minCreditPoints = normalizeMinCreditPoints(projectData.minCreditPoints);
 
     const batch = db.batch();
     const createdIds: string[] = [];
@@ -538,6 +546,8 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
         secondarySupervisorId: supervisorIds[1] ?? null,
         supervisorIds,
         prerequisites,
+        minAverageGrade,
+        minCreditPoints,
         workflowTemplateRefs: refsByFaculty.get(facultyId),
         postingGroupId,
         projectId: newProjectRef.id,

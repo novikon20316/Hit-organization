@@ -132,6 +132,8 @@ export default function PanelScreen() {
   const [newProjectTypes, setNewProjectTypes] = useState<('project' | 'thesis')[]>(['project']);
   const [newSkills, setNewSkills] = useState('');
   const [newPrerequisites, setNewPrerequisites] = useState<PrerequisiteSpec[]>([]);
+  const [newMinAverageGrade, setNewMinAverageGrade] = useState<number | null>(null);
+  const [newMinCreditPoints, setNewMinCreditPoints] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1);
 
@@ -315,6 +317,8 @@ export default function PanelScreen() {
         projectTypes: newProjectTypes,
         requiredSkills: newSkills.split(',').map((s) => s.trim()),
         prerequisites: newPrerequisites.filter((p) => p.subject.trim()).map((p) => ({ subject: p.subject.trim(), ...(p.minGrade != null ? { minGrade: p.minGrade } : {}) })),
+        ...(newMinAverageGrade != null ? { minAverageGrade: newMinAverageGrade } : {}),
+        ...(newMinCreditPoints != null ? { minCreditPoints: newMinCreditPoints } : {}),
         status: 'published',
         enrolledStudentIds: [],
         isArchived: false,
@@ -647,6 +651,11 @@ export default function PanelScreen() {
 
         prerequisites={newPrerequisites}
         setPrerequisites={setNewPrerequisites}
+
+        minAverageGrade={newMinAverageGrade}
+        setMinAverageGrade={setNewMinAverageGrade}
+        minCreditPoints={newMinCreditPoints}
+        setMinCreditPoints={setNewMinCreditPoints}
 
         facultyIds={newProjectFacultyIds}
         setFacultyIds={setNewProjectFacultyIds}
