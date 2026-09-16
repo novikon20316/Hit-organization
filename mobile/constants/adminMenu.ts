@@ -41,4 +41,5 @@ export const ADMIN_DIRECTORY_ITEMS: AdminMenuItem[] = [
   { key: 'bulkPermissions', icon: '🛡️', href: '/BulkPermissionsManager', label: { he: 'הרשאות מרוכזות לפי תפקיד', en: 'Bulk Permissions by Role' } },
   { key: 'records', icon: '📜', href: '/admin/records', label: { he: 'רישומי פרויקטים', en: 'Project Records' } },
   { key: 'workflowTemplates', icon: '🧬', href: '/WorkflowTemplateManager', label: { he: 'תבניות תהליך', en: 'Process Templates' } },
+  { key: 'creditPoints', icon: '💰', href: '/administrative_coordinator/credit-points', label: { he: 'נקודות זכות למנחים', en: 'Supervisor Credit Points' } },
 ];

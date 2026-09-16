@@ -76,6 +76,13 @@ interface ProjectGroup {
 interface DashboardData {
   coordinatorName: string;
   facultyId:       string;
+  // Her resolved coordinatorScopes (one entry per facultyId+major, major
+  // omitted = every major in that faculty) — see resolveCoordinatorScopes in
+  // projectCoordinatorController.ts. Used to lock the "Add Student" form's
+  // faculty/major pickers to what the server would actually accept, instead
+  // of offering every faculty and letting isStudentWithinStaffScope reject
+  // an out-of-scope pick after the fact.
+  scopes?:         Array<{ facultyId: string; major?: string }>;
   groups:          ProjectGroup[];
   stats: {
     totalGroups:     number;
@@ -876,6 +883,25 @@ export default function ProjectCoordinatorDashboard() {
   // ── Filter ─────────────────────────────────────────────────────────────────
   const supervisorKey = (g: ProjectGroup) => g.supervisorId ?? `name:${g.supervisorName}`;
 
+  // Grouped for AddStudentModal's `allowedScopes` prop — one entry per
+  // faculty, collecting every major named for it (undefined majors = every
+  // major in that faculty is allowed), mirroring the web equivalent in
+  // app/administrative_coordinator/dashboard/page.tsx.
+  const addStudentAllowedScopes = React.useMemo(() => {
+    if (!data?.scopes?.length) return undefined;
+    const byFaculty = new Map<string, Set<string> | null>();
+    for (const scope of data.scopes) {
+      if (!scope.major) {
+        byFaculty.set(scope.facultyId, null);
+      } else if (byFaculty.get(scope.facultyId) !== null) {
+        const set = byFaculty.get(scope.facultyId) ?? new Set<string>();
+        set.add(scope.major);
+        byFaculty.set(scope.facultyId, set);
+      }
+    }
+    return [...byFaculty.entries()].map(([facultyId, majors]) => ({ facultyId, ...(majors ? { majors: [...majors] } : {}) }));
+  }, [data?.scopes]);
+
   const supervisorSummaries = React.useMemo(() => {
     const map = new Map<string, { key: string; name: string; projectCount: number; overdueCount: number }>();
     (data?.groups ?? []).forEach((g) => {
@@ -954,6 +980,11 @@ export default function ProjectCoordinatorDashboard() {
             key: 'reports', icon: '📊',
             label: lang === 'he' ? 'דוחות' : 'Reports',
             onPress: () => router.push('/Reports' as any),
+          },
+          {
+            key: 'credit-points', icon: '💰',
+            label: lang === 'he' ? 'נקודות זכות למנחים' : 'Supervisor Credit Points',
+            onPress: () => router.push({ pathname: '/administrative_coordinator/credit-points', params: { lang } } as any),
           },
           {
             key: 'project-records', icon: '📜',
@@ -1115,7 +1146,7 @@ export default function ProjectCoordinatorDashboard() {
           <View>
             <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />
             <View style={{ marginBottom: 12 }}>
-              <AddStudentModal lang={lang} isRtl={lang === 'he'} onCreated={() => fetchStudentsReport()} />
+              <AddStudentModal lang={lang} isRtl={lang === 'he'} onCreated={() => fetchStudentsReport()} allowedScopes={addStudentAllowedScopes} />
             </View>
             <TextInput
               style={s.searchInput}

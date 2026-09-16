@@ -188,9 +188,16 @@ export interface StudentsListTabProps {
    *  would just reject. Omitted for administrative_secretary, who isn't
    *  degree-restricted. */
   addStudentDegreeType?: 'bachelors' | 'masters';
+  /** administrative_secretary only — her own coordinatorScopes, so the Add
+   *  Student form's faculty/major pickers only ever offer what the server
+   *  would actually accept (isStudentWithinStaffScope already rejects
+   *  anything else; this closes the client-side UX gap of offering it in
+   *  the first place). Not used by grad_school_head, which has no
+   *  equivalent per-major restriction today. */
+  coordinatorAllowedScopes?: { facultyId: string; majors?: string[] }[];
 }
 
-export function StudentsListTab({ enablePasswordReset = false, canManageStudents = false, addStudentDegreeType }: StudentsListTabProps) {
+export function StudentsListTab({ enablePasswordReset = false, canManageStudents = false, addStudentDegreeType, coordinatorAllowedScopes }: StudentsListTabProps) {
   const { lang, t } = useLanguage();
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -362,7 +369,11 @@ export function StudentsListTab({ enablePasswordReset = false, canManageStudents
             setShowAddStudent(false);
             refetchStudents();
           }}
-          scope={{ selectableRoles: ['student'], ...(addStudentDegreeType ? { lockedDegreeType: addStudentDegreeType } : {}) }}
+          scope={{
+            selectableRoles: ['student'],
+            ...(addStudentDegreeType ? { lockedDegreeType: addStudentDegreeType } : {}),
+            ...(coordinatorAllowedScopes?.length ? { allowedScopes: coordinatorAllowedScopes } : {}),
+          }}
         />
       )}
     </div>

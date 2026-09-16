@@ -362,6 +362,17 @@ export interface UserDoc {
    *  never the sole supervisor, in Engineering). See
    *  server/src/controllers/adminController.ts's getSupervisorsList. */
   secondarySupervisorFacultyIds?: string[];
+  /** "Standard supervisor" eligibility per degree category — whether this
+   *  supervisor/secondary_supervisor is qualified to open that category of
+   *  final project/thesis alone, without a co-supervisor. Set via
+   *  POST /api/admin/users/:id/standard-supervisor (system_admin, or
+   *  administrative_secretary within her own coordinatorScopes) — see the
+   *  Standard Supervisors table. Missing/false = not eligible. */
+  standardSupervisorEligibility?: {
+    bachelor_project?: boolean;
+    masters_project?: boolean;
+    masters_thesis?: boolean;
+  };
   /** Same additive/restrictive idea as supervisorFacultyIds, one field per
    *  role — a faculty_admin/program_head/grad_school_head/internal_examiner
    *  can independently be granted extra faculties for that specific role.

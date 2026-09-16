@@ -432,6 +432,43 @@ service cloud.firestore {
 			allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
     }
     // ─────────────────────────────────────────────────────────────────────────
+    // External examiner onboarding (identity/tax/bank) — one-time data an
+    // examiner submits via their examinerTokens link, reused across every
+    // future defense (see server/src/services/examinerFinancial.ts). Every
+    // write here happens server-side via the Admin SDK (which bypasses these
+    // rules) after re-verifying the same OTP-session freshness the
+    // examinerTokens update rule above checks — these `allow write: if false`
+    // just mean no client, staff included, may ever write here directly.
+    // `allow list: if false` on all three, same as examinerTokens above, so
+    // no role can enumerate every examiner's identity/financial doc via an
+    // unfiltered collection scan.
+    match /examinerIdentities/{emailHash} {
+      allow get: if isSignedIn() &&
+        role(userDoc()) in ['administrative_secretary', 'system_admin'];
+      allow list: if false;
+      allow write: if false;
+    }
+    // Tax coordination documents — visible to administrative_secretary and
+    // system_admin, same as identity above (only the actual bank account
+    // numbers below are administrative_secretary-only).
+    match /examinerTaxDocuments/{emailHash} {
+      allow get: if isSignedIn() &&
+        role(userDoc()) in ['administrative_secretary', 'system_admin'];
+      allow list: if false;
+      allow write: if false;
+    }
+    // Bank account details — the single most sensitive collection in this
+    // app. administrative_secretary ONLY: system_admin is deliberately
+    // excluded (per explicit product decision — she's the one responsible
+    // for getting examiners paid; a bank account number "does not involve"
+    // system_admin). Never add 'system_admin' here even though it appears
+    // in every other examiner-adjacent rule above.
+    match /examinerBankAccounts/{emailHash} {
+      allow get: if isSignedIn() && role(userDoc()) == 'administrative_secretary';
+      allow list: if false;
+      allow write: if false;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 		match /examiners/{examinerId} {
     	allow read: if isSignedIn() && isStaffRole(userDoc());
       allow create: if isSignedIn() &&

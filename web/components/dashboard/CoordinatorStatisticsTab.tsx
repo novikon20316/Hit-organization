@@ -54,7 +54,7 @@ function DownloadButton({ onClick, busy, lang }: { onClick: () => void; busy: bo
   );
 }
 
-export function CoordinatorStatisticsTab() {
+export function CoordinatorStatisticsTab({ showCreditPoints = true }: { showCreditPoints?: boolean }) {
   const { lang } = useLanguage();
   const [facultyFilter, setFacultyFilter] = useState<'all' | FacultyId>('all');
   const [allowedFacultyIds, setAllowedFacultyIds] = useState<string[]>([]);
@@ -321,7 +321,11 @@ export function CoordinatorStatisticsTab() {
         </div>
       </Section>
 
-      {/* 7. Supervisor credit points — for payment approval */}
+      {/* 7. Supervisor credit points — for payment approval. Moved to its own
+          menu item for administrative_secretary/system_admin (see
+          SupervisorCreditPointsPanel.tsx); still shown inline here for the
+          plain coordinator role, which has no separate menu for it. */}
+      {showCreditPoints && (
       <Section title={lang === 'he' ? '💰 נקודות זכות למנחים (לאישור תשלום)' : '💰 Supervisor credit points (for payment approval)'}>
         <p className="mb-3 text-xs text-muted">
           {lang === 'he'
@@ -400,6 +404,7 @@ export function CoordinatorStatisticsTab() {
           </div>
         ))}
       </Section>
+      )}
     </div>
   );
 }

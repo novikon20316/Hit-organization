@@ -6,10 +6,13 @@ import {
   toggleUserActive,
   listManagedStaff,
 } from '../controllers/facultyAdminController.js';
+import { getExternalExaminers } from '../controllers/externalExaminersController.js';
 import {
   getAdminDashboardSummary,
   getAdminProjectMilestones,
   getSupervisorsList,
+  getStandardSupervisors,
+  setStandardSupervisorFlag,
   createAdminProject,
   createAdminUser,
   enrollStudentAdmin,
@@ -71,6 +74,12 @@ router.patch('/users/:userId', authenticateUser, updateUserPermissions);
 // GET routes
 router.get('/dashboard', authenticateUser, getAdminDashboardData);
 router.get('/supervisors', verifyToken, getSupervisorsList);
+// system_admin (any supervisor) or administrative coordinator (supervisors
+// within her own faculty/major scope only) — gated inside the controller.
+router.get('/standard-supervisors', verifyToken, getStandardSupervisors);
+// system_admin (bank details omitted) or administrative coordinator (full
+// data, scoped to her own faculty/major) — gated inside the controller.
+router.get('/external-examiners', verifyToken, getExternalExaminers);
 // Filtered by ?projectId= and system_admin-gated — matches what the client
 // (admin/panel.tsx) actually sends. A second, unfiltered registration used to
 // shadow this one; it silently ignored the projectId filter for every caller.
@@ -110,6 +119,10 @@ router.post('/login-security/:code/lift', verifyToken, liftLoginLockout);
 // system_admin (any user) or administrative coordinator (students in their
 // own faculty/major scope only) — gated inside the controller.
 router.post('/users/:id/reset-password', verifyToken, resetUserPasswordAdmin);
+// Same caller gate as reset-password above — system_admin (any supervisor)
+// or administrative coordinator (supervisors in her own faculty/major scope
+// only) — gated inside the controller.
+router.post('/users/:id/standard-supervisor', verifyToken, setStandardSupervisorFlag);
 // Temporary debug tool — see config/featureFlags.ts's IMPERSONATION_ENABLED.
 router.post('/users/:id/impersonate', verifyToken, impersonationLimiter, impersonateUser);
 router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);

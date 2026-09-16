@@ -28,11 +28,34 @@ interface NewUserModalProps {
    *  `lockedDegreeType`/`allowedMajors` narrow the student-only fields the
    *  same way for the Add Student flow (grad_school_head can only ever
    *  create masters students — see isStudentWithinStaffScope — and either
-   *  role may hold a coordinatorScopes major restriction). */
-  scope?: { selectableRoles: AppRole[]; lockedFacultyId?: string; lockedDegreeType?: 'bachelors' | 'masters'; allowedMajors?: string[] };
+   *  role may hold a coordinatorScopes major restriction).
+   *
+   *  `allowedScopes` is the administrative_secretary equivalent of
+   *  `lockedFacultyId`/`allowedMajors`, but for a coordinator who may hold
+   *  several `coordinatorScopes` entries across different faculties (so a
+   *  single locked faculty + flat major list can't express it): one entry
+   *  per faculty she's scoped to, each with its own optional major
+   *  restriction (omitted `majors` = every major in that faculty). Exactly
+   *  one entry behaves like `lockedFacultyId` (hidden, pre-filled); more
+   *  than one renders the faculty picker but restricted to just those
+   *  faculties. Mutually exclusive with `lockedFacultyId`/`allowedMajors` —
+   *  don't pass both. */
+  scope?: {
+    selectableRoles: AppRole[];
+    lockedFacultyId?: string;
+    lockedDegreeType?: 'bachelors' | 'masters';
+    allowedMajors?: string[];
+    allowedScopes?: { facultyId: string; majors?: string[] }[];
+  };
 }
 
 const SELECTABLE_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
+
+function initialFacultyId(scope: NewUserModalProps['scope']): string {
+  if (scope?.lockedFacultyId) return scope.lockedFacultyId;
+  if (scope?.allowedScopes?.length === 1) return scope.allowedScopes[0]!.facultyId;
+  return '';
+}
 
 // Client-side convenience default only — purely cosmetic. The real
 // generate-if-blank behavior always happens server-side (generateTempPassword
@@ -55,7 +78,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<AppRole>(roleOptions[0] ?? 'student');
-  const [facultyId, setFacultyId] = useState(scope?.lockedFacultyId ?? '');
+  const [facultyId, setFacultyId] = useState(initialFacultyId(scope));
   const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>(scope?.lockedDegreeType ?? 'bachelors');
   const [major, setMajor] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState('1');
@@ -81,6 +104,8 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
     if (!faculty) return [];
     const seen = new Set<string>();
     const options = faculty.programs.filter((p) => p.level === degreeType && !seen.has(p.slug) && seen.add(p.slug));
+    const scopeForFaculty = scope?.allowedScopes?.find((s) => s.facultyId === facultyId);
+    if (scopeForFaculty?.majors?.length) return options.filter((p) => scopeForFaculty.majors!.includes(p.slug));
     return scope?.allowedMajors?.length ? options.filter((p) => scope.allowedMajors!.includes(p.slug)) : options;
   }, [facultyId, degreeType, scope]);
 
@@ -108,7 +133,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
     setEmail('');
     setPhone('');
     setRole(roleOptions[0] ?? 'student');
-    setFacultyId(scope?.lockedFacultyId ?? '');
+    setFacultyId(initialFacultyId(scope));
     setDegreeType(scope?.lockedDegreeType ?? 'bachelors');
     setMajor('');
     setYearOfStudy('1');
@@ -298,7 +323,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
             </select>
           </Field>
 
-          {!isCrossFaculty && !scope?.lockedFacultyId && (
+          {!isCrossFaculty && !scope?.lockedFacultyId && (scope?.allowedScopes?.length ?? 2) > 1 && (
             <Field label={lang === 'he' ? 'פקולטה' : 'Faculty'}>
               <select
                 value={facultyId}
@@ -315,9 +340,11 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                 className={inputCls}
               >
                 <option value="">{lang === 'he' ? 'בחר פקולטה' : 'Select faculty'}</option>
-                {(scope?.lockedDegreeType
-                  ? SELECTABLE_FACULTIES.filter((id) => HIT_FACULTIES.find((f) => f.key === id)?.programs.some((p) => p.level === scope.lockedDegreeType))
-                  : SELECTABLE_FACULTIES
+                {(scope?.allowedScopes?.length
+                  ? SELECTABLE_FACULTIES.filter((id) => scope.allowedScopes!.some((s) => s.facultyId === id))
+                  : scope?.lockedDegreeType
+                    ? SELECTABLE_FACULTIES.filter((id) => HIT_FACULTIES.find((f) => f.key === id)?.programs.some((p) => p.level === scope.lockedDegreeType))
+                    : SELECTABLE_FACULTIES
                 ).map((id) => (
                   <option key={id} value={id}>
                     {facultyLabel(id, lang)}

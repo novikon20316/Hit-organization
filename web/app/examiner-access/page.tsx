@@ -34,6 +34,7 @@ import { OtpGate } from './OtpGate';
 import { OpinionForm } from './OpinionForm';
 import { DataScienceExaminerEvaluationForm } from './DataScienceExaminerEvaluationForm';
 import { DefenseDateSection } from './DefenseDateSection';
+import { OnboardingForm } from './OnboardingForm';
 import type { ExaminerAccessPhase } from './types';
 
 function formatDate(ts: Timestamp | null | undefined, lang: 'he' | 'en'): string {
@@ -316,6 +317,8 @@ function ExaminerAccessContent() {
       </div>
 
       {!!actionError && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{actionError}</p>}
+
+      {token && <OnboardingForm token={token} />}
 
       {token && <DefenseDateSection token={token} />}
 

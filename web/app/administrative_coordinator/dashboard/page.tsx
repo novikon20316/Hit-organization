@@ -203,6 +203,29 @@ function AdministrativeCoordinatorDashboardContent() {
   // her (navSections.ts's `visible`), but this re-checks server-equivalent
   // scope here too so a direct/typed ?tab=ungraded URL can't bypass it.
   const canSeeUngraded = withinCoordinatorScope(userData, CS_MASTERS_SCOPE);
+  // Faculty/major restriction for the "Add Student" form (NewUserModal's
+  // `scope.allowedScopes`) — mirrors withinCoordinatorScope's own fallback
+  // (facultyId-only lock when no coordinatorScopes are configured) so the
+  // picker never offers a faculty/major the server would reject anyway.
+  const coordinatorAllowedScopes = useMemo(() => {
+    if (userData?.coordinatorScopes?.length) {
+      const byFaculty = new Map<string, Set<string> | null>();
+      for (const scope of userData.coordinatorScopes) {
+        if (!scope.major) {
+          byFaculty.set(scope.facultyId, null); // null = every major allowed
+        } else if (byFaculty.get(scope.facultyId) !== null) {
+          const set = byFaculty.get(scope.facultyId) ?? new Set<string>();
+          set.add(scope.major);
+          byFaculty.set(scope.facultyId, set);
+        }
+      }
+      return [...byFaculty.entries()].map(([facultyId, majors]) => ({ facultyId, ...(majors ? { majors: [...majors] } : {}) }));
+    }
+    if (userData?.facultyId && userData.facultyId !== 'all') {
+      return [{ facultyId: userData.facultyId }];
+    }
+    return undefined;
+  }, [userData]);
   const { lang, t } = useLanguage();
   const searchParams = useSearchParams();
 
@@ -348,10 +371,10 @@ function AdministrativeCoordinatorDashboardContent() {
       ) : activeTab === 'users' ? (
         <div data-field-guide-id="userList">
           <FieldGuideOverlay guideKey={USERS_TAB_GUIDE_KEY} steps={USERS_TAB_FIELD_GUIDE} />
-          <StudentsListTab enablePasswordReset canManageStudents />
+          <StudentsListTab enablePasswordReset canManageStudents coordinatorAllowedScopes={coordinatorAllowedScopes} />
         </div>
       ) : activeTab === 'statistics' ? (
-        <CoordinatorStatisticsTab />
+        <CoordinatorStatisticsTab showCreditPoints={false} />
       ) : activeTab === 'ungraded' ? (
         <div data-field-guide-id="ungradedList">
           <FieldGuideOverlay guideKey={UNGRADED_TAB_GUIDE_KEY} steps={UNGRADED_TAB_FIELD_GUIDE} />

@@ -460,6 +460,13 @@ export interface UserRecord {
   // single-faculty account. See adminController.ts's getSupervisorsList.
   supervisorFacultyIds?: string[];
   secondarySupervisorFacultyIds?: string[];
+  /** "Standard supervisor" eligibility per degree category — see web's
+   *  lib/roles.ts UserDoc for the full doc. */
+  standardSupervisorEligibility?: {
+    bachelor_project?: boolean;
+    masters_project?: boolean;
+    masters_thesis?: boolean;
+  };
   // Same additive/restrictive idea, one field per role — faculty_admin/
   // program_head/grad_school_head/internal_examiner can each independently
   // be granted extra faculties for that role. grad_school_head/

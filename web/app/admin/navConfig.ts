@@ -125,6 +125,27 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'students',
       },
       {
+        key: 'creditPoints',
+        icon: '💰',
+        href: '/administrative_coordinator/credit-points',
+        label: { he: 'נקודות זכות למנחים', en: 'Supervisor Credit Points' },
+        isActive: (pathname) => pathname === '/administrative_coordinator/credit-points',
+      },
+      {
+        key: 'standardSupervisors',
+        icon: '🧑‍🏫',
+        href: '/administrative_coordinator/standard-supervisors',
+        label: { he: 'מנחה סטנדרטי', en: 'Standard Supervisor' },
+        isActive: (pathname) => pathname === '/administrative_coordinator/standard-supervisors',
+      },
+      {
+        key: 'externalExaminers',
+        icon: '🧾',
+        href: '/administrative_coordinator/external-examiners',
+        label: { he: 'פרטי בוחנים חיצוניים', en: 'External Examiners Info' },
+        isActive: (pathname) => pathname === '/administrative_coordinator/external-examiners',
+      },
+      {
         key: 'programHead',
         icon: '🧑‍🏫',
         href: '/program_head/dashboard',

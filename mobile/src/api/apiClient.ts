@@ -286,6 +286,30 @@ class ApiClient {
     }> };
   }
 
+  /** Mirrors web's apiClient.getCoordinatorStatistics's supervisorPaymentRates
+   *  + supervisorCreditPoints fields — used only by the standalone Supervisor
+   *  Credit Points screen (mobile has no Statistics screen at all, see
+   *  constants/adminMenu.ts's comment), so the other statistics fields
+   *  aren't typed here. */
+  async getSupervisorCreditPointsData() {
+    const response = await this.api.get('/api/project-coordinator/statistics');
+    return response.data as {
+      noScopeAssigned?: boolean;
+      allowedFacultyIds: string[];
+      supervisorPaymentRates: Record<string, Record<'msc_thesis' | 'msc_project' | 'bsc_project', number | null>>;
+      supervisorCreditPoints: Array<{
+        facultyId: string; supervisorId: string; supervisorName: string;
+        counts: Record<'msc_thesis' | 'msc_project' | 'bsc_project', number>;
+        totalPoints: number; incompleteRates: boolean;
+      }>;
+    };
+  }
+
+  async updateSupervisorPaymentRates(rates: Record<string, Record<'msc_thesis' | 'msc_project' | 'bsc_project', number | null>>) {
+    const response = await this.api.put('/api/project-coordinator/supervisor-payment-rates', { rates });
+    return response.data as { rates: typeof rates };
+  }
+
   async getScopedSupervisorsForRecords() {
     const response = await this.api.get('/api/project-records/supervisors');
     return response.data as { supervisors: Array<{ id: string; displayName: string; email: string; facultyId: string }> };

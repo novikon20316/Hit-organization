@@ -89,7 +89,10 @@ export type AuditAction =
   // and parallelSignoffController.ts), distinct from the sequential
   // committee chain's 'milestone_approved'/'milestone_rejected'.
   | 'committee_chair_decision_recorded'
-  | 'examiner_one_signoff_recorded';
+  | 'examiner_one_signoff_recorded'
+  // "Standard supervisor" eligibility per degree category (see
+  // adminController.ts's setStandardSupervisorFlag).
+  | 'standard_supervisor_flag_set';
 
 export interface AuditLogEntry {
   userId: string;

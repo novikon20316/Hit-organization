@@ -87,6 +87,39 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'statistics',
       },
       {
+        key: 'creditPoints',
+        icon: '💰',
+        href: '/administrative_coordinator/credit-points',
+        label: { he: 'נקודות זכות למנחים', en: 'Supervisor Credit Points' },
+        description: {
+          he: 'מפתח נקודות התשלום למנחים לכל פקולטה וסוג פרויקט, וסך הנקודות שצבר כל מנחה.',
+          en: 'The per-faculty/category supervisor payment-point key, and each supervisor’s accrued points.',
+        },
+        isActive: (pathname) => pathname === '/administrative_coordinator/credit-points',
+      },
+      {
+        key: 'standardSupervisors',
+        icon: '🧑‍🏫',
+        href: '/administrative_coordinator/standard-supervisors',
+        label: { he: 'מנחה סטנדרטי', en: 'Standard Supervisor' },
+        description: {
+          he: 'סימון אילו מנחים כשירים לפתוח פרויקט גמר/תזה בעצמם, ללא מנחה נוסף.',
+          en: 'Mark which supervisors are qualified to open a final project/thesis alone, without a co-supervisor.',
+        },
+        isActive: (pathname) => pathname === '/administrative_coordinator/standard-supervisors',
+      },
+      {
+        key: 'externalExaminers',
+        icon: '🧾',
+        href: '/administrative_coordinator/external-examiners',
+        label: { he: 'פרטי בוחנים חיצוניים', en: 'External Examiners Info' },
+        description: {
+          he: 'פרטי הבוחנים החיצוניים, הערכותיהם ומסמכי התשלום שלהם — לרבות פרטי חשבון בנק חסויים.',
+          en: 'External examiners’ details, evaluations, and payment documents — including confidential bank details.',
+        },
+        isActive: (pathname) => pathname === '/administrative_coordinator/external-examiners',
+      },
+      {
         key: 'workflowTemplates',
         icon: '🧬',
         href: '/workflow-templates',

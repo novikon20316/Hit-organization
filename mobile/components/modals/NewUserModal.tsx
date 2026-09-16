@@ -90,6 +90,14 @@ interface Props {
   // actually offer it, instead of letting the caller pick a combination the
   // server would just reject.
   lockedDegreeType?: 'bachelors' | 'masters';
+  // administrative_secretary's own coordinatorScopes, one entry per faculty
+  // (omitted `majors` = every major in that faculty allowed) — a coordinator
+  // scoped to several faculties can't be expressed by the single-value
+  // lockedFacultyId/no-major-equivalent above. Exactly one entry hides the
+  // Faculty section (like lockedFacultyId); more than one restricts the
+  // picker to just those faculties. Mutually exclusive with lockedFacultyId
+  // — don't pass both.
+  allowedScopes?: { facultyId: string; majors?: string[] }[];
 
   styles: any;
 }
@@ -129,6 +137,7 @@ export default function NewUserModal({
   selectableRoles,
   lockedFacultyId,
   lockedDegreeType,
+  allowedScopes,
   styles,
 }: Props) {
   const roleEntries = selectableRoles?.length
@@ -280,8 +289,9 @@ export default function NewUserModal({
           );
         })}
 
-        {/* Faculty (hidden entirely when locked to a delegate's own faculty) */}
-        {!lockedFacultyId && (
+        {/* Faculty (hidden entirely when locked to a delegate's own faculty,
+            or when allowedScopes narrows her to exactly one faculty) */}
+        {!lockedFacultyId && !(allowedScopes?.length === 1) && (
           <>
             <Text style={styles.sectionDivider}>
               {lang === 'he' ? 'פקולטה' : 'Faculty'}
@@ -297,6 +307,7 @@ export default function NewUserModal({
               Object.entries(FACULTY_COLORS)
                 .filter(([k]) => k !== 'default' && k !== 'all')
                 .filter(([fid]) => !lockedDegreeType || getFacultyByKey(fid)?.programs.some((p) => p.level === lockedDegreeType))
+                .filter(([fid]) => !allowedScopes?.length || allowedScopes.some((s) => s.facultyId === fid))
                 .map(([fid, fc]) => (
                   <Pressable
                     key={fid}
@@ -419,7 +430,13 @@ export default function NewUserModal({
                 <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 12 }]}>
                   {lang === 'he' ? 'מגמה *' : 'Major *'}
                 </Text>
-                {getFilteredPrograms(newUserFaculty, newUserDegree).map((program) => (
+                {(() => {
+                  const scopeForFaculty = allowedScopes?.find((s) => s.facultyId === newUserFaculty);
+                  const programs = getFilteredPrograms(newUserFaculty, newUserDegree);
+                  return scopeForFaculty?.majors?.length
+                    ? programs.filter((p) => scopeForFaculty.majors!.includes(p.slug))
+                    : programs;
+                })().map((program) => (
                   <Pressable
                     key={program.slug}
                     style={[

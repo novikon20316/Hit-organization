@@ -6,11 +6,13 @@
 // administrative_coordinator_dashboard.tsx). Lifts components/modals/
 // NewUserModal's state internally (same lifted-state pattern
 // ManagedStaffSection.tsx already uses for staff) and locks it to
-// role: 'student' — no faculty lock, matching the existing convention for
-// these two cross-faculty-capable roles (see ManagedStaffSection's own
-// staff-creation flow, which also leaves the faculty picker open and lets
-// the server reject an out-of-scope faculty). Enforced for real server-side
-// by adminController.ts's createAdminUser (isStudentWithinStaffScope).
+// role: 'student'. `allowedScopes` (administrative_secretary only, passed
+// from administrative_coordinator_dashboard.tsx's own coordinatorScopes)
+// locks the faculty/major pickers to her scope client-side. Enforced for
+// real server-side either way by adminController.ts's createAdminUser
+// (isStudentWithinStaffScope) — StudentsListSection's grad_school_head usage
+// omits `allowedScopes` and keeps the faculty picker fully open, same as
+// before.
 
 import React, { useState } from 'react';
 import { Pressable, Text, Alert } from 'react-native';
@@ -26,16 +28,26 @@ interface Props {
    *  isStudentWithinStaffScope server-side) — omit for administrative_secretary,
    *  who isn't degree-restricted. */
   lockedDegreeType?: 'bachelors' | 'masters';
+  /** administrative_secretary only — her own coordinatorScopes, grouped one
+   *  entry per faculty (omitted `majors` = every major in that faculty).
+   *  Exactly one entry pre-fills and hides the faculty picker; more than one
+   *  restricts it to just those faculties. See NewUserModal's own doc for
+   *  how this is applied. */
+  allowedScopes?: { facultyId: string; majors?: string[] }[];
 }
 
 const s = adminPanelStyles;
 
-export default function AddStudentModal({ lang, isRtl, onCreated, lockedDegreeType }: Props) {
+function initialFaculty(allowedScopes?: { facultyId: string; majors?: string[] }[]): string {
+  return allowedScopes?.length === 1 ? allowedScopes[0]!.facultyId : '';
+}
+
+export default function AddStudentModal({ lang, isRtl, onCreated, lockedDegreeType, allowedScopes }: Props) {
   const [visible, setVisible] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
-  const [newUserFaculty, setNewUserFaculty] = useState('');
+  const [newUserFaculty, setNewUserFaculty] = useState(initialFaculty(allowedScopes));
   const [newUserDegree, setNewUserDegree] = useState<'bachelors' | 'masters' | ''>(lockedDegreeType ?? '');
   const [newUserYear, setNewUserYear] = useState('1');
   const [newUserMajor, setNewUserMajor] = useState('');
@@ -47,7 +59,7 @@ export default function AddStudentModal({ lang, isRtl, onCreated, lockedDegreeTy
     setNewUserName('');
     setNewUserEmail('');
     setNewUserPhone('');
-    setNewUserFaculty('');
+    setNewUserFaculty(initialFaculty(allowedScopes));
     setNewUserDegree(lockedDegreeType ?? '');
     setNewUserYear('1');
     setNewUserMajor('');
@@ -135,6 +147,7 @@ export default function AddStudentModal({ lang, isRtl, onCreated, lockedDegreeTy
         creating={creating}
         selectableRoles={['student']}
         lockedDegreeType={lockedDegreeType}
+        allowedScopes={allowedScopes}
       />
     </>
   );

@@ -368,6 +368,132 @@ export const getSupervisorsList = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
+const STANDARD_SUPERVISOR_ROLES = ['supervisor', 'secondary_supervisor'];
+export const STANDARD_SUPERVISOR_CATEGORIES = ['bachelor_project', 'masters_project', 'masters_thesis'] as const;
+export type StandardSupervisorCategory = typeof STANDARD_SUPERVISOR_CATEGORIES[number];
+
+/**
+ * GET /api/admin/standard-supervisors
+ * Every supervisor/secondary_supervisor within the caller's scope, with
+ * their per-degree-category "standard supervisor" eligibility (see
+ * setStandardSupervisorFlag below) — system_admin sees everyone;
+ * administrative_secretary sees only supervisors within her own
+ * coordinatorScopes (faculty, and major when she's scoped to specific
+ * majors). Scoping is faculty+major only — it doesn't additionally check a
+ * supervisor's own supervisorFacultyIds/secondarySupervisorFacultyIds extra
+ * grants (unlike getSupervisorsList above), since this table is about a
+ * supervisor's home faculty/majors, not every faculty they've been granted
+ * as an extra.
+ */
+export const getStandardSupervisors = async (req: AuthenticatedRequest, res: Response) => {
+  const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
+  const isAdminCoordinator = hasAnyRole(req.user, ['administrative_secretary']);
+  if (!isSystemAdmin && !isAdminCoordinator) {
+    return res.status(403).json({ message: 'Access denied.' });
+  }
+
+  try {
+    const [byRole, byRoles] = await Promise.all([
+      db.collection('users').where('role', 'in', STANDARD_SUPERVISOR_ROLES).get(),
+      db.collection('users').where('roles', 'array-contains-any', STANDARD_SUPERVISOR_ROLES).get(),
+    ]);
+    const byId = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    [...byRole.docs, ...byRoles.docs].forEach((doc) => byId.set(doc.id, doc));
+
+    const supervisors = [...byId.values()]
+      .map((doc) => ({ id: doc.id, ...doc.data() }) as Record<string, any>)
+      .filter((u) => {
+        if (isSystemAdmin) return true;
+        const majors: (string | undefined)[] = u.assignedMajors?.length ? u.assignedMajors : [undefined];
+        return majors.some((major) => withinCoordinatorScope(req.user, { facultyId: u.facultyId ?? '', ...(major ? { major } : {}) }));
+      })
+      .map((u) => ({
+        id: u.id,
+        displayName: u.displayName ?? 'Unknown',
+        email: u.email ?? '',
+        facultyId: u.facultyId ?? '',
+        assignedMajors: u.assignedMajors ?? [],
+        standardSupervisorEligibility: {
+          bachelor_project: !!u.standardSupervisorEligibility?.bachelor_project,
+          masters_project: !!u.standardSupervisorEligibility?.masters_project,
+          masters_thesis: !!u.standardSupervisorEligibility?.masters_thesis,
+        },
+      }));
+
+    return res.status(200).json({ supervisors });
+  } catch (error: any) {
+    console.error('getStandardSupervisors error:', error);
+    return res.status(500).json({ message: 'Failed to fetch supervisors.' });
+  }
+};
+
+/**
+ * POST /api/admin/users/:id/standard-supervisor
+ * Sets one degree-category's "standard supervisor" flag on a supervisor —
+ * i.e. whether they're qualified to open that category of final
+ * project/thesis alone, without a co-supervisor. system_admin can set this
+ * for any supervisor; administrative_secretary only within her own
+ * coordinatorScopes (same faculty/major check as resetUserPasswordAdmin
+ * above).
+ */
+export const setStandardSupervisorFlag = async (req: AuthenticatedRequest, res: Response) => {
+  const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
+  const isAdminCoordinator = hasAnyRole(req.user, ['administrative_secretary']);
+  if (!isSystemAdmin && !isAdminCoordinator) {
+    await logPermissionDenied(req, 'user', req.params.id ?? 'unknown');
+    return res.status(403).json({ message: 'Access denied.' });
+  }
+
+  const { id: userId } = req.params;
+  if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+  const { category, value } = req.body ?? {};
+  if (!STANDARD_SUPERVISOR_CATEGORIES.includes(category)) {
+    return res.status(400).json({ message: 'Invalid category.' });
+  }
+  if (typeof value !== 'boolean') {
+    return res.status(400).json({ message: 'value must be a boolean.' });
+  }
+
+  try {
+    const targetSnap = await db.collection('users').doc(userId).get();
+    if (!targetSnap.exists) return res.status(404).json({ message: 'User not found.' });
+    const target = targetSnap.data()!;
+
+    if (!getEffectiveRoles(target).some((r) => STANDARD_SUPERVISOR_ROLES.includes(r))) {
+      return res.status(400).json({ message: 'Not a supervisor.' });
+    }
+
+    if (!isSystemAdmin) {
+      const majors: (string | undefined)[] = target.assignedMajors?.length ? target.assignedMajors : [undefined];
+      const inScope = majors.some((major) => withinCoordinatorScope(req.user, { facultyId: target.facultyId ?? '', ...(major ? { major } : {}) }));
+      if (!inScope) {
+        await logPermissionDenied(req, 'user', userId);
+        return res.status(403).json({ message: 'Access denied: supervisor is outside your faculty/major scope.' });
+      }
+    }
+
+    await db.collection('users').doc(userId).update({
+      [`standardSupervisorEligibility.${category}`]: value,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await logAuditEvent({
+      userId: req.user!.uid,
+      userRole: req.user!.role ?? '',
+      action: 'standard_supervisor_flag_set',
+      entityType: 'user',
+      entityId: userId,
+      explanation: `Set standardSupervisorEligibility.${category}=${value} for ${target.email ?? userId}`,
+      userDisplayName: req.user?.displayName,
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('setStandardSupervisorFlag error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to update supervisor.' });
+  }
+};
+
 // ==========================================
 // POST FUNCTIONS (6)
 // ==========================================

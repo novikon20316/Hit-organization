@@ -620,6 +620,46 @@ export const apiClient = {
     return request<{ success: boolean; tempPassword: string; message: string }>(`/api/admin/users/${userId}/reset-password`, { method: 'POST' });
   },
 
+  /** GET /api/admin/standard-supervisors — see
+   *  adminController.ts's getStandardSupervisors. */
+  async getStandardSupervisors() {
+    return request<{
+      supervisors: Array<{
+        id: string; displayName: string; email: string; facultyId: string; assignedMajors: string[];
+        standardSupervisorEligibility: { bachelor_project: boolean; masters_project: boolean; masters_thesis: boolean };
+      }>;
+    }>('/api/admin/standard-supervisors', { method: 'GET' });
+  },
+
+  /** POST /api/admin/users/:id/standard-supervisor — see
+   *  adminController.ts's setStandardSupervisorFlag. */
+  async setStandardSupervisorFlag(userId: string, category: 'bachelor_project' | 'masters_project' | 'masters_thesis', value: boolean) {
+    return request<{ success: boolean }>(`/api/admin/users/${userId}/standard-supervisor`, { method: 'POST', body: { category, value } });
+  },
+
+  /** GET /api/admin/external-examiners — see externalExaminersController.ts.
+   *  `bankAccount` is present (possibly null) for administrative_secretary
+   *  and entirely absent from the response for system_admin — never typed
+   *  as required here so a caller can't assume it exists. */
+  async getExternalExaminers() {
+    return request<{
+      examiners: Array<{
+        token: string;
+        examinerName: string;
+        role: string | null;
+        title: string | null;
+        institution: string;
+        projectTitle: string;
+        evaluation:
+          | { kind: 'online' }
+          | { kind: 'document'; url: string; fileName: string | null }
+          | { kind: 'pending' };
+        taxDocument: { url: string; fileName: string } | null;
+        bankAccount?: { bankName: string; branch: string; accountNumber: string; accountHolderName: string } | null;
+      }>;
+    }>('/api/admin/external-examiners', { method: 'GET' });
+  },
+
   /** POST /api/admin/audit-log/delete — pass either `{ ids }` for a
    *  selected-rows delete or `{ all: true }` to wipe the entire audit log. */
   async deleteAuditLogEntries(payload: { ids?: string[]; all?: boolean }) {
@@ -1906,7 +1946,7 @@ export const apiClient = {
         members: Array<{
           uid: string;
           name: string;
-          milestones: Array<{ type: string; status: string; finalGrade: number | null; gradeApproved: boolean; fileUrls: string[]; submissionNote: string }>;
+          milestones: Array<{ type: string; status: string; finalGrade: number | null; gradeApproved: boolean; fileUrls: string[]; submissionNote: string; examinerIds: string[]; examinerNames: string[] }>;
         }>;
         currentMilestone: string;
         currentMilestoneId: string | null;
@@ -2308,6 +2348,44 @@ export const apiClient = {
       `/api/examiner-access/${encodeURIComponent(token)}/examiner-evaluation`,
       { method: 'POST', body: data }
     );
+  },
+
+  // ─── One-time examiner onboarding (identity/bank/tax/eval-upload) — see
+  // examinerOnboardingController.ts. Same public, token-keyed auth model as
+  // the rest of this section. ────────────────────────────────────────────
+  async getExaminerOnboardingStatus(token: string) {
+    return request<{
+      identity: { role: string; title: string; institution: string } | null;
+      hasBankAccount: boolean;
+      hasTaxDocument: boolean;
+      hasOnlineEvaluation: boolean;
+      hasEvaluationDocument: boolean;
+    }>(`/api/examiner-access/${encodeURIComponent(token)}/onboarding-status`, { method: 'GET' });
+  },
+
+  async submitExaminerIdentity(token: string, data: { role: string; title: string; institution: string }) {
+    return request<{ success: boolean }>(`/api/examiner-access/${encodeURIComponent(token)}/onboarding/identity`, { method: 'POST', body: data });
+  },
+
+  /** Write-once — the server 409s if this examiner (by email) already has
+   *  bank details on file. */
+  async submitExaminerBankDetails(token: string, data: { bankName: string; branch: string; accountNumber: string; accountHolderName: string }) {
+    return request<{ success: boolean }>(`/api/examiner-access/${encodeURIComponent(token)}/onboarding/bank-details`, { method: 'POST', body: data });
+  },
+
+  /** Write-once, same as bank details above. */
+  async submitExaminerTaxDocument(token: string, file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{ success: boolean }>(`/api/examiner-access/${encodeURIComponent(token)}/onboarding/tax-document`, { method: 'POST', body: formData, raw: true });
+  },
+
+  /** Only accepted while this specific token has no online opinion yet — the
+   *  online form and this upload are alternatives, not both required. */
+  async submitExaminerEvaluationDocument(token: string, file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{ success: boolean }>(`/api/examiner-access/${encodeURIComponent(token)}/onboarding/evaluation-document`, { method: 'POST', body: formData, raw: true });
   },
 
   // ─── 17. GRADE HISTORY — read-only over `grades` + `auditLog`; access
