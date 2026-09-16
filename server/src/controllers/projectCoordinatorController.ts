@@ -136,14 +136,15 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
     // an equality filter, so this can't be pushed into the queries above).
     const projectDocs = [...projectDocsById.values()].filter((d) => !d.data().isArchived);
 
-    // Milestones are only ever looked up per matched project id below (via
-    // milestonesByProject), so fetching per distinct faculty here — rather
-    // than per exact major — can't leak a different major's data into the
-    // response; it's just a lookup table keyed by the already major-filtered
-    // project ids above.
-    const facultyIds = [...new Set(projectDocs.map((d) => d.data().facultyId).filter(Boolean))];
-    const milestoneSnaps = facultyIds.length > 0
-      ? await Promise.all(facultyIds.map((fid) => db.collection('milestones').where('facultyId', '==', fid).get()))
+    // Queried by projectId (like getStudentsReport below), not by the
+    // milestone's own denormalized facultyId — that field is written once at
+    // milestone-creation time (projectEnrollment.ts) and never re-synced if
+    // the project's facultyId is corrected afterward, which used to make
+    // this dashboard silently miss milestones that the Students Report
+    // (already projectId-scoped) still showed correctly.
+    const projectIds = projectDocs.map((d) => d.id);
+    const milestoneSnaps = projectIds.length > 0
+      ? await Promise.all(chunk(projectIds, 30).map((ids) => db.collection('milestones').where('projectId', 'in', ids).get()))
       : [];
 
     const milestonesByProject: Record<string, any[]> = {};
@@ -419,7 +420,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
           .filter((m) => Array.isArray(m.studentIds) && m.studentIds.includes(s.id))
           .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
         const current = studentMilestones.find((m) => !DONE_MILESTONE_STATUSES.has(m.status)) ?? studentMilestones[studentMilestones.length - 1];
-        medianGrade = computeMedianGrade(studentMilestones.map((m) => m.finalGrade));
+        medianGrade = computeMedianGrade(studentMilestones.map((m) => m.finalGradeByStudent?.[s.id] ?? m.finalGrade));
 
         if (current) {
           milestoneNameHe = current.nameHe ?? current.type;
