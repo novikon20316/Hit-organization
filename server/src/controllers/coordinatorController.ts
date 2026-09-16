@@ -12,7 +12,7 @@ import {
   findDefenseMilestoneRef,
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
-import { deriveProcessType, resolveExaminerSignoffRole, type ChainStage } from '../services/workflowTemplates.js';
+import { deriveProcessType, resolveExaminerSignoffRole, isDefenseDateConfirmed, type ChainStage } from '../services/workflowTemplates.js';
 import { authorizeStageActor, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify.js';
@@ -652,12 +652,12 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
           examiner2Score:    data.examiner2Score  ?? null,
           gradeWeights:      data.gradeWeights    ?? null,
           dueDate:           data.dueDate        ?? null,
-          // CRITICAL FIX: was reading data.defenseDate — that field has
-          // never actually existed on a milestone doc. The resolved
-          // defense date (see defenseScheduling.ts's finalizeMatchedDate)
-          // is written to `dueDate` (read just above), the same field
-          // every other milestone type's due date lives in.
-          defenseDate:       data.dueDate        ?? null,
+          // The resolved defense date (see defenseScheduling.ts's
+          // finalizeMatchedDate) is written to `dueDate` (read just above),
+          // the same field every other milestone type's due date lives in —
+          // only expose it here once the status confirms that actually
+          // happened (see isDefenseDateConfirmed).
+          defenseDate:       isDefenseDateConfirmed(data.status) ? (data.dueDate ?? null) : null,
           defenseRoom:       data.defenseRoom    ?? null,
         });
       }

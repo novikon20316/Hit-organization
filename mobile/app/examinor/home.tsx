@@ -14,7 +14,7 @@ import { examinerHomeStyles } from '../../constants/styles';
 import { apiClient } from '@/src/api/apiClient';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
-import {AssignedMilestone, GradingComponentSpec} from '@/types'
+import {AssignedMilestone, GradingComponentSpec, isDefenseDateConfirmed} from '@/types'
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
@@ -233,7 +233,7 @@ export default function ExaminerHome() {
             return {
               ...m,
               status: live.status,
-              defenseDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
+              defenseDate: isDefenseDateConfirmed(live.status) ? live.dueDate?.toDate?.()?.toISOString() ?? null : null,
               defenseRoom: live.defenseRoom ?? null,
               defenseBuilding: live.defenseBuilding ?? null,
               defenseTime: live.defenseTime ?? null,

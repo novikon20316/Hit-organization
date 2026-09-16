@@ -291,6 +291,20 @@ export function resolveMilestoneDueDate(
   return dueDate;
 }
 
+// A defense milestone's `dueDate` is dual-purpose: resolveMilestoneDueDate
+// above sets it at creation to a plain target/deadline (never null), and only
+// once defenseScheduling.ts's finalizeMatchedDate actually resolves the
+// panel's candidate dates does it get overwritten with the real agreed-upon
+// date. Callers that surface `dueDate` as "the defense date" (several
+// controllers do, for the student/supervisor/examiner/coordinator dashboards)
+// must gate on this — otherwise a milestone still awaiting/matching examiner
+// dates shows a concrete date and a "date set" checkmark that contradict its
+// own status.
+const DEFENSE_DATE_CONFIRMED_STATUSES = new Set(['defense_date_set', 'scheduled', 'examiner_graded', 'both_examiners_graded', 'completed']);
+export function isDefenseDateConfirmed(status: string | null | undefined): boolean {
+  return !!status && DEFENSE_DATE_CONFIRMED_STATUSES.has(status);
+}
+
 // Matches today's actual hardcoded behavior — the fallback whenever a
 // template has neither its own defaultRouting nor a milestone-level override
 // (i.e. every template that predates this feature), so nothing currently

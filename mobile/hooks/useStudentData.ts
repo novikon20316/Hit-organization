@@ -6,7 +6,7 @@ import { db, auth } from '../src/firebase/firebase';
 import {
   StudentState, DegreeType, ProjectType, MilestoneStatus,
   ProjectProposal, ActiveProject, Milestone,
-  PendingApplication, AppNotification
+  PendingApplication, AppNotification, isDefenseDateConfirmed
 } from '@/types';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/components/Prerequisites';
 import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/constants/studentTrack';
@@ -337,13 +337,12 @@ export function useStudentData() {
             fileUrls:       data.fileUrls        ?? [],
             finalGrade:     data.finalGrade      ?? null,
             supervisorScore:data.supervisorScore ?? null,
-            // CRITICAL FIX: was reading data.defenseDate, a field that has
-            // never actually existed on a milestone doc — the real
-            // confirmed defense date lives in `dueDate` (defenseScheduling.ts's
-            // finalizeMatchedDate writes it there, same field every other
-            // milestone type's due date lives in). See web/hooks/useStudentData.ts's
-            // identical fix.
-            defenseDate:    data.dueDate?.toDate?.()?.toISOString() ?? null,
+            // The real confirmed defense date lives in `dueDate`
+            // (defenseScheduling.ts's finalizeMatchedDate writes it there) —
+            // only once the status confirms that actually happened (see
+            // isDefenseDateConfirmed), otherwise dueDate is still just the
+            // original target/deadline set at enrollment.
+            defenseDate:    isDefenseDateConfirmed(data.status) ? data.dueDate?.toDate?.()?.toISOString() ?? null : null,
             defenseRoom:    data.defenseRoom     ?? null,
             defenseBuilding:data.defenseBuilding ?? null,
             defenseTime:    data.defenseTime     ?? null,

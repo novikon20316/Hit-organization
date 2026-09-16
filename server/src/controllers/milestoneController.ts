@@ -12,7 +12,7 @@ import { sanitizeMilestoneForViewer } from '../services/milestoneVisibility.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
-import { submissionRequirementMet, resolveMilestoneOrder, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES, type FormFieldSpec, type MilestoneFileType } from '../services/workflowTemplates.js';
+import { submissionRequirementMet, resolveMilestoneOrder, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES, isDefenseDateConfirmed, type FormFieldSpec, type MilestoneFileType } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { onMilestoneNeedsParallelSignoffs } from '../services/parallelSignoffs.js';
 import { notifyUser } from '../services/notify.js';
@@ -823,13 +823,12 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
         dueDate:      data.dueDate?.toDate?.()?.toISOString() ?? null,
         submittedAt:  data.submittedAt?.toDate?.()?.toISOString() ?? null,
         createdAt:    data.createdAt?.toDate?.()?.toISOString() ?? null,
-        // CRITICAL FIX: was reading data.defenseDate, a field that has
-        // never actually existed on a milestone doc — the real confirmed
-        // defense date lives in `dueDate` (defenseScheduling.ts's
-        // finalizeMatchedDate writes it there). This made every dashboard
-        // consuming this endpoint show "defense not scheduled" forever,
-        // even with a real agreed date.
-        defenseDate:  data.dueDate?.toDate?.()?.toISOString() ?? null,
+        // The real confirmed defense date lives in `dueDate`
+        // (defenseScheduling.ts's finalizeMatchedDate writes it there) —
+        // only expose it once the status confirms that actually happened
+        // (see isDefenseDateConfirmed), otherwise dueDate is still just the
+        // original target/deadline set at enrollment.
+        defenseDate:  isDefenseDateConfirmed(data.status) ? data.dueDate?.toDate?.()?.toISOString() ?? null : null,
         coordinatorApprovedAt: data.coordinatorApprovedAt?.toDate?.()?.toISOString() ?? null,
       }, requester.uid, viewerRoles);
     });

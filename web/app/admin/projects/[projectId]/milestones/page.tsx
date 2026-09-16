@@ -27,7 +27,7 @@ import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import type { AppRole } from '@/lib/roles';
 import { MilestoneTimeline, type MilestoneData } from '@/components/MilestoneTimeline';
-import { resolveMilestoneOrder, type MilestoneType, type MilestoneStatus } from '@/app/student/home/types';
+import { resolveMilestoneOrder, isDefenseDateConfirmed, type MilestoneType, type MilestoneStatus } from '@/app/student/home/types';
 import type { AdminProjectRecord } from '@/app/admin/panel/types';
 
 const ADMIN_ROLES: AppRole[] = ['system_admin'];
@@ -63,10 +63,10 @@ function toMilestoneData(raw: Record<string, unknown> & { id: string }): Milesto
     supervisorScore: typeof raw.supervisorScore === 'number' ? raw.supervisorScore : null,
     // `defenseDate` has never actually existed on a milestone doc — the
     // resolved defense date (see defenseScheduling.ts's finalizeMatchedDate)
-    // is written to `dueDate`, same as coordinatorController.ts's
-    // getCoordinatorProjects already accounts for (see its "CRITICAL FIX"
-    // comment there).
-    defenseDate: toISO(raw.defenseDate) ?? toISO(raw.dueDate),
+    // is written to `dueDate` instead, but only once the status confirms
+    // that's actually what happened (see isDefenseDateConfirmed) — otherwise
+    // dueDate is still just the original template target date.
+    defenseDate: isDefenseDateConfirmed(raw.status as MilestoneStatus) ? toISO(raw.defenseDate) ?? toISO(raw.dueDate) : null,
     defenseRoom: typeof raw.defenseRoom === 'string' ? raw.defenseRoom : null,
     defenseBuilding: typeof raw.defenseBuilding === 'string' ? raw.defenseBuilding : null,
     defenseTime: typeof raw.defenseTime === 'string' ? raw.defenseTime : null,

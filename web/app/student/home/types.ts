@@ -314,6 +314,19 @@ export const STATUS_LABEL: Record<MilestoneStatus, { he: string; en: string }> =
   completed: { he: 'הושלם', en: 'Completed' },
 };
 
+// A defense milestone's `dueDate` is dual-purpose: it's set at creation to a
+// plain target/deadline, and only gets overwritten with the real
+// agreed-upon date once the examiner panel's candidate dates actually match
+// (server's defenseScheduling.ts's finalizeMatchedDate). Any code treating
+// dueDate as "the defense date" — including the server-side controllers that
+// mirror it into a `defenseDate` field — must gate on the status below, or a
+// milestone still awaiting/matching examiner dates shows a date (and a
+// "date set" checkmark) that contradicts its own status badge.
+const DEFENSE_DATE_CONFIRMED_STATUSES = new Set<MilestoneStatus>(['defense_date_set', 'scheduled', 'examiner_graded', 'both_examiners_graded', 'completed']);
+export function isDefenseDateConfirmed(status: MilestoneStatus | string | null | undefined): boolean {
+  return !!status && DEFENSE_DATE_CONFIRMED_STATUSES.has(status as MilestoneStatus);
+}
+
 export function toDate(val: unknown): Date | null {
   if (!val) return null;
   if (typeof val === 'object' && val !== null && 'toDate' in val && typeof (val as { toDate: unknown }).toDate === 'function') {

@@ -56,6 +56,18 @@ export type MilestoneStatus =
   | 'scheduled'              // full defense logistics set
   | 'completed';
 
+// A defense milestone's `dueDate` is dual-purpose: it's set at creation to a
+// plain target/deadline, and only gets overwritten with the real
+// agreed-upon date once the examiner panel's candidate dates actually match
+// (server's defenseScheduling.ts's finalizeMatchedDate). Any code treating
+// dueDate as "the defense date" must gate on the status below, or a
+// milestone still awaiting/matching examiner dates shows a date (and a
+// "date set" checkmark) that contradicts its own status badge.
+const DEFENSE_DATE_CONFIRMED_STATUSES = new Set<MilestoneStatus>(['defense_date_set', 'scheduled', 'examiner_graded', 'both_examiners_graded', 'completed']);
+export function isDefenseDateConfirmed(status: MilestoneStatus | string | null | undefined): boolean {
+  return !!status && DEFENSE_DATE_CONFIRMED_STATUSES.has(status as MilestoneStatus);
+}
+
 // ── Defense date matching (see server/src/services/defenseScheduling.ts) ───
 export interface DefensePanelMember {
   type: 'internal' | 'external';

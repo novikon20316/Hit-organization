@@ -5,6 +5,7 @@ import admin from 'firebase-admin';
 import { submitCandidateDatesAndResolve, examinerKeyOf } from '../services/defenseScheduling.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { academicYearToHebrew } from '../services/hebrewYear.js';
+import { isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 
 const db = admin.firestore();
 
@@ -142,7 +143,11 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
             : {},
           milestoneHistory,
           revisionHistory: milestoneData.revisionHistory ?? [],
-          defenseDate: milestoneData.dueDate?.toDate?.().toISOString?.() ?? null,
+          // dueDate is a plain target date until the panel's dates actually
+          // match (defenseScheduling.ts's finalizeMatchedDate then overwrites
+          // it) — only surface it as "the defense date" once that's real,
+          // see isDefenseDateConfirmed's own comment.
+          defenseDate: isDefenseDateConfirmed(milestoneData.status) ? milestoneData.dueDate?.toDate?.().toISOString?.() ?? null : null,
           defenseRoom: milestoneData.defenseRoom ?? null,
           defenseBuilding: milestoneData.defenseBuilding ?? null,
           defenseTime: milestoneData.defenseTime ?? null,

@@ -22,6 +22,7 @@ import { ExaminerSignoffModal } from './ExaminerSignoffModal';
 import type { AssignedMilestone } from './types';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { ASSIGNMENTS_FIELD_GUIDE, ASSIGNMENTS_GUIDE_KEY } from './fieldGuide';
+import { isDefenseDateConfirmed } from '@/app/student/home/types';
 
 const EXAMINER_ROLES: AppRole[] = ['internal_examiner', 'system_admin'];
 
@@ -95,7 +96,7 @@ function ExaminerHomeContent() {
               ...m,
               status: live.status,
               routing: live.routing ?? null,
-              defenseDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
+              defenseDate: isDefenseDateConfirmed(live.status) ? live.dueDate?.toDate?.()?.toISOString() ?? null : null,
               defenseRoom: live.defenseRoom ?? null,
               defenseBuilding: live.defenseBuilding ?? null,
               defenseTime: live.defenseTime ?? null,

@@ -13,7 +13,7 @@ import { apiClient } from '@/lib/apiClient';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/lib/prerequisites';
 import { useAuth } from '@/contexts/AuthContext';
 import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication } from '@/app/student/home/types';
-import { resolveMilestoneOrder } from '@/app/student/home/types';
+import { resolveMilestoneOrder, isDefenseDateConfirmed } from '@/app/student/home/types';
 import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/lib/studentTrack';
 
 // TEMP-2-ACTIVE-PROJECTS: one entry per project the student is currently
@@ -313,16 +313,13 @@ export function useStudentData() {
             fileUrls: data.fileUrls ?? [],
             finalGrade: data.finalGrade ?? null,
             supervisorScore: data.supervisorScore ?? null,
-            // CRITICAL FIX: was reading data.defenseDate, a field that has
-            // never actually existed on a milestone doc — the real
-            // confirmed defense date lives in `dueDate` (defenseScheduling.ts's
-            // finalizeMatchedDate writes it there, same field every other
-            // milestone type's due date lives in). This made the student
-            // dashboard show "defense not scheduled" forever, even with a
-            // real agreed date, refresh or not — matches
-            // examinerController.ts's getExaminerDashboard, which already
-            // gets this right (defenseDate: milestoneData.dueDate...).
-            defenseDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
+            // The real confirmed defense date lives in `dueDate`
+            // (defenseScheduling.ts's finalizeMatchedDate writes it there,
+            // same field every other milestone type's due date lives in) —
+            // but only once the status confirms that actually happened (see
+            // isDefenseDateConfirmed), otherwise dueDate is still just the
+            // original target/deadline, not a real agreed date.
+            defenseDate: isDefenseDateConfirmed(data.status) ? data.dueDate?.toDate?.()?.toISOString() ?? null : null,
             defenseRoom: data.defenseRoom ?? null,
             defenseBuilding: data.defenseBuilding ?? null,
             defenseTime: data.defenseTime ?? null,

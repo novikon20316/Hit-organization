@@ -17,7 +17,7 @@ import {
   type SupervisorPaymentRates,
 } from '../services/coordinatorStatistics.js';
 import { FACULTY_NAMES } from '../services/studentProgress.js';
-import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
+import { resolveMilestoneOrder, isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 import { computeMedianGrade } from '../services/gradeEngine.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 
@@ -620,12 +620,12 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         submissionNote: m.submissionNote ?? '',
         finalGrade: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? null,
         supervisorScore: m.supervisorScore ?? null,
-        // CRITICAL FIX: was reading m.defenseDate — that field has never
-        // actually existed on a milestone doc. The resolved defense date
-        // (see defenseScheduling.ts's finalizeMatchedDate) is written to
-        // `dueDate`, the same field every other milestone type's due date
-        // lives in (already read above, on line 585).
-        defenseDate: m.dueDate?.toDate?.()?.toISOString?.() ?? null,
+        // The resolved defense date (see defenseScheduling.ts's
+        // finalizeMatchedDate) is written to `dueDate`, the same field every
+        // other milestone type's due date lives in — but only expose it here
+        // once the status confirms that's actually what happened; see
+        // isDefenseDateConfirmed's own comment.
+        defenseDate: isDefenseDateConfirmed(m.status) ? m.dueDate?.toDate?.()?.toISOString?.() ?? null : null,
         defenseRoom: m.defenseRoom ?? null,
         defenseBuilding: m.defenseBuilding ?? null,
         defenseTime: m.defenseTime ?? null,

@@ -19,7 +19,7 @@ import {tx} from '../../components/i18n';
 import { apiClient } from '@/src/api/apiClient';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
 import { pickAndImportStudentRoster } from '@/src/api/studentRoster';
-import {PendingMilestone, Project, InProgressProject, ExaminerUser, AssignedMilestone, DefensePanelMember} from '@/types'
+import {PendingMilestone, Project, InProgressProject, ExaminerUser, AssignedMilestone, DefensePanelMember, isDefenseDateConfirmed} from '@/types'
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import ChatbotFab from '@/components/ChatbotFab';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
@@ -354,8 +354,9 @@ export default function CoordinatorHome() {
             dueDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
             // See useStudentData.ts's/milestoneController.ts's identical
             // fix — the resolved defense date lives in `dueDate`, not a
-            // separate `defenseDate` field.
-            defenseDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
+            // separate `defenseDate` field — but only once the status
+            // confirms that's actually what happened (isDefenseDateConfirmed).
+            defenseDate: isDefenseDateConfirmed(live.status) ? live.dueDate?.toDate?.()?.toISOString() ?? null : null,
             defenseRoom: live.defenseRoom ?? null,
             supervisorScore: live.supervisorScore ?? null,
             supervisorComment: live.supervisorComment ?? null,
@@ -411,7 +412,7 @@ export default function CoordinatorHome() {
               examiner2Score: data.examiner2Score ?? null,
               gradeWeights: data.gradeWeights ?? null,
               dueDate: data.dueDate ?? null,
-              defenseDate: data.dueDate ?? null,
+              defenseDate: isDefenseDateConfirmed(data.status) ? (data.dueDate ?? null) : null,
               defenseRoom: data.defenseRoom ?? null,
             } as PendingMilestone);
           });

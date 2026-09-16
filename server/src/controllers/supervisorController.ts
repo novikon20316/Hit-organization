@@ -10,7 +10,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import {
   resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER,
   getMilestonesForTemplateId, getActiveMilestonesFor, deriveProcessType,
-  resolveFinalGradeSignoffRole, resolveMilestoneOrder,
+  resolveFinalGradeSignoffRole, resolveMilestoneOrder, isDefenseDateConfirmed,
   type WorkflowMilestoneSpec, type FormFieldSpec,
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
@@ -372,13 +372,14 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             status: (m?.status as string | undefined) ?? 'not_created',
             dueDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
             submittedAt: m?.submittedAt?.toDate?.()?.toISOString() ?? null,
-            // CRITICAL FIX: was reading m?.defenseDate — that field has
-            // never actually existed on a milestone doc. The resolved
-            // defense date (see defenseScheduling.ts's finalizeMatchedDate)
-            // is written to `dueDate`, the same field every other milestone
-            // type's due date lives in. Used by the data_science final-grade
-            // certificate.
-            defenseDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
+            // The resolved defense date (see defenseScheduling.ts's
+            // finalizeMatchedDate) is written to `dueDate`, the same field
+            // every other milestone type's due date lives in — only expose
+            // it once the status confirms that's actually what happened
+            // (see isDefenseDateConfirmed), otherwise this shows a plain
+            // target date as if it were an agreed one. Used by the
+            // data_science final-grade certificate.
+            defenseDate: isDefenseDateConfirmed(m?.status) ? m?.dueDate?.toDate?.()?.toISOString() ?? null : null,
             // The student's submitted files/note for this milestone — lets
             // the supervisor preview/download them straight from the
             // project card instead of a separate Grading tab.

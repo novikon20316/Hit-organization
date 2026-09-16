@@ -18,6 +18,7 @@ import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { isDefenseDateConfirmed } from '@/app/student/home/types';
 import type { AppRole } from '@/lib/roles';
 import { PendingMilestoneCard } from './PendingMilestoneCard';
 import { RecommendationCard } from './RecommendationCard';
@@ -195,8 +196,9 @@ function CoordinatorHomeContent() {
             dueDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
             // See useStudentData.ts's/milestoneController.ts's identical
             // fix — the resolved defense date lives in `dueDate`, not a
-            // separate `defenseDate` field.
-            defenseDate: live.dueDate?.toDate?.()?.toISOString() ?? null,
+            // separate `defenseDate` field — but only once the status
+            // confirms that's actually what happened (isDefenseDateConfirmed).
+            defenseDate: isDefenseDateConfirmed(live.status) ? live.dueDate?.toDate?.()?.toISOString() ?? null : null,
             defenseRoom: live.defenseRoom ?? null,
             supervisorScore: live.supervisorScore ?? null,
             supervisorComment: live.supervisorComment ?? null,
@@ -252,7 +254,7 @@ function CoordinatorHomeContent() {
               supervisorSignedAt: data.supervisorSignedAt?.toDate?.()?.toISOString() ?? null,
               facultyId: sibling?.facultyId ?? project?.facultyId ?? data.facultyId ?? '',
               examinerIds: data.examinerIds ?? [],
-              defenseDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
+              defenseDate: isDefenseDateConfirmed(data.status) ? data.dueDate?.toDate?.()?.toISOString() ?? null : null,
               defenseRoom: data.defenseRoom ?? null,
             });
           });
