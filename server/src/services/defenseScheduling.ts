@@ -174,6 +174,12 @@ export async function initDefenseScheduling(projectId: string, panel: DefensePan
   await milestoneRef.update({
     defensePanel: panel,
     examinerIds: internalIds,
+    // Every screen that displays "who's examining" (student dashboard,
+    // coordinator dashboard, Students Report drill-down) reads this flat
+    // field — examinerIds alone only carries internal uids, so an
+    // external-only or mixed panel used to leave every one of those screens
+    // showing no names at all despite defensePanel already having them.
+    examinerNames: panel.map((m) => m.displayName),
     dateMatching: {
       windowStart: admin.firestore.Timestamp.fromDate(windowStart),
       windowEnd: admin.firestore.Timestamp.fromDate(windowEnd),
@@ -706,6 +712,7 @@ export async function resolveReplaceExaminer(
     transaction.update(milestoneRef, {
       defensePanel: newPanel,
       examinerIds: newPanel.filter((m) => m.type === 'internal').map((m) => m.ref),
+      examinerNames: newPanel.map((m) => m.displayName),
       'dateMatching.currentRound': newRoundIndex,
       'dateMatching.rounds': freshRounds,
       'dateMatching.submissions': freshSubmissions,

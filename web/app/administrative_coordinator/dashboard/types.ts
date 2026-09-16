@@ -7,6 +7,8 @@ export interface MemberMilestoneGrade {
   gradeApproved: boolean;
   fileUrls: string[];
   submissionNote: string;
+  examinerIds: string[];
+  examinerNames: string[];
 }
 
 export interface ProjectGroup {

@@ -826,6 +826,7 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
 
     await db.collection('projects').doc(projectId).update({
       examinerIds: result.internalUids,
+      examinerNames: result.examinerNames,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 

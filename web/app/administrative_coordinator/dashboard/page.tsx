@@ -48,16 +48,19 @@ import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import type { ProjectGroup, MemberMilestoneGrade } from './types';
 import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
+import { STATUS_CONFIG, STATUS_LABEL, type MilestoneStatus } from '@/app/student/home/types';
 
 const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'system_admin'];
 
-// Mirrors InProgressTab.tsx's statusColor/statusLabel (coordinator/home) —
-// same milestone status taxonomy, just keyed off finalGrade instead of the
-// legacy per-role supervisorScore field.
+// Was a hardcoded 3-bucket (done/submitted/else) scheme that had no idea
+// about the defense-panel statuses (examiners_assigned, awaiting_defense_date,
+// etc.) — every one of those fell into the generic "else" bucket and rendered
+// identically to a milestone nobody had touched yet, which is exactly why an
+// examiner-assigned defense milestone never stood out here. Now reuses the
+// same STATUS_CONFIG/STATUS_LABEL the student dashboard and MilestoneTimeline
+// already use, so every screen agrees on what each status looks like.
 function gradeStatusColor(m: MemberMilestoneGrade): string {
-  if (m.status === 'coordinator_approved' || m.status === 'completed') return '#10B981';
-  if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') return '#F59E0B';
-  return '#8899BB';
+  return STATUS_CONFIG[m.status as MilestoneStatus]?.color ?? '#8899BB';
 }
 
 function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
@@ -65,10 +68,7 @@ function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
     const approved = m.gradeApproved ? (lang === 'he' ? 'מאושר' : 'Approved') : lang === 'he' ? 'טרם אושר' : 'Not yet approved';
     return `${m.finalGrade} · ${approved}`;
   }
-  if (m.status === 'submitted' || m.status === 'supervisor_graded' || m.status === 'graded') {
-    return lang === 'he' ? 'הוגש, בבדיקה' : 'Submitted, grading';
-  }
-  return lang === 'he' ? 'טרם הוגש' : 'Not submitted yet';
+  return STATUS_LABEL[m.status as MilestoneStatus]?.[lang] ?? (lang === 'he' ? 'טרם הוגש' : 'Not submitted yet');
 }
 
 function isMilestoneDone(status: string): boolean {
@@ -148,6 +148,11 @@ function MilestoneMiniProgress({
 
       {expanded && (
         <div className="mt-1.5 rounded-lg bg-administrative-coordinator-surface-container-low p-2">
+          {expanded.examinerNames.length > 0 && (
+            <p className="mb-1.5 text-[11px] text-administrative-coordinator-on-surface">
+              👥 {expanded.examinerNames.join(', ')}
+            </p>
+          )}
           {expanded.fileUrls.length === 0 ? (
             <p className="text-[11px] text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'לא הוגשו קבצים' : 'No files submitted'}</p>
           ) : (
@@ -574,6 +579,9 @@ function AdministrativeCoordinatorDashboardContent() {
                                   {gradeStatusLabel(m, lang)}
                                 </span>
                               </div>
+                              {m.examinerNames.length > 0 && (
+                                <p className="mt-0.5 text-[11px] text-muted">👥 {m.examinerNames.join(', ')}</p>
+                              )}
                               {m.fileUrls.length > 0 && (
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {m.fileUrls.map((url, i) => {

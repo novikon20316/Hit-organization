@@ -216,6 +216,12 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
             gradeApproved: m.gradeApproved ?? false,
             fileUrls: m.fileUrls ?? [],
             submissionNote: m.submissionNote ?? '',
+            // Was missing entirely — this dashboard had no way to show that
+            // examiners were already assigned to a defense/examiner-graded
+            // milestone, unlike the Students Report drill-down (getStudentDetail
+            // below), which already reads these same fields off the milestone.
+            examinerIds: m.examinerIds ?? [],
+            examinerNames: m.examinerNames ?? [],
           }));
         return {
           uid: sid,

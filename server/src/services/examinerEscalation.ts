@@ -178,8 +178,14 @@ export async function promoteNextExaminer(
   if (candidate && token.milestoneId) {
     const milestoneRef = db.collection('milestones').doc(token.milestoneId);
     await Promise.all([
-      milestoneRef.update({ examinerIds: admin.firestore.FieldValue.arrayUnion(candidate.uid) }),
-      db.collection('projects').doc(token.projectId).update({ examinerIds: admin.firestore.FieldValue.arrayUnion(candidate.uid) }),
+      milestoneRef.update({
+        examinerIds: admin.firestore.FieldValue.arrayUnion(candidate.uid),
+        examinerNames: admin.firestore.FieldValue.arrayUnion(candidate.displayName),
+      }),
+      db.collection('projects').doc(token.projectId).update({
+        examinerIds: admin.firestore.FieldValue.arrayUnion(candidate.uid),
+        examinerNames: admin.firestore.FieldValue.arrayUnion(candidate.displayName),
+      }),
     ]);
 
     try {

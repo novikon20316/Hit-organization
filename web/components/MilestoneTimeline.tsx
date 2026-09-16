@@ -431,6 +431,13 @@ function MilestoneCard({
               <span className={`text-xs ${step.done ? 'font-medium text-ink' : 'text-muted'}`}>{step.label}</span>
             </div>
           ))}
+          {/* The "Examiners assigned" step above only shows a checkmark —
+              nothing rendered who was actually assigned, on any screen that
+              uses this shared component (Students Report drill-down,
+              supervisor dashboard, admin panel). */}
+          {isDefense && milestone.examinerNames && milestone.examinerNames.length > 0 && (
+            <p className="mt-0.5 ps-4 text-xs text-muted">👥 {milestone.examinerNames.join(', ')}</p>
+          )}
 
           {/* ── Role-appropriate action button ── */}
           {canStudentSubmit && (

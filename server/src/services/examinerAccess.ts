@@ -342,6 +342,12 @@ export interface ExaminerAssignmentResult {
   internalUids: string[];
   externalNotified: Array<{ name: string; email: string; token: string }>;
   externalFailed: Array<{ name: string; email: string; reason: string }>;
+  /** Display names for every examiner actually assigned (internal +
+   *  external, in input order) — callers should persist this alongside
+   *  examinerIds so screens that show "who's examining" (student dashboard,
+   *  coordinator dashboard, Students Report) have something to render;
+   *  examinerIds alone only ever carries internal uids. */
+  examinerNames: string[];
 }
 
 /**
@@ -356,10 +362,13 @@ export async function assignExaminersAndNotify(
   const internalUids: string[] = [];
   const externalNotified: ExaminerAssignmentResult['externalNotified'] = [];
   const externalFailed: ExaminerAssignmentResult['externalFailed'] = [];
+  const examinerNames: string[] = [];
 
   for (const examiner of examiners) {
     if (examiner.type === 'internal') {
       internalUids.push(examiner.uid);
+      const userSnap = await db.collection('users').doc(examiner.uid).get();
+      examinerNames.push(userSnap.data()?.displayName ?? 'Unknown');
       continue;
     }
 
@@ -377,17 +386,19 @@ export async function assignExaminersAndNotify(
       });
       if (emailSent) {
         externalNotified.push({ name: examiner.name, email: examiner.email, token });
+        examinerNames.push(examiner.name);
       } else {
         // Token/grant doc exists (so the link would still work if manually
         // resent), but the examiner was never actually emailed it.
         externalFailed.push({ name: examiner.name, email: examiner.email, reason: 'Failed to send access-link email.' });
+        examinerNames.push(examiner.name);
       }
     } catch (error: any) {
       externalFailed.push({ name: examiner.name, email: examiner.email, reason: error.message || 'Unknown error' });
     }
   }
 
-  return { internalUids, externalNotified, externalFailed };
+  return { internalUids, externalNotified, externalFailed, examinerNames };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

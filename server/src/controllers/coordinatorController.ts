@@ -211,6 +211,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
 
     await projectRef.update({
       examinerIds: result.internalUids,
+      examinerNames: result.examinerNames,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
@@ -229,6 +230,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
           .filter((d) => d.data().type !== 'defense')
           .map((d) => d.ref.update({
             examinerIds: result.internalUids,
+            examinerNames: result.examinerNames,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }))
       );
@@ -415,6 +417,7 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
 
     await db.collection('projects').doc(projectId).update({
       examinerIds: result.internalUids,
+      examinerNames: result.examinerNames,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
@@ -1586,8 +1589,9 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
 
       const studentIds: string[] = project.enrolledStudentIds ?? [];
       const supervisorId: string | null = project.supervisorId ?? null;
-      const panel: Array<{ type: 'internal' | 'external'; ref: string }> = milestone.defensePanel ?? [];
+      const panel: Array<{ type: 'internal' | 'external'; ref: string; displayName: string }> = milestone.defensePanel ?? [];
       const internalExaminerIds = panel.filter((m) => m.type === 'internal').map((m) => m.ref);
+      const examinerNames = panel.map((m) => m.displayName);
 
       const onlineLink: string | null = onlineDefenseLink || null;
 
@@ -1610,6 +1614,7 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
         defenseTime: time,
         onlineDefenseLink: onlineLink,
         examinerIds: internalExaminerIds,
+        examinerNames,
         status: 'scheduled',
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
