@@ -39,6 +39,7 @@ import bulkPermissionsRoutes from './routes/bulkPermissions.js';
 import presenceRoutes from './routes/presence.js';
 import permissionsRoutes from './routes/permissions.js';
 import committeesRoutes from './routes/committees.js';
+import integrationsRoutes from './routes/integrations.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
@@ -202,6 +203,10 @@ app.use('/api/admin/permissions', bulkPermissionsRoutes);
 app.use('/api/presence', presenceRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/committees', committeesRoutes);
+// Server-to-server only (administrative-coordinator, a sibling HIT system) -
+// gated by its own shared-secret middleware, not verifyToken. See
+// middleware/integrationAuth.ts / controllers/integrationController.ts.
+app.use('/api/integrations', integrationsRoutes);
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error('Unhandled error:', err.stack);
