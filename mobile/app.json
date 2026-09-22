@@ -69,7 +69,19 @@
       "expo-font",
       "expo-secure-store",
       "expo-web-browser",
-      "@react-native-google-signin/google-signin"
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.432175584982-lnqj6lbca6vino6habjf25k4mbgm1f7l"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow the app to access your photos to attach images to chat messages and milestone submissions.",
+          "cameraPermission": "Allow the app to access your camera to attach photos to chat messages and milestone submissions."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -82,7 +94,7 @@
       },
       "apiUrl": "https://hit-organization-web-f8rb.onrender.com",
       "googleWebClientId": "432175584982-00bk5skphsjos59ur0c593r4g5c89n8u.apps.googleusercontent.com",
-      "googleIosClientId": "",
+      "googleIosClientId": "432175584982-lnqj6lbca6vino6habjf25k4mbgm1f7l.apps.googleusercontent.com",
       "googleAndroidClientId": "432175584982-edo6d4jc1agijr24qte4hl3g2cdng4vb.apps.googleusercontent.com"
     },
     "owner": "dorno"
