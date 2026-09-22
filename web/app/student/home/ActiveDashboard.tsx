@@ -72,6 +72,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
   const { lang, t } = useLanguage();
   const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [templateError, setTemplateError] = useState('');
   const [expandedGradeIds, setExpandedGradeIds] = useState<Record<string, boolean>>({});
   const [projectFiles, setProjectFiles] = useState<ProjectInfoFile[]>([]);
 
@@ -106,9 +107,12 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
 
   const handleDownloadTemplate = async () => {
     setDownloadingTemplate(true);
+    setTemplateError('');
     try {
       const res = await apiClient.getThesisTemplate();
       if (res.url) window.open(res.url, '_blank');
+    } catch (err) {
+      setTemplateError(err instanceof Error ? err.message : (lang === 'he' ? 'הורדת התבנית נכשלה' : 'Failed to download the template'));
     } finally {
       setDownloadingTemplate(false);
     }
@@ -217,8 +221,16 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
 
               <p className="mt-2 text-sm text-student-on-surface">
                 {(() => {
-                  const nextPending = milestones.find((m) => m.status === 'pending' || m.status === 'rejected');
-                  const displayType = nextPending?.type ?? overviewDisplayMilestone.type;
+                  // Was independently re-deriving "next milestone" via a
+                  // plain status scan with no isUnlocked gate — since every
+                  // milestone starts at status 'pending' upfront at
+                  // enrollment, that could return a LATER, still-locked
+                  // milestone's name while the badge above (driven by
+                  // overviewDisplayMilestone) correctly showed "awaiting
+                  // approval" for the actual submitted one. Reusing the
+                  // already-unlock-aware actionableNextMilestone keeps the
+                  // name and the badge in sync.
+                  const displayType = actionableNextMilestone?.type ?? overviewDisplayMilestone.type;
                   return MILESTONE_LABEL[displayType]?.[lang] ?? displayType;
                 })()}
               </p>
@@ -504,6 +516,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                   <span>⬇</span>
                   <span>{downloadingTemplate ? '…' : (lang === 'he' ? 'הורדת התבנית' : 'Download Template')}</span>
                 </button>
+                {templateError && <p className="mt-2 text-xs text-danger" role="alert">{templateError}</p>}
               </div>
             )}
           </div>

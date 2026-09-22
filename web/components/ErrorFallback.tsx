@@ -22,7 +22,7 @@ export function ErrorFallback({
 }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopyDetails = () => {
+  const handleCopyDetails = async () => {
     const details = [
       error.message || 'Unknown error',
       error.digest ? `Digest: ${error.digest}` : '',
@@ -31,13 +31,15 @@ export function ErrorFallback({
       .filter(Boolean)
       .join('\n');
 
-    navigator.clipboard
-      .writeText(details)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => {});
+    try {
+      await navigator.clipboard.writeText(details);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable (non-secure context, older Safari) or
+      // denied — the details are still visible on screen above for the
+      // user to select and copy manually.
+    }
   };
 
   return (

@@ -426,8 +426,8 @@ export default function LiveTransportationPage() {
       const dateOk = !tableDateFilter || (d ? toIsoDate(d) === tableDateFilter : false);
       if (!actionOk || !dateOk) return false;
       if (!q) return true;
-      const dateStr = d ? d.toLocaleDateString().toLowerCase() : '';
-      const timeStr = d ? d.toLocaleTimeString().toLowerCase() : '';
+      const dateStr = d ? d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US').toLowerCase() : '';
+      const timeStr = d ? d.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US').toLowerCase() : '';
       return (
         displayNameFor(row).toLowerCase().includes(q) ||
         row.action.toLowerCase().includes(q) ||

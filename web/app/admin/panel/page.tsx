@@ -397,7 +397,7 @@ function AdminPanelContent() {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-ink">{l.displayName || l.email}</p>
                         <p className="truncate text-xs text-muted">
-                          {l.email} · {new Date(l.createdAt).toLocaleString()}{l.location ? ` · ${l.location}` : ''}
+                          {l.email} · {new Date(l.createdAt).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US')}{l.location ? ` · ${l.location}` : ''}
                         </p>
                       </div>
                       <button

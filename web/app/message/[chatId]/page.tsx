@@ -19,10 +19,10 @@ interface Message {
   createdAt: string | null;
 }
 
-function formatTime(iso: string | null): string {
+function formatTime(iso: string | null, lang: 'he' | 'en'): string {
   if (!iso) return '';
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function isMoreThan5MinApart(a: string | null, b: string | null): boolean {
@@ -212,7 +212,7 @@ export default function ChatConversationPage() {
               const showTime = !prev || isMoreThan5MinApart(item.createdAt, prev.createdAt);
               return (
                 <div key={item.id}>
-                  {showTime && item.createdAt && <p className="my-2 text-center text-xs text-muted">{formatTime(item.createdAt)}</p>}
+                  {showTime && item.createdAt && <p className="my-2 text-center text-xs text-muted">{formatTime(item.createdAt, lang)}</p>}
                   <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                     {item.type === 'image' && item.imageUrl ? (
                       <button
@@ -227,7 +227,7 @@ export default function ChatConversationPage() {
                           alt={lang === 'he' ? 'תמונה שצורפה' : 'Attached image'}
                           className="max-h-72 w-full rounded-xl object-cover"
                         />
-                        {item.text && <p className={`px-2 py-1.5 text-left ${mine ? 'text-primary-ink' : 'text-ink'}`}>{item.text}</p>}
+                        {item.text && <p className={`px-2 py-1.5 ${mine ? 'text-primary-ink' : 'text-ink'}`}>{item.text}</p>}
                       </button>
                     ) : (
                       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${mine ? 'bg-primary text-primary-ink' : 'bg-surface text-ink'}`}>{item.text}</div>

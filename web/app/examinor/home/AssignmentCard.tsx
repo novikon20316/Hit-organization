@@ -254,8 +254,8 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
           </p>
           {m.dateMatching && (
             <p className="mb-1.5 text-xs text-accent">
-              {lang === 'he' ? 'בטווח' : 'Within'} {toDateSafe(m.dateMatching.windowStart)?.toLocaleDateString() ?? '—'} –{' '}
-              {toDateSafe(m.dateMatching.windowEnd)?.toLocaleDateString() ?? '—'} · {lang === 'he' ? 'ראשון–חמישי בלבד' : 'Sun-Thu only'}
+              {lang === 'he' ? 'בטווח' : 'Within'} {toDateSafe(m.dateMatching.windowStart)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB') ?? '—'} –{' '}
+              {toDateSafe(m.dateMatching.windowEnd)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB') ?? '—'} · {lang === 'he' ? 'ראשון–חמישי בלבד' : 'Sun-Thu only'}
             </p>
           )}
 

@@ -94,7 +94,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         type="button"
         onClick={() => setExpanded((e) => !e)}
         aria-expanded={expanded}
-        className="block w-full text-left"
+        className="block w-full"
       >
         <div className="flex items-center gap-1.5">
           <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}>

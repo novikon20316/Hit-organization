@@ -213,6 +213,13 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   // answers (e.g. research_proposal's supervisor_sign stage: courses still
   // needed, agree-to-supervise). See ChainStage.formFields.
   const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
+  // Scoped to the sign-off form itself, deliberately separate from the
+  // page-level `error` below — that one REPLACES this whole section's
+  // content when set (see the loading/error/content ternary in the return
+  // below), which would hide every milestone just because one sign-off
+  // click failed. This stays local to the open form instead.
+  const [signBusy, setSignBusy] = useState(false);
+  const [signError, setSignError] = useState('');
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [secondarySupervisorName, setSecondarySupervisorName] = useState<string | null>(null);
   // Needed alongside the names above to work out, from the CURRENT viewer's
@@ -595,25 +602,40 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                   </span>
                                   <button
                                     type="button"
+                                    disabled={signBusy}
                                     onClick={async () => {
-                                      await apiClient.coordinatorApproveMilestone(m.id!, undefined, undefined, stageFormValues);
-                                      setSigningId(null);
-                                      setStageFormValues({});
-                                      fetchDetail();
+                                      setSignBusy(true);
+                                      setSignError('');
+                                      try {
+                                        await apiClient.coordinatorApproveMilestone(m.id!, undefined, undefined, stageFormValues);
+                                        setSigningId(null);
+                                        setStageFormValues({});
+                                        fetchDetail();
+                                      } catch (err) {
+                                        setSignError(err instanceof Error ? err.message : (lang === 'he' ? 'החתימה נכשלה' : 'Signing failed'));
+                                      } finally {
+                                        setSignBusy(false);
+                                      }
                                     }}
-                                    className="rounded-md bg-supervisor-primary px-2 py-1 text-xs font-semibold text-supervisor-on-primary hover:opacity-90"
+                                    className="rounded-md bg-supervisor-primary px-2 py-1 text-xs font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
                                   >
-                                    {lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}
+                                    {signBusy ? '…' : (lang === 'he' ? 'אשר וחתום' : 'Confirm & sign')}
                                   </button>
-                                  <button type="button" onClick={() => { setSigningId(null); setStageFormValues({}); }} className="text-xs text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
+                                  <button
+                                    type="button"
+                                    disabled={signBusy}
+                                    onClick={() => { setSigningId(null); setStageFormValues({}); setSignError(''); }}
+                                    className="text-xs text-supervisor-on-surface-variant hover:text-supervisor-on-surface disabled:opacity-60"
+                                  >
                                     {lang === 'he' ? 'ביטול' : 'Cancel'}
                                   </button>
                                 </div>
+                                {signError && <p className="mt-1.5 text-xs text-danger" role="alert">{signError}</p>}
                                 </div>
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => setSigningId(m.id!)}
+                                  onClick={() => { setSigningId(m.id!); setSignError(''); }}
                                   className="mt-1 text-xs font-medium text-[#00236f] hover:underline"
                                 >
                                   ✍️ {lang === 'he' ? 'חתום על הצעת המחקר' : 'Sign the research proposal'}
