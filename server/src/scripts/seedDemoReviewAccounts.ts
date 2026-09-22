@@ -1,6 +1,8 @@
 // src/scripts/seedDemoReviewAccounts.ts
 //
-// Creates fixed-credential demo accounts for Apple/Google App Review.
+// Creates fixed-credential demo accounts for Apple/Google App Review, and
+// (the same fixed-credential mechanism) for the dev team to browse every
+// role's screens ahead of an App/Play Store submission.
 //
 // Why this is needed: student signup is gated by matching a pre-loaded
 // roster (see services/studentRoster.ts), and every other role is
@@ -13,7 +15,7 @@
 // This script creates the accounts the same way createAdminUser does
 // (Firebase Auth user + Firestore `users` doc, emailVerified: true so the
 // self-signup email-verification gate in login.tsx doesn't apply) but
-// differs in two ways specific to a reviewer account:
+// differs in two ways specific to a reviewer/demo account:
 //   1. mustChangePassword is set to false — the normal admin-provisioning
 //      flow forces a password change on first login; that's an extra step
 //      that only adds friction/confusion for a reviewer using a fixed
@@ -21,6 +23,18 @@
 //   2. The student account bypasses checkStudentEligibility entirely (as
 //      createAdminUser already does for any role) rather than needing a
 //      matching approvedStudents roster row.
+//
+// Covers every role except student/supervisor/coordinator's own three
+// existing demo accounts below plus one account per remaining VALID_ROLE
+// (secondary_supervisor, faculty_admin, program_head, division_head, dean,
+// administrative_secretary, grad_school_head, internal_examiner,
+// system_admin) — see lib/roles.ts's VALID_ROLES. All share facultyId
+// 'sciences' (or 'all' for the two CROSS_FACULTY_ROLES) so a developer
+// clicking through every role sees a consistent faculty's data.
+// administrative_secretary additionally gets a coordinatorScopes entry —
+// without one her screens resolve to "no scope assigned" and render empty
+// (see workflowTemplateController.ts's resolveCoordinatorScope), which
+// would defeat the point of a screen walkthrough.
 //
 // EDIT THE ACCOUNTS ARRAY BELOW before running — the emails/names/
 // facultyId/major are placeholders. Use real inboxes you control in case
@@ -35,27 +49,37 @@
 //   npx tsx src/scripts/seedDemoReviewAccounts.ts --apply     # actually creates
 
 import { db, auth } from '../config/firebase.js';
-import { validateStandardPassword, computeIsEligible } from '../controllers/userController.js';
+import { validateStandardPassword, validateSystemAdminPassword, computeIsEligible } from '../controllers/userController.js';
 
 const APPLY = process.argv.includes('--apply');
 
 // Shared fixed password for every demo account — put this + each email
 // verbatim into the "App Review Information" / Play Console reviewer
 // access notes. Must satisfy validateStandardPassword's policy (8+ chars,
-// upper, lower, digit, symbol).
+// upper, lower, digit, symbol) AND validateSystemAdminPassword's stricter
+// one (12+ chars, same character classes) since it's also used for the
+// system_admin demo account below.
 const DEMO_PASSWORD = 'ReviewDemo2026!';
+
+type DemoRole =
+  | 'student' | 'supervisor' | 'coordinator' | 'secondary_supervisor'
+  | 'faculty_admin' | 'program_head' | 'division_head' | 'dean'
+  | 'administrative_secretary' | 'grad_school_head' | 'internal_examiner' | 'system_admin';
 
 type DemoAccount = {
   email: string;
   displayNameHe: string;
   displayNameEn: string;
-  role: 'student' | 'supervisor' | 'coordinator';
+  role: DemoRole;
   facultyId: string;
   // student-only fields
   degreeType?: 'bachelors' | 'masters';
   major?: string;
   yearOfStudy?: number;
   studentId?: string;
+  // administrative_secretary-only — her real operational scope (see file
+  // header note above); irrelevant for every other role.
+  coordinatorScopes?: { facultyId: string; major?: string }[];
 };
 
 // ── PLACEHOLDERS — edit before running ─────────────────────────────────────
@@ -85,11 +109,75 @@ const ACCOUNTS: DemoAccount[] = [
     role: 'coordinator',
     facultyId: 'sciences',
   },
+  {
+    email: 'dorno+reviewer.secondarysupervisor@gmail.com',
+    displayNameHe: 'מנחה משנה בדיקה',
+    displayNameEn: 'App Review Secondary Supervisor',
+    role: 'secondary_supervisor',
+    facultyId: 'sciences',
+  },
+  {
+    email: 'dorno+reviewer.facultyadmin@gmail.com',
+    displayNameHe: 'מנהל פקולטה בדיקה',
+    displayNameEn: 'App Review Faculty Admin',
+    role: 'faculty_admin',
+    facultyId: 'sciences',
+  },
+  {
+    email: 'dorno+reviewer.programhead@gmail.com',
+    displayNameHe: 'ראש תוכנית בדיקה',
+    displayNameEn: 'App Review Program Head',
+    role: 'program_head',
+    facultyId: 'sciences',
+  },
+  {
+    email: 'dorno+reviewer.divisionhead@gmail.com',
+    displayNameHe: 'ראש חוג בדיקה',
+    displayNameEn: 'App Review Division Head',
+    role: 'division_head',
+    facultyId: 'sciences',
+  },
+  {
+    email: 'dorno+reviewer.dean@gmail.com',
+    displayNameHe: 'דיקן בדיקה',
+    displayNameEn: 'App Review Dean',
+    role: 'dean',
+    facultyId: 'sciences',
+  },
+  {
+    email: 'dorno+reviewer.adminsecretary@gmail.com',
+    displayNameHe: 'רכז מנהלי בדיקה',
+    displayNameEn: 'App Review Administrative Coordinator',
+    role: 'administrative_secretary',
+    facultyId: 'all',
+    coordinatorScopes: [{ facultyId: 'sciences' }],
+  },
+  {
+    email: 'dorno+reviewer.gradschoolhead@gmail.com',
+    displayNameHe: 'ראש בית ספר לתואר שני בדיקה',
+    displayNameEn: 'App Review Grad School Head',
+    role: 'grad_school_head',
+    facultyId: 'sciences',
+  },
+  {
+    email: 'dorno+reviewer.examiner@gmail.com',
+    displayNameHe: 'בוחן פנימי בדיקה',
+    displayNameEn: 'App Review Internal Examiner',
+    role: 'internal_examiner',
+    facultyId: 'sciences',
+  },
+  {
+    email: 'dorno+reviewer.systemadmin@gmail.com',
+    displayNameHe: 'מנהל מערכת בדיקה',
+    displayNameEn: 'App Review System Admin',
+    role: 'system_admin',
+    facultyId: 'all',
+  },
 ];
 // ────────────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const passwordError = validateStandardPassword(DEMO_PASSWORD);
+  const passwordError = validateStandardPassword(DEMO_PASSWORD) ?? validateSystemAdminPassword(DEMO_PASSWORD);
   if (passwordError) {
     throw new Error(`DEMO_PASSWORD fails policy: ${passwordError}`);
   }
@@ -145,6 +233,8 @@ async function main() {
       yearOfStudy: isStudent ? (account.yearOfStudy ?? null) : null,
       major: isStudent ? (account.major ?? null) : null,
       studentId: isStudent ? (account.studentId ?? null) : null,
+
+      ...(account.coordinatorScopes ? { coordinatorScopes: account.coordinatorScopes } : {}),
 
       isActive: true,
       profileComplete: true,
