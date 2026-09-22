@@ -133,15 +133,24 @@ export function ActiveRoleProvider({ children }: { children: ReactNode }) {
 
   const activeRole = activeRoleOverride ?? mainRole;
 
+  // Memoized so a consumer only interested in one field (e.g. facultyId)
+  // doesn't re-render on every unrelated state tick — this provider wraps
+  // the whole app, so an unmemoized object literal here forces every
+  // consumer to re-render on every change to any of these fields.
+  const value = useMemo<ActiveRoleContextValue>(() => ({
+    roles, activeRole, mainRole, setActiveRole, facultyId, language,
+    hasSeenOnboardingTour, markOnboardingTourSeen,
+    seenFieldGuides, markFieldGuideSeen,
+    sync,
+  }), [
+    roles, activeRole, mainRole, setActiveRole, facultyId, language,
+    hasSeenOnboardingTour, markOnboardingTourSeen,
+    seenFieldGuides, markFieldGuideSeen,
+    sync,
+  ]);
+
   return (
-    <ActiveRoleContext.Provider
-      value={{
-        roles, activeRole, mainRole, setActiveRole, facultyId, language,
-        hasSeenOnboardingTour, markOnboardingTourSeen,
-        seenFieldGuides, markFieldGuideSeen,
-        sync,
-      }}
-    >
+    <ActiveRoleContext.Provider value={value}>
       {children}
     </ActiveRoleContext.Provider>
   );

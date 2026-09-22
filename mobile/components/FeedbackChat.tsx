@@ -69,7 +69,7 @@ export default function FeedbackChat({ lang }: { lang: Lang }) {
   return (
     <KeyboardAvoidingView
       style={s.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Text style={[s.intro, isRtl && s.textRight]}>
         {lang === 'he'

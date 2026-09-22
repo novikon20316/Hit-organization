@@ -14,7 +14,7 @@
 // roster is filtered by.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { apiClient } from '../src/api/apiClient';
 import { facultyLabel, type FacultyId } from './i18n';
 import { majorsForFaculty } from '../constants/permissions';
@@ -88,6 +88,18 @@ export default function StudentsListSection({ lang, isRtl, canManageStudents = f
     );
   }, [students, search]);
 
+  // This list sits inside the dashboard's own outer ScrollView (no scrolling
+  // viewport of its own to virtualize against), so a faculty_admin's
+  // whole-faculty roster — potentially hundreds of students, no major
+  // restriction — would otherwise mount every card up front. Cap the
+  // rendered slice instead, growing on "Load more"; reset on a new search so
+  // a narrowed result set doesn't start pre-scrolled past a bunch of hidden
+  // pagination it no longer needs.
+  const PAGE_SIZE = 30;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search]);
+  const visible = filtered.slice(0, visibleCount);
+
   if (loading) {
     return (
       <View style={{ padding: 20 }}>
@@ -121,7 +133,7 @@ export default function StudentsListSection({ lang, isRtl, canManageStudents = f
       )}
 
       <ScrollView>
-        {filtered.map((u) => (
+        {visible.map((u) => (
           <View key={u.id} style={s.projectMilestoneCard}>
             <Text style={s.projectTitle}>{u.displayName}</Text>
             <Text style={s.projectMeta}>{u.email}</Text>
@@ -177,6 +189,19 @@ export default function StudentsListSection({ lang, isRtl, canManageStudents = f
         ))}
         {filtered.length === 0 && (
           <Text style={s.projectMeta}>{lang === 'he' ? 'לא נמצאו סטודנטים' : 'No students found'}</Text>
+        )}
+        {filtered.length > visibleCount && (
+          <Pressable
+            onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            style={{ paddingVertical: 12, alignItems: 'center' }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#2E86FF', fontWeight: '600', fontSize: 13 }}>
+              {lang === 'he'
+                ? `טען עוד (${filtered.length - visibleCount} נוספים)`
+                : `Load more (${filtered.length - visibleCount} more)`}
+            </Text>
+          </Pressable>
         )}
       </ScrollView>
     </View>

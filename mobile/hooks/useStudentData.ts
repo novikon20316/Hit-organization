@@ -1,7 +1,7 @@
 // student/hooks/useStudentData.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../src/api/apiClient';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDocs, documentId } from 'firebase/firestore';
 import { db, auth } from '../src/firebase/firebase';
 import {
   StudentState, DegreeType, ProjectType, MilestoneStatus,
@@ -61,6 +61,13 @@ export function useStudentData() {
   const unsubProposals  = useRef<(() => void) | null>(null);
   const unsubUserDoc    = useRef<(() => void) | null>(null);
   const unsubMilestones = useRef<(() => void) | null>(null);
+  // uid → displayName cache for the proposals listener below — avoids
+  // re-fetching the same supervisors' user docs on every snapshot fire (any
+  // add/edit/delete among open projects in this student's faculty+degree
+  // re-fires it, not just a change to a supervisor without a denormalized
+  // name), and batches any genuinely-new lookups via one `in` query instead
+  // of one getDoc per supervisor.
+  const supervisorNameCacheRef = useRef<Map<string, string>>(new Map());
 
   // ── Helper: cancel a single listener safely
   const cancel = (ref: React.MutableRefObject<(() => void) | null>) => {
@@ -242,22 +249,25 @@ export function useStudentData() {
             .map(p => p.supervisorId)
         )];
 
-        const nameMap: Record<string, string> = {};
-        if (supervisorIds.length > 0) {
-          const supervisorDocs = await Promise.all(
-            supervisorIds.map(uid => getDoc(doc(db, 'users', uid)))
+        const cache = supervisorNameCacheRef.current;
+        const uncachedIds = supervisorIds.filter(uid => !cache.has(uid));
+        if (uncachedIds.length > 0) {
+          const chunks: string[][] = [];
+          for (let i = 0; i < uncachedIds.length; i += 30) chunks.push(uncachedIds.slice(i, i + 30));
+          await Promise.all(
+            chunks.map(async (chunk) => {
+              const usersSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', chunk)));
+              usersSnap.docs.forEach(snap => {
+                const data = snap.data();
+                cache.set(snap.id, data?.displayName || data?.displayNameHe || '');
+              });
+            })
           );
-          supervisorDocs.forEach(snap => {
-            if (snap.exists()) {
-              const data = snap.data();
-              nameMap[snap.id] = data?.displayName || data?.displayNameHe || '';
-            }
-          });
         }
 
         setProposals(rawProjects.map(p => ({
           ...p,
-          supervisorName: p.supervisorName || nameMap[p.supervisorId] || '',
+          supervisorName: p.supervisorName || cache.get(p.supervisorId) || '',
         })));
       },
       (error) => {
@@ -386,11 +396,17 @@ export function useStudentData() {
   const withDerived = (milestones: Milestone[]) => ({
     nextMilestone:
       milestones.find(m => m.status === 'submitted' || m.status === 'supervisor_graded') ??
+      milestones.find(m => m.status === 'rejected') ??
       milestones.find(m => m.status === 'pending') ??
       null,
+    // 'coordinator_approved' isn't the only "done" state — a final_report/
+    // defense milestone keeps moving through examiner/scheduling statuses
+    // after approval and ends at 'completed', never sitting back in
+    // 'coordinator_approved'. See student/milestones.tsx's identical count
+    // for the same reasoning.
     progress:
       milestones.length > 0
-        ? Math.round((milestones.filter(m => m.status === 'coordinator_approved').length / milestones.length) * 100)
+        ? Math.round((milestones.filter(m => m.status === 'coordinator_approved' || m.status === 'completed').length / milestones.length) * 100)
         : 0,
   });
 

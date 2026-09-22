@@ -730,18 +730,17 @@ export default function GradSchoolHeadDashboard() {
                       </View>
                     )
                   ) : (
-                    <View style={s.actionRow}>
-                      <Pressable style={s.btnApprove} onPress={() =>
-                        router.push({ pathname: '/admin/panel', params: { approvalId: item.id } } as any)
-                      } accessibilityRole="button">
-                        <Text style={s.btnApproveText}>✅ {tx('approve', lang)}</Text>
-                      </Pressable>
-                      <Pressable style={s.btnReturn} onPress={() =>
-                        router.push({ pathname: '/admin/panel', params: { approvalId: item.id, action: 'return' } } as any)
-                      } accessibilityRole="button">
-                        <Text style={s.btnReturnText}>↩ {tx('returnForRevision', lang)}</Text>
-                      </Pressable>
-                    </View>
+                    // 'supervisor' | 'proposal' | 'thesis' — per
+                    // gradSchoolHeadController.ts's own comment, these 3 of
+                    // the 6 frontend-supported approval types have no
+                    // schema/status of their own yet, so there's no real
+                    // approve/return action to wire up here. This used to
+                    // deep-link into /admin/panel (system_admin-only, and it
+                    // ignored the params anyway) — show a plain disabled
+                    // state instead of a dead end.
+                    <Text style={s.cardSub}>
+                      {lang === 'he' ? 'אישור מסוג זה אינו נתמך עדיין' : 'Approval for this type isn\'t supported yet'}
+                    </Text>
                   )}
                 </View>
               ))

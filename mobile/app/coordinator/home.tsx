@@ -342,7 +342,20 @@ export default function CoordinatorHome() {
     unsubMilestones.current = onSnapshot(
       q,
       (snapshot) => {
-        const liveById = new Map(snapshot.docs.map((d) => [d.id, d.data()]));
+        // docChanges() instead of snapshot.docs: for an 'all'-faculty
+        // coordinator this query has no facultyId filter (there's no
+        // narrower one to apply for a true cross-faculty scope), so
+        // snapshot.docs is the entire milestones collection. Rebuilding
+        // liveById from the full doc list on every single write anywhere in
+        // the system — most of which are irrelevant to this listener — was
+        // doing that full-collection merge on every event. docChanges()
+        // only reports what actually changed since the last snapshot (the
+        // very first snapshot still reports every doc as 'added', so
+        // initial-load behavior is unchanged), so a later, unrelated write
+        // only costs processing that one doc instead of the whole set.
+        const liveById = new Map(
+          snapshot.docChanges().map((c) => [c.doc.id, c.doc.data()]),
+        );
         function overlay<T extends { id: string }>(m: T): T {
           const live = liveById.get(m.id);
           if (!live) return m;

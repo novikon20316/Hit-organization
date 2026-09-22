@@ -13,6 +13,7 @@ import { auth } from '../../src/firebase/firebase';
 import { roleColor } from './new';
 import { apiClient } from '@/src/api/apiClient';
 import { ChatScreenStyles } from '../../constants/styles';
+import type { Lang } from '../../components/i18n';
 
 interface Message {
   id:        string;
@@ -43,16 +44,18 @@ async function uploadChatImage(uri: string): Promise<string> {
 }
 
 // ─── Role → readable label ────────────────────────────────────────────────────
-function roleLabel(role: string): string {
-  const map: Record<string, string> = {
-    student:       'Student',
-    supervisor:    'Supervisor',
-    examiner:      'Examiner',
-    coordinator:   'Coordinator',
-    faculty_admin: 'Faculty Admin',
-    system_admin:  'System Admin',
+function roleLabel(role: string, lang: Lang): string {
+  const map: Record<string, { he: string; en: string }> = {
+    student:       { he: 'סטודנט',      en: 'Student' },
+    supervisor:    { he: 'מנחה',         en: 'Supervisor' },
+    examiner:      { he: 'בוחן',         en: 'Examiner' },
+    coordinator:   { he: 'רכז',          en: 'Coordinator' },
+    faculty_admin: { he: 'מנהל פקולטה', en: 'Faculty Admin' },
+    system_admin:  { he: 'מנהל מערכת',  en: 'System Admin' },
   };
-  return map[role] ?? role;
+  const entry = map[role];
+  if (!entry) return role;
+  return lang === 'he' ? entry.he : entry.en;
 }
 
 // ─── Format timestamp ─────────────────────────────────────────────────────────
@@ -73,12 +76,20 @@ function isMoreThan5MinApart(a: string | null, b: string | null): boolean {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ChatScreen() {
-  const router                           = useRouter();
-  const { chatId, otherName, otherRole } = useLocalSearchParams<{
+  const router                                    = useRouter();
+  const { chatId, otherName, otherRole, lang: langParam } = useLocalSearchParams<{
     chatId:    string;
     otherName: string;
     otherRole: string;
+    lang?:     string;
   }>();
+  // Not every entry point into this screen can pass `lang` (a push-
+  // notification tap has no route context to draw it from) — default to 'he'
+  // like the rest of the app's own standalone screens do (e.g.
+  // notifications.tsx, records/[projectId].tsx) rather than leaving this
+  // screen with no RTL treatment at all.
+  const lang: Lang = langParam === 'en' ? 'en' : 'he';
+  const isRtl = lang === 'he';
 
   const currentUser = auth.currentUser;
   const flatRef     = useRef<FlatList>(null);
@@ -195,7 +206,7 @@ export default function ChatScreen() {
     if (!permission.granted) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.7,
     });
     if (result.canceled || !result.assets?.length) return;
@@ -222,23 +233,23 @@ export default function ChatScreen() {
     <SafeAreaView style={s.root}>
 
       {/* ── Top header ── */}
-      <View style={s.header}>
-        <Pressable style={s.backBtn} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
-          <Text style={s.backArrow}>←</Text>
+      <View style={[s.header, isRtl && s.rowReverse]}>
+        <Pressable style={s.backBtn} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={isRtl ? 'חזרה' : 'Back'}>
+          <Text style={s.backArrow}>{isRtl ? '→' : '←'}</Text>
         </Pressable>
 
         <View style={[s.avatar, { backgroundColor: accentColor }]}>
           <Text style={s.avatarText}>{initials}</Text>
         </View>
 
-        <View style={s.headerInfo}>
-          <Text style={s.headerName} numberOfLines={1}>
+        <View style={[s.headerInfo, isRtl && { alignItems: 'flex-end' }]}>
+          <Text style={[s.headerName, isRtl && s.textRight]} numberOfLines={1}>
             {headerName || '…'}
           </Text>
           {headerRole ? (
             <View style={[s.roleBadge, { backgroundColor: accentColor + '22' }]}>
               <Text style={[s.roleBadgeText, { color: accentColor }]}>
-                {roleLabel(headerRole)}
+                {roleLabel(headerRole, lang)}
               </Text>
             </View>
           ) : null}
@@ -265,7 +276,9 @@ export default function ChatScreen() {
             ) : (
               <View style={s.emptyChat}>
                 <Text style={s.emptyChatEmoji}>💬</Text>
-                <Text style={s.emptyChatText}>No messages yet. Say hi!</Text>
+                <Text style={s.emptyChatText}>
+                  {isRtl ? 'אין עדיין הודעות. תגידו שלום!' : 'No messages yet. Say hi!'}
+                </Text>
               </View>
             )
           }
@@ -290,7 +303,7 @@ export default function ChatScreen() {
                       style={[s.bubble, mine && s.bubbleMine, { padding: 4 }]}
                       onPress={() => setViewerUrl(item.imageUrl)}
                       accessibilityRole="button"
-                      accessibilityLabel="View image"
+                      accessibilityLabel={isRtl ? 'הצג תמונה' : 'View image'}
                     >
                       <Image
                         source={{ uri: item.imageUrl }}
@@ -298,14 +311,14 @@ export default function ChatScreen() {
                         resizeMode="cover"
                       />
                       {item.text ? (
-                        <Text style={[s.bubbleText, mine && s.bubbleTextMine, { marginTop: 6, paddingHorizontal: 6 }]}>
+                        <Text style={[s.bubbleText, mine && s.bubbleTextMine, isRtl && s.textRight, { marginTop: 6, paddingHorizontal: 6 }]}>
                           {item.text}
                         </Text>
                       ) : null}
                     </Pressable>
                   ) : (
                     <View style={[s.bubble, mine && s.bubbleMine]}>
-                      <Text style={[s.bubbleText, mine && s.bubbleTextMine]}>
+                      <Text style={[s.bubbleText, mine && s.bubbleTextMine, isRtl && s.textRight]}>
                         {item.text}
                       </Text>
                     </View>
@@ -317,13 +330,13 @@ export default function ChatScreen() {
         />
 
         {/* ── Input bar ── */}
-        <View style={s.inputBar}>
+        <View style={[s.inputBar, isRtl && s.rowReverse]}>
           <Pressable
             style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
             onPress={pickAndSendImage}
             disabled={uploadingImage}
             accessibilityRole="button"
-            accessibilityLabel="Attach image"
+            accessibilityLabel={isRtl ? 'צרף תמונה' : 'Attach image'}
           >
             {uploadingImage
               ? <ActivityIndicator color={accentColor} size="small" />
@@ -333,9 +346,9 @@ export default function ChatScreen() {
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Write a message…"
+            placeholder={isRtl ? 'כתבו הודעה…' : 'Write a message…'}
             placeholderTextColor="#9BA8C0"
-            style={s.input}
+            style={[s.input, isRtl && s.textRight]}
             multiline
             maxLength={4000}
             onSubmitEditing={sendMessage}
@@ -346,7 +359,7 @@ export default function ChatScreen() {
             onPress={sendMessage}
             disabled={!text.trim() || sending}
             accessibilityRole="button"
-            accessibilityLabel="Send message"
+            accessibilityLabel={isRtl ? 'שלח הודעה' : 'Send message'}
           >
             {sending
               ? <ActivityIndicator color="#fff" size="small" />
@@ -362,7 +375,7 @@ export default function ChatScreen() {
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' }}
           onPress={() => setViewerUrl(null)}
           accessibilityRole="button"
-          accessibilityLabel="Close image"
+          accessibilityLabel={isRtl ? 'סגור תמונה' : 'Close image'}
         >
           {viewerUrl && (
             <Image source={{ uri: viewerUrl }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />

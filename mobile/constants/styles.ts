@@ -3911,6 +3911,9 @@ export const NewMessageStyles = StyleSheet.create({
 export const ChatScreenStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#EDF3FF' },
 
+  rowReverse: { flexDirection: 'row-reverse' },
+  textRight:  { textAlign: 'right' },
+
   header: {
     flexDirection:     'row',
     alignItems:        'center',

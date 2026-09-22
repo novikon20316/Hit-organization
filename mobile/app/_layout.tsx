@@ -6,11 +6,10 @@ import { View, Text, Image, ActivityIndicator, Platform, I18nManager, AppState }
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../src/firebase/firebase";
 import { apiClient } from "../src/api/apiClient";
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import { useSafeKeepAwake } from '@/hooks/useSafeKeepAwake';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
+import { registerForPushNotificationsAsync } from '@/components/pushNotifications';
 import { NotificationsProvider } from '../src/context/NotificationsContext';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
 import { getHomeRoute, getUserRoles, resolveActiveRole } from '@/firebase/roles'; // ← single source of truth
@@ -35,52 +34,51 @@ if (I18nManager.isRTL) {
   I18nManager.forceRTL(false);
 }
 
-// ─── Android notification channel ─────────────────────────────────────────────
-if (Platform.OS === 'android') {
-  Notifications.setNotificationChannelAsync('default', {
-    name: 'Default',
-    importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 250, 250, 250],
-    lightColor: '#2E86FF',
-    sound: 'default',
-  });
+// ─── Push notification runtime setup ───────────────────────────────────────────
+// expo-notifications/expo-device crash Expo Go on SDK 53 when imported at
+// module load time — components/pushNotifications.ts documents this and
+// lazy-imports both instead of a static top-level import. This file used to
+// have its own parallel, unguarded `import * as Notifications`/`Device` and a
+// duplicate registerPushToken() that bypassed that protection entirely (and
+// was the one actually wired up below). Lazy-load the same way here instead.
+const isExpoGo = Constants.appOwnership === 'expo';
+let notificationsModulePromise: Promise<typeof import('expo-notifications') | null> | null = null;
+function getNotifications() {
+  if (isExpoGo) return Promise.resolve(null);
+  if (!notificationsModulePromise) notificationsModulePromise = import('expo-notifications');
+  return notificationsModulePromise;
 }
 
-// ─── Foreground notification display behaviour ────────────────────────────────
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert:  true,
-    shouldPlaySound:  true,
-    shouldSetBadge:   true,
-    shouldShowBanner: true,
-    shouldShowList:   true,
-  }),
-});
+if (!isExpoGo) {
+  getNotifications().then((Notifications) => {
+    if (!Notifications) return;
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#2E86FF',
+        sound: 'default',
+      });
+    }
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert:  true,
+        shouldPlaySound:  true,
+        shouldSetBadge:   true,
+        shouldShowBanner: true,
+        shouldShowList:   true,
+      }),
+    });
+  });
+}
 
 // ─── Push token registration ──────────────────────────────────────────────────
 const registerPushToken = async () => {
   try {
-    if (!Device.isDevice) {
-      console.warn('⚠️  Push notifications require a physical device. Skipping.');
-      return;
-    }
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== 'granted') {
-      console.warn('❌ Push notification permission denied.');
-      return;
-    }
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    if (!projectId) {
-      console.warn('⚠️  No EAS projectId found. Push token skipped.');
-      return;
-    }
-    const token = await Notifications.getExpoPushTokenAsync({ projectId });
-    await apiClient.post('/api/users/update-push-token', { token: token.data });
+    const token = await registerForPushNotificationsAsync();
+    if (!token) return;
+    await apiClient.post('/api/users/update-push-token', { token });
   } catch (e) {
     console.warn('Push token registration failed:', e);
   }
@@ -491,25 +489,37 @@ function RootLayoutInner() {
 
   // ── Notification listeners ─────────────────────────────────────────────────
   useEffect(() => {
-    const notifListener = Notifications.addNotificationReceivedListener(() => {});
+    let notifListener: { remove: () => void } | undefined;
+    let responseListener: { remove: () => void } | undefined;
+    let cancelled = false;
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data as Record<string, string>;
-      setTimeout(() => {
-        if (data?.chatId) {
-          router.push({
-            pathname: '/message/[chatId]',
-            params: {
-              chatId:    data.chatId,
-              otherName: data.otherName ?? '',
-              otherRole: data.otherRole ?? '',
-            },
-          });
-        }
-      }, 500);
+    getNotifications().then((Notifications) => {
+      if (!Notifications || cancelled) return;
+
+      notifListener = Notifications.addNotificationReceivedListener(() => {});
+
+      responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+        const data = response.notification.request.content.data as Record<string, string>;
+        setTimeout(() => {
+          if (data?.chatId) {
+            router.push({
+              pathname: '/message/[chatId]',
+              params: {
+                chatId:    data.chatId,
+                otherName: data.otherName ?? '',
+                otherRole: data.otherRole ?? '',
+              },
+            });
+          }
+        }, 500);
+      });
     });
 
-    return () => { notifListener.remove(); responseListener.remove(); };
+    return () => {
+      cancelled = true;
+      notifListener?.remove();
+      responseListener?.remove();
+    };
   }, [router]);
 
   // ── Loading splash ─────────────────────────────────────────────────────────

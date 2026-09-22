@@ -49,8 +49,8 @@ import {
   query,
   where,
   onSnapshot,
-  doc,
-  getDoc,
+  getDocs,
+  documentId,
 } from 'firebase/firestore';
 
 // Label for the reviewedAt date, tailored to which decision it records.
@@ -215,7 +215,6 @@ export default function SupervisorHome() {
   }, [activeTab, unreadByTargetScreen, markTabSeen]);
   const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'meeting_proposed' | 'meeting_confirmed' | 'rejected'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'offered'>('all');
-  const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
   const [proposingMeetingFor, setProposingMeetingFor] = useState<Application | null>(null);
   const [proposingMeetingBusy, setProposingMeetingBusy] = useState(false);
@@ -289,10 +288,15 @@ export default function SupervisorHome() {
   const [recSubmitting, setRecSubmitting]     = useState(false);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   // ── Firestore unsubscribe refs (cleanup on unmount) ───────────────────────
-  const unsubNotificationsRef = useRef<(() => void) | null>(null);
   const unsubApplicationsRef  = useRef<(() => void) | null>(null);
   const unsubProjectsRef      = useRef<(() => void) | null>(null);
   const unsubGradingRef = useRef<(() => void) | null>(null);
+  // uid → displayName cache for the grading listener below — avoids
+  // re-fetching the same students' user docs on every snapshot fire (a grade
+  // edit, a status flip, an examiner change all re-fire it, not just a new
+  // submission), and batches any genuinely-new lookups via one `in` query
+  // instead of one getDoc per student per submitted milestone.
+  const studentNameCacheRef = useRef<Map<string, string>>(new Map());
   const toggleCardExpansion = (milestoneId: string) => {
     setExpandedCards((prev) => ({ ...prev, [milestoneId]: !prev[milestoneId] }));
   };
@@ -348,7 +352,6 @@ export default function SupervisorHome() {
     fetchDashboardData();
     // Cleanup Firestore listeners when component unmounts
     return () => {
-      unsubNotificationsRef.current?.();
       unsubApplicationsRef.current?.();
       unsubProjectsRef.current?.();
       unsubGradingRef.current?.();
@@ -372,38 +375,6 @@ export default function SupervisorHome() {
     apiClient.get('/api/examiner/get-list')
       .then(res => setInternalUsers(res.data ?? []))
       .catch(() => {});
-  }, [supervisorId]);
-
-
-  // ── Firestore: real-time notifications unread count ───────────────────────
-  // Starts listening once we have the supervisorId from the API response
-  useEffect(() => {
-    if (!supervisorId) return;
-
-    // Unsubscribe any previous listener
-    unsubNotificationsRef.current?.();
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Adjust the collection name and field names below to match YOUR Firestore
-    // structure. This assumes a top-level "notifications" collection with:
-    //   - recipientId: string  (the supervisor's user ID)
-    //   - read: boolean
-    // ─────────────────────────────────────────────────────────────────────────
-    const notifQuery = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', supervisorId),
-      where('read', '==', false),
-    );
-
-    unsubNotificationsRef.current = onSnapshot(
-      notifQuery,
-      (snapshot) => {
-        setUnreadCount(snapshot.size);
-      },
-      (error) => {
-        console.warn('Notifications listener error:', error);
-      },
-    );
   }, [supervisorId]);
 
 
@@ -547,36 +518,53 @@ export default function SupervisorHome() {
     const unsubs = idChunks.map((ids, i) =>
       onSnapshot(query(collection(db, 'milestones'), where('projectId', 'in', ids)), async (snapshot) => {
         const submitted = snapshot.docs.filter((d) => d.data().status === 'submitted');
-        const grades: PendingMilestone[] = await Promise.all(
-          submitted.map(async (d) => {
-            const data = d.data();
-            const studentIds: string[] = data.studentIds ?? [];
 
-            const studentNames = await Promise.all(
-              studentIds.map(async (sid) => {
-                const snap = await getDoc(doc(db, 'users', sid));
-                return snap.data()?.displayName ?? snap.data()?.displayNameHe ?? '';
-              })
-            );
+        // Resolve student display names via the shared uid→name cache,
+        // batch-fetching only the uids this callback hasn't already resolved
+        // (a `documentId() in [...]` query, chunked at Firestore's 30-value
+        // cap) instead of one getDoc per student per submitted milestone —
+        // see studentNameCacheRef's own comment above.
+        const cache = studentNameCacheRef.current;
+        const uncachedIds = [...new Set(
+          submitted.flatMap((d) => (d.data().studentIds ?? []) as string[])
+        )].filter((sid) => !cache.has(sid));
 
-            return {
-              id:             d.id,
-              projectId:      data.projectId      ?? '',
-              projectTitleHe: data.projectTitleHe ?? '',
-              projectTitleEn: data.projectTitleEn ?? '',
-              type:           data.type           ?? '',
-              status:         data.status         ?? '',
-              studentNames,
-              studentIds,
-              fileUrls:       data.fileUrls       ?? [],
-              submissionNote: data.submissionNote ?? '',
-              facultyId:      data.facultyId      ?? '',
-              dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
-              submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
-              gradingComponents: data.gradingComponents ?? [],
-            };
-          })
-        );
+        if (uncachedIds.length) {
+          const lookupChunks: string[][] = [];
+          for (let j = 0; j < uncachedIds.length; j += 30) lookupChunks.push(uncachedIds.slice(j, j + 30));
+          await Promise.all(
+            lookupChunks.map(async (chunk) => {
+              const usersSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', chunk)));
+              usersSnap.docs.forEach((u) => {
+                const data = u.data();
+                cache.set(u.id, data.displayName ?? data.displayNameHe ?? '');
+              });
+            })
+          );
+        }
+
+        const grades: PendingMilestone[] = submitted.map((d) => {
+          const data = d.data();
+          const studentIds: string[] = data.studentIds ?? [];
+          const studentNames = studentIds.map((sid) => cache.get(sid) ?? '');
+
+          return {
+            id:             d.id,
+            projectId:      data.projectId      ?? '',
+            projectTitleHe: data.projectTitleHe ?? '',
+            projectTitleEn: data.projectTitleEn ?? '',
+            type:           data.type           ?? '',
+            status:         data.status         ?? '',
+            studentNames,
+            studentIds,
+            fileUrls:       data.fileUrls       ?? [],
+            submissionNote: data.submissionNote ?? '',
+            facultyId:      data.facultyId      ?? '',
+            dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
+            submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
+            gradingComponents: data.gradingComponents ?? [],
+          };
+        });
         chunkResults[i] = grades;
         applyAndSet();
       })

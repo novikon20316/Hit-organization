@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import * as Notifications from 'expo-notifications';
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { apiClient } from '../api/apiClient';
@@ -135,8 +135,16 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
+  // Memoized for the same reason as ActiveRoleContext's provider value —
+  // this wraps the whole app, so an unmemoized object literal re-renders
+  // every consumer (e.g. one only reading markTabSeen) on every unread-count
+  // tick from the live listener above.
+  const value = useMemo<NotificationsContextValue>(() => ({
+    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh,
+  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh]);
+
   return (
-    <NotificationsContext.Provider value={{ unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh }}>
+    <NotificationsContext.Provider value={value}>
       {children}
     </NotificationsContext.Provider>
   );

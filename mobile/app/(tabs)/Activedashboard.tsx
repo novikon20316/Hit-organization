@@ -143,10 +143,16 @@ export default function ActiveDashboard({
   };
 
   // ─── The "true" next actionable milestone for the Overview tab ────────────
-  // This is the first milestone that is still 'pending' AND unlocked.
-  // After coordinator_approved the next pending one becomes unlocked.
+  // The first milestone that's either 'rejected' (returned for revision —
+  // resubmitting it is exactly as actionable as submitting a fresh 'pending'
+  // one, and unlike 'pending' a rejected milestone doesn't need an isUnlocked
+  // check, since it was already unlocked once to have been submitted) or
+  // still 'pending' AND unlocked. After coordinator_approved the next
+  // pending one becomes unlocked.
   const actionableNextMilestone: Milestone | null =
-    milestones.find(m => m.status === 'pending' && isUnlocked(m)) ?? null;
+    milestones.find(m => m.status === 'rejected') ??
+    milestones.find(m => m.status === 'pending' && isUnlocked(m)) ??
+    null;
 
   // ── Days until deadline ────────────────────────────────────────────────────
   const daysUntil = (ts: string | null | undefined): number | null => {
@@ -190,10 +196,13 @@ export default function ActiveDashboard({
   };
 
   // ─── Overview metrics — reused, not recomputed, elsewhere ─────────────────
-  // Same "coordinator_approved" filter useStudentData.ts's withDerived() used
-  // to produce the `progress` prop — kept as its own count here too since the
-  // metric card needs the raw X/Y, not just the rounded percentage.
-  const completedMilestonesCount = milestones.filter(m => m.status === 'coordinator_approved').length;
+  // Same "coordinator_approved" OR "completed" filter useStudentData.ts's
+  // withDerived() uses to produce the `progress` prop — kept as its own count
+  // here too since the metric card needs the raw X/Y, not just the rounded
+  // percentage. A final_report/defense milestone keeps moving through
+  // examiner/scheduling statuses after approval and ends at 'completed',
+  // never sitting back in 'coordinator_approved' — both must count as done.
+  const completedMilestonesCount = milestones.filter(m => m.status === 'coordinator_approved' || m.status === 'completed').length;
   const totalMilestonesCount = milestones.length;
 
   // ─── Next deadline card — sourced straight from the `nextMilestone` prop ──

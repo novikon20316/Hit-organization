@@ -23,6 +23,10 @@ const HIDDEN_TAB_ROUTES = [
   '/WorkflowTemplateManager',
   '/WorkflowTemplateEditor',
   '/Reports',
+  '/maintenance',
+  '/AcademicYearManager',
+  '/BulkPermissionsManager',
+  '/Facultytemplatemanager',
 ];
 
 // ─── Known valid route prefixes — anything outside these is a 404 ─────────────
@@ -102,7 +106,7 @@ const ROLE_TABS: Record<string, Array<{
     { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   faculty_admin: [
-    { name: 'faculty_admin/home', iconActive: '⚙️', iconInactive: '⚙️', labelHe: 'ניהול',  labelEn: 'Admin'     },
+    { name: 'faculty_admin/dashboard', iconActive: '⚙️', iconInactive: '⚙️', labelHe: 'ניהול',  labelEn: 'Admin'     },
     { name: 'notifications',      iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות', labelEn: 'Alerts'    },
   ],
   program_head: [
@@ -126,7 +130,7 @@ const ROLE_TABS: Record<string, Array<{
     { name: 'notifications',                                iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
   system_admin: [
-    { name: 'admin/home',       iconActive: '🛡️', iconInactive: '🛡️', labelHe: 'מערכת',   labelEn: 'System'    },
+    { name: 'admin/overview',   iconActive: '🛡️', iconInactive: '🛡️', labelHe: 'מערכת',   labelEn: 'System'    },
     { name: 'notifications',    iconActive: '🔔', iconInactive: '🔕', labelHe: 'התראות',   labelEn: 'Alerts'    },
   ],
 };

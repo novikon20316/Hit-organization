@@ -225,8 +225,8 @@ function ErrorBanner({ message, lang, onRetry, dismissible }: { message: string;
 
 // ─── Animated notification row ────────────────────────────────────────────────
 
-function NotifRow({ notif, lang, isRtl, onPress }: {
-  notif: Notif; lang: Lang; isRtl: boolean; onPress: () => void;
+const NotifRow = React.memo(function NotifRow({ notif, lang, isRtl, onPress }: {
+  notif: Notif; lang: Lang; isRtl: boolean; onPress: (notif: Notif) => void;
 }) {
   const style     = TYPE_STYLE[notif.type] ?? TYPE_STYLE.project_published;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -245,7 +245,7 @@ function NotifRow({ notif, lang, isRtl, onPress }: {
       transform: [{ translateY: slideAnim.interpolate({ inputRange: [0,1], outputRange: [12,0] }) }],
     }}>
       <Pressable
-        onPress={onPress}
+        onPress={() => onPress(notif)}
         style={[
           nr.card,
           !notif.isRead && nr.cardUnread,
@@ -272,7 +272,7 @@ function NotifRow({ notif, lang, isRtl, onPress }: {
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 // ─── Chat row (WhatsApp-style, with long-press delete) ────────────────────────
 
@@ -472,7 +472,7 @@ export default function NotificationsScreen() {
     router.replace(roleHomeRoute(userRole) as any);
   }, [userRole]);
 
-  const handleTapNotif = async (notif: Notif) => {
+  const handleTapNotif = useCallback(async (notif: Notif) => {
     // Marking as read is a non-critical side effect — a failure here must
     // never block navigation, which is the actual point of tapping a notification.
     if (!notif.isRead) {
@@ -488,7 +488,7 @@ export default function NotificationsScreen() {
       if (notif.chatId) {
         router.push({
           pathname: '/message/[chatId]',
-          params: { chatId: notif.chatId, otherName: notif.senderName ?? '', otherRole: '' },
+          params: { chatId: notif.chatId, otherName: notif.senderName ?? '', otherRole: '', lang },
         });
       }
       return;
@@ -514,12 +514,12 @@ export default function NotificationsScreen() {
         lang,
       },
     });
-  };
+  }, [refresh, router, userRole, lang]);
 
   const handleTapChat = (chat: ChatRow) => {
     router.push({
       pathname: '/message/[chatId]',
-      params: { chatId: chat.chatId, otherName: chat.otherName, otherRole: chat.otherRole },
+      params: { chatId: chat.chatId, otherName: chat.otherName, otherRole: chat.otherRole, lang },
     });
   };
 
@@ -707,7 +707,7 @@ export default function NotificationsScreen() {
                     <View style={s.dateLine} />
                   </View>
                   {notifs.map((n) => (
-                    <NotifRow key={n.id} notif={n} lang={lang} isRtl={isRtl} onPress={() => handleTapNotif(n)} />
+                    <NotifRow key={n.id} notif={n} lang={lang} isRtl={isRtl} onPress={handleTapNotif} />
                   ))}
                 </View>
               ))}
@@ -783,7 +783,7 @@ export default function NotificationsScreen() {
           setChatSheetVisible(false);
           router.push({
             pathname: '/message/[chatId]',
-            params: { chatId, otherName, otherRole },
+            params: { chatId, otherName, otherRole, lang },
           });
         }}
       />

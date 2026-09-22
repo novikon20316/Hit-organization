@@ -12,7 +12,7 @@
 // createAdminUser/updateUserRoleAdmin for the matching server-side scope
 // enforcement.
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Switch, Alert } from 'react-native';
 import { apiClient } from '../src/api/apiClient';
 import { ROLE_LABELS } from '../constants';
@@ -183,6 +183,14 @@ export default function ManagedStaffSection({ staff, onRefresh, scope, lang, isR
     return !q || u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
   });
 
+  // Same reasoning as StudentsListSection.tsx: this list has no scrolling
+  // viewport of its own (nested in the dashboard's outer ScrollView), so cap
+  // the rendered slice instead of mounting every staff card up front.
+  const PAGE_SIZE = 30;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search]);
+  const visible = filtered.slice(0, visibleCount);
+
   return (
     <View>
       <View style={s.searchBox}>
@@ -199,7 +207,7 @@ export default function ManagedStaffSection({ staff, onRefresh, scope, lang, isR
       </Pressable>
 
       <ScrollView>
-        {filtered.map((u) => (
+        {visible.map((u) => (
           <View key={u.id} style={s.projectMilestoneCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View style={{ flex: 1 }}>
@@ -220,6 +228,19 @@ export default function ManagedStaffSection({ staff, onRefresh, scope, lang, isR
           </View>
         ))}
         {filtered.length === 0 && <Text style={s.projectMeta}>{lang === 'he' ? 'לא נמצא סגל' : 'No staff found'}</Text>}
+        {filtered.length > visibleCount && (
+          <Pressable
+            onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            style={{ paddingVertical: 12, alignItems: 'center' }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#2E86FF', fontWeight: '600', fontSize: 13 }}>
+              {lang === 'he'
+                ? `טען עוד (${filtered.length - visibleCount} נוספים)`
+                : `Load more (${filtered.length - visibleCount} more)`}
+            </Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       <NewUserModal

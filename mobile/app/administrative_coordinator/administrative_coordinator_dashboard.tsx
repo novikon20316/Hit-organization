@@ -1408,7 +1408,7 @@ export default function ProjectCoordinatorDashboard() {
                 <Pressable
                   style={[s.actionBtn, { backgroundColor: '#EFF6FF' }]}
                   onPress={() =>
-                    router.push({ pathname: '/admin/panel', params: { groupId: group.id } } as any)
+                    router.push({ pathname: '/records/[projectId]', params: { projectId: group.id, lang } } as any)
                   }
                   accessibilityRole="link"
                 >

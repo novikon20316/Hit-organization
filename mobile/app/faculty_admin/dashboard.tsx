@@ -408,6 +408,11 @@ export default function PanelScreen() {
             onPress: () => router.push('/WorkflowTemplateManager' as any),
           },
           {
+            key: 'project-templates', icon: '📋',
+            label: lang === 'he' ? 'ניהול תבניות פרויקט' : 'Manage Project Templates',
+            onPress: () => router.push('/Facultytemplatemanager' as any),
+          },
+          {
             key: 'reports', icon: '📊',
             label: lang === 'he' ? 'דוחות' : 'Reports',
             onPress: () => router.push('/Reports' as any),

@@ -37,6 +37,7 @@ import { TourTarget } from '@/components/onboarding/TourTarget';
 
 interface StudentRow {
   uid:              string;
+  projectId:        string;
   studentName:      string;
   trackType:        'thesis' | 'masters_project';
   supervisorName:   string;
@@ -384,7 +385,7 @@ export default function ProgramHeadDashboard() {
                   key={st.uid}
                   style={[s.card, { borderLeftColor: st.isOverdue ? '#EF4444' : fc.primary }]}
                   onPress={() =>
-                    router.push({ pathname: '/admin/panel', params: { studentId: st.uid } } as any)
+                    router.push({ pathname: '/records/[projectId]', params: { projectId: st.projectId, lang } } as any)
                   }
                   accessibilityRole="link"
                 >
