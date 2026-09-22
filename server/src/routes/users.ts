@@ -19,6 +19,8 @@ import {
   uploadUserPhoto,
   getUserPhotoUrl,
   photoUploadMiddleware,
+  blockUser,
+  unblockUser,
 } from '../controllers/userController.js'
 console.log("🔥 Loading user routes...");
 const router = Router();
@@ -41,6 +43,8 @@ router.post('/complete-onboarding-tour', verifyToken, completeOnboardingTour)
 router.post('/mark-field-guide-seen', verifyToken, markFieldGuideSeen)
 router.post('/photo', verifyToken, photoUploadMiddleware, uploadUserPhoto)
 router.get('/:uid/photo-url', verifyToken, getUserPhotoUrl)
+router.post('/block', verifyToken, blockUser)
+router.post('/unblock', verifyToken, unblockUser)
 
 
 export default router;

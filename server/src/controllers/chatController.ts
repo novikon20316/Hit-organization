@@ -195,6 +195,22 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
       return res.status(403).json({ message: 'Forbidden.' });
     }
 
+    const recipientIdForBlockCheck = participants.find((id) => id !== uid);
+    if (recipientIdForBlockCheck) {
+      // Enforced here (not just hidden client-side) — either party having
+      // blocked the other stops delivery both ways, so a blocked sender
+      // can't just use a different client to keep messaging through.
+      const [senderSnap, recipientSnap] = await Promise.all([
+        db.collection('users').doc(uid).get(),
+        db.collection('users').doc(recipientIdForBlockCheck).get(),
+      ]);
+      const senderBlockedRecipient: string[] = senderSnap.data()?.blockedUserIds ?? [];
+      const recipientBlockedSender: string[] = recipientSnap.data()?.blockedUserIds ?? [];
+      if (senderBlockedRecipient.includes(recipientIdForBlockCheck) || recipientBlockedSender.includes(uid)) {
+        return res.status(403).json({ message: 'This conversation is unavailable.' });
+      }
+    }
+
     // Resolved before the batch (a plain read, can't happen inside a
     // batch.set) — see resolveChatProjectId's own comment for when this
     // comes back null and the message is simply left untagged.
@@ -263,6 +279,107 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
   } catch (error) {
     console.error('Failed to process message notification cascade:', error);
     return res.status(500).json({ message: 'Failed to safely commit text dispatch sequence' });
+  }
+};
+
+const MAX_REPORT_REASON_LENGTH = 1000;
+
+// POST /api/chats/:chatId/report — the baseline safety tooling this app's
+// otherwise-unmoderated 1:1 chat needs (see docs/PLAY_STORE_DATA_SAFETY_AND_CONTENT_RATING.md).
+// Persists a real, queryable report doc and notifies every system_admin —
+// there's no dedicated review UI yet, so this is reviewed via the
+// chatReports collection directly/Firestore console until one exists.
+export const reportChat = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { chatId } = req.params;
+  const { reason } = req.body;
+
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!chatId || typeof chatId !== 'string') {
+    return res.status(400).json({ message: 'Missing chatId.' });
+  }
+  if (reason !== undefined && (typeof reason !== 'string' || reason.length > MAX_REPORT_REASON_LENGTH)) {
+    return res.status(400).json({ message: `Reason must be a string under ${MAX_REPORT_REASON_LENGTH} characters.` });
+  }
+
+  try {
+    const chatSnap = await db.collection('chats').doc(chatId).get();
+    if (!chatSnap.exists) return res.status(404).json({ message: 'Chat not found.' });
+
+    const participants: string[] = chatSnap.data()?.participants || [];
+    if (!participants.includes(uid)) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+    const reportedUserId = participants.find((id) => id !== uid) ?? null;
+
+    const reporterSnap = await db.collection('users').doc(uid).get();
+    const reporterName = reporterSnap.data()?.displayName ?? 'Unknown';
+
+    await db.collection('chatReports').add({
+      chatId,
+      reporterId: uid,
+      reportedUserId,
+      reason: (reason ?? '').trim().slice(0, MAX_REPORT_REASON_LENGTH),
+      status: 'pending',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Notification failure must never mask the report above, which has
+    // already committed by this point.
+    try {
+      const adminsSnap = await db.collection('users').where('roles', 'array-contains', 'system_admin').get();
+      await Promise.all(adminsSnap.docs.map((adminDoc) =>
+        db.collection('notifications').add({
+          recipientId: adminDoc.id,
+          type: 'chat_reported',
+          titleHe: 'דיווח חדש על שיחה 🚩',
+          titleEn: 'New chat report 🚩',
+          bodyHe: `${reporterName} דיווח/ה על שיחה.`,
+          bodyEn: `${reporterName} reported a chat.`,
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      ));
+    } catch (notifyError) {
+      console.error('Failed to notify system_admin of chat report:', notifyError);
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('reportChat error:', error);
+    return res.status(500).json({ message: 'Failed to submit report.' });
+  }
+};
+
+// POST /api/chats/:chatId/block — chat-scoped so the mobile client never
+// needs the other participant's raw uid (resolved server-side from the
+// chat doc, same as reportChat above); enforced in sendDirectMessage.
+export const blockChatPartner = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { chatId } = req.params;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!chatId || typeof chatId !== 'string') {
+    return res.status(400).json({ message: 'Missing chatId.' });
+  }
+
+  try {
+    const chatSnap = await db.collection('chats').doc(chatId).get();
+    if (!chatSnap.exists) return res.status(404).json({ message: 'Chat not found.' });
+
+    const participants: string[] = chatSnap.data()?.participants || [];
+    if (!participants.includes(uid)) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+    const otherUserId = participants.find((id) => id !== uid);
+    if (!otherUserId) return res.status(400).json({ message: 'No other participant to block.' });
+
+    await db.collection('users').doc(uid).update({
+      blockedUserIds: admin.firestore.FieldValue.arrayUnion(otherUserId),
+    });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('blockChatPartner error:', error);
+    return res.status(500).json({ message: 'Failed to block user.' });
   }
 };
 

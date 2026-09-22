@@ -8,6 +8,8 @@ import { markChatNotificationsAsRead,
     deleteChat,
     getChatMessages,
     sendDirectMessage,
+    reportChat,
+    blockChatPartner,
  } from '../controllers/chatController.js';
 import { verifyToken } from '../middleware/auth.js';
 
@@ -22,5 +24,7 @@ router.get('/dashboard',     verifyToken, getChatDashboard);
 router.post('/',             verifyToken, findOrCreateDirectChat);
 router.post('/broadcast',    verifyToken, sendBroadcastNotification);
 router.post('/:chatId/read', verifyToken, markChatNotificationsAsRead);
+router.post('/:chatId/report', verifyToken, reportChat);
+router.post('/:chatId/block',  verifyToken, blockChatPartner);
 router.delete('/:chatId',    verifyToken, deleteChat)
 export default router;

@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, Image, Modal,
   TextInput, Pressable, KeyboardAvoidingView, Platform,
-  ActivityIndicator,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -223,6 +223,80 @@ export default function ChatScreen() {
     }
   };
 
+  // ── Safety: report / block ──────────────────────────────────────────────────
+  // Baseline moderation tooling for this otherwise-unmoderated 1:1 chat —
+  // block is chat-scoped server-side (resolves the other participant from
+  // the chat doc, enforced both directions in sendDirectMessage), report is
+  // persisted + notifies every system_admin.
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReason,       setReportReason]       = useState('');
+  const [reportSubmitting,   setReportSubmitting]   = useState(false);
+  const [blocking,           setBlocking]           = useState(false);
+
+  const handleBlock = () => {
+    Alert.alert(
+      isRtl ? 'חסימת משתמש' : 'Block user',
+      isRtl
+        ? `לאחר החסימה לא תוכל/י לשלוח או לקבל הודעות מ${headerName ? `-${headerName}` : 'משתמש זה'}.`
+        : `After blocking, you won't be able to send or receive messages from ${headerName || 'this user'}.`,
+      [
+        { text: isRtl ? 'ביטול' : 'Cancel', style: 'cancel' },
+        {
+          text: isRtl ? 'חסום' : 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            setBlocking(true);
+            try {
+              await apiClient.post(`/api/chats/${chatId}/block`);
+              router.back();
+            } catch (err) {
+              console.error('Failed to block user:', err);
+              Alert.alert(
+                isRtl ? 'שגיאה' : 'Error',
+                isRtl ? 'החסימה נכשלה. נסה/י שוב.' : 'Failed to block. Please try again.',
+              );
+            } finally {
+              setBlocking(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleSubmitReport = async () => {
+    setReportSubmitting(true);
+    try {
+      await apiClient.post(`/api/chats/${chatId}/report`, { reason: reportReason.trim() || undefined });
+      setReportModalVisible(false);
+      setReportReason('');
+      Alert.alert(
+        isRtl ? 'תודה' : 'Thank you',
+        isRtl ? 'הדיווח נשלח לבדיקה.' : 'Your report has been submitted for review.',
+      );
+    } catch (err) {
+      console.error('Failed to submit report:', err);
+      Alert.alert(
+        isRtl ? 'שגיאה' : 'Error',
+        isRtl ? 'שליחת הדיווח נכשלה. נסה/י שוב.' : 'Failed to submit report. Please try again.',
+      );
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
+  const openSafetyMenu = () => {
+    Alert.alert(
+      isRtl ? 'אפשרויות' : 'Options',
+      undefined,
+      [
+        { text: isRtl ? 'דווח על משתמש' : 'Report user', onPress: () => setReportModalVisible(true) },
+        { text: isRtl ? 'חסום משתמש' : 'Block user', style: 'destructive', onPress: handleBlock },
+        { text: isRtl ? 'ביטול' : 'Cancel', style: 'cancel' },
+      ],
+    );
+  };
+
   // ── Derived header values ──────────────────────────────────────────────────
   const initials    = headerName
     ? headerName.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -254,6 +328,19 @@ export default function ChatScreen() {
             </View>
           ) : null}
         </View>
+
+        <Pressable
+          onPress={openSafetyMenu}
+          disabled={blocking}
+          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+          accessibilityRole="button"
+          accessibilityLabel={isRtl ? 'אפשרויות נוספות' : 'More options'}
+        >
+          {blocking
+            ? <ActivityIndicator size="small" color={accentColor} />
+            : <Text style={{ fontSize: 20, color: '#6B7280' }}>⋮</Text>
+          }
+        </Pressable>
       </View>
 
       {/* ── Messages ── */}
@@ -381,6 +468,60 @@ export default function ChatScreen() {
             <Image source={{ uri: viewerUrl }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />
           )}
         </Pressable>
+      </Modal>
+
+      {/* ── Report user ── */}
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+            <Text style={[{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 8 }, isRtl && s.textRight]}>
+              {isRtl ? 'דיווח על משתמש' : 'Report user'}
+            </Text>
+            <Text style={[{ fontSize: 13, color: '#6B7280', marginBottom: 12 }, isRtl && s.textRight]}>
+              {isRtl
+                ? 'ספר/י לנו מה קרה (לא חובה). הדיווח יישלח לבדיקת מנהל המערכת.'
+                : "Tell us what happened (optional). This is sent to a system admin for review."}
+            </Text>
+            <TextInput
+              value={reportReason}
+              onChangeText={setReportReason}
+              placeholder={isRtl ? 'תיאור (לא חובה)' : 'Description (optional)'}
+              placeholderTextColor="#9BA8C0"
+              multiline
+              maxLength={1000}
+              style={[
+                { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 10, minHeight: 80, fontSize: 14, color: '#111', textAlignVertical: 'top' },
+                isRtl && s.textRight,
+              ]}
+            />
+            <View style={[{ flexDirection: 'row', gap: 10, marginTop: 16 }, isRtl && s.rowReverse]}>
+              <Pressable
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: '#F3F4F6' }}
+                onPress={() => { setReportModalVisible(false); setReportReason(''); }}
+                disabled={reportSubmitting}
+                accessibilityRole="button"
+              >
+                <Text style={{ fontWeight: '600', color: '#374151' }}>{isRtl ? 'ביטול' : 'Cancel'}</Text>
+              </Pressable>
+              <Pressable
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: '#EF4444', opacity: reportSubmitting ? 0.6 : 1 }}
+                onPress={handleSubmitReport}
+                disabled={reportSubmitting}
+                accessibilityRole="button"
+              >
+                {reportSubmitting
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={{ fontWeight: '600', color: '#fff' }}>{isRtl ? 'שלח דיווח' : 'Submit report'}</Text>
+                }
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );

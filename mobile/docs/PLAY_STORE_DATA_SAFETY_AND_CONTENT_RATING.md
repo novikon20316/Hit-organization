@@ -1,6 +1,6 @@
 # Data Safety & Content Rating — draft answers for Play Console
 
-Based on what the app actually collects/does today (Firebase Auth+Firestore, Expo push, Brevo email, ipinfo.io for login-security IP lookups; no ads, no analytics SDK, no crash-reporting SDK, no in-app chat moderation/reporting). Re-check this if any of those integrations change before you submit.
+Based on what the app actually collects/does today (Firebase Auth+Firestore, Expo push, Brevo email, ipinfo.io for login-security IP lookups; no ads, no analytics SDK, no crash-reporting SDK). Chat now has in-app report/block tooling (see §"Is user-generated content moderated?" below) — updated after that shipped. Re-check this if any of those integrations change before you submit.
 
 ---
 
@@ -51,7 +51,7 @@ Answer these in the Play Console rating questionnaire:
 - **Miscellaneous fear/horror themes:** None
 - **User-generated content:** **Yes** — the in-app chat lets users exchange free-text messages with each other.
 - **Users can interact / exchange content:** **Yes** (chat between students, supervisors, examiners, coordinators).
-- **Is user-generated content moderated?** Currently **no automated moderation or in-app report/block tooling** exists for chat — I checked and confirmed this isn't built yet. The mitigating factor is that the user base is closed (only enrolled institutional accounts, not open public sign-up), not general-public social content. If Google's questionnaire asks specifically "can users report content/other users," answer **No** honestly rather than implying a feature that doesn't exist.
+- **Is user-generated content moderated?** **Yes, in part** — every 1:1 chat has an in-app "Report user" action (persists a report and notifies system_admin for manual review — there's no automated content filtering, and no dedicated admin review screen yet, just a queryable `chatReports` collection) and a "Block user" action (server-enforced both directions, not just hidden client-side — a blocked user can no longer send or receive messages in that chat). There's no proactive/automated moderation. If Google's questionnaire distinguishes "users can report/block" from "content is automatically moderated," answer **Yes** to the former and **No** to the latter.
 - **Shares user's location with other users:** **No** (location is collected server-side for login-security only; it is never shown to or shared with other app users).
 - **Shares personal info with third parties:** **No** (see Data Safety reasoning above).
 - **Digital purchases:** **No.**
@@ -61,7 +61,7 @@ Answer these in the Play Console rating questionnaire:
 - **Target audience:** Higher-education students, faculty, and staff — recommend selecting the "18 and over" / general adult audience option, not the Families/child-directed track.
 
 ### Likely resulting rating
-Given no violence/sexual/drug content but real user-to-user chat with no moderation, expect IARC to land around **Teen** (due to unmoderated user interaction) rather than the lowest "Everyone" tier — this is normal for apps with any free-text chat and isn't something you can change without adding moderation tooling. If you want a lower rating, adding a report/block feature to chat would be the concrete way to get there, but that's a product decision, not a form-filling one.
+Given no violence/sexual/drug content but real user-to-user chat, still expect IARC to land around **Teen** rather than the lowest "Everyone" tier — report/block reduces risk but the questionnaire is generally driven by "users can exchange free-text content" regardless of moderation tooling. This is normal for apps with any free-text chat.
 
 ---
 

@@ -349,6 +349,53 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
   }
 };
 
+// ─── POST /api/users/block ─────────────────────────────────────────────────────
+// Self-service: lets a user stop receiving messages from another user (e.g.
+// a chat contact). Enforced server-side in chatController.sendDirectMessage
+// (checked both directions — either party having blocked the other stops
+// delivery), not just hidden client-side. See docs/PLAY_STORE_DATA_SAFETY_AND_CONTENT_RATING.md's
+// note on unmoderated user-to-user chat — this plus reportChat below are the
+// baseline safety tooling expected for that.
+export const blockUser = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    const { blockedUserId } = req.body;
+    if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+    if (!blockedUserId || typeof blockedUserId !== 'string') {
+      return res.status(400).json({ message: 'blockedUserId is required.' });
+    }
+    if (blockedUserId === uid) return res.status(400).json({ message: 'You cannot block yourself.' });
+
+    await db.collection('users').doc(uid).update({
+      blockedUserIds: FieldValue.arrayUnion(blockedUserId),
+    });
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('blockUser error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to block user.' });
+  }
+};
+
+// ─── POST /api/users/unblock ────────────────────────────────────────────────────
+export const unblockUser = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    const { blockedUserId } = req.body;
+    if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+    if (!blockedUserId || typeof blockedUserId !== 'string') {
+      return res.status(400).json({ message: 'blockedUserId is required.' });
+    }
+
+    await db.collection('users').doc(uid).update({
+      blockedUserIds: FieldValue.arrayRemove(blockedUserId),
+    });
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('unblockUser error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to unblock user.' });
+  }
+};
+
 // ─── POST /api/users/complete-onboarding-tour ─────────────────────────────────
 // Called once by either client when a user finishes or dismisses their
 // first-login onboarding tour (web: OnboardingTour, mobile:
