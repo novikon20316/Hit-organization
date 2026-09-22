@@ -82,6 +82,39 @@ export function buildProgramHeadNavSections(roles: string[]): SidebarSection[] {
             ]
           : []),
         {
+          key: 'workflowTemplates',
+          icon: '🧬',
+          href: '/workflow-templates',
+          label: { he: 'תבניות תהליך', en: 'Process Templates' },
+          description: {
+            he: 'שרשראות אבני הדרך והאישורים שבהן פרויקטי התוכנית שלך מתנהלים — ערוך אותן כאן.',
+            en: "The milestone/approval chains your program's projects follow — edit them here.",
+          },
+          isActive: (pathname: string) => pathname === '/workflow-templates',
+        },
+        {
+          key: 'reports',
+          icon: '📈',
+          href: '/reports',
+          label: { he: 'דוחות', en: 'Reports' },
+          description: {
+            he: 'הפק וייצא דוחות מפורטים על פרויקטים, סטודנטים וציונים בתוכנית שלך.',
+            en: 'Generate and export detailed reports across projects, students, and grades in your program.',
+          },
+          isActive: (pathname: string) => pathname === '/reports',
+        },
+        {
+          key: 'committees',
+          icon: '🧑‍⚖️',
+          href: '/committees',
+          label: { he: 'ועדות', en: 'Committees' },
+          description: {
+            he: 'ועדות שאתה חבר/ה בהן, וסקירות הממתינות לך.',
+            en: "Committees you're a member of, and any reviews waiting on you.",
+          },
+          isActive: (pathname: string) => pathname === '/committees',
+        },
+        {
           key: 'records',
           icon: '📜',
           href: '/program_head/records',

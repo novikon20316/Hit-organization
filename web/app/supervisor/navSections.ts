@@ -48,6 +48,28 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
         badgeTargetScreens: ['supervisor_signoffs'],
       },
       {
+        key: 'infoFiles',
+        icon: '📄',
+        href: '/info-files',
+        label: { he: 'מסמכי מידע', en: 'Info Files' },
+        description: {
+          he: 'מסמכי מידע והנחיות משותפים לפקולטה שלך.',
+          en: 'Shared reference documents and guidelines for your faculty.',
+        },
+        isActive: (pathname) => pathname === '/info-files',
+      },
+      {
+        key: 'committees',
+        icon: '🧑‍⚖️',
+        href: '/committees',
+        label: { he: 'ועדות', en: 'Committees' },
+        description: {
+          he: 'ועדות שאתה חבר/ה בהן, וסקירות הממתינות לך.',
+          en: "Committees you're a member of, and any reviews waiting on you.",
+        },
+        isActive: (pathname) => pathname === '/committees',
+      },
+      {
         key: 'records',
         icon: '📜',
         href: '/supervisor/records',

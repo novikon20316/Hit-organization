@@ -21,6 +21,17 @@ export const DEAN_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname) => pathname === '/dean/dashboard',
         badgeTargetScreens: ['dean_pending'],
       },
+      {
+        key: 'committees',
+        icon: '🧑‍⚖️',
+        href: '/committees',
+        label: { he: 'ועדות', en: 'Committees' },
+        description: {
+          he: 'ועדות שאתה חבר/ה בהן, וסקירות הממתינות לך.',
+          en: "Committees you're a member of, and any reviews waiting on you.",
+        },
+        isActive: (pathname) => pathname === '/committees',
+      },
     ],
   },
 ];
