@@ -111,33 +111,32 @@ function CoordinatorHomeContent() {
       setExaminers((examinerList ?? []) as unknown as ExaminerUser[]);
       setLoadError('');
 
-      // Non-fatal fetches below — each mirrors mobile's own try/catch around
-      // these calls so one failing tab's data doesn't block the others.
-      try {
-        const recs = await apiClient.getCoordinatorExaminerRecommendations();
-        setRecommendations((recs.recommendations ?? []) as unknown as ExaminerRecommendation[]);
-      } catch {
-        setRecommendations([]);
-      }
+      // Independent, non-fatal fetches — each mirrors mobile's own try/catch
+      // around these calls so one failing tab's data doesn't block the
+      // others. Run concurrently rather than three sequential awaits — none
+      // depends on another's result, so there's no reason to make the whole
+      // dashboard wait for them one after another; Promise.allSettled still
+      // lets each one fail independently without aborting the rest.
+      const [recsResult, activeResult, deadlinesResult] = await Promise.allSettled([
+        apiClient.getCoordinatorExaminerRecommendations(),
+        apiClient.getActiveProjects(),
+        firebaseUser ? apiClient.getStaffDeadlines(firebaseUser.uid) : Promise.resolve(null),
+      ]);
 
+      setRecommendations(
+        recsResult.status === 'fulfilled' ? ((recsResult.value.recommendations ?? []) as unknown as ExaminerRecommendation[]) : []
+      );
       // getActiveProjects can 403 for administrative coordinator/system_admin
       // (server-side role check today only allows coordinator/faculty_admin/
       // admin) — treat that as an empty In Progress tab, not a crash.
-      try {
-        const active = await apiClient.getActiveProjects();
-        setInProgressProjects((active.InProgress ?? []) as unknown as InProgressProject[]);
-      } catch {
-        setInProgressProjects([]);
-      }
-
-      try {
-        if (firebaseUser) {
-          const dl = await apiClient.getStaffDeadlines(firebaseUser.uid);
-          setDeadlines((dl.deadlines ?? []) as unknown as CoordinatorDeadline[]);
-        }
-      } catch {
-        setDeadlines([]);
-      }
+      setInProgressProjects(
+        activeResult.status === 'fulfilled' ? ((activeResult.value.InProgress ?? []) as unknown as InProgressProject[]) : []
+      );
+      setDeadlines(
+        deadlinesResult.status === 'fulfilled' && deadlinesResult.value
+          ? ((deadlinesResult.value.deadlines ?? []) as unknown as CoordinatorDeadline[])
+          : []
+      );
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת לוח הבקרה נכשלה' : 'Failed to load the dashboard');
     } finally {

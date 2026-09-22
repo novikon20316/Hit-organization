@@ -2,7 +2,14 @@
 
 Date: 2026-09-22
 Scope: `web/` (Next.js) only — server/mobile out of scope for this pass (see `AUDIT_WEB_2026_09_06.md` and `AUDIT_FULL_2026_09_17.md` for the earlier security/a11y/integrity audits, which this one deliberately doesn't re-cover).
-Method: 4 independent research passes (dead-end routes, bugs/errors, compatibility, efficiency), each with real file:line references from full file reads, not grep guesses. No fixes applied yet — this is the findings pass.
+Method: 4 independent research passes (dead-end routes, bugs/errors, compatibility, efficiency), each with real file:line references from full file reads, not grep guesses.
+
+## Fixed in follow-up commits (same day)
+- **Dead-ends:** all 4 role→nav gaps (`/committees` added to 10 roles, `/reports`+`/workflow-templates` added to `program_head`, `/info-files` added to `supervisor`). The orphaned `student/projects/[id]` page was left alone (harmless, not asked for).
+- **Bugs:** both — the student dashboard's wrong-milestone-name bug, and the sign-off button's silent failure (plus a double-submit guard). The thesis-template download's silent failure was fixed too.
+- **Compatibility:** all 5 — clipboard guard, both RTL regressions, all 4 locale-formatting gaps. The low-severity `ActiveDashboard.tsx:618` item was left alone per its own "not worth a standalone fix" note.
+- **Efficiency:** 3 of 4 — the duplicate `getSupervisorDashboard()` fetch (request coalescing in `apiClient.ts`, not a data-shape change — every caller still gets the response exactly as fast as a single fetch), the coordinator dashboard's 3 sequential awaits (now `Promise.allSettled`), and `useStudentData.ts`'s waterfall + N individual supervisor-name reads (now parallelized / batched). The Reports page's keystroke-refetch was fixed via request cancellation (`AbortController`) rather than a debounce, per an explicit instruction that no fix should add delay to when data arrives — every keystroke still fires immediately; only a superseded, now-irrelevant response gets discarded.
+- **Left unchanged, deliberately:** the unscoped `onSnapshot` on `milestones` for `'all'`-scoped coordinator-tier accounts. Restricting what it subscribes to would change what data those accounts actually see — a product/security decision, not a pure efficiency fix — so it wasn't touched without that decision being made explicitly.
 
 ---
 

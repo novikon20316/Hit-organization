@@ -7,7 +7,7 @@
 // since nothing in this slice's UI (no NotificationBell yet) reads it.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, getDocs, documentId } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/lib/prerequisites';
@@ -124,8 +124,15 @@ export function useStudentData() {
         // all" principle as getFirstStepMode's catch below.
         const results = await Promise.allSettled(
           activeIds.map(async (pid) => {
-            const project = (await apiClient.getStudentProject(pid)) as unknown as ActiveProject;
-            const milestonesRes = await apiClient.getMilestones({ studentId: uid, projectId: pid });
+            // Independent of each other (milestones only need studentId/
+            // projectId, not the project doc's own fields) — parallelized
+            // instead of two sequential awaits so this doesn't wait twice
+            // as long per project for no reason.
+            const [projectRaw, milestonesRes] = await Promise.all([
+              apiClient.getStudentProject(pid),
+              apiClient.getMilestones({ studentId: uid, projectId: pid }),
+            ]);
+            const project = projectRaw as unknown as ActiveProject;
             const sorted = (milestonesRes?.milestones || []).sort(
               (a, b) => resolveMilestoneOrder(a as unknown as Milestone) - resolveMilestoneOrder(b as unknown as Milestone)
             ) as unknown as Milestone[];
@@ -229,12 +236,20 @@ export function useStudentData() {
 
         const nameMap: Record<string, string> = {};
         if (supervisorIds.length > 0) {
-          const supervisorDocs = await Promise.all(supervisorIds.map((uid) => getDoc(doc(db, 'users', uid))));
-          supervisorDocs.forEach((snap) => {
-            if (snap.exists()) {
-              const data = snap.data();
-              nameMap[snap.id] = data?.displayName || data?.displayNameHe || '';
-            }
+          // Batched `documentId() in [...]` reads instead of one getDoc per
+          // supervisor — Firestore's `in` operator caps at 10 values, so
+          // this chunks rather than truncating (a plain project list can
+          // easily list more than 10 distinct supervisors).
+          const chunks: string[][] = [];
+          for (let i = 0; i < supervisorIds.length; i += 10) chunks.push(supervisorIds.slice(i, i + 10));
+          const chunkSnapshots = await Promise.all(
+            chunks.map((ids) => getDocs(query(collection(db, 'users'), where(documentId(), 'in', ids))))
+          );
+          chunkSnapshots.forEach((snap) => {
+            snap.forEach((docSnap) => {
+              const data = docSnap.data();
+              nameMap[docSnap.id] = data?.displayName || data?.displayNameHe || '';
+            });
           });
         }
 

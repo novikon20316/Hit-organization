@@ -20,7 +20,7 @@
 // only for system_admin since she's the only one without a single pinned
 // faculty scope to begin with.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -94,9 +94,21 @@ export function ProjectFirstReportsFlow({ activeRole }: ProjectFirstReportsFlowP
       .catch(() => setExaminerOptions([]));
   }, []);
 
+  // Every filter change (including each keystroke in the free-text
+  // startYear/advisorId fields — see ReportFiltersBar.tsx) fires a real
+  // request immediately, same as before — no debounce, so nothing here
+  // makes results arrive any slower than today. What changes is that a
+  // fast typist no longer races their own requests: the previous one is
+  // aborted before the next fires, so an older, slower response can never
+  // land after and overwrite a newer one, and a stale response is never
+  // wastefully processed once superseded.
+  const loadProjectsAbortRef = useRef<AbortController | null>(null);
   const loadProjects = useCallback(() => {
+    loadProjectsAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadProjectsAbortRef.current = controller;
     setProjectsError('');
-    apiClient.getReportProjects(filters)
+    apiClient.getReportProjects(filters, controller.signal)
       .then((res) => {
         const list = res.projects ?? [];
         setProjects(list);
@@ -106,6 +118,7 @@ export function ProjectFirstReportsFlow({ activeRole }: ProjectFirstReportsFlowP
         setSelectedIds((prev) => new Set([...prev].filter((id) => list.some((p) => p.id === id))));
       })
       .catch((err) => {
+        if (err instanceof Error && err.name === 'AbortError') return; // superseded by a newer request
         setProjectsError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת הפרויקטים נכשלה' : 'Failed to load projects');
         setProjects([]);
       });

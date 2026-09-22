@@ -183,6 +183,30 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
   return data as T;
 }
 
+// Request coalescing for GET /api/supervisor/dashboard specifically — the
+// only endpoint in this app with confirmed duplicate concurrent callers:
+// MyApplicationsWidget.tsx and MyProjectsWidget.tsx both fetch it
+// independently on mount, and both are dropped onto the same page on 4
+// different dashboards (coordinator/home, faculty_admin/dashboard,
+// administrative_coordinator/dashboard, grad_school_head/dashboard) for any
+// dual-role staff member who also holds `supervisor`. Concurrent callers
+// share the SAME in-flight network request — they still get the response
+// exactly as fast as a single fetch would (nothing here adds delay) — but
+// once that request settles the reference clears, so a later deliberate
+// refresh (e.g. after approving an application) always starts a fresh one
+// rather than ever serving stale cached data.
+interface SupervisorDashboardResponse {
+  success: boolean;
+  supervisorId: string;
+  supervisorName: string;
+  facultyId: string;
+  myProjects: Array<Record<string, unknown> & { id: string }>;
+  applications: Array<Record<string, unknown> & { id: string }>;
+  pendingGrades: Array<Record<string, unknown> & { id: string }>;
+}
+
+let supervisorDashboardInFlight: Promise<SupervisorDashboardResponse> | null = null;
+
 export const apiClient = {
   get:    <T = unknown>(path: string, options?: RequestOptions) => request<T>(path, { ...options, method: 'GET' }),
   post:   <T = unknown>(path: string, body?: unknown, options?: RequestOptions) => request<T>(path, { ...options, method: 'POST', body }),
@@ -396,10 +420,11 @@ export const apiClient = {
    *  of these before picking a report type; system_admin's own
    *  SystemAdminReportsFlow.tsx passes the current filter bar so this list
    *  narrows the same way the reports themselves do. */
-  async getReportProjects(filters?: Record<string, string | number | boolean | undefined>) {
+  async getReportProjects(filters?: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) {
     return request<{ projects: Array<{ id: string; projectTitleHe: string; projectTitleEn: string; advisorName: string; startYearHebrew: string | null }> }>('/api/reports/projects', {
       method: 'GET',
       params: filters,
+      signal,
     });
   },
 
@@ -1367,15 +1392,10 @@ export const apiClient = {
 
   // ─── 8. SUPERVISOR ──────────────────────────────────────────────────────────
   async getSupervisorDashboard() {
-    return request<{
-      success: boolean;
-      supervisorId: string;
-      supervisorName: string;
-      facultyId: string;
-      myProjects: Array<Record<string, unknown> & { id: string }>;
-      applications: Array<Record<string, unknown> & { id: string }>;
-      pendingGrades: Array<Record<string, unknown> & { id: string }>;
-    }>('/api/supervisor/dashboard', { method: 'GET' });
+    if (supervisorDashboardInFlight) return supervisorDashboardInFlight;
+    supervisorDashboardInFlight = request<SupervisorDashboardResponse>('/api/supervisor/dashboard', { method: 'GET' })
+      .finally(() => { supervisorDashboardInFlight = null; });
+    return supervisorDashboardInFlight;
   },
 
   async handleApplicationDecision(payload: {
