@@ -526,6 +526,19 @@ export default function LoginScreen() {
               <Text style={styles.linkText}>{lang === 'he' ? 'שכחת סיסמה' : 'Forgot Password'}</Text>
             </Pressable>
           </View>
+
+          {/* Login is the app's actual entry point (reached before Sign Up
+              for a returning user), so the privacy policy needs its own link
+              here too — previously only reachable via signup.tsx. */}
+          <Pressable
+            style={styles.privacyLink}
+            onPress={() => router.push('/privacy-policy' as any)}
+            accessibilityRole="link"
+          >
+            <Text style={styles.privacyText}>
+              {lang === 'he' ? 'מדיניות הפרטיות שלנו' : 'Our Privacy Policy'}
+            </Text>
+          </Pressable>
         </View>
 
         <Text style={styles.footer}>
@@ -729,6 +742,8 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
   },
+  privacyLink: { marginTop: 12, alignItems: 'center' },
+  privacyText: { fontSize: 12, color: colors.muted, textAlign: 'center' },
   footer: {
     textAlign: 'center',
     fontSize: 11,

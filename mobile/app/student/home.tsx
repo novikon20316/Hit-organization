@@ -35,6 +35,7 @@ export default function StudentHome() {
     studentState, studentName, studentYearOfStudy,
     proposals, activeProjects,
     pendingApplications, supervisorSelectionRequiresApproval, studentDegree, studentCompletedCourses, cancelAllListeners, refresh,
+    error,
   } = useStudentData();
 
   // Passed as TopBar's onBeforeSignOut — runs (and is awaited) before it
@@ -56,6 +57,25 @@ export default function StudentHome() {
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={ap.primary} />
         <Text style={styles.loadingText}>{tx('loading', lang)}</Text>
+      </View>
+    );
+  }
+
+  // A real fetch failure (network error, server error) forces studentState
+  // to 'no_project' as a fallback — without this check that read as a
+  // genuinely empty project catalog, with no way to tell the difference or
+  // retry short of restarting the app.
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.loadingText}>
+          {lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load your dashboard'}
+        </Text>
+        <Pressable onPress={() => refresh()} accessibilityRole="button" style={{ marginTop: 12 }}>
+          <Text style={{ color: ap.primary, fontWeight: '600', fontSize: 14 }}>
+            {lang === 'he' ? 'נסה שוב' : 'Try again'}
+          </Text>
+        </Pressable>
       </View>
     );
   }

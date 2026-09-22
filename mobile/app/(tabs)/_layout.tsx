@@ -1,7 +1,7 @@
 // app/(tabs)/_layout.tsx
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { View, Text, Platform, Alert } from 'react-native';
+import { View, Text, Platform, Pressable } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient'; // 🚀 Added backend API client instance
@@ -195,6 +195,12 @@ export default function TabLayout() {
   const [lang,   setLang]   = useState<'he' | 'en'>('he');
   const [unread, setUnread] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  // Set on a genuine profile-fetch failure (network/server error) — separate
+  // from `!role`, which is also the state while the very first fetch is
+  // still in flight. Drives a persistent retry screen below instead of the
+  // one-shot Alert this used to show, which a user could dismiss and be left
+  // stuck on a blank tab bar with no way back short of restarting the app.
+  const [profileError, setProfileError] = useState(false);
   const { activeRole, roles: contextRoles } = useActiveRole();
 
   // Keeps the tab bar in sync if the resolved highest-ranked role (or the
@@ -211,55 +217,56 @@ export default function TabLayout() {
 
   // ── 1. Authenticated User Profile Routing Sync ────────────────────────
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) { 
-        setRole(null); 
-        setLoaded(true); 
-        return; 
-      }
-      try {
-        await user.getIdToken(true);
-        
-        // 🚀 REPLACED: Changed database getDoc call to backend client profile request
-        const response = await apiClient.get('/api/users/profile');
-        const userData = response.data;
+  // Extracted (rather than left inline in the effect below) so the retry
+  // button further down can re-run it with a fresh closure over the
+  // current pathname/lang — the effect itself still only subscribes once.
+  const loadProfile = async (user: typeof auth.currentUser) => {
+    if (!user) {
+      setRole(null);
+      setLoaded(true);
+      return;
+    }
+    try {
+      setProfileError(false);
+      await user.getIdToken(true);
 
-        if (userData) {
-          const userRole = userData.role ?? 'student';
-          setRole(userRole);
-          setRoles(Array.isArray(userData.roles) && userData.roles.length ? userData.roles : [userRole]);
-          setLang(userData.language ?? 'he');
+      // 🚀 REPLACED: Changed database getDoc call to backend client profile request
+      const response = await apiClient.get('/api/users/profile');
+      const userData = response.data;
 
-          // Account is mid-grace-period (self-requested or auto-flagged as
-          // graduated) — every role gets routed to the same cancel/notice
-          // screen instead of their normal home, until they cancel or the
-          // scheduled purge runs.
-          if (userData.pendingDeletion) {
-            if (pathname !== '/account-deletion-pending') {
-              router.replace('/account-deletion-pending' as any);
-            }
-            return;
+      if (userData) {
+        const userRole = userData.role ?? 'student';
+        setRole(userRole);
+        setRoles(Array.isArray(userData.roles) && userData.roles.length ? userData.roles : [userRole]);
+        setLang(userData.language ?? 'he');
+
+        // Account is mid-grace-period (self-requested or auto-flagged as
+        // graduated) — every role gets routed to the same cancel/notice
+        // screen instead of their normal home, until they cancel or the
+        // scheduled purge runs.
+        if (userData.pendingDeletion) {
+          if (pathname !== '/account-deletion-pending') {
+            router.replace('/account-deletion-pending' as any);
           }
-
-          const isAuthScreen = ['/', '/index', '/login', '/register'].includes(pathname);
-          if (isAuthScreen) {
-            router.replace((ROLE_ROUTES[userRole] ?? '/student/home') as any);
-          }
+          return;
         }
-      } catch (err) {
-        console.error("Error loading user layout configurations:", err);
-        setRole(null);
-        Alert.alert(
-          lang === 'he' ? 'שגיאה' : 'Error',
-          lang === 'he'
-            ? 'טעינת הפרופיל נכשלה. משוך לרענון או התחבר מחדש.'
-            : 'Failed to load your profile. Pull to refresh or sign in again.',
-        );
-      } finally {
-        setLoaded(true);
+
+        const isAuthScreen = ['/', '/index', '/login', '/register'].includes(pathname);
+        if (isAuthScreen) {
+          router.replace((ROLE_ROUTES[userRole] ?? '/student/home') as any);
+        }
       }
-    });
+    } catch (err) {
+      console.error("Error loading user layout configurations:", err);
+      setRole(null);
+      setProfileError(true);
+    } finally {
+      setLoaded(true);
+    }
+  };
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => { loadProfile(user); });
     return unsub;
   }, []);
 
@@ -289,6 +296,29 @@ export default function TabLayout() {
   // Show 404 for completely unknown routes
   if (loaded && !isKnownRoute(pathname)) {
     return <NotFoundScreen lang={lang} />;
+  }
+
+  if (loaded && profileError && !role) {
+    return (
+      <View style={nf.root}>
+        <Text style={nf.emoji}>⚠️</Text>
+        <Text style={nf.title}>{lang === 'he' ? 'שגיאה' : 'Error'}</Text>
+        <Text style={nf.sub}>
+          {lang === 'he'
+            ? 'טעינת הפרופיל נכשלה. בדוק/י את החיבור לאינטרנט ונסה/י שוב.'
+            : 'Failed to load your profile. Check your connection and try again.'}
+        </Text>
+        <Pressable
+          onPress={() => loadProfile(auth.currentUser)}
+          accessibilityRole="button"
+          style={{ marginTop: 16 }}
+        >
+          <Text style={{ color: '#2E86FF', fontWeight: '600', fontSize: 14 }}>
+            {lang === 'he' ? 'נסה שוב' : 'Try again'}
+          </Text>
+        </Pressable>
+      </View>
+    );
   }
 
   const shouldHideTabs =

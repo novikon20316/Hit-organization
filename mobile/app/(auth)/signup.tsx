@@ -5,7 +5,6 @@
 // pickers stay as native grids and a modal (there's no equivalent to a
 // web <select> here), just re-skinned with the same tokens.
 import React, { useState, useRef } from 'react';
-import * as Notifications from 'expo-notifications'
 import {
   View, Text, Pressable, ScrollView, Modal,
   ActivityIndicator, Alert, TextInput,
@@ -162,17 +161,13 @@ export default function ProfileSetup() {
   // skipping straight to this call.
   const finishRegistration = async (user: User) => {
     const idToken = await user.getIdToken(true); // force refresh so email_verified is current
-    let expoPushToken: string | null = null;
-    try {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') {
-        const tokenData = await Notifications.getExpoPushTokenAsync();
-        expoPushToken = tokenData.data;
-      }
-    } catch (e) {
-      console.warn('Could not get push token during registration:', e);
-      // Non-fatal — _layout.tsx will retry on next login
-    }
+    // Push token registration happens once via _layout.tsx's own
+    // registerPushToken() right after this signup completes and the auth
+    // state change fires — no need to duplicate it here (this used to
+    // fetch its own token via a top-level `import * as Notifications`,
+    // which crashes Expo Go on SDK 54 when imported at module load time,
+    // per components/pushNotifications.ts's own documented fix — and the
+    // result was discarded below anyway, always sending `expoPushToken: null`).
     const response = await apiClient.post('/api/users/sync', {
         newUid: user.uid,
         email: email,

@@ -13,10 +13,7 @@
       "bundleIdentifier": "com.organization.projects",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
