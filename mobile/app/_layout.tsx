@@ -141,7 +141,14 @@ function RootLayoutInner() {
   const checkMaintenance        = useMaintenanceCheck();
   const pathnameRef             = useRef(pathname);
   const scheduleRedirectRef     = useRef<((target: RouterTarget) => void) | null>(null);
-  const pushTokenRegistered     = useRef(false);
+  // SECURITY FIX: was `useRef(false)` — a plain "have we registered this
+  // session" flag that outlives sign-out/sign-in within the same JS process.
+  // On a shared/kiosk device, User A signs in (token registered), signs out,
+  // and User B signs in without force-quitting the app: this flag was still
+  // `true`, so B's login never re-registered the token — B silently got zero
+  // push notifications for the rest of that app session. Now tracks WHICH
+  // uid the token is registered for, so a different uid re-registers.
+  const pushTokenRegisteredForUid = useRef<string | null>(null);
   const initialAuthCheckedRef   = useRef(false);
   // Last /api/users/me response seen by the auth-state effect below — read
   // by the navigation re-check effect further down so it doesn't need its
@@ -261,9 +268,9 @@ function RootLayoutInner() {
           return;
         }
 
-        // ── Push token (once per session) ──────────────────────────────────
-        if (!pushTokenRegistered.current) {
-          pushTokenRegistered.current = true;
+        // ── Push token (once per signed-in uid) ──────────────────────────────
+        if (pushTokenRegisteredForUid.current !== user.uid) {
+          pushTokenRegisteredForUid.current = user.uid;
           registerPushToken(); // fire-and-forget — don't block routing
         }
 
