@@ -6,6 +6,7 @@ import EditUserModal from './EditUserModal';
 import NewProjectModal from './NewProjectModal';
 import RecommendedExaminerModal from './RecommendedExaminerModal';
 import ScheduleDefenseModal from './ScheduleDefenseModal';
+import ProposeMeetingModal from './ProposeMeetingModal';
 import DeleteAccountModal from './DeleteAccountModal';
 import BulkDueDateModal from './BulkDueDateModal';
 import PermissionsEditorModal from './PermissionsEditorModal';
@@ -25,6 +26,7 @@ export {
     NewProjectModal,
     RecommendedExaminerModal,
     ScheduleDefenseModal,
+    ProposeMeetingModal,
     DeleteAccountModal,
     BulkDueDateModal,
     PermissionsEditorModal,

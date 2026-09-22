@@ -37,6 +37,8 @@ export type NotificationType =
   | 'application_declined_by_student'
   | 'application_rejected'
   | 'meeting_requested'
+  | 'meeting_proposed'
+  | 'meeting_confirmed'
   | 'milestone_graded'
   | 'milestone_submitted'
   // Same event as 'milestone_submitted', for a recipient who is NOT the
@@ -164,6 +166,40 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>Hello ${d.name || ''},</p>
       <p>Your supervisor would like to meet before deciding on your application for <strong>${d.projectTitle || ''}</strong>.</p>
       <p>Log in to arrange a time.</p>
+    `,
+  },
+
+  meeting_proposed: {
+    subjectHe: '📅 המנחה הציע/ה מועדים לפגישה',
+    subjectEn: '📅 Your Supervisor Proposed Meeting Times',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>המנחה שלך הציע/ה מספר מועדים אפשריים לפגישה בנוגע לבקשתך לפרויקט <strong>${d.projectTitle || ''}</strong>:</p>
+      <p>${d.slotsList || ''}</p>
+      <p>היכנס/י למערכת ובחר/י את המועד המתאים לך.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>Your supervisor proposed the following meeting times for your application to <strong>${d.projectTitle || ''}</strong>:</p>
+      <p>${d.slotsList || ''}</p>
+      <p>Log in and pick the time that works for you.</p>
+    `,
+  },
+
+  meeting_confirmed: {
+    subjectHe: '✅ נקבעה פגישה',
+    subjectEn: '✅ Meeting Confirmed',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>נקבעה פגישה בנוגע לבקשה לפרויקט <strong>${d.projectTitle || ''}</strong>, בתאריך <strong>${d.meetingTime || ''}</strong>.</p>
+      ${d.calendarLink ? `<p><a href="${d.calendarLink}">לצפייה ביומן Google</a></p>` : ''}
+      <p>תזכורת תישלח באפליקציה שעה לפני הפגישה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>A meeting has been confirmed for your application to <strong>${d.projectTitle || ''}</strong>, on <strong>${d.meetingTime || ''}</strong>.</p>
+      ${d.calendarLink ? `<p><a href="${d.calendarLink}">View on Google Calendar</a></p>` : ''}
+      <p>You'll get an in-app reminder 1 hour before the meeting.</p>
     `,
   },
 

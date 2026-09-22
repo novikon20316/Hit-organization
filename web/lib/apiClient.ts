@@ -1166,6 +1166,15 @@ export const apiClient = {
     });
   },
 
+  /** Student picks one of the supervisor's proposed meeting slots — see
+   *  server/src/controllers/applicationController.ts's confirmMeetingSlot. */
+  async confirmMeetingSlot(applicationId: string, selectedSlot: string) {
+    return request<{ success: boolean; meetingDate: string; calendarLink: string | null }>(
+      `/api/applications/${applicationId}/confirm-meeting`,
+      { method: 'POST', body: { selectedSlot } },
+    );
+  },
+
   async getInfoFiles() {
     return request<{
       files: Array<{
@@ -1375,6 +1384,29 @@ export const apiClient = {
     notes?: string;
   }) {
     return request<{ success: boolean; message: string }>('/api/supervisor/applications/decision', { method: 'POST', body: payload });
+  },
+
+  /** Proposes 1-5 candidate meeting times (ISO datetime strings) for an
+   *  application — see server/src/controllers/supervisorController.ts's
+   *  proposeMeeting. Unlike handleApplicationDecision, this never finalizes
+   *  the application; it stays pending (approve/reject still work). */
+  async proposeMeeting(applicationId: string, slots: string[]) {
+    return request<{ success: boolean; meetingSlots: string[] }>(
+      `/api/supervisor/applications/${applicationId}/propose-meeting`,
+      { method: 'POST', body: { slots } },
+    );
+  },
+
+  async getCalendarStatus() {
+    return request<{ configured: boolean; connected: boolean }>('/api/supervisor/calendar/status', { method: 'GET' });
+  },
+
+  async getCalendarConnectUrl() {
+    return request<{ url: string }>('/api/supervisor/calendar/connect', { method: 'GET' });
+  },
+
+  async disconnectCalendar() {
+    return request<{ success: boolean }>('/api/supervisor/calendar/disconnect', { method: 'POST' });
   },
 
   async updateSupervisorProject(

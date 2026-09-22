@@ -2,7 +2,7 @@
 // One row per pending application in BrowseProjects' "My Applications" panel
 // — extracted from the old full-screen Pendingscreen.tsx now that a student
 // can have several of these open at once instead of exactly one.
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
 import type { Lang } from '../components/i18n';
 import type { PendingApplication } from '@/types';
@@ -21,10 +21,26 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
     ? new Date(application.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : '—';
   const isMeetingRequested = application.status === 'meeting_requested';
+  const isMeetingProposed = application.status === 'meeting_proposed';
+  const isMeetingConfirmed = application.status === 'meeting_confirmed';
   const isAwaitingConfirmation = application.status === 'awaiting_student_confirmation';
   const reviewedDate = application.reviewedAt
     ? new Date(application.reviewedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
+  const [meetingBusy, setMeetingBusy] = useState(false);
+
+  const pickMeetingSlot = async (slot: string) => {
+    setMeetingBusy(true);
+    try {
+      await apiClient.post(`/api/applications/${application.id}/confirm-meeting`, { selectedSlot: slot });
+      onWithdrawn();
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert('Error', err.response?.data?.message || 'Action failed');
+    } finally {
+      setMeetingBusy(false);
+    }
+  };
 
   const handleWithdraw = () => {
     Alert.alert(
@@ -79,9 +95,13 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
         <Text style={[styles.rowValue, styles.rowValueHighlight]}>
           {isAwaitingConfirmation
             ? (lang === 'he' ? '🎉 אושר — ממתין לאישורך' : '🎉 Approved — awaiting your decision')
-            : isMeetingRequested
-              ? (lang === 'he' ? '📅 נדרשת פגישה' : '📅 Meeting Requested')
-              : (lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting Review')}
+            : isMeetingConfirmed
+              ? (lang === 'he' ? '✅ פגישה נקבעה' : '✅ Meeting Confirmed')
+              : isMeetingProposed
+                ? (lang === 'he' ? '📅 בחר/י מועד לפגישה' : '📅 Pick a Meeting Time')
+                : isMeetingRequested
+                  ? (lang === 'he' ? '📅 נדרשת פגישה' : '📅 Meeting Requested')
+                  : (lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting Review')}
         </Text>
       </View>
       <View style={styles.divider} />
@@ -104,6 +124,42 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
             {lang === 'he'
               ? 'המנחה ביקש להיפגש איתך לפני אישור המועמדות. יש לתאם פגישה.'
               : 'The supervisor has requested a meeting before approving your application. Please arrange a meeting.'}
+          </Text>
+        </View>
+      )}
+
+      {isMeetingProposed && !!application.meetingSlots?.length && (
+        <View style={[styles.meetingBanner, { marginTop: 12, marginBottom: 0, flexDirection: 'column', alignItems: 'stretch' }]}>
+          <View style={[styles.row, isRtl && styles.rowReverse, { paddingVertical: 0 }]}>
+            <Text style={styles.meetingIcon}>📅</Text>
+            <Text style={[styles.meetingText, isRtl && styles.textRight]}>
+              {lang === 'he'
+                ? 'המנחה הציע/ה את המועדים הבאים לפגישה — בחר/י אחד מהם:'
+                : 'Your supervisor proposed the following meeting times — pick one:'}
+            </Text>
+          </View>
+          {application.meetingSlots!.map((slot) => (
+            <Pressable
+              key={slot}
+              style={styles.slotButton}
+              disabled={meetingBusy}
+              onPress={() => pickMeetingSlot(slot)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.slotButtonText}>
+                {new Date(slot).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'full', timeStyle: 'short' })}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {isMeetingConfirmed && !!application.meetingDate && (
+        <View style={[styles.confirmBanner, { marginTop: 12 }]}>
+          <Text style={styles.confirmIcon}>✅</Text>
+          <Text style={[styles.confirmText, isRtl && styles.textRight]}>
+            {lang === 'he' ? 'נקבעה פגישה בתאריך' : 'Meeting confirmed for'}{' '}
+            {new Date(application.meetingDate).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'full', timeStyle: 'short' })}
           </Text>
         </View>
       )}

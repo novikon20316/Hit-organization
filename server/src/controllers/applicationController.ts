@@ -8,6 +8,7 @@ import { normalizePrerequisites, normalizeCompletedCourses, normalizeMinAverageG
 import { notifyUser } from '../services/notify.js'
 import { enrollStudentInProject } from '../services/projectEnrollment.js'
 import { resolveEffectiveTrack } from '../config/studentTrack.js'
+import { createMeetingEvent, isCalendarConnected } from '../services/googleCalendarService.js'
 
 const db = admin.firestore();
 
@@ -124,7 +125,7 @@ export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =
         // (see confirmApplicationStart below).
         const applicationsSnapshot = await db.collection('applications')
             .where('studentId', '==', studentId)
-            .where('status', 'in', ['applied', 'meeting_requested', 'awaiting_student_confirmation'])
+            .where('status', 'in', ['applied', 'meeting_requested', 'meeting_proposed', 'meeting_confirmed', 'awaiting_student_confirmation'])
             .get();
 
         // 5. Format the documents into a clean array
@@ -484,6 +485,123 @@ export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Re
         return res.status(200).json({ success: true });
     } catch (error) {
         console.error('confirmApplicationStart error:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// ─── POST /api/applications/:id/confirm-meeting ──────────────────────────────
+// The student's half of the meeting-scheduling flow — see
+// supervisorController.ts's proposeMeeting for the supervisor's half. Picking
+// one of the proposed slots locks it in, best-effort creates the event on the
+// supervisor's Google Calendar (with the student as an attendee — Google
+// emails them the invite itself, no student-side OAuth needed), and notifies
+// both sides. The application's status/approval flow is untouched by this —
+// see the 'meeting_confirmed' entry in handleApplicationDecision's status
+// guard — the supervisor still separately approves or rejects afterward.
+export const confirmMeetingSlot = async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { selectedSlot } = req.body;
+    const studentId = req.user?.uid;
+
+    if (!studentId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!id || typeof id !== 'string') {
+        return res.status(400).json({ success: false, message: 'A valid application id is required.' });
+    }
+    if (!selectedSlot || typeof selectedSlot !== 'string') {
+        return res.status(400).json({ success: false, message: 'selectedSlot is required.' });
+    }
+
+    try {
+        const applicationRef = db.collection('applications').doc(id);
+        const appSnap = await applicationRef.get();
+        if (!appSnap.exists) return res.status(404).json({ success: false, message: 'Application not found.' });
+
+        const appData = appSnap.data()!;
+        if (appData.studentId !== studentId) {
+            return res.status(403).json({
+                success: false,
+                message: "Forbidden: you are not authorized to decide on another student's application.",
+            });
+        }
+        if (appData.status !== 'meeting_proposed') {
+            return res.status(409).json({ success: false, message: 'This application has no pending meeting proposal.' });
+        }
+        const meetingSlots: string[] = appData.meetingSlots ?? [];
+        if (!meetingSlots.includes(selectedSlot)) {
+            return res.status(400).json({ success: false, message: 'That time was not one of the proposed slots.' });
+        }
+
+        const { projectId, supervisorId, projectTitleHe, projectTitleEn, studentName, studentEmail } = appData;
+
+        await applicationRef.update({
+            status: 'meeting_confirmed',
+            meetingDate: selectedSlot,
+            meetingConfirmedAt: new Date().toISOString(),
+            meetingReminderSent: false,
+        });
+
+        // Calendar sync is additive, not load-bearing — the meeting is
+        // already confirmed above regardless of whether this succeeds (no
+        // Calendar configured, supervisor never connected it, a revoked
+        // grant, a transient API error — all just skip silently, matching
+        // notifyUser's own "never let a channel failure block the flow"
+        // contract elsewhere in this codebase).
+        let calendarLink: string | null = null;
+        if (supervisorId && studentEmail && await isCalendarConnected(supervisorId).catch(() => false)) {
+            try {
+                const event = await createMeetingEvent({
+                    supervisorId,
+                    studentEmail,
+                    titleHe: `פגישה עם ${studentName ?? ''} — ${projectTitleHe ?? ''}`,
+                    titleEn: `Meeting with ${studentName ?? ''} — ${projectTitleEn ?? ''}`,
+                    startTime: new Date(selectedSlot),
+                });
+                calendarLink = event.htmlLink;
+                await applicationRef.update({ meetingCalendarEventId: event.eventId });
+            } catch (calendarError) {
+                console.error(`confirmMeetingSlot: Google Calendar sync failed for supervisor ${supervisorId}:`, calendarError);
+            }
+        }
+
+        const meetingTimeHe = new Date(selectedSlot).toLocaleString('he-IL', { dateStyle: 'full', timeStyle: 'short' });
+        const meetingTimeEn = new Date(selectedSlot).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+
+        await notifyUser({
+            recipientId: studentId,
+            type: 'meeting_confirmed',
+            titleHe: 'נקבעה פגישה ✅',
+            titleEn: 'Meeting Confirmed ✅',
+            bodyHe: `נקבעה פגישה עם המנחה בנוגע לפרויקט "${projectTitleHe ?? ''}", בתאריך ${meetingTimeHe}.`,
+            bodyEn: `A meeting with your supervisor was confirmed for "${projectTitleEn ?? ''}", on ${meetingTimeEn}.`,
+            relatedProjectId: projectId ?? null,
+            emailData: {
+                projectTitle: { he: projectTitleHe ?? '', en: projectTitleEn ?? '' },
+                meetingTime: { he: meetingTimeHe, en: meetingTimeEn },
+                ...(calendarLink ? { calendarLink } : {}),
+            },
+        }).catch((err) => console.error(`meeting_confirmed notify failed for student ${studentId}:`, err));
+
+        if (supervisorId) {
+            await notifyUser({
+                recipientId: supervisorId,
+                type: 'meeting_confirmed',
+                titleHe: 'הסטודנט/ית אישר/ה מועד לפגישה ✅',
+                titleEn: 'Student Confirmed a Meeting Time ✅',
+                bodyHe: `${studentName ?? ''} בחר/ה מועד לפגישה בנוגע ל-"${projectTitleHe ?? ''}": ${meetingTimeHe}.`,
+                bodyEn: `${studentName ?? ''} picked a meeting time for "${projectTitleEn ?? ''}": ${meetingTimeEn}.`,
+                relatedProjectId: projectId ?? null,
+                emailData: {
+                    projectTitle: { he: projectTitleHe ?? '', en: projectTitleEn ?? '' },
+                    meetingTime: { he: meetingTimeHe, en: meetingTimeEn },
+                    ...(calendarLink ? { calendarLink } : {}),
+                },
+                taskKind: 'applications',
+            }).catch((err) => console.error(`meeting_confirmed notify failed for supervisor ${supervisorId}:`, err));
+        }
+
+        return res.status(200).json({ success: true, meetingDate: selectedSlot, calendarLink });
+    } catch (error) {
+        console.error('confirmMeetingSlot error:', error);
         return res.status(500).json({ message: 'Internal server error' });
     }
 };

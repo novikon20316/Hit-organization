@@ -12,7 +12,7 @@ import { tx, type Lang } from '../../components/i18n';
 import { TopBar, StatCard, FacultyBadge, StatusBadge, getFacultyColor, FACULTY_COLORS } from '../../components/shared';
 import { sharedStyles, ap } from '@/constants';
 import { SupervisorExtraStyles } from '../../constants/styles';
-import { NewProjectModal, RecommendedExaminerModal } from '@/components/modals';
+import { NewProjectModal, RecommendedExaminerModal, ProposeMeetingModal } from '@/components/modals';
 import ProjectWorkflowSection from '@/components/ProjectWorkflowSection';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import { AppUser, MyProject, Application } from '@/types'
@@ -193,7 +193,7 @@ export default function SupervisorHome() {
   // web dashboard already supports.
   type SupervisorTab = 'applications' | 'grading' | 'recommend' | 'signoffs' | 'projects';
   const SUPERVISOR_TABS: SupervisorTab[] = ['applications', 'grading', 'recommend', 'signoffs', 'projects'];
-  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const { tab: tabParam, calendar: calendarParam } = useLocalSearchParams<{ tab?: string; calendar?: string }>();
   const [activeTab,      setActiveTab]      = useState<SupervisorTab>(
     SUPERVISOR_TABS.includes(tabParam as SupervisorTab) ? (tabParam as SupervisorTab) : 'projects'
   );
@@ -213,10 +213,17 @@ export default function SupervisorHome() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- TAB_BADGE_TARGET_SCREENS is a stable literal, re-declared each render but never changing shape
   }, [activeTab, unreadByTargetScreen, markTabSeen]);
-  const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'>('all');
+  const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'meeting_proposed' | 'meeting_confirmed' | 'rejected'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'offered'>('all');
   const [unreadCount,    setUnreadCount]    = useState(0);
   const [submitting,     setSubmitting]     = useState(false);
+  const [proposingMeetingFor, setProposingMeetingFor] = useState<Application | null>(null);
+  const [proposingMeetingBusy, setProposingMeetingBusy] = useState(false);
+  // Whether this supervisor has granted Google Calendar write access — see
+  // server/src/services/googleCalendarService.ts. `configured: false` means
+  // the server itself has no GOOGLE_CALENDAR_* env vars set yet, in which
+  // case the connect banner stays hidden entirely.
+  const [calendarStatus, setCalendarStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
 
   // ── New project modal ─────────────────────────────────────────────────────
   const [selectedProgram, setSelectedProgram] = React.useState<string | null>(null);
@@ -328,6 +335,10 @@ export default function SupervisorHome() {
       const profileRes = await apiClient.get('/api/users/profile');
       setSupervisorAssignedMajors(profileRes.data?.assignedMajors ?? []);
     } catch (_) { /* non-fatal */ }
+    try {
+      const calRes = await apiClient.get('/api/supervisor/calendar/status');
+      setCalendarStatus(calRes.data);
+    } catch (_) { /* non-fatal — the connect banner just stays hidden */ }
      finally {
       setLoading(false);
     }
@@ -343,6 +354,18 @@ export default function SupervisorHome() {
       unsubGradingRef.current?.();
     };
   }, []);
+
+  // Re-check connection status right after bouncing back from the Google
+  // Calendar OAuth flow (see connectCalendar/handleCalendarCallback) — the
+  // dashboard's own initial fetchDashboardData ran before the connection
+  // existed, so without this the banner would keep showing "not connected"
+  // until the next full reload.
+  useEffect(() => {
+    if (calendarParam !== 'connected') return;
+    apiClient.get('/api/supervisor/calendar/status')
+      .then((res) => setCalendarStatus(res.data))
+      .catch(() => {});
+  }, [calendarParam]);
 
   useEffect(() => {
     if (!supervisorId) return;
@@ -676,6 +699,38 @@ export default function SupervisorHome() {
     }
   };
 
+  // ── Meeting proposal ────────────────────────────────────────────────────────
+  // Real scheduling (replaces the old one-click 'meeting_requested' decision
+  // above, kept only for backward compatibility with historic data) — see
+  // server/src/controllers/supervisorController.ts's proposeMeeting. Never
+  // decides the application; Approve/Reject stay available throughout.
+  const submitMeetingProposal = async (slots: string[]) => {
+    if (!proposingMeetingFor) return;
+    setProposingMeetingBusy(true);
+    try {
+      await apiClient.post(`/api/supervisor/applications/${proposingMeetingFor.id}/propose-meeting`, { slots });
+      Alert.alert('✅', lang === 'he' ? 'ההצעה נשלחה' : 'Proposal sent.');
+      setProposingMeetingFor(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to propose meeting times.');
+    } finally {
+      setProposingMeetingBusy(false);
+    }
+  };
+
+  const connectCalendar = async () => {
+    try {
+      // platform=mobile tells the server's OAuth callback (supervisorController
+      // .ts's handleCalendarCallback) to bounce back into this app via its
+      // mobile:// deep link afterward, instead of the web dashboard.
+      const res = await apiClient.get('/api/supervisor/calendar/connect?platform=mobile');
+      const url = res.data?.url;
+      if (url) await Linking.openURL(url);
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to connect Google Calendar.');
+    }
+  };
+
   // ── Grade submission ──────────────────────────────────────────────────────
   const handleGrade = async () => {
     if (!activeMilestone) return;
@@ -890,11 +945,12 @@ export default function SupervisorHome() {
   const filteredApplications =
     applicationFilter === 'all' ? applications : applications.filter((app) => app.status === applicationFilter);
 
-  const APPLICATION_FILTERS: { key: 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected'; he: string; en: string }[] = [
+  const APPLICATION_FILTERS: { key: 'all' | 'applied' | 'approved' | 'meeting_requested' | 'meeting_proposed' | 'meeting_confirmed' | 'rejected'; he: string; en: string }[] = [
     { key: 'all', he: 'הכל', en: 'All' },
     { key: 'applied', he: 'ממתין לטיפול', en: 'Awaiting Response' },
     { key: 'approved', he: 'אושרו', en: 'Approved' },
-    { key: 'meeting_requested', he: 'תואמה פגישה', en: 'Set-Meeting' },
+    { key: 'meeting_proposed', he: 'ממתין לבחירת מועד', en: 'Awaiting Time Pick' },
+    { key: 'meeting_confirmed', he: 'פגישה נקבעה', en: 'Meeting Set' },
     { key: 'rejected', he: 'נדחו', en: 'Rejected' },
   ];
 
@@ -1129,6 +1185,42 @@ export default function SupervisorHome() {
         {/* ════ APPLICATIONS TAB ════ */}
         {activeTab === 'applications' && (
           <>
+            {calendarParam === 'connected' && (
+              <View style={{ backgroundColor: '#ECFDF5', borderRadius: 10, padding: 10, marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, color: '#166534', fontWeight: '600' }}>
+                  ✅ {lang === 'he' ? 'יומן Google חובר בהצלחה.' : 'Google Calendar connected successfully.'}
+                </Text>
+              </View>
+            )}
+            {calendarParam === 'error' && (
+              <View style={{ backgroundColor: '#FEF2F2', borderRadius: 10, padding: 10, marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, color: '#B91C1C', fontWeight: '600' }}>
+                  {lang === 'he' ? 'חיבור יומן Google נכשל, נסה שוב.' : 'Failed to connect Google Calendar — please try again.'}
+                </Text>
+              </View>
+            )}
+            {calendarStatus?.configured && !calendarStatus.connected && (
+              <View style={[
+                { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
+                { backgroundColor: ap.surfaceContainerLow, borderRadius: 12, borderWidth: 1, borderColor: ap.outlineVariant, padding: 10, marginBottom: 12 },
+                isRtl && styles.rowReverse,
+              ]}>
+                <Text style={{ fontSize: 12, color: ap.onSurface, flex: 1 }}>
+                  📅 {lang === 'he'
+                    ? 'חבר/י יומן Google כדי שפגישות מאושרות ייכנסו ליומנך אוטומטית.'
+                    : 'Connect Google Calendar so confirmed meetings are added to your calendar automatically.'}
+                </Text>
+                <Pressable
+                  onPress={connectCalendar}
+                  accessibilityRole="button"
+                  style={{ backgroundColor: ap.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}
+                >
+                  <Text style={{ color: ap.onPrimary, fontSize: 12, fontWeight: '700' }}>
+                    {lang === 'he' ? 'חבר יומן' : 'Connect Calendar'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
             <View style={[{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }, isRtl && styles.rowReverse]}>
               {APPLICATION_FILTERS.map((f) => (
                 <Pressable
@@ -1323,8 +1415,30 @@ export default function SupervisorHome() {
                           </View>
                         )}
 
+                        {app.status === 'meeting_proposed' && !!app.meetingSlots?.length && (
+                          <View style={[styles.coverNote, { backgroundColor: '#FFFBEB' }]}>
+                            <Text style={[styles.cardMeta, isRtl && styles.textRight, { fontWeight: '700', marginBottom: 4 }]}>
+                              📅 {lang === 'he' ? 'המועדים שהוצעו — ממתין לבחירת הסטודנט/ית:' : 'Proposed times — awaiting the student\'s pick:'}
+                            </Text>
+                            {app.meetingSlots.map((slot: string) => (
+                              <Text key={slot} style={[styles.coverNoteText, isRtl && styles.textRight]}>
+                                • {new Date(slot).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}
+                              </Text>
+                            ))}
+                          </View>
+                        )}
+
+                        {app.status === 'meeting_confirmed' && !!app.meetingDate && (
+                          <View style={[styles.coverNote, { backgroundColor: '#ECFDF5' }]}>
+                            <Text style={[styles.cardMeta, isRtl && styles.textRight, { fontWeight: '700' }]}>
+                              ✅ {lang === 'he' ? 'נקבעה פגישה בתאריך' : 'Meeting confirmed for'}{' '}
+                              {new Date(app.meetingDate).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'full', timeStyle: 'short' })}
+                            </Text>
+                          </View>
+                        )}
+
                         {/* Decision buttons — hidden once a final decision (approved/rejected) is made */}
-                        {(app.status === 'applied' || app.status === 'meeting_requested') && (
+                        {['applied', 'meeting_requested', 'meeting_proposed', 'meeting_confirmed'].includes(app.status) && (
                           <View style={[styles.decisionRow, isRtl && styles.rowReverse]}>
                             <Pressable
                               style={styles.approveBtn}
@@ -1335,10 +1449,14 @@ export default function SupervisorHome() {
                             </Pressable>
                             <Pressable
                               style={styles.meetingBtn}
-                              onPress={(e) => { e.stopPropagation?.(); handleDecision(app.id, app.projectId, 'meeting_requested', app.studentId); }}
+                              onPress={(e) => { e.stopPropagation?.(); setProposingMeetingFor(app); }}
                               accessibilityRole="button"
                             >
-                              <Text style={styles.meetingBtnText}>📅 {lang === 'he' ? 'בקש פגישה' : 'Request Meeting'}</Text>
+                              <Text style={styles.meetingBtnText}>
+                                📅 {app.status === 'meeting_proposed' || app.status === 'meeting_confirmed'
+                                  ? (lang === 'he' ? 'הצע מועדים חדשים' : 'Propose New Times')
+                                  : (lang === 'he' ? 'הצע פגישה' : 'Propose Meeting')}
+                              </Text>
                             </Pressable>
                             <Pressable
                               style={styles.rejectBtn}
@@ -1847,6 +1965,16 @@ export default function SupervisorHome() {
         recSubmitting={recSubmitting} 
         handleSubmitRecommendation={handleSubmitRecommendation}
         styles={styles}
+      />
+
+      <ProposeMeetingModal
+        visible={!!proposingMeetingFor}
+        application={proposingMeetingFor}
+        lang={lang}
+        isRtl={isRtl}
+        submitting={proposingMeetingBusy}
+        onClose={() => setProposingMeetingFor(null)}
+        onSubmit={submitMeetingProposal}
       />
 
       <Modal visible={!!erasureProject} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setErasureProject(null)}>

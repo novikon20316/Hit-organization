@@ -26,6 +26,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { ApplicationCard } from '@/app/supervisor/dashboard/ApplicationCard';
+import { ProposeMeetingModal } from '@/app/supervisor/dashboard/ProposeMeetingModal';
 import type { Application } from '@/app/supervisor/dashboard/types';
 
 // Buckets, not strict status equality — 'awaiting_student_confirmation' (she
@@ -38,7 +39,7 @@ import type { Application } from '@/app/supervisor/dashboard/types';
 // every status, unfiltered) — this is just a compact view of the same history.
 type Filter = 'pending' | 'approved' | 'rejected' | 'all';
 const FILTERS: { key: Filter; he: string; en: string; match: (status: string) => boolean }[] = [
-  { key: 'pending', he: 'ממתין לטיפול', en: 'Awaiting Response', match: (s) => s === 'applied' || s === 'meeting_requested' },
+  { key: 'pending', he: 'ממתין לטיפול', en: 'Awaiting Response', match: (s) => s === 'applied' || s === 'meeting_requested' || s === 'meeting_proposed' || s === 'meeting_confirmed' },
   { key: 'approved', he: 'אושרו', en: 'Approved', match: (s) => s === 'approved' || s === 'awaiting_student_confirmation' },
   { key: 'rejected', he: 'נדחו', en: 'Rejected', match: (s) => s === 'rejected' || s === 'declined_by_student' },
   { key: 'all', he: 'הכל', en: 'All', match: () => true },
@@ -59,6 +60,7 @@ export function MyApplicationsWidget() {
   // exactly the symptom this widget exists to fix in the first place. Now
   // surfaced instead of hidden behind an empty state.
   const [error, setError] = useState('');
+  const [proposingMeetingFor, setProposingMeetingFor] = useState<Application | null>(null);
 
   const fetchApplications = useCallback(() => {
     setLoading(true);
@@ -84,7 +86,7 @@ export function MyApplicationsWidget() {
   // The header badge always counts what needs HER action, regardless of
   // which filter is currently selected below — switching to "Approved" to
   // check on a student shouldn't make the actionable count disappear.
-  const pendingCount = applications.filter((a) => a.status === 'applied' || a.status === 'meeting_requested').length;
+  const pendingCount = applications.filter((a) => a.status === 'applied' || a.status === 'meeting_requested' || a.status === 'meeting_proposed' || a.status === 'meeting_confirmed').length;
   const activeFilter = FILTERS.find((f) => f.key === filter)!;
   const filtered = applications.filter((a) => activeFilter.match(a.status));
 
@@ -133,10 +135,26 @@ export function MyApplicationsWidget() {
                   : (lang === 'he' ? 'אין בקשות בקטגוריה זו' : 'No applications in this category')}
               </p>
             ) : (
-              filtered.map((app) => <ApplicationCard key={app.id} application={app} onDecided={fetchApplications} />)
+              filtered.map((app) => (
+                <ApplicationCard
+                  key={app.id}
+                  application={app}
+                  onDecided={fetchApplications}
+                  onProposeMeeting={() => setProposingMeetingFor(app)}
+                />
+              ))
             )}
           </div>
         </div>
+      )}
+
+      {proposingMeetingFor && (
+        <ProposeMeetingModal
+          key={proposingMeetingFor.id}
+          application={proposingMeetingFor}
+          onClose={() => setProposingMeetingFor(null)}
+          onProposed={fetchApplications}
+        />
       )}
     </div>
   );

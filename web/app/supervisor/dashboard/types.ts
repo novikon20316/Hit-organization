@@ -76,6 +76,13 @@ export interface Application {
    *  supervisorNote stays untouched (null) for these, since no supervisor
    *  actually reviewed/rejected it. */
   autoClosedReason?: 'accepted_elsewhere';
+  /** Candidate meeting times the supervisor proposed (status
+   *  'meeting_proposed') — see server/src/controllers/supervisorController.ts's
+   *  proposeMeeting. ISO datetime strings. */
+  meetingSlots?: string[];
+  /** The slot the student picked, once status is 'meeting_confirmed' — see
+   *  server/src/controllers/applicationController.ts's confirmMeetingSlot. */
+  meetingDate?: string | null;
   aiScreening?: {
     verdict: 'strong_fit' | 'partial_fit' | 'weak_fit' | 'unable_to_assess';
     reasoning: string;

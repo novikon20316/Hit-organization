@@ -25,6 +25,7 @@ import type { AppRole } from '@/lib/roles';
 import type { FacultyId } from '@/lib/i18n';
 import type { ExaminerUser } from '@/app/coordinator/home/types';
 import { ApplicationCard } from './ApplicationCard';
+import { ProposeMeetingModal } from './ProposeMeetingModal';
 import { GradeMilestoneModal } from './GradeMilestoneModal';
 import { ProjectCard } from './ProjectCard';
 import { EditProjectModal } from './EditProjectModal';
@@ -50,14 +51,15 @@ const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 type Tab = 'projects' | 'applications' | 'signoffs';
 const SUPERVISOR_TABS: Tab[] = ['projects', 'applications', 'signoffs'];
 const isSupervisorTab = (v: string | null): v is Tab => !!v && (SUPERVISOR_TABS as string[]).includes(v);
-type ApplicationFilter = 'all' | 'applied' | 'approved' | 'meeting_requested' | 'rejected';
+type ApplicationFilter = 'all' | 'applied' | 'approved' | 'meeting_requested' | 'meeting_proposed' | 'meeting_confirmed' | 'rejected';
 type ProjectFilter = 'all' | 'active' | 'offered';
 
 const APPLICATION_FILTERS: { key: ApplicationFilter; he: string; en: string }[] = [
   { key: 'all', he: 'הכל', en: 'All' },
   { key: 'applied', he: 'ממתין לטיפול', en: 'Awaiting Response' },
   { key: 'approved', he: 'אושרו', en: 'Approved' },
-  { key: 'meeting_requested', he: 'תואמה פגישה', en: 'Set-Meeting' },
+  { key: 'meeting_proposed', he: 'ממתין לבחירת מועד', en: 'Awaiting Time Pick' },
+  { key: 'meeting_confirmed', he: 'פגישה נקבעה', en: 'Meeting Set' },
   { key: 'rejected', he: 'נדחו', en: 'Rejected' },
 ];
 
@@ -101,6 +103,36 @@ function SupervisorDashboardContent() {
   // onCreated) or via a project card's own "Recommend Examiners" button —
   // never a standalone tab anymore, see RecommendExaminersModal.tsx.
   const [recommendExaminersTarget, setRecommendExaminersTarget] = useState<RecommendExaminersTarget | null>(null);
+  const [proposingMeetingFor, setProposingMeetingFor] = useState<Application | null>(null);
+  // Whether this supervisor has granted Google Calendar write access (see
+  // services/googleCalendarService.ts) — confirming a meeting time syncs it
+  // to their calendar when connected, skips silently otherwise.
+  // `configured: false` means the server itself has no GOOGLE_CALENDAR_*
+  // env vars set yet, in which case the connect banner stays hidden rather
+  // than offering a button that would 503.
+  const [calendarStatus, setCalendarStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
+  const calendarParam = searchParams.get('calendar');
+
+  const fetchCalendarStatus = useCallback(async () => {
+    try {
+      setCalendarStatus(await apiClient.getCalendarStatus());
+    } catch {
+      // non-fatal — the connect banner just stays hidden
+    }
+  }, []);
+
+  const connectCalendar = async () => {
+    try {
+      const { url } = await apiClient.getCalendarConnectUrl();
+      window.location.href = url;
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'החיבור ליומן נכשל' : 'Failed to connect Google Calendar');
+    }
+  };
+
+  useEffect(() => {
+    if (isAllowed) fetchCalendarStatus();
+  }, [isAllowed, fetchCalendarStatus]);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -278,6 +310,34 @@ function SupervisorDashboardContent() {
           {tab === 'applications' && (
             <div data-field-guide-id="applicationList">
               <FieldGuideOverlay guideKey={APPLICATIONS_TAB_GUIDE_KEY} steps={APPLICATIONS_TAB_FIELD_GUIDE} />
+
+              {calendarParam === 'connected' && (
+                <p className="mb-3 rounded-md bg-[var(--success-bg)] px-3 py-2 text-sm text-[#3F6B4C]">
+                  ✅ {lang === 'he' ? 'יומן Google חובר בהצלחה.' : 'Google Calendar connected successfully.'}
+                </p>
+              )}
+              {calendarParam === 'error' && (
+                <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
+                  {lang === 'he' ? 'חיבור יומן Google נכשל, נסה שוב.' : 'Failed to connect Google Calendar — please try again.'}
+                </p>
+              )}
+              {calendarStatus?.configured && !calendarStatus.connected && (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-supervisor border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2.5">
+                  <p className="text-xs text-supervisor-on-surface">
+                    📅 {lang === 'he'
+                      ? 'חבר/י יומן Google כדי שפגישות מאושרות ייכנסו ליומנך אוטומטית.'
+                      : 'Connect Google Calendar so confirmed meetings are added to your calendar automatically.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={connectCalendar}
+                    className="shrink-0 rounded-lg bg-supervisor-primary px-3 py-1.5 text-xs font-semibold text-supervisor-on-primary hover:opacity-90"
+                  >
+                    {lang === 'he' ? 'חבר יומן' : 'Connect Calendar'}
+                  </button>
+                </div>
+              )}
+
               <div className="mb-4 flex gap-1 overflow-x-auto">
                 {APPLICATION_FILTERS.map(({ key, he, en }) => (
                   <button
@@ -296,7 +356,12 @@ function SupervisorDashboardContent() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {filteredApplications.map((app) => (
-                  <ApplicationCard key={app.id} application={app} onDecided={fetchDashboard} />
+                  <ApplicationCard
+                    key={app.id}
+                    application={app}
+                    onDecided={fetchDashboard}
+                    onProposeMeeting={() => setProposingMeetingFor(app)}
+                  />
                 ))}
                 {filteredApplications.length === 0 && (
                   <p className="text-sm text-supervisor-on-surface-variant">
@@ -421,6 +486,15 @@ function SupervisorDashboardContent() {
           internalExaminers={internalExaminers}
           onClose={() => setRecommendExaminersTarget(null)}
           onSubmitted={() => setRecommendExaminersTarget(null)}
+        />
+      )}
+
+      {proposingMeetingFor && (
+        <ProposeMeetingModal
+          key={proposingMeetingFor.id}
+          application={proposingMeetingFor}
+          onClose={() => setProposingMeetingFor(null)}
+          onProposed={fetchDashboard}
         />
       )}
     </DashboardShell>

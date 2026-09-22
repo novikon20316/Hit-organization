@@ -47,7 +47,7 @@ import { getFacultyContent, dismissFacultyContent } from './controllers/facultyC
 import { getStudentStatusOptions } from './controllers/studentStatusController.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
-import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders } from './services/notificationScheduler.js';
+import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders, sendMeetingReminders } from './services/notificationScheduler.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
 import { apiLimiter } from './middleware/rateLimit.js';
@@ -245,6 +245,14 @@ setInterval(() => {
 setInterval(() => {
   sendExaminerDeadlineReminders().catch((err) => console.error('sendExaminerDeadlineReminders sweep failed:', err));
 }, ONE_HOUR_MS);
+// Meeting reminders fire 1 hour before a confirmed supervisor↔student
+// meeting — a much narrower window than the deadline reminders above, so
+// this sweep runs every 5 minutes instead of hourly (see
+// notificationScheduler.ts's sendMeetingReminders for why).
+const FIVE_MIN_MS = 5 * 60 * 1000;
+setInterval(() => {
+  sendMeetingReminders().catch((err) => console.error('sendMeetingReminders sweep failed:', err));
+}, FIVE_MIN_MS);
 // Presence-count trend samples for the "Live Transportation" chart — see
 // services/presenceHistory.ts. Sampled every minute regardless of whether an
 // admin has the page open, and run once immediately so the chart isn't empty

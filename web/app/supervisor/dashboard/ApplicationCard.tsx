@@ -11,6 +11,8 @@ const STATUS_LABEL: Record<string, { he: string; en: string }> = {
   applied: { he: 'ממתין', en: 'Pending' },
   approved: { he: 'אושר', en: 'Approved' },
   meeting_requested: { he: 'תואמה פגישה', en: 'Set-Meeting' },
+  meeting_proposed: { he: 'ממתין לבחירת מועד', en: 'Awaiting time pick' },
+  meeting_confirmed: { he: 'פגישה נקבעה', en: 'Meeting set' },
   rejected: { he: 'נדחה', en: 'Rejected' },
 };
 
@@ -50,9 +52,13 @@ const RECOMMENDATION_LABEL: Record<string, { he: string; en: string }> = {
 interface ApplicationCardProps {
   application: Application;
   onDecided: () => void;
+  /** Opens the parent page's ProposeMeetingModal for this application —
+   *  scheduling needs a form (candidate slots), unlike the plain
+   *  approve/reject one-click decisions this card handles itself. */
+  onProposeMeeting: () => void;
 }
 
-export function ApplicationCard({ application: app, onDecided }: ApplicationCardProps) {
+export function ApplicationCard({ application: app, onDecided, onProposeMeeting }: ApplicationCardProps) {
   const { lang } = useLanguage();
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
@@ -90,7 +96,7 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
   })();
   const reviewedLabel = REVIEWED_LABEL[app.status];
 
-  const decide = async (decision: 'approved' | 'rejected' | 'meeting_requested') => {
+  const decide = async (decision: 'approved' | 'rejected') => {
     setBusy(true);
     setError('');
     try {
@@ -211,7 +217,25 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
 
           {error && <p className="rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{error}</p>}
 
-          {(app.status === 'applied' || app.status === 'meeting_requested') && (
+          {app.status === 'meeting_proposed' && app.meetingSlots && app.meetingSlots.length > 0 && (
+            <div className="rounded-lg border border-accent bg-[#FBF3E3] p-2.5 text-xs text-supervisor-on-surface">
+              📅 {lang === 'he' ? 'המועדים שהוצעו — ממתין לבחירת הסטודנט/ית:' : 'Proposed times — awaiting the student\'s pick:'}
+              <ul className="mt-1 list-inside list-disc">
+                {app.meetingSlots.map((slot) => (
+                  <li key={slot}>{new Date(slot).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {app.status === 'meeting_confirmed' && app.meetingDate && (
+            <p className="rounded-lg border border-[#3F6B4C] bg-[var(--success-bg)] p-2.5 text-xs text-supervisor-on-surface">
+              ✅ {lang === 'he' ? 'נקבעה פגישה בתאריך' : 'Meeting confirmed for'}{' '}
+              {new Date(app.meetingDate).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'full', timeStyle: 'short' })}
+            </p>
+          )}
+
+          {['applied', 'meeting_requested', 'meeting_proposed', 'meeting_confirmed'].includes(app.status) && (
             <div className="flex gap-1.5">
               <button
                 type="button"
@@ -224,10 +248,12 @@ export function ApplicationCard({ application: app, onDecided }: ApplicationCard
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => decide('meeting_requested')}
+                onClick={onProposeMeeting}
                 className="flex-1 rounded-lg border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-[#FBF3E3] disabled:opacity-60"
               >
-                📅 {lang === 'he' ? 'בקש פגישה' : 'Request Meeting'}
+                📅 {app.status === 'meeting_proposed' || app.status === 'meeting_confirmed'
+                  ? (lang === 'he' ? 'הצע מועדים חדשים' : 'Propose New Times')
+                  : (lang === 'he' ? 'הצע פגישה' : 'Propose Meeting')}
               </button>
               <button
                 type="button"

@@ -2545,6 +2545,13 @@ export const PendingScreenStyles = StyleSheet.create({
     borderRadius: 12, backgroundColor: '#2E7D32',
   },
   confirmYesText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  slotButton: {
+    paddingVertical: 10, paddingHorizontal: 14,
+    borderRadius: 10, borderWidth: 1, borderColor: '#FFB300',
+    backgroundColor: '#fff', marginTop: 8,
+  },
+  slotButtonText: { color: '#111', fontWeight: '600', fontSize: 13 },
 });
 
 // ─── Auth screens ─────────────────────────────────────────────────────────────

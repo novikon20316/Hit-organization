@@ -262,6 +262,19 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Google Calendar OAuth refresh tokens for supervisors who connected
+    // their calendar to sync scheduled meetings (see server/src/services/
+    // googleCalendarService.ts). Deliberately never client-readable, unlike
+    // /users/{userId} above (which allows any signed-in user to read ANY
+    // profile) — a refresh token there would be exposed to every account.
+    // Written/read only via the Admin SDK from proposeMeeting/
+    // confirmMeetingSlot's calendar sync and the calendar connect/callback
+    // endpoints.
+    match /calendarCredentials/{supervisorId} {
+      allow read, write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     match /milestones/{milestoneId} {
       allow read: if isSignedIn() && (
         // Data-level checks first (0 get() calls) — fast path for students/supervisors
@@ -269,9 +282,13 @@ service cloud.firestore {
         resource.data.get('supervisorId', '') == request.auth.uid ||
         resource.data.get('secondarySupervisorId', '') == request.auth.uid ||
         request.auth.uid in resource.data.get('examinerIds', []) ||
-        // Role check (1 get() call) — for coordinators/admins
-        role(userDoc()) in ['system_admin', 'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head',
-          'internal_examiner']
+        // Role check (1 get() call) — for coordinators/admins, scoped to the
+        // milestone's own faculty (mirrors processFiles below). Previously
+        // any holder of these roles could read every faculty's milestones.
+        (isFacultyManager(userDoc()) && sameFaculty(userDoc(), resource.data.get('facultyId', ''))) ||
+        (role(userDoc()) in ['grad_school_head', 'internal_examiner'] &&
+          sameFaculty(userDoc(), resource.data.get('facultyId', ''))) ||
+        isCrossFaculty(userDoc())
       );
       // MEDIUM FIX: both had no ownership/relation check — any staff role
       // (even secondary_supervisor or internal_examiner) could create or
@@ -287,11 +304,26 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────────────────────────────────
     match /grades/{gradeId} {
+      // SECURITY FIX: the role branch below had no faculty scoping at all —
+      // grade documents don't carry their own facultyId (confirmed via a
+      // repo-wide search of every write site in projectController.ts), so
+      // any coordinator/faculty_admin/program_head/grad_school_head account,
+      // regardless of which faculty they actually manage, could directly
+      // read every grade (score + private comments + rejection reasons) in
+      // the entire system via the client SDK. Now resolves the owning
+      // project's facultyId (1 extra get(), same pattern as
+      // projectRecordEntries below) and scopes the role branch to it, same
+      // as the milestones/processFiles fix above. `studentId` is also
+      // checked here but is never actually written on a grade doc by any
+      // of the three creation sites — kept as defense-in-depth in case a
+      // future writer adds it, not because it's currently reachable.
       allow read: if isSignedIn() && (
         resource.data.graderId == request.auth.uid ||
-        resource.data.studentId == request.auth.uid ||
-        role(userDoc()) in ['coordinator', 'faculty_admin', 'program_head',
-          'administrative_secretary', 'grad_school_head', 'system_admin']
+        resource.data.get('studentId', '') == request.auth.uid ||
+        isCrossFaculty(userDoc()) ||
+        ((isFacultyManager(userDoc()) || role(userDoc()) == 'grad_school_head') &&
+          sameFaculty(userDoc(),
+            get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.get('facultyId', '')))
       );
       // MEDIUM FIX: create never checked request.resource.data.graderId ==
       // request.auth.uid nor that the creator was actually assigned as

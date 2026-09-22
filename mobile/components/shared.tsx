@@ -401,7 +401,25 @@ export function TopBar({
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const { unreadCount } = useNotifications();
 
+  // SECURITY FIX: only student screens ever passed onBeforeSignOut wired up
+  // to call POST /api/users/logout (which clears expoPushToken server-side)
+  // — every other role's dashboard called signOut(auth) directly, so on a
+  // shared/kiosk device that role's push token stayed live on their
+  // Firestore user doc after logout, still receiving their notifications
+  // (including grades/comments) for whoever signs in next this app session.
+  // Made unconditional here instead of relying on each of ~19 screens to
+  // opt in; onBeforeSignOut remains for screen-specific cleanup (e.g.
+  // unsubscribing Firestore listeners) that only that screen knows about.
+  const clearPushTokenOnLogout = async () => {
+    try {
+      await apiClient.post('/api/users/logout');
+    } catch (e) {
+      console.warn('Logout API call failed, continuing anyway');
+    }
+  };
+
   const handleSignOut = async () => {
+    await clearPushTokenOnLogout();
     await onBeforeSignOut?.();
     await signOut(auth);
     setTimeout(() => router.replace('/(auth)/login'), 100);
@@ -409,6 +427,7 @@ export function TopBar({
 
   const handleAccountDeletionRequested = async () => {
     setDeleteAccountModal(false);
+    await clearPushTokenOnLogout();
     await onBeforeSignOut?.();
     await signOut(auth);
     setTimeout(() => router.replace('/(auth)/login'), 100);
@@ -574,6 +593,8 @@ const STATUS_MAP = {
   approved:             { bg: '#ECFDF5', color: '#10B981', he: 'אושרה',           en: 'Approved' },
   rejected:             { bg: '#FEF2F2', color: '#EF4444', he: 'נדחתה',           en: 'Rejected' },
   meeting_requested:    { bg: '#FFF7ED', color: '#F97316', he: 'נדרשת פגישה',     en: 'Meeting Req.' },
+  meeting_proposed:     { bg: '#FFF7ED', color: '#F97316', he: 'ממתין לבחירת מועד', en: 'Awaiting time pick' },
+  meeting_confirmed:    { bg: '#ECFDF5', color: '#10B981', he: 'פגישה נקבעה',     en: 'Meeting Set' },
   in_progress:          { bg: '#EFF6FF', color: '#2E86FF', he: 'בתהליך',          en: 'In Progress' },
   published:            { bg: '#F0FDF4', color: '#16A34A', he: 'פורסם',           en: 'Published' },
   draft:                { bg: '#F8FAFC', color: '#94A3B8', he: 'טיוטה',           en: 'Draft' },

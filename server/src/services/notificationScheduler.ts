@@ -217,3 +217,47 @@ export async function sendExaminerDeadlineReminders(): Promise<void> {
     }
   }
 }
+
+/**
+ * "The app will notify him 1 hour before the meeting" — run on a SHORTER
+ * interval than the other sweeps in this file (see index.ts: every 5 min,
+ * not hourly), since a threshold measured in minutes needs finer-grained
+ * polling than a 7-day/1-day deadline does. Fires once, as soon as a
+ * confirmed meeting first comes within 1 hour of now, gated by the
+ * meetingReminderSent dedup flag set alongside it — same idempotency
+ * pattern as this file's other reminders. Push+in-app only (no email/SMS/
+ * WhatsApp) — this is a last-minute nudge, not a new fact to email home
+ * about; email/SMS already fired once when the meeting was confirmed (see
+ * applicationController.ts's confirmMeetingSlot).
+ */
+export async function sendMeetingReminders(): Promise<void> {
+  const now = Date.now();
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  const snap = await db.collection('applications').where('status', '==', 'meeting_confirmed').get();
+
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (data.meetingReminderSent || !data.meetingDate) continue;
+    const meetingTime = new Date(data.meetingDate).getTime();
+    if (Number.isNaN(meetingTime) || meetingTime <= now || meetingTime - now > ONE_HOUR_MS) continue;
+
+    try {
+      const recipients = [data.studentId, data.supervisorId].filter(Boolean) as string[];
+      await Promise.all(recipients.map((recipientId) => notifyUser({
+        recipientId,
+        type: 'meeting_confirmed',
+        inAppType: 'meeting_reminder_1h',
+        titleHe: '⏰ תזכורת: פגישה בעוד שעה',
+        titleEn: '⏰ Reminder: Meeting in 1 Hour',
+        bodyHe: `הפגישה בנוגע ל-"${data.projectTitleHe ?? ''}" מתחילה בעוד כשעה.`,
+        bodyEn: `Your meeting for "${data.projectTitleEn ?? ''}" starts in about an hour.`,
+        relatedProjectId: data.projectId ?? null,
+        channels: { email: false, sms: false, whatsapp: false, push: true, inApp: true },
+      }).catch((err) => console.error(`sendMeetingReminders: notify failed for ${recipientId} on application ${doc.id}:`, err))));
+
+      await doc.ref.update({ meetingReminderSent: true });
+    } catch (err) {
+      console.error(`sendMeetingReminders: failed for application ${doc.id}:`, err);
+    }
+  }
+}

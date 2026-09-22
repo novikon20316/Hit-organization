@@ -15,6 +15,11 @@ import {
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
 import { normalizePrerequisites, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js';
+import {
+  isCalendarConfigured, getCalendarAuthUrl, handleCalendarOAuthCallback,
+  isCalendarConnected, disconnectCalendar,
+} from '../services/googleCalendarService.js';
+import { WEBSITE_URL } from '../config/links.js';
 
 const db = admin.firestore();
 
@@ -626,7 +631,7 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     // closeOtherPendingApplications). This guard catches a second supervisor
     // still trying to act on one of those after the fact, whether they're
     // looking at stale UI or two requests raced.
-    if (!['applied', 'meeting_requested'].includes(appSnap.data()?.status)) {
+    if (!['applied', 'meeting_requested', 'meeting_proposed', 'meeting_confirmed'].includes(appSnap.data()?.status)) {
       return res.status(409).json({
         message: appSnap.data()?.autoClosedReason === 'accepted_elsewhere'
           ? 'This student has already been accepted into another project.'
@@ -715,6 +720,186 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
       return res.status(409).json({ message: 'This student has already been accepted into another project.' });
     }
     return res.status(500).json({ message: 'Failed to process application decision.' });
+  }
+};
+
+// ─── POST /api/supervisor/applications/:id/propose-meeting ────────────────────
+// Real meeting scheduling (replaces the old one-click 'meeting_requested'
+// decision, kept above only for backward compatibility with historic data —
+// no code path produces it anymore). The supervisor offers 1+ candidate
+// date/time slots; the application stays pending throughout (see the
+// 'meeting_proposed'/'meeting_confirmed' entries in the decision guard
+// above) — scheduling a meeting is a detour, not a decision, so Approve/
+// Reject stay available before, during, and after it, same as they always
+// were for a plain 'applied' application.
+const MAX_MEETING_SLOTS = 5;
+
+export const proposeMeeting = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  const id = req.params.id as string;
+  const { slots } = req.body;
+
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!id) return res.status(400).json({ message: 'Missing application id.' });
+  if (!Array.isArray(slots) || slots.length === 0) {
+    return res.status(400).json({ message: 'At least one candidate meeting time is required.' });
+  }
+  if (slots.length > MAX_MEETING_SLOTS) {
+    return res.status(400).json({ message: `At most ${MAX_MEETING_SLOTS} candidate times.` });
+  }
+  const now = Date.now();
+  const parsedSlots: string[] = [];
+  for (const raw of slots) {
+    const t = new Date(raw).getTime();
+    if (typeof raw !== 'string' || Number.isNaN(t)) return res.status(400).json({ message: `Invalid date/time: ${raw}` });
+    if (t <= now) return res.status(400).json({ message: 'Proposed times must be in the future.' });
+    parsedSlots.push(new Date(raw).toISOString());
+  }
+
+  try {
+    const applicationRef = db.collection('applications').doc(id);
+    const appSnap = await applicationRef.get();
+    if (!appSnap.exists) return res.status(404).json({ message: 'Application not found.' });
+
+    const appData = appSnap.data()!;
+    // Same ownership model as handleApplicationDecision above (primary or
+    // secondary supervisor on the project).
+    if (appData.supervisorId !== supervisorId) {
+      const projectSnap = appData.projectId ? await db.collection('projects').doc(appData.projectId).get() : null;
+      if (projectSnap?.data()?.secondarySupervisorId !== supervisorId) {
+        return res.status(403).json({ message: 'Forbidden.' });
+      }
+    }
+    // Re-proposing is allowed from 'meeting_proposed' (e.g. the student
+    // couldn't make any of the first round's slots — there's no separate
+    // "decline all slots" action for the student today, so this is how a
+    // supervisor recovers from that) AND from 'meeting_confirmed' (the
+    // already-agreed time no longer works and needs rescheduling), not just
+    // the initial 'applied'. A fresh proposal here always clears out
+    // whatever was previously confirmed (meetingDate/meetingCalendarEventId
+    // below) — the old Google Calendar event is deliberately left in place
+    // rather than auto-cancelled, since removing it silently out from under
+    // a supervisor who already saw it on their calendar is a bigger
+    // surprise than one stale invite they can delete themselves.
+    if (!['applied', 'meeting_proposed', 'meeting_confirmed'].includes(appData.status)) {
+      return res.status(409).json({ message: 'A meeting can only be proposed while this application is still pending.' });
+    }
+
+    const projectId = appData.projectId;
+    const studentId = appData.studentId;
+    const [projectSnap, supervisorSnap] = await Promise.all([
+      db.collection('projects').doc(projectId).get(),
+      db.collection('users').doc(supervisorId).get(),
+    ]);
+    const projectTitleHe = projectSnap.data()?.titleHe ?? '';
+    const projectTitleEn = projectSnap.data()?.titleEn ?? '';
+    const supervisorName = supervisorSnap.data()?.displayNameHe ?? supervisorSnap.data()?.displayName ?? '';
+
+    await applicationRef.update({
+      status: 'meeting_proposed',
+      meetingSlots: parsedSlots,
+      meetingDate: null,
+      meetingProposedAt: new Date().toISOString(),
+      meetingReminderSent: false,
+    });
+
+    const slotsListHe = parsedSlots.map((s) => `• ${new Date(s).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`).join('<br/>');
+    const slotsListEn = parsedSlots.map((s) => `• ${new Date(s).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}`).join('<br/>');
+
+    await notifyUser({
+      recipientId: studentId,
+      type: 'meeting_proposed',
+      titleHe: 'המנחה הציע/ה מועדים לפגישה 📅',
+      titleEn: 'Your Supervisor Proposed Meeting Times 📅',
+      bodyHe: `המנחה ${supervisorName} הציע/ה מועדים לפגישה לגבי הבקשה לפרויקט "${projectTitleHe}". יש לבחור מועד באפליקציה.`,
+      bodyEn: `Supervisor ${supervisorName} proposed meeting times for your application to "${projectTitleEn}". Please pick a time in the app.`,
+      relatedProjectId: projectId,
+      emailData: {
+        projectTitle: { he: projectTitleHe, en: projectTitleEn },
+        slotsList: { he: slotsListHe, en: slotsListEn },
+      },
+    });
+
+    return res.status(200).json({ success: true, meetingSlots: parsedSlots });
+  } catch (error) {
+    console.error('proposeMeeting error:', error);
+    return res.status(500).json({ message: 'Failed to propose meeting times.' });
+  }
+};
+
+// ─── Google Calendar connection (supervisor-only) ──────────────────────────────
+// A supervisor's own opt-in grant of calendar write access — see
+// services/googleCalendarService.ts's header comment for why this is a
+// separate OAuth flow from Google sign-in, and why the resulting refresh
+// token is never stored on the `users` doc.
+
+export const getCalendarStatus = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  const connected = isCalendarConfigured() ? await isCalendarConnected(supervisorId) : false;
+  return res.status(200).json({ configured: isCalendarConfigured(), connected });
+};
+
+export const getCalendarConnectUrl = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!isCalendarConfigured()) {
+    return res.status(503).json({ message: 'Google Calendar is not configured on this server yet.' });
+  }
+  // ?platform=mobile from the app's own connect call — see mobile/app/
+  // supervisor/dashboard.tsx's connectCalendar — so handleCalendarCallback
+  // below knows to bounce back into the app instead of the web dashboard.
+  // Anything else (including omitted) defaults to 'web'.
+  const platform = req.query.platform === 'mobile' ? 'mobile' : 'web';
+  try {
+    return res.status(200).json({ url: getCalendarAuthUrl(supervisorId, platform) });
+  } catch (error) {
+    console.error('getCalendarConnectUrl error:', error);
+    return res.status(500).json({ message: 'Failed to build the Google Calendar connect link.' });
+  }
+};
+
+// GET, not verifyToken-protected — this is Google's OAuth redirect landing
+// back on the server, not an authenticated API call from our own client. The
+// supervisor's identity (and which client started the flow) comes from
+// `state`, which we set to "<uid>:<platform>" when building the consent URL
+// above (see getCalendarAuthUrl) and Google echoes back unmodified —
+// nothing else authenticates this request, so a stolen/guessed `state`
+// could bind someone else's Google account to that supervisor's
+// calendarCredentials doc. Acceptable here because the uid half is
+// unguessable and the worst outcome is a failed/foreign calendar connection
+// the supervisor would immediately notice, not account takeover or data
+// exposure — same trust level examinerAccess.ts's token links already
+// operate at.
+export const handleCalendarCallback = async (req: AuthenticatedRequest, res: Response) => {
+  const { code, state, error: oauthError } = req.query as { code?: string; state?: string; error?: string };
+  const [supervisorId, platform] = (state ?? '').split(':');
+  // mobile/app.json's "scheme" — opens the app straight to this screen when
+  // installed (same mobile:// deep-link convention services/
+  // notificationLinks.ts already uses for push/email links), simply fails
+  // silently if it isn't, no store-page fallback, matching that precedent.
+  const redirectBase = platform === 'mobile' ? 'mobile://supervisor/dashboard' : `${WEBSITE_URL}/supervisor/dashboard`;
+  if (oauthError || !code || !supervisorId) {
+    return res.redirect(`${redirectBase}?calendar=error`);
+  }
+  try {
+    await handleCalendarOAuthCallback(code, supervisorId);
+    return res.redirect(`${redirectBase}?calendar=connected`);
+  } catch (error) {
+    console.error('handleCalendarCallback error:', error);
+    return res.redirect(`${redirectBase}?calendar=error`);
+  }
+};
+
+export const disconnectCalendarHandler = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  try {
+    await disconnectCalendar(supervisorId);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('disconnectCalendarHandler error:', error);
+    return res.status(500).json({ message: 'Failed to disconnect Google Calendar.' });
   }
 };
 

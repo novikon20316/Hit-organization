@@ -976,10 +976,15 @@ export interface PendingApplication {
    *  start the project (see server/src/controllers/applicationController.ts's
    *  confirmApplicationStart) — lets a student holding several approvals at
    *  once pick which one to take. */
-  status:      'pending' | 'meeting_requested' | 'awaiting_student_confirmation';
+  status:      'pending' | 'meeting_requested' | 'meeting_proposed' | 'meeting_confirmed' | 'awaiting_student_confirmation';
   /** Set when the supervisor requested a meeting — the date of that
    *  response, so the student can see when the supervisor answered. */
   reviewedAt?: string | null;
+  /** Candidate meeting times the supervisor proposed (status
+   *  'meeting_proposed') — the student picks one via confirmMeetingSlot. */
+  meetingSlots?: string[];
+  /** The confirmed meeting time, once status is 'meeting_confirmed'. */
+  meetingDate?: string | null;
 }
 
 export interface AppNotification {
@@ -1045,6 +1050,12 @@ export interface Application {
    *  because the student got accepted into a different project — see
    *  server/src/services/projectEnrollment.ts's closeOtherPendingApplications. */
   autoClosedReason?: 'accepted_elsewhere';
+  /** Candidate meeting times the supervisor proposed (status
+   *  'meeting_proposed') — see server/src/controllers/supervisorController.ts's
+   *  proposeMeeting. ISO datetime strings. */
+  meetingSlots?: string[];
+  /** The slot the student picked, once status is 'meeting_confirmed'. */
+  meetingDate?: string | null;
   aiScreening?: {
     verdict: 'strong_fit' | 'partial_fit' | 'weak_fit' | 'unable_to_assess';
     reasoning: string;

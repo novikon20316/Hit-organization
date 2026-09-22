@@ -238,10 +238,15 @@ export interface PendingApplication {
    *  project (see server/src/controllers/applicationController.ts's
    *  confirmApplicationStart) — lets a student holding several approvals at
    *  once pick which one to take. */
-  status: 'pending' | 'meeting_requested' | 'awaiting_student_confirmation';
+  status: 'pending' | 'meeting_requested' | 'meeting_proposed' | 'meeting_confirmed' | 'awaiting_student_confirmation';
   /** Set when the supervisor requested a meeting — the date of that
    *  response, so the student can see when the supervisor answered. */
   reviewedAt?: string | null;
+  /** Candidate meeting times the supervisor proposed (status
+   *  'meeting_proposed') — the student picks one via confirmMeetingSlot. */
+  meetingSlots?: string[];
+  /** The confirmed meeting time, once status is 'meeting_confirmed'. */
+  meetingDate?: string | null;
 }
 
 // Ported from the local MILESTONE_LABEL const duplicated in mobile's

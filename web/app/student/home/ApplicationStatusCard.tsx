@@ -27,10 +27,27 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
     ? new Date(application.submittedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : '—';
   const isMeetingRequested = application.status === 'meeting_requested';
+  const isMeetingProposed = application.status === 'meeting_proposed';
+  const isMeetingConfirmed = application.status === 'meeting_confirmed';
   const isAwaitingConfirmation = application.status === 'awaiting_student_confirmation';
   const reviewedDate = application.reviewedAt
     ? new Date(application.reviewedAt).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
+  const [meetingBusy, setMeetingBusy] = useState(false);
+  const [meetingError, setMeetingError] = useState('');
+
+  const pickMeetingSlot = async (slot: string) => {
+    setMeetingBusy(true);
+    setMeetingError('');
+    try {
+      await apiClient.confirmMeetingSlot(application.id, slot);
+      onWithdrawn();
+    } catch (err) {
+      setMeetingError(err instanceof Error ? err.message : lang === 'he' ? 'הפעולה נכשלה' : 'Action failed');
+    } finally {
+      setMeetingBusy(false);
+    }
+  };
 
   const handleWithdraw = async () => {
     setBusy(true);
@@ -63,14 +80,21 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
         <p className="text-sm font-semibold text-ink">{lang === 'he' ? application.projectTitleHe : application.projectTitleEn}</p>
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-            isAwaitingConfirmation ? 'bg-[var(--success-bg)] text-[#3F6B4C]' : isMeetingRequested ? 'bg-[#FBF3E3] text-accent' : 'bg-paper text-ink'
+            isAwaitingConfirmation ? 'bg-[var(--success-bg)] text-[#3F6B4C]'
+            : isMeetingConfirmed ? 'bg-[var(--success-bg)] text-[#3F6B4C]'
+            : isMeetingRequested || isMeetingProposed ? 'bg-[#FBF3E3] text-accent'
+            : 'bg-paper text-ink'
           }`}
         >
           {isAwaitingConfirmation
             ? (lang === 'he' ? '🎉 אושר — ממתין לאישורך' : '🎉 Approved — awaiting your decision')
-            : isMeetingRequested
-              ? (lang === 'he' ? '📅 נדרשת פגישה' : '📅 Meeting Requested')
-              : (lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting Review')}
+            : isMeetingConfirmed
+              ? (lang === 'he' ? '✅ פגישה נקבעה' : '✅ Meeting Confirmed')
+              : isMeetingProposed
+                ? (lang === 'he' ? '📅 בחר/י מועד לפגישה' : '📅 Pick a Meeting Time')
+                : isMeetingRequested
+                  ? (lang === 'he' ? '📅 נדרשת פגישה' : '📅 Meeting Requested')
+                  : (lang === 'he' ? '⏳ ממתין לאישור' : '⏳ Awaiting Review')}
         </span>
       </div>
       <p className="mt-1 text-xs text-muted">
@@ -88,6 +112,37 @@ export function ApplicationStatusCard({ application, onWithdrawn }: ApplicationS
           📅 {lang === 'he'
             ? 'המנחה ביקש להיפגש איתך לפני אישור המועמדות. יש לתאם פגישה.'
             : 'The supervisor has requested a meeting before approving your application. Please arrange a meeting.'}
+        </p>
+      )}
+
+      {isMeetingProposed && application.meetingSlots && application.meetingSlots.length > 0 && (
+        <div className="mt-2 rounded-lg border border-accent bg-[#FBF3E3] p-2.5">
+          <p className="text-xs text-ink">
+            📅 {lang === 'he'
+              ? 'המנחה הציע/ה את המועדים הבאים לפגישה — בחר/י אחד מהם:'
+              : 'Your supervisor proposed the following meeting times — pick one:'}
+          </p>
+          {meetingError && <p className="mt-1.5 text-xs text-danger" role="alert">{meetingError}</p>}
+          <div className="mt-2 grid gap-1.5">
+            {application.meetingSlots.map((slot) => (
+              <button
+                key={slot}
+                type="button"
+                disabled={meetingBusy}
+                onClick={() => pickMeetingSlot(slot)}
+                className="rounded-lg border border-accent bg-surface px-2.5 py-1.5 text-start text-xs font-medium text-ink hover:bg-[#FBF3E3] disabled:opacity-60"
+              >
+                {new Date(slot).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'full', timeStyle: 'short' })}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isMeetingConfirmed && application.meetingDate && (
+        <p className="mt-2 rounded-lg border border-[#3F6B4C] bg-[var(--success-bg)] p-2.5 text-xs text-ink">
+          ✅ {lang === 'he' ? 'נקבעה פגישה בתאריך' : 'Meeting confirmed for'}{' '}
+          {new Date(application.meetingDate).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'full', timeStyle: 'short' })}
         </p>
       )}
 

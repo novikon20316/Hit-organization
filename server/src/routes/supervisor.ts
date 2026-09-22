@@ -9,6 +9,11 @@ import {
     createExaminerRecommendation,
     submitStaffRecord,
     decideFinalGrade,
+    proposeMeeting,
+    getCalendarStatus,
+    getCalendarConnectUrl,
+    handleCalendarCallback,
+    disconnectCalendarHandler,
 } from '../controllers/supervisorController.js'
 import { uploadMiddleware } from '../controllers/milestoneController.js';
 import { verifyToken } from '../middleware/auth.js';
@@ -22,6 +27,15 @@ router.put('/projects/:id', verifyToken, updateSupervisorProject)
 // (submitMilestoneGrade) — this file's own duplicate gradeMilestone endpoint
 // (with zero live callers) was removed.
 router.post('/applications/decision', verifyToken, handleApplicationDecision)
+router.post('/applications/:id/propose-meeting', verifyToken, proposeMeeting)
+// Calendar connect/status/disconnect are authenticated API calls from our own
+// client; the callback below is Google's OAuth redirect landing back on the
+// server itself, so it deliberately has no verifyToken — see
+// handleCalendarCallback's own comment for how it authenticates instead.
+router.get('/calendar/status', verifyToken, getCalendarStatus)
+router.get('/calendar/connect', verifyToken, getCalendarConnectUrl)
+router.get('/calendar/callback', handleCalendarCallback)
+router.post('/calendar/disconnect', verifyToken, disconnectCalendarHandler)
 router.post('/projects', verifyToken, createSupervisorProject)
 router.get('/examiner-recommendations', verifyToken, getSupervisorExaminerRecommendations)
 router.post('/examiner-recommendations', verifyToken, createExaminerRecommendation)
