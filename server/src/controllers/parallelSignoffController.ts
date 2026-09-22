@@ -12,10 +12,16 @@
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { notifyUser } from '../services/notify.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { resolveCommitteeForProject } from './committeeController.js';
+import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
+
+const SIGNOFF_STATUS_STAFF_ROLES = [
+  'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary',
+  'grad_school_head', 'internal_examiner', 'system_admin',
+];
 
 /** POST /api/milestones/:id/committee-chair-decision
  *  Body: { decision: 'continue' | 'not_continue', reason: string }
@@ -237,11 +243,42 @@ export const getMyPendingChairDecisions = async (req: AuthenticatedRequest, res:
  *  this endpoint exists for the committee/examiner-facing "is there anything
  *  for me to do" list screens, which don't otherwise fetch milestone docs. */
 export const getParallelSignoffStatus = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
   try {
     const snap = await db.collection('milestones').doc(milestoneId).get();
     if (!snap.exists) return res.status(404).json({ message: 'Milestone not found.' });
     const m = snap.data()!;
+
+    // SECURITY FIX: this endpoint previously had no authorization check at
+    // all beyond a valid token — any signed-in user of any role could pass
+    // an arbitrary milestone id and read the committee chair's decision
+    // (including their free-text reason) and the examiner #1 sign-off for a
+    // project they had no relation to. Mirrors the relation checks
+    // submitCommitteeChairDecision/submitExaminerOneSignoff above already
+    // enforce, plus the same faculty-scoped staff access other
+    // milestone-adjacent endpoints allow.
+    const isRelatedParty =
+      (m.studentIds ?? []).includes(uid) ||
+      m.supervisorId === uid ||
+      m.secondarySupervisorId === uid ||
+      (m.examinerIds ?? []).includes(uid);
+    let isAuthorizedStaff = false;
+    if (!isRelatedParty) {
+      if (hasAnyRole(req.user, SIGNOFF_STATUS_STAFF_ROLES) &&
+          withinCoordinatorScope(req.user, { facultyId: m.facultyId ?? '' })) {
+        isAuthorizedStaff = true;
+      } else if (m.projectId) {
+        const projectSnap = await db.collection('projects').doc(m.projectId).get();
+        const committee = projectSnap.exists ? await resolveCommitteeForProject(projectSnap.data()!) : null;
+        isAuthorizedStaff = committee?.chairmanId === uid;
+      }
+    }
+    if (!isRelatedParty && !isAuthorizedStaff) {
+      return res.status(403).json({ message: 'You do not have access to this milestone.' });
+    }
+
     return res.status(200).json({
       preGradeSignoffs: m.preGradeSignoffs ?? null,
       committeeChairDecision: m.committeeChairDecision ?? null,

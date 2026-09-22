@@ -65,6 +65,21 @@ export const impersonationLimiter = rateLimit({
   message: { error: 'Too many impersonation attempts. Please wait before trying again.' },
 });
 
+// External read-only integration endpoint (see routes/integrations.ts) — gated
+// only by a static shared secret, not Firebase Auth, so if that secret ever
+// leaks the blanket apiLimiter's 1000/15min would let an attacker enumerate
+// thousands of Israeli ID numbers (which have a checksum, so a much smaller
+// effective space than 10^9) and pull back grades/PII for each match. A
+// single legitimate integration partner has no reason to need more than a
+// few dozen lookups per window.
+export const integrationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' },
+});
+
 // Login-security endpoints are unauthenticated by necessity — a failed login
 // has no token to key on, and the confirm/deny link is only ever clicked by
 // someone who isn't signed in. Also protects the report endpoint's live call

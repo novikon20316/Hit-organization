@@ -734,6 +734,10 @@ async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.Docu
         titleEn: 'Milestone approved by coordinator',
         bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה${grade != null ? ` עם ציון ${grade}` : ''}. בדוק/י בטאב הציונים של הפרויקט שלך.${comment ? ` הערת הרכז: ${comment}` : ''}`,
         bodyEn: `Your milestone "${milestoneTitle.en}" has been approved${grade != null ? ` with grade ${grade}` : ''}. Check your project's Grades section.${comment ? ` Coordinator's comment: ${comment}` : ''}`,
+        // PRIVACY FIX: grade + coordinator comment shouldn't sit on a lock
+        // screen — push gets a generic body, full text stays in-app/email.
+        pushBodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה. פתח/י את האפליקציה לפרטים.`,
+        pushBodyEn: `Your milestone "${milestoneTitle.en}" has been approved. Open the app for details.`,
         relatedProjectId: projectId ?? null,
         relatedMilestoneId: milestoneId,
         emailData: { milestoneTitle, grade: grade != null ? String(grade) : '' },
@@ -1152,6 +1156,8 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
             titleEn: 'Milestone approved by coordinator',
             bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה${grade != null ? ` עם ציון ${grade}` : ''}. בדוק/י בטאב הציונים של הפרויקט שלך.${comment ? ` הערת הרכז: ${comment}` : ''}`,
             bodyEn: `Your milestone "${milestoneTitle.en}" has been approved${grade != null ? ` with grade ${grade}` : ''}. Check your project's Grades section.${comment ? ` Coordinator's comment: ${comment}` : ''}`,
+            pushBodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה. פתח/י את האפליקציה לפרטים.`,
+            pushBodyEn: `Your milestone "${milestoneTitle.en}" has been approved. Open the app for details.`,
             relatedProjectId: projectId ?? null,
             relatedMilestoneId: milestoneId,
             emailData: { milestoneTitle, grade: grade != null ? String(grade) : '' },
@@ -1356,6 +1362,11 @@ async function rejectChainMilestone(
             titleEn: 'A milestone was routed back to you',
             bodyHe: `אבן הדרך "${milestoneTitle.he}" הוחזרה לבדיקתך. סיבה: ${reason}`,
             bodyEn: `Milestone "${milestoneTitle.en}" was routed back to you for review. Reason: ${reason}`,
+            // PRIVACY FIX: the rejection reason is free text and shouldn't
+            // sit on a lock screen — push gets a generic body, full text
+            // stays in-app/email via bodyHe/bodyEn above.
+            pushBodyHe: `אבן הדרך "${milestoneTitle.he}" הוחזרה לבדיקתך. פתח/י את האפליקציה לפרטים.`,
+            pushBodyEn: `Milestone "${milestoneTitle.en}" was routed back to you for review. Open the app for details.`,
             relatedProjectId: rejectedMilestone!.projectId ?? null,
             relatedMilestoneId: milestoneId,
             channels: { email: false, sms: false },

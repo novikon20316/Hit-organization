@@ -165,6 +165,16 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       // Supervisors have no faculty-wide authority — they must always target
       // specific project(s).
       return res.status(400).json({ message: 'Select at least one of your projects to attach this file to.' });
+    } else if (role === 'coordinator') {
+      // SECURITY FIX: a single-faculty coordinator had no scope check at all
+      // here — she could set facultyIds to another faculty entirely, or
+      // leave it empty (which getInfoFiles below treats as "unrestricted,"
+      // i.e. visible institution-wide), despite every other coordinator-
+      // facing endpoint in this codebase confining her to her own faculty.
+      const ownFacultyId = req.user.facultyId;
+      if (facultyIds.length === 0 || facultyIds.some((f) => f !== ownFacultyId)) {
+        return res.status(403).json({ message: 'A coordinator may only scope a file to their own faculty.' });
+      }
     }
 
     const base64  = file.buffer.toString('base64');

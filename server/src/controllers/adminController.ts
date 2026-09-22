@@ -1726,7 +1726,13 @@ export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: 
     // academic year (and thus thesis eligibility) of a student in any other
     // faculty. Every other administrative coordinator-facing endpoint in this
     // codebase already enforces this the same way.
-    if (req.user.role === 'administrative_secretary' &&
+    // SECURITY FIX: this used req.user.role === 'administrative_secretary'
+    // (singular-role only), so a caller who holds administrative_secretary
+    // only as a secondary role in roles[] (primary role something else,
+    // e.g. coordinator) skipped this scope check entirely — the exact bug
+    // class already fixed in this file's searchStudents. hasAnyRole checks
+    // both role and roles[].
+    if (hasAnyRole(req.user, ['administrative_secretary']) &&
         !withinCoordinatorScope(req.user, { facultyId: student.facultyId ?? '', major: student.major || undefined })) {
       return res.status(403).json({ message: 'This student is outside your assigned scope.' });
     }

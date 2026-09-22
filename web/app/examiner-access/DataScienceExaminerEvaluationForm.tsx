@@ -225,8 +225,14 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
             <b className="text-examinor-on-surface">{tokenDoc.projectStartDate ? new Date(tokenDoc.projectStartDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
           </span>
           <span>
+            {/* CORRECTNESS FIX: was tokenDoc.defenseDate, the same
+               one-time assignment-time snapshot the comment above already
+               explains "can't be trusted" — this whole component only
+               renders once `agreedDate` (the live, re-fetched date) has
+               gated `isOpen` true, so it's always available and correct
+               here, unlike the stale snapshot. */}
             {lang === 'he' ? 'תאריך ההגנה:' : 'Defense date:'}{' '}
-            <b className="text-examinor-on-surface">{tokenDoc.defenseDate ? new Date(tokenDoc.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
+            <b className="text-examinor-on-surface">{agreedDate ? new Date(agreedDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US') : '—'}</b>
           </span>
         </div>
       </div>

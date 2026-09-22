@@ -6,11 +6,13 @@
 
 import { Router } from 'express';
 import { verifyIntegrationKey } from '../middleware/integrationAuth.js';
+import { integrationLimiter } from '../middleware/rateLimit.js';
 import { getStudentProgressByIdNumber } from '../controllers/integrationController.js';
 
 const router = Router();
 
 router.use(verifyIntegrationKey);
+router.use(integrationLimiter);
 
 router.get('/student-progress/:idNumber', getStudentProgressByIdNumber);
 

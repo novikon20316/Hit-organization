@@ -218,9 +218,14 @@ export async function transferGradeToMichlol(params: {
   studentIds: string[];
   finalGrade: number;
 }): Promise<{ transferred: boolean; transferredAt: string }> {
+  // PRIVACY FIX: previously logged the actual finalGrade + studentIds on
+  // every call — a real production code path, so grade/PII data was landing
+  // in Cloud Run/Render logs (visible to anyone with log access, a broader
+  // audience than this data's actual access control allows) on every single
+  // transfer, not just for debugging. Log only the non-sensitive identifiers.
   console.log(
-    `[Michlol stub] Would transfer final grade ${params.finalGrade} for milestone ${params.milestoneId} ` +
-    `(project ${params.projectId}, students: ${params.studentIds.join(', ') || 'none'}) — ` +
+    `[Michlol stub] Would transfer final grade for milestone ${params.milestoneId} ` +
+    `(project ${params.projectId}, ${params.studentIds.length} student(s)) — ` +
     `no live Michlol integration is configured yet.`,
   );
   return { transferred: true, transferredAt: new Date().toISOString() };

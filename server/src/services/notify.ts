@@ -30,6 +30,15 @@ export interface NotifyParams {
   titleEn: string;
   bodyHe:  string;
   bodyEn:  string;
+  /** Overrides bodyHe/bodyEn for the push-notification channel only (the
+   *  in-app notification doc and email keep the full bodyHe/bodyEn text).
+   *  Use this whenever bodyHe/bodyEn embeds a grade, private comment, or
+   *  rejection reason — many devices show push text on the lock screen
+   *  without requiring unlock, so that content shouldn't go out over push
+   *  even though it's fine for in-app/email. Falls back to bodyHe/bodyEn
+   *  when omitted, so existing callers are unaffected. */
+  pushBodyHe?: string;
+  pushBodyEn?: string;
   relatedProjectId?:   string | null;
   relatedMilestoneId?: string | null;
   /** What kind of task this is, so notifyUser can resolve it to a
@@ -84,6 +93,7 @@ export interface NotifyParams {
 export async function notifyUser(params: NotifyParams): Promise<void> {
   const {
     recipientId, type, inAppType, titleHe, titleEn, bodyHe, bodyEn,
+    pushBodyHe = bodyHe, pushBodyEn = bodyEn,
     relatedProjectId = null, relatedMilestoneId = null, emailData, channels, taskKind,
     taskRoleCandidates, targetScreen: targetScreenOverride,
   } = params;
@@ -178,7 +188,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
         body: JSON.stringify({
           to:    pushToken,
           title: lang === 'he' ? titleHe : titleEn,
-          body:  lang === 'he' ? bodyHe  : bodyEn,
+          body:  lang === 'he' ? pushBodyHe : pushBodyEn,
           data:  { type, relatedProjectId, relatedMilestoneId },
         }),
       });
