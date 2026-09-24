@@ -61,6 +61,7 @@ export function StudentRosterTab() {
   const [loadError, setLoadError] = useState('');
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editStudentId, setEditStudentId] = useState('');
   const [editFullName, setEditFullName] = useState('');
   const [editMajor, setEditMajor] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -98,6 +99,7 @@ export function StudentRosterTab() {
 
   const startEdit = (entry: RosterEntry) => {
     setEditingId(entry.id);
+    setEditStudentId(entry.studentId);
     setEditFullName(entry.fullName ?? '');
     setEditMajor(entry.major ?? '');
     setRowError('');
@@ -105,10 +107,15 @@ export function StudentRosterTab() {
   };
 
   const saveEdit = async (entry: RosterEntry) => {
+    const trimmedId = editStudentId.trim();
+    if (!/^\d{9}$/.test(trimmedId)) {
+      setRowError(lang === 'he' ? 'מספר ת.ז. חייב להיות בן 9 ספרות' : 'Student ID must be exactly 9 digits');
+      return;
+    }
     setSavingId(entry.id);
     setRowError('');
     try {
-      await apiClient.updateStudentRosterEntry(entry.id, { fullName: editFullName.trim(), major: editMajor.trim() || null });
+      await apiClient.updateStudentRosterEntry(entry.id, { studentId: trimmedId, fullName: editFullName.trim(), major: editMajor.trim() || null });
       setEditingId(null);
       await fetchEntries();
     } catch (err) {
@@ -285,6 +292,14 @@ export function StudentRosterTab() {
 
               {editingId === entry.id ? (
                 <div className="mt-3 grid gap-2">
+                  <input
+                    dir="ltr"
+                    value={editStudentId}
+                    onChange={(e) => setEditStudentId(e.target.value)}
+                    placeholder={lang === 'he' ? 'מספר ת.ז.' : 'Student ID'}
+                    maxLength={9}
+                    className={`${inputCls} w-full`}
+                  />
                   <input
                     value={editFullName}
                     onChange={(e) => setEditFullName(e.target.value)}

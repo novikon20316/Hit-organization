@@ -165,6 +165,7 @@ export default function PanelScreen() {
   const [rosterDegreeFilter, setRosterDegreeFilter] = useState<'all' | 'bachelors' | 'masters'>('all');
   const [rosterUsedFilter, setRosterUsedFilter] = useState<'all' | 'used' | 'unused'>('all');
   const [editingRosterId, setEditingRosterId] = useState<string | null>(null);
+  const [editRosterStudentId, setEditRosterStudentId] = useState('');
   const [editRosterFullName, setEditRosterFullName] = useState('');
   const [editRosterMajor, setEditRosterMajor] = useState('');
   const [savingRosterId, setSavingRosterId] = useState<string | null>(null);
@@ -451,15 +452,21 @@ export default function PanelScreen() {
 
   const startRosterEdit = (entry: RosterEntry) => {
     setEditingRosterId(entry.id);
+    setEditRosterStudentId(entry.studentId);
     setEditRosterFullName(entry.fullName ?? '');
     setEditRosterMajor(entry.major ?? '');
     setConfirmDeleteRosterId(null);
   };
 
   const handleSaveRosterEdit = async (entry: RosterEntry) => {
+    const trimmedId = editRosterStudentId.trim();
+    if (!/^\d{9}$/.test(trimmedId)) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'מספר ת.ז. חייב להיות בן 9 ספרות' : 'Student ID must be exactly 9 digits');
+      return;
+    }
     setSavingRosterId(entry.id);
     try {
-      await updateStudentRosterEntry(entry.id, { fullName: editRosterFullName.trim(), major: editRosterMajor.trim() || null });
+      await updateStudentRosterEntry(entry.id, { studentId: trimmedId, fullName: editRosterFullName.trim(), major: editRosterMajor.trim() || null });
       setEditingRosterId(null);
       await fetchRosterEntries();
     } catch (err: any) {
@@ -2111,6 +2118,14 @@ export default function PanelScreen() {
                     <View style={{ marginTop: 10 }}>
                       <TextInput
                         style={adminPanelStyles.input}
+                        value={editRosterStudentId}
+                        onChangeText={setEditRosterStudentId}
+                        placeholder={lang === 'he' ? 'מספר ת.ז.' : 'Student ID'}
+                        keyboardType="number-pad"
+                        maxLength={9}
+                      />
+                      <TextInput
+                        style={[adminPanelStyles.input, { marginTop: 8 }]}
                         value={editRosterFullName}
                         onChangeText={setEditRosterFullName}
                         placeholder={lang === 'he' ? 'שם מלא' : 'Full name'}
