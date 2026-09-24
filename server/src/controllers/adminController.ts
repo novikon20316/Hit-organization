@@ -1809,12 +1809,17 @@ export const searchStudents = async (req: AuthenticatedRequest, res: Response) =
       // every student in the institution, not just her assigned degree(s).
       // program_head is scoped the same way (their own coordinatorScopes, if
       // assigned one — see scopeAuthorization.ts's withinCoordinatorScope).
-      // Checked against the full role set (not just the primary role) — a
-      // multi-role account holding administrative_secretary/program_head only
+      // grad_school_head was missing from this list entirely — role alone
+      // (STUDENT_SEARCH_ROLES) let her search return every student in the
+      // institution too, same bug class, just never caught because her
+      // eligibility use of this search (studentTrackController.ts) only
+      // surfaces coordinator_gated results in practice. Checked against the
+      // full role set (not just the primary role) — a multi-role account
+      // holding administrative_secretary/program_head/grad_school_head only
       // as a secondary role must still be scoped, not treated as unrestricted
-      // just because their primary role isn't one of these two.
+      // just because their primary role isn't one of these three.
       .filter((u: any) =>
-        !hasAnyRole(req.user, ['administrative_secretary', 'program_head']) ||
+        !hasAnyRole(req.user, ['administrative_secretary', 'program_head', 'grad_school_head']) ||
         hasAnyRole(req.user, ['system_admin']) ||
         withinCoordinatorScope(req.user, { facultyId: u.facultyId ?? '', major: u.major || undefined })
       )
