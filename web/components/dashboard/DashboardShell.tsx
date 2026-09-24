@@ -13,7 +13,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { ChatbotFab } from '@/components/ChatbotFab';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { roleLabel, type AppRole } from '@/lib/i18n';
@@ -36,7 +35,6 @@ export function DashboardShell({ title, subtitle, showBackButton = true, childre
   const { lang } = useLanguage();
   usePresenceHeartbeat(!!firebaseUser);
   const railColor = getRoleAccent(activeRole);
-  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [totpNudgeDismissed, setTotpNudgeDismissed] = useState(
     () => typeof window !== 'undefined' && sessionStorage.getItem(TOTP_NUDGE_DISMISS_KEY) === '1'
   );
@@ -94,14 +92,6 @@ export function DashboardShell({ title, subtitle, showBackButton = true, childre
                 <span className="text-sm text-ink">{lang === 'he' ? userData.displayNameHe : userData.displayNameEn}</span>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setShowDeleteAccount(true)}
-              title={lang === 'he' ? 'מחיקת חשבון' : 'Delete Account'}
-              className="rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-danger hover:text-danger"
-            >
-              🗑️
-            </button>
           </div>
         </div>
       </header>
@@ -135,16 +125,6 @@ export function DashboardShell({ title, subtitle, showBackButton = true, childre
       )}
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">{children}</main>
-
-      {showDeleteAccount && (
-        <DeleteAccountModal
-          onClose={() => setShowDeleteAccount(false)}
-          onRequested={() => {
-            setShowDeleteAccount(false);
-            router.replace('/account-deletion-pending');
-          }}
-        />
-      )}
 
       {activeRole !== 'system_admin' && <ChatbotFab />}
     </div>

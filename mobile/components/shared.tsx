@@ -12,7 +12,6 @@ import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
 import type { Lang } from './i18n';
 import { apiClient } from '../src/api/apiClient';
-import DeleteAccountModal from './modals/DeleteAccountModal';
 import HeaderMenu, { type HeaderMenuItem } from './HeaderMenu';
 import { useNotifications } from '../src/context/NotificationsContext';
 import {
@@ -398,7 +397,6 @@ export function TopBar({
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
   const [securityModal, setSecurityModal] = useState(false);
-  const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const { unreadCount } = useNotifications();
 
   // SECURITY FIX: only student screens ever passed onBeforeSignOut wired up
@@ -425,14 +423,6 @@ export function TopBar({
     setTimeout(() => router.replace('/(auth)/login'), 100);
   };
 
-  const handleAccountDeletionRequested = async () => {
-    setDeleteAccountModal(false);
-    await clearPushTokenOnLogout();
-    await onBeforeSignOut?.();
-    await signOut(auth);
-    setTimeout(() => router.replace('/(auth)/login'), 100);
-  };
-
   const menuItems: HeaderMenuItem[] = [
     {
       key: 'security', icon: '🔐',
@@ -447,12 +437,7 @@ export function TopBar({
     }] : []),
     ...(extraMenuItems ?? []).map((item, i) => ({ ...item, dividerBefore: i === 0 })),
     {
-      key: 'delete-account', icon: '🗑️', dividerBefore: true,
-      label: lang === 'he' ? 'מחיקת חשבון' : 'Delete account',
-      onPress: () => setDeleteAccountModal(true),
-    },
-    {
-      key: 'sign-out', icon: '🚪', danger: true,
+      key: 'sign-out', icon: '🚪', danger: true, dividerBefore: true,
       label: lang === 'he' ? 'יציאה' : 'Sign Out',
       onPress: handleSignOut,
     },
@@ -528,13 +513,6 @@ export function TopBar({
         visible={securityModal}
         onClose={() => setSecurityModal(false)}
         lang={lang}
-      />
-
-      <DeleteAccountModal
-        visible={deleteAccountModal}
-        onClose={() => setDeleteAccountModal(false)}
-        lang={lang}
-        onRequested={handleAccountDeletionRequested}
       />
     </>
   );
