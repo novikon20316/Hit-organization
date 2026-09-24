@@ -236,6 +236,12 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         projectTitleHe: data.projectTitleHe ?? '',
         projectTitleEn: data.projectTitleEn ?? '',
         type:           data.type           ?? '',
+        // Snapshotted from the workflow template at enrollment (see
+        // services/projectEnrollment.ts) — the only real name a custom
+        // milestone type has; the client's MILESTONE_LABEL map only covers
+        // the 5 legacy built-in types.
+        nameHe:         data.nameHe         ?? null,
+        nameEn:         data.nameEn         ?? null,
         status:         data.status         ?? '',
         studentNames:   data.studentNames   ?? [],
         // Needed so a caller can submit a per-student individual grade
@@ -374,6 +380,12 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
           return {
             id: m?.id ?? null,
             type: spec.type,
+            // Straight from the template spec — always present, unlike the
+            // milestone doc's own nameHe/nameEn (which only exists once a
+            // doc has actually been created — see 'not_created' status
+            // above). See lib/milestoneLabel.ts's milestoneDisplayName.
+            nameHe: spec.nameHe,
+            nameEn: spec.nameEn,
             status: (m?.status as string | undefined) ?? 'not_created',
             dueDate: m?.dueDate?.toDate?.()?.toISOString() ?? null,
             submittedAt: m?.submittedAt?.toDate?.()?.toISOString() ?? null,

@@ -16,6 +16,7 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
 import type { AssignedMilestone } from './types';
 import { MILESTONE_LABEL } from './types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 
 interface ExaminerSignoffModalProps {
   milestone: AssignedMilestone;
@@ -66,8 +67,8 @@ export function ExaminerSignoffModal({ milestone: m, onClose, onSubmitted }: Exa
 
         <p className="mt-3 text-sm text-examinor-on-surface-variant">
           {lang === 'he'
-            ? `אישור זה עבור "${MILESTONE_LABEL[m.type]?.he ?? m.type}" — ${lang === 'he' ? m.projectTitleHe : m.projectTitleEn}.`
-            : `This approves "${MILESTONE_LABEL[m.type]?.en ?? m.type}" — ${m.projectTitleEn}.`}
+            ? `אישור זה עבור "${milestoneDisplayName(m, 'he', MILESTONE_LABEL)}" — ${m.projectTitleHe}.`
+            : `This approves "${milestoneDisplayName(m, 'en', MILESTONE_LABEL)}" — ${m.projectTitleEn}.`}
         </p>
         <p className="mt-1 text-xs text-examinor-on-surface-variant">
           {lang === 'he' ? 'לא ניתן לבטל לאחר האישור.' : 'This cannot be undone once submitted.'}

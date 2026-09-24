@@ -1706,6 +1706,11 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
         // can show different grades even though the milestone itself is one document.
         const formattedMilestones = studentMilestones.map((m: any) => ({
           type: m.type,
+          // Snapshotted from the workflow template at enrollment — the only
+          // real name a custom milestone type has (see
+          // lib/milestoneLabel.ts's milestoneDisplayName).
+          nameHe: m.nameHe ?? null,
+          nameEn: m.nameEn ?? null,
           status: m.status,
           supervisorScore: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? m.supervisorScore ?? null,
           percentOfFinalGrade: weightByType[m.type] ?? 0,

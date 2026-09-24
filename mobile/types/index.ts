@@ -544,6 +544,12 @@ export interface AssignedMilestone {
   projectStartDate: string | null;
   major: string | null;
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See utils/milestoneLabel.ts's
+   *  milestoneDisplayName, which every renderer of a milestone's name
+   *  should go through instead of indexing MILESTONE_LABEL directly. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: string;
   studentNames: string[];
   studentIds: string[];
@@ -569,6 +575,8 @@ export interface AssignedMilestone {
   facultyId: string;
   milestoneHistory: {                    // ← new
     type: string;
+    nameHe?: string | null;
+    nameEn?: string | null;
     supervisorScore: number | null;
     supervisorComment: string;
     fileUrls: string[];
@@ -688,6 +696,12 @@ export interface PendingMilestone {
   projectTitleHe: string;
   projectTitleEn: string;
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See utils/milestoneLabel.ts's
+   *  milestoneDisplayName, which every renderer of a milestone's name
+   *  should go through instead of indexing MILESTONE_LABEL directly. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: string;
   studentNames: string[];
   studentIds: string[];
@@ -721,6 +735,8 @@ export interface PendingMilestone {
   supervisorName?: string;        // ← add
   milestoneGrades?: {             // ← add
     type: string;
+    nameHe?: string | null;
+    nameEn?: string | null;
     score: number | null;
   }[];
   /** How many examiner slots this milestone's defense panel needs — see
@@ -776,6 +792,11 @@ export interface InProgressProject {
     progress: number;
     milestones: {
       type: string;
+      /** Snapshotted from the workflow template at enrollment — the only
+       *  real name a custom milestone type has (see
+       *  utils/milestoneLabel.ts's milestoneDisplayName). */
+      nameHe?: string | null;
+      nameEn?: string | null;
       status: string;
       supervisorScore: number | null;
       percentOfFinalGrade?: number;
@@ -881,6 +902,14 @@ export interface StudentVisibleStaffRecord {
 export interface Milestone {
   id:          string;
   type:        MilestoneType;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom (`custom_xxxxx`-typed) milestone has; MILESTONE_LABEL
+   *  maps only cover the 5 legacy built-in types. See
+   *  utils/milestoneLabel.ts's milestoneDisplayName, which every renderer
+   *  of a milestone's name should go through instead of indexing a
+   *  MILESTONE_LABEL map directly. */
+  nameHe?:     string | null;
+  nameEn?:     string | null;
   status:      MilestoneStatus;
   /** Every student this milestone belongs to — length > 1 for a team
    *  project. Needed to render one auto-filled personal-info block per

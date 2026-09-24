@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { apiClient } from '@/src/api/apiClient';
 import { tx, type Lang } from './i18n';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר', en: 'Research Proposal' },
@@ -200,7 +201,7 @@ export function ArchivedProjectsSection({ lang }: { lang: Lang }) {
                   ) : (
                     p.milestones.map((m, idx) => (
                       <View key={m.id ?? idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#111' }}>{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#111' }}>{milestoneDisplayName(m, lang, MILESTONE_LABEL)}</Text>
                         <Text style={{ fontSize: 11, color: '#8899BB' }}>{m.status}</Text>
                       </View>
                     ))

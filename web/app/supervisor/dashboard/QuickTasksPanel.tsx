@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { MyProject, Application, SupervisorPendingMilestone } from './types';
 import { MILESTONE_LABEL } from './types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 
 const URGENCY_ICON: Record<'red' | 'orange', string> = { red: '🔴', orange: '🟠' };
 const URGENCY_TEXT: Record<'red' | 'orange', string> = { red: '#a8433a', orange: '#b8862e' };
@@ -61,7 +62,7 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
       icon: URGENCY_ICON.red,
       color: URGENCY_TEXT.red,
       label: lang === 'he' ? 'ציון ממתין לבדיקה' : 'Grade pending review',
-      title: MILESTONE_LABEL[m.type] ? (lang === 'he' ? MILESTONE_LABEL[m.type].he : MILESTONE_LABEL[m.type].en) : m.type,
+      title: milestoneDisplayName(m, lang, MILESTONE_LABEL),
       sub: lang === 'he' ? m.projectTitleHe : m.projectTitleEn,
       onClick: () => onGrade(m),
     })),

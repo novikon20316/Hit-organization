@@ -613,6 +613,12 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
           projectTitleEn:   project?.titleEn   ?? '',
           facultyId:        data.facultyId     ?? project?.facultyId ?? '',
           type:             data.type,
+          // Snapshotted from the workflow template at enrollment (see
+          // services/projectEnrollment.ts) — the only real name a custom
+          // (`custom_xxxxx`-typed) milestone has; the client's MILESTONE_LABEL
+          // map only covers the 5 legacy built-in types.
+          nameHe:           data.nameHe ?? null,
+          nameEn:           data.nameEn ?? null,
           status:           data.status,
           submittedAt:      data.submittedAt?.toDate?.()?.toISOString() ?? null,
           // Chain-driven milestones (see services/milestoneRouting.ts) can

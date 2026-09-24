@@ -211,6 +211,11 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
           .filter((m) => Array.isArray(m.studentIds) && m.studentIds.includes(sid))
           .map((m) => ({
             type: m.type,
+            // Snapshotted from the workflow template at enrollment — the
+            // only real name a custom milestone type has (see
+            // lib/milestoneLabel.ts's milestoneDisplayName).
+            nameHe: m.nameHe ?? null,
+            nameEn: m.nameEn ?? null,
             status: m.status,
             finalGrade: m.finalGradeByStudent?.[sid] ?? m.finalGrade ?? null,
             gradeApproved: m.gradeApproved ?? false,
@@ -612,6 +617,11 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
       milestoneRoadmap: milestoneRows.map((m: any) => ({
         id: m.id,
         type: m.type,
+        // Snapshotted from the workflow template at enrollment — the only
+        // real name a custom milestone type has (see
+        // lib/milestoneLabel.ts's milestoneDisplayName).
+        nameHe: m.nameHe ?? null,
+        nameEn: m.nameEn ?? null,
         order: typeof m.order === 'number' ? m.order : undefined,
         status: m.status,
         dueDate: m.dueDate?.toDate?.()?.toISOString?.() ?? null,

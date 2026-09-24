@@ -121,6 +121,14 @@ export interface StudentVisibleStaffRecord {
 export interface Milestone {
   id: string;
   type: MilestoneType;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom (`custom_xxxxx`-typed) milestone has; MILESTONE_LABEL
+   *  below only covers the 5 legacy built-in types. See
+   *  lib/milestoneLabel.ts's milestoneDisplayName, which every renderer of
+   *  a milestone's name should go through instead of indexing
+   *  MILESTONE_LABEL directly. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: MilestoneStatus;
   /** Every student this milestone belongs to — length > 1 for a team
    *  project. Needed to render one auto-filled personal-info block per

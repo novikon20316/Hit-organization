@@ -23,6 +23,7 @@ import {
   OVERVIEW_TAB_FIELD_GUIDE, OVERVIEW_TAB_GUIDE_KEY,
   GRADES_TAB_FIELD_GUIDE, GRADES_TAB_GUIDE_KEY,
 } from '../../constants/studentFieldGuide';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 
 interface Props {
   project:       ActiveProject;
@@ -208,10 +209,7 @@ export default function ActiveDashboard({
   // ─── Next deadline card — sourced straight from the `nextMilestone` prop ──
   const nextDeadlineDate = nextMilestone ? toDate(nextMilestone.dueDate) : null;
   const nextDeadlineDays = nextMilestone ? daysUntil(nextMilestone.dueDate) : null;
-  const nextMilestoneLabel = nextMilestone
-    ? (lang === 'he' ? (MILESTONE_LABEL[nextMilestone.type]?.he ?? nextMilestone.type)
-                      : (MILESTONE_LABEL[nextMilestone.type]?.en ?? nextMilestone.type))
-    : '';
+  const nextMilestoneLabel = nextMilestone ? milestoneDisplayName(nextMilestone, lang, MILESTONE_LABEL) : '';
 
   // ─── Recent Activity — derived from real data already loaded on this
   // screen (announcements + milestone status fields), never fabricated. Each
@@ -246,7 +244,7 @@ export default function ActiveDashboard({
 
   milestones.forEach((m) => {
     const normalizedStatus = (m.status ?? '').trim().toLowerCase();
-    const label = lang === 'he' ? (MILESTONE_LABEL[m.type]?.he ?? m.type) : (MILESTONE_LABEL[m.type]?.en ?? m.type);
+    const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
 
     if (normalizedStatus === 'rejected' && m.rejectionReason) {
       activityCandidates.push({
@@ -509,9 +507,7 @@ export default function ActiveDashboard({
             </View>
 
             {milestones.map((m) => {
-              const label = lang === 'he'
-                ? (MILESTONE_LABEL[m.type]?.he ?? m.type)
-                : (MILESTONE_LABEL[m.type]?.en ?? m.type);
+              const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
 
               const normalizedStatus = (m.status ?? '').trim().toLowerCase();
               const grade   = m.finalGrade ?? m.supervisorScore ?? null;

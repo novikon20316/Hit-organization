@@ -12,6 +12,7 @@ import { ApproveMilestoneModal } from './ApproveMilestoneModal';
 import { RejectMilestoneModal } from './RejectMilestoneModal';
 import { ProposalRecommendationModal, type ProposalDecision } from './ProposalRecommendationModal';
 import { MILESTONE_LABEL, type CoordinatorPendingMilestone } from './types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 
 interface PendingMilestoneCardProps {
   milestone: CoordinatorPendingMilestone;
@@ -101,7 +102,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
     <div className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
       <button type="button" onClick={() => setExpanded((v) => !v)} className="w-full text-start">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-muted">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</span>
+          <span className="text-xs font-medium text-muted">{milestoneDisplayName(m, lang, MILESTONE_LABEL)}</span>
           <span
             className="rounded-full px-2 py-0.5 text-xs font-medium"
             style={{ backgroundColor: `${facultyColor}1F`, color: facultyColor }}
@@ -160,7 +161,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
                     type="button"
                     onClick={() =>
                       setPreviewFor({
-                        title: MILESTONE_LABEL[m.type]?.[lang] ?? m.type,
+                        title: milestoneDisplayName(m, lang, MILESTONE_LABEL),
                         subtitle: lang === 'he' ? m.projectTitleHe : m.projectTitleEn,
                         fileUrls: m.fileUrls ?? [],
                       })
@@ -216,7 +217,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
                             type="button"
                             onClick={() =>
                               setPreviewFor({
-                                title: `${MILESTONE_LABEL[m.type]?.[lang] ?? m.type} — ${lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}`,
+                                title: `${milestoneDisplayName(m, lang, MILESTONE_LABEL)} — ${lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}`,
                                 subtitle: lang === 'he' ? m.projectTitleHe : m.projectTitleEn,
                                 fileUrls: rev.fileUrls,
                               })

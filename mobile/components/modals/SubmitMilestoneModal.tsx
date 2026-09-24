@@ -20,6 +20,7 @@ import { InfoTooltip } from '../InfoTooltip';
 import { FieldGuideOverlay } from '../guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '../guidance/FieldGuideTarget';
 import { SUBMIT_MILESTONE_FIELD_GUIDE, SUBMIT_MILESTONE_GUIDE_KEY } from '../../constants/studentFieldGuide';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 
 function submitGuideEntry(key: string) {
   return SUBMIT_MILESTONE_FIELD_GUIDE.find((s) => s.key === key)!;
@@ -202,9 +203,7 @@ export default function SubmitMilestoneModal({
         <View style={[styles.modalHeader, isRtl && styles.rowReverse]}>
           <Text style={styles.modalTitle}>
             {tx('submitTitle', lang)}{' '}
-            {lang === 'he'
-              ? (MILESTONE_LABEL[milestone.type]?.he ?? milestone.type)
-              : (MILESTONE_LABEL[milestone.type]?.en ?? milestone.type)}
+            {milestoneDisplayName(milestone, lang, MILESTONE_LABEL)}
           </Text>
           <Pressable
             onPress={onClose}

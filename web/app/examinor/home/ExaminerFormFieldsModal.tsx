@@ -119,7 +119,10 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
       >
         <FieldGuideOverlay guideKey={EXAMINER_FORM_FIELDS_GUIDE_KEY} steps={EXAMINER_FORM_FIELDS_FIELD_GUIDE} />
         <h2 className="flex items-center text-lg font-semibold text-examinor-on-surface">
-          📝 {MILESTONE_LABEL[m.type]?.[lang] ?? (lang === 'he' ? 'טופס הערכה' : 'Evaluation Form')}
+          {/* Prefers the milestone's own nameHe/nameEn (custom milestone
+              types) or MILESTONE_LABEL (legacy types) — "Evaluation Form"
+              is only a last-resort generic label for a truly unnamed type. */}
+          📝 {(lang === 'he' ? m.nameHe : m.nameEn) || MILESTONE_LABEL[m.type]?.[lang] || (lang === 'he' ? 'טופס הערכה' : 'Evaluation Form')}
           <InfoTooltip text={EXAMINER_FORM_FIELDS_FIELD_GUIDE[0]!.description} />
         </h2>
 

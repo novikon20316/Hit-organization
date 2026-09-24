@@ -48,6 +48,7 @@ import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import type { ProjectGroup, MemberMilestoneGrade } from './types';
 import { MILESTONE_LABEL as MILESTONE_TYPE_LABEL } from '@/app/coordinator/home/types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { STATUS_CONFIG, STATUS_LABEL, type MilestoneStatus } from '@/app/student/home/types';
 
 const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'system_admin'];
@@ -129,7 +130,7 @@ function MilestoneMiniProgress({
                   {done ? '✓' : idx + 1}
                 </span>
                 <span className={`mt-1 text-[10px] leading-tight text-administrative-coordinator-on-surface ${isCurrent ? 'font-bold' : 'font-medium'}`}>
-                  {MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}
+                  {milestoneDisplayName(m, lang, MILESTONE_TYPE_LABEL)}
                 </span>
                 <span className="text-[9px] font-semibold leading-tight" style={{ color }}>
                   {gradeStatusLabel(m, lang)}
@@ -169,7 +170,7 @@ function MilestoneMiniProgress({
                       title={lang === 'he' ? 'תצוגה מקדימה' : 'Preview'}
                       onClick={() =>
                         onOpenFile({
-                          title: MILESTONE_TYPE_LABEL[expanded.type]?.[lang] ?? expanded.type,
+                          title: milestoneDisplayName(expanded, lang, MILESTONE_TYPE_LABEL),
                           subtitle: memberName,
                           submissionNote: expanded.submissionNote,
                           fileUrls: expanded.fileUrls,
@@ -574,7 +575,7 @@ function AdministrativeCoordinatorDashboardContent() {
                               className={`py-1 text-xs ${mIdx < member.milestones.length - 1 ? 'border-b border-line' : ''}`}
                             >
                               <div className="flex items-center justify-between">
-                                <span className="text-muted">{MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type}</span>
+                                <span className="text-muted">{milestoneDisplayName(m, lang, MILESTONE_TYPE_LABEL)}</span>
                                 <span className="font-semibold" style={{ color: gradeStatusColor(m) }}>
                                   {gradeStatusLabel(m, lang)}
                                 </span>
@@ -600,7 +601,7 @@ function AdministrativeCoordinatorDashboardContent() {
                                           title={lang === 'he' ? 'תצוגה מקדימה' : 'Preview'}
                                           onClick={() =>
                                             setFilePreviewFor({
-                                              title: MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type,
+                                              title: milestoneDisplayName(m, lang, MILESTONE_TYPE_LABEL),
                                               subtitle: member.name,
                                               submissionNote: m.submissionNote,
                                               fileUrls: m.fileUrls,

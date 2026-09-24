@@ -20,6 +20,7 @@ import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import { GRADE_MILESTONE_FIELD_GUIDE, GRADE_MILESTONE_GUIDE_KEY } from '@/constants/supervisorFieldGuide';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 
 function gradeGuideEntry(key: string) {
   return GRADE_MILESTONE_FIELD_GUIDE.find((s) => s.key === key)!;
@@ -36,6 +37,11 @@ export interface GradeMilestoneModalField {
 export interface GradeMilestoneModalMilestone {
   id: string;
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has (see utils/milestoneLabel.ts's
+   *  milestoneDisplayName). */
+  nameHe?: string | null;
+  nameEn?: string | null;
   projectTitleHe: string;
   projectTitleEn: string;
   studentNames: string[];
@@ -136,7 +142,7 @@ export function GradeMilestoneModal({
             <View style={s.card}>
               <View style={[s.rowBetween, isRtl && s.rowReverse]}>
                 <View style={s.typeBadge}>
-                  <Text style={s.typeBadgeText}>{MILESTONE_LABEL[milestone.type]?.[lang] ?? milestone.type}</Text>
+                  <Text style={s.typeBadgeText}>{milestoneDisplayName(milestone, lang, MILESTONE_LABEL)}</Text>
                 </View>
                 {!!milestone.submittedAt && (
                   <Text style={s.metaText}>📤 {formatDate(milestone.submittedAt, lang)}</Text>

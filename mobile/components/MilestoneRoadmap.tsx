@@ -14,10 +14,16 @@
 import React from 'react';
 import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 
 export interface RoadmapMilestone {
   id: string;
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has (see utils/milestoneLabel.ts's
+   *  milestoneDisplayName). */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: string;
   dueDate: string | null;
   submittedAt?: string | null;
@@ -133,7 +139,7 @@ export function MilestoneRoadmap({ milestones, lang, isRtl }: Props) {
         const isCurrent = !isCompleted && i === firstIncompleteIndex;
         const isFuture = !isCompleted && !isCurrent;
         const cfg = STATUS_CONFIG[m.status] ?? { color: p.outline, bg: p.surfaceVariant, icon: '❔', he: m.status, en: m.status };
-        const label = MILESTONE_TYPE_LABEL[m.type]?.[lang] ?? m.type;
+        const label = milestoneDisplayName(m, lang, MILESTONE_TYPE_LABEL);
         const isDefense = m.type === 'defense';
 
         return (

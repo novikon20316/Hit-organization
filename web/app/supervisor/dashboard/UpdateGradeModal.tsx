@@ -17,6 +17,7 @@ import { MILESTONE_LABEL } from './types';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { UPDATE_GRADE_FIELD_GUIDE, UPDATE_GRADE_GUIDE_KEY } from './fieldGuide';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 
 function updateGuideEntry(key: string) {
   return UPDATE_GRADE_FIELD_GUIDE.find((s) => s.key === key)!;
@@ -26,6 +27,8 @@ interface UpdateGradeModalProps {
   milestoneId: string;
   projectId: string;
   milestoneType: string;
+  milestoneNameHe?: string | null;
+  milestoneNameEn?: string | null;
   currentScore: number | null;
   onClose: () => void;
   onUpdated: () => void;
@@ -38,7 +41,7 @@ function clampScore(raw: string): string {
   return String(Math.min(Math.max(n, 0), 100));
 }
 
-export function UpdateGradeModal({ milestoneId, projectId, milestoneType, currentScore, onClose, onUpdated }: UpdateGradeModalProps) {
+export function UpdateGradeModal({ milestoneId, projectId, milestoneType, milestoneNameHe, milestoneNameEn, currentScore, onClose, onUpdated }: UpdateGradeModalProps) {
   const { lang } = useLanguage();
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, true, onClose);
@@ -94,7 +97,7 @@ export function UpdateGradeModal({ milestoneId, projectId, milestoneType, curren
         </div>
 
         <p className="mt-1 text-xs text-supervisor-on-surface-variant">
-          {MILESTONE_LABEL[milestoneType]?.[lang] ?? milestoneType}
+          {milestoneDisplayName({ type: milestoneType, nameHe: milestoneNameHe, nameEn: milestoneNameEn }, lang, MILESTONE_LABEL)}
         </p>
 
         <label data-field-guide-id="score" className="mt-4 block">

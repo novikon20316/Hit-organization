@@ -35,6 +35,11 @@ export interface DefenseDateMatching {
 
 export interface MilestoneHistoryEntry {
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See lib/milestoneLabel.ts's
+   *  milestoneDisplayName. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   supervisorScore: number | null;
   supervisorComment: string;
   fileUrls: string[];
@@ -54,6 +59,12 @@ export interface AssignedMilestone {
   projectStartDate: string | null;
   major: string | null;
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See lib/milestoneLabel.ts's
+   *  milestoneDisplayName, which every renderer of a milestone's name
+   *  should go through instead of indexing MILESTONE_LABEL directly. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: string;
   studentNames: string[];
   studentIds: string[];

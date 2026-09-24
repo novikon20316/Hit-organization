@@ -71,6 +71,11 @@ export interface Project {
 // ── In Progress tab ──────────────────────────────────────────────────────────
 export interface InProgressStudentMilestone {
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See lib/milestoneLabel.ts's
+   *  milestoneDisplayName. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: string;
   supervisorScore: number | null;
   /** This milestone type's share of the project's overall final grade (0-100)
@@ -144,6 +149,12 @@ export interface CoordinatorPendingMilestone {
   projectTitleHe: string;
   projectTitleEn: string;
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See lib/milestoneLabel.ts's
+   *  milestoneDisplayName, which every renderer of a milestone's name
+   *  should go through instead of indexing MILESTONE_LABEL directly. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: string;
   /** Chain-driven routing (see services/milestoneRouting.ts) — null for
    *  legacy, non-chain-driven milestones. Used to tell "genuinely awaiting a

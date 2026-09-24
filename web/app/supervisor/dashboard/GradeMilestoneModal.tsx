@@ -8,6 +8,7 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import { FilePreviewFrame } from '@/components/MilestoneFilePanel';
 import { GRADING_CRITERIA, MILESTONE_LABEL, type SupervisorPendingMilestone } from './types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { GRADE_MILESTONE_FIELD_GUIDE, GRADE_MILESTONE_GUIDE_KEY } from './fieldGuide';
@@ -145,7 +146,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         </div>
 
         <div className="mt-3 rounded-lg bg-supervisor-surface-container-low p-3">
-          <p className="text-sm font-semibold text-supervisor-on-surface">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</p>
+          <p className="text-sm font-semibold text-supervisor-on-surface">{milestoneDisplayName(m, lang, MILESTONE_LABEL)}</p>
           <p className="mt-0.5 text-xs text-supervisor-on-surface-variant">{lang === 'he' ? m.projectTitleHe : m.projectTitleEn}</p>
           <p className="mt-0.5 text-xs text-supervisor-on-surface-variant">👤 {m.studentNames.join(', ')}</p>
           {m.submissionNote && <p className="mt-2 whitespace-pre-wrap text-sm text-supervisor-on-surface">💬 {m.submissionNote}</p>}

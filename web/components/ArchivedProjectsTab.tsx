@@ -12,6 +12,7 @@ import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר', en: 'Research Proposal' },
@@ -207,7 +208,7 @@ export function ArchivedProjectsTab() {
                     ) : (
                       p.milestones.map((m: any, idx: number) => (
                         <div key={m.id ?? idx} className={`flex items-center justify-between py-1.5 text-xs ${idx < p.milestones.length - 1 ? 'border-b border-line' : ''}`}>
-                          <span className="font-medium text-ink">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</span>
+                          <span className="font-medium text-ink">{milestoneDisplayName(m, lang, MILESTONE_LABEL)}</span>
                           <span className="text-muted">{m.status}</span>
                         </div>
                       ))

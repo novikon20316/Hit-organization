@@ -12,6 +12,7 @@ import { ProgressReportFormModal } from './ProgressReportFormModal';
 import { AnnouncementsBanner } from './AnnouncementsBanner';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import {
   OVERVIEW_TAB_FIELD_GUIDE, OVERVIEW_TAB_GUIDE_KEY,
   MILESTONES_TAB_FIELD_GUIDE, MILESTONES_TAB_GUIDE_KEY,
@@ -230,8 +231,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                   // approval" for the actual submitted one. Reusing the
                   // already-unlock-aware actionableNextMilestone keeps the
                   // name and the badge in sync.
-                  const displayType = actionableNextMilestone?.type ?? overviewDisplayMilestone.type;
-                  return MILESTONE_LABEL[displayType]?.[lang] ?? displayType;
+                  return milestoneDisplayName(actionableNextMilestone ?? overviewDisplayMilestone, lang, MILESTONE_LABEL);
                 })()}
               </p>
 
@@ -272,7 +272,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                 const unlocked = isUnlocked(m);
                 const cfg = STATUS_CONFIG[m.status] ?? { color: '#6B7280', bg: '#F1F0EC', icon: '🕐' };
                 const days = daysUntil(m.dueDate);
-                const label = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
+                const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
                 const isDefense = m.type === 'defense';
                 const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
                 const isApprovedOrDone = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
@@ -481,7 +481,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
               {feedbackMilestone ? (
                 <div className="rounded-student border border-student-outline-variant bg-student-surface-container-lowest p-3">
                   <p className="text-xs font-semibold text-student-on-surface">
-                    {MILESTONE_LABEL[feedbackMilestone.type]?.[lang] ?? feedbackMilestone.type}
+                    {milestoneDisplayName(feedbackMilestone, lang, MILESTONE_LABEL)}
                   </p>
                   <p className="mt-0.5 text-xs font-medium text-student-on-surface-variant">
                     {feedbackMilestone.rejectionReason
@@ -531,7 +531,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
             <InfoTooltip text={GRADES_TAB_FIELD_GUIDE.find((s) => s.key === 'gradeCards')!.description} />
           </p>
           {milestones.map((m) => {
-            const label = MILESTONE_LABEL[m.type]?.[lang] ?? m.type;
+            const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
             const grade = m.finalGrade ?? m.supervisorScore ?? null;
             const hasGrade = typeof grade === 'number' && !isNaN(grade);
             const isSubmittedState = !hasGrade && (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);

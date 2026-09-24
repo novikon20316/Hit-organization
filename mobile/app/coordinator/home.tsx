@@ -23,6 +23,7 @@ import {PendingMilestone, Project, InProgressProject, ExaminerUser, AssignedMile
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import ChatbotFab from '@/components/ChatbotFab';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { BulkDueDateModal } from '@/components/modals';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import ProjectStageChain from '@/components/ProjectStageChain';
@@ -406,6 +407,11 @@ export default function CoordinatorHome() {
               projectTitleHe: sibling?.projectTitleHe ?? project?.titleHe ?? '',
               projectTitleEn: sibling?.projectTitleEn ?? project?.titleEn ?? '',
               type: data.type ?? '',
+              // Snapshotted from the workflow template at enrollment — the
+              // only real name a custom milestone type has (see
+              // utils/milestoneLabel.ts's milestoneDisplayName).
+              nameHe: sibling?.nameHe ?? data.nameHe ?? null,
+              nameEn: sibling?.nameEn ?? data.nameEn ?? null,
               status: data.status ?? '',
               routing: data.routing ?? null,
               currentStageIndex: data.currentStageIndex ?? 0,
@@ -1433,7 +1439,7 @@ export default function CoordinatorHome() {
                   </View>
                   <View style={styles.cardHeader}>
                     <Text style={styles.milestoneType}>
-                      {MILESTONE_LABEL[m.type]?.[lang]}
+                      {milestoneDisplayName(m, lang, MILESTONE_LABEL)}
                     </Text>
                     <FacultyBadge facultyId={m.facultyId} lang={lang} />
                   </View>
@@ -1658,7 +1664,7 @@ export default function CoordinatorHome() {
                       {m.milestoneGrades.map((mg, i) => (
                         <View key={i} style={styles.gradeRow}>
                           <Text style={styles.expandedText}>
-                            {MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}
+                            {milestoneDisplayName(mg, lang, MILESTONE_LABEL)}
                           </Text>
                           <Text style={[
                             styles.expandedText,
@@ -2017,7 +2023,7 @@ export default function CoordinatorHome() {
                                 }]}
                               >
                                 <Text style={[{ fontSize: 13, fontWeight: '500', color: ap.onSurface }, !isRtl && styles.textRight]}>
-                                  {MILESTONE_LABEL[m.type]?.[lang] ?? m.type}
+                                  {milestoneDisplayName(m, lang, MILESTONE_LABEL)}
                                 </Text>
                                 
                                 <Text style={[{ fontSize: 13, fontWeight: '700', color: statusColor }, isRtl && styles.textRight]}>

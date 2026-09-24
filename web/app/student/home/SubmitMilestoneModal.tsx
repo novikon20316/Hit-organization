@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { MILESTONE_LABEL, type Milestone } from './types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { SUBMIT_MILESTONE_FIELD_GUIDE, SUBMIT_MILESTONE_GUIDE_KEY } from './fieldGuide';
@@ -172,7 +173,7 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
         />
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-student-on-surface">
-            {lang === 'he' ? 'הגשת' : 'Submit'} {MILESTONE_LABEL[milestone.type]?.[lang]}
+            {lang === 'he' ? 'הגשת' : 'Submit'} {milestoneDisplayName(milestone, lang, MILESTONE_LABEL)}
           </h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="rounded-student p-1 text-student-outline transition-colors hover:bg-student-surface-container-low hover:text-student-on-surface">
             ✕

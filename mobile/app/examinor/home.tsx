@@ -16,6 +16,7 @@ import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import {AssignedMilestone, GradingComponentSpec, isDefenseDateConfirmed} from '@/types'
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
@@ -909,7 +910,7 @@ export default function ExaminerHome() {
                             <View key={mg.type} style={[styles.milestoneBlock, { borderLeftColor: railColor }]}>
                               <View style={styles.milestoneHeaderRow}>
                                 <Text style={styles.milestoneName}>
-                                  {MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}
+                                  {milestoneDisplayName(mg, lang, MILESTONE_LABEL)}
                                 </Text>
                                 <View style={[styles.milestoneBadge, { backgroundColor: isGraded ? '#EAF1EC' : '#FBF3E3' }]}>
                                   <Text style={[styles.milestoneBadgeText, { color: isGraded ? '#3F6B4C' : '#B8862E' }]}>
@@ -1331,7 +1332,7 @@ export default function ExaminerHome() {
           {formModal && <FieldGuideOverlay guideKey={EXAMINER_FORM_FIELDS_GUIDE_KEY} steps={EXAMINER_FORM_FIELDS_FIELD_GUIDE} />}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={styles.modalTitle}>
-              📝 {formTarget ? (MILESTONE_LABEL[formTarget.type]?.[lang] ?? '') : ''}
+              📝 {formTarget ? milestoneDisplayName(formTarget, lang, MILESTONE_LABEL) : ''}
             </Text>
             <InfoTooltip textHe={EXAMINER_FORM_FIELDS_FIELD_GUIDE[0]!.description.he} textEn={EXAMINER_FORM_FIELDS_FIELD_GUIDE[0]!.description.en} />
           </View>

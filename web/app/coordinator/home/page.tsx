@@ -234,6 +234,11 @@ function CoordinatorHomeContent() {
               projectTitleHe: sibling?.projectTitleHe ?? project?.titleHe ?? '',
               projectTitleEn: sibling?.projectTitleEn ?? project?.titleEn ?? '',
               type: data.type ?? '',
+              // Snapshotted from the workflow template at enrollment — the
+              // only real name a custom milestone type has (see
+              // lib/milestoneLabel.ts's milestoneDisplayName).
+              nameHe: sibling?.nameHe ?? data.nameHe ?? null,
+              nameEn: sibling?.nameEn ?? data.nameEn ?? null,
               status: data.status ?? '',
               routing: data.routing ?? null,
               currentStageIndex: data.currentStageIndex ?? 0,

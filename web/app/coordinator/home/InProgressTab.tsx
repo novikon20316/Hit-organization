@@ -11,6 +11,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel } from '@/lib/i18n';
 import { MILESTONE_LABEL, type InProgressProject } from './types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { TrackChangeControl } from '@/components/TrackChangeControl';
 import { ProjectStageChain } from '@/components/ProjectStageChain';
@@ -229,7 +230,7 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
                                           >
                                             {done ? '✓' : mIdx + 1}
                                           </span>
-                                          <span className="truncate text-xs font-semibold text-ink">{MILESTONE_LABEL[m.type]?.[lang] ?? m.type}</span>
+                                          <span className="truncate text-xs font-semibold text-ink">{milestoneDisplayName(m, lang, MILESTONE_LABEL)}</span>
                                         </div>
                                         <span
                                           className="shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"

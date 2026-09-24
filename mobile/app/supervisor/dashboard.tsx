@@ -21,6 +21,7 @@ import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { milestonePalette } from '@/constants/milestoneTheme';
 import { GradeMilestoneModal } from '@/components/GradeMilestoneModal';
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { useNotifications } from '@/src/context/NotificationsContext';
@@ -88,6 +89,10 @@ interface PendingMilestone {
   id: string; projectId: string; projectTitleHe: string; projectTitleEn: string;
   type: string; status: string; studentNames: string[]; studentIds: string[]; dueDate: any; submittedAt: any;
   fileUrls: string[]; submissionNote: string; facultyId: string;
+  // Snapshotted from the workflow template at enrollment — the only real
+  // name a custom milestone type has (see utils/milestoneLabel.ts's
+  // milestoneDisplayName).
+  nameHe?: string | null; nameEn?: string | null;
   // Per-milestone configured grading rubric — empty means the grading modal
   // falls back to the hardcoded default rubric below.
   gradingComponents?: GradingComponentSpec[];
@@ -554,7 +559,12 @@ export default function SupervisorHome() {
             projectTitleHe: data.projectTitleHe ?? '',
             projectTitleEn: data.projectTitleEn ?? '',
             type:           data.type           ?? '',
-            status:         data.status         ?? '',
+            // Snapshotted from the workflow template at enrollment — the
+            // only real name a custom milestone type has (see
+            // utils/milestoneLabel.ts's milestoneDisplayName).
+            nameHe:         data.nameHe          ?? null,
+            nameEn:         data.nameEn          ?? null,
+            status:         data.status          ?? '',
             studentNames,
             studentIds,
             fileUrls:       data.fileUrls       ?? [],
@@ -1472,7 +1482,7 @@ export default function SupervisorHome() {
               pendingGrades.map((m) => {
                 const fc    = getFacultyColor(m.facultyId);
                 const isExpanded = expandedCards[m.id] ?? false;
-                const label = lang === 'he' ? MILESTONE_LABEL[m.type]?.he ?? m.type : MILESTONE_LABEL[m.type]?.en ?? m.type;
+                const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
                 // Calculate timing metadata
                 const dueTime = m.dueDate ? new Date(m.dueDate).getTime() : null;
                 const submitTime = m.submittedAt ? new Date(m.submittedAt).getTime() : null;

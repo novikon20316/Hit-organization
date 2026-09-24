@@ -242,6 +242,11 @@ function SupervisorDashboardContent() {
           projectTitleHe: data.projectTitleHe ?? '',
           projectTitleEn: data.projectTitleEn ?? '',
           type: data.type ?? '',
+          // Snapshotted from the workflow template at enrollment — the only
+          // real name a custom milestone type has (see
+          // lib/milestoneLabel.ts's milestoneDisplayName).
+          nameHe: data.nameHe ?? null,
+          nameEn: data.nameEn ?? null,
           status: data.status ?? '',
           studentNames: data.studentNames ?? [],
           studentIds: data.studentIds ?? [],

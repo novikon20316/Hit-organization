@@ -23,6 +23,7 @@ import SubmitMilestoneModal from '@/components/modals/SubmitMilestoneModal';
 import ResearchProposalFormModal from '@/components/modals/ResearchProposalFormModal';
 import ProgressReportFormModal from '@/components/modals/ProgressReportFormModal';
 import type { Milestone, MilestoneType } from '@/types';
+import { milestoneDisplayName } from '@/utils/milestoneLabel';
 
 // ─── Milestone type labels ──────────────────────────────────────────────────
 // Duplicated locally rather than imported from Activedashboard.tsx/
@@ -194,7 +195,7 @@ export default function StudentMilestones() {
                 <View style={{ gap: studentSpacing.md }}>
                   {milestones.map((m) => {
                     const unlocked = isUnlocked(m);
-                    const label = lang === 'he' ? (MILESTONE_LABEL[m.type]?.he ?? m.type) : (MILESTONE_LABEL[m.type]?.en ?? m.type);
+                    const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
                     const isDefense = m.type === 'defense';
                     const isApprovedOrDone = m.status === 'coordinator_approved' || m.status === 'completed';
                     const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded', 'examiners_assigned', 'examiner_graded', 'both_examiners_graded'] as string[]).includes(m.status);

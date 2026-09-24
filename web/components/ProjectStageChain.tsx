@@ -17,6 +17,7 @@
 // InProgressTab.tsx, its two call sites.
 
 import { useLanguage } from '@/contexts/LanguageContext';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 
 export interface StageChainMilestone {
   type: string;
@@ -34,10 +35,11 @@ interface ProjectStageChainProps {
   milestones: StageChainMilestone[];
 }
 
-// Falls back to this when a milestone has no nameHe/nameEn of its own (the
-// coordinator's InProgress feed only ever returns bare {type, status,
-// score} — see getActiveProjects — so it has no live template names to
-// join against, unlike the supervisor's own project detail endpoint).
+// Falls back to this when a milestone has no nameHe/nameEn of its own — the
+// 5 legacy built-in milestone types predate the workflow-template system and
+// were never snapshotted with a name (see server/src/services/
+// projectEnrollment.ts and lib/milestoneLabel.ts's milestoneDisplayName,
+// which every other milestone-name renderer in the app goes through).
 const FALLBACK_LABEL: Record<string, { he: string; en: string }> = {
   research_proposal: { he: 'הצעת מחקר', en: 'Research Proposal' },
   progress_report: { he: 'דו"ח התקדמות', en: 'Progress Report' },
@@ -123,9 +125,7 @@ export function ProjectStageChain({ createdAt, milestones }: ProjectStageChainPr
               {g.rows.map((m, idx) => {
                 const label = m.type === '__topic_approval__'
                   ? (lang === 'he' ? 'אישור מנחה ונושא' : 'Supervisor & Topic Approval')
-                  : m.nameHe && m.nameEn
-                    ? (lang === 'he' ? m.nameHe : m.nameEn)
-                    : (FALLBACK_LABEL[m.type]?.[lang] ?? m.type);
+                  : milestoneDisplayName(m, lang, FALLBACK_LABEL);
                 const info = statusInfo(m.status, lang);
                 const isDone = m.status === 'coordinator_approved' || m.status === 'completed';
                 const date = m.syntheticDate ? formatDate(m.syntheticDate, lang) : formatDate(isDone ? m.submittedAt : m.dueDate, lang);

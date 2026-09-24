@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { EXAMINER_GRADING_CRITERIA, MILESTONE_LABEL, type AssignedMilestone } from './types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { GRADE_EXAMINER_FIELD_GUIDE, GRADE_EXAMINER_GUIDE_KEY } from './fieldGuide';
@@ -201,7 +202,7 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
             {submitting ? '…' : lang === 'he' ? 'שלח ציון' : 'Submit Grade'}
           </button>
         </div>
-        <p className="mt-2 text-center text-xs text-examinor-on-surface-variant">{MILESTONE_LABEL[m.type]?.[lang]}</p>
+        <p className="mt-2 text-center text-xs text-examinor-on-surface-variant">{milestoneDisplayName(m, lang, MILESTONE_LABEL)}</p>
       </div>
     </div>
   );

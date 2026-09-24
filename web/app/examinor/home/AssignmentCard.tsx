@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { MILESTONE_LABEL, type AssignedMilestone, type GradeWeights, type IdentityGradeWeights } from './types';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 
 interface AssignmentCardProps {
   milestone: AssignedMilestone;
@@ -350,7 +351,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
                 style={{ '--rail-color': railColor } as React.CSSProperties}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold text-examinor-on-surface">{MILESTONE_LABEL[mg.type]?.[lang] ?? mg.type}</p>
+                  <p className="text-sm font-semibold text-examinor-on-surface">{milestoneDisplayName(mg, lang, MILESTONE_LABEL)}</p>
                   <span
                     className="shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
                     style={{ backgroundColor: isGraded ? 'var(--success-bg)' : '#FBF3E3', color: isGraded ? 'var(--success)' : '#B8862E' }}

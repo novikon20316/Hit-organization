@@ -340,6 +340,13 @@ export function useStudentData() {
             id: d.id,
             projectId: data.projectId,
             type: data.type,
+            // Snapshotted from the workflow template at enrollment (see
+            // server/src/services/projectEnrollment.ts) — the only real name
+            // a custom (`custom_xxxxx`-typed) milestone has; MILESTONE_LABEL
+            // only covers the 5 legacy built-in types (see
+            // utils/milestoneLabel.ts's milestoneDisplayName).
+            nameHe: data.nameHe ?? null,
+            nameEn: data.nameEn ?? null,
             order: data.order,
             status: data.status,
             dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,

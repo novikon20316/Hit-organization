@@ -6,10 +6,11 @@
 // coordinator/examiner/admin screens, gated by role-specific action props
 // rather than by role checks baked into the component itself.
 //
-// Unlike mobile, milestone names here are derived from `type` via
-// MILESTONE_LABEL (see app/student/home/types.ts) instead of reading
-// nameHe/nameEn fields directly off the milestone doc — those fields aren't
-// reliably populated on legacy milestones. Same reasoning applies to the
+// Milestone names go through milestoneDisplayName (lib/milestoneLabel.ts),
+// which prefers the milestone's own nameHe/nameEn (set from the workflow
+// template at enrollment — see server/src/services/projectEnrollment.ts)
+// and only falls back to MILESTONE_LABEL's hardcoded map for legacy
+// milestones that predate that field. Same reasoning applies to the
 // approval-chain detail: mobile's MilestoneData carries approvalChainHe/En
 // arrays, but nothing on the server ever actually writes those fields (see
 // server/src/controllers/milestoneController.ts and
@@ -24,6 +25,7 @@ import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { RevisionDecisionPanel } from '@/components/RevisionDecisionPanel';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
+import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import {
   MILESTONE_LABEL,
   STATUS_LABEL,
@@ -39,6 +41,11 @@ import {
 export interface MilestoneData {
   id: string;
   type: MilestoneType;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See this file's own header comment
+   *  and lib/milestoneLabel.ts's milestoneDisplayName. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   /** Snapshotted from the workflow template's own milestone list at
    *  enrollment (see server/src/services/projectEnrollment.ts). Absent on a
    *  milestone created before this field existed. */
@@ -159,7 +166,7 @@ function MilestoneCard({
   const cfg = STATUS_CONFIG[milestone.status] ?? STATUS_CONFIG.pending;
   const days = daysUntil(milestone.dueDate);
   const isDefense = milestone.type === 'defense';
-  const label = MILESTONE_LABEL[milestone.type]?.[lang] ?? milestone.type;
+  const label = milestoneDisplayName(milestone, lang, MILESTONE_LABEL);
   const statusLabel = STATUS_LABEL[milestone.status]?.[lang] ?? milestone.status;
 
   const canAdjustDate = COORDINATOR_ADJUST_ROLES.includes(viewerRole);

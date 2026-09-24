@@ -62,6 +62,11 @@ interface TemplateMilestone {
 export interface StudentMilestoneRow {
   id: string | null;
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See lib/milestoneLabel.ts's
+   *  milestoneDisplayName. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: string;
   dueDate: string | null;
   submittedAt: string | null;
@@ -237,7 +242,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: NonNullable<TemplateMilestone['finalGradeComponents']>['supervisorEvaluation']['components'] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [previewFor, setPreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
-  const [updateGradeFor, setUpdateGradeFor] = useState<{ milestoneId: string; type: string; score: number | null } | null>(null);
+  const [updateGradeFor, setUpdateGradeFor] = useState<{ milestoneId: string; type: string; nameHe?: string | null; nameEn?: string | null; score: number | null } | null>(null);
   const [showCertificate, setShowCertificate] = useState(false);
 
   // A grade can only be revised while the project is still in progress —
@@ -678,7 +683,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                   {!m.gradeApproved && !projectFinished && (
                                     <button
                                       type="button"
-                                      onClick={() => setUpdateGradeFor({ milestoneId: m.id!, type: m.type, score: m.supervisorScore })}
+                                      onClick={() => setUpdateGradeFor({ milestoneId: m.id!, type: m.type, nameHe: m.nameHe, nameEn: m.nameEn, score: m.supervisorScore })}
                                       className="text-xs font-medium text-[#00236f] hover:underline"
                                     >
                                       ✏️ {lang === 'he' ? 'עדכן ציון' : 'Update grade'}
@@ -829,6 +834,8 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
           milestoneId={updateGradeFor.milestoneId}
           projectId={project.id}
           milestoneType={updateGradeFor.type}
+          milestoneNameHe={updateGradeFor.nameHe}
+          milestoneNameEn={updateGradeFor.nameEn}
           currentScore={updateGradeFor.score}
           onClose={() => setUpdateGradeFor(null)}
           onUpdated={refreshDetailSilently}

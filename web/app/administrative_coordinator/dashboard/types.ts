@@ -2,6 +2,11 @@
 
 export interface MemberMilestoneGrade {
   type: string;
+  /** Snapshotted from the workflow template at enrollment — the only real
+   *  name a custom milestone type has. See lib/milestoneLabel.ts's
+   *  milestoneDisplayName. */
+  nameHe?: string | null;
+  nameEn?: string | null;
   status: string;
   finalGrade: number | null;
   gradeApproved: boolean;
