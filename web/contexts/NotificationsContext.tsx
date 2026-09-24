@@ -12,7 +12,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from './AuthContext';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { notifMatchesRole } from '@/lib/notificationScreens';
 
 interface NotificationsContextValue {
@@ -112,7 +112,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     try {
       await apiClient.markNotificationsRead(targetScreens);
     } catch (err) {
-      console.warn('Failed marking tab notifications as read', err);
+      // Fire-and-forget from SidebarShell's badge-clearing effect — a
+      // failure here must never block navigation/rendering, but it used to
+      // vanish into a console.warn with no way to tell it happened at all
+      // (a stuck badge looked identical to "nothing tried yet"). Logged as
+      // an error, with the request payload and whatever status/body the
+      // server returned, so a stuck-badge report can actually be traced.
+      console.error('markTabSeen: failed to mark notifications as read', {
+        targetScreens,
+        name: err instanceof Error ? err.name : undefined,
+        message: err instanceof Error ? err.message : String(err),
+        status: err instanceof ApiError ? err.status : undefined,
+        body: err instanceof ApiError ? err.body : undefined,
+      });
     }
   }, []);
 

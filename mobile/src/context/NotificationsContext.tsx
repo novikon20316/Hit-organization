@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { isAxiosError } from 'axios';
 import * as Notifications from 'expo-notifications';
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { apiClient } from '../api/apiClient';
@@ -131,7 +132,18 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     try {
       await apiClient.markNotificationsRead(targetScreens);
     } catch (err) {
-      console.warn('Failed marking tab notifications as read', err);
+      // Fire-and-forget from the header menu's badge-clearing onPress — a
+      // failure here must never block navigation, but it used to vanish
+      // into a console.warn with no way to tell it happened at all (a stuck
+      // badge looked identical to "nothing tried yet"). Logged as an error,
+      // with the request payload and whatever status/body the server
+      // returned, so a stuck-badge report can actually be traced.
+      console.error('markTabSeen: failed to mark notifications as read', {
+        targetScreens,
+        message: err instanceof Error ? err.message : String(err),
+        status: isAxiosError(err) ? err.response?.status : undefined,
+        body: isAxiosError(err) ? err.response?.data : undefined,
+      });
     }
   }, []);
 
