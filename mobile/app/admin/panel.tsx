@@ -972,19 +972,21 @@ export default function PanelScreen() {
     }, {})
   ), [milestones, projectsById, userNamesById]);
 
-  const filteredUsers = users.filter((u) => {
-    const q = userSearch.toLowerCase();
-    const searchOk =
-      !q ||
-      u.displayName?.toLowerCase().includes(q) ||
-      u.email?.toLowerCase().includes(q) ||
-      u.role?.toLowerCase().includes(q);
-    const staffOk =
-      userStaffFilter === 'all' || (userStaffFilter === 'staff' ? isStaff(u.role as AppRole) : u.role === 'student');
-    const roleOk = userRoleFilter === 'all' || u.role === userRoleFilter || (u.roles ?? []).includes(userRoleFilter);
-    const facultyOk = userFacultyFilter === 'all' || u.facultyId === userFacultyFilter;
-    return searchOk && staffOk && roleOk && facultyOk;
-  });
+  const filteredUsers = users
+    .filter((u) => {
+      const q = userSearch.toLowerCase();
+      const searchOk =
+        !q ||
+        u.displayName?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.role?.toLowerCase().includes(q);
+      const staffOk =
+        userStaffFilter === 'all' || (userStaffFilter === 'staff' ? isStaff(u.role as AppRole) : u.role === 'student');
+      const roleOk = userRoleFilter === 'all' || u.role === userRoleFilter || (u.roles ?? []).includes(userRoleFilter);
+      const facultyOk = userFacultyFilter === 'all' || u.facultyId === userFacultyFilter;
+      return searchOk && staffOk && roleOk && facultyOk;
+    })
+    .sort((a, b) => (a.displayName || a.email || '').localeCompare(b.displayName || b.email || '', 'he'));
 
   const filteredProjects = projects.filter((p) => {
     const statusOk = projectFilter === 'all' || p.status === projectFilter;

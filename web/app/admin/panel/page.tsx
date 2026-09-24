@@ -249,14 +249,16 @@ function AdminPanelContent() {
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return users.filter((u) => {
-      const searchOk =
-        !q || u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q);
-      const roleOk = roleFilter === 'all' || u.role === roleFilter || (u.roles ?? []).includes(roleFilter);
-      const staffOk = staffFilter === 'all' || (staffFilter === 'staff' ? isStaff(u.role) : u.role === 'student');
-      const facultyOk = facultyFilter === 'all' || u.facultyId === facultyFilter;
-      return searchOk && roleOk && staffOk && facultyOk;
-    });
+    return users
+      .filter((u) => {
+        const searchOk =
+          !q || u.displayName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q);
+        const roleOk = roleFilter === 'all' || u.role === roleFilter || (u.roles ?? []).includes(roleFilter);
+        const staffOk = staffFilter === 'all' || (staffFilter === 'staff' ? isStaff(u.role) : u.role === 'student');
+        const facultyOk = facultyFilter === 'all' || u.facultyId === facultyFilter;
+        return searchOk && roleOk && staffOk && facultyOk;
+      })
+      .sort((a, b) => (a.displayName || a.email || '').localeCompare(b.displayName || b.email || '', 'he'));
   }, [users, search, roleFilter, staffFilter, facultyFilter]);
 
   // Faculty-color legend for the Users tab — the colored rail on each
