@@ -6,10 +6,11 @@
 // file. Posts via createStudentRosterEntry (src/api/studentRoster.ts) to
 // POST /api/admin/student-roster.
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { createStudentRosterEntry } from '../../src/api/studentRoster';
 import { adminPanelStyles, MaintenanceModalStyles } from '../../constants/styles';
+import { degreeLevelsForFaculty } from '../../constants/permissions';
 import { FACULTY_COLORS } from '../shared';
 
 interface Props {
@@ -30,15 +31,28 @@ export default function AddRosterEntryModal({ visible, onClose, onCreated, lang 
   const [studentId, setStudentId] = useState('');
   const [fullName, setFullName] = useState('');
   const [facultyId, setFacultyId] = useState(SELECTABLE_FACULTIES[0]?.[0] ?? '');
-  const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>('bachelors');
+  const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>(
+    () => degreeLevelsForFaculty(SELECTABLE_FACULTIES[0]?.[0] ?? '')[0] ?? 'bachelors',
+  );
   const [major, setMajor] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Some faculties only offer one degree level (e.g. data_science is
+  // masters-only) — same lockout NewUserModal's own faculty picker uses.
+  const availableDegreeLevels = useMemo(() => degreeLevelsForFaculty(facultyId), [facultyId]);
+
+  const handleFacultyPress = (id: string) => {
+    setFacultyId(id);
+    const levels = degreeLevelsForFaculty(id);
+    if (levels.length === 1) setDegreeType(levels[0]!);
+  };
 
   const reset = () => {
     setStudentId('');
     setFullName('');
-    setFacultyId(SELECTABLE_FACULTIES[0]?.[0] ?? '');
-    setDegreeType('bachelors');
+    const initialFaculty = SELECTABLE_FACULTIES[0]?.[0] ?? '';
+    setFacultyId(initialFaculty);
+    setDegreeType(degreeLevelsForFaculty(initialFaculty)[0] ?? 'bachelors');
     setMajor('');
   };
 
@@ -125,7 +139,7 @@ export default function AddRosterEntryModal({ visible, onClose, onCreated, lang 
                 <Pressable
                   key={id}
                   style={[ps.userFilterChip, facultyId === id && ps.userFilterChipActive]}
-                  onPress={() => setFacultyId(id)}
+                  onPress={() => handleFacultyPress(id)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: facultyId === id }}
                 >
@@ -136,7 +150,7 @@ export default function AddRosterEntryModal({ visible, onClose, onCreated, lang 
 
             <Text style={[ps.fieldLabel, { marginTop: 12 }]}>{isHe ? 'תואר' : 'Degree'}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {(['bachelors', 'masters'] as const).map((d) => (
+              {availableDegreeLevels.map((d) => (
                 <Pressable
                   key={d}
                   style={[ps.userFilterChip, degreeType === d && ps.userFilterChipActive]}
@@ -150,6 +164,11 @@ export default function AddRosterEntryModal({ visible, onClose, onCreated, lang 
                 </Pressable>
               ))}
             </View>
+            {availableDegreeLevels.length === 1 && (
+              <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 4 }}>
+                {isHe ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
+              </Text>
+            )}
 
             <Text style={[ps.fieldLabel, { marginTop: 12 }]}>{isHe ? 'מגמה (אופציונלי)' : 'Major (optional)'}</Text>
             <TextInput

@@ -6,11 +6,12 @@
 // without building a file. Posts to POST /api/admin/student-roster (see
 // server/src/services/studentRoster.ts's createApprovedStudentEntry).
 
-import { useRef, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
+import { degreeLevelsForFaculty } from '@/lib/permissions';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface AddRosterEntryModalProps {
@@ -29,10 +30,22 @@ export function AddRosterEntryModal({ onClose, onCreated }: AddRosterEntryModalP
   const [studentId, setStudentId] = useState('');
   const [fullName, setFullName] = useState('');
   const [facultyId, setFacultyId] = useState<FacultyId>(SELECTABLE_FACULTIES[0]!);
-  const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>('bachelors');
+  const [degreeType, setDegreeType] = useState<'bachelors' | 'masters'>(
+    () => degreeLevelsForFaculty(SELECTABLE_FACULTIES[0]!)[0] ?? 'bachelors',
+  );
   const [major, setMajor] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Some faculties only offer one degree level (e.g. data_science is
+  // masters-only) — same lockout NewUserModal's own facultyId picker uses.
+  const availableDegreeLevels = useMemo(() => degreeLevelsForFaculty(facultyId), [facultyId]);
+
+  const handleFacultyChange = (id: FacultyId) => {
+    setFacultyId(id);
+    const levels = degreeLevelsForFaculty(id);
+    if (levels.length === 1) setDegreeType(levels[0]!);
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -96,7 +109,7 @@ export function AddRosterEntryModal({ onClose, onCreated }: AddRosterEntryModalP
           </Field>
 
           <Field label={lang === 'he' ? 'פקולטה' : 'Faculty'}>
-            <select value={facultyId} onChange={(e) => setFacultyId(e.target.value as FacultyId)} className={inputCls}>
+            <select value={facultyId} onChange={(e) => handleFacultyChange(e.target.value as FacultyId)} className={inputCls}>
               {SELECTABLE_FACULTIES.map((id) => (
                 <option key={id} value={id}>
                   {facultyLabel(id, lang)}
@@ -106,10 +119,24 @@ export function AddRosterEntryModal({ onClose, onCreated }: AddRosterEntryModalP
           </Field>
 
           <Field label={lang === 'he' ? 'תואר' : 'Degree'}>
-            <select value={degreeType} onChange={(e) => setDegreeType(e.target.value as 'bachelors' | 'masters')} className={inputCls}>
-              <option value="bachelors">{lang === 'he' ? 'תואר ראשון' : "Bachelor's"}</option>
-              <option value="masters">{lang === 'he' ? 'תואר שני' : "Master's"}</option>
+            <select
+              value={degreeType}
+              onChange={(e) => setDegreeType(e.target.value as 'bachelors' | 'masters')}
+              className={inputCls}
+              disabled={availableDegreeLevels.length === 1}
+            >
+              {availableDegreeLevels.includes('bachelors') && (
+                <option value="bachelors">{lang === 'he' ? 'תואר ראשון' : "Bachelor's"}</option>
+              )}
+              {availableDegreeLevels.includes('masters') && (
+                <option value="masters">{lang === 'he' ? 'תואר שני' : "Master's"}</option>
+              )}
             </select>
+            {availableDegreeLevels.length === 1 && (
+              <p className="mt-1 text-xs text-muted">
+                {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
+              </p>
+            )}
           </Field>
 
           <Field label={lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}>
