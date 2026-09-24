@@ -13,11 +13,31 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import { AddRosterEntryModal } from './AddRosterEntryModal';
 import type { RosterEntry } from './types';
 
 const selectCls = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none';
 const inputCls = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none';
+
+// Mirrors server/src/services/studentRoster.ts's importApprovedStudentsFromBuffer
+// column parsing exactly — keep in sync if that function's expected columns change.
+const IMPORT_FORMAT_HELP = {
+  he:
+    'עמודות נדרשות בקובץ ה-Excel (שורה ראשונה = כותרות):\n\n' +
+    '• StudentId — מספר ת.ז., 9 ספרות\n' +
+    '• FullName — שם מלא (מומלץ, לא חובה)\n' +
+    "• DegreeType — bachelors / masters (או 'תואר ראשון' / 'תואר שני')\n" +
+    '• Major — מגמה (אופציונלי)\n' +
+    '• FacultyId — קוד פקולטה: sciences, electrical, industrial, learning_tech, medical_tech, design, data_science',
+  en:
+    'Required Excel columns (first row = headers):\n\n' +
+    '• StudentId — 9-digit ID number\n' +
+    '• FullName — full name (recommended, not required)\n' +
+    '• DegreeType — bachelors / masters\n' +
+    '• Major — optional\n' +
+    '• FacultyId — faculty code: sciences, electrical, industrial, learning_tech, medical_tech, design, data_science',
+};
 const DEGREE_LABEL = { bachelors: { he: "תואר ראשון", en: "Bachelor's" }, masters: { he: 'תואר שני', en: "Master's" } };
 
 export function StudentRosterTab() {
@@ -162,6 +182,10 @@ export function StudentRosterTab() {
         >
           {importing ? (lang === 'he' ? 'מעלה ומעבד...' : 'Uploading & processing…') : `📤 ${lang === 'he' ? 'ייבוא מקובץ Excel' : 'Import from Excel'}`}
         </button>
+        <InfoTooltip
+          text={IMPORT_FORMAT_HELP}
+          label={lang === 'he' ? 'מידע על מבנה קובץ הייבוא' : 'Import file format info'}
+        />
         <button
           type="button"
           onClick={() => setShowAddModal(true)}

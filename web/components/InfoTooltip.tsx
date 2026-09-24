@@ -90,7 +90,7 @@ export function InfoTooltip({ text, label }: InfoTooltipProps) {
         <div
           ref={cardRef}
           role="tooltip"
-          className="fixed z-[80] rounded-[var(--radius)] border border-line bg-surface p-3 text-xs leading-relaxed text-ink shadow-lg"
+          className="fixed z-[80] whitespace-pre-line rounded-[var(--radius)] border border-line bg-surface p-3 text-xs leading-relaxed text-ink shadow-lg"
           style={style}
         >
           {text[lang]}

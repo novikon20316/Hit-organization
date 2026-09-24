@@ -45,11 +45,31 @@ import type { HeaderMenuItem } from '../../components/HeaderMenu';
 import { useNotifications } from '../../src/context/NotificationsContext';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal, Enforce2FAModal} from '@/components/modals';
 import AddRosterEntryModal from '@/components/modals/AddRosterEntryModal';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
+
+// Mirrors server/src/services/studentRoster.ts's importApprovedStudentsFromBuffer
+// column parsing exactly — keep in sync if that function's expected columns change.
+const ROSTER_IMPORT_FORMAT_HELP = {
+  he:
+    'עמודות נדרשות בקובץ ה-Excel (שורה ראשונה = כותרות):\n\n' +
+    '• StudentId — מספר ת.ז., 9 ספרות\n' +
+    '• FullName — שם מלא (מומלץ, לא חובה)\n' +
+    "• DegreeType — bachelors / masters (או 'תואר ראשון' / 'תואר שני')\n" +
+    '• Major — מגמה (אופציונלי)\n' +
+    '• FacultyId — קוד פקולטה: sciences, electrical, industrial, learning_tech, medical_tech, design, data_science',
+  en:
+    'Required Excel columns (first row = headers):\n\n' +
+    '• StudentId — 9-digit ID number\n' +
+    '• FullName — full name (recommended, not required)\n' +
+    '• DegreeType — bachelors / masters\n' +
+    '• Major — optional\n' +
+    '• FacultyId — faculty code: sciences, electrical, industrial, learning_tech, medical_tech, design, data_science',
+};
 
 export default function PanelScreen() {
   const router = useRouter();
@@ -1946,6 +1966,13 @@ export default function PanelScreen() {
                   : <Text style={[styles.submitBtnText, { color: ap.onSurface }]}>📤 {lang === 'he' ? 'ייבוא מקובץ' : 'Import from file'}</Text>
                 }
               </Pressable>
+              <View style={{ justifyContent: 'center' }}>
+                <InfoTooltip
+                  textHe={ROSTER_IMPORT_FORMAT_HELP.he}
+                  textEn={ROSTER_IMPORT_FORMAT_HELP.en}
+                  accessibilityLabel={lang === 'he' ? 'מידע על מבנה קובץ הייבוא' : 'Import file format info'}
+                />
+              </View>
               <Pressable
                 style={[styles.submitBtn, { flex: 1 }]}
                 onPress={() => setShowAddRosterModal(true)}
