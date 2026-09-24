@@ -13,7 +13,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { apiClient } from '@/lib/apiClient';
 import { getUserRoles, isValidRole } from '@/lib/roles';
-import { TYPE_STYLE, computeNotifTargetRoute, type Notif } from '@/app/notifications/types';
+import { TYPE_STYLE, computeNotifTargetRoute, withDeepLinkParams, type Notif } from '@/app/notifications/types';
 
 export default function NotificationDetailPage() {
   const router = useRouter();
@@ -80,7 +80,9 @@ export default function NotificationDetailPage() {
   // targetScreen-based route from the URL params and falling back to a
   // generic role-home route with no tab, even though the list's own "Go"
   // button (driven by live data) had the right destination all along.
-  const targetRoute = current ? computeNotifTargetRoute(current.type, userData?.role, current.targetScreen) : paramTargetRoute;
+  const targetRoute = current
+    ? withDeepLinkParams(computeNotifTargetRoute(current.type, userData?.role, current.targetScreen), current)
+    : paramTargetRoute;
   const targetRole = current ? current.targetRole : paramTargetRole;
 
   // Switches activeRole to whichever role targetRoute was actually resolved
@@ -131,7 +133,7 @@ export default function NotificationDetailPage() {
       bodyHe: target.bodyHe,
       bodyEn: target.bodyEn,
       createdAt: target.createdAt,
-      targetRoute: computeNotifTargetRoute(target.type, userData?.role, target.targetScreen),
+      targetRoute: withDeepLinkParams(computeNotifTargetRoute(target.type, userData?.role, target.targetScreen), target),
       ...(target.targetRole ? { targetRole: target.targetRole } : {}),
     });
     router.replace(`/notification/${target.id}?${nextParams.toString()}`);

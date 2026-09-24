@@ -19,7 +19,7 @@ import { getUserRoles, isValidRole } from '@/lib/roles';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { FeedbackTab } from './FeedbackTab';
-import { TYPE_STYLE, relativeTime, initials, rowTimestamp, computeNotifTargetRoute, type Notif, type ChatRow } from './types';
+import { TYPE_STYLE, relativeTime, initials, rowTimestamp, computeNotifTargetRoute, withDeepLinkParams, type Notif, type ChatRow } from './types';
 
 type Tab = 'notifs' | 'chats' | 'feedback';
 
@@ -172,7 +172,7 @@ export default function NotificationsPage() {
     // body) instead of silently jumping straight to a dashboard — that
     // dashboard never showed the notification's actual content anywhere, so
     // the redirect looked like it had no reason behind it.
-    const targetRoute = computeNotifTargetRoute(notif.type, activeRole, notif.targetScreen);
+    const targetRoute = withDeepLinkParams(computeNotifTargetRoute(notif.type, activeRole, notif.targetScreen), notif);
 
     const params = new URLSearchParams({
       type: notif.type,
@@ -206,7 +206,7 @@ export default function NotificationsPage() {
       if (notif.chatId) router.push(`/message/${notif.chatId}?otherName=${encodeURIComponent(notif.senderName ?? '')}`);
       return;
     }
-    const targetRoute = computeNotifTargetRoute(notif.type, activeRole, notif.targetScreen);
+    const targetRoute = withDeepLinkParams(computeNotifTargetRoute(notif.type, activeRole, notif.targetScreen), notif);
     if (targetRoute) goToTarget(targetRoute, notif.targetRole);
   };
 

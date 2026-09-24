@@ -156,6 +156,36 @@ export function computeNotifTargetRoute(type: string, role: AppRole | undefined,
   }
 }
 
+// Some destination tabs can jump straight to the specific item the
+// notification is about, not just the tab it lives on — e.g. the Supervisor
+// Projects tab opens the grading modal directly for a given milestoneId
+// instead of leaving the supervisor to find the right project card among
+// however many they have (see app/supervisor/dashboard/page.tsx's
+// milestoneId search param handling). Screens with no such deep-link support
+// are returned unchanged. Kept as a small explicit allowlist rather than a
+// generic "append every related*Id" rule, since not every screen knows what
+// to do with one (and a stray unused param is confusing on its own).
+export function withDeepLinkParams(
+  targetRoute: string,
+  notif: Pick<Notif, 'targetScreen' | 'relatedMilestoneId' | 'relatedProjectId'>
+): string {
+  if (!targetRoute) return targetRoute;
+  const extra = new URLSearchParams();
+  if (notif.targetScreen === 'supervisor_projects' && notif.relatedMilestoneId) {
+    extra.set('milestoneId', notif.relatedMilestoneId);
+  } else if (notif.targetScreen === 'supervisor_applications' && notif.relatedProjectId) {
+    // application_received carries no id of its own for the specific
+    // application (see applicationController.ts) — the project is enough to
+    // find and highlight whichever of that project's applications is still
+    // pending, which in practice is exactly the one this notification is
+    // about.
+    extra.set('projectId', notif.relatedProjectId);
+  }
+  const qs = extra.toString();
+  if (!qs) return targetRoute;
+  return `${targetRoute}${targetRoute.includes('?') ? '&' : '?'}${qs}`;
+}
+
 export function initials(name: string): string {
   return (
     name

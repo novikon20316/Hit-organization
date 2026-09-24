@@ -56,12 +56,17 @@ interface ApplicationCardProps {
    *  scheduling needs a form (candidate slots), unlike the plain
    *  approve/reject one-click decisions this card handles itself. */
   onProposeMeeting: () => void;
+  /** True when this is the specific application a notification's deep link
+   *  pointed at (see app/supervisor/dashboard/page.tsx's deepLinkProjectId
+   *  handling) — starts expanded and gets a highlight ring so the
+   *  supervisor lands on the actual application, not just its tab. */
+  highlighted?: boolean;
 }
 
-export function ApplicationCard({ application: app, onDecided, onProposeMeeting }: ApplicationCardProps) {
+export function ApplicationCard({ application: app, onDecided, onProposeMeeting, highlighted = false }: ApplicationCardProps) {
   const { lang } = useLanguage();
   const router = useRouter();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(highlighted);
   const [busy, setBusy] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [error, setError] = useState('');
@@ -112,7 +117,12 @@ export function ApplicationCard({ application: app, onDecided, onProposeMeeting 
   const screening = app.aiScreening ? SCREENING_STYLE[app.aiScreening.verdict] : null;
 
   return (
-    <div className="rounded-supervisor border border-supervisor-outline-variant bg-supervisor-surface-container-lowest p-4">
+    <div
+      id={`application-${app.id}`}
+      className={`rounded-supervisor border bg-supervisor-surface-container-lowest p-4 ${
+        highlighted ? 'border-supervisor-primary ring-2 ring-supervisor-primary' : 'border-supervisor-outline-variant'
+      }`}
+    >
       <button type="button" onClick={() => setExpanded((v) => !v)} className="w-full text-start">
         <p className="text-sm font-semibold text-supervisor-on-surface">📁 {lang === 'he' ? app.projectTitleHe : app.projectTitleEn}</p>
         <div className="mt-2 flex items-center gap-2.5">

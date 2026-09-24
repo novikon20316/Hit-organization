@@ -86,6 +86,11 @@ function SupervisorDashboardContent() {
   // local state to keep in sync.
   const paramTab = searchParams.get('tab');
   const tab: Tab = isSupervisorTab(paramTab) ? paramTab : 'projects';
+  // Deep-link params from a notification's "go to relevant screen" link (see
+  // app/notifications/types.ts's withDeepLinkParams) — land the supervisor
+  // on the specific item the notification was about, not just its tab.
+  const deepLinkMilestoneId = searchParams.get('milestoneId');
+  const deepLinkProjectId = searchParams.get('projectId');
   const [applicationFilter, setApplicationFilter] = useState<ApplicationFilter>('all');
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>('all');
   const [myProjects, setMyProjects] = useState<MyProject[]>([]);
@@ -97,6 +102,40 @@ function SupervisorDashboardContent() {
   const [loadError, setLoadError] = useState('');
 
   const [gradingTarget, setGradingTarget] = useState<SupervisorPendingMilestone | null>(null);
+  // Opens GradeMilestoneModal automatically for deepLinkMilestoneId once
+  // it shows up in pendingGrades — lands the supervisor straight on the
+  // specific submission a notification was about, instead of a bare "here's
+  // your Projects tab" they'd have to search through card by card. Fires
+  // once per page load (openedDeepLinkRef guards against pendingGrades'
+  // live listener re-running this after the supervisor closes the modal).
+  const openedDeepLinkRef = useRef(false);
+  useEffect(() => {
+    if (!deepLinkMilestoneId || openedDeepLinkRef.current) return;
+    const match = pendingGrades.find((m) => m.id === deepLinkMilestoneId);
+    if (match) {
+      setGradingTarget(match);
+      openedDeepLinkRef.current = true;
+    }
+  }, [deepLinkMilestoneId, pendingGrades]);
+  // application_received notifications carry the project, not the specific
+  // application id (see app/notifications/types.ts's withDeepLinkParams) —
+  // that project's still-pending application(s) are what the notification
+  // was about, so those are what get highlighted/scrolled to below.
+  const deepLinkApplicationIds = deepLinkProjectId
+    ? applications.filter((app) => app.projectId === deepLinkProjectId && app.status === 'applied').map((app) => app.id)
+    : [];
+  // Scrolls to and highlights the pending application(s) matching
+  // deepLinkProjectId once the applications list has loaded — same
+  // one-shot-per-page-load guard as the grading modal above.
+  const scrolledDeepLinkRef = useRef(false);
+  useEffect(() => {
+    if (!deepLinkProjectId || scrolledDeepLinkRef.current || deepLinkApplicationIds.length === 0) return;
+    const el = document.getElementById(`application-${deepLinkApplicationIds[0]}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      scrolledDeepLinkRef.current = true;
+    }
+  }, [deepLinkProjectId, deepLinkApplicationIds]);
   const [editingProject, setEditingProject] = useState<MyProject | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
   // Opened either right after creating a project (NewProjectModal's
@@ -361,6 +400,7 @@ function SupervisorDashboardContent() {
                     application={app}
                     onDecided={fetchDashboard}
                     onProposeMeeting={() => setProposingMeetingFor(app)}
+                    highlighted={deepLinkApplicationIds.includes(app.id)}
                   />
                 ))}
                 {filteredApplications.length === 0 && (
