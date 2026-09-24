@@ -50,19 +50,6 @@ interface BrowseSupervisorsProps {
   onApplicationsChanged: () => void;
 }
 
-const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload';
-const CLOUDINARY_UPLOAD_PRESET = 'student_uploads';
-
-async function uploadToCloudinary(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  const res = await fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!data.secure_url) throw new Error('Upload failed');
-  return data.secure_url as string;
-}
-
 export function BrowseSupervisors({ studentFaculty, studentDegree, pendingApplications, supervisorSelectionRequiresApproval, onApplicationsChanged }: BrowseSupervisorsProps) {
   const { lang, t } = useLanguage();
   const appliedProjectIds = useMemo(() => pendingApplications.map((a) => a.projectId), [pendingApplications]);
@@ -188,8 +175,8 @@ export function BrowseSupervisors({ studentFaculty, studentDegree, pendingApplic
     setApplyMessage(null);
     try {
       const [transcriptUrl, cvUrl] = await Promise.all([
-        transcriptFile ? uploadToCloudinary(transcriptFile) : Promise.resolve(lastTranscriptUrl),
-        cvFile ? uploadToCloudinary(cvFile) : Promise.resolve(lastCvUrl),
+        transcriptFile ? apiClient.uploadApplicationDocument(transcriptFile) : Promise.resolve(lastTranscriptUrl),
+        cvFile ? apiClient.uploadApplicationDocument(cvFile) : Promise.resolve(lastCvUrl),
       ]);
       await apiClient.applyToProject({
         projectId: applyTarget.project.id,

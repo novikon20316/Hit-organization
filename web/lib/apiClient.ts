@@ -359,20 +359,16 @@ export const apiClient = {
     return request<{ success: boolean }>(`/api/chats/${chatId}/messages`, { method: 'POST', body: { imageUrl, text: caption ?? '' } });
   },
 
-  /** Uploads a chat image directly to Cloudinary (same unsigned preset/cloud
-   *  already used elsewhere in this app for CV/transcript/project-file
-   *  uploads) and returns the hosted URL to pass to sendChatImageMessage. */
+  /** Uploads a chat image through the server (authenticated — the old path
+   *  posted straight to Cloudinary via a hardcoded unsigned preset anyone
+   *  could extract from the client bundle and abuse; see
+   *  AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1) and
+   *  returns the hosted URL to pass to sendChatImageMessage. */
   async uploadChatImage(file: File): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', 'student_uploads');
-    const res = await fetch('https://api.cloudinary.com/v1_1/dp7stlfas/image/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) throw new Error(`Image upload failed — HTTP ${res.status}`);
-    const data = await res.json();
-    return data.secure_url;
+    const { url } = await request<{ url: string }>('/api/chats/upload-image', { method: 'POST', body: formData, raw: true });
+    return url;
   },
 
   async getChatMeta(chatId: string) {
@@ -1141,6 +1137,18 @@ export const apiClient = {
 
   async applyToProject(payload: { projectId: string; transcriptUrl: string; cvUrl: string; notes: string; selectedProjectType?: 'project' | 'thesis' }) {
     return request<{ success?: boolean; message?: string }>('/api/applications/apply', { method: 'POST', body: payload });
+  },
+
+  /** Uploads a transcript/CV PDF through the server (authenticated — the old
+   *  path posted straight to Cloudinary via a hardcoded unsigned preset
+   *  anyone could extract from the client bundle and abuse; see
+   *  AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1) and
+   *  returns the hosted URL to pass to applyToProject. */
+  async uploadApplicationDocument(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { url } = await request<{ url: string }>('/api/applications/upload-document', { method: 'POST', body: formData, raw: true });
+    return url;
   },
 
   async withdrawApplication(applicationId: string) {

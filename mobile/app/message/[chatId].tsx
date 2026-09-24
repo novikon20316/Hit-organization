@@ -24,23 +24,20 @@ interface Message {
   createdAt: string | null; // ISO string from backend, never a Firestore Timestamp
 }
 
-// Uploads directly to the same Cloudinary cloud/preset the rest of the app
-// already uses for CV/transcript/project-file uploads — the server
-// independently re-validates the returned URL's host before accepting it as
-// a chat message, so this client-side upload step is never trusted by
-// itself. `/image/upload` (not `/raw/upload`) so Cloudinary applies its own
-// image validation/transform pipeline rather than storing it as an opaque file.
+// Uploads through the server (authenticated) rather than straight to
+// Cloudinary — the old path posted directly via a hardcoded unsigned preset
+// anyone could extract from the client bundle and abuse; see
+// AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1. The server
+// uploads to the same `image/upload` resource type this always used, so
+// CHAT_IMAGE_URL_RE in chatController.ts still matches the result.
 async function uploadChatImage(uri: string): Promise<string> {
   const formData = new FormData();
   formData.append('file', { uri, type: 'image/jpeg', name: 'chat-image.jpg' } as any);
-  formData.append('upload_preset', 'student_uploads');
-  const response = await fetch('https://api.cloudinary.com/v1_1/dp7stlfas/image/upload', {
-    method: 'POST',
-    body: formData,
+  const response = await apiClient.post<{ url: string }>('/api/chats/upload-image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    transformRequest: (data: any) => data,
   });
-  if (!response.ok) throw new Error(`Image upload failed — HTTP ${response.status}`);
-  const data = await response.json();
-  return data.secure_url;
+  return response.data.url;
 }
 
 // ─── Role → readable label ────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 import admin from 'firebase-admin'
 import { AuthenticatedRequest } from '../middleware/auth.js'
-import { Response } from 'express'
+import { Response, RequestHandler } from 'express'
+import multer from 'multer'
+import { v2 as cloudinary } from 'cloudinary'
 import { screenApplication } from '../services/cvScreeningService.js'
 import { reviewApplication } from '../services/applicationReviewService.js'
 import { extractCompletedCourses, computeAccumulatedCredits, type ExtractedCourse } from '../services/transcriptExtractionService.js'
@@ -11,6 +13,69 @@ import { resolveEffectiveTrack } from '../config/studentTrack.js'
 import { createMeetingEvent, isCalendarConnected } from '../services/googleCalendarService.js'
 
 const db = admin.firestore();
+
+// ─── Multer setup for application document uploads (transcript/CV) ─────────
+// PDF-only — applyApplication below requires transcriptUrl/cvUrl to end in
+// .pdf (isPdfUrl), and transcriptExtractionService can only read PDFs, so
+// there's no reason to accept anything else here. Same
+// memoryStorage+fileFilter+size-limit shape as milestoneController.ts's
+// uploadMiddleware.
+class UnsupportedFileTypeError extends Error {
+  code = 'UNSUPPORTED_FILE_TYPE';
+}
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      cb(new UnsupportedFileTypeError('Only PDF files are accepted.'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+export const uploadDocumentMiddleware: RequestHandler = upload.single('file') as unknown as RequestHandler;
+
+export const handleUploadDocumentError: import('express').ErrorRequestHandler = (err, _req, res, next) => {
+  if (err instanceof UnsupportedFileTypeError) {
+    return res.status(400).json({ message: err.message });
+  }
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ message: 'File too large — the limit is 10MB.' });
+  }
+  return next(err);
+};
+
+// ─── POST /api/applications/upload-document ─────────────────────────────────
+// Authenticated replacement for the old direct-to-Cloudinary client upload
+// (unsigned `student_uploads` preset, callable by anyone who extracted the
+// preset name from the client bundle — see
+// AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1). Uploads to
+// the same Cloudinary destination/shape (raw, .pdf) the old client-side path
+// used, so the rest of the apply flow (isPdfUrl, transcriptExtractionService)
+// is unaffected — only who's allowed to trigger an upload changed.
+export const uploadApplicationDocument = async (req: AuthenticatedRequest, res: Response) => {
+  const file = (req as any).file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+
+  try {
+    const base64 = file.buffer.toString('base64');
+    const dataUri = `data:${file.mimetype};base64,${base64}`;
+    const result = await cloudinary.uploader.upload(dataUri, {
+      resource_type: 'raw',
+      folder: 'applications',
+      format: 'pdf',
+    });
+    return res.status(200).json({ url: result.secure_url });
+  } catch (uploadError) {
+    // Same reasoning as milestoneController.ts's submitMilestone: a
+    // misconfigured/rotated Cloudinary credential shouldn't reach the
+    // student as a raw SDK error.
+    console.error('uploadApplicationDocument error:', uploadError);
+    return res.status(502).json({ message: 'File upload failed. Please try again in a few minutes.' });
+  }
+};
 
 // Auto-populates a student's completedCourses from whatever courses/grades
 // transcriptExtractionService actually read off their uploaded transcript —

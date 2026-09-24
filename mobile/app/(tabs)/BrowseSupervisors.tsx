@@ -59,21 +59,21 @@ function isPdfAsset(asset: { mimeType?: string; name?: string }): boolean {
   return asset.mimeType === 'application/pdf' || (asset.name ?? '').toLowerCase().endsWith('.pdf');
 }
 
+// Uploads through the server (authenticated) rather than straight to
+// Cloudinary — the old path posted directly via a hardcoded unsigned preset
+// anyone could extract from the client bundle and abuse; see
+// AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1. 30s timeout
+// preserved from the old AbortController (see Browseprojects.tsx's identical
+// helper for the original reasoning) via axios's own per-request timeout.
 async function uploadFile(uri: string): Promise<string> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-  try {
-    const formData = new FormData();
-    formData.append('file', { uri, type: 'application/pdf', name: 'document.pdf' } as any);
-    formData.append('upload_preset', 'student_uploads');
-    const response = await fetch('https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload', {
-      method: 'POST', body: formData, signal: controller.signal,
-    });
-    const data = await response.json();
-    return data.secure_url;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  const formData = new FormData();
+  formData.append('file', { uri, type: 'application/pdf', name: 'document.pdf' } as any);
+  const response = await apiClient.post<{ url: string }>('/api/applications/upload-document', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    transformRequest: (data: any) => data,
+    timeout: 30000,
+  });
+  return response.data.url;
 }
 
 export default function BrowseSupervisors({ lang, isRtl, studentFaculty, studentDegree, pendingApplications, supervisorSelectionRequiresApproval, onApplicationsChanged }: Props) {

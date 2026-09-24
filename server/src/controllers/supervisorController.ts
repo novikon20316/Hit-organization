@@ -489,6 +489,30 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
   }
 };
 
+// ─── POST /api/supervisor/projects/upload-file ───────────────────────────────
+// Authenticated replacement for CreateOwnProjectButton.tsx's/dashboard.tsx's
+// old direct-to-Cloudinary client upload (unsigned `student_uploads` preset,
+// callable by anyone who extracted the preset name from the client bundle —
+// see AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1). Reuses
+// milestoneController.ts's uploadMiddleware (same shared multer config the
+// staff-record/final-grade-decision routes below already use) — takes the
+// first file from `files`.
+export const uploadProjectFile = async (req: AuthenticatedRequest, res: Response) => {
+  const files = ((req as any).files as Express.Multer.File[]) ?? [];
+  const file = files[0];
+  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+
+  try {
+    const base64 = file.buffer.toString('base64');
+    const dataUri = `data:${file.mimetype};base64,${base64}`;
+    const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'projects' });
+    return res.status(200).json({ url: result.secure_url });
+  } catch (uploadError) {
+    console.error('uploadProjectFile error:', uploadError);
+    return res.status(502).json({ message: 'File upload failed. Please try again in a few minutes.' });
+  }
+};
+
 // ─── POST /api/supervisor/projects ───────────────────────────────────────────
 export const createSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;

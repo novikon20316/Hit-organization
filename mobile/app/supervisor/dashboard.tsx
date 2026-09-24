@@ -903,21 +903,22 @@ export default function SupervisorHome() {
 
     setUploadingProjectFile(true);
     try {
+      // Uploads through the server (authenticated) rather than straight to
+      // Cloudinary — the old path posted directly via a hardcoded unsigned
+      // preset anyone could extract from the client bundle and abuse; see
+      // AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1.
       const formData = new FormData();
-      formData.append('file', { uri: asset.uri, type: 'application/pdf', name: asset.name } as any);
-      formData.append('upload_preset', 'student_uploads');
-      const response = await fetch('https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload', {
-        method: 'POST',
-        body: formData,
+      formData.append('files', { uri: asset.uri, type: 'application/pdf', name: asset.name } as any);
+      const response = await apiClient.post<{ url: string }>('/api/supervisor/projects/upload-file', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        transformRequest: (data: any) => data,
       });
-      if (!response.ok) throw new Error(`Upload failed — HTTP ${response.status}`);
-      const data = await response.json();
 
       if (isNew) {
-        setProjectFile(data.secure_url);
+        setProjectFile(response.data.url);
         setProjectName(asset.name);
       } else {
-        setEditProjectFile(data.secure_url);
+        setEditProjectFile(response.data.url);
         setEditProjectFileName(asset.name);
       }
     } catch (e) {

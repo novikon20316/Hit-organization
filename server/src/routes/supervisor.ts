@@ -5,6 +5,7 @@ import {
     getSupervisorProjectDetail,
     handleApplicationDecision,
     createSupervisorProject,
+    uploadProjectFile,
     getSupervisorExaminerRecommendations,
     createExaminerRecommendation,
     submitStaffRecord,
@@ -15,7 +16,7 @@ import {
     handleCalendarCallback,
     disconnectCalendarHandler,
 } from '../controllers/supervisorController.js'
-import { uploadMiddleware } from '../controllers/milestoneController.js';
+import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -37,6 +38,7 @@ router.get('/calendar/connect', verifyToken, getCalendarConnectUrl)
 router.get('/calendar/callback', handleCalendarCallback)
 router.post('/calendar/disconnect', verifyToken, disconnectCalendarHandler)
 router.post('/projects', verifyToken, createSupervisorProject)
+router.post('/projects/upload-file', verifyToken, uploadMiddleware, handleUploadError, uploadProjectFile)
 router.get('/examiner-recommendations', verifyToken, getSupervisorExaminerRecommendations)
 router.post('/examiner-recommendations', verifyToken, createExaminerRecommendation)
 // Staff record (research_proposal/progress_report, upload-or-form) and the

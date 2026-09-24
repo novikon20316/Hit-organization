@@ -162,18 +162,19 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
     }
   };
 
-  // ── Upload file to Firebase Storage ───────────────────────────────────────
-  // MEDIUM FIX: this raw fetch() had no timeout at all — on a weak
-  // connection, a stalled upload never resolved or rejected, so
-  // handleApply's Promise.all below just hung forever with submitting
-  // stuck true and no way out except force-closing the app. A 30s ceiling
-  // (longer than apiClient's own 15s JSON-request timeout, since this is a
-  // real file upload rather than a small JSON payload) turns a stall into
-  // a normal, catchable failure instead.
+  // ── Upload file through the server ────────────────────────────────────────
+  // Authenticated — the old path posted straight to Cloudinary via a
+  // hardcoded unsigned preset anyone could extract from the client bundle
+  // and abuse; see AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md
+  // finding #1. MEDIUM FIX (preserved): the old raw fetch() had no timeout
+  // at all — on a weak connection, a stalled upload never resolved or
+  // rejected, so handleApply's Promise.all below just hung forever with
+  // submitting stuck true and no way out except force-closing the app. The
+  // same 30s ceiling (longer than apiClient's own 15s JSON-request timeout,
+  // since this is a real file upload rather than a small JSON payload) is
+  // now enforced via axios's own per-request timeout instead of a manual
+  // AbortController.
   const uploadFile = async (uri: string): Promise<string> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    try {
     const formData = new FormData();
 
     formData.append('file', {
@@ -182,28 +183,14 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
       name: 'document.pdf',
     } as any);
 
-    formData.append('upload_preset', 'student_uploads');
+    const response = await apiClient.post<{ url: string }>('/api/applications/upload-document', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: (data: any) => data,
+      timeout: 30000,
+    });
 
-    const response = await fetch(
-      'https://api.cloudinary.com/v1_1/dp7stlfas/raw/upload',
-      {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal,
-      }
-    );
-
-    const data = await response.json();
-
-    return data.secure_url;
-
-  } catch (error) {
-    console.error('UPLOAD ERROR:', error);
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
+    return response.data.url;
+  };
 
   // ── Submit application ─────────────────────────────────────────────────────
   const handleApply = async () => {

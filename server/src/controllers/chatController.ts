@@ -1,8 +1,10 @@
 // Inside controllers/chatController.ts
 
-import { Request, Response } from "express";
+import { Request, Response, RequestHandler } from "express";
 import { db } from "../config/firebase.js";
 import admin from 'firebase-admin';
+import multer from 'multer';
+import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest } from "../middleware/auth.js";
 import { logProjectRecordEntry } from "../services/projectRecords.js";
 
@@ -141,6 +143,61 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
 const CHAT_IMAGE_URL_RE = /^https:\/\/res\.cloudinary\.com\/dp7stlfas\/image\/upload\//;
 const MAX_TEXT_LENGTH = 4000;
 const MAX_CAPTION_LENGTH = 1000;
+
+// ─── Multer setup for chat image uploads ────────────────────────────────────
+// Authenticated replacement for the old direct-to-Cloudinary client upload
+// (unsigned `student_uploads` preset, callable by anyone who extracted the
+// preset name from the client bundle — see
+// AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1). Uploads to
+// the same `image/upload` resource type CHAT_IMAGE_URL_RE above already
+// expects, so the rest of the send-message validation is unaffected.
+const ALLOWED_CHAT_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
+class UnsupportedChatImageTypeError extends Error {
+  code = 'UNSUPPORTED_FILE_TYPE';
+}
+
+const chatImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_CHAT_IMAGE_MIME_TYPES.has(file.mimetype)) {
+      cb(new UnsupportedChatImageTypeError('Only JPEG, PNG, GIF, or WebP images are accepted.'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+export const uploadChatImageMiddleware: RequestHandler = chatImageUpload.single('file') as unknown as RequestHandler;
+
+export const handleChatImageUploadError: import('express').ErrorRequestHandler = (err, _req, res, next) => {
+  if (err instanceof UnsupportedChatImageTypeError) {
+    return res.status(400).json({ message: err.message });
+  }
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ message: 'Image too large — the limit is 10MB.' });
+  }
+  return next(err);
+};
+
+// POST /api/chats/upload-image
+export const uploadChatImage = async (req: AuthenticatedRequest, res: Response) => {
+  const file = (req as any).file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+
+  try {
+    const base64 = file.buffer.toString('base64');
+    const dataUri = `data:${file.mimetype};base64,${base64}`;
+    const result = await cloudinary.uploader.upload(dataUri, {
+      resource_type: 'image',
+      folder: 'chat-images',
+    });
+    return res.status(200).json({ url: result.secure_url });
+  } catch (uploadError) {
+    console.error('uploadChatImage error:', uploadError);
+    return res.status(502).json({ message: 'Image upload failed. Please try again in a few minutes.' });
+  }
+};
 
 export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid; // 🔒 Securely verified Sender ID from your middleware token
