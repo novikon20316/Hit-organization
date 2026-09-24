@@ -241,6 +241,54 @@ export async function deleteApprovedStudentEntry(docId: string): Promise<void> {
   await db.collection('approvedStudents').doc(docId).delete();
 }
 
+export interface RosterEntryCreate {
+  studentId: string;
+  facultyId: string;
+  degreeType: RosterDegreeType;
+  fullName: string;
+  major?: string | null;
+}
+
+/** Manual single-entry counterpart to importApprovedStudentsFromBuffer — same
+ *  validation and upsert-by-rosterDocId semantics, for adding one approved
+ *  student without building an Excel file. */
+export async function createApprovedStudentEntry(data: RosterEntryCreate, uploadedBy: string): Promise<RosterEntry> {
+  const studentId = normalizeStudentId(data.studentId);
+  if (!/^\d{9}$/.test(studentId)) throw new Error('Student ID must be exactly 9 digits.');
+
+  const facultyId = (data.facultyId || '').toLowerCase();
+  if (!VALID_FACULTIES.includes(facultyId)) throw new Error(`Invalid faculty: "${data.facultyId}"`);
+
+  if (data.degreeType !== 'bachelors' && data.degreeType !== 'masters') {
+    throw new Error('Invalid degree type.');
+  }
+
+  const fullName = (data.fullName || '').trim();
+  if (!fullName) throw new Error('Full name is required.');
+
+  const docId = rosterDocId(studentId, facultyId, data.degreeType);
+  const ref = db.collection('approvedStudents').doc(docId);
+  const existing = await ref.get();
+  if (existing.exists && existing.data()?.used) {
+    throw new Error('This student ID is already registered under this faculty and degree.');
+  }
+
+  const entry: Omit<RosterEntry, 'id'> = {
+    studentId,
+    facultyId,
+    degreeType: data.degreeType,
+    major: data.major ? data.major.toLowerCase() : null,
+    fullName,
+    used: false,
+    usedByUid: null,
+    usedAt: null,
+    uploadedBy,
+    uploadedAt: new Date().toISOString(),
+  };
+  await ref.set(entry, { merge: true });
+  return { id: docId, ...entry };
+}
+
 export interface EligibilityCheckResult {
   eligible: boolean;
   reason?: string;

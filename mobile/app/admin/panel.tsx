@@ -44,6 +44,7 @@ import { ADMIN_NAVIGATION_ITEMS, ADMIN_DIRECTORY_ITEMS } from '../../constants/a
 import type { HeaderMenuItem } from '../../components/HeaderMenu';
 import { useNotifications } from '../../src/context/NotificationsContext';
 import {NewUserModal, AddStudentToProjectModal, MaintenanceModal, EditUserModal, NewProjectModal, ScheduleDefenseModal, BulkDueDateModal, StudentStatusesModal, Enforce2FAModal} from '@/components/modals';
+import AddRosterEntryModal from '@/components/modals/AddRosterEntryModal';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
@@ -140,6 +141,7 @@ export default function PanelScreen() {
   const [editRosterMajor, setEditRosterMajor] = useState('');
   const [savingRosterId, setSavingRosterId] = useState<string | null>(null);
   const [confirmDeleteRosterId, setConfirmDeleteRosterId] = useState<string | null>(null);
+  const [showAddRosterModal, setShowAddRosterModal] = useState(false);
 
   const [userSearch, setUserSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState('all');
@@ -1932,6 +1934,27 @@ export default function PanelScreen() {
                 : "The approved-students allowlist uploaded by faculty coordinators (or system-wide)"}
             </Text>
 
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+              <Pressable
+                style={[styles.submitBtn, { flex: 1, backgroundColor: ap.surfaceContainerLowest, borderWidth: 1.5, borderColor: ap.outlineVariant }]}
+                onPress={handleImportStudentRoster}
+                disabled={importingRoster}
+                accessibilityRole="button"
+              >
+                {importingRoster
+                  ? <ActivityIndicator color={ap.onSurface} size="small" />
+                  : <Text style={[styles.submitBtnText, { color: ap.onSurface }]}>📤 {lang === 'he' ? 'ייבוא מקובץ' : 'Import from file'}</Text>
+                }
+              </Pressable>
+              <Pressable
+                style={[styles.submitBtn, { flex: 1 }]}
+                onPress={() => setShowAddRosterModal(true)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.submitBtnText}>➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}</Text>
+              </Pressable>
+            </View>
+
             <View style={styles.searchBox}>
               <TextInput
                 placeholder={lang === 'he' ? 'חפש לפי ת.ז. או שם...' : 'Search by ID or name...'}
@@ -2520,6 +2543,13 @@ export default function PanelScreen() {
           sublabel: (p.enrolledStudentIds ?? []).map((sid) => userNamesById[sid] ?? sid).join(', ') || undefined,
         }))}
         onSaved={fetchAllDashboardData}
+      />
+
+      <AddRosterEntryModal
+        visible={showAddRosterModal}
+        onClose={() => setShowAddRosterModal(false)}
+        onCreated={fetchRosterEntries}
+        lang={lang}
       />
 
       <NewUserModal

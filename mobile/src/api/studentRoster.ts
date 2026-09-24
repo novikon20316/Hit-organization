@@ -105,6 +105,19 @@ export async function deleteStudentRosterEntry(docId: string): Promise<void> {
   await apiClient.delete(`/api/admin/student-roster/${encodeURIComponent(docId)}`);
 }
 
+/** POST /api/admin/student-roster — manual single-entry add, the "+" button
+ *  counterpart to pickAndImportStudentRoster above. */
+export async function createStudentRosterEntry(data: {
+  studentId: string;
+  facultyId: string;
+  degreeType: 'bachelors' | 'masters';
+  fullName: string;
+  major?: string | null;
+}): Promise<RosterEntry> {
+  const response = await apiClient.post('/api/admin/student-roster', data);
+  return response.data.entry as RosterEntry;
+}
+
 export interface EligibilityCheckResult {
   eligible: boolean;
   message?: string;

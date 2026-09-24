@@ -1390,6 +1390,33 @@ export const apiClient = {
     return request<{ success: boolean }>(`/api/admin/student-roster/${encodeURIComponent(docId)}`, { method: 'DELETE' });
   },
 
+  /** POST /api/admin/student-roster — manual single-entry add, the "+"
+   *  button counterpart to importStudentRosterExcel above. */
+  async createStudentRosterEntry(data: {
+    studentId: string;
+    facultyId: string;
+    degreeType: 'bachelors' | 'masters';
+    fullName: string;
+    major?: string | null;
+  }) {
+    return request<{
+      success: boolean;
+      entry: {
+        id: string;
+        studentId: string;
+        facultyId: string;
+        degreeType: 'bachelors' | 'masters';
+        major: string | null;
+        fullName: string;
+        used: boolean;
+        usedByUid: string | null;
+        usedAt: string | null;
+        uploadedBy: string;
+        uploadedAt: string;
+      };
+    }>('/api/admin/student-roster', { method: 'POST', body: data });
+  },
+
   // ─── 8. SUPERVISOR ──────────────────────────────────────────────────────────
   async getSupervisorDashboard() {
     if (supervisorDashboardInFlight) return supervisorDashboardInFlight;

@@ -13,6 +13,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
+import { AddRosterEntryModal } from './AddRosterEntryModal';
 import type { RosterEntry } from './types';
 
 const selectCls = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none';
@@ -37,6 +38,11 @@ export function StudentRosterTab() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [rowError, setRowError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importSummary, setImportSummary] = useState<{ imported: number; skipped: number; failed: number; totalRows: number } | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -111,6 +117,34 @@ export function StudentRosterTab() {
     }
   };
 
+  const pickExcelFile = (): Promise<File | null> =>
+    new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
+      input.onchange = () => resolve(input.files?.[0] ?? null);
+      input.click();
+    });
+
+  const handleImportFile = async () => {
+    const file = await pickExcelFile();
+    if (!file) return;
+    setImporting(true);
+    setImportError('');
+    setImportSummary(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await apiClient.importStudentRosterExcel('admin', formData);
+      setImportSummary(res.summary);
+      await fetchEntries();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : lang === 'he' ? 'ייבוא הקובץ נכשל' : 'Failed to import the file');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div>
       <p className="mb-4 text-sm text-muted">
@@ -118,6 +152,45 @@ export function StudentRosterTab() {
           ? 'רשימת הסטודנטים המאושרים שהועלתה על ידי רכזי הפקולטות (או המערכת) — נבדקת בעת הרשמת סטודנט חדש.'
           : "The approved-students allowlist uploaded by faculty coordinators (or system-wide) — checked against on every new student signup."}
       </p>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={handleImportFile}
+          disabled={importing}
+          className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:border-primary hover:text-primary disabled:opacity-60"
+        >
+          {importing ? (lang === 'he' ? 'מעלה ומעבד...' : 'Uploading & processing…') : `📤 ${lang === 'he' ? 'ייבוא מקובץ Excel' : 'Import from Excel'}`}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowAddModal(true)}
+          className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+        >
+          + {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}
+        </button>
+      </div>
+
+      {importError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{importError}</p>}
+
+      {importSummary && (
+        <div className="mb-4 rounded-lg bg-paper p-3.5">
+          <p className="text-sm font-semibold text-ink">{lang === 'he' ? '🎓 תוצאות ייבוא' : '🎓 Import results'}</p>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            <SummaryStat label={lang === 'he' ? 'נוספו' : 'Added'} value={importSummary.imported} />
+            <SummaryStat label={lang === 'he' ? 'דולגו' : 'Skipped'} value={importSummary.skipped} />
+            <SummaryStat label={lang === 'he' ? 'נכשלו' : 'Failed'} value={importSummary.failed} />
+            <SummaryStat label={lang === 'he' ? 'סה"כ שורות' : 'Total rows'} value={importSummary.totalRows} />
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <AddRosterEntryModal
+          onClose={() => setShowAddModal(false)}
+          onCreated={fetchEntries}
+        />
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
@@ -268,6 +341,15 @@ export function StudentRosterTab() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function SummaryStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between rounded-md bg-surface px-2.5 py-1.5 text-xs">
+      <span className="text-muted">{label}</span>
+      <span className="font-semibold text-ink">{value}</span>
     </div>
   );
 }

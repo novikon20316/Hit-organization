@@ -11,6 +11,7 @@ import {
   listApprovedStudents,
   updateApprovedStudentEntry,
   deleteApprovedStudentEntry,
+  createApprovedStudentEntry,
   type RosterDegreeType,
 } from '../services/studentRoster.js';
 
@@ -55,6 +56,23 @@ export const listStudentRosterAdmin = async (req: AuthenticatedRequest, res: Res
   } catch (error: any) {
     console.error('listStudentRosterAdmin error:', error);
     return res.status(500).json({ message: error.message || 'Failed to load the student roster.' });
+  }
+};
+
+// ─── POST /api/admin/student-roster ────────────────────────────────────────────
+// Manual single-entry add — the "+" button counterpart to the bulk Excel
+// import above, for adding one approved student without building a file.
+export const createStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+  const { studentId, facultyId, degreeType, fullName, major } = req.body ?? {};
+  try {
+    const entry = await createApprovedStudentEntry({ studentId, facultyId, degreeType, fullName, major }, req.user.uid);
+    return res.status(201).json({ success: true, entry });
+  } catch (error: any) {
+    console.error('createStudentRosterAdmin error:', error);
+    return res.status(400).json({ success: false, message: error.message || 'Failed to add the roster entry.' });
   }
 };
 

@@ -46,6 +46,7 @@ import {
 import {
   importStudentRosterAdmin,
   listStudentRosterAdmin,
+  createStudentRosterAdmin,
   updateStudentRosterAdmin,
   deleteStudentRosterAdmin,
 } from '../controllers/studentRosterController.js';
@@ -114,6 +115,7 @@ router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile
 router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
+router.post('/student-roster', verifyToken, createStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
 router.post('/login-security/:code/lift', verifyToken, liftLoginLockout);
 // system_admin (any user) or administrative coordinator (students in their
