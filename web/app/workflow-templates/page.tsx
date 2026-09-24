@@ -147,7 +147,24 @@ function WorkflowTemplatesContent() {
   }, [isFreeChoiceCrossFaculty, selectedFacultyId]);
 
   const majorOptions = role === 'system_admin' && facultyId ? majorOptionsFor(facultyId, activeProcessType, lang) : [];
-  
+
+  // Auto-pick the major when this faculty+process-type combination only ever
+  // offers one — there's nothing to actually choose, so force it (and the
+  // picker below gets disabled) instead of showing a misleading "All majors"
+  // default that would in practice always mean that one major anyway. Resets
+  // back to "all majors" the moment the combination stops being singular (a
+  // different faculty/tab picked), so a forced value never lingers once the
+  // picker is unlocked again.
+  useEffect(() => {
+    if (role !== 'system_admin' || !facultyId) return;
+    if (majorOptions.length === 1) {
+      if (selectedMajor !== majorOptions[0]!.slug) setSelectedMajor(majorOptions[0]!.slug);
+    } else if (selectedMajor && !majorOptions.some((m) => m.slug === selectedMajor)) {
+      setSelectedMajor(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- majorOptions is a fresh array each render; its content only ever depends on facultyId/activeProcessType/lang, listed here instead
+  }, [role, facultyId, activeProcessType, lang]);
+
   const fetchTemplates = useCallback(async () => {
     if (!facultyId) {
       setLoading(false);
@@ -359,9 +376,12 @@ function WorkflowTemplatesContent() {
           <select
             value={selectedMajor ?? ''}
             onChange={(e) => setSelectedMajor(e.target.value || null)}
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
+            disabled={majorOptions.length === 1}
+            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <option value="">{lang === 'he' ? 'כל המגמות בפקולטה' : 'All majors in this faculty'}</option>
+            {majorOptions.length !== 1 && (
+              <option value="">{lang === 'he' ? 'כל המגמות בפקולטה' : 'All majors in this faculty'}</option>
+            )}
             {majorOptions.map((m) => (
               <option key={m.slug} value={m.slug}>{m.label}</option>
             ))}

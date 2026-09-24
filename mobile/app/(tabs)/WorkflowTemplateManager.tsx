@@ -433,6 +433,24 @@ export default function WorkflowTemplateManager() {
   const [templates, setTemplates] = useState<WorkflowTemplateDoc[]>([]);
   const [activeProcessType, setActiveProcessType] = useState<ProcessType>('msc_thesis');
   const [activeTab, setActiveTab] = useState<'current' | 'pending' | 'history'>('current');
+
+  // Auto-pick the major when this faculty+process-type combination only ever
+  // offers one — there's nothing to actually choose, so force it (and the
+  // "All majors" pill below is hidden) instead of showing a misleading
+  // default that would in practice always mean that one major anyway. Resets
+  // back to "all majors" the moment the combination stops being singular (a
+  // different faculty/tab picked), so a forced value never lingers once the
+  // picker is unlocked again. Mirrors the identical fix in
+  // web/app/workflow-templates/page.tsx — keep the two in sync.
+  useEffect(() => {
+    if (userRole !== 'system_admin' || !facultyId) return;
+    const options = majorOptionsFor(facultyId, activeProcessType, lang);
+    if (options.length === 1) {
+      if (selectedMajor !== options[0]!.slug) setSelectedMajor(options[0]!.slug);
+    } else if (selectedMajor && !options.some((m) => m.slug === selectedMajor)) {
+      setSelectedMajor(null);
+    }
+  }, [userRole, facultyId, activeProcessType, lang]);
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   // Approve, for a template proposed with applyMode 'now', shows a preview
@@ -725,39 +743,47 @@ export default function WorkflowTemplateManager() {
       {/* Subject/major selector — system_admin only; administrative_secretary
           is auto-resolved from her own scope above, everyone else stays
           whole-faculty (major: null). */}
-      {userRole === 'system_admin' && facultyId && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          <Pressable
-            style={{
-              borderWidth: 1.5, borderColor: selectedMajor === null ? '#7C3AED' : '#DDD6FE',
-              backgroundColor: selectedMajor === null ? '#7C3AED' : '#fff',
-              borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
-            }}
-            onPress={() => setSelectedMajor(null)}
-            accessibilityRole="button"
-          >
-            <Text style={{ color: selectedMajor === null ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
-              {lang === 'he' ? 'כל המגמות' : 'All majors'}
-            </Text>
-          </Pressable>
-          {majorOptionsFor(facultyId, activeProcessType, lang).map((m) => (
-            <Pressable
-              key={m.slug}
-              style={{
-                borderWidth: 1.5, borderColor: selectedMajor === m.slug ? '#7C3AED' : '#DDD6FE',
-                backgroundColor: selectedMajor === m.slug ? '#7C3AED' : '#fff',
-                borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
-              }}
-              onPress={() => setSelectedMajor(m.slug)}
-              accessibilityRole="button"
-            >
-              <Text style={{ color: selectedMajor === m.slug ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
-                {m.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
+      {userRole === 'system_admin' && facultyId && (() => {
+        const options = majorOptionsFor(facultyId, activeProcessType, lang);
+        const locked = options.length === 1;
+        return (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            {!locked && (
+              <Pressable
+                style={{
+                  borderWidth: 1.5, borderColor: selectedMajor === null ? '#7C3AED' : '#DDD6FE',
+                  backgroundColor: selectedMajor === null ? '#7C3AED' : '#fff',
+                  borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
+                }}
+                onPress={() => setSelectedMajor(null)}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: selectedMajor === null ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
+                  {lang === 'he' ? 'כל המגמות' : 'All majors'}
+                </Text>
+              </Pressable>
+            )}
+            {options.map((m) => (
+              <Pressable
+                key={m.slug}
+                disabled={locked}
+                style={{
+                  borderWidth: 1.5, borderColor: selectedMajor === m.slug ? '#7C3AED' : '#DDD6FE',
+                  backgroundColor: selectedMajor === m.slug ? '#7C3AED' : '#fff',
+                  borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
+                  opacity: locked ? 0.7 : 1,
+                }}
+                onPress={() => setSelectedMajor(m.slug)}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: selectedMajor === m.slug ? '#fff' : '#7C3AED', fontWeight: '600', fontSize: 13 }}>
+                  {m.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        );
+      })()}
 
       {/* Tab bar — fixed size (not flex:1), matches admin/panel.tsx's
           tabsContainer, wrapped in a horizontal ScrollView so extra tabs
