@@ -4,6 +4,7 @@ import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { auth } from '../firebase/firebase';
+import { reportClientError } from './errorReporting';
 
 function getBaseUrl(): string {
   // Always hit the deployed server (value baked in via app.json extra) —
@@ -22,7 +23,6 @@ function getBaseUrl(): string {
 }
 
 const SERVER_URL = getBaseUrl();
-console.log(`[ApiClient] Using base URL: ${SERVER_URL}`);
 
 export function getApiBaseUrl(): string {
   return SERVER_URL;
@@ -50,13 +50,9 @@ class ApiClient {
           if (currentUser) {
             const idToken = await currentUser.getIdToken(true);
             config.headers.Authorization = `Bearer ${idToken}`;
-            console.log(`✅ Token attached for: ${config.url}`);
           } else {
-            console.warn(`⚠️ No auth user — no token sent for: ${config.url}`);
           }
-        } catch (error) {
-          console.error('❌ Failed to retrieve Firebase ID token:', error);
-        }
+        } catch {}
         // Lets server/src/middleware/auth.ts enforce mobile's own
         // maintenance flag on every request — separate from web's (see
         // server/src/services/maintenanceStatus.ts).
@@ -86,7 +82,6 @@ class ApiClient {
           data.success === false &&
           typeof data.message === 'string'
         ) {
-          console.warn(`[ApiClient] Soft error from ${response.config.url}: ${data.message}`);
 
           Alert.alert(
             'שגיאה / Error',
@@ -110,9 +105,7 @@ class ApiClient {
               pathname: '/maintenance',
               params: { title: title ?? '', endsAt: endsAt ?? '' },
             } as any);
-          } catch (navError) {
-            console.error('Failed to redirect to /maintenance:', navError);
-          }
+          } catch {}
         }
 
         // 2FA-enforcement deadline passed (server/src/services/
@@ -123,10 +116,28 @@ class ApiClient {
         if (error.response?.status === 403 && error.response?.data?.error === 'TWO_FACTOR_REQUIRED') {
           try {
             router.replace('/(auth)/setup2fa' as any);
-          } catch (navError) {
-            console.error('Failed to redirect to /setup2fa:', navError);
-          }
+          } catch {}
         }
+        // No error.response at all means the request never got a reply —
+        // either the 15s timeout above fired (error.code === 'ECONNABORTED')
+        // or the device genuinely couldn't reach the server (no connectivity,
+        // DNS failure, etc.) — both are exactly what system_admin needs to
+        // hear about. A real HTTP error (4xx/5xx) — reported only for 5xx,
+        // since 4xx is normal business-logic rejection, not a system problem.
+        if (!error.response) {
+          reportClientError({
+            kind: error.code === 'ECONNABORTED' ? 'api_timeout' : 'network_failure',
+            message: error.message || 'Request failed with no response',
+            route: error.config?.url,
+          });
+        } else if (error.response.status >= 500) {
+          reportClientError({
+            kind: 'network_failure',
+            message: `HTTP ${error.response.status} from ${error.config?.url}`,
+            route: error.config?.url,
+          });
+        }
+
         // Real HTTP errors (4xx / 5xx / network timeout) — let them propagate
         // so the app can handle auth failures, redirects, etc. as before.
         return Promise.reject(error);

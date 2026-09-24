@@ -576,6 +576,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Client crash/timeout/network-failure aggregates (see
+    // server/src/services/errorReports.ts) — the "System Health" widget on
+    // system_admin's overview screen reads this directly, same live-listener
+    // pattern as presence/auditLog above. Written exclusively by the Admin
+    // SDK (POST /api/system/report-error is unauthenticated by necessity, so
+    // it can never be trusted with a direct client write here) — even the
+    // "resolve" action goes through PATCH /api/admin/system/error-reports/:id/resolve,
+    // not a direct client update.
+    match /errorReports/{reportId} {
+      allow read: if isSignedIn() && role(userDoc()) == 'system_admin';
+      allow write: if false;
+    }
+
     // Permanent per-project record (see server/src/services/projectRecords.ts)
     // — deliberately NOT nested under projects/{projectId} so the coarse
     // read rule below can stay a flat role/ownership check identical in

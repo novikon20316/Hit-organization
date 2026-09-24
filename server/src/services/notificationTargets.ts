@@ -29,7 +29,10 @@ export type NotificationTaskKind =
   // Supervisor's incoming project applications.
   | 'applications'
   // A grade was just published/approved for this student.
-  | 'grade_published';
+  | 'grade_published'
+  // A client crash / API timeout / network failure was reported by some
+  // user's session — system_admin-only, see services/errorReports.ts.
+  | 'system_error';
 
 /**
  * Resolves (role, kind) to a semantic screen key, or null if this role has
@@ -106,6 +109,9 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
         case 'secondary_supervisor':     return 'supervisor_projects';
         default: return null;
       }
+    // system_admin-only — every other role has no such screen.
+    case 'system_error':
+      return role === 'system_admin' ? 'admin_system_health' : null;
     default:
       return null;
   }
@@ -113,7 +119,7 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
 
 const ALL_TASK_KINDS: NotificationTaskKind[] = [
   'milestone_action', 'signoff', 'deadline_examiner', 'defense',
-  'archived_erasure', 'applications', 'grade_published',
+  'archived_erasure', 'applications', 'grade_published', 'system_error',
 ];
 
 /**

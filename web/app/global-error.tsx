@@ -6,6 +6,7 @@
 
 import { useEffect } from 'react';
 import { ErrorFallback } from '@/components/ErrorFallback';
+import { reportClientError } from '@/lib/errorReporting';
 
 export default function GlobalError({
   error,
@@ -15,7 +16,7 @@ export default function GlobalError({
   unstable_retry: () => void;
 }) {
   useEffect(() => {
-    console.error('Uncaught root-layout error:', error);
+    reportClientError({ kind: 'client_crash', message: error.message, stack: error.stack });
   }, [error]);
 
   return (

@@ -91,3 +91,18 @@ export const loginSecurityLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests. Please try again later.' },
 });
+
+// Client crash/timeout/network-failure reports (see services/errorReports.ts)
+// are unauthenticated by necessity — a crash can happen before login, or
+// when the token itself is what's broken. Aggregation server-side already
+// collapses repeat identical errors into one admin alert, so this limit is
+// purely an abuse/cost backstop, not the anti-spam mechanism — generous
+// enough that one device hitting a real crash loop doesn't lose reports.
+export const errorReportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: keyByUserOrIp,
+  message: { error: 'Too many requests. Please try again later.' },
+});

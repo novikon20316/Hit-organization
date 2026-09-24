@@ -41,6 +41,7 @@ const WEB_TARGET_SCREEN_ROUTE: Record<string, string> = {
   admin_panel_feedback: '/admin/panel?tab=feedback',
   committees: '/committees',
   login_security: '/login-security',
+  admin_system_health: '/admin/panel?tab=overview',
 };
 
 // Mirrors mobile/app/(tabs)/notifications.tsx's TARGET_SCREEN_ROUTE exactly
@@ -67,6 +68,7 @@ const MOBILE_TARGET_SCREEN_ROUTE: Record<string, string> = {
   admin_panel_signoffs: '/admin/panel?tab=signoffs',
   admin_panel_feedback: '/admin/panel?tab=feedback',
   login_security: '/login-security',
+  admin_system_health: '/admin/overview',
 };
 
 // Mirrors web/lib/roles.ts's getHomeRoute.

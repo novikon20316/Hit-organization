@@ -62,6 +62,7 @@ export type NotificationType =
   | 'login_security_alert'
   | 'temp_password_issued'
   | 'suspicious_login_admin_alert'
+  | 'system_error_admin_alert'
   | 'two_factor_enforcement_notice'
   | 'general';
 
@@ -525,6 +526,33 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
         ${d.location ? `<li>Approximate location: ${d.location}</li>` : ''}
       </ul>
       <p>The account remains disabled pending manual review. Open the admin panel for further detail and to restore access if needed.</p>
+    `,
+  },
+
+  system_error_admin_alert: {
+    subjectHe: '⚠️ תקלת מערכת דורשת תשומת לב',
+    subjectEn: '⚠️ A system error needs attention',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>המערכת (${d.platformLabel || ''}) דיווחה על תקלה מסוג <strong>${d.kindLabel || ''}</strong>:</p>
+      <ul>
+        <li>הודעה: ${d.message || ''}</li>
+        ${d.route ? `<li>מסך/עמוד: ${d.route}</li>` : ''}
+        <li>מספר הופעות: ${d.count || '1'}</li>
+        <li>הופעה אחרונה: ${d.lastSeen || ''}</li>
+      </ul>
+      <p>היכנס לפאנל הניהול, כרטיסיית "תקינות המערכת", לפרטים נוספים.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>The system (${d.platformLabel || ''}) reported a <strong>${d.kindLabel || ''}</strong> error:</p>
+      <ul>
+        <li>Message: ${d.message || ''}</li>
+        ${d.route ? `<li>Screen/page: ${d.route}</li>` : ''}
+        <li>Occurrences: ${d.count || '1'}</li>
+        <li>Last seen: ${d.lastSeen || ''}</li>
+      </ul>
+      <p>Open the admin panel's "System Health" card for more detail.</p>
     `,
   },
 

@@ -30,7 +30,7 @@
 //    MaintenanceModal component app/admin/panel.tsx already uses.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, Switch, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Switch, ActivityIndicator, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
@@ -56,6 +56,21 @@ interface FailedLoginAlert {
   timestampMs: number | null;
 }
 
+interface ErrorReportRow {
+  id: string;
+  kind: 'client_crash' | 'api_timeout' | 'network_failure';
+  platform: 'web' | 'mobile';
+  message: string;
+  route: string | null;
+  count: number;
+}
+
+const ERROR_KIND_ICON: Record<ErrorReportRow['kind'], string> = {
+  client_crash: '💥',
+  api_timeout: '⏱️',
+  network_failure: '📡',
+};
+
 export default function AdminOverviewScreen() {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>('he');
@@ -66,6 +81,8 @@ export default function AdminOverviewScreen() {
   const [onlineCount, setOnlineCount] = useState(0);
   const [failedLoginCount, setFailedLoginCount] = useState(0);
   const [alerts, setAlerts] = useState<FailedLoginAlert[]>([]);
+  const [errorReports, setErrorReports] = useState<ErrorReportRow[]>([]);
+  const [resolvingErrorId, setResolvingErrorId] = useState<string | null>(null);
 
   // Maintenance mode (mobile platform) — same state shape and endpoints as
   // app/admin/panel.tsx's own maintenance controls, just triggered from here.
@@ -119,9 +136,7 @@ export default function AdminOverviewScreen() {
       setAdminName(profile.data?.displayName || 'Admin');
       if (profile.data?.language) setLang(profile.data.language);
       setTotalUsers((summary.data?.users ?? []).length);
-    } catch (e) {
-      console.error('Admin overview: failed to load profile/summary:', e);
-    } finally {
+    } catch {} finally {
       setLoading(false);
     }
   }, []);
@@ -144,7 +159,7 @@ export default function AdminOverviewScreen() {
         });
         setOnlineCount(count);
       },
-      (err) => console.error('Admin overview: presence listener error:', err)
+      () => {}
     );
     return unsub;
   }, []);
@@ -169,17 +184,53 @@ export default function AdminOverviewScreen() {
         setFailedLoginCount(rows.length);
         setAlerts(rows.slice(0, 5));
       },
-      (err) => console.error('Admin overview: auditLog listener error:', err)
+      () => {}
     );
     return unsub;
   }, []);
+
+  useEffect(() => {
+    const q = query(collection(db, 'errorReports'), orderBy('lastOccurredAt', 'desc'), limit(30));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows: ErrorReportRow[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as Record<string, unknown>;
+          if (data.status !== 'open') return;
+          rows.push({
+            id: d.id,
+            kind: (data.kind as ErrorReportRow['kind']) ?? 'client_crash',
+            platform: (data.platform as ErrorReportRow['platform']) ?? 'web',
+            message: (data.message as string) ?? '',
+            route: (data.route as string) ?? null,
+            count: typeof data.count === 'number' ? data.count : 1,
+          });
+        });
+        setErrorReports(rows.slice(0, 8));
+      },
+      () => {}
+    );
+    return unsub;
+  }, []);
+
+  const resolveErrorReport = async (id: string) => {
+    setResolvingErrorId(id);
+    try {
+      await apiClient.patch(`/api/admin/system/error-reports/${id}/resolve`);
+    } catch {
+      // Live listener above keeps showing it if this failed — no separate
+      // error UI needed for a dismiss action on this widget.
+    } finally {
+      setResolvingErrorId(null);
+    }
+  };
 
   const fetchMaintenanceStatus = useCallback(async () => {
     try {
       const res = await apiClient.get('/api/system/maintenance-status', { params: { platform: 'mobile' } });
       setMaintenanceStatus(res.data);
     } catch (e) {
-      console.error('Admin overview: failed to load mobile maintenance status:', e);
       setMaintenanceStatus(null);
     }
   }, []);
@@ -202,9 +253,7 @@ export default function AdminOverviewScreen() {
       });
       setMaintenanceModal(false);
       await fetchMaintenanceStatus();
-    } catch (e) {
-      console.error('Admin overview: failed to activate mobile maintenance:', e);
-    } finally {
+    } catch {} finally {
       setSavingMaintenance(false);
     }
   };
@@ -214,9 +263,7 @@ export default function AdminOverviewScreen() {
     try {
       await apiClient.delete('/api/admin/system/maintenance', { data: { platform: 'mobile' } });
       await fetchMaintenanceStatus();
-    } catch (e) {
-      console.error('Admin overview: failed to end mobile maintenance:', e);
-    } finally {
+    } catch {} finally {
       setDeactivatingMaintenance(false);
     }
   };
@@ -317,6 +364,40 @@ export default function AdminOverviewScreen() {
           )}
         </View>
 
+        <View style={styles.card}>
+          <View style={styles.alertsHeader}>
+            <Text style={styles.cardTitle}>{lang === 'he' ? 'תקינות המערכת' : 'System Health'}</Text>
+            {errorReports.length > 0 && (
+              <View style={styles.alertsBadge}>
+                <Text style={styles.alertsBadgeText}>{errorReports.length}</Text>
+              </View>
+            )}
+          </View>
+          {errorReports.length === 0 ? (
+            <Text style={styles.emptyText}>{lang === 'he' ? 'אין תקלות פתוחות כרגע' : 'No open errors right now'}</Text>
+          ) : (
+            errorReports.map((r) => (
+              <View key={r.id} style={styles.alertItem}>
+                <Text style={{ fontSize: 16 }}>{ERROR_KIND_ICON[r.kind]}</Text>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.alertRow}>
+                    <Text style={styles.alertName} numberOfLines={1}>
+                      {r.platform === 'web' ? 'Web' : 'Mobile'}{r.count > 1 ? ` ×${r.count}` : ''}
+                    </Text>
+                    <Pressable onPress={() => resolveErrorReport(r.id)} disabled={resolvingErrorId === r.id}>
+                      <Text style={styles.resolveLink}>
+                        {resolvingErrorId === r.id ? '…' : lang === 'he' ? 'סמן כטופל' : 'Resolve'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.alertDetail} numberOfLines={2}>{r.message}</Text>
+                  {r.route && <Text style={styles.alertDetail} numberOfLines={1}>{r.route}</Text>}
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
       </ScrollView>
 
       <MaintenanceModal
@@ -403,4 +484,5 @@ const styles = StyleSheet.create({
   alertName: { fontSize: 13, fontWeight: '600', color: ap.onSurface, flexShrink: 1 },
   alertTime: { fontSize: 11, color: ap.onSurfaceVariant },
   alertDetail: { fontSize: 12, color: ap.onSurfaceVariant, marginTop: 2 },
+  resolveLink: { fontSize: 12, fontWeight: '600', color: ap.primary },
 });

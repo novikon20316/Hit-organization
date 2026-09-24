@@ -40,6 +40,7 @@ import presenceRoutes from './routes/presence.js';
 import permissionsRoutes from './routes/permissions.js';
 import committeesRoutes from './routes/committees.js';
 import integrationsRoutes from './routes/integrations.js';
+import systemErrorRoutes from './routes/systemErrorRoutes.js';
 import { verifyToken } from './middleware/auth.js';
 import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
@@ -202,6 +203,10 @@ app.use('/api/coordinator/examiner-escalations', examinerEscalationRoutes);
 app.use('/api/admin/permissions', bulkPermissionsRoutes);
 app.use('/api/presence', presenceRoutes);
 app.use('/api/permissions', permissionsRoutes);
+// Mounted at /api root — its own route paths already include the full
+// segments (/system/report-error, /admin/system/error-reports/:id/resolve).
+// /system/report-error is PUBLIC — see systemErrorRoutes.ts.
+app.use('/api', systemErrorRoutes);
 app.use('/api/committees', committeesRoutes);
 // Server-to-server only (administrative-coordinator, a sibling HIT system) -
 // gated by its own shared-secret middleware, not verifyToken. See

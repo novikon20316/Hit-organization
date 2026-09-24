@@ -17,6 +17,7 @@ import { collection, query, where, orderBy, onSnapshot, doc, getDoc, type Unsubs
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { db } from '@/lib/firebase';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
+import { SystemHealthCard } from '@/components/SystemHealthCard';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
@@ -188,7 +189,6 @@ function AdminPanelContent() {
           setLockedUsers(rows);
           setLockedUsersError('');
         } catch (err) {
-          console.error('Failed to resolve locked-account rows:', err);
           setLockedUsersError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת חשבונות נעולים נכשלה' : 'Failed to load locked accounts');
         } finally {
           setLoadingLocked(false);
@@ -199,7 +199,6 @@ function AdminPanelContent() {
         // "Locked Accounts" stat card would just show 0, indistinguishable
         // from "actually zero locked accounts."
         if (err?.code === 'permission-denied') { setLoadingLocked(false); return; } // expected during sign-out — still clear loading so a stuck permission error never leaves the spinner up forever
-        console.error('Failed to load locked accounts:', err);
         setLockedUsersError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת חשבונות נעולים נכשלה' : 'Failed to load locked accounts');
         setLoadingLocked(false);
       }
@@ -216,7 +215,6 @@ function AdminPanelContent() {
       await apiClient.liftLoginLockout(code);
       setLockedUsers((prev) => prev.filter((l) => l.code !== code));
     } catch (err) {
-      console.error('Failed to lift lockout:', err);
       // Previously silent — clicking "Lift lockout" on an incident the
       // server had already resolved/expired (stale data, or a race with
       // another admin) looked like the button just didn't do anything: no
@@ -550,6 +548,7 @@ function OverviewTab({
 
       <div className="lg:col-span-3">
         <RolePermissionsCard users={users} lockedUsers={lockedUsers} lang={lang} />
+        <SystemHealthCard lang={lang} />
       </div>
     </div>
   );

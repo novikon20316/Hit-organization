@@ -11,6 +11,7 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { reportClientError } from '../src/api/errorReporting';
 
 interface Props {
   children: React.ReactNode;
@@ -29,12 +30,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('Uncaught render error:', error, info.componentStack);
     // Stashed in state (not just logged) because Metro/device console logs
     // aren't reachable once this happens on a real user's build — the "Copy
     // details" button below is currently the only way to get the actual
     // stack out of a crash like this instead of just the bare message.
     this.setState({ componentStack: info.componentStack ?? null });
+    reportClientError({
+      kind: 'client_crash',
+      message: error.message || 'Unknown error',
+      stack: [error.stack, info.componentStack].filter(Boolean).join('\n'),
+    });
   }
 
   handleRetry = () => {

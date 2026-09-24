@@ -122,6 +122,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   admin_panel_feedback: '/admin/panel?tab=feedback',
   login_security: '/login-security',
   student_grades: '/student/home?tab=grades',
+  admin_system_health: '/admin/overview',
 };
 
 // Shared by handleTapNotif below and the [id] detail screen's own
@@ -379,7 +380,6 @@ export default function NotificationsScreen() {
       setChats(chats);
       setChatsError('');
     } catch (err) {
-      console.error("Failed compiling chat list feed items:", err);
       setChatsError(lang === 'he' ? 'טעינת השיחות נכשלה' : 'Failed to load conversations');
     } finally {
       // 🚀 FIX: Changed from setLoading to setLoadingChats
@@ -429,7 +429,6 @@ export default function NotificationsScreen() {
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
-        console.error('notifications: live listener error', err);
         setNotifsError(lang === 'he' ? 'טעינת ההתראות נכשלה' : 'Failed to load notifications');
         setLoadingNotifs(false);
       }
@@ -461,7 +460,6 @@ export default function NotificationsScreen() {
 
               Alert.alert('✅', lang === 'he' ? 'השיחה נמחקה' : 'Conversation deleted');
             } catch (err: any) {
-              console.error("Failed to delete conversational thread:", err);
               Alert.alert(
                 '❌',
                 err.response?.data?.error || (lang === 'he' ? 'מחיקת השיחה נכשלה' : 'Failed to delete chat')
@@ -486,9 +484,7 @@ export default function NotificationsScreen() {
     if (!notif.isRead) {
       try {
         await apiClient.markNotificationRead(notif.id);
-      } catch (err) {
-        console.error('Failed to mark notification as read:', err);
-      }
+      } catch {}
     }
     refresh();
 
@@ -546,7 +542,6 @@ export default function NotificationsScreen() {
       setNotifications((prev) => prev.map((n) => (idSet.has(n.id) ? { ...n, isRead: true } : n)));
       refresh();
     } catch (err: any) {
-      console.error('Failed to mark all notifications as read:', err);
       setActionError(lang === 'he' ? 'סימון הכל כנקרא נכשל' : 'Failed to mark all as read');
     }
   };

@@ -6,6 +6,12 @@
 // meant to grow the same way the mobile one did.
 
 import { auth } from './firebase';
+import { reportClientError } from './errorReporting';
+
+// No timeout existed anywhere in this client before — a hung request (dead
+// server, bad network) would leave a fetch() pending forever with no
+// system_admin visibility that anything was wrong. See errorReporting.ts.
+const DEFAULT_TIMEOUT_MS = 20_000;
 
 function getBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || 'https://hit-organization.onrender.com';
@@ -114,7 +120,7 @@ function buildUrl(path: string, params?: RequestOptions['params']): string {
 }
 
 async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { params, body, raw, headers, ...rest } = options;
+  const { params, body, raw, headers, signal: callerSignal, ...rest } = options;
 
   const finalHeaders = new Headers(headers);
   finalHeaders.set('Accept', 'application/json');
@@ -132,19 +138,50 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
     try {
       const idToken = await currentUser.getIdToken();
       finalHeaders.set('Authorization', `Bearer ${idToken}`);
-    } catch (err) {
-      console.error('Failed to retrieve Firebase ID token:', err);
-    }
+    } catch {}
   }
 
-  const res = await fetch(buildUrl(path, params), {
-    ...rest,
-    headers: finalHeaders,
-    body: body === undefined ? undefined : raw ? (body as BodyInit) : JSON.stringify(body),
-  });
+  // Combine our own timeout with any caller-supplied signal (e.g.
+  // getReportProjects' cancel-on-refetch) — either one aborts the fetch;
+  // only OUR timeout firing counts as an api_timeout report below, a
+  // caller-initiated abort is expected behavior, not a system problem.
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), DEFAULT_TIMEOUT_MS);
+  if (callerSignal) {
+    if (callerSignal.aborted) timeoutController.abort();
+    else callerSignal.addEventListener('abort', () => timeoutController.abort(), { once: true });
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path, params), {
+      ...rest,
+      headers: finalHeaders,
+      body: body === undefined ? undefined : raw ? (body as BodyInit) : JSON.stringify(body),
+      signal: timeoutController.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (!callerSignal?.aborted) {
+      const timedOut = err instanceof DOMException && err.name === 'AbortError';
+      reportClientError({
+        kind: timedOut ? 'api_timeout' : 'network_failure',
+        message: timedOut ? `Request to ${path} timed out after ${DEFAULT_TIMEOUT_MS}ms` : (err instanceof Error ? err.message : String(err)),
+        route: path,
+      });
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   const contentType = res.headers.get('content-type') ?? '';
   const data = contentType.includes('application/json') ? await res.json().catch(() => null) : await res.text();
+
+  // A 5xx is the server's own failure, not a validation/permission issue —
+  // exactly the "data-receiving problem" system_admin needs to hear about.
+  if (res.status >= 500) {
+    reportClientError({ kind: 'network_failure', message: `HTTP ${res.status} from ${path}`, route: path });
+  }
 
   // Maintenance flipped on mid-session (useMaintenanceCheck only checks
   // once, at login) — bounce to the same /maintenance screen a fresh login
