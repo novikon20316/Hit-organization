@@ -155,6 +155,30 @@ export default function NewUserModal({
       ? Array.from(new Set(faculty.programs.map((p) => p.level)))
       : ['bachelors', 'masters'];
 
+  // Majors available for a given faculty + degree, narrowed by an
+  // administrative_secretary's coordinatorScopes majors restriction (if
+  // any) — shared by the auto-select-when-there's-only-one logic below and
+  // the Major picker's own render.
+  const getMajorOptions = (facultyId: string, degree: 'bachelors' | 'masters' | '') => {
+    if (!facultyId || !degree) return [];
+    const programs = getFilteredPrograms(facultyId, degree);
+    const scopeForFaculty = allowedScopes?.find((s) => s.facultyId === facultyId);
+    return scopeForFaculty?.majors?.length
+      ? programs.filter((p) => scopeForFaculty.majors!.includes(p.slug))
+      : programs;
+  };
+  const majorOptions = getMajorOptions(newUserFaculty, newUserDegree);
+
+  // A faculty+degree combo with exactly one major (e.g. data_science) needs
+  // no picking — auto-select it so the admin isn't stuck on a required field
+  // with nothing to do. Also covers the locked-faculty modal-open case.
+  React.useEffect(() => {
+    if (majorOptions.length === 1 && newUserMajor !== majorOptions[0]!.slug) {
+      setNewUserMajor(majorOptions[0]!.slug);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newUserFaculty, newUserDegree]);
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
@@ -430,20 +454,15 @@ export default function NewUserModal({
                 <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 12 }]}>
                   {lang === 'he' ? 'מגמה *' : 'Major *'}
                 </Text>
-                {(() => {
-                  const scopeForFaculty = allowedScopes?.find((s) => s.facultyId === newUserFaculty);
-                  const programs = getFilteredPrograms(newUserFaculty, newUserDegree);
-                  return scopeForFaculty?.majors?.length
-                    ? programs.filter((p) => scopeForFaculty.majors!.includes(p.slug))
-                    : programs;
-                })().map((program) => (
+                {majorOptions.map((program) => (
                   <Pressable
                     key={program.slug}
                     style={[
                       styles.facultyPickerBtn,
                       newUserMajor === program.slug && { backgroundColor: '#2E86FF' },
                     ]}
-                    onPress={() => setNewUserMajor(program.slug)}
+                    onPress={() => { if (majorOptions.length > 1) setNewUserMajor(program.slug); }}
+                    disabled={majorOptions.length === 1}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: newUserMajor === program.slug }}
                   >
@@ -452,6 +471,11 @@ export default function NewUserModal({
                     </Text>
                   </Pressable>
                 ))}
+                {majorOptions.length === 1 && (
+                  <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 4 }}>
+                    {lang === 'he' ? 'לפקולטה זו יש רק מגמה אחת' : 'This faculty only offers one major'}
+                  </Text>
+                )}
                 {getFilteredPrograms(newUserFaculty, newUserDegree).length === 0 && (
                   <Text style={{ opacity: 0.7, fontSize: 12 }}>
                     {lang === 'he'

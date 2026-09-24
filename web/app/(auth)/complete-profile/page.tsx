@@ -206,8 +206,10 @@ export default function CompleteProfilePage() {
                 <select
                   value={facultyId}
                   onChange={(e) => {
-                    setFacultyId(e.target.value);
-                    setProgramKey('');
+                    const newFacultyId = e.target.value;
+                    setFacultyId(newFacultyId);
+                    const programs = HIT_FACULTIES.find((f) => f.key === newFacultyId)?.programs ?? [];
+                    setProgramKey(programs.length === 1 ? programs[0]!.key : '');
                     setYearOfStudy(null);
                   }}
                   className={inputCls}
@@ -232,7 +234,7 @@ export default function CompleteProfilePage() {
                     setYearOfStudy(null);
                   }}
                   className={inputCls}
-                  disabled={!facultyId}
+                  disabled={!facultyId || facultyPrograms.length === 1}
                 >
                   <option value="">{lang === 'he' ? 'בחר תוכנית' : 'Select program'}</option>
                   {facultyPrograms.map((p) => (
@@ -241,6 +243,11 @@ export default function CompleteProfilePage() {
                     </option>
                   ))}
                 </select>
+                {facultyId && facultyPrograms.length === 1 && (
+                  <p className="mt-1 text-xs text-muted">
+                    {lang === 'he' ? 'לפקולטה זו יש רק תוכנית לימודים אחת' : 'This faculty only offers one program'}
+                  </p>
+                )}
               </Field>
 
               <Field label={lang === 'he' ? 'שנת לימודים' : 'Year of Study'}>

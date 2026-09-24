@@ -621,7 +621,13 @@ export default function ProfileSetup() {
                   <Pressable
                     key={p.key}
                     style={[styles.majorOption, programKey === p.key && styles.majorOptionActive]}
-                    onPress={() => { setProgramKey(p.key); setYearOfStudy(null); setChosenTrack(null); }}
+                    onPress={() => {
+                      if (facultyPrograms.length === 1) return;
+                      setProgramKey(p.key);
+                      setYearOfStudy(null);
+                      setChosenTrack(null);
+                    }}
+                    disabled={facultyPrograms.length === 1}
                     accessibilityRole="button"
                   >
                     <Text style={[styles.majorText, programKey === p.key && styles.majorTextActive, isRtl && styles.textRight]}>
@@ -635,6 +641,11 @@ export default function ProfileSetup() {
                   </Pressable>
                 ))}
               </View>
+              {facultyPrograms.length === 1 && (
+                <Text style={[styles.majorYears, isRtl && styles.textRight]}>
+                  {lang === 'he' ? 'לפקולטה זו יש רק תוכנית לימודים אחת' : 'This faculty only offers one program'}
+                </Text>
+              )}
               {attemptedSubmit && !programKey && (
                 <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור תוכנית לימודים' : 'Please select a program'}</ErrorNote>
               )}
@@ -783,7 +794,7 @@ export default function ProfileSetup() {
                       style={[styles.modalItem, isSelected && styles.modalItemActive]}
                       onPress={() => {
                         setFaculty(item.key);
-                        setProgramKey(null);
+                        setProgramKey(item.programs.length === 1 ? item.programs[0]!.key : null);
                         setYearOfStudy(null);
                         setShowFacultyModal(false);
                       }}

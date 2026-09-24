@@ -4,7 +4,7 @@
 // Ported from mobile's NewUserModal + panel.tsx's handleCreateUser — same
 // validation, same POST /api/admin/users/create payload shape.
 
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { CROSS_FACULTY_ROLES, VALID_ROLES, type AppRole } from '@/lib/roles';
@@ -99,15 +99,30 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
   const isCrossFaculty = CROSS_FACULTY_ROLES.includes(role);
   const isSupervisorLike = role === 'supervisor' || role === 'secondary_supervisor';
 
-  const majorOptions = useMemo(() => {
-    const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
+  const computeMajorOptions = (fid: string, degree: 'bachelors' | 'masters') => {
+    const faculty = HIT_FACULTIES.find((f) => f.key === fid);
     if (!faculty) return [];
     const seen = new Set<string>();
-    const options = faculty.programs.filter((p) => p.level === degreeType && !seen.has(p.slug) && seen.add(p.slug));
-    const scopeForFaculty = scope?.allowedScopes?.find((s) => s.facultyId === facultyId);
+    const options = faculty.programs.filter((p) => p.level === degree && !seen.has(p.slug) && seen.add(p.slug));
+    const scopeForFaculty = scope?.allowedScopes?.find((s) => s.facultyId === fid);
     if (scopeForFaculty?.majors?.length) return options.filter((p) => scopeForFaculty.majors!.includes(p.slug));
     return scope?.allowedMajors?.length ? options.filter((p) => scope.allowedMajors!.includes(p.slug)) : options;
-  }, [facultyId, degreeType, scope]);
+  };
+
+  const majorOptions = useMemo(
+    () => computeMajorOptions(facultyId, degreeType),
+    [facultyId, degreeType, scope]
+  );
+
+  // A faculty+degree combo with exactly one major (e.g. data_science) needs
+  // no picking — auto-select it so the admin isn't stuck on a required field
+  // with nothing to do. Also covers the locked-faculty modal-open case,
+  // where facultyId/degreeType are pre-filled before any onChange fires.
+  useEffect(() => {
+    if (majorOptions.length === 1 && major !== majorOptions[0]!.slug) {
+      setMajor(majorOptions[0]!.slug);
+    }
+  }, [majorOptions, major]);
 
   // Some faculties only offer one degree level (e.g. data_science is
   // masters-only, medical_tech is bachelors-only) — lock the degree selector
@@ -415,7 +430,12 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
               </Field>
 
               <Field label={lang === 'he' ? 'מגמה' : 'Major'}>
-                <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} disabled={!facultyId}>
+                <select
+                  value={major}
+                  onChange={(e) => setMajor(e.target.value)}
+                  className={inputCls}
+                  disabled={!facultyId || majorOptions.length === 1}
+                >
                   <option value="">{lang === 'he' ? 'בחר מגמה' : 'Select major'}</option>
                   {majorOptions.map((p) => (
                     <option key={p.slug} value={p.slug}>
@@ -423,6 +443,11 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                     </option>
                   ))}
                 </select>
+                {facultyId && majorOptions.length === 1 && (
+                  <p className="mt-1 text-xs text-admin-on-surface-variant">
+                    {lang === 'he' ? 'לפקולטה זו יש רק מגמה אחת' : 'This faculty only offers one major'}
+                  </p>
+                )}
               </Field>
 
               <Field label={lang === 'he' ? 'שנת לימודים' : 'Year of Study'}>

@@ -295,7 +295,12 @@ export default function CompleteProfile() {
                 <Pressable
                   key={p.key}
                   style={[s.majorOption, programKey === p.key && s.majorOptionActive]}
-                  onPress={() => { setProgramKey(p.key); setYearOfStudy(null); }}
+                  onPress={() => {
+                    if (facultyPrograms.length === 1) return;
+                    setProgramKey(p.key);
+                    setYearOfStudy(null);
+                  }}
+                  disabled={facultyPrograms.length === 1}
                   accessibilityRole="button"
                 >
                   <Text style={[s.majorText, programKey === p.key && s.majorTextActive, isRtl && s.textRight]}>
@@ -307,6 +312,11 @@ export default function CompleteProfile() {
                 </Pressable>
               ))}
             </View>
+            {facultyPrograms.length === 1 && (
+              <Text style={[s.majorYears, isRtl && s.textRight]}>
+                {lang === 'he' ? 'לפקולטה זו יש רק תוכנית לימודים אחת' : 'This faculty only offers one program'}
+              </Text>
+            )}
             {attemptedSubmit && !programKey && (
               <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>
                 {lang === 'he' ? 'יש לבחור תוכנית לימודים' : 'Please select a program'}
