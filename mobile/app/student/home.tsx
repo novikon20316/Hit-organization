@@ -34,7 +34,7 @@ export default function StudentHome() {
   const {
     studentState, studentName, studentYearOfStudy,
     proposals, activeProjects,
-    pendingApplications, supervisorSelectionRequiresApproval, studentDegree, studentCompletedCourses, cancelAllListeners, refresh,
+    pendingApplications, supervisorSelectionRequiresApproval, studentDegree, studentFaculty, studentCompletedCourses, cancelAllListeners, refresh,
     error,
   } = useStudentData();
 
@@ -129,6 +129,8 @@ export default function StudentHome() {
         <BrowseSupervisors
           lang={lang}
           isRtl={isRtl}
+          studentFaculty={studentFaculty}
+          studentDegree={studentDegree}
           pendingApplications={pendingApplications}
           supervisorSelectionRequiresApproval={supervisorSelectionRequiresApproval}
           onApplicationsChanged={refresh}

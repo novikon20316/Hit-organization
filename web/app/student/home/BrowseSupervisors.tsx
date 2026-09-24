@@ -10,11 +10,13 @@
 // discovered this way instead.
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { ApplicationStatusCard } from './ApplicationStatusCard';
 import { useModalA11y } from '@/hooks/useModalA11y';
-import type { PendingApplication } from './types';
+import type { DegreeType, PendingApplication } from './types';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { APPLY_PROJECT_FIELD_GUIDE, APPLY_PROJECT_GUIDE_KEY } from './fieldGuide';
@@ -41,6 +43,8 @@ interface BrowseSupervisorEntry {
 }
 
 interface BrowseSupervisorsProps {
+  studentFaculty: string;
+  studentDegree: DegreeType;
   pendingApplications: PendingApplication[];
   supervisorSelectionRequiresApproval: boolean;
   onApplicationsChanged: () => void;
@@ -59,7 +63,7 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url as string;
 }
 
-export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequiresApproval, onApplicationsChanged }: BrowseSupervisorsProps) {
+export function BrowseSupervisors({ studentFaculty, studentDegree, pendingApplications, supervisorSelectionRequiresApproval, onApplicationsChanged }: BrowseSupervisorsProps) {
   const { lang, t } = useLanguage();
   const appliedProjectIds = useMemo(() => pendingApplications.map((a) => a.projectId), [pendingApplications]);
 
@@ -98,10 +102,35 @@ export function BrowseSupervisors({ pendingApplications, supervisorSelectionRequ
       .finally(() => setLoading(false));
   };
 
+  // Re-runs fetchSupervisors (the REST aggregation — supervisor grouping,
+  // remaining capacity, major/track eligibility) whenever a project matching
+  // this student's faculty+degree changes, instead of only on mount. Same
+  // query shape as getBrowseSupervisors (studentController.ts) and as
+  // useStudentData.ts's browse-projects listener for the flat (non-
+  // supervisor-grouped) BrowseProjects screen — this is the one first-step
+  // mode ('choose_supervisor') that screen doesn't cover. The listener is
+  // used purely as a change signal; onSnapshot's own first callback (fired
+  // immediately with the current matching docs) doubles as the initial load,
+  // so there's no separate fetch-on-mount effect.
   useEffect(() => {
-    fetchSupervisors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch-on-mount only
-  }, []);
+    if (!studentFaculty || !studentDegree) return;
+    const q = query(
+      collection(db, 'projects'),
+      where('status', '==', 'active'),
+      where('facultyId', '==', studentFaculty),
+      where('degreeTypes', 'array-contains', studentDegree)
+    );
+    const unsub = onSnapshot(
+      q,
+      () => fetchSupervisors(),
+      (err) => {
+        if ((err as { code?: string }).code === 'permission-denied') return;
+        console.error('Browse-supervisors snapshot error:', err);
+      }
+    );
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchSupervisors is redefined every render but behaviorally stable; only faculty/degree should resubscribe
+  }, [studentFaculty, studentDegree]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();

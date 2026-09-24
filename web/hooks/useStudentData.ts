@@ -416,6 +416,7 @@ export function useStudentData() {
     studentYearOfStudy,
     studentCompletedCourses,
     studentDegree,
+    studentFaculty,
     proposals,
     activeProjects: activeProjectsWithDerived,
     activeProject,

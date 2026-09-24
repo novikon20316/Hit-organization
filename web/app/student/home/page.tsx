@@ -46,6 +46,7 @@ function StudentHomeContent() {
     pendingApplications,
     supervisorSelectionRequiresApproval,
     studentDegree,
+    studentFaculty,
     studentTrack,
     studentCompletedCourses,
     refresh,
@@ -108,6 +109,8 @@ function StudentHomeContent() {
         {studentState === 'choose_supervisor' && (
           activeTab === 'overview' ? (
             <BrowseSupervisors
+              studentFaculty={studentFaculty}
+              studentDegree={studentDegree}
               pendingApplications={pendingApplications}
               supervisorSelectionRequiresApproval={supervisorSelectionRequiresApproval}
               onApplicationsChanged={refresh}
