@@ -40,13 +40,13 @@ export type NotificationType =
   | 'meeting_proposed'
   | 'meeting_confirmed'
   | 'milestone_graded'
+  // A receipt sent to the STUDENT themselves right after their own
+  // submission goes through — so they have written confirmation it was
+  // actually received (not just a client-side "success" toast that could be
+  // wrong if the request silently failed downstream). Distinct from
+  // milestone_submitted/_fyi below, which go to staff.
+  | 'milestone_submission_confirmed'
   | 'milestone_submitted'
-  // Same event as 'milestone_submitted', for a recipient who is NOT the
-  // approver whose turn it currently is (e.g. administrative_secretary on a
-  // milestone type no workflow template routes to her) — a heads-up FYI,
-  // not a call to review/grade. See milestoneController.ts's
-  // notifyStaffMilestoneSubmitted `actionable` flag.
-  | 'milestone_submitted_fyi'
   | 'milestone_deadline_7d'
   | 'milestone_deadline_1d'
   | 'milestone_overdue'
@@ -263,6 +263,21 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     `,
   },
 
+  milestone_submission_confirmed: {
+    subjectHe: '✅ ההגשה שלך התקבלה',
+    subjectEn: '✅ Your Submission Was Received',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>ההגשה שלך עבור <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` בפרויקט <strong>${d.projectTitle}</strong>` : ''} התקבלה בהצלחה במערכת.</p>
+      <p>מייל זה הוא אישור קבלה — אין צורך לפעול בעקבותיו. המנחה/הרכז יקבלו הודעה ויבדקו את ההגשה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>Your submission for <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` (project <strong>${d.projectTitle}</strong>)` : ''} was successfully received by the system.</p>
+      <p>This email is just a receipt — no action is needed. Your supervisor/coordinator has been notified and will review it.</p>
+    `,
+  },
+
   milestone_submitted: {
     subjectHe: '📤 הגשה חדשה ממתינה לבדיקה',
     subjectEn: '📤 New Milestone Submission',
@@ -275,23 +290,6 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>Hello ${d.name || ''},</p>
       <p>A new milestone submission is waiting for review: <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` (project <strong>${d.projectTitle}</strong>)` : ''}.</p>
       <p>Log in to review the submission and enter a grade.</p>
-    `,
-  },
-
-  // Informational counterpart to milestone_submitted above — no "log in and
-  // grade" instruction, since this recipient isn't the one whose turn it is.
-  milestone_submitted_fyi: {
-    subjectHe: '📤 הגשה חדשה בפרויקט שבמעקבך',
-    subjectEn: '📤 New Submission in a Project You Track',
-    bodyHe: (d) => `
-      <p>שלום ${d.name || ''},</p>
-      <p>הוגשה אבן דרך חדשה: <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` בפרויקט <strong>${d.projectTitle}</strong>` : ''}.</p>
-      <p>ניתן לצפות בפרטים במערכת.</p>
-    `,
-    bodyEn: (d) => `
-      <p>Hello ${d.name || ''},</p>
-      <p>A new milestone submission was made: <strong>${d.milestoneTitle || ''}</strong>${d.projectTitle ? ` (project <strong>${d.projectTitle}</strong>)` : ''}.</p>
-      <p>You can view the details in the system.</p>
     `,
   },
 

@@ -70,6 +70,7 @@ export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: strin
   milestone_deadline_1d:  { icon: '🚨', color: '#EF4444', bg: '#FEF2F2' },
   milestone_overdue:      { icon: '⏰', color: '#EF4444', bg: '#FEF2F2' },
   milestone_submitted:    { icon: '📤', color: '#2E86FF', bg: '#EFF6FF' },
+  milestone_submission_confirmed: { icon: '✅', color: '#10B981', bg: '#ECFDF5' },
   account_created:        { icon: '🎓', color: '#2E86FF', bg: '#EFF6FF' },
   broadcast:              { icon: '📢', color: '#EF4444', bg: '#FEF2F2' },
   new_message:            { icon: '💬', color: '#2E86FF', bg: '#EFF6FF' },
@@ -138,6 +139,7 @@ export function computeNotifTargetRoute(type: string, role: string | null | unde
     case 'milestone_deadline_7d':
     case 'milestone_deadline_1d':
     case 'milestone_overdue':
+    case 'milestone_submission_confirmed':
       // Always student-directed types.
       return '/student/home';
     case 'application_received':

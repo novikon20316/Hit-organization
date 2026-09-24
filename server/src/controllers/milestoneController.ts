@@ -394,6 +394,25 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       ].filter(Boolean).join('\n'),
     };
 
+    // The student who just submitted gets their own receipt — written
+    // confirmation the submission actually reached the server, not just a
+    // client-side "success" toast that could be wrong if something failed
+    // downstream. Deliberately a separate, lighter-weight notification (own
+    // type, no taskKind) from the staff ones below — this recipient has
+    // nothing to act on, just something to keep.
+    await notifyUser({
+      recipientId: studentId,
+      type: 'milestone_submission_confirmed',
+      titleHe: 'ההגשה שלך התקבלה ✅',
+      titleEn: 'Your Submission Was Received ✅',
+      bodyHe:  `ההגשה שלך עבור "${milestoneTitle.he}" התקבלה בהצלחה.`,
+      bodyEn:  `Your submission for "${milestoneTitle.en}" was successfully received.`,
+      relatedProjectId: projectId,
+      relatedMilestoneId: milestoneId,
+      emailData: { milestoneTitle, projectTitle },
+      channels: { sms: false },
+    });
+
     // The supervisor is the one actually blocked on this (they must grade it
     // before the student can move on) — full multi-channel dispatch
     // (in-app + email + push + SMS, via notify.ts) rather than just an
@@ -419,52 +438,24 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       });
     }
 
-    // Coordinator and administrative-coordinator staff covering this
-    // project's faculty/major also want to know a milestone came in, not
-    // just the supervisor — same scope resolution notify.ts's callers use
-    // elsewhere (defenseScheduling.ts, examinerEscalation.ts, etc.).
-    //
-    // Previously this stayed on a hand-rolled in-app+push-only path with no
-    // email, on the theory that push already reached these staff. In
-    // practice none of them carry an expoPushToken (that field is only ever
-    // populated by the mobile app registering for Expo push — coordinators
-    // and administrative coordinators work from the web dashboard), so push
-    // silently no-opped and the only thing that ever landed was an unread
-    // in-app bell they had no reason to go check — which is why this looked
-    // like it worked (a Firestore doc *was* being written) but in practice
-    // never actually notified anyone. Routed through notifyUser now, same
-    // as the supervisor above, so they get a real email too; SMS stays off
-    // to avoid fanning a paid channel out to every covering coordinator on
-    // every single submission.
-    // `actionable` is true only for a recipient who is genuinely the next
-    // approver right now (coordinator always, since the legacy/chain-driven
-    // approve endpoints both still admit that role — or administrative
-    // secretary specifically when a workflow template routes this milestone
-    // type's first stage to her). Everyone else covering this scope gets the
-    // same body but framed as a heads-up, not a call to action — see the
-    // titleHe/En split below. Without this, administrative_secretary got the
-    // exact same "awaiting review" wording + action routing as whoever is
-    // actually up next, even on milestone types no template ever assigns her
-    // (the common case) — she'd land on /coordinator/home?tab=pending, a
-    // screen not even in her own sidebar (navSections.ts), with Approve/
-    // Reject buttons that would 403 if clicked.
-    const notifyStaffMilestoneSubmitted = (recipientId: string, actionable: boolean) => notifyUser({
+    // Only the ONE coordinator-tier recipient(s) genuinely up next get
+    // notified here — not every coordinator/administrative-coordinator
+    // merely covering this project's faculty/major. Product decision: these
+    // emails are for supervisor + the actual approver + the submitting
+    // student's own receipt above, nobody else — no more "FYI, a project you
+    // track had a submission" broadcast to staff with nothing to act on.
+    const notifyStaffMilestoneSubmitted = (recipientId: string) => notifyUser({
       recipientId,
-      // The stored in-app type stays 'milestone_submitted' either way (so
-      // the client's icon/label lookups don't need a second entry) — only
-      // the EMAIL template differs, via `type` below, since
-      // emailTemplates.ts's milestone_submitted body hardcodes "log in to
-      // review and grade" regardless of the titleHe/En passed here.
-      type: actionable ? 'milestone_submitted' : 'milestone_submitted_fyi',
+      type: 'milestone_submitted',
       inAppType: 'milestone_submitted',
-      titleHe: actionable ? 'הגשה חדשה ממתינה לבדיקה 📤' : 'הגשה חדשה בפרויקט שבמעקבך 📤',
-      titleEn: actionable ? 'New Milestone Submission 📤' : 'New Submission in a Project You Track 📤',
+      titleHe: 'הגשה חדשה ממתינה לבדיקה 📤',
+      titleEn: 'New Milestone Submission 📤',
       bodyHe:  staffBody.he,
       bodyEn:  staffBody.en,
       relatedProjectId: projectId,
       relatedMilestoneId: milestoneId,
       emailData: { milestoneTitle, projectTitle },
-      ...(actionable ? { taskKind: 'milestone_action' as const } : {}),
+      taskKind: 'milestone_action',
       // Recipients here are matched via resolveStaffForScope('coordinator'/
       // 'administrative_secretary', ...) below — a multi-role staff member
       // can be matched that way while their primary `role` field says
@@ -488,13 +479,13 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       // A fresh submission always restarts a chain-driven milestone at stage
       // 0 (see the currentStageIndex reset above) — that stage's role is the
       // only one this specific submission is actually "awaiting review" by.
+      // Only recipients matched under THAT role are notified — the other
+      // pool (coordinator when administrative_secretary is up, or vice
+      // versa) is dropped entirely rather than sent an FYI.
       const firstStageRole = isChainDriven(milestoneData) ? milestoneData.routing[0]?.role : 'coordinator';
-      const coordinatorIdSet = new Set(coordinatorIds);
-      const staffRecipientIds = [...new Set([...coordinatorIds, ...adminCoordinatorIds])].filter((id) => id !== supervisorId);
-      await Promise.all(staffRecipientIds.map((id) => {
-        const actionable = coordinatorIdSet.has(id) ? firstStageRole === 'coordinator' : firstStageRole === 'administrative_secretary';
-        return notifyStaffMilestoneSubmitted(id, actionable);
-      }));
+      const actionablePool = firstStageRole === 'administrative_secretary' ? adminCoordinatorIds : coordinatorIds;
+      const staffRecipientIds = [...new Set(actionablePool)].filter((id) => id !== supervisorId);
+      await Promise.all(staffRecipientIds.map((id) => notifyStaffMilestoneSubmitted(id)));
     }
 
     return res.status(200).json({ success: true, message: 'Milestone submitted successfully.' });

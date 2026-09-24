@@ -109,9 +109,9 @@ function mobileHomeRoute(role: string | null | undefined): string {
 const STUDENT_DIRECTED_TYPES = new Set([
   'project_published', 'application_approved', 'application_declined_by_student',
   'application_rejected', 'meeting_requested', 'meeting_proposed', 'meeting_confirmed', 'milestone_graded',
-  'milestone_deadline_7d', 'milestone_deadline_1d', 'milestone_overdue',
+  'milestone_deadline_7d', 'milestone_deadline_1d', 'milestone_overdue', 'milestone_submission_confirmed',
 ]);
-const ANY_ROLE_TYPES = new Set(['application_received', 'account_created', 'milestone_submitted', 'milestone_submitted_fyi']);
+const ANY_ROLE_TYPES = new Set(['application_received', 'account_created', 'milestone_submitted']);
 
 function fallbackRoute(type: string, role: string | null | undefined, homeRoute: (r: string | null | undefined) => string): string {
   if (STUDENT_DIRECTED_TYPES.has(type)) return homeRoute('student');
