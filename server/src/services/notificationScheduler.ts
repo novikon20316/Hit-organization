@@ -132,7 +132,10 @@ async function escalateOverdueExaminerToCoordinators(
   }
   if (!facultyId) return;
 
-  const coordinatorUids = await resolveStaffForScope('coordinator', { facultyId }, []);
+  // includeSystemAdmin: false — notification fan-out, not an authorization
+  // check; system_admin only wants system-detected errors/bugs or
+  // feedback-tab messages. See resolveStaffForScope's doc comment.
+  const coordinatorUids = await resolveStaffForScope('coordinator', { facultyId }, [], [], false);
 
   await Promise.all(coordinatorUids.map((uid) =>
     db.collection('notifications').add({
@@ -146,8 +149,8 @@ async function escalateOverdueExaminerToCoordinators(
       relatedProjectId: t.projectId ?? null,
       relatedMilestoneId: t.milestoneId ?? null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      // resolveStaffForScope('coordinator', ...) only ever returns
-      // coordinator/administrative_secretary/system_admin — all three
+      // resolveStaffForScope('coordinator', ..., includeSystemAdmin: false)
+      // only ever returns coordinator/administrative_secretary — both
       // resolve to the same targetScreenFor(role, 'deadline_examiner')
       // destination, so no per-recipient role lookup is needed here.
       targetScreen: 'coordinator_deadlines',

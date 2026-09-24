@@ -255,7 +255,17 @@ export async function resolveStaffForScope(
   // staff role) — see workflowTemplates.ts's ChainRole doc comment. Optional
   // and defaulted so every existing call site (none of which ever configures
   // an 'examiner' stage) is unaffected.
-  milestoneExaminerIds: string[] = []
+  milestoneExaminerIds: string[] = [],
+  // system_admin is folded in by default to match the isSystemAdmin() bypass
+  // convention used by every other function in this file — correct when the
+  // result is used for an authorization check ("is this uid allowed to act
+  // here"), since an admin should pass every such check. It is WRONG when the
+  // result instead becomes a notification recipient list: system_admin only
+  // wants emails/messages the system itself flags as an error, bug, or a
+  // user-submitted improvement note from the feedback tab — not routine
+  // business events like "a milestone was submitted". Callers building a
+  // notification fan-out must pass includeSystemAdmin: false explicitly.
+  includeSystemAdmin: boolean = true
 ): Promise<string[]> {
   if (role === 'supervisor') return [...new Set(projectSupervisorIds.filter(Boolean))];
   if (role === 'examiner') return [...new Set(milestoneExaminerIds.filter(Boolean))];
@@ -272,10 +282,10 @@ export async function resolveStaffForScope(
     }
   });
 
-  // system_admin always included, matching the isSystemAdmin() bypass
-  // convention used by every other function in this file.
-  const adminDocs = await usersWithRole('system_admin');
-  adminDocs.forEach((doc) => uids.add(doc.id));
+  if (includeSystemAdmin) {
+    const adminDocs = await usersWithRole('system_admin');
+    adminDocs.forEach((doc) => uids.add(doc.id));
+  }
 
   return [...uids];
 }

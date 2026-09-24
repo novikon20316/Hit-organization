@@ -487,7 +487,10 @@ async function flagConflict(
   // Resolving "the coordinator(s) of this faculty" is a plain read, done
   // ahead of the write below — coordinator rosters don't change fast enough
   // for this to need transactional consistency.
-  const coordinatorUids = await resolveStaffForScope('coordinator', { facultyId }, []);
+  // includeSystemAdmin: false — notification fan-out, not an authorization
+  // check; system_admin only wants system-detected errors/bugs or
+  // feedback-tab messages. See resolveStaffForScope's doc comment.
+  const coordinatorUids = await resolveStaffForScope('coordinator', { facultyId }, [], [], false);
 
   coordinatorUids.forEach((uid) => {
     transaction.set(db.collection('notifications').doc(), {
@@ -503,8 +506,8 @@ async function flagConflict(
       relatedProjectId: projectId,
       relatedMilestoneId: milestoneRef.id,
       chatId: null,
-      // resolveStaffForScope('coordinator', ...) only ever returns
-      // coordinator/administrative_secretary/system_admin — all three
+      // resolveStaffForScope('coordinator', ..., includeSystemAdmin: false)
+      // only ever returns coordinator/administrative_secretary — both
       // resolve to the same targetScreenFor(role, 'defense') destination
       // (the Defense tab), so no per-recipient role lookup is needed here.
       targetScreen: 'coordinator_defense',

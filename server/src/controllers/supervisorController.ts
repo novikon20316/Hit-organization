@@ -1300,9 +1300,13 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       const processType = deriveProcessType(project.degreeType, project.projectType);
       const signoffRole = await resolveFinalGradeSignoffRole(scope.facultyId, processType, project.major ?? null);
       const projectSupervisorIds = [project.supervisorId].filter(Boolean);
-      const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
+      // includeSystemAdmin: false — this list is used to send notifications,
+      // and system_admin only wants system-detected errors/bugs or
+      // feedback-tab messages, not routine sign-off traffic. See
+      // resolveStaffForScope's doc comment.
+      const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds, [], false);
       // signoffRole can resolve to several different concrete roles at once
-      // (coordinator + administrative_secretary + system_admin, say), and
+      // (coordinator + administrative_secretary, say), and
       // unlike the fixed-role fan-outs elsewhere in this codebase, those
       // don't all land on the same screen for a sign-off task — each
       // recipient's own role has to be looked up to pick their destination.

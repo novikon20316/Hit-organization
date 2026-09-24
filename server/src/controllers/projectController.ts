@@ -1477,9 +1477,13 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
 
     const projectScope = await resolveProjectScope(projectId);
     if (projectScope) {
+      // includeSystemAdmin: false — notification fan-out, not an
+      // authorization check; system_admin only wants system-detected
+      // errors/bugs or feedback-tab messages. See resolveStaffForScope's doc
+      // comment.
       const [coordinatorIds, adminCoordinatorIds] = await Promise.all([
-        resolveStaffForScope('coordinator', projectScope, supervisorId ? [supervisorId] : []),
-        resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : []),
+        resolveStaffForScope('coordinator', projectScope, supervisorId ? [supervisorId] : [], [], false),
+        resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : [], [], false),
       ]);
       const firstStageRole = isChainDriven(milestoneData) ? milestoneData.routing[0]?.role : 'coordinator';
       const coordinatorIdSet = new Set(coordinatorIds);

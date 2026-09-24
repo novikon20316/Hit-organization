@@ -985,8 +985,12 @@ async function approveChainMilestone(
     // members via onEnterCommitteeStage above) — let whoever is authorized
     // at the newly-current stage know it's awaiting them.
     if (!finalized && advancedToStage && advancedToStage.role !== 'committee') {
+      // includeSystemAdmin: false — notification fan-out, not an
+      // authorization check; system_admin only wants system-detected
+      // errors/bugs or feedback-tab messages. See resolveStaffForScope's
+      // doc comment.
       const nextActorIds = await resolveStaffForScope(
-        advancedToStage.role, resource, projectSupervisorIds, milestone.examinerIds ?? []
+        advancedToStage.role, resource, projectSupervisorIds, milestone.examinerIds ?? [], false
       );
       const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
       // Resolved from the STAGE's role, not the recipient's own stored
@@ -1354,7 +1358,11 @@ async function rejectChainMilestone(
         await onEnterCommitteeStage(milestoneId, freshMilestone);
         return res.status(200).json({ success: true, message: 'Milestone routed back internally.' });
       }
-      const targetUids = await resolveStaffForScope(targetStage.role, resource, projectSupervisorIds, milestone.examinerIds ?? []);
+      // includeSystemAdmin: false — notification fan-out, not an
+      // authorization check; system_admin only wants system-detected
+      // errors/bugs or feedback-tab messages. See resolveStaffForScope's
+      // doc comment.
+      const targetUids = await resolveStaffForScope(targetStage.role, resource, projectSupervisorIds, milestone.examinerIds ?? [], false);
       const milestoneTitle = { he: rejectedMilestone.nameHe ?? rejectedMilestone.type ?? '', en: rejectedMilestone.nameEn ?? rejectedMilestone.type ?? '' };
       // Resolved from the STAGE's role directly (same as the approve path's
       // nextStageTargetScreen above), not each recipient's own primary

@@ -477,9 +477,13 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
 
     const projectScope = await resolveProjectScope(projectId);
     if (projectScope) {
+      // includeSystemAdmin: false — this list is used to send notifications,
+      // and system_admin only wants system-detected errors/bugs or feedback-
+      // tab messages, not routine "a milestone was submitted" traffic. See
+      // resolveStaffForScope's doc comment.
       const [coordinatorIds, adminCoordinatorIds] = await Promise.all([
-        resolveStaffForScope('coordinator', projectScope, supervisorId ? [supervisorId] : []),
-        resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : []),
+        resolveStaffForScope('coordinator', projectScope, supervisorId ? [supervisorId] : [], [], false),
+        resolveStaffForScope('administrative_secretary', projectScope, supervisorId ? [supervisorId] : [], [], false),
       ]);
       // A fresh submission always restarts a chain-driven milestone at stage
       // 0 (see the currentStageIndex reset above) — that stage's role is the
