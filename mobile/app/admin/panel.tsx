@@ -54,21 +54,29 @@ import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
 
 // Mirrors server/src/services/studentRoster.ts's importApprovedStudentsFromBuffer
 // column parsing exactly — keep in sync if that function's expected columns change.
+// The column headers and FacultyId values are literal tokens the parser
+// matches on and can't be translated (raw.studentid / raw.facultyid etc., and
+// VALID_FACULTIES in userImportExport.ts) — the Hebrew copy says so
+// explicitly instead of silently mixing in untranslated English, and adds
+// each faculty's Hebrew name next to its code (same names as FACULTY_COLORS).
 const ROSTER_IMPORT_FORMAT_HELP = {
   he:
-    'עמודות נדרשות בקובץ ה-Excel (שורה ראשונה = כותרות):\n\n' +
+    'כותרות העמודות בשורה הראשונה של הקובץ חייבות להיות באנגלית, בדיוק כפי שמופיע כאן — הן ערכים טכניים קבועים ולא טקסט לתרגום:\n\n' +
     '• StudentId — מספר ת.ז., 9 ספרות\n' +
     '• FullName — שם מלא (מומלץ, לא חובה)\n' +
-    "• DegreeType — bachelors / masters (או 'תואר ראשון' / 'תואר שני')\n" +
+    "• DegreeType — bachelors או masters (ניתן גם 'תואר ראשון' / 'תואר שני')\n" +
     '• Major — מגמה (אופציונלי)\n' +
-    '• FacultyId — קוד פקולטה: sciences, electrical, industrial, learning_tech, medical_tech, design, data_science',
+    '• FacultyId — קוד הפקולטה, בדיוק כך:\n' +
+    '   sciences (מדעים), electrical (חשמל ואלקטרוניקה), industrial (תעשייה וניהול טכנולוגיה),\n' +
+    '   learning_tech (טכנולוגיות למידה), medical_tech (טכנולוגיות רפואיות), design (עיצוב), data_science (מדעי הנתונים)',
   en:
-    'Required Excel columns (first row = headers):\n\n' +
+    'The header row must use these exact English column names — they\'re fixed technical tokens the parser matches on:\n\n' +
     '• StudentId — 9-digit ID number\n' +
     '• FullName — full name (recommended, not required)\n' +
-    '• DegreeType — bachelors / masters\n' +
+    "• DegreeType — bachelors or masters (Hebrew 'תואר ראשון' / 'תואר שני' also accepted)\n" +
     '• Major — optional\n' +
-    '• FacultyId — faculty code: sciences, electrical, industrial, learning_tech, medical_tech, design, data_science',
+    '• FacultyId — the faculty code, exactly as shown:\n' +
+    '   sciences, electrical, industrial, learning_tech, medical_tech, design, data_science',
 };
 
 export default function PanelScreen() {
