@@ -1427,6 +1427,11 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         relatedMilestoneId: milestoneId,
         emailData: { milestoneTitle, projectTitle },
         taskKind: 'milestone_action',
+        // recipientId is the project's supervisor specifically — see
+        // milestoneController.ts's identical fix and notify.ts's
+        // NotifyParams doc comment for why a multi-role recipient needs
+        // this hint rather than their primary `role` field.
+        taskRoleCandidates: ['supervisor', 'secondary_supervisor'],
       });
     }
 

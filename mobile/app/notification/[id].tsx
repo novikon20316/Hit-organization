@@ -5,11 +5,13 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import type { Lang } from '../../components/i18n';
+import type { Lang, AppRole } from '../../components/i18n';
 import { TYPE_STYLE, computeNotifTargetRoute } from '../(tabs)/notifications';
 import { NotificationDetailStyles } from '../../constants/styles';
 import { apiClient } from '../../src/api/apiClient';
 import { useNotifications } from '../../src/context/NotificationsContext';
+import { useActiveRole } from '../../contexts/ActiveRoleContext';
+import { isValidRole } from '../../firebase/roles';
 
 const s = NotificationDetailStyles;
 
@@ -23,11 +25,13 @@ interface AlertItem {
   createdAt: string;
   isRead:    boolean;
   targetScreen?: string | null;
+  targetRole?: string | null;
 }
 
 export default function NotificationDetailScreen() {
   const router = useRouter();
   const { refresh } = useNotifications();
+  const { activeRole, roles, setActiveRole } = useActiveRole();
   const params = useLocalSearchParams<{
     id?:          string;
     type?:        string;
@@ -37,6 +41,7 @@ export default function NotificationDetailScreen() {
     bodyEn?:      string;
     createdAt?:   string;
     targetRoute?: string;
+    targetRole?:  string;
     lang?:        string;
   }>();
 
@@ -93,6 +98,20 @@ export default function NotificationDetailScreen() {
   // generic role-home route with no tab, even though the list's own row tap
   // (driven by live data) had the right destination all along.
   const targetRoute = current ? computeNotifTargetRoute(current.type, userRole, current.targetScreen) : (params.targetRoute ?? '');
+  const targetRole = current ? current.targetRole : params.targetRole;
+
+  // Switches activeRole to whichever role targetRoute was actually resolved
+  // for (same setActiveRole (tabs)/roles.tsx's role switcher calls) before
+  // navigating, so a multi-role viewer lands on the right tabs/data, not
+  // just the right route. Only switches when targetRole is present, differs
+  // from activeRole, and is a role this account actually holds.
+  const goToTarget = (replace: boolean) => {
+    if (targetRole && isValidRole(targetRole) && targetRole !== activeRole && roles.includes(targetRole as AppRole)) {
+      setActiveRole(targetRole as AppRole);
+    }
+    if (replace) router.replace(targetRoute as any);
+    else router.push(targetRoute as any);
+  };
 
   const style = TYPE_STYLE[type] ?? TYPE_STYLE.project_published;
   const title = lang === 'he' ? titleHe : titleEn;
@@ -132,6 +151,7 @@ export default function NotificationDetailScreen() {
         bodyEn:      target.bodyEn,
         createdAt:   target.createdAt,
         targetRoute: computeNotifTargetRoute(target.type, userRole, target.targetScreen),
+        targetRole:  target.targetRole ?? '',
         lang,
       },
     });
@@ -175,7 +195,7 @@ export default function NotificationDetailScreen() {
                 most of the card) still gets you there, not just the
                 button. */}
             {!!targetRoute && (
-              <Text onPress={() => router.push(targetRoute as any)} style={s.bodyLink}>
+              <Text onPress={() => goToTarget(false)} style={s.bodyLink}>
                 {'  '}{lang === 'he' ? '→ מעבר למסך הרלוונטי' : '→ Go to relevant screen'}
               </Text>
             )}
@@ -202,7 +222,7 @@ export default function NotificationDetailScreen() {
         </View>
 
         {!!targetRoute && (
-          <Pressable style={s.actionBtn} onPress={() => router.replace(targetRoute as any)} accessibilityRole="button">
+          <Pressable style={s.actionBtn} onPress={() => goToTarget(true)} accessibilityRole="button">
             <Text style={s.actionBtnText}>
               {lang === 'he' ? 'עבור לדשבורד' : 'Go to dashboard'}
             </Text>

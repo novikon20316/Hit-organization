@@ -12,13 +12,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { apiClient } from '@/lib/apiClient';
+import { getUserRoles, isValidRole } from '@/lib/roles';
 import { TYPE_STYLE, computeNotifTargetRoute, type Notif } from '@/app/notifications/types';
 
 export default function NotificationDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-  const { userData } = useAuth();
+  const { userData, activeRole, setActiveRole } = useAuth();
   const { lang } = useLanguage();
   const { refresh: refreshBadges } = useNotifications();
 
@@ -29,6 +30,7 @@ export default function NotificationDetailPage() {
   const paramBodyEn      = searchParams.get('bodyEn') ?? '';
   const paramCreatedAt   = searchParams.get('createdAt') ?? '';
   const paramTargetRoute = searchParams.get('targetRoute') ?? '';
+  const paramTargetRole  = searchParams.get('targetRole') ?? '';
 
   // Fetched once and reused across next/previous clicks (this page stays
   // mounted across router.replace calls to the same route) — lets paging
@@ -79,6 +81,20 @@ export default function NotificationDetailPage() {
   // generic role-home route with no tab, even though the list's own "Go"
   // button (driven by live data) had the right destination all along.
   const targetRoute = current ? computeNotifTargetRoute(current.type, userData?.role, current.targetScreen) : paramTargetRoute;
+  const targetRole = current ? current.targetRole : paramTargetRole;
+
+  // Switches activeRole to whichever role targetRoute was actually resolved
+  // for (same setActiveRole the sidebar's "Switch Role" section calls — see
+  // lib/roleChrome.ts) before navigating, so a multi-role viewer lands on
+  // the right dashboard chrome, not just the right URL. Only switches when
+  // targetRole is present, differs from activeRole, and is a role this
+  // account actually holds.
+  const goToTarget = () => {
+    if (targetRole && isValidRole(targetRole) && targetRole !== activeRole && getUserRoles(userData).includes(targetRole)) {
+      setActiveRole(targetRole);
+    }
+    router.push(targetRoute);
+  };
 
   const style = TYPE_STYLE[type] ?? TYPE_STYLE.project_published;
   const title = lang === 'he' ? titleHe : titleEn;
@@ -116,6 +132,7 @@ export default function NotificationDetailPage() {
       bodyEn: target.bodyEn,
       createdAt: target.createdAt,
       targetRoute: computeNotifTargetRoute(target.type, userData?.role, target.targetScreen),
+      ...(target.targetRole ? { targetRole: target.targetRole } : {}),
     });
     router.replace(`/notification/${target.id}?${nextParams.toString()}`);
   };
@@ -155,7 +172,7 @@ export default function NotificationDetailPage() {
                 {'  '}
                 <button
                   type="button"
-                  onClick={() => router.push(targetRoute)}
+                  onClick={goToTarget}
                   className="font-semibold text-primary underline hover:no-underline"
                 >
                   {lang === 'he' ? '→ מעבר למסך הרלוונטי' : '→ Go to relevant screen'}
@@ -187,7 +204,7 @@ export default function NotificationDetailPage() {
         {targetRoute && (
           <button
             type="button"
-            onClick={() => router.push(targetRoute)}
+            onClick={goToTarget}
             className="rounded-[var(--radius)] bg-primary px-4 py-3 text-sm font-semibold text-primary-ink hover:opacity-90"
           >
             {lang === 'he' ? 'עבור לדשבורד' : 'Go to dashboard'}

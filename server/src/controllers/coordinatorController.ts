@@ -1181,6 +1181,10 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
             relatedMilestoneId: milestoneId,
             channels: { email: false, sms: false },
             taskKind: 'grade_published',
+            // recipientId is the project's supervisor specifically — see
+            // notify.ts's NotifyParams doc comment on why a multi-role
+            // recipient needs this hint rather than their primary `role`.
+            taskRoleCandidates: ['supervisor', 'secondary_supervisor'],
           });
         } catch (notifyError) {
           console.error(`coordinatorApproveMilestone: supervisor notify failed for ${supervisorId} on milestone ${milestoneId}:`, notifyError);

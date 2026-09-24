@@ -79,6 +79,10 @@ async function closeOtherPendingApplications(
           message: `${studentName} was accepted into another project ("${enrolledProjectTitle.en}"), and their application to "${closedProjectTitleEn}" has been automatically closed.`,
         },
         taskKind: 'applications',
+        // recipientId is the project's supervisor specifically — see
+        // notify.ts's NotifyParams doc comment for why a multi-role
+        // recipient needs this hint rather than their primary `role` field.
+        taskRoleCandidates: ['supervisor', 'secondary_supervisor'],
       }).catch((notifyError) => {
         console.error(`auto-close notification failed for supervisor ${data.supervisorId}:`, notifyError);
       });

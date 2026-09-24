@@ -21,6 +21,15 @@ export interface Notif {
    *  this existed won't have it; computeNotifTargetRoute falls back to its
    *  by-type switch for those. */
   targetScreen?: string | null;
+  /** The role this notification's targetScreen was actually resolved for
+   *  (see server/src/services/notify.ts) — used to switch a multi-role
+   *  viewer's activeRole (same as the sidebar's "Switch Role" section, see
+   *  lib/roleChrome.ts) before navigating to targetScreen's route, so the
+   *  destination dashboard's chrome/tab-filters match the role the item
+   *  actually belongs to. Absent on notifications with no targetScreen at
+   *  all, and on the small number of notification types still written
+   *  directly to Firestore without going through notify.ts. */
+  targetRole?: string | null;
 }
 
 export interface ChatRow {

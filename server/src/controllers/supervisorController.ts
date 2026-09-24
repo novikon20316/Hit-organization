@@ -1321,7 +1321,10 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
           isRead: false,
           relatedProjectId: data.projectId ?? null,
           relatedMilestoneId: milestoneId,
-          ...(targetScreen ? { targetScreen } : {}),
+          // targetRole lets the client switch its own activeRole (same as
+          // the sidebar's "Switch Role" section) before navigating — see
+          // notify.ts's identical field for the same reasoning.
+          ...(targetScreen ? { targetScreen, targetRole: effectiveRole } : {}),
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }));

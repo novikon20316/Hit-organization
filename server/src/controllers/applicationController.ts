@@ -295,6 +295,11 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
                         projectTitle: { he: projectData.titleHe ?? '', en: projectData.titleEn ?? '' },
                     },
                     taskKind: 'applications',
+                    // recipientId is the project's supervisor specifically —
+                    // a multi-role recipient (e.g. also coordinator) must not
+                    // have this resolved against their primary `role` field
+                    // instead (see notify.ts's NotifyParams doc comment).
+                    taskRoleCandidates: ['supervisor', 'secondary_supervisor'],
                 });
             } catch (notifyError) {
                 console.error(`application_received notification failed for supervisor ${projectData.supervisorId}:`, notifyError);
@@ -476,6 +481,10 @@ export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Re
                         projectTitle: { he: projectTitleHe ?? '', en: projectTitleEn ?? '' },
                     },
                     taskKind: 'applications',
+                    // See the identical comment on the application_received
+                    // notification above — recipientId is the supervisor
+                    // specifically, not necessarily their primary role.
+                    taskRoleCandidates: ['supervisor', 'secondary_supervisor'],
                 }).catch((notifyError) => {
                     console.error(`application_declined_by_student notification failed for supervisor ${supervisorId}:`, notifyError);
                 });
@@ -596,6 +605,10 @@ export const confirmMeetingSlot = async (req: AuthenticatedRequest, res: Respons
                     ...(calendarLink ? { calendarLink } : {}),
                 },
                 taskKind: 'applications',
+                // See the identical comment on the application_received
+                // notification above — recipientId is the supervisor
+                // specifically, not necessarily their primary role.
+                taskRoleCandidates: ['supervisor', 'secondary_supervisor'],
             }).catch((err) => console.error(`meeting_confirmed notify failed for supervisor ${supervisorId}:`, err));
         }
 

@@ -37,6 +37,12 @@ interface Notif {
    *  TARGET_SCREEN_ROUTE above. Older notifications won't have it;
    *  computeNotifTargetRoute falls back to its by-type switch for those. */
   targetScreen?:      string | null;
+  /** The role targetScreen was actually resolved for (see server/src/
+   *  services/notify.ts) — used by the [id] detail screen to switch a
+   *  multi-role viewer's activeRole (same as (tabs)/roles.tsx's role
+   *  switcher) before navigating there, so the destination tabs/data match
+   *  the role the item actually belongs to. */
+  targetRole?:        string | null;
 }
 
 interface ChatRow {
@@ -511,6 +517,7 @@ export default function NotificationsScreen() {
         bodyEn:    notif.bodyEn,
         createdAt: notif.createdAt,
         targetRoute,
+        targetRole: notif.targetRole ?? '',
         lang,
       },
     });

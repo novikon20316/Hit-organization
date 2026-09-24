@@ -410,6 +410,12 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         relatedMilestoneId: milestoneId,
         emailData: { milestoneTitle, projectTitle },
         taskKind: 'milestone_action',
+        // recipientId is the project's supervisor specifically — a multi-
+        // role recipient (e.g. also coordinator) must not have this resolved
+        // against their primary `role` field instead (see notify.ts's
+        // NotifyParams doc comment, and the identical fix already applied to
+        // notifyStaffMilestoneSubmitted just below).
+        taskRoleCandidates: ['supervisor', 'secondary_supervisor'],
       });
     }
 

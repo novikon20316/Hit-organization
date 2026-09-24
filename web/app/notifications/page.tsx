@@ -15,6 +15,7 @@ import { useNotifications } from '@/contexts/NotificationsContext';
 import { apiClient } from '@/lib/apiClient';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { notifMatchesRole } from '@/lib/notificationScreens';
+import { getUserRoles, isValidRole } from '@/lib/roles';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { FeedbackTab } from './FeedbackTab';
@@ -24,7 +25,7 @@ type Tab = 'notifs' | 'chats' | 'feedback';
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { userData, loading: authLoading, activeRole } = useAuth();
+  const { userData, loading: authLoading, activeRole, setActiveRole } = useAuth();
   const { lang, t } = useLanguage();
   const { refresh: refreshBadges } = useNotifications();
 
@@ -134,6 +135,20 @@ export default function NotificationsPage() {
     return () => clearInterval(interval);
   }, [authLoading, fetchChats]);
 
+  // Switches activeRole to whichever role the notification's targetScreen
+  // was actually resolved for (same setActiveRole the sidebar's "Switch
+  // Role" section calls — see lib/roleChrome.ts) before navigating, so a
+  // multi-role viewer lands on the right dashboard CHROME (sidebar, tab
+  // filters), not just the right URL. Only switches when targetRole is
+  // present, differs from the current activeRole, and is a role this
+  // account actually holds — a stale/invalid value never forces a switch.
+  const goToTarget = (route: string, targetRole?: string | null) => {
+    if (targetRole && isValidRole(targetRole) && targetRole !== activeRole && getUserRoles(userData).includes(targetRole)) {
+      setActiveRole(targetRole);
+    }
+    router.push(route);
+  };
+
   const handleTapNotif = async (notif: Notif) => {
     if (!notif.isRead) {
       try {
@@ -167,6 +182,7 @@ export default function NotificationsPage() {
       bodyEn: notif.bodyEn,
       createdAt: notif.createdAt,
       targetRoute,
+      ...(notif.targetRole ? { targetRole: notif.targetRole } : {}),
     });
     router.push(`/notification/${notif.id}?${params.toString()}`);
   };
@@ -191,7 +207,7 @@ export default function NotificationsPage() {
       return;
     }
     const targetRoute = computeNotifTargetRoute(notif.type, activeRole, notif.targetScreen);
-    if (targetRoute) router.push(targetRoute);
+    if (targetRoute) goToTarget(targetRoute, notif.targetRole);
   };
 
   const handleTapChat = (chat: ChatRow) => {

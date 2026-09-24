@@ -152,7 +152,16 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       relatedProjectId,
       relatedMilestoneId,
-      ...(targetScreen ? { targetScreen } : {}),
+      // Persisted alongside targetScreen so the client can switch its own
+      // activeRole (same setActiveRole the sidebar's "Switch Role" section
+      // uses — see lib/roleChrome.ts) to whichever role this notification
+      // was actually resolved for, before navigating there. Without this, a
+      // multi-role recipient whose CURRENT activeRole differs from
+      // effectiveRole could land on the right URL but the wrong dashboard
+      // chrome/data (e.g. the coordinator sidebar's own tab filters, which
+      // key off activeRole, not the route) — same class of bug targetScreen
+      // itself was added to fix for the link's destination.
+      ...(targetScreen ? { targetScreen, targetRole: effectiveRole } : {}),
       emailDelivery: 'pending' satisfies DeliveryStatus,
       pushDelivery:  'pending' satisfies DeliveryStatus,
       smsDelivery:   'pending' satisfies DeliveryStatus,
