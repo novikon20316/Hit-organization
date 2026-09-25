@@ -35,7 +35,7 @@ import { ResponsiveScreen } from '../../components/ResponsiveScreen';
 import { apiClient } from '../../src/api/apiClient';
 import {
   CHAIN_ROLES, SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, SUBMISSION_REQUIREMENTS,
-  MILESTONE_FILE_TYPES, DEFAULT_ALLOWED_FILE_TYPES,
+  MILESTONE_FILE_TYPES, DEFAULT_ALLOWED_FILE_TYPES, isMastersProcess,
   type ProcessType, type ChainRole, type ChainStage, type MilestoneRoutingSpec,
   type GradingComponentSpec, type FormFieldSpec, type FinalGradeComponents,
   type MilestoneSpec, type ApplyMode, type SubmissionRequirement, type CommitteeOption, type MilestoneFileType,
@@ -634,11 +634,12 @@ export default function WorkflowTemplateEditor() {
     if (!payload.facultyId) return;
     let cancelled = false;
     const committeeType = payload.processType === 'msc_thesis' ? 'thesis' : 'final_project';
+    const committeeDegreeLevel = isMastersProcess(payload.processType) ? 'masters' : 'bachelors';
     apiClient.get('/api/committees', { params: { facultyId: payload.facultyId } })
       .then((res) => {
         if (cancelled) return;
         const list: CommitteeOption[] = res.data.committees ?? [];
-        setCommittees(list.filter((c) => c.type === committeeType && (payload.activeMajor == null || c.major === payload.activeMajor)));
+        setCommittees(list.filter((c) => c.type === committeeType && c.degreeLevel === committeeDegreeLevel && (payload.activeMajor == null || c.major === payload.activeMajor)));
       })
       .catch(() => { if (!cancelled) setCommittees([]); });
     return () => { cancelled = true; };

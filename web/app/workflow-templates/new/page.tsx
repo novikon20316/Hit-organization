@@ -31,7 +31,7 @@ import type { AppRole } from '@/lib/roles';
 import { MilestoneRowModal } from '../MilestoneRowModal';
 import { ChainEditor } from '../ChainEditor';
 import {
-  SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, emptyMilestone, processTypeLabel,
+  SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, emptyMilestone, processTypeLabel, isMastersProcess,
   type ChainRole, type FormFieldSpec, type GradingComponentSpec, type MilestoneRoutingSpec, type MilestoneSpec, type ProcessType, type WorkflowTemplateDoc,
 } from '../types';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -246,10 +246,11 @@ function ProposeVersionForm({
     if (!facultyId) return;
     let cancelled = false;
     const committeeType = processType === 'msc_thesis' ? 'thesis' : 'final_project';
+    const committeeDegreeLevel = isMastersProcess(processType) ? 'masters' : 'bachelors';
     apiClient.listCommittees(facultyId)
       .then((res) => {
         if (cancelled) return;
-        setCommittees((res.committees ?? []).filter((c) => c.type === committeeType && (major == null || c.major === major)));
+        setCommittees((res.committees ?? []).filter((c) => c.type === committeeType && c.degreeLevel === committeeDegreeLevel && (major == null || c.major === major)));
       })
       .catch(() => { if (!cancelled) setCommittees([]); });
     return () => { cancelled = true; };

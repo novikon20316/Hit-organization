@@ -67,6 +67,7 @@ export interface CommitteeOption {
   id: string;
   facultyId: string;
   major: string;
+  degreeLevel: 'bachelors' | 'masters';
   type: 'thesis' | 'final_project';
   chairmanId: string | null;
   memberIds: string[];
@@ -314,7 +315,7 @@ const FACULTY_APPROVER_ROLES = ['faculty_admin', 'coordinator', 'system_admin'];
 const FREE_CHOICE_CROSS_FACULTY_ROLES = ['system_admin', 'grad_school_head'];
 const SELECTABLE_FACULTY_IDS = PERMISSION_FACULTY_IDS.filter((id) => id !== 'all');
 
-function isMastersProcess(pt: ProcessType): boolean {
+export function isMastersProcess(pt: ProcessType): boolean {
   return pt === 'msc_thesis' || pt === 'msc_project';
 }
 
@@ -496,7 +497,6 @@ export default function WorkflowTemplateManager() {
           setLoading(false);
         }
       } catch (err) {
-        console.error('WorkflowTemplateManager: failed to load profile', err);
         setLoading(false);
       }
     })();
@@ -514,9 +514,7 @@ export default function WorkflowTemplateManager() {
       setLoading(true);
       const res = await apiClient.get('/api/workflow-templates', { params: { facultyId, major: activeMajor === null ? 'all' : activeMajor } });
       setTemplates(res.data.templates || []);
-    } catch (err) {
-      console.error('WorkflowTemplateManager: failed to load templates', err);
-    } finally {
+    } catch {} finally {
       setLoading(false);
     }
   }, [facultyId, activeMajor]);
