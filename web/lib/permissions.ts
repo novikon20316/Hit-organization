@@ -132,6 +132,17 @@ export function degreeLevelsForFaculty(facultyId: string): DegreeLevel[] {
   return (['bachelors', 'masters'] as const).filter((l) => levels.has(l));
 }
 
+/** Which degree levels a specific major within a faculty offers — narrower
+ *  than degreeLevelsForFaculty, since a faculty offering both levels doesn't
+ *  mean every one of its majors does (e.g. sciences' computer_science has
+ *  both bsc_cs and msc_cs, but applied_mathematics is bachelor's-only). */
+export function degreeLevelsForMajor(facultyId: string, major: string): DegreeLevel[] {
+  const faculty = HIT_FACULTIES.find((f) => f.key === facultyId);
+  if (!faculty) return [];
+  const levels = new Set(faculty.programs.filter((p) => p.slug === major).map((p) => p.level));
+  return (['bachelors', 'masters'] as const).filter((l) => levels.has(l));
+}
+
 /** Every distinct major slug available for a given faculty, deduped (a slug
  *  can repeat across bachelor's/master's rows — label's degree prefix is
  *  stripped since the surviving entry no longer represents just one level). */

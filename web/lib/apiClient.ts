@@ -2405,6 +2405,82 @@ export const apiClient = {
     });
   },
 
+  // ─── 12b. SCHOOL HEAD ───────────────────────────────────────────────────────
+  // Same shape as grad_school_head above, but scoped to one or more specific
+  // majors (via coordinatorScopes) instead of whole faculties, and covering
+  // both bachelor's and master's students — see server/src/controllers/
+  // schoolHeadController.ts. The approve/reject/unlock actions below hit
+  // dedicated /api/school-head/... routes that reuse the exact same handler
+  // functions as grad_school_head's (they authorize generically via
+  // resolveStaffForScope, not a hardcoded role check).
+  async getSchoolHeadDashboard(uid: string) {
+    return request<{
+      headName: string;
+      noScopeAssigned?: boolean;
+      assignedMajors: string[];
+      pendingApprovals: Array<{
+        id: string;
+        type: 'examiners' | 'final_grade' | 'template';
+        studentName: string;
+        major: string;
+        title: string;
+        submittedAt: string;
+        urgency: 'low' | 'medium' | 'high';
+      }>;
+      processSummaries: Array<{
+        major: string;
+        majorNameHe: string;
+        majorNameEn: string;
+        total: number;
+        active: number;
+        stuck: number;
+        completed: number;
+        overdue: number;
+      }>;
+      stuckStudents: Array<{ studentName: string; supervisorName: string; major: string; currentMilestone: string; daysInStage: number; trackType: string }>;
+      examinerLoad: Array<{ examinerName: string; institution: string; activeReviews: number; pending: number; overdue: number }>;
+      approvedFinalGrades: Array<{
+        id: string;
+        studentName: string;
+        major: string;
+        title: string;
+        finalGrade: number;
+        approvedAt: string;
+        michlolTransferStatus: string | null;
+      }>;
+      stats: { totalStudents: number; pendingCount: number; stuckCount: number; completedThisYear: number };
+    }>(`/api/school-head/${uid}/dashboard`, { method: 'GET' });
+  },
+
+  async schoolHeadApproveFinalGrade(milestoneId: string) {
+    return request<{ success: boolean; message: string }>(`/api/school-head/milestones/${milestoneId}/approve-grade`, { method: 'POST' });
+  },
+
+  async schoolHeadUnlockFinalGrade(milestoneId: string, reason: string) {
+    return request<{ success: boolean; message: string }>(`/api/school-head/milestones/${milestoneId}/unlock-grade`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
+  async schoolHeadRejectFinalGrade(milestoneId: string, reason: string) {
+    return request<{ success: boolean; message: string }>(`/api/school-head/milestones/${milestoneId}/reject-grade`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
+  async schoolHeadApproveExaminerRecommendation(recommendationId: string) {
+    return request<{ success: boolean; message: string }>(`/api/school-head/examiner-recommendations/${recommendationId}/approve`, { method: 'POST' });
+  },
+
+  async schoolHeadRejectExaminerRecommendation(recommendationId: string, reason: string) {
+    return request<{ success: boolean; message: string }>(`/api/school-head/examiner-recommendations/${recommendationId}/reject`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
   // ─── 13. INTERNAL EXAMINER ──────────────────────────────────────────────────
   async getExaminerDashboard() {
     return request<{ milestones: Array<Record<string, unknown> & { id: string }> }>('/api/examiner/dashboard', { method: 'GET' });
@@ -2683,7 +2759,7 @@ export const apiClient = {
     );
   },
 
-  async createCommittee(payload: { facultyId: string; major: string; type: 'thesis' | 'final_project'; chairmanId?: string; memberIds: string[] }) {
+  async createCommittee(payload: { facultyId: string; major: string; degreeLevel: 'bachelors' | 'masters'; type: 'thesis' | 'final_project'; chairmanId?: string; memberIds: string[] }) {
     return request<{ success: boolean; id: string }>('/api/committees', { method: 'POST', body: payload });
   },
 
@@ -2740,6 +2816,7 @@ export interface CommitteeRecord {
   id: string;
   facultyId: string;
   major: string;
+  degreeLevel: 'bachelors' | 'masters';
   type: 'thesis' | 'final_project';
   chairmanId: string | null;
   memberIds: string[];

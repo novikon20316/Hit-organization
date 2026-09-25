@@ -12,7 +12,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type CommitteeRecord } from '@/lib/apiClient';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
-import { majorsForFaculty } from '@/lib/permissions';
+import { majorsForFaculty, degreeLevelsForMajor, DEGREE_LEVELS, type DegreeLevel } from '@/lib/permissions';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface EligibleMember {
@@ -46,6 +46,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
   const isCreate = !committee;
   const [facultyId, setFacultyId] = useState(committee?.facultyId ?? FACULTY_OPTIONS[0] ?? '');
   const [major, setMajor] = useState(committee?.major ?? '');
+  const [degreeLevel, setDegreeLevel] = useState<DegreeLevel>(committee?.degreeLevel ?? 'masters');
   const [type, setType] = useState<'thesis' | 'final_project'>(committee?.type ?? 'thesis');
   const [memberIds, setMemberIds] = useState<string[]>(committee?.memberIds ?? []);
   const [chairmanId, setChairmanId] = useState<string | null>(committee?.chairmanId ?? null);
@@ -57,8 +58,9 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
   useModalA11y(modalRef, true, onClose);
 
   const majorOptions = useMemo(() => majorsForFaculty(facultyId), [facultyId]);
+  const degreeOptions = useMemo(() => degreeLevelsForMajor(facultyId, major), [facultyId, major]);
   const conflictingCommittee = isCreate
-    ? existingCommittees.find((c) => c.facultyId === facultyId && c.major === major && c.type === type)
+    ? existingCommittees.find((c) => c.facultyId === facultyId && c.major === major && c.degreeLevel === degreeLevel && c.type === type)
     : null;
 
   useEffect(() => {
@@ -67,6 +69,24 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-pick when the faculty (and so majorOptions) changes
   }, [facultyId]);
+
+  useEffect(() => {
+    // Re-pick degreeLevel whenever the selected major stops offering it (e.g.
+    // switching from computer_science, which has both, to applied_mathematics,
+    // which is bachelor's-only) — same "snap to a valid option" pattern as major.
+    if (isCreate && degreeOptions.length > 0 && !degreeOptions.includes(degreeLevel)) {
+      setDegreeLevel(degreeOptions[0]!);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-pick when the major (and so degreeOptions) changes
+  }, [major]);
+
+  useEffect(() => {
+    // Bachelor's has no thesis/project split (see committeeController.ts) —
+    // force the type back to final_project whenever bachelors is selected.
+    if (isCreate && degreeLevel === 'bachelors' && type !== 'final_project') {
+      setType('final_project');
+    }
+  }, [isCreate, degreeLevel, type]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,7 +120,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
     setError('');
     try {
       if (isCreate) {
-        await apiClient.createCommittee({ facultyId, major, type, chairmanId: chairmanId ?? undefined, memberIds });
+        await apiClient.createCommittee({ facultyId, major, degreeLevel, type, chairmanId: chairmanId ?? undefined, memberIds });
       } else {
         await apiClient.updateCommittee(committee!.id, { memberIds, chairmanId });
       }
@@ -133,7 +153,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
 
         <div className="mt-4 grid gap-3">
           {isCreate ? (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
                 <select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls}>
@@ -147,9 +167,22 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
                 </select>
               </label>
               <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
+                <select value={degreeLevel} onChange={(e) => setDegreeLevel(e.target.value as DegreeLevel)} className={inputCls}>
+                  {DEGREE_LEVELS.filter((d) => degreeOptions.includes(d.key)).map((d) => (
+                    <option key={d.key} value={d.key}>{d.label[lang]}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג ועדה' : 'Committee Type'}</span>
-                <select value={type} onChange={(e) => setType(e.target.value as 'thesis' | 'final_project')} className={inputCls}>
-                  <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as 'thesis' | 'final_project')}
+                  disabled={degreeLevel === 'bachelors'}
+                  className={`${inputCls} disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {degreeLevel === 'masters' && <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>}
                   <option value="final_project">{lang === 'he' ? 'פרויקט גמר' : 'Final Project'}</option>
                 </select>
               </label>
@@ -157,6 +190,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
           ) : (
             <p className="text-sm text-muted">
               {facultyLabel(committee!.facultyId as FacultyId, lang)} · {majorsForFaculty(committee!.facultyId).find((m) => m.slug === committee!.major)?.label[lang] ?? committee!.major} ·{' '}
+              {DEGREE_LEVELS.find((d) => d.key === committee!.degreeLevel)?.label[lang] ?? committee!.degreeLevel} ·{' '}
               {committee!.type === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט גמר' : 'Final Project')}
             </p>
           )}

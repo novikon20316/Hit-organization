@@ -1,9 +1,17 @@
 // src/controllers/committeeController.ts
 //
 // Thesis/final-project review committees — one committee per
-// (facultyId, major, type) triple, doc id `${facultyId}_${major}_${type}`
-// for natural uniqueness (no query needed to check "does this committee
-// already exist"). A committee has a member list and one designated
+// (facultyId, major, degreeLevel, type) quadruple, doc id
+// `${facultyId}_${major}_${degreeLevel}_${type}` for natural uniqueness (no
+// query needed to check "does this committee already exist"). degreeLevel is
+// its own axis (not folded into `type`) because a major's slug is shared
+// across degree levels (see lib/faculties.ts — e.g. 'computer_science' is
+// both bsc_cs and msc_cs), so without it a bachelor's final_project
+// committee and a master's project-track committee for the same major would
+// silently collide onto one doc. Bachelor's has no thesis/project split
+// (matches workflowTemplates.ts's ProcessType: 'bsc_project' is the only
+// bachelor's process) — degreeLevel 'bachelors' always pairs with type
+// 'final_project'. A committee has a member list and one designated
 // chairman (a plain member flag, NOT derived from the program_head role —
 // program_head today only scopes to a whole faculty, not a specific major,
 // so "head of computer_science" vs "head of applied_mathematics" — both
@@ -22,11 +30,13 @@ import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 
 export type CommitteeType = 'thesis' | 'final_project';
+export type CommitteeDegreeLevel = 'bachelors' | 'masters';
 
 export interface CommitteeDoc {
   id: string;
   facultyId: string;
   major: string;
+  degreeLevel: CommitteeDegreeLevel;
   type: CommitteeType;
   chairmanId: string | null;
   memberIds: string[];
@@ -34,8 +44,8 @@ export interface CommitteeDoc {
   updatedAt?: admin.firestore.Timestamp;
 }
 
-export function committeeDocId(facultyId: string, major: string, type: CommitteeType): string {
-  return `${facultyId}_${major}_${type}`;
+export function committeeDocId(facultyId: string, major: string, degreeLevel: CommitteeDegreeLevel, type: CommitteeType): string {
+  return `${facultyId}_${major}_${degreeLevel}_${type}`;
 }
 
 function isSystemAdmin(req: AuthenticatedRequest): boolean {
@@ -157,19 +167,22 @@ async function isAnyCommitteeChairman(uid: string | undefined): Promise<boolean>
  *  the system_admin use case this exists for. */
 export const createCommittee = async (req: AuthenticatedRequest, res: Response) => {
   if (!isSystemAdmin(req)) return res.status(403).json({ message: 'Access denied: system_admin only.' });
-  const { facultyId, major, type, chairmanId, memberIds } = req.body ?? {};
-  if (!facultyId || !major || (type !== 'thesis' && type !== 'final_project')) {
-    return res.status(400).json({ message: 'facultyId, major, and type (thesis|final_project) are required.' });
+  const { facultyId, major, degreeLevel, type, chairmanId, memberIds } = req.body ?? {};
+  if (!facultyId || !major || (degreeLevel !== 'bachelors' && degreeLevel !== 'masters') || (type !== 'thesis' && type !== 'final_project')) {
+    return res.status(400).json({ message: 'facultyId, major, degreeLevel (bachelors|masters), and type (thesis|final_project) are required.' });
+  }
+  if (degreeLevel === 'bachelors' && type !== 'final_project') {
+    return res.status(400).json({ message: "Bachelor's committees have no thesis track — type must be final_project." });
   }
   const members: string[] = Array.isArray(memberIds) ? memberIds.filter((m) => typeof m === 'string') : [];
   if (chairmanId && !members.includes(chairmanId)) members.push(chairmanId);
 
   try {
-    const id = committeeDocId(facultyId, major, type);
+    const id = committeeDocId(facultyId, major, degreeLevel, type);
     const ref = db.collection('committees').doc(id);
     const exists = (await ref.get()).exists;
     await ref.set({
-      facultyId, major, type,
+      facultyId, major, degreeLevel, type,
       chairmanId: chairmanId || null,
       memberIds: members,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -232,26 +245,34 @@ export const updateCommittee = async (req: AuthenticatedRequest, res: Response) 
 };
 
 /** Resolves the single committee (if any) that a project's milestone should
- *  route to — (facultyId, major, type) where type is 'thesis' iff the
- *  project's own projectType is 'thesis', else 'final_project'. Falls back
- *  to the first enrolled student's own major when the project doc has none
- *  set (an open-to-any-major project) — same fallback direction as
- *  firestore.rules' studentCanReadProjectByMajor. Returns null if no
- *  committee has been configured for that scope yet. */
+ *  route to — (facultyId, major, degreeLevel, type) where degreeLevel is
+ *  'masters' iff the project's own degreeType is 'masters', else
+ *  'bachelors'; type is 'thesis' iff degreeLevel is 'masters' AND the
+ *  project's own projectType is 'thesis', else 'final_project' (bachelor's
+ *  has no thesis track — see deriveProcessType in services/workflowTemplates.ts).
+ *  Falls back to the first enrolled student's own major/degreeType when the
+ *  project doc has none set (an open-to-any-major project) — same fallback
+ *  direction as firestore.rules' studentCanReadProjectByMajor. Returns null
+ *  if no committee has been configured for that scope yet. */
 export async function resolveCommitteeForProject(projectData: {
   facultyId?: string;
   major?: string;
+  degreeType?: string;
   projectType?: string;
   enrolledStudentIds?: string[];
 }): Promise<CommitteeDoc | null> {
   const facultyId = projectData.facultyId ?? '';
   let major = projectData.major ?? '';
-  if (!major && projectData.enrolledStudentIds?.length) {
+  let degreeType = projectData.degreeType ?? '';
+  if ((!major || !degreeType) && projectData.enrolledStudentIds?.length) {
     const firstStudent = await db.collection('users').doc(projectData.enrolledStudentIds[0]!).get();
-    major = firstStudent.data()?.major ?? '';
+    const studentData = firstStudent.data();
+    major = major || (studentData?.major ?? '');
+    degreeType = degreeType || (studentData?.degreeType ?? '');
   }
   if (!facultyId || !major) return null;
-  const type: CommitteeType = projectData.projectType === 'thesis' ? 'thesis' : 'final_project';
-  const snap = await db.collection('committees').doc(committeeDocId(facultyId, major, type)).get();
+  const degreeLevel: CommitteeDegreeLevel = degreeType === 'masters' ? 'masters' : 'bachelors';
+  const type: CommitteeType = degreeLevel === 'masters' && projectData.projectType === 'thesis' ? 'thesis' : 'final_project';
+  const snap = await db.collection('committees').doc(committeeDocId(facultyId, major, degreeLevel, type)).get();
   return snap.exists ? ({ id: snap.id, ...snap.data() } as CommitteeDoc) : null;
 }

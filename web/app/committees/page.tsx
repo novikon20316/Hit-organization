@@ -13,7 +13,7 @@ import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type CommitteeRecord, type CommitteePendingReview, type ChairDecisionPendingReview } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
-import { majorsForFaculty } from '@/lib/permissions';
+import { majorsForFaculty, DEGREE_LEVELS } from '@/lib/permissions';
 import { STAFF_ROLES } from '@/lib/roles';
 import { EditCommitteeModal } from './EditCommitteeModal';
 import { CommitteeReviewModal } from './CommitteeReviewModal';
@@ -72,6 +72,8 @@ export default function CommitteesPage() {
 
   const committeeLabel = (c: CommitteeRecord) =>
     `${facultyLabel(c.facultyId as FacultyId, lang)} · ${majorsForFaculty(c.facultyId).find((m) => m.slug === c.major)?.label[lang] ?? c.major} · ${
+      DEGREE_LEVELS.find((d) => d.key === c.degreeLevel)?.label[lang] ?? c.degreeLevel
+    } · ${
       c.type === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : lang === 'he' ? 'פרויקט גמר' : 'Final Project'
     }`;
 
