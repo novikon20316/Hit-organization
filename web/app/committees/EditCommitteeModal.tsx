@@ -122,7 +122,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius)] bg-surface p-6 shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-ink">
@@ -174,7 +174,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
             {loadingCandidates ? (
               <p className="text-sm text-muted">…</p>
             ) : (
-              <div className="grid max-h-56 gap-1 overflow-y-auto rounded-lg border border-line p-2">
+              <div className="grid max-h-80 gap-1 overflow-y-auto rounded-lg border border-line p-2">
                 {candidates.length === 0 && <p className="text-xs text-muted">{lang === 'he' ? 'לא נמצאו מועמדים' : 'No candidates found'}</p>}
                 {candidates.map((c) => (
                   <label key={c.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-paper">
