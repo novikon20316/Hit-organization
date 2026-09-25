@@ -7,8 +7,10 @@
 // milestoneRouting.ts's authorizeStageActor) — a committee stage is a
 // multi-actor flow: every member independently votes approve/reject with a
 // comment, and only the committee's chairman can actually advance/reject
-// the milestone, after seeing every vote cast so far. Every vote plus the
-// chairman's final decision is permanently archived in
+// the milestone — and only once every OTHER member has cast their vote (see
+// submitCommitteeDecision's missingVoterIds check), so a member's vote is
+// never just decorative. Every vote plus the chairman's final decision is
+// permanently archived in
 // committeeReviewHistory on the milestone doc — the "footage of the
 // project's advancement" requested alongside this feature.
 
@@ -20,7 +22,7 @@ import { notifyUser } from '../services/notify.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { statusForStage } from '../services/milestoneRouting.js';
 import type { ChainStage } from '../services/workflowTemplates.js';
-import { resolveCommitteeForProject, type CommitteeDoc } from './committeeController.js';
+import { resolveCommitteeForProject, applyCommitteeSubstitutions, type CommitteeDoc } from './committeeController.js';
 
 interface CommitteeVote {
   memberId: string;
@@ -64,8 +66,12 @@ export async function onEnterCommitteeStage(
   let committee: CommitteeDoc | null = null;
   if (stage?.role === 'committee' && stage.committeeId) {
     const pinnedSnap = await db.collection('committees').doc(stage.committeeId).get();
-    committee = pinnedSnap.exists ? ({ id: pinnedSnap.id, ...pinnedSnap.data() } as CommitteeDoc) : null;
+    committee = pinnedSnap.exists
+      ? applyCommitteeSubstitutions({ id: pinnedSnap.id, ...pinnedSnap.data() } as CommitteeDoc, projectData.committeeMemberSubstitutions)
+      : null;
   } else {
+    // resolveCommitteeForProject already applies projectData's own
+    // committeeMemberSubstitutions internally.
     committee = await resolveCommitteeForProject(projectData);
   }
   const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -143,7 +149,20 @@ async function loadMilestoneAndCommittee(milestoneId: string): Promise<
   }
   const committeeSnap = await db.collection('committees').doc(milestone.currentCommitteeId).get();
   if (!committeeSnap.exists) return { error: { status: 400, message: 'The assigned committee no longer exists.' } };
-  const committee = { id: committeeSnap.id, ...committeeSnap.data() } as CommitteeDoc;
+  const rawCommittee = { id: committeeSnap.id, ...committeeSnap.data() } as CommitteeDoc;
+
+  // Apply this PROJECT's own recusal substitutions (see "Replace Committee
+  // Member" — administrative_secretary's conflict-of-interest tab) before
+  // this committee is used for any authorization/voting/decision below —
+  // the shared committee doc itself is untouched, so a member substituted
+  // out here still has full standing on every other project.
+  let committee = rawCommittee;
+  if (milestone.projectId) {
+    const projectSnap = await db.collection('projects').doc(milestone.projectId).get();
+    const substitutions = projectSnap.exists ? (projectSnap.data()?.committeeMemberSubstitutions ?? null) : null;
+    committee = applyCommitteeSubstitutions(rawCommittee, substitutions);
+  }
+
   return { milestone, stage, committee };
 }
 
@@ -268,6 +287,18 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
   const { milestone, stage, committee } = resolved;
   if (committee.chairmanId !== uid) {
     return res.status(403).json({ message: 'Only this committee\'s chairman may finalize a decision.' });
+  }
+
+  // A binding decision requires every OTHER member to have weighed in first —
+  // otherwise their vote is purely decorative and the chairman could just
+  // ignore the committee entirely. The chairman's own vote (if they cast
+  // one via submitCommitteeVote) isn't required here since this decision
+  // call IS their say on the matter.
+  const requiredVoterIds = committee.memberIds.filter((id) => id !== committee.chairmanId);
+  const castVoterIds = new Set((milestone.committeeVotes ?? []).map((v: CommitteeVote) => v.memberId));
+  const missingVoterIds = requiredVoterIds.filter((id) => !castVoterIds.has(id));
+  if (missingVoterIds.length > 0) {
+    return res.status(400).json({ message: 'Every other committee member must cast their vote before you can finalize a decision.' });
   }
 
   const routing: ChainStage[] = milestone.routing;

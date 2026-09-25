@@ -92,6 +92,15 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
 
   const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
 
+  // Mirrors the server's own gate in committeeReviewController.ts's
+  // submitCommitteeDecision — every OTHER member must have cast a vote
+  // before the chairman may finalize, so a member's vote is never just
+  // decorative. Computed here purely to disable the button and explain why;
+  // the server re-checks this itself regardless.
+  const missingVoterIds = detail
+    ? detail.committee.memberIds.filter((id) => id !== detail.committee.chairmanId && !detail.votes.some((v) => v.memberId === id))
+    : [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div
@@ -210,10 +219,17 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
                   placeholder={lang === 'he' ? 'נימוק ההחלטה (חובה בדחייה)' : 'Reasoning (required if rejecting)'}
                   className={`${inputCls} mt-2`}
                 />
+                {missingVoterIds.length > 0 && (
+                  <p className="mt-2 text-xs text-muted">
+                    {lang === 'he'
+                      ? `ממתין להצבעת: ${missingVoterIds.map((id) => detail.committee.memberNames[id] ?? id).join(', ')}`
+                      : `Waiting on a vote from: ${missingVoterIds.map((id) => detail.committee.memberNames[id] ?? id).join(', ')}`}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={handleDecide}
-                  disabled={!decision || decisionSaving}
+                  disabled={!decision || decisionSaving || missingVoterIds.length > 0}
                   className="mt-2 w-full rounded-lg bg-[#6E5A99] py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
                 >
                   {decisionSaving ? '…' : lang === 'he' ? 'קביעת ההחלטה הסופית' : 'Finalize Decision'}
