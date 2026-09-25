@@ -193,8 +193,10 @@ export async function applyTemplateRetroactively(
           // Refreshes the still-pending milestone's chain to match the newly
           // approved template — never touches currentStageIndex/stageScores/
           // stageEnteredAt, since a still-pending milestone hasn't started
-          // its chain yet (position 0, nothing recorded either way).
-          ...(!spec.requiresExaminers ? { routing: resolveMilestoneRouting(spec, templateDefaultRouting) } : {}),
+          // its chain yet (position 0, nothing recorded either way). Every
+          // milestone gets a routing snapshot now, examiner-requiring or
+          // not — see projectEnrollment.ts's identical comment.
+          routing: resolveMilestoneRouting(spec, templateDefaultRouting),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }));
         touched = true;
@@ -216,14 +218,13 @@ export async function applyTemplateRetroactively(
           finalGrade: null,
           fileUrls: [],
           supervisorScore: null,
-          ...(spec.requiresExaminers
-            ? { examinerIds: [], examinerScores: {} }
-            : {
-                routing: resolveMilestoneRouting(spec, templateDefaultRouting),
-                currentStageIndex: 0,
-                stageScores: {},
-                stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
-              }),
+          ...(spec.requiresExaminers ? { examinerIds: [], examinerScores: {} } : {}),
+          // See projectEnrollment.ts's identical comment — every milestone
+          // snapshots the chain.
+          routing: resolveMilestoneRouting(spec, templateDefaultRouting),
+          currentStageIndex: 0,
+          stageScores: {},
+          stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
           ...(spec.gradingComponents ? { gradingComponents: spec.gradingComponents } : {}),
           ...(spec.staffRecordMode === 'upload_or_form' ? { staffRecordMode: spec.staffRecordMode, staffFormFields: spec.staffFormFields ?? [] } : {}),
           ...(spec.finalGradeComponents ? { finalGradeComponents: spec.finalGradeComponents } : {}),

@@ -332,7 +332,12 @@ export default function CoordinatorHome() {
     function belongsInPending(data: any): boolean {
       if (data.type === 'final_report' && data.status === 'graded') return false;
       if (data.status === 'coordinator_approved') return false;
-      if (data.routing && data.routing.length > 0 && data.type !== 'defense') {
+      // Still mid pre-check chain (routing present, chainPrecheckComplete
+      // not yet set — see server's isChainDriven) — only genuinely pending
+      // if the current stage is actually an 'approve' action. Once the
+      // chain finishes (or for a legacy/non-chain milestone, which never
+      // sets chainPrecheckComplete at all), this check is skipped entirely.
+      if (data.routing && data.routing.length > 0 && !data.chainPrecheckComplete) {
         const stage = data.routing[data.currentStageIndex ?? 0];
         if (!stage || stage.action !== 'approve') return false;
       }
@@ -440,7 +445,6 @@ export default function CoordinatorHome() {
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
-        console.error('coordinator: live milestones listener error', err);
       }
     );
     return () => {
@@ -479,9 +483,9 @@ export default function CoordinatorHome() {
 
       // 🚀 Replaced all multi-collection snapshots with one optimized backend matrix call
       const [profileRes, dashboardRes, examinersRes] = await Promise.all([
-        apiClient.get('/api/users/profile').catch(e => { console.error('❌ profile failed:', e.response?.status, e.response?.config?.url); throw e; }),
-        apiClient.get('/api/coordinator/dashboard').catch(e => { console.error('❌ dashboard failed:', e.response?.status, e.response?.config?.url); throw e; }),
-        apiClient.get('/api/examiner/get-list').catch(e => { console.error('❌ examiners failed:', e.response?.status, e.response?.config?.url); throw e; }),
+        apiClient.get('/api/users/profile'),
+        apiClient.get('/api/coordinator/dashboard'),
+        apiClient.get('/api/examiner/get-list'),
         
       ]);     
       const ActiveProjects = await apiClient.get('/api/projects/ActiveProjects')
@@ -510,7 +514,7 @@ export default function CoordinatorHome() {
       setPendingMilestones(allMilestones.filter((m: PendingMilestone) => {
         if (m.type === 'final_report' && m.status === 'graded') return false;
         if (m.status === 'coordinator_approved') return false;
-        if (m.routing && m.routing.length > 0 && m.type !== 'defense') {
+        if (m.routing && m.routing.length > 0 && !m.chainPrecheckComplete) {
           const stage = m.routing[m.currentStageIndex ?? 0];
           if (!stage || stage.action !== 'approve') return false;
           if (activeRole !== 'system_admin' && stage.role !== activeRole) return false;
@@ -534,7 +538,6 @@ export default function CoordinatorHome() {
         setExaminerRecs(recsRes.data.recommendations ?? []);
       } catch (_) { /* non-fatal */ }
     } catch (err) {
-      console.error("Failed fetching coordinator panel matrix:", err);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'טעינת לוח הבקרה נכשלה.' : 'Failed to load the dashboard.',
@@ -577,7 +580,6 @@ export default function CoordinatorHome() {
     try {
       await exportUsers('coordinator');
     } catch (e: any) {
-      console.error('Export users error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'ייצוא המשתמשים נכשל' : 'Failed to export users'
@@ -595,7 +597,6 @@ export default function CoordinatorHome() {
       showImportSummary(summary);
       fetchCoordinatorDashboard();
     } catch (e: any) {
-      console.error('Import staff error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         e.response?.data?.message || (lang === 'he' ? 'ייבוא הסגל נכשל' : 'Failed to import staff')
@@ -627,7 +628,6 @@ export default function CoordinatorHome() {
             (failedLines ? `\n\n${failedLines}` : '')
       );
     } catch (e: any) {
-      console.error('Import student roster error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         e.response?.data?.message || (lang === 'he' ? 'ייבוא רשימת הסטודנטים נכשל' : 'Failed to import the student roster')
@@ -649,7 +649,6 @@ export default function CoordinatorHome() {
         const res = await apiClient.get(`/api/staff/${coordinatorId}/deadlines`);
         setDeadlines(res.data.deadlines || []);
       } catch (e) {
-        console.error('Failed to load deadlines', e);
         Alert.alert('Error', 'Failed to load deadlines');
       } finally {
         setLoadingDeadlines(false);
@@ -704,7 +703,6 @@ export default function CoordinatorHome() {
       Alert.alert('✅', lang === 'he' ? 'אבן הדרך נדחתה' : 'Milestone rejected');
       fetchCoordinatorDashboard(); // Refresh UI
     } catch (err) {
-      console.error("Reject error:", err);
       Alert.alert('Error', 'Failed to reject milestone');
     } finally {
       setSaving(false);
@@ -828,7 +826,6 @@ export default function CoordinatorHome() {
       );
       fetchCoordinatorDashboard();
     } catch (err) {
-      console.error("Assignment error:", err);
       // The server will send a meaningful error if assignment is invalid
       Alert.alert('Error', (err as any).response?.data?.message || 'Failed to assign examiners');
     } finally {
@@ -903,7 +900,6 @@ export default function CoordinatorHome() {
       Alert.alert('✅', lang === 'he' ? 'פרטי ההגנה נשמרו בהצלחה' : 'Defense logistics saved successfully');
       fetchCoordinatorDashboard();
     } catch (err) {
-      console.log("error: ", err)
       Alert.alert('Error', (err as any).response?.data?.message || 'Failed to save defense logistics');
     } finally {
       setSaving(false);
@@ -1059,14 +1055,17 @@ export default function CoordinatorHome() {
   // the ones that do. Also still catches the case where examiners were
   // already assigned but the panel never opened (e.g.
   // openDefenseSchedulingIfPanelReady threw) — the render branch below
-  // distinguishes the two with different copy. Chain-driven variants (has
-  // `routing`) run their own approval flow instead of the examiner-panel
-  // one, so they're excluded here.
+  // distinguishes the two with different copy. Still mid-chain (has
+  // `routing` and hasn't finished pre-checks yet) means it's genuinely
+  // handled elsewhere; once the chain finishes (chainPrecheckComplete) it's
+  // back to being this tab's problem, same as a defense milestone with no
+  // chain at all.
   const stuckPendingItems = projects.flatMap((p) => {
     const milestones = p.milestones ?? [];
     return milestones
       .filter((m) => {
-        if (m.type !== 'defense' || m.status !== 'pending' || m.routing) return false;
+        if (m.type !== 'defense' || m.status !== 'pending') return false;
+        if (m.routing && m.routing.length > 0 && !m.chainPrecheckComplete) return false;
         const myOrder = resolveMilestoneOrder(m);
         return !milestones.some(
           (other) => other.id !== m.id && sharesStudent(other, m) && resolveMilestoneOrder(other) < myOrder && other.status !== 'coordinator_approved'
@@ -1503,7 +1502,6 @@ export default function CoordinatorHome() {
                               key={index}
                               style={styles.fileBtn}
                               onPress={() => {
-                                console.log('url:', url); // add this
                                 router.push({
                                   pathname: '/pdfViewer',
                                   params: { url },

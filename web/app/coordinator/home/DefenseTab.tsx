@@ -110,14 +110,17 @@ export function buildDefenseCards(allMilestones: CoordinatorPendingMilestone[], 
   // the ones that do. Also still catches the case where examiners were
   // already assigned but the panel never opened (e.g.
   // openDefenseSchedulingIfPanelReady threw) — the render branch below
-  // distinguishes the two with different copy. Chain-driven variants (has
-  // `routing`) run their own approval flow instead of the examiner-panel
-  // one, so they're excluded here.
+  // distinguishes the two with different copy. Still mid-chain (has
+  // `routing` and hasn't finished its pre-checks yet) means it's genuinely
+  // handled elsewhere — the chain UI, not this tab; once the chain finishes
+  // (chainPrecheckComplete) it's back to being this tab's problem, same as
+  // a defense milestone with no chain at all.
   const stuckPendingItems = projects.flatMap((p) => {
     const milestones = p.milestones ?? [];
     return milestones
       .filter((m) => {
-        if (m.type !== 'defense' || m.status !== 'pending' || m.routing) return false;
+        if (m.type !== 'defense' || m.status !== 'pending') return false;
+        if (m.routing && m.routing.length > 0 && !m.chainPrecheckComplete) return false;
         const myOrder = resolveMilestoneOrder(m);
         return !milestones.some(
           (other) => other.id !== m.id && sharesStudent(other, m) && resolveMilestoneOrder(other) < myOrder && other.status !== 'coordinator_approved'

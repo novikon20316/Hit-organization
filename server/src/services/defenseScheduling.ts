@@ -18,6 +18,7 @@ import timezone from 'dayjs/plugin/timezone.js';
 import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 import { resolveStaffForScope } from './scopeAuthorization.js';
+import { routingHasExaminerStage } from './milestoneRouting.js';
 import {
   assignExaminersAndNotify,
   createDefenseAccessGrant,
@@ -164,6 +165,18 @@ export async function initDefenseScheduling(projectId: string, panel: DefensePan
   if (panel.length === 0) throw new Error('A defense panel must have at least 1 examiner.');
 
   const milestoneRef = await findDefenseMilestoneRef(projectId);
+  // If this defense milestone carries a pre-check-only chain (see
+  // ChainStage.onlyIfRequiresExaminers / milestoneRouting.ts's
+  // isChainDriven), scheduling may only open once that chain has actually
+  // finished — the "checked according to the chain, then examined" order.
+  // A defense milestone with no routing at all (every pre-existing one, or
+  // any template that never configures a chain for it) is unaffected —
+  // scheduling opens immediately, exactly as before this gate existed.
+  const milestoneData = (await milestoneRef.get()).data() ?? {};
+  const routing = milestoneData.routing ?? [];
+  if (routing.length > 0 && !routingHasExaminerStage(routing) && !milestoneData.chainPrecheckComplete) {
+    throw new Error('This defense milestone still has unfinished pre-checks in its approval chain.');
+  }
   const { windowStart, windowEnd } = computeDefenseWindow(new Date());
   const panelKeys = panel.map(examinerKeyOf);
   // Internal examiners' dashboards are found via an `examinerIds

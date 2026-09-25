@@ -47,10 +47,15 @@ export interface AssignedMilestone {
    *  'pending' is actually next up, since every milestone (including
    *  defense) starts at 'pending' the moment the project is created. */
   order?: number;
-  /** Chain-driven routing (see services/milestoneRouting.ts) — present only
-   *  for a non-examiner milestone that uses the configurable approval chain
-   *  instead of the examiner-panel flow. */
+  /** Chain-driven routing (see services/milestoneRouting.ts) — now present
+   *  on every milestone, examiner-requiring or not (a `requiresExaminers`
+   *  milestone whose routing has no 'examiner' stage — e.g. defense — runs
+   *  it as a pre-checks-only chain before its own examiner-panel flow). */
   routing?: ChainStage[] | null;
+  /** Set once a requiresExaminers milestone's pre-check-only chain has
+   *  finished (see server's isChainDriven) — the milestone isn't complete,
+   *  just handed off to the examiner-panel flow. */
+  chainPrecheckComplete?: boolean;
 }
 
 export interface Project {
@@ -162,6 +167,11 @@ export interface CoordinatorPendingMilestone {
    *  milestone that just happens to share this array's coarse status filter
    *  while its current stage belongs to a different role/action. */
   routing?: ChainStage[] | null;
+  /** Set once a requiresExaminers milestone's pre-check-only chain has
+   *  finished (see server's isChainDriven) — the milestone isn't complete,
+   *  just handed off to the examiner-panel flow, so this array's own
+   *  "current stage" checks no longer apply to it. */
+  chainPrecheckComplete?: boolean;
   currentStageIndex?: number;
   submittedAt?: string | null;
   studentNames: string[];

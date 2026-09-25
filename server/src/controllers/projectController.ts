@@ -20,7 +20,7 @@ import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
-import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense, isIdentityKeyedExaminerOnly } from '../services/milestoneRouting.js';
+import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense, isIdentityKeyedExaminerOnly, routingHasExaminerStage } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec, FormFieldSpec, MilestoneFileType } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
 import { onMilestoneNeedsParallelSignoffs } from '../services/parallelSignoffs.js';
@@ -223,6 +223,10 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       let partialExaminerSignoff = false;
       let awaitingExaminerUids: string[] = [];
       let finalStageScore = scoreValue;
+      // Set when this grade stage was the last one in a requiresExaminers
+      // milestone's pre-check-only chain (defense's shape) — see the
+      // routingHasExaminerStage branch below.
+      let precheckCompleted = false;
 
       await db.runTransaction(async (transaction) => {
         const freshSnap = await transaction.get(milestoneRef);
@@ -312,6 +316,17 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           update.currentStageIndex = freshIndex + 1;
           update.status = 'submitted';
           responseStatus = 'submitted';
+        } else if (!nextStage && fresh.requiresExaminers && !routingHasExaminerStage(freshRouting)) {
+          // A pre-check-only chain (defense's shape) happened to end on a
+          // 'grade' action — unusual (an 'approve' stage is the expected
+          // last pre-check), but handled the same way as
+          // approveChainMilestone's finalize branch: this isn't the
+          // milestone's real grade, just a handoff point, so no finalGrade
+          // is computed/stored here — the untouched examiner scheduling/
+          // grading engine owns that once assignExaminers runs.
+          update.chainPrecheckComplete = true;
+          responseStatus = 'awaiting_examiners';
+          precheckCompleted = true;
         } else {
           update.finalGrade = computeChainFinalGrade(stageScores);
           update.gradedAt   = admin.firestore.FieldValue.serverTimestamp();
@@ -362,6 +377,29 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           status: 'awaiting_co_examiner',
           message: 'Your grade was recorded — waiting for the other examiner(s) to also grade before this stage finalizes.',
         });
+      }
+
+      if (precheckCompleted) {
+        const coordinatorIds = await resolveStaffForScope('coordinator', resource, [data.supervisorId].filter(Boolean), data.examinerIds ?? [], false);
+        const milestoneTitle = { he: data.nameHe ?? data.type ?? '', en: data.nameEn ?? data.type ?? '' };
+        const coordinatorTargetScreen = targetScreenFor('coordinator', 'milestone_action');
+        await Promise.all(coordinatorIds.map((coordinatorUid) =>
+          notifyUser({
+            recipientId: coordinatorUid,
+            type: 'milestone_submitted',
+            inAppType: 'milestone_ready_for_examiners',
+            titleHe: 'מוכן למינוי בוחנים',
+            titleEn: 'Ready to assign examiners',
+            bodyHe: `הבדיקות המקדימות עבור "${milestoneTitle.he}" הושלמו — ניתן כעת למנות בוחנים.`,
+            bodyEn: `Pre-checks for "${milestoneTitle.en}" are complete — examiners can now be assigned.`,
+            relatedProjectId: projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            ...(coordinatorTargetScreen ? { targetScreen: coordinatorTargetScreen } : {}),
+            emailData: { milestoneTitle },
+          }).catch((notifyError) => {
+            console.error(`submitMilestoneGrade: ready-for-examiners notify failed for ${coordinatorUid} on milestone ${milestoneId}:`, notifyError);
+          })
+        ));
       }
 
       await logAuditEvent({

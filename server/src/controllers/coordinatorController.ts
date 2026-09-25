@@ -13,7 +13,7 @@ import {
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType, resolveExaminerSignoffRole, isDefenseDateConfirmed, type ChainStage } from '../services/workflowTemplates.js';
-import { authorizeStageActor, isAutoAdvanceStage, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
+import { authorizeStageActor, isAutoAdvanceStage, isChainDriven, isIdentityKeyedDefense, routingHasExaminerStage, statusForStage } from '../services/milestoneRouting.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { resolveCommitteeForProject } from './committeeController.js';
 import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify.js';
@@ -630,6 +630,7 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
           // now" apart from "just happens to share a coarse status string".
           routing:          data.routing ?? null,
           currentStageIndex: data.currentStageIndex ?? 0,
+          chainPrecheckComplete: data.chainPrecheckComplete ?? false,
 
           // ── The fields the frontend was missing ──────────────────────
           supervisorScore:   data.supervisorScore   ?? null,
@@ -838,6 +839,13 @@ async function approveChainMilestone(
   // notification after commit, distinct from advancedToStage's "awaiting
   // your review" one, since she never has anything to act on.
   let autoNotifiedStages: ChainStage[] = [];
+  // Set when this call finished a requiresExaminers milestone's pre-check-
+  // only chain (no 'examiner' stage in its own routing — e.g. defense, see
+  // isChainDriven's doc comment) — the milestone isn't actually complete,
+  // just handed off to its own examiner scheduling/grading engine, so the
+  // normal finalize/notify path below is skipped in favor of a distinct
+  // "ready for examiners" notification.
+  let precheckCompleted = false;
   // Set when this stage requires more than one signer independently — either
   // supervisor dual-sign (opt-in, see ChainStage.requireAllAssignedSupervisors)
   // or an 'examiner' stage (always, every assigned examiner — a panel, not a
@@ -944,6 +952,15 @@ async function approveChainMilestone(
         update.status = statusForStage(landedStage);
         enteredCommitteeStage = landedStage.role === 'committee';
         advancedToStage = landedStage;
+      } else if (fresh.requiresExaminers && !routingHasExaminerStage(freshRouting)) {
+        // Pre-check-only chain finished (defense's shape) — this isn't the
+        // milestone completing, just the handoff point: the untouched
+        // examiner scheduling/grading engine (assignExaminers ->
+        // defenseScheduling.ts, or isIdentityKeyedDefense's own scoring) is
+        // now allowed to start. Deliberately does NOT set
+        // 'coordinator_approved'/finalized — see isChainDriven.
+        update.chainPrecheckComplete = true;
+        precheckCompleted = true;
       } else {
         update.status = 'coordinator_approved';
         update.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
@@ -1134,9 +1151,42 @@ async function approveChainMilestone(
       ));
     }
 
+    // Pre-check chain finished for a requiresExaminers milestone (defense's
+    // shape) — let whoever assigns examiners know it's ready, distinct from
+    // both the "milestone approved" and "awaiting your review" copy above,
+    // since neither is true here: nobody approved a finished milestone, and
+    // nobody is stuck waiting on a chain stage — the next real step is
+    // assigning examiners (coordinatorController.ts's assignExaminers).
+    if (precheckCompleted) {
+      const coordinatorIds = await resolveStaffForScope('coordinator', resource, projectSupervisorIds, milestone.examinerIds ?? [], false);
+      const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
+      const coordinatorTargetScreen = targetScreenFor('coordinator', 'milestone_action');
+      await Promise.all(coordinatorIds.map((uid) =>
+        notifyUser({
+          recipientId: uid,
+          type: 'milestone_submitted',
+          inAppType: 'milestone_ready_for_examiners',
+          titleHe: 'מוכן למינוי בוחנים',
+          titleEn: 'Ready to assign examiners',
+          bodyHe: `הבדיקות המקדימות עבור "${milestoneTitle.he}" הושלמו — ניתן כעת למנות בוחנים.`,
+          bodyEn: `Pre-checks for "${milestoneTitle.en}" are complete — examiners can now be assigned.`,
+          relatedProjectId: milestone.projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          ...(coordinatorTargetScreen ? { targetScreen: coordinatorTargetScreen } : {}),
+          emailData: { milestoneTitle },
+        }).catch((notifyError) => {
+          console.error(`approveChainMilestone: ready-for-examiners notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);
+        })
+      ));
+    }
+
     return res.status(200).json({
       success: true,
-      message: finalized ? 'Milestone approved by coordinator.' : 'Stage approved — advanced to the next reviewer.',
+      message: finalized
+        ? 'Milestone approved by coordinator.'
+        : precheckCompleted
+        ? 'Pre-checks complete — ready to assign examiners.'
+        : 'Stage approved — advanced to the next reviewer.',
     });
   } catch (error: any) {
     console.error('approveChainMilestone error:', error);

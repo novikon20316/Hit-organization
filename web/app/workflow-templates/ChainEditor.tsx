@@ -31,6 +31,10 @@ const NOTIFY_INFO = {
   he: 'השלב הזה מאושר אוטומטית ברגע שמגיעים אליו — הרכזת האדמיניסטרטיבית רק מקבלת עדכון שהמנחה אישר/ה. אין לה כלום לאשר או לדחות בשלב הזה.',
   en: "This stage auto-approves the instant the chain reaches it — the administrative coordinator just gets notified that the supervisor's approval went through. There's nothing for her to approve or reject here.",
 };
+const ONLY_IF_EXAMINERS_INFO = {
+  he: 'השלב הזה יופיע רק באבני דרך שמסומנות "דורש בוחנים". באבן דרך שלא דורשת בוחנים, השלב הזה פשוט מדולג.',
+  en: 'This stage only appears on milestones marked "Requires examiners". On a milestone that doesn\'t require examiners, this stage is simply skipped.',
+};
 
 function makeStageId(): string {
   return `stage_${Math.random().toString(36).slice(2, 8)}`;
@@ -153,6 +157,17 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                 <button type="button" onClick={() => removeStage(idx)} disabled={isReadOnly} className="rounded px-1 text-xs hover:bg-paper disabled:opacity-30" aria-label="remove">🗑️</button>
               </div>
             </div>
+            <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={!!stage.onlyIfRequiresExaminers}
+                onChange={(e) => updateStage(idx, { onlyIfRequiresExaminers: e.target.checked })}
+                disabled={isReadOnly}
+                className="h-3.5 w-3.5 accent-[var(--primary)]"
+              />
+              {lang === 'he' ? 'רק עבור אבני דרך שדורשות בוחנים' : 'Only for milestones that require examiners'}
+              <InfoTooltip text={ONLY_IF_EXAMINERS_INFO} />
+            </label>
             {stage.role === 'administrative_secretary' ? (
               <p className="mt-1.5 text-[11px] text-muted">
                 ℹ️ <InfoTooltip text={NOTIFY_INFO} label={lang === 'he' ? 'מידע על שלב זה' : 'About this stage'} />{' '}

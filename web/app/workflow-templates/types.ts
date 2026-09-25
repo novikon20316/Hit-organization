@@ -65,6 +65,13 @@ export interface ChainStage {
    *  doc comment. Answers persist on the milestone doc under
    *  stageFormData[stage.id]. */
   formFields?: FormFieldSpec[];
+  /** When true, this stage is only included for a milestone whose own
+   *  "Requires examiners" checkbox is on — filtered out entirely otherwise,
+   *  so one shared chain can serve both examiner and non-examiner
+   *  milestones. Also how a 'defense' milestone can run pre-checks through
+   *  the chain before its own examiner scheduling/grading engine starts —
+   *  see server/src/services/milestoneRouting.ts's isChainDriven. */
+  onlyIfRequiresExaminers?: boolean;
 }
 
 export type MilestoneRoutingSpec = ChainStage[];

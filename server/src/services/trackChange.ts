@@ -150,12 +150,15 @@ export async function changeProjectTrack(
       ...(t.finalGradeComponents ? { finalGradeComponents: t.finalGradeComponents } : {}),
       ...(t.requiresExaminers
         ? { examinerIds: [], examinerScores: {}, examinerCount: t.examinerCount ?? 2 }
-        : {
-            routing: resolveMilestoneRouting(t, templateDefaultRouting),
-            currentStageIndex: 0,
-            stageScores: {},
-            stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
-          }),
+        : {}),
+      // See projectEnrollment.ts's identical comment — every milestone
+      // snapshots the chain; resolveMilestoneRouting already filters out
+      // onlyIfRequiresExaminers stages when this milestone doesn't require
+      // examiners.
+      routing: resolveMilestoneRouting(t, templateDefaultRouting),
+      currentStageIndex: 0,
+      stageScores: {},
+      stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
 

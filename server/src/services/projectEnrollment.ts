@@ -321,10 +321,7 @@ export async function enrollStudentInProject(
         // Examiner/defense-panel fields only make sense on a milestone the
         // template marked as requiring examiners — writing them onto e.g.
         // research_proposal/progress_report otherwise just leaves permanent
-        // dead clutter on those docs. Non-examiner milestones instead
-        // snapshot the configurable approval/rejection chain — examiner
-        // (defense) milestones keep running their own separate engine
-        // untouched (see milestoneRouting.ts's isChainDriven).
+        // dead clutter on those docs.
         ...(t.requiresExaminers
           ? {
               examinerIds: [], examinerScores: {}, examinerCount: t.examinerCount ?? 2,
@@ -342,12 +339,22 @@ export async function enrollStudentInProject(
               // only appearing for finalGradeComponents milestones.
               ...(t.examinerFormFields?.length ? { examinerFormFields: t.examinerFormFields, examinerFormAnswers: {} } : {}),
             }
-          : {
-              routing: resolveMilestoneRouting(t, templateDefaultRouting),
-              currentStageIndex: 0,
-              stageScores: {},
-              stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
-            }),
+          : {}),
+        // Every milestone (examiner-requiring or not) also snapshots the
+        // configurable approval/rejection chain — a stage flagged
+        // onlyIfRequiresExaminers (ChainStage's own doc comment) is already
+        // filtered out by resolveMilestoneRouting when this milestone
+        // doesn't require examiners, so a non-examiner milestone's routing
+        // is unaffected either way. For a requiresExaminers milestone whose
+        // routing has no 'examiner' stage (defense's shape today), this is
+        // a pre-check-only chain: isChainDriven stops treating it as
+        // chain-driven once chainPrecheckComplete is set, handing off to
+        // the untouched examiner scheduling/grading engine — see
+        // milestoneRouting.ts's isChainDriven.
+        routing: resolveMilestoneRouting(t, templateDefaultRouting),
+        currentStageIndex: 0,
+        stageScores: {},
+        stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
   });

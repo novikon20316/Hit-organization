@@ -13,16 +13,35 @@ import type { ChainStage, GradingComponentSpec } from './workflowTemplates.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
-/** A milestone is chain-driven when it carries a `routing` snapshot AND
- *  isn't a defense milestone — defense keeps running its own separate
- *  examiner-grading/date-scheduling engine untouched (an explicit scope
- *  decision: dual fixed-slot examiner grading, a 3-status scheduling state
- *  machine, and a non-configurable final-grade sign-off don't map onto a
- *  simple linear chain). Legacy milestones (created before this feature, or
- *  whose template predates it) have no `routing` at all and fall through to
- *  the exact original hardcoded logic wherever this is checked. */
-export function isChainDriven(milestone: { routing?: ChainStage[]; type?: string }): boolean {
-  return !!milestone.routing && milestone.routing.length > 0 && milestone.type !== 'defense';
+export function routingHasExaminerStage(routing: ChainStage[]): boolean {
+  return routing.some((s) => s.role === 'examiner');
+}
+
+/** A milestone is chain-driven when it carries a `routing` snapshot — with
+ *  one exception: a `requiresExaminers` milestone whose routing has NO
+ *  `'examiner'`-role stage (e.g. defense's own pre-check chain, see
+ *  ChainStage.onlyIfRequiresExaminers) stops being chain-driven once its
+ *  `chainPrecheckComplete` flag is set. That's the handoff point — the
+ *  chain only gates WHEN the pre-existing examiner scheduling/grading
+ *  engine (dual fixed-slot scoring, date-matching, a non-configurable
+ *  final-grade sign-off — none of which maps onto a simple linear chain) is
+ *  allowed to start; it never replaces that engine. A milestone whose
+ *  routing DOES include an 'examiner' stage (e.g. a Poster session) has no
+ *  separate engine to hand off to — the chain itself grades it, and stays
+ *  chain-driven straight through, exactly like any other role. Legacy
+ *  milestones (created before this feature, or whose template predates it)
+ *  have no `routing` at all and fall through to the original hardcoded
+ *  logic wherever this is checked. */
+export function isChainDriven(milestone: {
+  routing?: ChainStage[];
+  requiresExaminers?: boolean;
+  chainPrecheckComplete?: boolean;
+}): boolean {
+  if (!milestone.routing || milestone.routing.length === 0) return false;
+  if (milestone.requiresExaminers && !routingHasExaminerStage(milestone.routing) && milestone.chainPrecheckComplete) {
+    return false;
+  }
+  return true;
 }
 
 /** A defense milestone created after the examiner1Score/examiner2Score ->

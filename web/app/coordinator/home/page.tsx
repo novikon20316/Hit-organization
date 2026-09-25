@@ -267,7 +267,6 @@ function CoordinatorHomeContent() {
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
-        console.error('coordinator: live milestones listener error', err);
       }
     );
     return () => {
@@ -304,7 +303,7 @@ function CoordinatorHomeContent() {
     () => allMilestones.filter((m) => {
       if (m.type === 'final_report' && m.status === 'graded') return false;
       if (m.status === 'coordinator_approved') return false;
-      if (m.routing && m.routing.length > 0 && m.type !== 'defense') {
+      if (m.routing && m.routing.length > 0 && !m.chainPrecheckComplete) {
         const stage = m.routing[m.currentStageIndex ?? 0];
         if (!stage || stage.action !== 'approve') return false;
         if (activeRole !== 'system_admin' && stage.role !== activeRole) return false;

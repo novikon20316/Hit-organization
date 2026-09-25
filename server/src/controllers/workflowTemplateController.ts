@@ -171,6 +171,13 @@ function validateRoutingChain(input: any): MilestoneRoutingSpec | null {
       if (formFields === null) return null;
       if (formFields.length > 0) built.formFields = formFields;
     }
+    // Pre-existing gap: committeeId and requireAllAssignedSupervisors were
+    // silently dropped here even though ChainEditor.tsx sets them
+    // client-side — neither ever survived a template save. Fixed while
+    // already touching this whitelist copy for onlyIfRequiresExaminers.
+    if (typeof stage.committeeId === 'string' && stage.committeeId.trim()) built.committeeId = stage.committeeId.trim();
+    if (stage.requireAllAssignedSupervisors === true) built.requireAllAssignedSupervisors = true;
+    if (stage.onlyIfRequiresExaminers === true) built.onlyIfRequiresExaminers = true;
     cleaned.push(built);
   }
   // rejectTo must resolve to 'student' or another stage's id within this same chain.

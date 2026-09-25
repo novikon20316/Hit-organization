@@ -184,6 +184,16 @@ export interface ChainStage {
    *  which are only set once the requirement is fully satisfied. See
    *  approveChainMilestone's dual-signature branch. */
   requireAllAssignedSupervisors?: boolean;
+  /** When true, this stage is only included in a milestone's resolved
+   *  routing when that milestone's own `requiresExaminers` is true —
+   *  filtered out entirely otherwise (see resolveMilestoneRouting below).
+   *  Lets one shared defaultRouting serve both examiner and non-examiner
+   *  milestones without duplicating the chain per case. Also the mechanism
+   *  that lets a 'defense' milestone run pre-checks through the chain
+   *  before its own examiner scheduling/grading engine is allowed to start
+   *  — see milestoneRouting.ts's isChainDriven and
+   *  coordinatorController.ts's approveChainMilestone. */
+  onlyIfRequiresExaminers?: boolean;
 }
 
 export type MilestoneRoutingSpec = ChainStage[];
@@ -320,14 +330,30 @@ export const DEFAULT_ROUTING: MilestoneRoutingSpec = [
   { id: 'coordinator', role: 'coordinator', action: 'approve', rejectTo: 'student' },
 ];
 
+/** Drops any onlyIfRequiresExaminers stage when the milestone doesn't
+ *  require examiners, repointing any other stage's rejectTo that pointed at
+ *  a dropped stage back to 'student' — the same fallback
+ *  web/app/workflow-templates/ChainEditor.tsx's removeStage applies
+ *  client-side when a stage is deleted from the chain entirely. */
+function filterRoutingForMilestone(routing: MilestoneRoutingSpec, requiresExaminers: boolean | undefined): MilestoneRoutingSpec {
+  if (requiresExaminers) return routing;
+  const dropped = new Set(routing.filter((s) => s.onlyIfRequiresExaminers).map((s) => s.id));
+  if (dropped.size === 0) return routing;
+  return routing
+    .filter((s) => !dropped.has(s.id))
+    .map((s) => (dropped.has(s.rejectTo) ? { ...s, rejectTo: 'student' } : s));
+}
+
 /** The chain a given milestone spec should snapshot at creation time — its
  *  own override, else the template's default, else DEFAULT_ROUTING (for
- *  templates that predate this feature, or no-template legacy defaults). */
+ *  templates that predate this feature, or no-template legacy defaults) —
+ *  then filtered for onlyIfRequiresExaminers stages (see above). */
 export function resolveMilestoneRouting(
   spec: WorkflowMilestoneSpec,
   templateDefaultRouting: MilestoneRoutingSpec | null | undefined
 ): MilestoneRoutingSpec {
-  return spec.routing ?? templateDefaultRouting ?? DEFAULT_ROUTING;
+  const routing = spec.routing ?? templateDefaultRouting ?? DEFAULT_ROUTING;
+  return filterRoutingForMilestone(routing, spec.requiresExaminers);
 }
 
 // Legacy fallback — the milestone TYPE ordering every faculty used before a

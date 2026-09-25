@@ -609,6 +609,10 @@ export interface AssignedMilestone {
   // "already graded" apart from "not yet" for this examiner.
   stageScores?: Record<string, { score: number; gradedBy: string }> | null;
   routing?: Array<{ id: string; role: string; action: string }> | null;
+  // Set once a requiresExaminers milestone's pre-check-only chain has
+  // finished (see server's isChainDriven) — the milestone isn't complete,
+  // just handed off to the examiner-panel flow.
+  chainPrecheckComplete?: boolean;
   // Position among this project's own milestones, snapshotted from the
   // faculty's workflow template at enrollment (see projectEnrollment.ts) —
   // the only reliable way to tell whether a 'defense' milestone sitting at
@@ -718,6 +722,11 @@ export interface PendingMilestone {
    *  status filter while its current stage belongs to a different role/action. */
   routing?: { action: 'grade' | 'approve'; [key: string]: any }[] | null;
   currentStageIndex?: number;
+  /** Set once a requiresExaminers milestone's pre-check-only chain has
+   *  finished (see server's isChainDriven) — the milestone isn't complete,
+   *  just handed off to the examiner-panel flow, so this array's own
+   *  "current stage" checks no longer apply to it. */
+  chainPrecheckComplete?: boolean;
 
   examinerIds: string[];
   examiner1Score: number | null;
