@@ -32,6 +32,7 @@ import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { MyProjectsWidget } from '@/components/MyProjectsWidget';
 import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
+import { CommitteeConflictsTab } from './CommitteeConflictsTab';
 import { UngradedCsMastersTab } from '@/components/students/UngradedCsMastersTab';
 import { StudentsListTab } from '@/components/students/StudentsListTab';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
@@ -209,6 +210,13 @@ function AdministrativeCoordinatorDashboardContent() {
   // her (navSections.ts's `visible`), but this re-checks server-equivalent
   // scope here too so a direct/typed ?tab=ungraded URL can't bypass it.
   const canSeeUngraded = withinCoordinatorScope(userData, CS_MASTERS_SCOPE);
+  // "Replace Committee Member" only makes sense for a coordinator narrowed
+  // to a specific major (a whole-faculty coordinator has no single
+  // committee this feature could scope its conflict list to) — see
+  // scopeAuthorization.ts's isStudentWithinStaffScope for the same
+  // "empty scope means no narrowing, not 'everything'" reasoning school_head
+  // uses. Mirrors the sidebar's own `visible` gate (navSections.ts).
+  const canSeeCommitteeConflicts = (userData?.coordinatorScopes ?? []).some((s) => s.major);
   // Faculty/major restriction for the "Add Student" form (NewUserModal's
   // `scope.allowedScopes`) — mirrors withinCoordinatorScope's own fallback
   // (facultyId-only lock when no coordinatorScopes are configured) so the
@@ -243,8 +251,10 @@ function AdministrativeCoordinatorDashboardContent() {
   // land back on the Students Report tab instead of always resetting to
   // Groups.
   const paramTab = searchParams.get('tab');
-  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' | 'ungraded' | 'users' =
-    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' || paramTab === 'users' || (paramTab === 'ungraded' && canSeeUngraded)
+  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' | 'ungraded' | 'users' | 'committeeConflicts' =
+    paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' || paramTab === 'users'
+      || (paramTab === 'ungraded' && canSeeUngraded)
+      || (paramTab === 'committeeConflicts' && canSeeCommitteeConflicts)
       ? paramTab
       : 'groups';
   const [facultyId, setFacultyId] = useState('');
@@ -369,6 +379,8 @@ function AdministrativeCoordinatorDashboardContent() {
           <FieldGuideOverlay guideKey={OVERRIDES_TAB_GUIDE_KEY} steps={OVERRIDES_TAB_FIELD_GUIDE} />
           <GradeOverridesTab />
         </div>
+      ) : activeTab === 'committeeConflicts' ? (
+        <CommitteeConflictsTab />
       ) : activeTab === 'students' ? (
         <div data-field-guide-id="reportList">
           <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />

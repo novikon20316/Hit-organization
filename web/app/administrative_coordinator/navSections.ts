@@ -58,6 +58,22 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         badgeTargetScreens: ['admin_coordinator_overrides'],
       },
       {
+        key: 'committeeConflicts',
+        icon: '🔁',
+        href: '/administrative_coordinator/dashboard?tab=committeeConflicts',
+        label: { he: 'החלפת חבר ועדה', en: 'Replace Committee Member' },
+        description: {
+          he: 'פרויקטים בהם המנחה הוא גם חבר בוועדה שתבחן אותו — יש להחליף אותו.',
+          en: "Projects where the supervisor is also on the committee reviewing them — replace them.",
+        },
+        isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'committeeConflicts',
+        badgeTargetScreens: ['admin_coordinator_committee_conflicts'],
+        // Only makes sense for a coordinator narrowed to a specific major —
+        // a whole-faculty coordinator has no single committee this scopes
+        // its conflict list to. Mirrors the page's own re-check.
+        visible: (userData) => (userData?.coordinatorScopes ?? []).some((s: { major?: string }) => s.major),
+      },
+      {
         key: 'ungraded',
         icon: '📝',
         href: '/administrative_coordinator/dashboard?tab=ungraded',

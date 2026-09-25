@@ -2803,7 +2803,33 @@ export const apiClient = {
   async submitExaminerOneSignoff(milestoneId: string) {
     return request<{ success: boolean }>(`/api/milestones/${milestoneId}/examiner-one-signoff`, { method: 'POST', body: {} });
   },
+
+  // "Replace Committee Member" — administrative_secretary's conflict-of-
+  // interest tab. See server/src/services/committeeConflicts.ts.
+  async getCommitteeConflicts() {
+    return request<{ conflicts: CommitteeConflict[] }>('/api/committees/conflicts', { method: 'GET' });
+  },
+
+  async substituteCommitteeMember(projectId: string, originalUserId: string, replacementUserId: string) {
+    return request<{ success: boolean }>(`/api/committees/projects/${projectId}/substitute-member`, {
+      method: 'POST',
+      body: { originalUserId, replacementUserId },
+    });
+  },
 };
+
+export interface CommitteeConflict {
+  projectId: string;
+  milestoneId: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string;
+  major: string;
+  conflictedUserId: string;
+  conflictedUserName: string;
+  conflictRole: 'chairman' | 'member';
+  supervisorRole: 'supervisor' | 'secondary_supervisor';
+}
 
 export interface ParallelSignoffStatus {
   preGradeSignoffs: { committee?: boolean; examinerOne?: boolean } | null;

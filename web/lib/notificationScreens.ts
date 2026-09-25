@@ -14,7 +14,7 @@ import type { AppRole } from './roles';
 
 type NotificationTaskKind =
   | 'milestone_action' | 'signoff' | 'deadline_examiner' | 'defense'
-  | 'archived_erasure' | 'applications' | 'grade_published' | 'system_error';
+  | 'archived_erasure' | 'applications' | 'grade_published' | 'system_error' | 'committee_conflict';
 
 function targetScreenFor(role: string | undefined | null, kind: NotificationTaskKind): string | null {
   switch (kind) {
@@ -83,6 +83,8 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
       }
     case 'system_error':
       return role === 'system_admin' ? 'admin_system_health' : null;
+    case 'committee_conflict':
+      return role === 'administrative_secretary' ? 'admin_coordinator_committee_conflicts' : null;
     default:
       return null;
   }
@@ -90,7 +92,7 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
 
 const ALL_TASK_KINDS: NotificationTaskKind[] = [
   'milestone_action', 'signoff', 'deadline_examiner', 'defense',
-  'archived_erasure', 'applications', 'grade_published', 'system_error',
+  'archived_erasure', 'applications', 'grade_published', 'system_error', 'committee_conflict',
 ];
 
 /** Every targetScreen key `role` can ever be notified into — see this

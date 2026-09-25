@@ -5,6 +5,8 @@ import {
   listEligibleCommitteeMembers,
   createCommittee,
   updateCommittee,
+  getCommitteeConflicts,
+  substituteCommitteeMember,
 } from '../controllers/committeeController.js';
 import { getMyPendingCommitteeReviews } from '../controllers/committeeReviewController.js';
 import { getMyPendingChairDecisions } from '../controllers/parallelSignoffController.js';
@@ -20,6 +22,10 @@ router.get('/mine/pending-reviews', verifyToken, getMyPendingCommitteeReviews);
 // pending-reviews above, for milestones outside the sequential chain.
 router.get('/mine/pending-chair-decisions', verifyToken, getMyPendingChairDecisions);
 router.get('/eligible-members', verifyToken, listEligibleCommitteeMembers);
+// "Replace Committee Member" — administrative_secretary's conflict-of-
+// interest tab. Fixed paths, mounted ahead of the generic '/:id' below.
+router.get('/conflicts', verifyToken, getCommitteeConflicts);
+router.post('/projects/:projectId/substitute-member', verifyToken, substituteCommitteeMember);
 router.get('/', verifyToken, listCommittees);
 router.post('/', verifyToken, createCommittee);
 router.put('/:id', verifyToken, updateCommittee);

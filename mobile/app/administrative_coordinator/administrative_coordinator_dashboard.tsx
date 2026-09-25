@@ -169,6 +169,28 @@ interface GradeOverrideRow {
   gradeOverrideFileUrls: string[];
 }
 
+// "Replace Committee Member" — see web/app/administrative_coordinator/
+// dashboard/CommitteeConflictsTab.tsx and server/src/services/
+// committeeConflicts.ts, which this mirrors.
+interface CommitteeConflictRow {
+  projectId: string;
+  milestoneId: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string;
+  major: string;
+  conflictedUserId: string;
+  conflictedUserName: string;
+  conflictRole: 'chairman' | 'member';
+  supervisorRole: 'supervisor' | 'secondary_supervisor';
+}
+interface EligibleMember {
+  id: string;
+  displayName: string;
+  email: string;
+  role: string;
+}
+
 function FileLinksRow({ label, urls }: { label: string; urls: string[] }) {
   if (urls.length === 0) return null;
   return (
@@ -605,8 +627,8 @@ export default function ProjectCoordinatorDashboard() {
   // Lets a notification's "Go to dashboard" deep-link land on a specific tab
   // (?tab=...) instead of always opening on Groups — same convention the web
   // dashboard already supports.
-  type AdminCoordinatorTab = 'groups' | 'students' | 'overrides';
-  const ADMIN_COORDINATOR_TABS: AdminCoordinatorTab[] = ['groups', 'students', 'overrides'];
+  type AdminCoordinatorTab = 'groups' | 'students' | 'overrides' | 'committeeConflicts';
+  const ADMIN_COORDINATOR_TABS: AdminCoordinatorTab[] = ['groups', 'students', 'overrides', 'committeeConflicts'];
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useState<AdminCoordinatorTab>(
     ADMIN_COORDINATOR_TABS.includes(tabParam as AdminCoordinatorTab) ? (tabParam as AdminCoordinatorTab) : 'groups'
@@ -616,11 +638,19 @@ export default function ProjectCoordinatorDashboard() {
   // SidebarShell.tsx and mobile's coordinator/home.tsx.
   const { unreadByTargetScreen, markTabSeen } = useNotifications();
   const overridesBadgeCount = unreadByTargetScreen['admin_coordinator_overrides'] ?? 0;
+  const conflictsBadgeCount = unreadByTargetScreen['admin_coordinator_committee_conflicts'] ?? 0;
   useEffect(() => {
     if (activeTab === 'overrides' && overridesBadgeCount > 0) {
       markTabSeen(['admin_coordinator_overrides']);
     }
-  }, [activeTab, overridesBadgeCount, markTabSeen]);
+    if (activeTab === 'committeeConflicts' && conflictsBadgeCount > 0) {
+      markTabSeen(['admin_coordinator_committee_conflicts']);
+    }
+  }, [activeTab, overridesBadgeCount, conflictsBadgeCount, markTabSeen]);
+  // "Replace Committee Member" only makes sense for a coordinator narrowed
+  // to a specific major — see web's page.tsx canSeeCommitteeConflicts for
+  // the same reasoning.
+  const canSeeCommitteeConflicts = (data?.scopes ?? []).some((s) => s.major);
   const [studentsReport, setStudentsReport] = useState<StudentReportRow[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
@@ -636,6 +666,15 @@ export default function ProjectCoordinatorDashboard() {
   const [overridesLoading, setOverridesLoading] = useState(false);
   const [overridesLoaded, setOverridesLoaded] = useState(false);
   const [overrideBusyId, setOverrideBusyId] = useState<string | null>(null);
+
+  // ── Replace Committee Member tab ─────────────────────────────────────────
+  const [conflicts, setConflicts] = useState<CommitteeConflictRow[]>([]);
+  const [conflictsLoading, setConflictsLoading] = useState(false);
+  const [conflictsLoaded, setConflictsLoaded] = useState(false);
+  const [replacingKey, setReplacingKey] = useState<string | null>(null);
+  const [membersByFaculty, setMembersByFaculty] = useState<Record<string, EligibleMember[]>>({});
+  const [selectedReplacement, setSelectedReplacement] = useState('');
+  const [conflictBusy, setConflictBusy] = useState(false);
 
   // ── Add Project modal state ─────────────────────────────────────────────
   // Net-new — the administrative coordinator role previously had no project-creation
@@ -674,7 +713,6 @@ export default function ProjectCoordinatorDashboard() {
       const res = await apiClient.get(`/api/project-coordinator/${uid}/dashboard`);
       setData(res.data);
     } catch (e: any) {
-      console.error('administrative_coordinator dashboard error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
@@ -695,7 +733,6 @@ export default function ProjectCoordinatorDashboard() {
       setStudentsReport(res.data.students ?? []);
       setStudentsNoScope(!!res.data.noScopeAssigned);
     } catch (e: any) {
-      console.error('students report error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
@@ -769,7 +806,6 @@ export default function ProjectCoordinatorDashboard() {
       const res = await apiClient.get('/api/project-coordinator/grade-overrides');
       setOverrides(res.data.overrides ?? []);
     } catch (e: any) {
-      console.error('grade overrides fetch error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
@@ -784,6 +820,55 @@ export default function ProjectCoordinatorDashboard() {
   useEffect(() => {
     if (activeTab === 'overrides' && !overridesLoaded) fetchOverrides();
   }, [activeTab, overridesLoaded, fetchOverrides]);
+
+  const fetchConflicts = useCallback(async () => {
+    setConflictsLoading(true);
+    try {
+      const res = await apiClient.get('/api/committees/conflicts');
+      setConflicts(res.data.conflicts ?? []);
+    } catch (e: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data');
+    } finally {
+      setConflictsLoading(false);
+      setConflictsLoaded(true);
+    }
+  }, [lang]);
+
+  useEffect(() => {
+    if (activeTab === 'committeeConflicts' && !conflictsLoaded) fetchConflicts();
+  }, [activeTab, conflictsLoaded, fetchConflicts]);
+
+  const openReplace = async (c: CommitteeConflictRow) => {
+    const key = `${c.projectId}:${c.conflictedUserId}`;
+    setReplacingKey(key);
+    setSelectedReplacement('');
+    if (!membersByFaculty[c.facultyId]) {
+      try {
+        const res = await apiClient.get('/api/committees/eligible-members', { params: { facultyId: c.facultyId } });
+        setMembersByFaculty((prev) => ({ ...prev, [c.facultyId]: res.data.members ?? [] }));
+      } catch {
+        // The picker just shows "no candidates" below if this failed.
+      }
+    }
+  };
+
+  const handleSubstitute = async (c: CommitteeConflictRow) => {
+    if (!selectedReplacement) return;
+    setConflictBusy(true);
+    try {
+      await apiClient.post(`/api/committees/projects/${c.projectId}/substitute-member`, {
+        originalUserId: c.conflictedUserId,
+        replacementUserId: selectedReplacement,
+      });
+      setReplacingKey(null);
+      setSelectedReplacement('');
+      await fetchConflicts();
+    } catch (e: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e.response?.data?.message || (lang === 'he' ? 'ההחלפה נכשלה' : 'Failed to replace the member'));
+    } finally {
+      setConflictBusy(false);
+    }
+  };
 
   const decideOverride = async (milestoneId: string, decision: 'approve_override' | 'keep_auto') => {
     setOverrideBusyId(milestoneId);
@@ -821,7 +906,7 @@ export default function ProjectCoordinatorDashboard() {
         const eligible: AppUser[] = (r.data || []).filter((sup: any) => sup.eligibleAsSupervisor);
         setAllSupervisors(eligible);
       })
-      .catch((err) => console.error('Error loading supervisors for selected faculties:', err));
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -1009,9 +1094,11 @@ export default function ProjectCoordinatorDashboard() {
         ))}
       </View>
 
-      {/* Tab switcher: Project Groups / Students Report / Grade Overrides */}
+      {/* Tab switcher: Project Groups / Students Report / Grade Overrides /
+          Replace Committee Member (only for a coordinator narrowed to a
+          specific major — see canSeeCommitteeConflicts above) */}
       <View style={s.filterRow}>
-        {(['groups', 'students', 'overrides'] as const).map((key) => (
+        {(['groups', 'students', 'overrides', ...(canSeeCommitteeConflicts ? ['committeeConflicts' as const] : [])] as const).map((key) => (
           <TourTarget key={key} tourKey={key}>
             <Pressable
               style={[s.filterChip, { flexDirection: 'row', alignItems: 'center' }, activeTab === key && { backgroundColor: fc.primary }]}
@@ -1023,9 +1110,12 @@ export default function ProjectCoordinatorDashboard() {
                   ? (lang === 'he' ? 'קבוצות פרויקט' : 'Project Groups')
                   : key === 'students'
                     ? (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')
-                    : (lang === 'he' ? 'אישור ציונים סופיים' : 'Final Grade Approvals')}
+                    : key === 'overrides'
+                      ? (lang === 'he' ? 'אישור ציונים סופיים' : 'Final Grade Approvals')
+                      : (lang === 'he' ? 'החלפת חבר ועדה' : 'Replace Committee Member')}
               </Text>
               {key === 'overrides' && <TabBadge count={overridesBadgeCount} />}
+              {key === 'committeeConflicts' && <TabBadge count={conflictsBadgeCount} />}
             </Pressable>
           </TourTarget>
         ))}
@@ -1035,8 +1125,8 @@ export default function ProjectCoordinatorDashboard() {
         contentContainerStyle={s.scroll}
         refreshControl={
           <RefreshControl
-            refreshing={activeTab === 'groups' ? refreshing : activeTab === 'students' ? studentsLoading : overridesLoading}
-            onRefresh={activeTab === 'groups' ? onRefresh : activeTab === 'students' ? fetchStudentsReport : fetchOverrides}
+            refreshing={activeTab === 'groups' ? refreshing : activeTab === 'students' ? studentsLoading : activeTab === 'committeeConflicts' ? conflictsLoading : overridesLoading}
+            onRefresh={activeTab === 'groups' ? onRefresh : activeTab === 'students' ? fetchStudentsReport : activeTab === 'committeeConflicts' ? fetchConflicts : fetchOverrides}
           />
         }
       >
@@ -1140,6 +1230,95 @@ export default function ProjectCoordinatorDashboard() {
                   )}
                 </View>
               ))
+            )}
+          </View>
+        ) : activeTab === 'committeeConflicts' ? (
+          <View>
+            <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 10 }}>
+              {lang === 'he'
+                ? 'פרויקטים בהם המנחה הוא גם חבר בוועדה שתבחן אותו — יש להחליף אותו במגמה זו בלבד.'
+                : "Projects where the supervisor is also on the committee reviewing them — replace them for this project only."}
+            </Text>
+            {conflictsLoading && !conflictsLoaded ? (
+              <ActivityIndicator style={{ marginTop: 24 }} />
+            ) : conflicts.length === 0 ? (
+              <View style={s.empty}>
+                <Text style={s.emptyEmoji}>✅</Text>
+                <Text style={s.emptyText}>{lang === 'he' ? 'אין ניגודי עניינים כרגע' : 'No conflicts right now'}</Text>
+              </View>
+            ) : (
+              conflicts.map((c) => {
+                const key = `${c.projectId}:${c.conflictedUserId}`;
+                const isReplacing = replacingKey === key;
+                const candidates = (membersByFaculty[c.facultyId] ?? []).filter((m) => m.id !== c.conflictedUserId);
+                return (
+                  <View key={key} style={[s.card, { borderLeftColor: '#EF4444' }]}>
+                    <Text style={s.cardTitle}>{lang === 'he' ? (c.projectTitleHe || c.projectTitleEn) : (c.projectTitleEn || c.projectTitleHe)}</Text>
+                    <Text style={s.cardSub}>
+                      {lang === 'he'
+                        ? `${c.conflictedUserName} הוא ${c.conflictRole === 'chairman' ? 'יו"ר' : 'חבר'} הוועדה, וגם ${c.supervisorRole === 'supervisor' ? 'המנחה' : 'המנחה המשני'} של הפרויקט.`
+                        : `${c.conflictedUserName} is ${c.conflictRole === 'chairman' ? 'the chairman' : 'a member'} of the committee, and also the project's ${c.supervisorRole === 'supervisor' ? 'supervisor' : 'secondary supervisor'}.`}
+                    </Text>
+
+                    {isReplacing ? (
+                      <View style={{ marginTop: 10 }}>
+                        {candidates.length === 0 ? (
+                          <Text style={{ fontSize: 12, color: ap.onSurfaceVariant }}>
+                            {lang === 'he' ? 'אין מועמדים זמינים' : 'No candidates available'}
+                          </Text>
+                        ) : (
+                          candidates.map((m) => (
+                            <Pressable
+                              key={m.id}
+                              onPress={() => setSelectedReplacement(m.id)}
+                              style={{
+                                flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8,
+                                borderBottomWidth: 1, borderBottomColor: ap.outlineVariant,
+                              }}
+                              accessibilityRole="radio"
+                              accessibilityState={{ checked: selectedReplacement === m.id }}
+                            >
+                              <View style={{
+                                width: 16, height: 16, borderRadius: 8, borderWidth: 2,
+                                borderColor: selectedReplacement === m.id ? '#EF4444' : ap.outlineVariant,
+                                backgroundColor: selectedReplacement === m.id ? '#EF4444' : 'transparent',
+                              }} />
+                              <Text style={{ fontSize: 13, color: ap.onSurface }}>{m.displayName} ({m.role})</Text>
+                            </Pressable>
+                          ))
+                        )}
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                          <Pressable
+                            style={[s.btnApproveOverride, { flex: 1, backgroundColor: selectedReplacement ? '#EF4444' : '#FCA5A5' }]}
+                            onPress={() => handleSubstitute(c)}
+                            disabled={!selectedReplacement || conflictBusy}
+                            accessibilityRole="button"
+                          >
+                            <Text style={s.btnApproveOverrideText}>
+                              {conflictBusy ? (lang === 'he' ? 'מחליף...' : 'Replacing...') : (lang === 'he' ? 'אשר/י החלפה' : 'Confirm replacement')}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[s.btnKeepAuto, { flex: 1 }]}
+                            onPress={() => { setReplacingKey(null); setSelectedReplacement(''); }}
+                            accessibilityRole="button"
+                          >
+                            <Text style={s.btnKeepAutoText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : (
+                      <Pressable
+                        style={[s.btnApproveOverride, { marginTop: 10, backgroundColor: '#EF4444' }]}
+                        onPress={() => openReplace(c)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={s.btnApproveOverrideText}>🔁 {lang === 'he' ? 'החלף/י חבר ועדה' : 'Replace committee member'}</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                );
+              })
             )}
           </View>
         ) : activeTab === 'students' ? (

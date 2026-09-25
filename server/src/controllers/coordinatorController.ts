@@ -15,6 +15,7 @@ import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMil
 import { deriveProcessType, resolveExaminerSignoffRole, isDefenseDateConfirmed, type ChainStage } from '../services/workflowTemplates.js';
 import { authorizeStageActor, isAutoAdvanceStage, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
+import { resolveCommitteeForProject } from './committeeController.js';
 import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
 
@@ -1063,6 +1064,46 @@ async function approveChainMilestone(
         })
       ));
 
+      // "Replace Committee Member" — the chain just put this project in
+      // front of her; if its supervisor is ALSO on the committee that will
+      // review it, this is the checkpoint to catch and fix that before it
+      // becomes a real conflict at the committee stage. See
+      // services/committeeConflicts.ts for the same check her tab's list
+      // endpoint runs (this is the proactive "you have something new" ping;
+      // that endpoint is the authoritative, always-current list).
+      if (advancedToStage.role === 'administrative_secretary' && milestone.projectId) {
+        try {
+          const projectSnap = await db.collection('projects').doc(milestone.projectId).get();
+          const project = projectSnap.exists ? projectSnap.data()! : null;
+          const committee = project ? await resolveCommitteeForProject(project) : null;
+          const conflictedId = committee && project
+            ? [project.supervisorId, project.secondarySupervisorId].find(
+                (id) => id && (committee.chairmanId === id || committee.memberIds.includes(id))
+              )
+            : undefined;
+          if (conflictedId) {
+            await Promise.all(nextActorIds.map((uid) =>
+              notifyUser({
+                recipientId: uid,
+                type: 'general',
+                inAppType: 'committee_member_conflict',
+                titleHe: '⚠️ ניגוד עניינים בוועדה',
+                titleEn: '⚠️ Committee conflict of interest',
+                bodyHe: `המנחה של "${project!.titleHe ?? project!.titleEn ?? ''}" הוא גם חבר בוועדה שתבחן את הפרויקט. יש להחליף אותו.`,
+                bodyEn: `The supervisor of "${project!.titleEn ?? project!.titleHe ?? ''}" is also on the committee reviewing it. Replace them.`,
+                relatedProjectId: milestone.projectId,
+                relatedMilestoneId: milestoneId,
+                channels: { email: false, sms: false },
+                taskKind: 'committee_conflict',
+              }).catch((notifyError) => {
+                console.error(`approveChainMilestone: committee-conflict notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);
+              })
+            ));
+          }
+        } catch (conflictErr) {
+          console.error(`approveChainMilestone: committee-conflict check failed for milestone ${milestoneId}:`, conflictErr);
+        }
+      }
     }
 
     // Auto-advanced administrative_secretary 'notify' stage(s) — she was

@@ -28,6 +28,7 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
+import { findCommitteeConflictsForScopes } from '../services/committeeConflicts.js';
 
 export type CommitteeType = 'thesis' | 'final_project';
 export type CommitteeDegreeLevel = 'bachelors' | 'masters';
@@ -125,10 +126,17 @@ export const getMyCommittees = async (req: AuthenticatedRequest, res: Response) 
  *  workflow-chain role, isn't tied to one specific existing role) — just a
  *  helpful default candidate pool for the picker UI. */
 export const listEligibleCommitteeMembers = async (req: AuthenticatedRequest, res: Response) => {
-  if (!isSystemAdmin(req) && !(await isAnyCommitteeChairman(req.user?.uid))) {
-    return res.status(403).json({ message: 'Access denied: system_admin or a committee chairman only.' });
-  }
   const { facultyId } = req.query;
+  // administrative_secretary needs this for "Replace Committee Member" —
+  // scoped to a facultyId she's actually assigned to (coordinatorScopes),
+  // never an arbitrary one, unlike system_admin/a chairman's open access.
+  const isScopedSecretary =
+    hasAnyRole(req.user, ['administrative_secretary']) &&
+    typeof facultyId === 'string' && !!facultyId &&
+    (req.user?.coordinatorScopes ?? []).some((s) => s.facultyId === facultyId);
+  if (!isSystemAdmin(req) && !isScopedSecretary && !(await isAnyCommitteeChairman(req.user?.uid))) {
+    return res.status(403).json({ message: 'Access denied: system_admin, a scoped administrative coordinator, or a committee chairman only.' });
+  }
   try {
     const queries = [db.collection('users').where('facultyId', '==', 'all').get()];
     if (typeof facultyId === 'string' && facultyId) {
@@ -286,6 +294,12 @@ export async function resolveCommitteeForProject(projectData: {
   degreeType?: string;
   projectType?: string;
   enrolledStudentIds?: string[];
+  /** Per-project chairman/member recusal — see "Replace Committee Member"
+   *  (administrative_secretary's conflict-of-interest tab). Maps an
+   *  ORIGINAL committee-doc uid to the REPLACEMENT chosen for this project
+   *  only — the shared department committee doc itself is never touched, so
+   *  every other project reviewed by the same committee is unaffected. */
+  committeeMemberSubstitutions?: Record<string, string> | null;
 }): Promise<CommitteeDoc | null> {
   const facultyId = projectData.facultyId ?? '';
   let major = projectData.major ?? '';
@@ -300,5 +314,113 @@ export async function resolveCommitteeForProject(projectData: {
   const degreeLevel: CommitteeDegreeLevel = degreeType === 'masters' ? 'masters' : 'bachelors';
   const type: CommitteeType = degreeLevel === 'masters' && projectData.projectType === 'thesis' ? 'thesis' : 'final_project';
   const snap = await db.collection('committees').doc(committeeDocId(facultyId, major, degreeLevel, type)).get();
-  return snap.exists ? ({ id: snap.id, ...snap.data() } as CommitteeDoc) : null;
+  if (!snap.exists) return null;
+  const committee = { id: snap.id, ...snap.data() } as CommitteeDoc;
+  return applyCommitteeSubstitutions(committee, projectData.committeeMemberSubstitutions);
 }
+
+/** Swaps any chairman/member uid that has a per-project substitution entry
+ *  for its replacement — see resolveCommitteeForProject's doc comment.
+ *  Applied at every point a project's EFFECTIVE (not raw shared-doc)
+ *  committee membership is needed: authorization, voting, notifications. */
+export function applyCommitteeSubstitutions(
+  committee: CommitteeDoc,
+  substitutions: Record<string, string> | null | undefined
+): CommitteeDoc {
+  if (!substitutions || Object.keys(substitutions).length === 0) return committee;
+  const chairmanId = committee.chairmanId ? (substitutions[committee.chairmanId] ?? committee.chairmanId) : committee.chairmanId;
+  const memberIds = [...new Set(committee.memberIds.map((id) => substitutions[id] ?? id))];
+  return { ...committee, chairmanId, memberIds };
+}
+
+// ─── "Replace Committee Member" (administrative_secretary) ────────────────
+
+/** GET /api/committees/conflicts — every project in the caller's own
+ *  coordinatorScopes where her stage is currently pending AND the project's
+ *  supervisor (or secondary supervisor) is also chairman/member of the
+ *  committee reviewing it. administrative_secretary only (system_admin can
+ *  already see everything via the committees list itself) — see
+ *  services/committeeConflicts.ts. */
+export const getCommitteeConflicts = async (req: AuthenticatedRequest, res: Response) => {
+  if (!hasAnyRole(req.user, ['administrative_secretary'])) {
+    return res.status(403).json({ message: 'Access denied: administrative coordinator only.' });
+  }
+  try {
+    const conflicts = await findCommitteeConflictsForScopes(req.user?.coordinatorScopes ?? []);
+    return res.status(200).json({ conflicts });
+  } catch (error: any) {
+    console.error('getCommitteeConflicts error:', error);
+    return res.status(500).json({ message: 'Failed to load committee conflicts.' });
+  }
+};
+
+/** POST /api/committees/projects/:projectId/substitute-member
+ *  Body: { originalUserId, replacementUserId }
+ *
+ *  Recuses `originalUserId` from THIS project's committee review only — see
+ *  resolveCommitteeForProject's doc comment for why this is a per-project
+ *  map, not an edit to the shared committee doc. administrative_secretary
+ *  may only do this within her own coordinatorScopes (the project's
+ *  facultyId/major must be one she's assigned to); system_admin unrestricted. */
+export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  const { projectId } = req.params as { projectId: string };
+  const { originalUserId, replacementUserId } = req.body ?? {};
+  if (!projectId) return res.status(400).json({ message: 'Invalid projectId.' });
+  if (typeof originalUserId !== 'string' || !originalUserId) {
+    return res.status(400).json({ message: 'originalUserId is required.' });
+  }
+  if (typeof replacementUserId !== 'string' || !replacementUserId) {
+    return res.status(400).json({ message: 'replacementUserId is required.' });
+  }
+  if (originalUserId === replacementUserId) {
+    return res.status(400).json({ message: 'The replacement must be a different person.' });
+  }
+
+  try {
+    const projectRef = db.collection('projects').doc(projectId);
+    const projectSnap = await projectRef.get();
+    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    const project = projectSnap.data()!;
+
+    if (!isSystemAdmin(req)) {
+      if (!hasAnyRole(req.user, ['administrative_secretary'])) {
+        return res.status(403).json({ message: 'Access denied: administrative coordinator only.' });
+      }
+      const inScope = (req.user?.coordinatorScopes ?? []).some(
+        (s) => s.facultyId === project.facultyId && (!s.major || s.major === project.major)
+      );
+      if (!inScope) return res.status(403).json({ message: 'This project is outside your assigned scope.' });
+    }
+
+    // The replacement can't be the very thing being fixed — someone who's
+    // ALSO one of this project's supervisors would just recreate the same
+    // conflict under a different name.
+    if (replacementUserId === project.supervisorId || replacementUserId === project.secondarySupervisorId) {
+      return res.status(400).json({ message: "The replacement can't be this project's own supervisor." });
+    }
+
+    const committee = await resolveCommitteeForProject(project);
+    if (!committee) return res.status(400).json({ message: 'No committee is configured for this project yet.' });
+    const isCurrentMember = committee.chairmanId === originalUserId || committee.memberIds.includes(originalUserId);
+    if (!isCurrentMember) {
+      return res.status(400).json({ message: 'That person is not currently on this project\'s committee.' });
+    }
+
+    const replacementSnap = await db.collection('users').doc(replacementUserId).get();
+    if (!replacementSnap.exists || replacementSnap.data()?.role === 'student') {
+      return res.status(400).json({ message: 'Invalid replacement — must be an existing staff account.' });
+    }
+
+    await projectRef.set(
+      { committeeMemberSubstitutions: { [originalUserId]: replacementUserId } },
+      { merge: true }
+    );
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('substituteCommitteeMember error:', error);
+    return res.status(500).json({ message: 'Failed to substitute the committee member.' });
+  }
+};
