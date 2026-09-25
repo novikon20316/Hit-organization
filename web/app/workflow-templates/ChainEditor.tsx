@@ -11,8 +11,13 @@
 import { useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { CommitteeRecord } from '@/lib/apiClient';
+import { majorsForFaculty } from '@/lib/permissions';
 import { CHAIN_ROLES, chainRoleLabel, type ChainStage } from './types';
 import { InfoTooltip } from '@/components/InfoTooltip';
+
+function committeeMajorLabel(c: CommitteeRecord, lang: 'he' | 'en'): string {
+  return majorsForFaculty(c.facultyId).find((m) => m.slug === c.major)?.label[lang] ?? c.major;
+}
 
 const STAGE_INFO = {
   he: 'מי מטפל בשלב הזה בשרשרת (תפקיד), ומה הם עושים — מדרגים את אבן הדרך עם ציון, או רק מאשרים/דוחים אותה ללא ציון.',
@@ -156,7 +161,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                       {lang === 'he' ? '— בחר ועדה —' : '— Choose a committee —'}
                     </option>
                     {committees.map((c) => (
-                      <option key={c.id} value={c.id}>{c.major}</option>
+                      <option key={c.id} value={c.id}>{committeeMajorLabel(c, lang)}</option>
                     ))}
                   </select>
                 </label>
